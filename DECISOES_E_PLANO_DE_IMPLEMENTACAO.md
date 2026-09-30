@@ -1,7 +1,8 @@
 # Crypto WhatsApp — decisões e plano de implementação
 
 Data: 29 de setembro de 2026  
-Estado: planejamento aprovado conceitualmente; implementação ainda não iniciada.  
+Estado: planejamento aprovado conceitualmente; bloco 00 em andamento, com base local de preparação e verificações. Ainda não há aplicação de chat.
+
 Nome de trabalho: Crypto WhatsApp. O nome público e a identidade visual serão definidos depois.
 
 ## 1. Objetivo do produto
@@ -18,44 +19,44 @@ Este documento registra o escopo, a arquitetura pretendida e a sequência de exe
 
 ## 2. Decisões consolidadas
 
-| Tema | Decisão |
-| --- | --- |
-| Plataforma | Aplicação inteiramente web, responsiva e instalável como PWA. |
-| Identidade | Perfil próprio e identificador estável dentro do app; wallet como forma de autenticação. |
-| Ecossistema inicial | Login EVM inicialmente. Token do projeto provavelmente em Solana, ainda não decidido; estudar prova adicional de wallet Solana para criar grupos sem substituir login EVM. |
-| Troca/recuperação de wallet | Fora do escopo inicial. Isso não cancela recuperação do histórico/cofre com a wallet original e o segredo apropriado. |
-| Perfil | Nome e foto editáveis; controles de visibilidade. |
-| Contatos | Adicionar por wallet, atribuir apelido particular e manter agenda criptografada. |
-| Cadastro prévio | Permitir salvar uma wallet ainda não cadastrada; oferecer convite quando ela não estiver habilitada para mensagens. |
-| Criptografia | Ponta a ponta por padrão, incluindo mensagens, arquivos e conteúdo privado dos status. |
-| Histórico | Cofre pessoal completo dentro de cota e cofre próprio para cada grupo. Preservação criptografada; armazenamento local para desempenho e uso offline. |
-| Dispositivos | Chaves e autorização próprias por dispositivo; sincronização entre aparelhos autorizados. |
-| Vinculação | Aprovação por aparelho existente via QR code/código, ou recuperação com segredo próprio. |
-| Recuperação | Login com wallet recupera acesso à conta; recuperar conteúdo exige aparelho autorizado ou chave de recuperação. |
-| Backup | Exportação e importação local de arquivo criptografado; inclusão de mídias selecionável. |
-| Hash de backup | Verificação auxiliar e registro opcional de versões; nunca única prova de legitimidade ou única condição de restauração. |
-| Entrega offline | Fila criptografada sem expiração automática para mensagens aceitas, com exceção explícita das mídias de grupo sujeitas à retenção rotativa, inclusive pendentes. |
-| Capacidade | Cota fixa inicial de 300 MB por conta, com controle de admissão. Não prometer armazenamento ou tráfego ilimitados. |
-| Cofre cheio | Aviso antecipado, exportação/exclusão pelo usuário e bloqueio de novas aceitações que não possam ser preservadas. Nunca descartar silenciosamente mensagens já aceitas. Grupos terão cota própria, com regras detalhadas ainda propostas. |
-| Contabilização | Conteúdo pessoal consome os 300 MB da conta; conteúdo compartilhado de grupo usa o cofre próprio do grupo. Download em outro aparelho não duplica a cobrança lógica. Status libera espaço ao expirar. |
-| Cofre de grupo | Decidido: 1 GB por grupo, compartilhado e criptografado, independente dos 300 MB pessoais. Divisão aprovada: 750 MB para mídias e 250 MB para texto/informações. Mídias podem expirar automaticamente, inclusive pendentes. |
-| Token e criação de grupos | Token próprio planejado pelo proprietário. Criar grupos é condicionado ao saldo no momento da criação: 10.000 tokens = 2 grupos; 50.000 = 10; 100.000 = sem teto de tier. Rede/mint ainda pendentes. Capacidade global e controle de abuso continuam aplicáveis. Usuários gratuitos podem participar de grupos e usar as demais funções. |
-| Exclusão | Separar apagar do aparelho, apagar do próprio cofre e solicitar exclusão para todos; não prometer eliminar cópias externas. |
-| Organizações | Emissor explícito e vínculo verificável com o projeto; assinatura de wallet desconhecida não concede selo de oficial. |
-| Limite de grupos | Começar com limite conservador, cujo número será definido após testes de sincronização/capacidade. |
-| Anexos iniciais | Máximo fixo inicial de 3 MB por arquivo. Sem suporte inicial a upload/armazenamento de vídeos. |
-| Histórico de grupos | Novos membros recebem mensagens posteriores à entrada; não têm acesso automático ao histórico anterior. |
-| Primeira versão pública | Núcleo básico proposto, mais áudio gravado, grupos, status, ZK e presença/leitura configuráveis. Áudio, grupos, status e ZK são implementados depois do núcleo básico. |
-| Presença e leitura | Online, visto por último e confirmação de leitura obrigatórios na V1, com controles individuais de privacidade. |
-| Descoberta/visibilidade | Endereço exato ou link/QR, sem diretório público; modo só por convite; solicitações antes do chat; foto para contatos aprovados e agenda particular. |
-| Chamadas | Voz individual incluída como último recurso a implementar/testar na V1, depois de todo o restante do escopo. Ponta a ponta, TURN obrigatório, sem gravação ou histórico persistente da chamada. Voz em grupo e videochamadas continuam fora da V1. |
-| Notificações | Web Push, som quando permitido, mute por conversa/grupo e bloqueio. |
-| Infraestrutura | Operação própria, com possibilidade de usar a VPS existente informada pelo proprietário; componentes gratuitos e nenhuma contratação/expansão paga automática. Medir disco, banda e recursos reais. |
-| Banco de dados | PostgreSQL como banco principal; mídias criptografadas em armazenamento de objetos/arquivos separado. Autovacuum precoce nas tabelas de alta rotatividade, com orçamento de recursos e monitoramento desde o início; ver seção 19. |
-| Proteção de lançamento | Proteção DDoS mínima comprovada antes de publicação aberta, incluindo mitigação upstream e defesa da aplicação. Provedor/proxy e cobertura serão verificados na VPS; nenhuma contratação automática. |
-| Blockchain | Recursos opcionais; mensagens comuns e login não exigem transações nem gas. |
-| Diferenciais blockchain da V1 | Representantes/permissões verificáveis e acordos assinados dentro da conversa, inicialmente com assinaturas fora da blockchain. Demais propostas ficam no roadmap. |
-| ZK | Manter a base de privacidade/autorização de grupos já planejada. Votações privadas, elegibilidade por ativos e credenciais/cotas avançadas ficam após a V1. Assinatura digital comum não deve ser anunciada como prova ZK. |
+| Tema                          | Decisão                                                                                                                                                                                                                                                                                                                                  |
+| ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Plataforma                    | Aplicação inteiramente web, responsiva e instalável como PWA.                                                                                                                                                                                                                                                                            |
+| Identidade                    | Perfil próprio e identificador estável dentro do app; wallet como forma de autenticação.                                                                                                                                                                                                                                                 |
+| Ecossistema inicial           | Login EVM inicialmente. Token do projeto provavelmente em Solana, ainda não decidido; estudar prova adicional de wallet Solana para criar grupos sem substituir login EVM.                                                                                                                                                               |
+| Troca/recuperação de wallet   | Fora do escopo inicial. Isso não cancela recuperação do histórico/cofre com a wallet original e o segredo apropriado.                                                                                                                                                                                                                    |
+| Perfil                        | Nome e foto editáveis; controles de visibilidade.                                                                                                                                                                                                                                                                                        |
+| Contatos                      | Adicionar por wallet, atribuir apelido particular e manter agenda criptografada.                                                                                                                                                                                                                                                         |
+| Cadastro prévio               | Permitir salvar uma wallet ainda não cadastrada; oferecer convite quando ela não estiver habilitada para mensagens.                                                                                                                                                                                                                      |
+| Criptografia                  | Ponta a ponta por padrão, incluindo mensagens, arquivos e conteúdo privado dos status.                                                                                                                                                                                                                                                   |
+| Histórico                     | Cofre pessoal completo dentro de cota e cofre próprio para cada grupo. Preservação criptografada; armazenamento local para desempenho e uso offline.                                                                                                                                                                                     |
+| Dispositivos                  | Chaves e autorização próprias por dispositivo; sincronização entre aparelhos autorizados.                                                                                                                                                                                                                                                |
+| Vinculação                    | Aprovação por aparelho existente via QR code/código, ou recuperação com segredo próprio.                                                                                                                                                                                                                                                 |
+| Recuperação                   | Login com wallet recupera acesso à conta; recuperar conteúdo exige aparelho autorizado ou chave de recuperação.                                                                                                                                                                                                                          |
+| Backup                        | Exportação e importação local de arquivo criptografado; inclusão de mídias selecionável.                                                                                                                                                                                                                                                 |
+| Hash de backup                | Verificação auxiliar e registro opcional de versões; nunca única prova de legitimidade ou única condição de restauração.                                                                                                                                                                                                                 |
+| Entrega offline               | Fila criptografada sem expiração automática para mensagens aceitas, com exceção explícita das mídias de grupo sujeitas à retenção rotativa, inclusive pendentes.                                                                                                                                                                         |
+| Capacidade                    | Cota fixa inicial de 300 MB por conta, com controle de admissão. Não prometer armazenamento ou tráfego ilimitados.                                                                                                                                                                                                                       |
+| Cofre cheio                   | Aviso antecipado, exportação/exclusão pelo usuário e bloqueio de novas aceitações que não possam ser preservadas. Nunca descartar silenciosamente mensagens já aceitas. Grupos terão cota própria, com regras detalhadas ainda propostas.                                                                                                |
+| Contabilização                | Conteúdo pessoal consome os 300 MB da conta; conteúdo compartilhado de grupo usa o cofre próprio do grupo. Download em outro aparelho não duplica a cobrança lógica. Status libera espaço ao expirar.                                                                                                                                    |
+| Cofre de grupo                | Decidido: 1 GB por grupo, compartilhado e criptografado, independente dos 300 MB pessoais. Divisão aprovada: 750 MB para mídias e 250 MB para texto/informações. Mídias podem expirar automaticamente, inclusive pendentes.                                                                                                              |
+| Token e criação de grupos     | Token próprio planejado pelo proprietário. Criar grupos é condicionado ao saldo no momento da criação: 10.000 tokens = 2 grupos; 50.000 = 10; 100.000 = sem teto de tier. Rede/mint ainda pendentes. Capacidade global e controle de abuso continuam aplicáveis. Usuários gratuitos podem participar de grupos e usar as demais funções. |
+| Exclusão                      | Separar apagar do aparelho, apagar do próprio cofre e solicitar exclusão para todos; não prometer eliminar cópias externas.                                                                                                                                                                                                              |
+| Organizações                  | Emissor explícito e vínculo verificável com o projeto; assinatura de wallet desconhecida não concede selo de oficial.                                                                                                                                                                                                                    |
+| Limite de grupos              | Começar com limite conservador, cujo número será definido após testes de sincronização/capacidade.                                                                                                                                                                                                                                       |
+| Anexos iniciais               | Máximo fixo inicial de 3 MB por arquivo. Sem suporte inicial a upload/armazenamento de vídeos.                                                                                                                                                                                                                                           |
+| Histórico de grupos           | Novos membros recebem mensagens posteriores à entrada; não têm acesso automático ao histórico anterior.                                                                                                                                                                                                                                  |
+| Primeira versão pública       | Núcleo básico proposto, mais áudio gravado, grupos, status, ZK e presença/leitura configuráveis. Áudio, grupos, status e ZK são implementados depois do núcleo básico.                                                                                                                                                                   |
+| Presença e leitura            | Online, visto por último e confirmação de leitura obrigatórios na V1, com controles individuais de privacidade.                                                                                                                                                                                                                          |
+| Descoberta/visibilidade       | Endereço exato ou link/QR, sem diretório público; modo só por convite; solicitações antes do chat; foto para contatos aprovados e agenda particular.                                                                                                                                                                                     |
+| Chamadas                      | Voz individual incluída como último recurso a implementar/testar na V1, depois de todo o restante do escopo. Ponta a ponta, TURN obrigatório, sem gravação ou histórico persistente da chamada. Voz em grupo e videochamadas continuam fora da V1.                                                                                       |
+| Notificações                  | Web Push, som quando permitido, mute por conversa/grupo e bloqueio.                                                                                                                                                                                                                                                                      |
+| Infraestrutura                | Operação própria, com possibilidade de usar a VPS existente informada pelo proprietário; componentes gratuitos e nenhuma contratação/expansão paga automática. Medir disco, banda e recursos reais.                                                                                                                                      |
+| Banco de dados                | PostgreSQL como banco principal; mídias criptografadas em armazenamento de objetos/arquivos separado. Autovacuum precoce nas tabelas de alta rotatividade, com orçamento de recursos e monitoramento desde o início; ver seção 19.                                                                                                       |
+| Proteção de lançamento        | Proteção DDoS mínima comprovada antes de publicação aberta, incluindo mitigação upstream e defesa da aplicação. Provedor/proxy e cobertura serão verificados na VPS; nenhuma contratação automática.                                                                                                                                     |
+| Blockchain                    | Recursos opcionais; mensagens comuns e login não exigem transações nem gas.                                                                                                                                                                                                                                                              |
+| Diferenciais blockchain da V1 | Representantes/permissões verificáveis e acordos assinados dentro da conversa, inicialmente com assinaturas fora da blockchain. Demais propostas ficam no roadmap.                                                                                                                                                                       |
+| ZK                            | Manter a base de privacidade/autorização de grupos já planejada. Votações privadas, elegibilidade por ativos e credenciais/cotas avançadas ficam após a V1. Assinatura digital comum não deve ser anunciada como prova ZK.                                                                                                               |
 
 Bibliotecas, rede EVM inicial e protocolo de mensagens ainda precisam de validação. Cota de 300 MB, teto de 3 MB e política de cofre completo estão decididos; não alterá-los silenciosamente por conveniência técnica. As regras de contabilização e admissão precisam ser implementadas de modo consistente; ver seção 12.
 
@@ -124,19 +125,19 @@ O app criptografa e descriptografa. O backend roteia e persiste. Adaptar dados d
 
 ### 5.1 Distribuição dos dados
 
-| Dado | Tratamento |
-| --- | --- |
-| Identidade, vínculo com wallet e chaves públicas | Diretório no servidor, com autorização verificável para alterações. |
-| Nome/foto públicos | Servidor, conforme visibilidade escolhida. Dados públicos não são apresentados como secretos. |
-| Perfil privado e agenda | Criptografados no cofre e nos dispositivos autorizados. |
-| Mensagens pendentes | Pacotes criptografados na fila, com referências de entrega. |
-| Histórico recuperável | Blocos criptografados e manifestos autenticados no cofre. |
-| Arquivos grandes | Objetos criptografados; download local sob demanda. |
-| Chaves secretas | Dispositivos; eventual cópia remota somente encapsulada sob proteção que o servidor não consegue abrir. |
-| Recuperação | Segredo gerado no cliente e guardado pelo usuário; nunca enviado legível. |
-| Preferências e apelidos | Sincronização criptografada, com resolução de conflitos. |
-| Push | Endpoints e material necessário ao envio no servidor; conteúdo genérico por padrão. |
-| Logs | Sem conteúdo ou segredos; dados operacionais mínimos e política explícita de retenção. |
+| Dado                                             | Tratamento                                                                                              |
+| ------------------------------------------------ | ------------------------------------------------------------------------------------------------------- |
+| Identidade, vínculo com wallet e chaves públicas | Diretório no servidor, com autorização verificável para alterações.                                     |
+| Nome/foto públicos                               | Servidor, conforme visibilidade escolhida. Dados públicos não são apresentados como secretos.           |
+| Perfil privado e agenda                          | Criptografados no cofre e nos dispositivos autorizados.                                                 |
+| Mensagens pendentes                              | Pacotes criptografados na fila, com referências de entrega.                                             |
+| Histórico recuperável                            | Blocos criptografados e manifestos autenticados no cofre.                                               |
+| Arquivos grandes                                 | Objetos criptografados; download local sob demanda.                                                     |
+| Chaves secretas                                  | Dispositivos; eventual cópia remota somente encapsulada sob proteção que o servidor não consegue abrir. |
+| Recuperação                                      | Segredo gerado no cliente e guardado pelo usuário; nunca enviado legível.                               |
+| Preferências e apelidos                          | Sincronização criptografada, com resolução de conflitos.                                                |
+| Push                                             | Endpoints e material necessário ao envio no servidor; conteúdo genérico por padrão.                     |
+| Logs                                             | Sem conteúdo ou segredos; dados operacionais mínimos e política explícita de retenção.                  |
 
 ### 5.2 Cofre, sessões e chaves
 
@@ -246,13 +247,13 @@ Uma prova de existência não armazena o conteúdo e não comprova concordância
 
 ### 6.3 Recursos ZK
 
-| Prioridade | Recurso | Condições de projeto |
-| --- | --- | --- |
-| Após a V1 | Votação privada de membros | Prova de participação, contexto da votação e prevenção de voto duplicado. |
-| Base de privacidade da V1 | Autorização de grupos privados | Credenciais e operações sem expor desnecessariamente a identidade ao serviço; manter o escopo técnico já aprovado. |
-| Posterior | Elegibilidade por token/NFT | Estado confiável da blockchain, atualidade e revogação da elegibilidade. |
-| Posterior | Cotas com credenciais privadas | Impedir reutilização sem identificador global em toda operação; não prometer resistência a múltiplas contas. |
-| Posterior | Acesso ao cofre com menor vínculo à wallet | Separar emissão e apresentação de credenciais; analisar correlação por sessão, objeto, IP e horário. |
+| Prioridade                | Recurso                                    | Condições de projeto                                                                                               |
+| ------------------------- | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------ |
+| Após a V1                 | Votação privada de membros                 | Prova de participação, contexto da votação e prevenção de voto duplicado.                                          |
+| Base de privacidade da V1 | Autorização de grupos privados             | Credenciais e operações sem expor desnecessariamente a identidade ao serviço; manter o escopo técnico já aprovado. |
+| Posterior                 | Elegibilidade por token/NFT                | Estado confiável da blockchain, atualidade e revogação da elegibilidade.                                           |
+| Posterior                 | Cotas com credenciais privadas             | Impedir reutilização sem identificador global em toda operação; não prometer resistência a múltiplas contas.       |
+| Posterior                 | Acesso ao cofre com menor vínculo à wallet | Separar emissão e apresentação de credenciais; analisar correlação por sessão, objeto, IP e horário.               |
 
 Provas podem ser verificadas no backend sem transação on-chain. Medir custo de geração em celulares reais. Bibliotecas e circuitos auditados são candidatos; a integração do aplicativo ainda exige revisão própria.
 
@@ -264,11 +265,17 @@ O estado inicial de todos os blocos é **não iniciado**. O progresso passa a se
 
 **Depende de:** nada.
 
-**Estado em 30/09/2026:** em andamento, inicialmente limitado à preparação do repositório Hash-Talk. Ainda não há esqueleto de aplicação e os critérios de aceite deste bloco permanecem pendentes.
+**Estado:** em andamento. A base de preparação TypeScript/Node/npm foi criada com configuração de exemplo e verificações automatizadas. Ainda não há aplicação de chat; os critérios completos de aceite deste bloco permanecem pendentes.
 
-Preparação inicial: branch base `main`, branches de trabalho `codex/<objetivo>`, [README](README.md) com orientação de desenvolvimento e [.gitignore](.gitignore) para configurações privadas e dados locais. Por decisão do proprietário, autoria e autenticação Git são configuradas apenas neste repositório, usando a conta proprietária e seu email GitHub `noreply`, com credenciais separadas pelo caminho do repositório. O primeiro commit local deve usar essa identidade antes do envio. O nome do repositório não define automaticamente o nome público do produto. A revisão inicial não encontrou padrões comuns de credenciais nos dois documentos existentes; isso não substitui revisão de conteúdo nem comprova ausência de segredos. A validação desta preparação cobre regras de exclusão, links locais e diff; não há aplicação para testar.
+Preparação inicial: branch base `main`, branches de trabalho `codex/<objetivo>`, [README](README.md) com orientação de desenvolvimento e [.gitignore](.gitignore) para configurações privadas e dados locais. Por decisão do proprietário, autoria e autenticação Git são configuradas apenas neste repositório, usando a conta proprietária e seu email GitHub `noreply`, com credenciais separadas pelo caminho do repositório. O nome do repositório não define automaticamente o nome público do produto.
 
-**Ponto importante:** esta preparação não conclui o bloco 00, não seleciona a stack e não autoriza publicação pública ou envio de dados privados. O envio ao remoto depende de confirmação do proprietário.
+Decisão de documentação: inventários de máquinas, serviços, capacidade, diagnósticos e recuperação são privados e ficam somente em arquivos locais ignorados pelo Git. Não reproduzir esses dados nos documentos versionados, nos commits ou em artefatos de CI. O repositório registra somente requisitos de produto, decisões técnicas e instruções reproduzíveis sem informações da infraestrutura do proprietário.
+
+Decisão técnica de preparação: TypeScript 6.0.3 com `strict`, Node 24 e npm; ESLint com informação de tipos, dependency-cruiser e Prettier adotados. Versões exatas e lockfile preservam a combinação compatível; TypeScript 7 fica fora da faixa do typescript-eslint selecionado. As dependências são de desenvolvimento; licenças dos pacotes diretos foram conferidas, e a licença de distribuição do projeto continua pendente. O comando `check` reúne lint, tipos, fronteiras, formatação e testes que comprovam falhas nos controles. A preparação executável aceita apenas perfil development, sem rede ou banco. Frameworks, protocolo E2EE e budgets de produção continuam pendentes.
+
+Verificação da base: lint, tipos, fronteiras, formatação e 13 testes passaram. Instalação em outra pasta, sem dependências prévias e usando o cache local, reproduziu os controles e a execução com a versão de Node documentada. Perfil inválido encerra com código 1 e mensagem fixa. Isso não comprova compatibilidade em dispositivos, criptografia ou capacidade de produção. CI preparado, ainda sem execução remota verificada.
+
+**Ponto importante:** esta preparação não conclui o bloco 00 nem valida criptografia. O envio ao remoto depende de confirmação do proprietário; inventários privados permanecem fora dele.
 
 1. Inspecionar ambiente de desenvolvimento, máquina de hospedagem, conexão e armazenamento disponíveis.
 2. Criar repositório organizado, convenções, arquivo de configuração de exemplo e registro de decisões técnicas.
@@ -571,15 +578,15 @@ Preparação inicial: branch base `main`, branches de trabalho `codex/<objetivo>
 
 ## 8. Marcos de entrega
 
-| Marco | Blocos | Resultado |
-| --- | --- | --- |
-| M0 — Viabilidade | 00–01 | Segurança, compatibilidade e operação própria avaliadas antes do investimento principal. |
-| M1 — Conta recuperável | 02–05 | PWA, wallet, aparelhos e cofre funcionando. |
-| M2 — Chat privado utilizável | 06–10 | Conversas, mídia, backup e notificações, ainda em ambiente de teste. |
-| M3 — Completar escopo da V1 | 10A–12B | Áudio gravado, grupos, status, base ZK, representantes/permissões verificáveis e acordos assinados, depois do núcleo. |
-| M4 — Recursos crypto | 13–14 | Interações blockchain e evolução da privacidade de autorização. |
-| M5 — Último recurso da V1 | 15 | Chamada individual ponta a ponta, somente via relay e sem persistência, testada após todo o restante da V1. |
-| M6 — Piloto | 16–17 | Revisão, recuperação operacional e disponibilização controlada. |
+| Marco                        | Blocos  | Resultado                                                                                                             |
+| ---------------------------- | ------- | --------------------------------------------------------------------------------------------------------------------- |
+| M0 — Viabilidade             | 00–01   | Segurança, compatibilidade e operação própria avaliadas antes do investimento principal.                              |
+| M1 — Conta recuperável       | 02–05   | PWA, wallet, aparelhos e cofre funcionando.                                                                           |
+| M2 — Chat privado utilizável | 06–10   | Conversas, mídia, backup e notificações, ainda em ambiente de teste.                                                  |
+| M3 — Completar escopo da V1  | 10A–12B | Áudio gravado, grupos, status, base ZK, representantes/permissões verificáveis e acordos assinados, depois do núcleo. |
+| M4 — Recursos crypto         | 13–14   | Interações blockchain e evolução da privacidade de autorização.                                                       |
+| M5 — Último recurso da V1    | 15      | Chamada individual ponta a ponta, somente via relay e sem persistência, testada após todo o restante da V1.           |
+| M6 — Piloto                  | 16–17   | Revisão, recuperação operacional e disponibilização controlada.                                                       |
 
 A V1 pública exige M1–M3, M5 e os blocos 16–17: inclui áudio gravado, grupos, status, base ZK, representantes/permissões verificáveis, acordos assinados e chamada individual como último recurso funcional a testar. Sequência da V1: 00–12 (incluindo 10A) → 12A–12B → 15 → 16–17. A revisão final também cobre a chamada adicionada por último; ela não é atalho para pular a validação de segurança. M4 permanece posterior e não bloqueia a V1. Chamadas em grupo e vídeo continuam fora do escopo.
 
@@ -587,27 +594,27 @@ A V1 pública exige M1–M3, M5 e os blocos 16–17: inclui áudio gravado, grup
 
 Revisão de fechamento conceitual: o escopo está suficientemente definido para iniciar os blocos 00–01. Isso não significa arquitetura validada nem prontidão para lançamento. Escolhas técnicas rotineiras serão resolvidas durante cada bloco; mudanças de privacidade, retenção, custo ou direitos dos membros precisam de decisão explícita. As linhas abaixo refletem as decisões mais recentes, prevalecendo sobre propostas históricas ainda presentes nas seções de discussão.
 
-| Decisão | Resolver em | Critério |
-| --- | --- | --- |
-| Stack de frontend/backend e versão do banco | 00–02 | PostgreSQL definido; versão suportada e configuração dependem do inventário. Frontend/backend gratuitos, mantidos e compatíveis com PWA e operação própria. |
-| Protocolo e biblioteca de mensagens | 01 | Segurança existente, licença, multi-device, grupos e suporte web demonstrados. |
-| Wallets EVM e rede inicial | 03 | Login EVM decidido; escolher wallets/conectores e compatibilidade desktop/mobile. Vínculo auxiliar Solana entra na V1 se o token for lançado nessa rede; login Solana completo não é requisito automático. |
-| Contabilização das cotas e limites | 00, 05 e 08 | 300 MB por conta, 3 MB por arquivo e cobrança pelo conteúdo de cada cofre já fixados; definir reservas/overhead e testar capacidade. |
-| Governança do cofre de grupo | 05, 07 e 11 | Já fixados 1 GB, divisão 750/250 MB, tiers, reserva global e expiração de mídias inclusive pendentes. Fechar poderes de limpeza manual, saída do proprietário e acesso remoto de ex-membros; não reabrir cotas aprovadas. |
-| Política exata de ACK/cofre | 05–07 | Ausência de perda silenciosa e semântica clara por dispositivo. |
-| Revogação de dispositivos | 04 | Conta não pode ser tomada apenas manipulando o diretório do servidor. Troca/recuperação de wallet fora do escopo inicial. |
-| Representação de mute/bloqueio | 06 e 10 | Funcionamento em segundo plano com mínimo de metadados. |
-| Biblioteca/circuitos ZK | 01 e 12 | Propriedades verificáveis, revisão existente e desempenho mobile. |
-| Rede e contratos de recursos futuros | 13, após V1 | Taxas, compatibilidade, RPC e custo de implantação explícitos. Não bloqueia núcleo/V1; token de elegibilidade tem decisão separada. |
-| Armazenamento permanente | 13, após V1 | Modelo real de disponibilidade/custo; não confundir hash com arquivo. Não bloqueia V1. |
-| Segunda cópia da infraestrutura | 00 e 16 | Recurso disponível e recuperação testada; sem compra presumida. |
-| Token e elegibilidade de criador | Antes de concluir 03 e 11 | Saldo ao criar e tiers 10 mil/50 mil/100 mil fechados. Falta rede/mint real, fonte RPC adequada, suporte ao programa/decimais e validade operacional da consulta. Não introduzir staking, queima ou compra histórica. |
-| Retenção automática de grupos | Antes de concluir 05, 07 e 11 | Mídias podem expirar inclusive pendentes; divisão 750/250 MB aprovada. Definir prazo do aviso e operacionalizar limpeza/backup. |
-| Limites numéricos operacionais | 00 e testes dos recursos | Confirmar participantes por grupo (50 é proposta), frequência de criações, limites de solicitações/texto/objetos e orçamento global com carga real. Valores de exemplo não são decisões aprovadas. |
-| Exclusão de conta e retenção operacional | 04–07 e antes da publicação | Definir destino de grupos do proprietário, revogação, referências compartilhadas e prazo efetivo de expurgo de backups/logs. Preservar direitos dos demais membros e explicar limites de cópias externas. |
-| PostgreSQL e capacidade da VPS | 02 e revisão após núcleo básico | Calibrar autovacuum, pools, memória/I/O, WAL, backups e alertas; verificar impacto sobre outros serviços. Banco escolhido, configuração ainda não aplicada. |
-| Proteção DDoS mínima | Após núcleo básico, antes da publicação; revalidar no 15 | Verificar proteção real do provedor, necessidade/privacidade de proxy e cobertura própria para TURN. Requisito de lançamento, sem contratação automática. |
-| Compatibilidade PWA e voz | 00, 10 e 15 | Demonstrar push, segundo plano, vinculação/recuperação e chamadas nos navegadores/celulares alvo; documentar limitações verificadas. Não prometer paridade nativa sem testes. |
+| Decisão                                     | Resolver em                                              | Critério                                                                                                                                                                                                                  |
+| ------------------------------------------- | -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Stack de frontend/backend e versão do banco | 00–02                                                    | PostgreSQL definido; versão suportada e configuração dependem do inventário. Frontend/backend gratuitos, mantidos e compatíveis com PWA e operação própria.                                                               |
+| Protocolo e biblioteca de mensagens         | 01                                                       | Segurança existente, licença, multi-device, grupos e suporte web demonstrados.                                                                                                                                            |
+| Wallets EVM e rede inicial                  | 03                                                       | Login EVM decidido; escolher wallets/conectores e compatibilidade desktop/mobile. Vínculo auxiliar Solana entra na V1 se o token for lançado nessa rede; login Solana completo não é requisito automático.                |
+| Contabilização das cotas e limites          | 00, 05 e 08                                              | 300 MB por conta, 3 MB por arquivo e cobrança pelo conteúdo de cada cofre já fixados; definir reservas/overhead e testar capacidade.                                                                                      |
+| Governança do cofre de grupo                | 05, 07 e 11                                              | Já fixados 1 GB, divisão 750/250 MB, tiers, reserva global e expiração de mídias inclusive pendentes. Fechar poderes de limpeza manual, saída do proprietário e acesso remoto de ex-membros; não reabrir cotas aprovadas. |
+| Política exata de ACK/cofre                 | 05–07                                                    | Ausência de perda silenciosa e semântica clara por dispositivo.                                                                                                                                                           |
+| Revogação de dispositivos                   | 04                                                       | Conta não pode ser tomada apenas manipulando o diretório do servidor. Troca/recuperação de wallet fora do escopo inicial.                                                                                                 |
+| Representação de mute/bloqueio              | 06 e 10                                                  | Funcionamento em segundo plano com mínimo de metadados.                                                                                                                                                                   |
+| Biblioteca/circuitos ZK                     | 01 e 12                                                  | Propriedades verificáveis, revisão existente e desempenho mobile.                                                                                                                                                         |
+| Rede e contratos de recursos futuros        | 13, após V1                                              | Taxas, compatibilidade, RPC e custo de implantação explícitos. Não bloqueia núcleo/V1; token de elegibilidade tem decisão separada.                                                                                       |
+| Armazenamento permanente                    | 13, após V1                                              | Modelo real de disponibilidade/custo; não confundir hash com arquivo. Não bloqueia V1.                                                                                                                                    |
+| Segunda cópia da infraestrutura             | 00 e 16                                                  | Recurso disponível e recuperação testada; sem compra presumida.                                                                                                                                                           |
+| Token e elegibilidade de criador            | Antes de concluir 03 e 11                                | Saldo ao criar e tiers 10 mil/50 mil/100 mil fechados. Falta rede/mint real, fonte RPC adequada, suporte ao programa/decimais e validade operacional da consulta. Não introduzir staking, queima ou compra histórica.     |
+| Retenção automática de grupos               | Antes de concluir 05, 07 e 11                            | Mídias podem expirar inclusive pendentes; divisão 750/250 MB aprovada. Definir prazo do aviso e operacionalizar limpeza/backup.                                                                                           |
+| Limites numéricos operacionais              | 00 e testes dos recursos                                 | Confirmar participantes por grupo (50 é proposta), frequência de criações, limites de solicitações/texto/objetos e orçamento global com carga real. Valores de exemplo não são decisões aprovadas.                        |
+| Exclusão de conta e retenção operacional    | 04–07 e antes da publicação                              | Definir destino de grupos do proprietário, revogação, referências compartilhadas e prazo efetivo de expurgo de backups/logs. Preservar direitos dos demais membros e explicar limites de cópias externas.                 |
+| PostgreSQL e capacidade da VPS              | 02 e revisão após núcleo básico                          | Calibrar autovacuum, pools, memória/I/O, WAL, backups e alertas; verificar impacto sobre outros serviços. Banco escolhido, configuração ainda não aplicada.                                                               |
+| Proteção DDoS mínima                        | Após núcleo básico, antes da publicação; revalidar no 15 | Verificar proteção real do provedor, necessidade/privacidade de proxy e cobertura própria para TURN. Requisito de lançamento, sem contratação automática.                                                                 |
+| Compatibilidade PWA e voz                   | 00, 10 e 15                                              | Demonstrar push, segundo plano, vinculação/recuperação e chamadas nos navegadores/celulares alvo; documentar limitações verificadas. Não prometer paridade nativa sem testes.                                             |
 
 Pendências de produto prioritárias antes de grupos: prazo do aviso de expiração e governança acima. Pendências técnicas prioritárias antes do chat real: protocolo/bibliotecas E2EE, estratégia de chaves/recuperação e definição precisa da propriedade ZK a provar. A prova técnica pode exigir revisão de implementação; não reduzir silenciosamente o escopo de segurança para satisfazer o plano.
 
@@ -647,11 +654,11 @@ Esta seção incorpora as aprovações de cofre, cotas, descoberta, visibilidade
 
 O cofre contém objetos criptografados. O banco de metadados não precisa conter os bytes dos anexos: eles podem ficar no filesystem da máquina, com referências no banco. Essa separação não elimina consumo de disco ou banda.
 
-| Política | Conservação remota | Consequência |
-| --- | --- | --- |
-| Essencial | Mensagens, agenda, preferências, estado dos grupos e segredos encapsulados necessários à recuperação | Mídias saem da fila após entregas resolvidas, salvo se forem preservadas separadamente; novo aparelho pode mostrar anexo indisponível. |
-| Completa dentro de cota | Essencial mais todas as mídias permitidas | Recuperação mais previsível; demanda mais disco e exige tratar cota cheia antes de aceitar novos conteúdos. |
-| Seletiva | Essencial automático e mídia escolhida pelo usuário | Economiza espaço, mas introduz seleção e risco de o usuário não preservar um arquivo importante. |
+| Política                | Conservação remota                                                                                   | Consequência                                                                                                                           |
+| ----------------------- | ---------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| Essencial               | Mensagens, agenda, preferências, estado dos grupos e segredos encapsulados necessários à recuperação | Mídias saem da fila após entregas resolvidas, salvo se forem preservadas separadamente; novo aparelho pode mostrar anexo indisponível. |
+| Completa dentro de cota | Essencial mais todas as mídias permitidas                                                            | Recuperação mais previsível; demanda mais disco e exige tratar cota cheia antes de aceitar novos conteúdos.                            |
+| Seletiva                | Essencial automático e mídia escolhida pelo usuário                                                  | Economiza espaço, mas introduz seleção e risco de o usuário não preservar um arquivo importante.                                       |
 
 Decisão para V1: preservação automática do conteúdo essencial e de todas as mídias aceitas no cofre, com cota fixa de 300 MB por conta e exclusão/exportação controladas pelo usuário. Os modelos essencial e seletivo não foram escolhidos.
 
@@ -702,27 +709,27 @@ Definir como padrões criptografados de perfil/foto são distribuídos a contato
 
 Faixas indicativas de linhas próprias de aplicação e testes específicos, excluindo bibliotecas, código gerado, lockfiles e artefatos de build. Estimativas de planejamento, não contagem de implementação existente. Pressupõem reutilização de uma base adequada; há sobreposição entre recursos e as faixas não devem ser somadas para formar orçamento ou prazo. Segurança e depuração podem consumir muito trabalho com poucas linhas.
 
-| Ordem aproximada | Recurso | Dificuldade | Faixa indicativa de linhas |
-| --- | --- | --- | --- |
-| 1 | Arquivar, fixar, marcar não lida | Baixa, depois da base | 200–800 |
-| 2 | Apelidos, edição de nome e opções simples | Baixa | 300–1.000 |
-| 3 | Reações e respostas | Baixa/média | 400–1.500 |
-| 4 | Figurinhas de pacote fixo | Baixa/média, após anexos | 400–1.500 |
-| 5 | Leitura, digitação e presença configuráveis | Média | 700–2.000 |
-| 6 | Wallet EVM, perfil e sessões | Média | 1.000–3.000 |
-| 7 | Solicitações, contatos e bloqueio | Média | 1.000–3.000 |
-| 8 | Fotos/anexos criptografados e cotas | Média/alta | 1.500–4.000 |
-| 9 | Áudio gravado | Média, após anexos | 700–2.500 |
-| 10 | Push, mute e compatibilidade mobile | Média/alta | 1.500–4.000 |
-| 11 | Backup exportável/importável | Alta | 2.000–5.000 |
-| 12 | Status de texto/foto | Média/alta, após contatos/anexos | 1.500–4.000 |
-| 13 | Grupos com alteração de membros/chaves | Alta | 3.000–8.000 |
-| 14 | Pagamentos EVM simples no chat | Média/alta | 1.500–4.000 |
-| 15 | Votação ZK com integração existente | Alta | 2.000–6.000 |
-| 16 | Cofre incremental e tratamento de conflitos | Muito alta | 4.000–10.000 |
-| 17 | Sessões ponta a ponta, fila confiável e multi-device | Muito alta | 6.000–15.000 |
-| 18 | Grupos/credenciais ZK privados completos | Muito alta | 5.000–15.000+ |
-| 19 | Chamadas e compatibilidade entre redes | Muito alta | 4.000–12.000+ |
+| Ordem aproximada | Recurso                                              | Dificuldade                      | Faixa indicativa de linhas |
+| ---------------- | ---------------------------------------------------- | -------------------------------- | -------------------------- |
+| 1                | Arquivar, fixar, marcar não lida                     | Baixa, depois da base            | 200–800                    |
+| 2                | Apelidos, edição de nome e opções simples            | Baixa                            | 300–1.000                  |
+| 3                | Reações e respostas                                  | Baixa/média                      | 400–1.500                  |
+| 4                | Figurinhas de pacote fixo                            | Baixa/média, após anexos         | 400–1.500                  |
+| 5                | Leitura, digitação e presença configuráveis          | Média                            | 700–2.000                  |
+| 6                | Wallet EVM, perfil e sessões                         | Média                            | 1.000–3.000                |
+| 7                | Solicitações, contatos e bloqueio                    | Média                            | 1.000–3.000                |
+| 8                | Fotos/anexos criptografados e cotas                  | Média/alta                       | 1.500–4.000                |
+| 9                | Áudio gravado                                        | Média, após anexos               | 700–2.500                  |
+| 10               | Push, mute e compatibilidade mobile                  | Média/alta                       | 1.500–4.000                |
+| 11               | Backup exportável/importável                         | Alta                             | 2.000–5.000                |
+| 12               | Status de texto/foto                                 | Média/alta, após contatos/anexos | 1.500–4.000                |
+| 13               | Grupos com alteração de membros/chaves               | Alta                             | 3.000–8.000                |
+| 14               | Pagamentos EVM simples no chat                       | Média/alta                       | 1.500–4.000                |
+| 15               | Votação ZK com integração existente                  | Alta                             | 2.000–6.000                |
+| 16               | Cofre incremental e tratamento de conflitos          | Muito alta                       | 4.000–10.000               |
+| 17               | Sessões ponta a ponta, fila confiável e multi-device | Muito alta                       | 6.000–15.000               |
+| 18               | Grupos/credenciais ZK privados completos             | Muito alta                       | 5.000–15.000+              |
+| 19               | Chamadas e compatibilidade entre redes               | Muito alta                       | 4.000–12.000+              |
 
 A ordem é aproximada por esforço total, não apenas pelas linhas: áudio depende do bloco de arquivos, pagamentos envolvem testes financeiros e push depende de comportamento de diferentes plataformas. Layout/PWA, infraestrutura e revisão transversal também consomem trabalho e não estão estimados separadamente na tabela.
 
@@ -749,10 +756,10 @@ Hipótese ilustrativa de chat predominantemente individual:
 - Reserva operacional de 2× para planejamento. Não é um fator medido nem cobre qualquer pico possível.
 
 | Ativos simultâneos | Saída calculada | Com reserva de 2× |
-| --- | --- | --- |
-| 100 | ~3 Mbps | ~6 Mbps |
-| 1.000 | ~30 Mbps | ~60 Mbps |
-| 10.000 | ~299 Mbps | ~598 Mbps |
+| ------------------ | --------------- | ----------------- |
+| 100                | ~3 Mbps         | ~6 Mbps           |
+| 1.000              | ~30 Mbps        | ~60 Mbps          |
+| 10.000             | ~299 Mbps       | ~598 Mbps         |
 
 Esse modelo não inclui uma campanha de restauração em massa, grandes grupos, chamadas, grandes atualizações simultâneas do frontend ou picos de anexos de 3 MB. Se o tamanho médio subir de 0,5 para 3 MB, a parcela de mídia aumenta seis vezes. Como grupos e status fazem parte da V1, medir sua multiplicação de downloads; a tabela de chat individual não constitui garantia para esse novo perfil.
 
@@ -768,12 +775,12 @@ Referências de suporte: [compressão HTTP — MDN](https://developer.mozilla.or
 
 Mensagem de áudio gravada é um anexo e pertence à V1. Chamada individual de voz e voice call são o mesmo recurso de comunicação em tempo real, agora incluído como último recurso a implementar/testar na V1. Grupos de voz e videochamadas continuam fora da V1. Não implementar chamadas antes de concluir/testar as demais funções.
 
-| Cenário | Esforço relativo | Trabalho principal |
-| --- | --- | --- |
-| Protótipo individual, dois navegadores abertos | Médio | Microfone, WebRTC, sinalização, atender/recusar, mute e encerramento. |
-| Chamada individual adequada ao público | Alto | TURN, redes restritas, reconexão, permissões, dispositivos de áudio, chamadas simultâneas e vários aparelhos da mesma conta. |
-| Grupo pequeno em malha direta | Alto | Cada participante envia a vários pares; upload e conexões crescem com o grupo. Não adotar como solução geral de escala. |
-| Grupo com servidor que encaminha mídia e ponta a ponta | Muito alto | SFU, admissão, entrada/saída, distribuição/rotação de chaves, desempenho e compatibilidade de clientes. |
+| Cenário                                                | Esforço relativo | Trabalho principal                                                                                                           |
+| ------------------------------------------------------ | ---------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| Protótipo individual, dois navegadores abertos         | Médio            | Microfone, WebRTC, sinalização, atender/recusar, mute e encerramento.                                                        |
+| Chamada individual adequada ao público                 | Alto             | TURN, redes restritas, reconexão, permissões, dispositivos de áudio, chamadas simultâneas e vários aparelhos da mesma conta. |
+| Grupo pequeno em malha direta                          | Alto             | Cada participante envia a vários pares; upload e conexões crescem com o grupo. Não adotar como solução geral de escala.      |
+| Grupo com servidor que encaminha mídia e ponta a ponta | Muito alto       | SFU, admissão, entrada/saída, distribuição/rotação de chaves, desempenho e compatibilidade de clientes.                      |
 
 Estimativas preliminares para integrar componentes existentes, incluindo código próprio e testes específicos: individual robusta na ordem de 2.000–5.000 linhas; grupos podem adicionar aproximadamente 4.000–10.000. Não incluem escrever um servidor de mídia do zero, não são prazo e têm grande incerteza antes do protótipo.
 
@@ -799,15 +806,15 @@ Proposta de valor: conversar com privacidade, comprovar apenas o necessário e t
 
 Entre as sete sugestões abaixo, somente **representantes/permissões verificáveis** e **acordos assinados dentro da conversa** foram selecionados como novos diferenciais da V1. As demais ficam documentadas para versões futuras. Isso mantém a base privacy first e a autorização privada de grupos anteriormente planejada; não exige implementar votação, identidade por comunidade ou prova de posse de ativos na V1.
 
-| Sugestão | Versão | Valor para o usuário |
-| --- | --- | --- |
-| Comunidades com elegibilidade comprovada sem revelar carteira | Após a V1 | Demonstrar pertencimento sem divulgar patrimônio ou endereço elegível. |
-| Identidade distinta por comunidade | Após a V1 | Continuidade dentro de um grupo sem expor automaticamente um perfil global. |
-| Representantes e permissões verificáveis | **V1 — bloco 12A** | Conferir quem autorizou uma pessoa a atuar e para qual finalidade. |
-| Contato a partir de um ativo | Após a V1 | Iniciar proposta ou conversa contextual com o proprietário habilitado. |
-| Acordos assinados dentro da conversa | **V1 — bloco 12B** | Preservar a versão exata do combinado e a aprovação de cada parte. |
-| Aprovação de operações multisig pelo chat | Após a V1 | Ligar discussão privada, revisão de transação e assinaturas dos responsáveis. |
-| Votações privadas verificáveis | Após a V1 | Comprovar elegibilidade e impedir reutilização no contexto da votação sem identificar o votante. |
+| Sugestão                                                      | Versão             | Valor para o usuário                                                                             |
+| ------------------------------------------------------------- | ------------------ | ------------------------------------------------------------------------------------------------ |
+| Comunidades com elegibilidade comprovada sem revelar carteira | Após a V1          | Demonstrar pertencimento sem divulgar patrimônio ou endereço elegível.                           |
+| Identidade distinta por comunidade                            | Após a V1          | Continuidade dentro de um grupo sem expor automaticamente um perfil global.                      |
+| Representantes e permissões verificáveis                      | **V1 — bloco 12A** | Conferir quem autorizou uma pessoa a atuar e para qual finalidade.                               |
+| Contato a partir de um ativo                                  | Após a V1          | Iniciar proposta ou conversa contextual com o proprietário habilitado.                           |
+| Acordos assinados dentro da conversa                          | **V1 — bloco 12B** | Preservar a versão exata do combinado e a aprovação de cada parte.                               |
+| Aprovação de operações multisig pelo chat                     | Após a V1          | Ligar discussão privada, revisão de transação e assinaturas dos responsáveis.                    |
+| Votações privadas verificáveis                                | Após a V1          | Comprovar elegibilidade e impedir reutilização no contexto da votação sem identificar o votante. |
 
 ### 13.1 Comunidades com elegibilidade comprovada
 
@@ -893,17 +900,17 @@ Proposta de leitura posterior: abrir o arquivo no app em modo local de consulta,
 
 O servidor mantém objetos criptografados e referências do grupo. Um anexo compartilhado pode ocupar uma cópia física no cofre do grupo; cada download ainda consome banda. Participantes mantêm localmente o que consultarem. Preferências e material secreto pessoal necessário para recuperar acesso ficam protegidos no cofre pessoal, sem copiar automaticamente todo o arquivo do grupo.
 
-| Regra | Proposta para piloto/V1 | Motivo |
-| --- | --- | --- |
-| Cota por grupo | 1 GB (1.000 MB), aprovado | Espaço separado e finito; não consome os 300 MB de cada membro. |
-| Tamanho por anexo | 3 MB, já decidido para o app | Mesmo teto para chat individual e grupo. |
-| Participantes | Até 50 inicialmente | Limitar distribuição e custo de sincronização até medir capacidade. |
-| Criação | Saldo atual: 10 mil = 2 grupos; 50 mil = 10; 100 mil = sem teto de tier, sujeito à capacidade global | Posse de token não substitui orçamento global nem impede reutilização entre contas. Participação gratuita continua permitida. |
-| Capacidade global | Admitir grupos/novos dados apenas dentro do orçamento real da máquina | Limite por wallet não impede múltiplas wallets. O orçamento global é obrigatório. |
-| Administração | Proprietário gerencia administradores; limpeza remota pelo proprietário inicialmente | Regra simples, com poder destrutivo reduzido. Saída/transferência de propriedade deve ser explícita. |
-| Alertas | Avisos aos responsáveis em 80% e 90% | Dar tempo para exportar/limpar. Percentuais ainda propostos. |
-| Reserva | Aprovado: limitar mídia a 750 MB; últimos 250 MB reservados a texto/controle, com sub-reserva operacional | Evitar que anexos esgotem imediatamente todos os caminhos de conversa/gerenciamento. Não cria texto ilimitado. |
-| Retenção | Mídias antigas do grupo expiram automaticamente, inclusive pendentes; texto não entra nessa limpeza automática | Aviso coletivo no topo, exportação e prazo informado. Prazo do aviso ainda pendente. |
+| Regra             | Proposta para piloto/V1                                                                                        | Motivo                                                                                                                        |
+| ----------------- | -------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| Cota por grupo    | 1 GB (1.000 MB), aprovado                                                                                      | Espaço separado e finito; não consome os 300 MB de cada membro.                                                               |
+| Tamanho por anexo | 3 MB, já decidido para o app                                                                                   | Mesmo teto para chat individual e grupo.                                                                                      |
+| Participantes     | Até 50 inicialmente                                                                                            | Limitar distribuição e custo de sincronização até medir capacidade.                                                           |
+| Criação           | Saldo atual: 10 mil = 2 grupos; 50 mil = 10; 100 mil = sem teto de tier, sujeito à capacidade global           | Posse de token não substitui orçamento global nem impede reutilização entre contas. Participação gratuita continua permitida. |
+| Capacidade global | Admitir grupos/novos dados apenas dentro do orçamento real da máquina                                          | Limite por wallet não impede múltiplas wallets. O orçamento global é obrigatório.                                             |
+| Administração     | Proprietário gerencia administradores; limpeza remota pelo proprietário inicialmente                           | Regra simples, com poder destrutivo reduzido. Saída/transferência de propriedade deve ser explícita.                          |
+| Alertas           | Avisos aos responsáveis em 80% e 90%                                                                           | Dar tempo para exportar/limpar. Percentuais ainda propostos.                                                                  |
+| Reserva           | Aprovado: limitar mídia a 750 MB; últimos 250 MB reservados a texto/controle, com sub-reserva operacional      | Evitar que anexos esgotem imediatamente todos os caminhos de conversa/gerenciamento. Não cria texto ilimitado.                |
+| Retenção          | Mídias antigas do grupo expiram automaticamente, inclusive pendentes; texto não entra nessa limpeza automática | Aviso coletivo no topo, exportação e prazo informado. Prazo do aviso ainda pendente.                                          |
 
 Não prometer 1 GB a um número ilimitado de grupos. Exemplo de compromisso lógico: 1.000 grupos cheios usam 1 TB; 10.000, 10 TB, além de cofres pessoais, filas, versões e backups. Limitar globalmente o piloto à capacidade disponível, sem presumir compra de discos. A quota de tráfego/concorrência é independente do espaço em disco.
 
@@ -945,12 +952,12 @@ Bytes de texto UTF-8 variam com caracteres: ASCII normalmente usa um byte; acent
 
 Exemplos decimais, sem prometer benchmark:
 
-| Conteúdo | Tamanho ilustrativo |
-| --- | --- |
-| Mensagem de cerca de 200 caracteres, antes de envelope | Algumas centenas de bytes, dependendo dos caracteres. |
-| Mensagem persistida com IDs, timestamps, autenticação e envelope | Hipótese de planejamento de 1–2 KB; medir no formato real. |
-| Foto reduzida para chat | Hipótese de 300 KB; qualidade e imagem alteram bastante o resultado. |
-| Anexo no teto aprovado | 3 MB = 3.000 KB. |
+| Conteúdo                                                         | Tamanho ilustrativo                                                  |
+| ---------------------------------------------------------------- | -------------------------------------------------------------------- |
+| Mensagem de cerca de 200 caracteres, antes de envelope           | Algumas centenas de bytes, dependendo dos caracteres.                |
+| Mensagem persistida com IDs, timestamps, autenticação e envelope | Hipótese de planejamento de 1–2 KB; medir no formato real.           |
+| Foto reduzida para chat                                          | Hipótese de 300 KB; qualidade e imagem alteram bastante o resultado. |
+| Anexo no teto aprovado                                           | 3 MB = 3.000 KB.                                                     |
 
 Com mensagens de 1–2 KB, uma foto de 300 KB equivale ao espaço de aproximadamente 150–300 mensagens; um anexo de 3 MB equivale a 1.500–3.000 mensagens. Uma reserva de 100 MB comportaria cerca de 50.000–100.000 mensagens sob essa hipótese, antes de índices, versões e outras despesas. Uso real depende do protocolo e do modelo de armazenamento.
 
@@ -993,12 +1000,12 @@ Não há necessidade de bridge para verificar uma wallet Solana a partir de uma 
 
 ### 15.5 Compra, saldo e abuso: alternativas consideradas
 
-| Regra possível | O que comprova | Consequência |
-| --- | --- | --- |
+| Regra possível                    | O que comprova                                | Consequência                                                                                                 |
+| --------------------------------- | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
 | Compra histórica de 10.000 tokens | Aquisição conforme rotas/transações admitidas | Precisa definir mercados, transferências, CEX, agregadores e acúmulo de compras; ter saldo não prova compra. |
-| Possuir 10.000 tokens ao criar | Saldo naquele momento | Mais simples, mas tokens podem circular entre wallets para criar vários grupos. |
-| Manter 10.000 tokens | Elegibilidade contínua | Exige atualização e regra de queda de saldo, falha de RPC e grupo existente. |
-| Bloquear tokens por grupo | Capital comprometido por período/regra | Maior complexidade: contrato/programa, transação, auditoria e desbloqueio. Fora da proposta simples inicial. |
+| Possuir 10.000 tokens ao criar    | Saldo naquele momento                         | Mais simples, mas tokens podem circular entre wallets para criar vários grupos.                              |
+| Manter 10.000 tokens              | Elegibilidade contínua                        | Exige atualização e regra de queda de saldo, falha de RPC e grupo existente.                                 |
+| Bloquear tokens por grupo         | Capital comprometido por período/regra        | Maior complexidade: contrato/programa, transação, auditoria e desbloqueio. Fora da proposta simples inicial. |
 
 Escolhido: saldo atual ao criar, com tiers descritos na seção 16. Uma wallet de elegibilidade por conta/permissão pode impedir reutilização simultânea do mesmo endereço, mas não impede transferir os mesmos tokens para novos endereços. Um token não cria resistência automática a múltiplas identidades nem financia armazenamento por si só.
 
@@ -1010,12 +1017,12 @@ Referências técnicas: [Sign In With Solana](https://github.com/phantom/sign-in
 
 ### 16.1 Tiers aprovados
 
-| Saldo atual no token do projeto | Limite de grupos do criador |
-| --- | --- |
-| Menos de 10.000 | Não pode criar |
-| De 10.000 até menos de 50.000 | 2 |
-| De 50.000 até menos de 100.000 | 10 |
-| Pelo menos 100.000 | Sem teto numérico do tier, sujeito à capacidade global e controle de frequência |
+| Saldo atual no token do projeto | Limite de grupos do criador                                                     |
+| ------------------------------- | ------------------------------------------------------------------------------- |
+| Menos de 10.000                 | Não pode criar                                                                  |
+| De 10.000 até menos de 50.000   | 2                                                                               |
+| De 50.000 até menos de 100.000  | 10                                                                              |
+| Pelo menos 100.000              | Sem teto numérico do tier, sujeito à capacidade global e controle de frequência |
 
 Contabilização aprovada: número de grupos existentes sob responsabilidade da conta, incluindo arquivados que ainda ocupam armazenamento. Arquivar não libera vaga. Exclusão concluída libera vaga/reserva conforme referências remanescentes; manter contagem global de bytes ainda retidos. Transferência de propriedade não pode servir para multiplicar cotas: adiar essa função ou validar elegibilidade/capacidade do destinatário sem apagar dados de terceiros automaticamente.
 
@@ -1087,20 +1094,20 @@ Limite operacional: a documentação Solana informa que endpoints públicos são
 
 Defesas precisam acontecer no servidor, antes de alocar recursos caros. Não depender de limites no JavaScript do cliente. Não inspecionar texto legível ou obter chaves para moderar: conteúdo permanece ponta a ponta.
 
-| Recurso sob ataque | Defesa proposta |
-| --- | --- |
-| Cadastro de wallets descartáveis | Cadastro aberto sem convite, admissão global, limites de criação de contas e desafios assinados. Wallet não prova pessoa única. |
-| Solicitações a desconhecidos | Apenas pequeno pedido inicial, sem anexos, limite de destinatários novos e de solicitações pendentes; nenhuma entrega de conteúdo comum sem consentimento. |
-| Mensagens e eventos | Limites por conta, conversa e grupo; tamanho máximo de envelope, contagem de objetos e taxa de bytes, além de mensagens/segundo. |
-| Upload | Autorização e reserva de cota antes de permitir envio; teto de bytes em streaming, limite de concorrência e duração. |
-| Objetos pequenos em massa | Cota de número de registros, lotes criptografados quando apropriado e contabilização do overhead; 300 MB não autoriza milhões de linhas gratuitas. |
-| Acúmulo de temporários | Expiração de desafios, reservas abandonadas e uploads não finalizados; coleta de órfãos com referências verificadas. Não apagar entregas aceitas fora da política. |
-| Substituições/deleções repetidas | Limite de bytes gravados por período e mutações; limites de versões, tombstones, índice de idempotência e retenção de logs/backup. |
-| WebSockets/presença | Sessão/origem/autorização válidas, limites de conexões, mensagens e buffers; backpressure e consolidação de eventos de presença. |
-| Download/exportação | Autorização por objeto/período, limites de conexões e banda; acesso ao ciphertext também deve ter controle. |
-| Fanout de grupos/status/push | Contabilizar custo de distribuição, limitar membros/audiência e coalescer notificações sem armazenar dados extras ilimitadamente. |
-| ZK/assinaturas/RPC | Verificar formato/tamanho e quotas antes de trabalho caro; pool de CPU/fila limitada, contextos e proteção contra replay. |
-| TURN/chamadas | Credenciais curtas para participantes de chamada autorizada; limite de duração/concorrência/bytes, ACL de destinos; nunca relay público aberto. Preservar regra sem logs identificáveis persistentes das chamadas. |
+| Recurso sob ataque               | Defesa proposta                                                                                                                                                                                                    |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Cadastro de wallets descartáveis | Cadastro aberto sem convite, admissão global, limites de criação de contas e desafios assinados. Wallet não prova pessoa única.                                                                                    |
+| Solicitações a desconhecidos     | Apenas pequeno pedido inicial, sem anexos, limite de destinatários novos e de solicitações pendentes; nenhuma entrega de conteúdo comum sem consentimento.                                                         |
+| Mensagens e eventos              | Limites por conta, conversa e grupo; tamanho máximo de envelope, contagem de objetos e taxa de bytes, além de mensagens/segundo.                                                                                   |
+| Upload                           | Autorização e reserva de cota antes de permitir envio; teto de bytes em streaming, limite de concorrência e duração.                                                                                               |
+| Objetos pequenos em massa        | Cota de número de registros, lotes criptografados quando apropriado e contabilização do overhead; 300 MB não autoriza milhões de linhas gratuitas.                                                                 |
+| Acúmulo de temporários           | Expiração de desafios, reservas abandonadas e uploads não finalizados; coleta de órfãos com referências verificadas. Não apagar entregas aceitas fora da política.                                                 |
+| Substituições/deleções repetidas | Limite de bytes gravados por período e mutações; limites de versões, tombstones, índice de idempotência e retenção de logs/backup.                                                                                 |
+| WebSockets/presença              | Sessão/origem/autorização válidas, limites de conexões, mensagens e buffers; backpressure e consolidação de eventos de presença.                                                                                   |
+| Download/exportação              | Autorização por objeto/período, limites de conexões e banda; acesso ao ciphertext também deve ter controle.                                                                                                        |
+| Fanout de grupos/status/push     | Contabilizar custo de distribuição, limitar membros/audiência e coalescer notificações sem armazenar dados extras ilimitadamente.                                                                                  |
+| ZK/assinaturas/RPC               | Verificar formato/tamanho e quotas antes de trabalho caro; pool de CPU/fila limitada, contextos e proteção contra replay.                                                                                          |
+| TURN/chamadas                    | Credenciais curtas para participantes de chamada autorizada; limite de duração/concorrência/bytes, ACL de destinos; nunca relay público aberto. Preservar regra sem logs identificáveis persistentes das chamadas. |
 
 Ponto inicial ilustrativo para teste, não limites de produto já aprovados: duas solicitações de upload simultâneas por conta, cinco novos pedidos de conversa por dia para contas novas, dez solicitações pendentes, teto curto para conteúdo de solicitação e frequência baixa de criação de grupos mesmo no tier sem teto. Medir e ajustar antes de publicar; definir também burst e limites de texto normais sem inviabilizar conversas legítimas.
 
@@ -1152,13 +1159,13 @@ Referências: [Cloudflare DDoS e disponibilidade por plano](https://developers.c
 
 ### 18.3 Outras regras possíveis — não aprovadas para V1
 
-| Regra | O que melhora | Limitação/custo |
-| --- | --- | --- |
-| Idade mínima da conta e intervalo entre criações | Desacelera contas descartáveis sem transação on-chain | Contas podem ser preparadas em paralelo; não impede reutilizar tokens. Prazo ainda não escolhido. |
-| Saldo observado em verificações separadas por prazo | Dificulta transferir e criar imediatamente | Observações pontuais não comprovam posse contínua; exige consultas adicionais e não garante exclusividade. |
-| Manter saldo para continuar operando grupos | Reutilização afeta benefícios das contas anteriores | Apenas bloquear novas criações repete a regra atual. Para alterar incentivo seria preciso restringir grupos existentes, contrariando a decisão atual e afetando membros. |
+| Regra                                                    | O que melhora                                                                                   | Limitação/custo                                                                                                                                                                    |
+| -------------------------------------------------------- | ----------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Idade mínima da conta e intervalo entre criações         | Desacelera contas descartáveis sem transação on-chain                                           | Contas podem ser preparadas em paralelo; não impede reutilizar tokens. Prazo ainda não escolhido.                                                                                  |
+| Saldo observado em verificações separadas por prazo      | Dificulta transferir e criar imediatamente                                                      | Observações pontuais não comprovam posse contínua; exige consultas adicionais e não garante exclusividade.                                                                         |
+| Manter saldo para continuar operando grupos              | Reutilização afeta benefícios das contas anteriores                                             | Apenas bloquear novas criações repete a regra atual. Para alterar incentivo seria preciso restringir grupos existentes, contrariando a decisão atual e afetando membros.           |
 | Garantia de tokens bloqueados por grupo/capacidade ativa | Impede usar os mesmos tokens transferíveis em outra conta enquanto a garantia estiver bloqueada | Programa de escrow, transações, taxas, testes/revisão de segurança e regras de retirada. Desbloqueio com grupos ainda ativos recupera a possibilidade de reciclagem. Não aprovado. |
-| Taxa não reembolsável ou queima por criação | Cada grupo consome recurso econômico, reduzindo criação repetida sem custo | Muda produto, requer transação e não impede atacante disposto a gastar. Queima não financia armazenamento. Não aprovado. |
+| Taxa não reembolsável ou queima por criação              | Cada grupo consome recurso econômico, reduzindo criação repetida sem custo                      | Muda produto, requer transação e não impede atacante disposto a gastar. Queima não financia armazenamento. Não aprovado.                                                           |
 
 Bloqueio de tokens não implica rendimento/staking financeiro. Uma assinatura de login ou autorização de gasto não bloqueia saldo. Qualquer garantia exigiria desenho específico e análise de segurança, sem custódia improvisada nem congelamento arbitrário de wallets.
 
@@ -1218,7 +1225,7 @@ Mantida explicitamente pelo proprietário: saldo no momento da criação, tiers 
 
 ## 20. Higiene de código e arquitetura
 
-Objetivo solicitado: evitar responsabilidades excessivas e acoplamento crescente, com verificações desde o início. Decisão atual: não impor limite rígido de linhas por arquivo. As regras de trabalho estão em [AGENTS.md](AGENTS.md); ferramentas e thresholds ainda precisam ser configurados com o primeiro código. Não fixam framework de frontend/backend.
+Objetivo solicitado: evitar responsabilidades excessivas e acoplamento crescente, com verificações desde o início. Decisão atual: não impor limite rígido de linhas por arquivo. As regras de trabalho estão em [AGENTS.md](AGENTS.md). A base do bloco 00 configura ESLint, tipos strict, dependency-cruiser e Prettier, adotando complexidade 10, profundidade 3 e quatro parâmetros como erros bloqueantes. Esses controles não fixam framework de frontend/backend; revisar sua calibragem com as primeiras fatias funcionais.
 
 ### 20.1 Conjunto inicial enxuto
 
@@ -1227,16 +1234,16 @@ Objetivo solicitado: evitar responsabilidades excessivas e acoplamento crescente
 - Uma única configuração de formatação automática compatível com a stack, sem regras concorrentes de estilo em ferramentas diferentes. Formatação não substitui arquitetura.
 - Ferramentas locais e execução automatizada no ambiente de desenvolvimento/CI disponível; não exigir SaaS pago ou execução contínua dessas análises na VPS de produção.
 
-### 20.2 Limites iniciais propostos
+### 20.2 Limites iniciais adotados na base de preparação
 
-| Verificação | Ponto de partida |
-| --- | --- |
-| Linhas por arquivo de produção | Sem teto; avaliar coesão, responsabilidades e dependências |
-| Linhas por função | Aproximadamente 60 como sinal de revisão, não bloqueio automático por tamanho |
-| Complexidade ciclomática por função | 10 |
-| Profundidade de blocos | 3 |
-| Quantidade de parâmetros por função | 4 |
-| Ciclos e imports proibidos | Nenhum no escopo verificado |
+| Verificação                         | Ponto de partida                                                              |
+| ----------------------------------- | ----------------------------------------------------------------------------- |
+| Linhas por arquivo de produção      | Sem teto; avaliar coesão, responsabilidades e dependências                    |
+| Linhas por função                   | Aproximadamente 60 como sinal de revisão, não bloqueio automático por tamanho |
+| Complexidade ciclomática por função | 10                                                                            |
+| Profundidade de blocos              | 3                                                                             |
+| Quantidade de parâmetros por função | 4                                                                             |
+| Ciclos e imports proibidos          | Nenhum no escopo verificado                                                   |
 
 Priorizar regras como `complexity`, `max-depth` e `max-params`, além da validação de dependências. Não usar `max-lines` como bloqueio; extensão de funções é sinal de revisão de responsabilidade. Calibrar com as primeiras fatias reais; não elevar o limite global automaticamente para acomodar um caso. Testes, JSX declarativo, schemas e migrações podem requerer perfis específicos e documentados. Código gerado e dependências externas ficam fora das métricas de código próprio; lógica autoral nessas pastas não deve escapar das verificações.
 
@@ -1252,7 +1259,7 @@ Fronteiras críticas: frontend não importa drivers/credenciais PostgreSQL nem m
 
 ### 20.4 Como acompanhar continuamente
 
-1. Editor mostra problemas durante a escrita. Um comando planejado `check` executa lint, typecheck, validação das dependências e checagem de formatação, seguido dos testes pertinentes ao projeto. O comando ainda não existe; será criado com o esqueleto.
+1. Editor mostra problemas durante a escrita. O comando `npm run check`, criado com a base do bloco 00, executa lint, typecheck, validação das dependências, checagem de formatação e testes pertinentes ao projeto.
 2. Ao concluir cada bloco/alteração, executar essas verificações. Na automação de integração, erros bloqueiam aceite/merge/publicação quando configurada. Hooks locais são conveniência e podem ser pulados; não são única proteção.
 3. Configurar regras bloqueantes de correção/complexidade/dependências como erros após calibrar seus thresholds, evitando backlog permanente de warnings. Tamanho de arquivo/função permanece sinal de revisão. Exceções específicas e fundamentadas devem ficar visíveis no diff; não criar baseline para ignorar todo código novo.
 4. Gerar relatório pequeno por bloco com maiores arquivos/funções, violações de complexidade, ciclos/fronteiras e exceções. Comparar evolução quando houver histórico; não acumular relatórios volumosos nem código-fonte em serviço externo.

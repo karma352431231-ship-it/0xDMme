@@ -15,6 +15,10 @@
 /storage/
 /uploads/
 
+# Inventários e registros operacionais são privados e permanecem somente locais.
+/.local/
+/INVENTARIO_BLOCO_00.md
+
 # Dependências e saídas locais, caso sejam geradas pela futura stack.
 node_modules/
 /dist/
