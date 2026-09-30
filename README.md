@@ -6,7 +6,7 @@ O objetivo é oferecer autenticação por wallet e criptografia ponta a ponta, p
 
 ## Estado atual
 
-O bloco 00 está em andamento, com base local de preparação e verificações. Os critérios operacionais e a compatibilidade nos dispositivos ainda precisam ser validados. Inventários de máquinas, serviços, recursos e recuperação ficam somente em arquivos locais ignorados pelo Git; não publicar esses dados nem reproduzi-los no histórico dos documentos.
+O bloco 00 concluiu a preparação inicial: base local reproduzida, verificações, matriz proposta, triagem de dependências e estimativas. O próximo passo é a prova criptográfica do bloco 01 com dados sintéticos. Os critérios operacionais e a compatibilidade nos dispositivos ainda precisam ser validados. Inventários de máquinas, serviços, recursos e recuperação ficam somente em arquivos locais ignorados pelo Git; não publicar esses dados nem reproduzi-los no histórico dos documentos.
 
 A base local usa TypeScript, Node 24 e npm, com configuração de exemplo, verificações e testes. Ainda não há chat, servidor HTTP, interface PWA ou integração com banco/wallet; frameworks e bibliotecas criptográficas serão selecionados conforme o plano.
 
@@ -32,6 +32,7 @@ O CI em `.github/workflows/check.yml` repete as verificações em Ubuntu, sem im
 
 - [Decisões e plano de implementação](DECISOES_E_PLANO_DE_IMPLEMENTACAO.md): escopo aprovado, propostas, pendências, sequência e critérios de aceite.
 - [Padrões de trabalho](AGENTS.md): regras de implementação, revisão e verificação.
+- [Candidatos criptográficos](docs/CRIPTOGRAFIA_CANDIDATOS.md): triagem inicial e critérios da prova técnica, sem biblioteca escolhida para o produto.
 
 ## Fluxo de trabalho
 
