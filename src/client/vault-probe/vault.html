@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Hash-Talk · ensaio de cofre</title>
+    <link rel="stylesheet" href="/probe.css" />
+    <script type="module" src="/src/client/vault.ts"></script>
+  </head>
+  <body>
+    <main>
+      <h1>Cofre e recuperação</h1>
+      <p>
+        Use somente texto e segredo fictícios. Identidade sintética: Alice. Esta
+        página não usa o estado dos clientes de mensagens.
+      </p>
+      <label for="secret">Segredo fictício de recuperação</label>
+      <input id="secret" type="password" maxlength="44" autocomplete="off" />
+      <button id="generate-secret">Gerar segredo fictício</button>
+      <p>
+        Guarde o segredo para o teste; ele nunca é enviado ao relay. Abrir esta
+        página em outro navegador e buscar o envelope permite testar a
+        recuperação limpa.
+      </p>
+      <label for="history-message">Texto fictício do histórico</label>
+      <textarea id="history-message" maxlength="1000" rows="2">
+Histórico fictício recuperado em navegador limpo.</textarea>
+      <label for="revision">Revisão do snapshot</label>
+      <input id="revision" type="number" min="1" max="32" value="1" />
+      <button id="seal">Criar cofre cifrado</button>
+      <label for="envelope">Envelope cifrado</label>
+      <textarea id="envelope" maxlength="65536" rows="5"></textarea>
+      <button id="store">Guardar envelope no relay</button>
+      <button id="load">Buscar envelope do relay</button>
+      <button id="open">Abrir histórico localmente</button>
+      <p id="vault-status" role="status">
+        Ensaio pronto; nenhuma wallet real é necessária.
+      </p>
+      <p id="restored" aria-label="Histórico recuperado"></p>
+      <p>
+        O relay é temporário. Backups históricos válidos podem ser abertos, mas
+        não reautorizam aparelhos. Autenticação por wallet e defesa contra
+        rollback de estado atual ficam para a integração.
+      </p>
+    </main>
+  </body>
+</html>

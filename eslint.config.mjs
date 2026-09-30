@@ -28,7 +28,21 @@ export default defineConfig(
         tsconfigRootDir: import.meta.dirname,
       },
     },
-    rules: responsibilityRules,
+    rules: {
+      ...responsibilityRules,
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              regex: '^\\.{1,2}/.*(?<!\\.ts)$',
+              message:
+                'Imports relativos de código TypeScript precisam de extensão .ts para a execução nativa no Node.',
+            },
+          ],
+        },
+      ],
+    },
   },
   { linterOptions: { reportUnusedDisableDirectives: 'error' } },
 );

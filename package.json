@@ -10,6 +10,10 @@
   "packageManager": "npm@11.9.0",
   "scripts": {
     "dev": "node --env-file-if-exists=.env src/server/main.ts",
+    "probe:crypto": "node src/server/probe.ts",
+    "probe:zk:prepare": "node src/tools/prepare-zk.ts",
+    "probe:zk": "node src/tools/zk-probe.ts",
+    "probe:measure": "node src/tools/measure-probes.ts",
     "lint": "eslint . --max-warnings=0",
     "typecheck": "tsc --noEmit",
     "boundaries": "depcruise src --config .dependency-cruiser.cjs",
@@ -20,11 +24,23 @@
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
+    "@matrix-org/matrix-sdk-crypto-wasm": "18.9.0",
+    "@semaphore-protocol/group": "4.14.3",
+    "@semaphore-protocol/identity": "4.14.3",
+    "@semaphore-protocol/proof": "4.14.3",
     "@types/node": "24.19.0",
     "dependency-cruiser": "18.4.0",
+    "esbuild": "0.28.2",
     "eslint": "10.11.0",
     "prettier": "3.9.9",
     "typescript": "6.0.3",
     "typescript-eslint": "8.71.0"
+  },
+  "overrides": {
+    "ws": "8.21.0",
+    "underscore": "1.13.8",
+    "circomkit": {
+      "circom_tester": "0.0.24"
+    }
   }
 }

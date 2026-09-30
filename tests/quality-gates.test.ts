@@ -183,6 +183,17 @@ await test('TypeScript strict bloqueia tipos incompatíveis', (t) => {
   assert.match(result.stdout, /TS2322/);
 });
 
+await test('lint exige extensão relativa para execução nativa no Node', (t) => {
+  const directory = fixture(t, {
+    'src/server/main.ts': "export { value } from './value';\n",
+    'src/server/value.ts': 'export const value = 1;\n',
+  });
+  expectFailure(
+    runGate(directory, 'eslint/bin/eslint.js', ['.', '--max-warnings=0']),
+    /no-restricted-imports/,
+  );
+});
+
 await test('formatação incorreta faz a checagem falhar', (t) => {
   const directory = fixture(t, {
     'src/server/main.ts': 'export const value={a:1}\n',

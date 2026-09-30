@@ -20,5 +20,6 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci --ignore-scripts
+      - run: npm run probe:zk:prepare
       - run: npm run check
       - run: npm run dev

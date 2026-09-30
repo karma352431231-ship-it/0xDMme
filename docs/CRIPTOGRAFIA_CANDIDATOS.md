@@ -1,6 +1,8 @@
 # Triagem de candidatos criptográficos
 
-Consulta inicial em 30/09/2026 para o item de dependências do bloco 00 e a comparação do bloco 01 do [plano](../DECISOES_E_PLANO_DE_IMPLEMENTACAO.md). Nenhuma biblioteca desta lista foi instalada ou selecionada para o produto. As versões dos protótipos serão fixadas após conferir artefatos publicados, licenças transitivas e compatibilidade; links para branches documentam a consulta, sem definir versões reproduzíveis.
+Consulta inicial em 30/09/2026 para o item de dependências do bloco 00 e a comparação do bloco 01 do [plano](../DECISOES_E_PLANO_DE_IMPLEMENTACAO.md). Na triagem inicial nenhuma biblioteca havia sido instalada. Links para branches documentam essa consulta; versões efetivas estão no lockfile e na prova técnica, sem seleção definitiva para produto.
+
+Evolução no bloco 01: Matrix WASM 18.9.0 e Semaphore 4.14.3 instalados para os [ensaios isolados](BLOCO_01_PROVA_CRIPTOGRAFICA.md), com cofre Web Crypto. SDK completo/servidor Matrix não adotados. A prova documenta artefatos, revisão de dependências, licença, decisão condicionada e validação mobile pendente.
 
 ## Mensageria
 
@@ -44,8 +46,8 @@ Usar identidades e mensagens sintéticas, sem wallets pessoais ou dados reais. R
 | Leitura do servidor              | Objetos persistidos não revelam conteúdo ou segredos; logs não contêm material privado                                            |
 | Desempenho                       | Medir bundle/WASM, memória, inicialização, encrypt/decrypt, persistência e recuperação; medir prover/verificador ZK separadamente |
 
-Para cada candidato, revisar manutenção da versão, advisories, cobertura e escopo das auditorias, dependências transitivas, processo de atualização e custo operacional. O tamanho de bundle e o consumo ainda não foram medidos. Não concluir que uma biblioteca é segura apenas por licença, popularidade ou nome do mantenedor.
+Para cada candidato, revisar manutenção, advisories, escopo de auditorias, dependências, atualização e operação. Medidas locais iniciais e seus limites estão na prova do bloco 01; compatibilidade física ainda pendente. Não concluir segurança por licença, popularidade ou mantenedor.
 
-Decisão desta triagem: comparar primeiro as opções MLS e a referência web Matrix; manter libsignal como referência enquanto a integração browser e o uso externo não estiverem resolvidos. É uma ordem de investigação, sem adoção final, instalação ou exclusão definitiva de alternativas.
+Decisão inicial: comparar opções MLS e referência web Matrix; manter libsignal como referência enquanto bindings/uso externo estiverem em aberto. A prova posterior instalou candidatos de laboratório; não houve adoção final ou exclusão definitiva de alternativas.
 
 **Ponto importante:** esta triagem conclui o levantamento inicial de candidatos, sem validar criptografia. A seleção exige os testes do bloco 01; histórico real e garantias públicas continuam bloqueados até essa validação.

@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Cliente de teste · Hash-Talk</title>
+    <link rel="stylesheet" href="/probe.css" />
+    <script type="importmap">
+      {{IMPORT_MAP}}
+    </script>
+    <script type="module" src="/src/client/probe.ts"></script>
+  </head>
+  <body>
+    <main>
+      <h1 id="name">Cliente de teste</h1>
+      <p>Somente mensagens fictícias; armazenamento temporário.</p>
+      <label for="fingerprint">Minha chave pública</label>
+      <textarea id="fingerprint" readonly rows="2"></textarea>
+      <label for="expected">Chave pública do outro cliente</label>
+      <textarea id="expected" maxlength="43" rows="2"></textarea>
+      <button id="confirm" disabled>Conferir e autorizar</button>
+      <label for="message">Mensagem fictícia</label>
+      <textarea id="message" maxlength="1000" rows="3"></textarea>
+      <button id="send" disabled>Enviar cifrada</button>
+      <button id="receive" disabled>Buscar mensagens</button>
+      <button id="revoke" disabled>
+        Revogar outro dispositivo e testar rotação
+      </button>
+      <p id="status" role="status">Iniciando o cliente…</p>
+      <ul id="messages" aria-label="Mensagens recebidas"></ul>
+    </main>
+  </body>
+</html>

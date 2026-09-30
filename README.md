@@ -6,9 +6,9 @@ O objetivo é oferecer autenticação por wallet e criptografia ponta a ponta, p
 
 ## Estado atual
 
-O bloco 00 concluiu a preparação inicial: base local reproduzida, verificações, matriz proposta, triagem de dependências e estimativas. O próximo passo é a prova criptográfica do bloco 01 com dados sintéticos. Os critérios operacionais e a compatibilidade nos dispositivos ainda precisam ser validados. Inventários de máquinas, serviços, recursos e recuperação ficam somente em arquivos locais ignorados pelo Git; não publicar esses dados nem reproduzi-los no histórico dos documentos.
+O bloco 00 concluiu a preparação inicial. Os ensaios locais do bloco 01 estão implementados: mensagens cifradas, revogação/rotação, cofre/recuperação e prova ZK real com dados sintéticos. Aceite final e seleção para produto dependem dos aparelhos e das condições de revisão/licença registradas. Inventários de máquinas, serviços, recursos e recuperação ficam somente em arquivos locais ignorados pelo Git; não publicar esses dados nem reproduzi-los no histórico dos documentos.
 
-A base local usa TypeScript, Node 24 e npm, com configuração de exemplo, verificações e testes. Ainda não há chat, servidor HTTP, interface PWA ou integração com banco/wallet; frameworks e bibliotecas criptográficas serão selecionados conforme o plano.
+A base local usa TypeScript, Node 24 e npm, com configuração de exemplo, verificações e testes. O laboratório usa servidor HTTP somente local e motor criptográfico candidato. Ainda não há chat de produto, interface PWA ou integração com banco/wallet; frameworks e protocolo definitivo serão selecionados conforme o plano.
 
 ## Preparação local
 
@@ -18,6 +18,7 @@ Se usa nvm, execute `nvm use` nesta pasta antes dos comandos. Confirme `node --v
 
 ```bash
 npm ci --ignore-scripts
+npm run probe:zk:prepare
 npm run check
 npm run dev
 ```
@@ -28,11 +29,14 @@ npm run dev
 
 O CI em `.github/workflows/check.yml` repete as verificações em Ubuntu, sem implantação ou credenciais de aplicação. Está preparado localmente; a execução no GitHub ainda precisa ser verificada.
 
+Para o laboratório, execute `npm run probe:crypto` e abra `http://127.0.0.1:45101/`. Há também ensaios de cofre e ZK. Siga a [prova do bloco 01](docs/BLOCO_01_PROVA_CRIPTOGRAFICA.md) para executar os cenários. O laboratório é temporário e usa somente dados fictícios. `probe:zk:prepare` baixa artefatos públicos fixados antes do uso privado, sem CDN durante a prova; `npm run probe:measure` mantém medidas em registros locais ignorados.
+
 ## Documentação
 
 - [Decisões e plano de implementação](DECISOES_E_PLANO_DE_IMPLEMENTACAO.md): escopo aprovado, propostas, pendências, sequência e critérios de aceite.
 - [Padrões de trabalho](AGENTS.md): regras de implementação, revisão e verificação.
 - [Candidatos criptográficos](docs/CRIPTOGRAFIA_CANDIDATOS.md): triagem inicial e critérios da prova técnica, sem biblioteca escolhida para o produto.
+- [Ensaios e decisão criptográfica](docs/BLOCO_01_PROVA_CRIPTOGRAFICA.md): modelo de ameaças, execução, evidências, limitações e roteiro dos aparelhos.
 
 ## Fluxo de trabalho
 

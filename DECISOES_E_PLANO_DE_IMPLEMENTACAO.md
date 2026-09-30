@@ -1,7 +1,7 @@
 # Crypto WhatsApp — decisões e plano de implementação
 
 Data: 29 de setembro de 2026  
-Estado: planejamento aprovado conceitualmente; bloco 00 em andamento, com base local de preparação e verificações. Ainda não há aplicação de chat.
+Estado: planejamento aprovado conceitualmente; preparação inicial do bloco 00 concluída e bloco 01 em andamento, com laboratório criptográfico local. Ainda não há aplicação de chat para uso real.
 
 Nome de trabalho: Crypto WhatsApp. O nome público e a identidade visual serão definidos depois.
 
@@ -293,6 +293,8 @@ Verificação da base: lint, tipos, fronteiras, formatação e 13 testes passara
 ### Bloco 01 — Modelo de ameaças e prova técnica de criptografia
 
 **Depende de:** 00.
+
+**Estado:** ensaios locais implementados; aceite final pendente. [Prova e decisão técnica](docs/BLOCO_01_PROVA_CRIPTOGRAFICA.md): Matrix WASM com comparação de chaves, offline, diretório adulterado, revogação/rotação e replay; cofre autenticado Web Crypto com recuperação sem estado anterior; geração/verificação ZK real Semaphore, isolada do chat. Android/iPhone adiados pelo proprietário. Seleção definitiva depende desses testes e das condições de revisão/licença registradas; não declarar protocolo final ou segurança de produção. Laboratório temporário, separado de `dev`; medidas e dados de ambiente somente locais. Integração wallet/grupos/persistência nos blocos correspondentes; histórico real continua bloqueado.
 
 1. Comparar implementações estabelecidas de mensageria quanto a web, grupos, dispositivos, licença e operação própria.
 2. Selecionar protocolo/biblioteca após validar em navegador e celular; não decidir apenas pela popularidade.
