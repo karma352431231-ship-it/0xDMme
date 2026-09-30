@@ -1,0 +1,28 @@
+# Configuração privada; exemplos versionados devem conter somente valores fictícios.
+.env
+.env.*
+!.env.example
+!.env.*.example
+
+# Chaves e diretórios reservados para dados privados locais.
+*.pem
+*.key
+*.p12
+*.pfx
+/secrets/
+/backups/
+/data/
+/storage/
+/uploads/
+
+# Dependências e saídas locais, caso sejam geradas pela futura stack.
+node_modules/
+/dist/
+/build/
+/coverage/
+*.tsbuildinfo
+*.log
+
+# Arquivos do sistema operacional.
+.DS_Store
+Thumbs.db
