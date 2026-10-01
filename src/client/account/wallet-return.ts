@@ -3,6 +3,7 @@ import {
   accountSession,
   boundedText,
   object,
+  keys,
 } from '../../shared/account/index.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
 import {
@@ -22,29 +23,48 @@ interface Pending {
   address: string | null;
   expiresAt: string;
 }
-export function incomingWalletRequest(): {
+export interface WalletApprovalRequest {
   ticket: string;
   ecosystem: Ecosystem;
   wallet: WalletName;
-} | null {
-  const hash = location.hash ?? '';
-  if (!hash.startsWith('#configuracoes?')) return null;
-  // The ticket is a short-lived capability, never a session token. Remove it before other routing or network calls.
-  history.replaceState(approvalHistoryMarker(), '', '#configuracoes');
-  const params = new URLSearchParams(hash.slice('#configuracoes?'.length));
-  const ticket = params.get('ticket');
-  const wallet = params.get('wallet');
+}
+export function walletApprovalRequest(value: unknown): WalletApprovalRequest {
+  const data = object(value);
+  keys(data, ['ticket', 'wallet', 'ecosystem']);
+  const ticket = data['ticket'];
+  const wallet = data['wallet'];
   if (
-    !ticket ||
+    typeof ticket !== 'string' ||
     !/^[a-f0-9]{64}$/u.test(ticket) ||
-    !['MetaMask', 'Phantom', 'Solflare', 'Backpack'].includes(wallet ?? '')
+    typeof wallet !== 'string' ||
+    !['MetaMask', 'Phantom', 'Solflare', 'Backpack'].includes(wallet)
   )
     throw new Error('Pedido de wallet inválido.');
   return {
     ticket,
-    ecosystem: ecosystem(params.get('ecosystem')),
     wallet: wallet as WalletName,
+    ecosystem: ecosystem(data['ecosystem']),
   };
+}
+export function incomingWalletRequest(
+  remember?: (request: WalletApprovalRequest) => void,
+): WalletApprovalRequest | null {
+  const hash = location.hash ?? '';
+  if (!hash.startsWith('#configuracoes?')) return null;
+  try {
+    const params = new URLSearchParams(hash.slice('#configuracoes?'.length));
+    const request = walletApprovalRequest({
+      ticket: params.get('ticket'),
+      wallet: params.get('wallet'),
+      ecosystem: params.get('ecosystem'),
+    });
+    remember?.(request);
+    return request;
+  } finally {
+    // Save the approved temporary handoff before a wallet can reopen this URL.
+    // Strip valid and invalid fragments before routing or network calls.
+    history.replaceState(approvalHistoryMarker(), '', '#configuracoes');
+  }
 }
 function pendingState(value: unknown): Pending | null {
   if (value === null) return null;

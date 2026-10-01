@@ -4,6 +4,8 @@ export type ApprovalStage =
   | 'pedido-invalido'
   | 'limpeza-url-falhou'
   | 'pedido-lido'
+  | 'pedido-restaurado'
+  | 'pedido-expirado'
   | 'conexao-solicitada'
   | 'conexao-recebida'
   | 'desafio-solicitado'
@@ -89,11 +91,11 @@ export function createApprovalDiagnostics() {
           ? `HTTP-${status}`
           : 'local-ou-provider';
     },
-    text(provider: boolean | null) {
+    text(provider: boolean | null, storageAvailable = true) {
       // Fixed categories only: never stringify input, errors or provider data.
       const availability =
         provider === null ? 'nao-avaliado' : provider ? 'presente' : 'ausente';
-      return `D1 · entrada=${input} · chegada=${source} · navegacao=${navigation} · historico=${previous} · etapa=${stage} · provider=${availability} · falha=${failure}`;
+      return `D1 · entrada=${input} · chegada=${source} · navegacao=${navigation} · historico=${previous} · etapa=${stage} · provider=${availability} · armazenamento=${storageAvailable ? 'disponivel' : 'indisponivel'} · falha=${failure}`;
     },
   };
 }

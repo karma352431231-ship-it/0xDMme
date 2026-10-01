@@ -12,6 +12,7 @@ import type { WalletConnection, WalletName } from '../wallet/index.ts';
 import { attemptBrowserReturn, browserReturnUrl } from './browser-return.ts';
 import { createApprovalDiagnostics } from './approval-diagnostics.ts';
 import type { ApprovalStage } from './approval-diagnostics.ts';
+import { createPendingApproval } from './pending-approval.ts';
 import { canonicalAddress } from '../../shared/wallet-identity/index.ts';
 import {
   createWalletReturn,
@@ -112,6 +113,7 @@ export function startAccount(options: {
   let approvalOnly =
     approvalPage || (location.hash ?? '').startsWith('#configuracoes?');
   const diagnostics = createApprovalDiagnostics();
+  const pendingApproval = createPendingApproval(expireApproval);
   let incoming = readIncoming();
   const wallets = discoverWallets();
   let incomingSigned = false;
@@ -356,6 +358,7 @@ export function startAccount(options: {
     if (detail)
       detail.textContent = diagnostics.text(
         incoming ? Boolean(wallets.get(approvalWalletId())) : null,
+        pendingApproval.availability(),
       );
   }
   function approvalStep(stage: ApprovalStage): void {
@@ -363,18 +366,38 @@ export function startAccount(options: {
   }
   function readIncoming(): ReturnType<typeof incomingWalletRequest> {
     try {
-      const result = incomingWalletRequest();
-      approvalStep(result ? 'pedido-lido' : 'pedido-ausente');
+      const result = incomingWalletRequest((request) => {
+        if (approvalPage) pendingApproval.remember(request);
+      });
+      if (!result) return restoreApproval();
+      approvalStep('pedido-lido');
       return result;
     } catch {
+      pendingApproval.clear();
       approvalStep(
         location.hash.startsWith('#configuracoes?')
           ? 'limpeza-url-falhou'
           : 'pedido-invalido',
       );
-      // Diagnostics do not recover a ticket or fall back to independent login.
+      // A malformed new request must never recover another stored request.
       return null;
     }
+  }
+  function restoreApproval(): ReturnType<typeof incomingWalletRequest> {
+    const eligible =
+      approvalPage && (!location.hash || location.hash === '#configuracoes');
+    const result = eligible ? pendingApproval.restore() : null;
+    approvalStep(result ? 'pedido-restaurado' : 'pedido-ausente');
+    return result;
+  }
+  function expireApproval(): void {
+    if (!incoming || incomingSigned) return;
+    epoch++;
+    incoming = null;
+    approvalStep('pedido-expirado');
+    status =
+      'Pedido expirou. Volte ao navegador original e inicie um novo pedido.';
+    render();
   }
 
   function renderApproval(): void {
@@ -713,6 +736,7 @@ export function startAccount(options: {
           signature: proof.signature,
         },
       });
+      pendingApproval.clear(request.ticket);
       checkEpoch(proof.currentEpoch);
       incomingSigned = true;
       approvalStep('assinatura-confirmada');
@@ -839,6 +863,7 @@ export function startAccount(options: {
     removeProviderListeners?.();
     offWallets();
     walletReturn.close();
+    pendingApproval.close();
     wallets.close();
     window.removeEventListener('pagehide', dispose);
     window.removeEventListener('hashchange', receiveWalletRequest);

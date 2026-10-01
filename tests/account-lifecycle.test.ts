@@ -38,6 +38,9 @@ function scope(options: {
   historyState?: unknown;
   historyRejected?: boolean;
   challengeFailure?: number;
+  storage?: Map<string, string>;
+  storageRejected?: boolean;
+  clock?: { now: number };
 }) {
   const address = `0x${'1'.repeat(40)}`;
   const listeners = new Map<string, () => void>();
@@ -46,6 +49,13 @@ function scope(options: {
   const navigated: string[] = [];
   const providerRequests: string[] = [];
   const historyWrites: unknown[] = [];
+  const storage = options.storage ?? new Map<string, string>();
+  const storedBeforeHistory: boolean[] = [];
+  class LocalDate extends Date {
+    static override now() {
+      return options.clock?.now ?? Date.now();
+    }
+  }
   const location = {
     origin: 'https://0xdmme.app',
     pathname: options.pathname ?? '/',
@@ -182,14 +192,30 @@ function scope(options: {
       replaceState: (_state: unknown, _title: string, hash: string) => {
         if (options.historyRejected) throw new Error('History blocked');
         historyWrites.push(_state);
+        storedBeforeHistory.push(storage.size > 0);
         location.hash = hash;
       },
     },
     performance: {
       getEntriesByType: () => [{ type: options.navigationType ?? 'navigate' }],
     },
-    document: { activeElement: null },
+    document: Object.assign(new EventTarget(), { activeElement: null }),
     localStorage: { getItem: () => session.deviceId },
+    sessionStorage: {
+      getItem: (key: string) => {
+        if (options.storageRejected) throw new Error('Storage blocked');
+        return storage.get(key) ?? null;
+      },
+      setItem: (key: string, value: string) => {
+        if (options.storageRejected) throw new Error('Storage blocked');
+        storage.set(key, value);
+      },
+      removeItem: (key: string) => {
+        if (options.storageRejected) throw new Error('Storage blocked');
+        storage.delete(key);
+      },
+    },
+    Date: LocalDate,
     async fetch(path: string, init?: RequestInit) {
       requests.push(path);
       if (typeof init?.body === 'string')
@@ -212,6 +238,8 @@ function scope(options: {
     navigated,
     providerRequests,
     historyWrites,
+    storage,
+    storedBeforeHistory,
     inputs,
     confirmApproval: () => approve.dispatchEvent(new Event('click')),
     incoming: (ticket = 'b'.repeat(64)) => {
@@ -223,6 +251,7 @@ function scope(options: {
     expire: () => {
       for (const callback of [...timers.values()]) callback();
     },
+    resume: () => window.dispatchEvent(new Event('focus')),
     dispose: () => window.dispatchEvent(new Event('pagehide')),
   };
 }
@@ -313,8 +342,191 @@ await test('entrada de aprovação assina o retorno sem criar sessão independen
   assert.deepEqual(browser.navigated, [browser.back.href]);
   assert.ok(!browser.back.href.includes('a'.repeat(64)));
   assert.deepEqual(browser.states, []);
+  assert.equal(browser.storage.size, 0);
   assert.match(browser.diagnostic.textContent, /etapa=retorno-tentado/u);
   assert.doesNotMatch(browser.diagnostic.textContent, /a{64}|0x|https:/u);
+  browser.dispose();
+});
+
+await test('pedido salvo antes de limpar URL sobrevive reabertura sem marcador, sem renovar prazo nem autenticar', async () => {
+  const clock = { now: Date.now() };
+  const first = scope({ pathname: '/wallet.html', hash: approvalHash, clock });
+  await tick();
+  assert.deepEqual(first.storedBeforeHistory, [true]);
+  assert.equal(first.storage.size, 1);
+  const record = [...first.storage.values()][0];
+  assert.ok(record);
+  assert.doesNotMatch(
+    record,
+    /address|signature|csrf|accountId|session|secret/u,
+  );
+  first.dispose();
+  clock.now += 60_000;
+  const reopened = scope({
+    pathname: '/wallet.html',
+    hash: '#configuracoes',
+    navigationType: 'navigate',
+    storage: first.storage,
+    clock,
+  });
+  await tick();
+  assert.equal(reopened.approve.hidden, false);
+  assert.match(reopened.diagnostic.textContent, /etapa=pedido-restaurado/u);
+  assert.equal(reopened.requests.length, 0);
+  assert.deepEqual(reopened.states, []);
+  assert.equal([...reopened.storage.values()][0], record);
+  reopened.incoming('a'.repeat(64));
+  assert.equal([...reopened.storage.values()][0], record);
+  reopened.confirmApproval();
+  await tick();
+  assert.equal(reopened.requests.includes('/api/account/login'), false);
+  assert.equal(reopened.requests.includes('/api/account/handoff-sign'), true);
+  assert.equal(reopened.storage.size, 0);
+  reopened.dispose();
+});
+
+await test('prazo local encerra pedido ao retomar e ao reabrir; novo fragmento inválido não recupera anterior', async () => {
+  const clock = { now: Date.now() };
+  const live = scope({ pathname: '/wallet.html', hash: approvalHash, clock });
+  await tick();
+  clock.now += 300_000;
+  live.resume();
+  assert.equal(live.storage.size, 0);
+  assert.equal(live.approve.hidden, true);
+  assert.match(live.diagnostic.textContent, /etapa=pedido-expirado/u);
+  live.dispose();
+  const another = scope({
+    pathname: '/wallet.html',
+    hash: approvalHash,
+    clock,
+  });
+  await tick();
+  another.dispose();
+  const invalid = scope({
+    pathname: '/wallet.html',
+    hash: '#configuracoes?ticket=invalid&wallet=MetaMask&ecosystem=evm',
+    storage: another.storage,
+    clock,
+  });
+  await tick();
+  assert.equal(invalid.storage.size, 0);
+  assert.equal(invalid.approve.hidden, true);
+  assert.deepEqual(invalid.requests, []);
+  invalid.dispose();
+  const last = scope({ pathname: '/wallet.html', hash: approvalHash, clock });
+  await tick();
+  last.dispose();
+  clock.now += 300_000;
+  const expired = scope({
+    pathname: '/wallet.html',
+    storage: last.storage,
+    clock,
+  });
+  await tick();
+  assert.equal(expired.storage.size, 0);
+  assert.equal(expired.approve.hidden, true);
+  assert.deepEqual(expired.requests, []);
+  expired.dispose();
+});
+
+await test('armazenamento bloqueado mantém só pedido recebido em memória, sem recuperar pedido ou abrir sessão', async () => {
+  const browser = scope({
+    pathname: '/wallet.html',
+    hash: approvalHash,
+    storageRejected: true,
+  });
+  await tick();
+  assert.equal(browser.approve.hidden, false);
+  assert.match(browser.diagnostic.textContent, /armazenamento=indisponivel/u);
+  browser.confirmApproval();
+  await tick();
+  assert.equal(browser.storage.size, 0);
+  assert.equal(browser.requests.includes('/api/account/login'), false);
+  assert.equal(browser.requests.includes('/api/account/handoff-sign'), true);
+  browser.dispose();
+});
+
+await test('registro corrompido, excedido ou com prazo adulterado nunca inicia autenticação', async () => {
+  const clock = { now: Date.now() };
+  const first = scope({ pathname: '/wallet.html', hash: approvalHash, clock });
+  await tick();
+  const entry = [...first.storage.entries()][0];
+  assert.ok(entry);
+  const [key, value] = entry;
+  const record = JSON.parse(value) as Record<string, unknown>;
+  first.dispose();
+  const invalid = [
+    '{',
+    'x'.repeat(513),
+    JSON.stringify({ ...record, private: 'PRIVATE' }),
+    JSON.stringify({ ...record, expiresAt: clock.now + 600_000 }),
+    JSON.stringify({
+      ...record,
+      createdAt: clock.now + 1,
+      expiresAt: clock.now + 300_001,
+    }),
+    JSON.stringify({ ...record, request: { ticket: 'invalid' } }),
+  ];
+  for (const altered of invalid) {
+    const browser = scope({
+      pathname: '/wallet.html',
+      storage: new Map([[key, altered]]),
+      clock,
+    });
+    await tick();
+    browser.confirmApproval();
+    await tick();
+    assert.equal(browser.storage.size, 0);
+    assert.equal(browser.approve.hidden, true);
+    assert.deepEqual(browser.requests, []);
+    assert.deepEqual(browser.states, []);
+    assert.doesNotMatch(browser.diagnostic.textContent, /PRIVATE|a{64}/u);
+    browser.dispose();
+  }
+});
+
+await test('app normal não recupera pedido temporário da entrada de aprovação', async () => {
+  const first = scope({ pathname: '/wallet.html', hash: approvalHash });
+  await tick();
+  first.dispose();
+  const normal = scope({ storage: first.storage, hash: '#configuracoes' });
+  await tick();
+  assert.equal(
+    normal.requests.includes('/api/account/handoff-challenge'),
+    false,
+  );
+  assert.equal(normal.requests.includes('/api/account/handoff-sign'), false);
+  assert.equal(normal.picker.hidden, false);
+  assert.deepEqual(normal.providerRequests, []);
+  assert.deepEqual(normal.requests, [
+    '/api/account/session',
+    '/api/account/handoff-status',
+  ]);
+  assert.deepEqual(normal.states, []);
+  normal.dispose();
+});
+
+await test('assinatura aceita de pedido anterior não apaga nem confirma um novo pedido', async () => {
+  const signed = deferred<unknown>();
+  const browser = scope({
+    pathname: '/wallet.html',
+    hash: approvalHash,
+    handoffSign: signed.promise,
+  });
+  await tick();
+  browser.confirmApproval();
+  await tick();
+  assert.ok(browser.requests.includes('/api/account/handoff-sign'));
+  browser.incoming();
+  const replacement = [...browser.storage.values()][0];
+  assert.ok(replacement?.includes('b'.repeat(64)));
+  signed.resolve({ status: 'signed' });
+  await tick();
+  assert.equal([...browser.storage.values()][0], replacement);
+  assert.equal(browser.back.hidden, true);
+  assert.equal(browser.approve.hidden, false);
+  assert.deepEqual(browser.navigated, []);
+  assert.match(browser.diagnostic.textContent, /etapa=pedido-lido/u);
   browser.dispose();
 });
 
