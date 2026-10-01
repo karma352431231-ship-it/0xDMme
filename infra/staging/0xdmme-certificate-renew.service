@@ -1,0 +1,30 @@
+[Unit]
+Description=Renew only the isolated 0xDMme certificate
+Requires=var-lib-0xdmme-data.mount
+After=var-lib-0xdmme-data.mount network-online.target
+
+[Service]
+Type=oneshot
+Slice=xdmme-test.slice
+ExecStart=/usr/bin/certbot renew --non-interactive --cert-name 0xdmme.app --config-dir /var/lib/0xdmme/data/certificates --work-dir /var/lib/0xdmme/data/certbot-work --logs-dir /var/lib/0xdmme/data/certbot-logs --deploy-hook /etc/0xdmme/reload-certificate.sh
+CPUQuota=10%
+MemoryMax=256M
+MemorySwapMax=0
+TasksMax=32
+Nice=19
+IOSchedulingClass=idle
+TimeoutStartSec=120
+UMask=0077
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+ReadWritePaths=/var/lib/0xdmme/data/certificates /var/lib/0xdmme/data/certbot-work /var/lib/0xdmme/data/certbot-logs /var/lib/0xdmme/data/acme
+StandardOutput=null
+StandardError=null

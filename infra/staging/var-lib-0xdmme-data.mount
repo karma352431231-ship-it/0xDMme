@@ -1,0 +1,11 @@
+[Unit]
+Description=0xDMme bounded private test storage
+
+[Mount]
+What=/var/lib/0xdmme/runtime.img
+Where=/var/lib/0xdmme/data
+Type=ext4
+Options=loop,nodev,nosuid,noexec
+
+[Install]
+WantedBy=multi-user.target
