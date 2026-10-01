@@ -57,6 +57,17 @@ configurações compartilhadas não fazem parte do deploy de código. Não execu
 build, npm, testes ou bootstrap no outro projeto nem atualizar dependências
 globais. O fluxo de ativação automática ainda não foi implementado.
 
+Em 01/10/2026, o proprietário autorizou separadamente a ativação da correção
+mobile `17d04b6`. O pacote foi exportado desse commit, conferido com o Git
+exclusivo da VPS e ativado após verificar backend, migrações e dependências
+idênticos à versão anterior. Somente o serviço web próprio foi reiniciado;
+saúde HTTPS, JavaScript público e fontes correspondentes foram conferidos.
+As comparações de configuração, processos compartilhados, banco próprio e
+respostas anteriores passaram. A release anterior ficou guardada para retorno,
+dentro do armazenamento limitado próprio. Evidências e operações de acesso
+ficam em `.local/`; o aceite físico Android continua pendente. Esse deploy
+autorizado não habilita ativação automática para os próximos envios de Git.
+
 **Ponto importante:** o envio ao GitHub/VPS não libera a V1, não substitui aceite
 mobile e não torna seguro usar conversas reais. O risco residual de hardware e
 rede compartilhados continua conforme a [decisão de isolamento](DOMINIO_E_AMBIENTE_TESTE.md).
