@@ -12,6 +12,7 @@ import {
 import type { Ecosystem } from '../../shared/wallet-identity/index.ts';
 import { walletBrowserUrl } from '../wallet/index.ts';
 import type { WalletName } from '../wallet/index.ts';
+import { approvalHistoryMarker } from './approval-diagnostics.ts';
 type Api = (
   path: string,
   options?: { input?: unknown; csrf?: string },
@@ -29,7 +30,7 @@ export function incomingWalletRequest(): {
   const hash = location.hash ?? '';
   if (!hash.startsWith('#configuracoes?')) return null;
   // The ticket is a short-lived capability, never a session token. Remove it before other routing or network calls.
-  history.replaceState(null, '', '#configuracoes');
+  history.replaceState(approvalHistoryMarker(), '', '#configuracoes');
   const params = new URLSearchParams(hash.slice('#configuracoes?'.length));
   const ticket = params.get('ticket');
   const wallet = params.get('wallet');

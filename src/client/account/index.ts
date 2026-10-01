@@ -10,6 +10,8 @@ import type { AccountSession } from '../../shared/account/index.ts';
 import { discoverWallets } from '../wallet/index.ts';
 import type { WalletConnection, WalletName } from '../wallet/index.ts';
 import { attemptBrowserReturn, browserReturnUrl } from './browser-return.ts';
+import { createApprovalDiagnostics } from './approval-diagnostics.ts';
+import type { ApprovalStage } from './approval-diagnostics.ts';
 import { canonicalAddress } from '../../shared/wallet-identity/index.ts';
 import {
   createWalletReturn,
@@ -52,7 +54,9 @@ const template = `<article class="card account-card"><span class="eyebrow">CONTA
 <p data-wallet-purpose hidden>Assine apenas se você abriu este pedido no seu navegador. Ele conectará esse navegador à sua conta; recuse links recebidos de outras pessoas.</p>
 <div data-wallet-return hidden><a data-wallet-open referrerpolicy="no-referrer">Abrir wallet</a><p data-wallet-candidate></p><button data-wallet-confirm type="button" hidden>Confirmar este endereço neste navegador</button><button data-wallet-cancel type="button">Cancelar pedido</button></div>
 <a class="primary" data-wallet-back hidden rel="noreferrer">Voltar ao navegador</a>
+<p class="detail" data-wallet-manual hidden>Para voltar ao navegador original, use a tela de apps recentes do celular. O pedido só terá assinatura confirmada quando esta página informar isso.</p>
 <p data-account-status role="status">Verificando sessão…</p>
+<details data-wallet-diagnostics hidden open><summary>Diagnóstico do login</summary><p class="detail" data-wallet-diagnostic></p><p class="detail">Se falhar, envie esta linha. Ela não contém ticket, endereço ou assinatura.</p></details>
 <div data-profile hidden><p data-account-address class="account-address"></p><p data-account-id class="account-address"></p>
 <p>Dispositivo cadastrado; autorização criptográfica e recuperação serão configuradas na próxima etapa.</p>
 <form data-name-form><label>Nome mostrado nas solicitações de contato<input name="display-name" maxlength="80" autocomplete="nickname"></label><button class="primary" type="submit">Salvar nome</button></form>
@@ -104,17 +108,12 @@ function deviceId(): string {
 export function startAccount(options: {
   changed: (session: AccountSession | null) => void;
 }) {
-  const wallets = discoverWallets();
   const approvalPage = location.pathname === '/wallet.html';
   let approvalOnly =
     approvalPage || (location.hash ?? '').startsWith('#configuracoes?');
-  let incoming: ReturnType<typeof incomingWalletRequest> = null;
-  try {
-    incoming = incomingWalletRequest();
-  } catch {
-    // Never turn a malformed approval link into an independent wallet login.
-    incoming = null;
-  }
+  const diagnostics = createApprovalDiagnostics();
+  let incoming = readIncoming();
+  const wallets = discoverWallets();
   let incomingSigned = false;
   let session: AccountSession | null = null;
   let privateProfile: PrivateProfile | null = null;
@@ -336,14 +335,45 @@ export function startAccount(options: {
   function renderApprovalContext(): void {
     renderWalletPurpose();
     renderApproval();
+    renderDiagnostics();
   }
   function renderWalletPurpose(): void {
     const purpose = node('[data-wallet-purpose]');
     if (purpose) purpose.hidden = !incoming;
     const back = node<HTMLAnchorElement>('[data-wallet-back]');
     if (back) {
-      back.hidden = !approvalOnly;
+      back.hidden = !approvalOnly || !incomingSigned;
       back.href = browserReturnUrl();
+    }
+    const manual = node('[data-wallet-manual]');
+    if (manual) manual.hidden = !approvalOnly;
+  }
+
+  function renderDiagnostics(): void {
+    const panel = node('[data-wallet-diagnostics]');
+    if (panel) panel.hidden = !approvalOnly;
+    const detail = node('[data-wallet-diagnostic]');
+    if (detail)
+      detail.textContent = diagnostics.text(
+        incoming ? Boolean(wallets.get(approvalWalletId())) : null,
+      );
+  }
+  function approvalStep(stage: ApprovalStage): void {
+    if (approvalOnly) diagnostics.step(stage);
+  }
+  function readIncoming(): ReturnType<typeof incomingWalletRequest> {
+    try {
+      const result = incomingWalletRequest();
+      approvalStep(result ? 'pedido-lido' : 'pedido-ausente');
+      return result;
+    } catch {
+      approvalStep(
+        location.hash.startsWith('#configuracoes?')
+          ? 'limpeza-url-falhou'
+          : 'pedido-invalido',
+      );
+      // Diagnostics do not recover a ticket or fall back to independent login.
+      return null;
     }
   }
 
@@ -384,13 +414,11 @@ export function startAccount(options: {
     removeProviderListeners?.();
     removeProviderListeners = undefined;
     setSession(null);
-    try {
-      incoming = incomingWalletRequest();
-      status = 'Confirme a assinatura do pedido iniciado no seu navegador.';
-    } catch {
-      incoming = null;
-      status = 'Pedido inválido. Volte ao navegador e crie um novo pedido.';
-    }
+    diagnostics.beginFragment();
+    incoming = readIncoming();
+    status = incoming
+      ? 'Confirme a assinatura do pedido iniciado no seu navegador.'
+      : 'Pedido inválido. Volte ao navegador e crie um novo pedido.';
     render();
   }
 
@@ -524,6 +552,7 @@ export function startAccount(options: {
   }
   async function operation(work: () => Promise<void>): Promise<void> {
     if (busy || disposed) return;
+    const approvalRequest = incoming;
     busy = true;
     render();
     const timer = window.setTimeout(() => {
@@ -537,10 +566,7 @@ export function startAccount(options: {
     try {
       await work();
     } catch (error: unknown) {
-      status =
-        error instanceof AccountError
-          ? error.message
-          : 'Operação não concluída. Confira a wallet e a conexão; tente novamente.';
+      reportOperationError(error, approvalRequest);
     } finally {
       window.clearTimeout(timer);
       busy = false;
@@ -550,6 +576,19 @@ export function startAccount(options: {
         void operation(logout);
       }
     }
+  }
+  function reportOperationError(
+    error: unknown,
+    request: ReturnType<typeof incomingWalletRequest>,
+  ): void {
+    if (approvalOnly && incoming === request)
+      diagnostics.fail(
+        error instanceof AccountError ? error.status : undefined,
+      );
+    status =
+      error instanceof AccountError
+        ? error.message
+        : 'Operação não concluída. Confira a wallet e a conexão; tente novamente.';
   }
   async function logout(): Promise<void> {
     const current = session;
@@ -603,9 +642,14 @@ export function startAccount(options: {
   }
   async function createLoginProof(instance: WalletConnection) {
     const currentEpoch = ++epoch;
+    approvalStep('conexao-solicitada');
+    renderDiagnostics();
     const identity = await instance.identity(true);
     checkEpoch(currentEpoch);
+    approvalStep('conexao-recebida');
     observeProvider(instance);
+    approvalStep('desafio-solicitado');
+    renderDiagnostics();
     const challenge = object(
       await api(incoming ? 'handoff-challenge' : 'challenge', {
         input: incoming
@@ -618,14 +662,18 @@ export function startAccount(options: {
       }),
     );
     checkEpoch(currentEpoch);
+    approvalStep('desafio-recebido');
     status =
       'Confira domínio e endereço na wallet e assine somente o pedido de login.';
     render();
+    approvalStep('assinatura-solicitada');
+    renderDiagnostics();
     const signature = await instance.sign(
       boundedText(challenge['message'], 2048),
       identity.address,
     );
     checkEpoch(currentEpoch);
+    approvalStep('assinatura-recebida');
     const stillConnected = await instance.identity(false);
     checkEpoch(currentEpoch);
     if (
@@ -635,6 +683,7 @@ export function startAccount(options: {
       stillConnected.ecosystem !== identity.ecosystem
     )
       throw new Error('Wallet alterada.');
+    approvalStep('wallet-reconferida');
     return { id: uuid(challenge['id']), signature, currentEpoch };
   }
   async function login(name: string): Promise<void> {
@@ -655,6 +704,8 @@ export function startAccount(options: {
     render();
     const proof = await createLoginProof(instance);
     if (request) {
+      approvalStep('assinatura-enviada');
+      renderDiagnostics();
       await api('handoff-sign', {
         input: {
           ticket: request.ticket,
@@ -664,10 +715,13 @@ export function startAccount(options: {
       });
       checkEpoch(proof.currentEpoch);
       incomingSigned = true;
+      approvalStep('assinatura-confirmada');
       status =
         'Assinatura confirmada. Toque em Voltar ao navegador e confirme o endereço na aba que iniciou o pedido. Se abrir outra aba ou a abertura for bloqueada, volte manualmente à aba ou PWA original.';
       render();
-      attemptBrowserReturn();
+      approvalStep(
+        attemptBrowserReturn() ? 'retorno-tentado' : 'retorno-manual',
+      );
       return;
     }
     const authenticated = accountSession(
