@@ -153,6 +153,14 @@ CI exata, arquivos maliciosos, limites, migrações/dependências, retorno após
 recusa de retorno não verificado, retenção, versão já ativa e fontes de terceiros
 no build real exportado do Git. O workflow repete esses controles em CI.
 
+O fluxo foi executado com sucesso em 01/10/2026 para o commit `9f15d57`, com
+CI aprovada. Fontes de runtime foram extraídas do Git próprio da VPS; o build
+local e todas as fontes/licenças públicas conferiram pelo manifesto. Somente
+o serviço web próprio foi reiniciado, a versão anterior foi mantida e as
+verificações de preservação passaram. O Node instalado permaneceu dentro do
+intervalo já aprovado, sem atualização de sistema. Isso valida a publicação
+pelo comando; o aceite físico mobile da autenticação continua pendente.
+
 **Ponto importante:** o envio ao GitHub/VPS não libera a V1, não substitui aceite
 mobile e não torna seguro usar conversas reais. O risco residual de hardware e
 rede compartilhados continua conforme a [decisão de isolamento](DOMINIO_E_AMBIENTE_TESTE.md).
