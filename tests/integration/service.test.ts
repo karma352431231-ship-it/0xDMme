@@ -23,9 +23,10 @@ await test('processo web inicia com estado persistido e encerra por SIGTERM sem 
       clearTimeout(timer);
       reject(new Error('Serviço terminou antes da inicialização.'));
     });
-    service.stdout.once('data', (bytes: Buffer) => {
+    // The log only signals startup; HTTP readiness verifies the behavior below.
+    // Branding and wording changes must not replace that functional assertion.
+    service.stdout.once('data', () => {
       clearTimeout(timer);
-      assert.match(bytes.toString(), /base local/);
       resolve();
     });
   });
