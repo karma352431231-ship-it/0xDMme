@@ -49,9 +49,7 @@ function pendingState(value: unknown): Pending | null {
   if (value === null) return null;
   const data = object(value);
   const network = ecosystem(data['ecosystem']);
-  const expiresAt = boundedText(data['expiresAt'], 32);
-  if (!Number.isFinite(Date.parse(expiresAt)))
-    throw new Error('Prazo inválido.');
+  const expiresAt = handoffExpiry(data);
   return {
     ecosystem: network,
     address:
@@ -63,10 +61,17 @@ function pendingState(value: unknown): Pending | null {
 }
 function handoffExpiry(data: Record<string, unknown>): string {
   const expiresAt = boundedText(data['expiresAt'], 32);
-  const remaining = Date.parse(expiresAt) - Date.now();
+  const serverTime = boundedText(data['serverTime'], 32);
+  // Both timestamps belong to the server's clock. The device's wall clock
+  // must not reject a valid handoff; only the server/database grants authentication.
+  const remaining = Date.parse(expiresAt) - Date.parse(serverTime);
   if (!Number.isFinite(remaining) || remaining <= 0 || remaining > 300_000)
-    throw new Error('Prazo do pedido inválido.');
-  return expiresAt;
+    throw new AccountError(
+      502,
+      'O prazo recebido para abrir a wallet é inválido ou já terminou. Crie um novo pedido.',
+    );
+  // This local deadline only bounds polling. It never extends server validity.
+  return new Date(Date.now() + remaining).toISOString();
 }
 export function createWalletReturn(options: {
   api: Api;
@@ -114,11 +119,19 @@ export function createWalletReturn(options: {
     const current = ++generation;
     link = null;
     pending = null;
-    const data = object(
-      await options.api('handoff-start', {
+    let response: unknown;
+    try {
+      response = await options.api('handoff-start', {
         input: { ecosystem: network, deviceId: options.deviceId() },
-      }),
-    );
+      });
+    } catch (error: unknown) {
+      if (error instanceof AccountError) throw error;
+      throw new AccountError(
+        503,
+        'Não foi possível criar o pedido para abrir a wallet. Confira a conexão e tente novamente.',
+      );
+    }
+    const data = object(response);
     if (closed || current !== generation) return;
     const ticket = boundedText(data['ticket'], 64);
     const expiresAt = handoffExpiry(data);

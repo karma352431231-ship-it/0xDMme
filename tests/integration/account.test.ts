@@ -595,7 +595,26 @@ await test('Autenticação e perfil persistentes', async (t) => {
         start.headers.get('set-cookie') ?? '',
         /HttpOnly; SameSite=Strict/,
       );
-      const pending = (await start.json()) as { ticket: string };
+      const pending = (await start.json()) as {
+        ticket: string;
+        expiresAt: string;
+        serverTime: string;
+      };
+      const remaining =
+        Date.parse(pending.expiresAt) - Date.parse(pending.serverTime);
+      assert.ok(remaining > 0 && remaining <= 300_000);
+      const status = await fetch(`${origin}/api/account/handoff-status`, {
+        headers: { Cookie: originalCookie },
+      });
+      assert.equal(status.status, 200);
+      const state = (await status.json()) as {
+        expiresAt: string;
+        serverTime: string;
+        address: string | null;
+      };
+      assert.equal(state.expiresAt, pending.expiresAt);
+      assert.equal(state.address, null);
+      assert.ok(Date.parse(state.serverTime) >= Date.parse(pending.serverTime));
       const response = await post('handoff-challenge', {
         ticket: pending.ticket,
         address: signer.address,

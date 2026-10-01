@@ -18,7 +18,12 @@ const bundle = await build({
 });
 const source = bundle.outputFiles[0]?.text;
 if (!source) throw new Error('Bundle ausente.');
-function scope(hash = '', userAgent = 'Android', active = true) {
+function scope(hash = '', userAgent = 'Android', active = true, offsetMs = 0) {
+  class DeviceDate extends Date {
+    static override now() {
+      return Date.now() + offsetMs;
+    }
+  }
   const window = new EventTarget() as EventTarget & {
     setTimeout: typeof setTimeout;
     clearTimeout: typeof clearTimeout;
@@ -36,6 +41,7 @@ function scope(hash = '', userAgent = 'Android', active = true) {
     URLSearchParams,
     TextEncoder,
     TextDecoder,
+    Date: DeviceDate,
     location: {
       hash,
       origin: 'https://0xdmme.app',
@@ -101,12 +107,14 @@ await test('assinatura encontrada exibe candidato, mas não autentica antes da c
         return Promise.resolve({
           ticket: 'a'.repeat(64),
           expiresAt: new Date(Date.now() + 300_000).toISOString(),
+          serverTime: new Date().toISOString(),
         });
       if (path === 'handoff-status')
         return Promise.resolve({
           address: authenticated.address,
           ecosystem: 'evm',
           expiresAt: new Date(Date.now() + 300_000).toISOString(),
+          serverTime: new Date().toISOString(),
         });
       return Promise.resolve(authenticated);
     },
@@ -152,6 +160,7 @@ function handoffResponse() {
   return {
     ticket: 'a'.repeat(64),
     expiresAt: new Date(Date.now() + 290_000).toISOString(),
+    serverTime: new Date().toISOString(),
   };
 }
 
@@ -167,6 +176,58 @@ await test('seleção abre a wallet uma vez após pedido válido; consulta não 
   await controller.refresh();
   assert.equal(opened.length, 1);
   assert.equal(controller.state()?.address, null);
+  controller.close();
+});
+
+await test('relógio do dispositivo adiantado ou atrasado não impede abertura nem consulta; confirmação continua obrigatória', async () => {
+  for (const offset of [-3_600_000, -5000, 0, 3_600_000]) {
+    const { api, navigated } = scope('', 'Android', true, offset);
+    let sessions = 0;
+    const controller = api.createWalletReturn({
+      deviceId: randomUUID,
+      changed: () => {},
+      message: () => {},
+      authenticated: () => {
+        sessions++;
+        return Promise.resolve();
+      },
+      openWallet: api.launchMobileWallet,
+      api: (path) =>
+        Promise.resolve(
+          path === 'handoff-start'
+            ? handoffResponse()
+            : {
+                ...handoffResponse(),
+                ecosystem: 'solana',
+                address: 'So11111111111111111111111111111111111111112',
+              },
+        ),
+    });
+    await controller.start('Phantom', 'solana');
+    assert.equal(navigated.length, 1);
+    const remaining =
+      Date.parse(controller.state()?.expiresAt ?? '') - Date.now() - offset;
+    assert.ok(remaining > 280_000 && remaining <= 300_000);
+    await controller.refresh();
+    assert.equal(controller.state()?.ecosystem, 'solana');
+    assert.equal(sessions, 0);
+    assert.equal(navigated.length, 1);
+    controller.close();
+  }
+});
+
+await test('falha ao preparar o pedido explica a etapa sem expor erro interno nem abrir a wallet', async () => {
+  const { controller, opened } = launchController(
+    Promise.reject(new Error('private transport details')),
+  );
+  await assert.rejects(controller.start('MetaMask', 'evm'), {
+    status: 503,
+    message:
+      'Não foi possível criar o pedido para abrir a wallet. Confira a conexão e tente novamente.',
+  });
+  assert.equal(opened.length, 0);
+  assert.equal(controller.link(), null);
+  assert.equal(controller.state(), null);
   controller.close();
 });
 
@@ -193,6 +254,15 @@ await test('resposta inválida ou expirada nunca navega para a wallet', async ()
     { ...handoffResponse(), ticket: 'wrong' },
     { ...handoffResponse(), expiresAt: 'invalid' },
     { ...handoffResponse(), expiresAt: new Date(0).toISOString() },
+    { ...handoffResponse(), serverTime: 'invalid' },
+    {
+      ...handoffResponse(),
+      serverTime: new Date(Date.now() + 300_000).toISOString(),
+    },
+    {
+      ...handoffResponse(),
+      serverTime: new Date(Date.now() - 60_000).toISOString(),
+    },
   ]) {
     const { controller, opened } = launchController(Promise.resolve(response));
     await assert.rejects(controller.start('Phantom', 'solana'));
@@ -287,12 +357,14 @@ await test('confirmação tardia após cancelar é revogada e não abre a conta 
         return Promise.resolve({
           ticket: 'a'.repeat(64),
           expiresAt: new Date(Date.now() + 300_000).toISOString(),
+          serverTime: new Date().toISOString(),
         });
       if (path === 'handoff-status')
         return Promise.resolve({
           address: authenticated.address,
           ecosystem: 'evm',
           expiresAt: new Date(Date.now() + 300_000).toISOString(),
+          serverTime: new Date().toISOString(),
         });
       if (path === 'handoff-confirm') return late;
       return Promise.resolve({ status: 'ok' });

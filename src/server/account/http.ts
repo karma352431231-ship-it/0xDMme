@@ -139,6 +139,7 @@ export function createAccountHandler(options: {
       send(response, 200, {
         ticket: handoff.ticket,
         expiresAt: handoff.expiresAt,
+        serverTime: new Date().toISOString(),
       });
       return;
     }
@@ -256,10 +257,13 @@ export function createAccountHandler(options: {
       return;
     }
     if (request.url === '/api/account/handoff-status') {
+      const state = await options.service.handoffStatus(
+        readCookie(request, handoffName),
+      );
       send(
         response,
         200,
-        await options.service.handoffStatus(readCookie(request, handoffName)),
+        state && { ...state, serverTime: new Date().toISOString() },
       );
       return;
     }
