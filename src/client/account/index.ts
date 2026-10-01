@@ -9,6 +9,7 @@ import {
 import type { AccountSession } from '../../shared/account/index.ts';
 import { discoverWallets } from '../wallet/index.ts';
 import type { WalletConnection, WalletName } from '../wallet/index.ts';
+import { attemptBrowserReturn, browserReturnUrl } from './browser-return.ts';
 import { canonicalAddress } from '../../shared/wallet-identity/index.ts';
 import {
   createWalletReturn,
@@ -28,8 +29,9 @@ import type {
   ProfilePreferences,
 } from '../account-profile/index.ts';
 
-const template = `<article class="card account-card"><span class="eyebrow">CONTA POR WALLET</span><h2>Seu perfil no 0xDMme</h2>
-<p>Conecte e assine o pedido de login. Essa assinatura não movimenta fundos e não abre o histórico.</p>
+const template = `<article class="card account-card"><span class="eyebrow">CONTA POR WALLET</span><h2 data-account-title>Seu perfil no 0xDMme</h2>
+<p data-account-intro>Conecte e assine o pedido de login. Essa assinatura não movimenta fundos e não abre o histórico.</p>
+<button class="primary" type="button" data-wallet-approve hidden>Confirmar assinatura</button>
 <button class="primary" type="button" data-wallet-picker-toggle aria-expanded="false" aria-controls="wallet-picker">Conectar wallet</button>
 <section id="wallet-picker" class="wallet-picker" data-wallet-picker hidden aria-label="Escolher wallet">
 <div data-wallet-brands><h3>Escolha sua wallet</h3><p class="detail">A detecção indica disponibilidade neste navegador. No Chrome/Safari do celular, escolha o app que você instalou; ele pode não ser detectado aqui.</p>
@@ -49,7 +51,7 @@ const template = `<article class="card account-card"><span class="eyebrow">CONTA
 <p class="detail">No celular, selecionar o ecossistema tenta abrir a wallet para assinar. Depois volte a este navegador para confirmar o endereço. EVM e Solana são contas separadas.</p></section>
 <p data-wallet-purpose hidden>Assine apenas se você abriu este pedido no seu navegador. Ele conectará esse navegador à sua conta; recuse links recebidos de outras pessoas.</p>
 <div data-wallet-return hidden><a data-wallet-open referrerpolicy="no-referrer">Abrir wallet</a><p data-wallet-candidate></p><button data-wallet-confirm type="button" hidden>Confirmar este endereço neste navegador</button><button data-wallet-cancel type="button">Cancelar pedido</button></div>
-<a data-wallet-back hidden rel="noreferrer">Voltar ao 0xDMme</a>
+<a class="primary" data-wallet-back hidden rel="noreferrer">Voltar ao navegador</a>
 <p data-account-status role="status">Verificando sessão…</p>
 <div data-profile hidden><p data-account-address class="account-address"></p><p data-account-id class="account-address"></p>
 <p>Dispositivo cadastrado; autorização criptográfica e recuperação serão configuradas na próxima etapa.</p>
@@ -103,7 +105,16 @@ export function startAccount(options: {
   changed: (session: AccountSession | null) => void;
 }) {
   const wallets = discoverWallets();
-  const incoming = incomingWalletRequest();
+  const approvalPage = location.pathname === '/wallet.html';
+  let approvalOnly =
+    approvalPage || (location.hash ?? '').startsWith('#configuracoes?');
+  let incoming: ReturnType<typeof incomingWalletRequest> = null;
+  try {
+    incoming = incomingWalletRequest();
+  } catch {
+    // Never turn a malformed approval link into an independent wallet login.
+    incoming = null;
+  }
   let incomingSigned = false;
   let session: AccountSession | null = null;
   let privateProfile: PrivateProfile | null = null;
@@ -266,7 +277,7 @@ export function startAccount(options: {
   function renderPicker(): void {
     const trigger = node<HTMLButtonElement>('[data-wallet-picker-toggle]');
     const panel = node('[data-wallet-picker]');
-    const visible = session === null && !incomingSigned;
+    const visible = session === null && !approvalOnly;
     if (trigger) {
       trigger.hidden = !visible;
       trigger.setAttribute('aria-expanded', String(pickerOpen && visible));
@@ -301,7 +312,7 @@ export function startAccount(options: {
   function renderReturn(): void {
     const pending = walletReturn.state();
     const panel = node('[data-wallet-return]');
-    if (panel) panel.hidden = !pending || session !== null;
+    if (panel) panel.hidden = !pending || session !== null || approvalOnly;
     const open = node<HTMLAnchorElement>('[data-wallet-open]');
     const link = walletReturn.link();
     if (open) {
@@ -309,6 +320,11 @@ export function startAccount(options: {
       if (link) open.href = link;
       else open.removeAttribute('href');
     }
+    renderReturnCandidate(pending);
+  }
+  function renderReturnCandidate(
+    pending: ReturnType<typeof walletReturn.state>,
+  ): void {
     const candidate = node('[data-wallet-candidate]');
     if (candidate)
       candidate.textContent = pending?.address
@@ -316,16 +332,66 @@ export function startAccount(options: {
         : 'Aguardando assinatura na wallet. Volte ao navegador que abriu o pedido.';
     const confirm = node<HTMLButtonElement>('[data-wallet-confirm]');
     if (confirm) confirm.hidden = !pending?.address;
+  }
+  function renderApprovalContext(): void {
     renderWalletPurpose();
+    renderApproval();
   }
   function renderWalletPurpose(): void {
     const purpose = node('[data-wallet-purpose]');
     if (purpose) purpose.hidden = !incoming;
     const back = node<HTMLAnchorElement>('[data-wallet-back]');
     if (back) {
-      back.hidden = !incomingSigned;
-      back.href = `${location.origin}/#configuracoes`;
+      back.hidden = !approvalOnly;
+      back.href = browserReturnUrl();
     }
+  }
+
+  function renderApproval(): void {
+    if (!approvalOnly) return;
+    const title = node('[data-account-title]');
+    if (title) title.textContent = 'Confirme o login no seu navegador';
+    const intro = node('[data-account-intro]');
+    if (intro) intro.textContent = approvalDescription();
+    const approve = node<HTMLButtonElement>('[data-wallet-approve]');
+    if (!approve) return;
+    approve.hidden = !incoming || incomingSigned;
+    approve.textContent = `Confirmar assinatura na ${incoming?.wallet ?? 'wallet'}`;
+    approve.disabled = busy || !wallets.get(approvalWalletId());
+  }
+  function approvalDescription(): string {
+    return incoming
+      ? `${incoming.wallet} · ${incoming.ecosystem === 'solana' ? 'Solana' : 'EVM'}. Confirme somente o pedido que você iniciou. A wallet pode pedir conexão e assinatura; nenhuma transação ou acesso ao histórico será autorizado.`
+      : 'Pedido ausente ou perdido. Volte à aba que iniciou o login e crie um novo pedido.';
+  }
+  function confirmApproval(): void {
+    if (incoming && !busy) void operation(() => login(approvalWalletId()));
+  }
+
+  function approvalWalletId(): string {
+    if (!incoming) return '';
+    return incoming.ecosystem === 'solana'
+      ? `${incoming.wallet}:solana`
+      : incoming.wallet;
+  }
+
+  function receiveWalletRequest(): void {
+    if (!location.hash.startsWith('#configuracoes?')) return;
+    approvalOnly = true;
+    epoch++;
+    incomingSigned = false;
+    clearPrivate();
+    removeProviderListeners?.();
+    removeProviderListeners = undefined;
+    setSession(null);
+    try {
+      incoming = incomingWalletRequest();
+      status = 'Confirme a assinatura do pedido iniciado no seu navegador.';
+    } catch {
+      incoming = null;
+      status = 'Pedido inválido. Volte ao navegador e crie um novo pedido.';
+    }
+    render();
   }
 
   function node<T extends HTMLElement>(selector: string): T | null {
@@ -387,6 +453,7 @@ export function startAccount(options: {
     });
     renderPicker();
     renderReturn();
+    renderApprovalContext();
     const panel = node('[data-profile]');
     if (panel) panel.hidden = !session;
     const privatePanel = node('[data-private-profile]');
@@ -550,6 +617,7 @@ export function startAccount(options: {
           : { ...identity, deviceId: deviceId() },
       }),
     );
+    checkEpoch(currentEpoch);
     status =
       'Confira domínio e endereço na wallet e assine somente o pedido de login.';
     render();
@@ -570,6 +638,12 @@ export function startAccount(options: {
     return { id: uuid(challenge['id']), signature, currentEpoch };
   }
   async function login(name: string): Promise<void> {
+    if (approvalOnly && !incoming)
+      throw new AccountError(
+        400,
+        'Pedido ausente. Reinicie pelo navegador original.',
+      );
+    const request = incoming;
     const instance = wallets.get(name);
     if (!instance) {
       await openMobileWallet(name);
@@ -580,17 +654,20 @@ export function startAccount(options: {
     status = `Confirme a conexão na ${instance.name}.`;
     render();
     const proof = await createLoginProof(instance);
-    if (incoming) {
+    if (request) {
       await api('handoff-sign', {
         input: {
-          ticket: incoming.ticket,
+          ticket: request.ticket,
           id: proof.id,
           signature: proof.signature,
         },
       });
+      checkEpoch(proof.currentEpoch);
       incomingSigned = true;
       status =
-        'Assinatura confirmada. Volte ao navegador que iniciou o pedido e confirme o endereço. Se abrir uma nova aba, retorne à aba ou PWA original.';
+        'Assinatura confirmada. Toque em Voltar ao navegador e confirme o endereço na aba que iniciou o pedido. Se abrir outra aba ou a abertura for bloqueada, volte manualmente à aba ou PWA original.';
+      render();
+      attemptBrowserReturn();
       return;
     }
     const authenticated = accountSession(
@@ -664,11 +741,13 @@ export function startAccount(options: {
     });
   }
   async function restore(): Promise<void> {
-    if (incoming) {
-      status =
-        'Conecte a wallet escolhida para assinar o retorno ao seu navegador. Recuse pedidos recebidos de terceiros.';
+    if (approvalOnly) {
+      status = incoming
+        ? 'Confirme a assinatura para concluir o login no navegador que iniciou o pedido. Recuse pedidos recebidos de terceiros.'
+        : 'Pedido ausente ou perdido. Volte ao navegador original e crie um novo pedido.';
       return;
     }
+    const current = epoch;
     try {
       // A 401 is an expected signed-out state; other failures must be visible.
       const response = await fetch('/api/account/session', {
@@ -677,13 +756,14 @@ export function startAccount(options: {
         redirect: 'error',
         signal: AbortSignal.timeout(8000),
       });
+      if (!restoreContextIsCurrent(current)) return;
       if (response.status === 401) {
         if (!incoming) await walletReturn.refresh();
         return;
       }
       if (!response.ok) throw new Error('Sessão indisponível.');
       const restored = accountSession((await response.json()) as unknown);
-      if (disposed) return;
+      if (!restoreContextIsCurrent(current)) return;
       setSession(restored);
       status = 'Conta conectada. O histórico continua bloqueado.';
       await loadPrivate(restored);
@@ -692,6 +772,9 @@ export function startAccount(options: {
         'Não foi possível recuperar a sessão ou abrir o perfil privado. Confira a conexão.';
     }
     render();
+  }
+  function restoreContextIsCurrent(current: number): boolean {
+    return current === epoch && !approvalOnly && !disposed;
   }
   function dispose(event: PageTransitionEvent): void {
     if (event.persisted) return;
@@ -704,10 +787,44 @@ export function startAccount(options: {
     walletReturn.close();
     wallets.close();
     window.removeEventListener('pagehide', dispose);
+    window.removeEventListener('hashchange', receiveWalletRequest);
   }
   window.addEventListener('pagehide', dispose);
+  window.addEventListener('hashchange', receiveWalletRequest);
   void operation(restore);
+  function bindProfileControls(): void {
+    node('[data-name-form]')?.addEventListener('submit', (event) => {
+      void saveName(event);
+    });
+    node('[data-preferences]')?.addEventListener('submit', (event) => {
+      void savePrivate(event);
+    });
+    node('[data-photo]')?.addEventListener('change', () => {
+      void selectPhoto();
+    });
+    node('[data-remove-photo]')?.addEventListener('click', () => {
+      privateProfile?.photo?.bytes.fill(0);
+      if (privateProfile) privateProfile.photo = null;
+      dirtyProfile = true;
+      render();
+    });
+    node('[data-name-form]')?.addEventListener('input', () => {
+      dirtyName = true;
+      draftName =
+        node<HTMLInputElement>('input[name="display-name"]')?.value ?? null;
+    });
+    node('[data-preferences]')?.addEventListener('change', (event) => {
+      const target = event.target;
+      if (!(target instanceof HTMLInputElement) || !privateProfile) return;
+      const name = target.name;
+      if (Object.hasOwn(privateProfile.preferences, name))
+        privateProfile.preferences[name as keyof ProfilePreferences] =
+          target.checked;
+      dirtyProfile = true;
+    });
+  }
   return {
+    approvalPage,
     canActivate: () =>
       !busy &&
       !dirtyName &&
@@ -718,6 +835,7 @@ export function startAccount(options: {
       mounted = container;
       container.innerHTML = template; // Authored templates only.
       mountPicker(container);
+      node('[data-wallet-approve]')?.addEventListener('click', confirmApproval);
       node('[data-wallet-confirm]')?.addEventListener('click', () => {
         void operation(walletReturn.confirm);
       });
@@ -727,35 +845,7 @@ export function startAccount(options: {
       node('[data-logout]')?.addEventListener('click', () => {
         void operation(logout);
       });
-      node('[data-name-form]')?.addEventListener('submit', (event) => {
-        void saveName(event);
-      });
-      node('[data-preferences]')?.addEventListener('submit', (event) => {
-        void savePrivate(event);
-      });
-      node('[data-photo]')?.addEventListener('change', () => {
-        void selectPhoto();
-      });
-      node('[data-remove-photo]')?.addEventListener('click', () => {
-        privateProfile?.photo?.bytes.fill(0);
-        if (privateProfile) privateProfile.photo = null;
-        dirtyProfile = true;
-        render();
-      });
-      node('[data-name-form]')?.addEventListener('input', () => {
-        dirtyName = true;
-        draftName =
-          node<HTMLInputElement>('input[name="display-name"]')?.value ?? null;
-      });
-      node('[data-preferences]')?.addEventListener('change', (event) => {
-        const target = event.target;
-        if (!(target instanceof HTMLInputElement) || !privateProfile) return;
-        const name = target.name;
-        if (Object.hasOwn(privateProfile.preferences, name))
-          privateProfile.preferences[name as keyof ProfilePreferences] =
-            target.checked;
-        dirtyProfile = true;
-      });
+      bindProfileControls();
       render();
     },
   };

@@ -220,7 +220,7 @@ export function walletBrowserUrl(input: {
     ecosystem: input.ecosystem,
     wallet: input.wallet,
   });
-  const target = `${origin.origin}/#configuracoes?${hash}`;
+  const target = `${origin.origin}/wallet.html#configuracoes?${hash}`;
   if (input.wallet === 'MetaMask')
     return `https://link.metamask.io/dapp/${encodeURIComponent(target.slice('https://'.length))}`;
   const base = {

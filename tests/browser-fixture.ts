@@ -38,21 +38,26 @@ assets.set('/fixture-wallet.js', {
   type: 'text/javascript; charset=utf-8',
   content: script,
 });
-assets.set('/', {
-  ...root,
-  content: new TextEncoder().encode(
-    html
-      .replace(
-        '<html lang="pt-BR">',
-        `<html lang="pt-BR" data-test-app="${app}">`,
-      )
-      .replace(`src="${app}"`, 'src="/fixture-wallet.js"')
-      .replace(
-        'Esta versão ainda não envia mensagens nem abre seu histórico.',
-        'TESTE ISOLADO: wallet sintética, sem fundos, sem dados reais.',
-      ),
-  ),
-});
+for (const path of ['/', '/wallet.html']) {
+  const entry = assets.get(path);
+  if (!entry) throw new Error('Página de teste ausente.');
+  assets.set(path, {
+    ...entry,
+    content: new TextEncoder().encode(
+      new TextDecoder()
+        .decode(entry.content)
+        .replace(
+          '<html lang="pt-BR">',
+          `<html lang="pt-BR" data-test-app="${app}">`,
+        )
+        .replace(`src="${app}"`, 'src="/fixture-wallet.js"')
+        .replace(
+          'Esta versão ainda não envia mensagens nem abre seu histórico.',
+          'TESTE ISOLADO: wallet sintética, sem fundos, sem dados reais.',
+        ),
+    ),
+  });
+}
 const host = createWebServer({
   origin,
   assets,

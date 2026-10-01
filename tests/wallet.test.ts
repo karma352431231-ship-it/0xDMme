@@ -31,6 +31,7 @@ await test('links mobile limitam destino e preservam ticket no fragmento do site
     assert.equal(link.hash, '');
     const decoded = decodeURIComponent(link.pathname);
     assert.ok(decoded.includes('#configuracoes?ticket='));
+    assert.ok(decoded.includes('/wallet.html#configuracoes?'));
     assert.ok(decoded.includes(ticket));
     assert.ok(!link.searchParams.has('session'));
     assert.ok(!link.searchParams.has('signature'));

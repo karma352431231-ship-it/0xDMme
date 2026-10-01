@@ -34,6 +34,7 @@ await test('fontes públicas incluem instruções/licenças do build e excluem b
     'src/tools/build-web.ts',
     'src/tools/frontend-source.ts',
     'src/client/account/index.ts',
+    'src/client/app/wallet.html',
     'LICENSE-GPL-3.0.txt',
     'docs/FONTES_FRONTEND.md',
     'node_modules/@wallet-standard/app/LICENSE',
@@ -117,7 +118,7 @@ await test('staging exige origem canônica HTTPS, cluster/role exclusivos e obje
 
 await test('política offline limita cache a assets públicos fixados do build', () => {
   const origin = 'https://hash-talk.example';
-  const assets = ['/', '/app-abcd.js'];
+  const assets = ['/', '/app-abcd.js', '/wallet.html'];
   assert.equal(
     cacheableRequest(new Request(`${origin}/`), origin, assets),
     true,
@@ -128,6 +129,7 @@ await test('política offline limita cache a assets públicos fixados do build',
     '/objects/private',
     '/?secret=x',
     '/app-old.js',
+    '/wallet.html',
   ])
     assert.equal(
       cacheableRequest(new Request(`${origin}${path}`), origin, assets),
@@ -214,6 +216,14 @@ await test('servidor recusa origem, mutação, traversal e dados privados; saúd
     'sec-fetch-dest': 'document',
   };
   assert.equal((await get('/', navigationHeaders)).status, 200);
+  const approval = await get('/wallet.html', navigationHeaders);
+  assert.equal(approval.status, 200);
+  assert.match(approval.body, /Confirmar assinatura/u);
+  assert.equal(approval.headers['cache-control'], 'no-store');
+  assert.equal(
+    (await get('/wallet.html', navigationHeaders, 'POST')).status,
+    403,
+  );
   assert.equal(
     (await get('/api/account/session', navigationHeaders)).status,
     403,

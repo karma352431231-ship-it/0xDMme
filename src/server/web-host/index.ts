@@ -67,7 +67,7 @@ function publicNavigation(request: IncomingMessage): boolean {
   // shell can be opened this way; account APIs and mutations remain protected.
   return (
     request.method === 'GET' &&
-    request.url === '/' &&
+    (request.url === '/' || request.url === '/wallet.html') &&
     request.headers['sec-fetch-mode'] === 'navigate' &&
     request.headers['sec-fetch-dest'] === 'document'
   );

@@ -1,4 +1,6 @@
 import { Wallet } from 'ethers';
+import { ed25519 } from '@noble/curves/ed25519';
+import { base58 } from '@scure/base';
 
 // Disposable wallet created only in this test browser. No private key leaves it.
 const wallet = Wallet.createRandom();
@@ -25,6 +27,17 @@ const provider = {
   },
 };
 Object.assign(window, { ethereum: provider });
+const solanaKey = crypto.getRandomValues(new Uint8Array(32));
+const solanaAddress = base58.encode(ed25519.getPublicKey(solanaKey));
+const solanaProvider = {
+  isPhantom: true,
+  publicKey: { toBase58: () => solanaAddress },
+  connect: () =>
+    Promise.resolve({ publicKey: { toBase58: () => solanaAddress } }),
+  signMessage: (message: Uint8Array) =>
+    Promise.resolve({ signature: ed25519.sign(message, solanaKey) }),
+};
+Object.assign(window, { phantom: { solana: solanaProvider } });
 // Load the exact built app after provider initialization, with no injected eval.
 const script = document.createElement('script');
 script.type = 'module';

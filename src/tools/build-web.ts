@@ -88,6 +88,15 @@ const html = (
   .replace('{{SOURCES}}', sources)
   .replace('{{STYLE}}', style);
 asset('index.html', Buffer.from(html));
+asset(
+  'wallet.html',
+  Buffer.from(
+    (await readFile(new URL('src/client/app/wallet.html', root), 'utf8'))
+      .replace('{{SCRIPT}}', script)
+      .replace('{{SOURCES}}', sources)
+      .replace('{{STYLE}}', style),
+  ),
+);
 for (const name of ['icon.svg', 'icon-192.png', 'icon-512.png']) {
   asset(name, await readFile(new URL(`src/client/app/${name}`, root)));
 }
@@ -119,7 +128,7 @@ const workerSource = Buffer.from(
 const version = createHash('sha256').update(workerSource);
 for (const [name, bytes] of files) version.update(name).update(bytes);
 const paths = [...files.keys()]
-  .filter((name) => !name.endsWith('.tar.gz'))
+  .filter((name) => !name.endsWith('.tar.gz') && name !== 'wallet.html')
   .map((name) => (name === 'index.html' ? '/' : `/${name}`));
 const worker = workerSource
   .replace('{{ASSETS}}', JSON.stringify(paths).replaceAll('"', '\\"'))

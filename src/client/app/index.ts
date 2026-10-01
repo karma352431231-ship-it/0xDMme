@@ -39,9 +39,16 @@ const account = startAccount({
         : 'Conta não conectada';
   },
 });
-const pwa = startPwa({ canActivate: account.canActivate });
+// Approval HTML is loaded online and does not install or activate a shell.
+const pwa = account.approvalPage
+  ? null
+  : startPwa({ canActivate: account.canActivate });
 
 function route(): void {
+  if (account.approvalPage) {
+    renderApprovalPage();
+    return;
+  }
   const selected = location.hash.slice(1);
   if (selected === 'workspace') return;
   const key = Object.hasOwn(pages, selected)
@@ -66,9 +73,18 @@ function route(): void {
   document.title = `${page.title} · 0xDMme`;
   const button = document.getElementById('check-updates');
   button?.addEventListener('click', () => {
-    void pwa.check();
+    void pwa?.check();
   });
-  pwa.render();
+  pwa?.render();
+}
+
+function renderApprovalPage(): void {
+  element('page-title').textContent = 'Confirmar assinatura';
+  element('breadcrumb').textContent = 'CONTA';
+  const container = document.createElement('div');
+  element('page-content').replaceChildren(container);
+  account.mount(container);
+  document.title = 'Confirmar assinatura · 0xDMme';
 }
 
 function connection(): void {

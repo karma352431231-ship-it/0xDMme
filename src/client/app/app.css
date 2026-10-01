@@ -540,3 +540,8 @@ footer {
   text-decoration: underline;
   font-size: 13px;
 }
+
+.wallet-approval {
+  max-width: 720px;
+  margin: 0 auto;
+}
