@@ -90,7 +90,7 @@ class DeploymentTests(unittest.TestCase):
         (path / 'package-lock.json').write_text('same dependency lock')
         (path / '.nvmrc').write_text('24.14.0')
         (path / 'package.json').write_text(json.dumps({'dependencies': {'pg': '8.23.1'},
-                                                      'engines': {'node': '>=24 <25'}}))
+                                                      'engines': {'node': '>=24.14.0 <25'}}))
 
     def test_migrations_and_dependencies_require_separate_review(self):
         for changed in ['src/server/database/migrations/001.sql', 'src/server/database/index.ts',
@@ -114,6 +114,20 @@ class DeploymentTests(unittest.TestCase):
             with patch.object(remote, 'run', return_value=b'v24.14.0') as command:
                 remote.compatibility(new, old)
             self.assertEqual(command.call_args.args[0], ['/usr/bin/node', '--version'])
+
+    def test_installed_node_uses_approved_range_and_never_updates_system(self):
+        with tempfile.TemporaryDirectory() as directory:
+            old, new = Path(directory) / 'old', Path(directory) / 'new'
+            self.runtime(old)
+            self.runtime(new)
+            for version in [b'v24.14.0', b'v24.18.1']:
+                with patch.object(remote, 'run', return_value=version) as command:
+                    remote.compatibility(new, old)
+                command.assert_called_once_with(['/usr/bin/node', '--version'])
+            for version in [b'v24.13.9', b'v25.0.0', b'v24.18.1-preview', b'unverified']:
+                with patch.object(remote, 'run', return_value=version):
+                    with self.assertRaises(RuntimeError):
+                        remote.compatibility(new, old)
 
     def exchange_fixture(self, directory):
         base = Path(directory)

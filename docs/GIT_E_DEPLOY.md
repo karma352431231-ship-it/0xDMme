@@ -124,6 +124,9 @@ PostgreSQL próprio. Não atualizar Nginx, certificados, firewall ou outros serv
 
 Mudanças no módulo de banco (incluindo migrações), lockfile, contrato de runtime
 ou Node são recusadas: precisam de revisão específica antes de ampliar o fluxo.
+O Node já instalado pode estar numa versão superior à `.nvmrc`, desde que atenda
+ao intervalo aprovado em `engines.node` sem mudança desse contrato. Não atualizar
+o Node do sistema para igualar a versão do ambiente de desenvolvimento.
 Não há opção `force` ou migração automática autorizada. Uma falha de ativação
 restaura os arquivos anteriores e reinicia somente `0xdmme-test.service`; a
 saúde do retorno é conferida. Falha do próprio retorno é reportada como não
@@ -145,7 +148,7 @@ desses limites. Custos, dependências, migrações e infraestrutura continuam su
 Validação local da implementação: lint, tipos, fronteiras, licenças, formatação
 e build passaram; os 72 testes JavaScript passaram, com dois casos de listener
 reexecutados fora do sandbox após bloqueio `EPERM` de porta local. Passaram
-também os 16 testes de deploy em diretórios temporários, sem SSH/reinício real:
+também os 17 testes de deploy em diretórios temporários, sem SSH/reinício real:
 CI exata, arquivos maliciosos, limites, migrações/dependências, retorno após falha,
 recusa de retorno não verificado, retenção, versão já ativa e fontes de terceiros
 no build real exportado do Git. O workflow repete esses controles em CI.

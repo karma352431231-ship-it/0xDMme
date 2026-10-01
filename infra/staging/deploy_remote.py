@@ -155,8 +155,16 @@ def compatibility(candidate, live):
     for key in ['dependencies', 'overrides', 'engines', 'type']:
         if previous.get(key) != incoming.get(key):
             raise RuntimeError('Runtime contract changed; separate review required.')
-    if run(['/usr/bin/node', '--version']).decode().strip().lstrip('v') != (candidate / '.nvmrc').read_text().strip():
-        raise RuntimeError('Installed Node differs from approved release.')
+    constraint = incoming.get('engines', {}).get('node', '')
+    approved = re.fullmatch(r'>=(\d+)\.(\d+)\.(\d+) <(\d+)', constraint)
+    installed = re.fullmatch(r'v(\d+)\.(\d+)\.(\d+)',
+                             run(['/usr/bin/node', '--version']).decode().strip())
+    if not approved or not installed:
+        raise RuntimeError('Node version/constraint could not be validated.')
+    minimum = tuple(int(approved.group(index)) for index in [1, 2, 3])
+    actual = tuple(int(installed.group(index)) for index in [1, 2, 3])
+    if actual < minimum or actual >= (int(approved.group(4)), 0, 0):
+        raise RuntimeError('Installed Node is outside the approved runtime range.')
 
 
 def preflight(config):
