@@ -2,6 +2,14 @@
 
 These instructions apply throughout the repository. The goal is to keep code cohesive, understandable, verifiable, and aligned with the project's privacy-first scope.
 
+## Project Identity
+
+- The approved public app name is **0xDMme**, with canonical public origin **https://0xdmme.app**. The owner registered the domain through Namecheap on 01/10/2026. Use this identity in documentation, UI, PWA metadata and new login statements.
+- The workspace directory and historical `hash-talk`/`hash_talk` identifiers are compatibility details, not alternate product names. Do not rename storage keys, cookies, crypto formats/AAD, database names, advisory locks, environment variables or Git identities as part of branding; such changes require their own migration review.
+- Domain configuration is approved for an isolated test environment on the existing VPS. Preserve its other project. DNS/HTTPS availability does not establish readiness for real chat data; source distribution obligations and pending security/functional acceptance still apply. Keep VPS access, inventory and device/network details exclusively in `.local/`, outside Git.
+- On 01/10/2026, the owner explicitly accepted separate services on the same VPS and a validated graceful Nginx reload. This does not authorize changing the other project's files, services, databases, certificates, firewall rules or dependencies. Do not restart shared services, update system packages or run deployment/install commands in another project's directories. Prepare rollback limited to our additions, compare existing configuration fingerprints and service health before/after, and bound our CPU, RAM, processes, disk growth and traffic. Shared host/network risks remain; do not promise zero impact.
+- On 01/10/2026, the owner authorized scoped commits, pushing this project's branch to GitHub and sending source commits to the dedicated VPS Git repository. Preserve the repository's Karma identity without linking it to ohsael or changing global Git credentials. Read VPS access only from `.local/`; never store it in a versioned file or Git remote configuration. Source synchronization does not authorize automatic activation, migrations or changes to shared services. Follow `docs/GIT_E_DEPLOY.md`.
+
 ## Context and Decisions
 
 - Consult the relevant parts of `DECISOES_E_PLANO_DE_IMPLEMENTACAO.md` before implementing a feature. Distinguish approved decisions, proposals, and open questions; do not turn examples into requirements.
@@ -15,6 +23,16 @@ These instructions apply throughout the repository. The goal is to keep code coh
 - Before editing, check `git status` and preserve unrelated user changes. If preexisting changes overlap the target and cannot be safely separated, stop and ask how to proceed.
 
 Always include a statement labeled exactly "Ponto importante" for significant changes, feature updates, and other work that may materially affect the bot's behavior. This helps ensure that relevant details and consequences of the applied changes are not overlooked.
+
+## Mandatory Pause for Material Conflicts
+
+- **When evidence reveals a material conflict with an approved requirement or decision, immediately pause implementation of the affected feature.** If the impact cannot yet be isolated, pause implementation until it is understood. Read-only investigation is allowed to establish the facts and prepare an explanation.
+- This rule covers incompatible dependency/distribution licenses; new fees, commercial limits or paid services; external relays and changes to privacy or retention; unsupported wallets, networks, browsers or devices; and alternatives that materially change authentication, account identity, recovery, product experience or V1 scope.
+- Explain the situation to the owner in plain Portuguese before proposing implementation. State what was expected, what the evidence actually supports, why it matters, and what already works. Clearly distinguish a confirmed limitation from an unverified assumption.
+- Present concrete options with their effects on user steps, privacy, licensing, cost, security, implementation effort and required validation. Identify which requirements each option satisfies and which remain unresolved. Include a recommendation without presenting it as an approved decision.
+- **Do not implement a workaround or replacement until the owner explicitly chooses or approves the affected approach.** Do not silently substitute a manual login flow for direct connection, replace cryptographic dependencies, change networks or account rules, reduce V1 to an MVP, or accept new commercial terms to bypass the conflict. Silence, a deadline or approval of the original approach does not approve a materially different replacement.
+- Record the owner's decision and resolve contradictions in [DECISOES_E_PLANO_DE_IMPLEMENTACAO.md](DECISOES_E_PLANO_DE_IMPLEMENTACAO.md) and the relevant implementation document before implementing the chosen approach. Preserve valid prior work and rerun only checks affected by the change. Approval does not itself establish license compatibility or technical support; verify those prerequisites.
+- Do not trigger this pause for routine implementation choices that preserve approved requirements, or reopen an already resolved conflict without new material evidence. An explicit instruction from the owner takes precedence; do not ask again for a decision already made.
 
 ## Mandatory Pause After Context Compaction
 
@@ -33,6 +51,16 @@ Always include a statement labeled exactly "Ponto importante" for significant ch
 - Avoid concentrating unrelated rules in `utils`, `helpers`, `common`, or a central service that knows the entire system. Shared utilities should have a specific purpose and few dependencies.
 - Each module should expose a clear public interface. Other modules must not import its internals or access its tables directly. Coordinated operations must use explicit contracts, preserving atomicity where needed.
 - Do not introduce dependency cycles. Avoid re-export files that hide cycles or indiscriminately expose internals.
+
+## Execution and token efficiency
+
+- Consolidate edits before lint, build, or tests. Do not validate every intermediate change.
+- Do not repeat a passing command unless a later edit could affect its result. If only one layer changed, rerun only that layer.
+- Prefer the smallest targeted test over a complete suite.
+- After a failure, diagnose before retrying. Retry once after the fix unless there is concrete evidence of flakiness or the user authorizes more.
+- Keep long-command output to summaries and relevant error excerpts. Poll running commands no more than once every 30 seconds.
+- If validation is interrupted, reuse still-valid results and report what passed, what stopped, and the residual risk. If the user asks to stop validation, stop immediately and start no new commands.
+- Final reports should lead with the outcome and include affected files, validation, material risks, commit hashes when applicable, and pending work. Omit transcripts, repeated rationale, and unchanged details.
 
 ## Functions and Control Flow
 
