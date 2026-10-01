@@ -1,8 +1,8 @@
-# Triagem de candidatos criptográficos
+# 0xDMme — Triagem de candidatos criptográficos
 
-Consulta inicial em 30/09/2026 para o item de dependências do bloco 00 e a comparação do bloco 01 do [plano](../DECISOES_E_PLANO_DE_IMPLEMENTACAO.md). Na triagem inicial nenhuma biblioteca havia sido instalada. Links para branches documentam essa consulta; versões efetivas estão no lockfile e na prova técnica, sem seleção definitiva para produto.
+Consulta inicial em 30/09/2026 para o item de dependências do bloco 00 e a comparação do bloco 01 do [plano](../DECISOES_E_PLANO_DE_IMPLEMENTACAO.md). Na triagem inicial nenhuma biblioteca havia sido instalada. Links para branches documentam essa consulta; versões efetivas estão no lockfile e na prova técnica, com seleção da V1 registrada na [revisão final](DEPENDENCIAS_E_SELECAO_BLOCO_01.md).
 
-Evolução no bloco 01: Matrix WASM 18.9.0 e Semaphore 4.14.3 instalados para os [ensaios isolados](BLOCO_01_PROVA_CRIPTOGRAFICA.md), com cofre Web Crypto. SDK completo/servidor Matrix não adotados. A prova documenta artefatos, revisão de dependências, licença, decisão condicionada e validação mobile pendente.
+Evolução no bloco 01: Matrix WASM 18.9.0 e Semaphore 4.14.3 instalados para os [ensaios isolados](BLOCO_01_PROVA_CRIPTOGRAFICA.md), com cofre Web Crypto. SDK completo/servidor Matrix não adotados. A prova documenta artefatos e validação mobile concluída; a revisão final fixa mensagens Matrix, cofre Web Crypto e ZK Semaphore com GPL do frontend autorizada.
 
 ## Mensageria
 
@@ -46,8 +46,8 @@ Usar identidades e mensagens sintéticas, sem wallets pessoais ou dados reais. R
 | Leitura do servidor              | Objetos persistidos não revelam conteúdo ou segredos; logs não contêm material privado                                            |
 | Desempenho                       | Medir bundle/WASM, memória, inicialização, encrypt/decrypt, persistência e recuperação; medir prover/verificador ZK separadamente |
 
-Para cada candidato, revisar manutenção, advisories, escopo de auditorias, dependências, atualização e operação. Medidas locais iniciais e seus limites estão na prova do bloco 01; compatibilidade física ainda pendente. Não concluir segurança por licença, popularidade ou mantenedor.
+Para cada candidato, revisar manutenção, advisories, escopo de auditorias, dependências, atualização e operação. Medidas locais iniciais e seus limites estão na prova do bloco 01; compatibilidade física do roteiro orientado concluída. Não concluir segurança por licença, popularidade ou mantenedor.
 
-Decisão inicial: comparar opções MLS e referência web Matrix; manter libsignal como referência enquanto bindings/uso externo estiverem em aberto. A prova posterior instalou candidatos de laboratório; não houve adoção final ou exclusão definitiva de alternativas.
+Decisão inicial: comparar opções MLS e referência web Matrix; manter libsignal como referência enquanto bindings/uso externo estiverem em aberto. A prova e revisão posteriores selecionaram Matrix Crypto WASM, Web Crypto e Semaphore para implementar a V1. Alternativas não serão implementadas em paralelo; reabrir a escolha por incompatibilidade ou risco concreto.
 
-**Ponto importante:** esta triagem conclui o levantamento inicial de candidatos, sem validar criptografia. A seleção exige os testes do bloco 01; histórico real e garantias públicas continuam bloqueados até essa validação.
+**Ponto importante:** esta triagem preserva o levantamento inicial. A seleção e prova do bloco 01 foram concluídas posteriormente; histórico real e garantias públicas exigem as integrações e aceites restantes.

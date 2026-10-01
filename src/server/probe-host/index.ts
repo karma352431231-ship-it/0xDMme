@@ -1,4 +1,5 @@
 import { createServer } from 'node:http';
+import { createServer as createSecureServer } from 'node:https';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
@@ -12,6 +13,12 @@ import {
 } from '../../shared/crypto-probe/index.ts';
 import { ProbeRelay } from '../crypto-probe/index.ts';
 import { readArtifact } from '../zk-artifacts/index.ts';
+import {
+  allowedProbeOrigin,
+  authorizeMobile,
+  mobileOrigin,
+} from '../probe-mobile/index.ts';
+import type { MobileListener } from '../probe-mobile/index.ts';
 
 const importMap =
   '{"imports":{"@matrix-org/matrix-sdk-crypto-wasm":"/vendor/index.mjs"}}';
@@ -85,15 +92,6 @@ async function zkAsset(
   response.end(bytes);
   return true;
 }
-function allowedOrigin(request: IncomingMessage, port: number): boolean {
-  return (
-    request.headers.host === `127.0.0.1:${port}` &&
-    (request.headers.origin === undefined ||
-      request.headers.origin === `http://127.0.0.1:${port}`) &&
-    request.headers['sec-fetch-site'] !== 'cross-site'
-  );
-}
-
 function postRoute(request: IncomingMessage) {
   const parts = (request.url ?? '').split('/');
   const [, api, role, operation] = parts;
@@ -159,10 +157,30 @@ async function asset(path: string, response: ServerResponse): Promise<boolean> {
   return true;
 }
 
-export function startProbe(port = 45101) {
+function admitted(
+  request: IncomingMessage,
+  response: ServerResponse,
+  origin: string,
+  mobile?: MobileListener,
+): boolean {
+  if (!allowedProbeOrigin(request, origin)) {
+    json(response, 403, '{"error":"Origem não permitida."}');
+    return false;
+  }
+  if (mobile && !authorizeMobile(request, response, mobile.accessToken)) {
+    if (!response.headersSent)
+      json(response, 403, '{"error":"Acesso temporário necessário."}');
+    return false;
+  }
+  return true;
+}
+
+export function startProbe(port = 45101, mobile?: MobileListener) {
   const relay = new ProbeRelay();
   const tokens = { alice: randomUUID(), bob: randomUUID() };
-  const origin = `http://127.0.0.1:${port}`;
+  const origin = mobile
+    ? mobileOrigin(port, mobile)
+    : `http://127.0.0.1:${port}`;
 
   async function get(path: string, response: ServerResponse): Promise<boolean> {
     if (path === '/api/config') {
@@ -183,10 +201,7 @@ export function startProbe(port = 45101) {
     response: ServerResponse,
   ): Promise<void> {
     headers(response);
-    if (!allowedOrigin(request, port)) {
-      json(response, 403, '{"error":"Origem não permitida."}');
-      return;
-    }
+    if (!admitted(request, response, origin, mobile)) return;
     const path = request.url ?? '/';
     if (request.method === 'GET' && (await get(path, response))) return;
     const route = postRoute(request);
@@ -208,13 +223,19 @@ export function startProbe(port = 45101) {
     );
   }
 
-  const server = createServer((request, response) => {
+  const listener = (request: IncomingMessage, response: ServerResponse) => {
     void handle(request, response).catch(() => {
       if (!response.headersSent)
         json(response, 400, '{"error":"Operação rejeitada pelo laboratório."}');
       else response.destroy();
     });
-  });
+  };
+  const server = mobile
+    ? createSecureServer(
+        { key: mobile.key, cert: mobile.cert, minVersion: 'TLSv1.2' },
+        listener,
+      )
+    : createServer(listener);
   server.requestTimeout = 5_000;
   server.headersTimeout = 5_000;
   server.keepAliveTimeout = 1_000;
@@ -224,7 +245,7 @@ export function startProbe(port = 45101) {
     process.stderr.write('Não foi possível iniciar o laboratório local.\n');
     process.exitCode = 1;
   });
-  server.listen(port, '127.0.0.1', () =>
+  server.listen(port, mobile?.address ?? '127.0.0.1', () =>
     process.stdout.write(`Laboratório sintético: ${origin}\n`),
   );
   const shutdown = () => {
