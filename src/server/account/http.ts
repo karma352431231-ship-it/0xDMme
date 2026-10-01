@@ -7,6 +7,7 @@ import {
 } from '../../shared/account/index.ts';
 import { AccountService, challengeSeconds, sessionSeconds } from './service.ts';
 import { AccountRateLimit } from './rate-limit.ts';
+import { createApprovalEntry } from './approval-http.ts';
 
 function readCookie(request: IncomingMessage, name: string): string {
   const matches = (request.headers.cookie ?? '')
@@ -77,6 +78,7 @@ export function createAccountHandler(options: {
     : 'hash-talk-challenge';
   const limit = new AccountRateLimit();
   const handoffName = secure ? '__Host-hash-talk-return' : 'hash-talk-return';
+  const approval = createApprovalEntry(options.service, options.origin);
   let active = 0;
 
   async function post(
@@ -226,7 +228,8 @@ export function createAccountHandler(options: {
         request.socket.remoteAddress ?? 'unknown',
         request.url === '/api/account/challenge' ||
           request.url === '/api/account/handoff-start' ||
-          request.url === '/api/account/handoff-challenge',
+          request.url === '/api/account/handoff-challenge' ||
+          request.url?.startsWith('/wallet-entry?') === true,
       );
       if (request.method === 'POST') {
         await post(request, response);
@@ -249,6 +252,7 @@ export function createAccountHandler(options: {
   ): Promise<void> {
     if (request.method !== 'GET')
       throw new AccountError(405, 'Método inválido.');
+    if (await approvalGet(request, response)) return;
     if (request.url === '/api/account/config') {
       send(response, 200, {
         walletConnection: 'native',
@@ -277,6 +281,28 @@ export function createAccountHandler(options: {
       return;
     }
     throw new AccountError(404, 'Operação não encontrada.');
+  }
+  async function approvalGet(
+    request: IncomingMessage,
+    response: ServerResponse,
+  ): Promise<boolean> {
+    if (
+      request.url?.startsWith('/wallet-entry?') ||
+      request.url === '/wallet-entry'
+    ) {
+      if (
+        request.headers['sec-fetch-mode'] !== 'navigate' ||
+        request.headers['sec-fetch-dest'] !== 'document'
+      )
+        throw new AccountError(403, 'Entrada exige navegação de documento.');
+      await approval.enter(request, response);
+      return true;
+    }
+    if (request.url === '/api/account/approval-request') {
+      send(response, 200, await approval.restore(request));
+      return true;
+    }
+    return false;
   }
   return { handle, close: () => limit.close() };
 }

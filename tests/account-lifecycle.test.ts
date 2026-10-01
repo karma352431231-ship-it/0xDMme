@@ -41,6 +41,7 @@ function scope(options: {
   storage?: Map<string, string>;
   storageRejected?: boolean;
   clock?: { now: number };
+  approvalResponse?: Promise<Response>;
 }) {
   const address = `0x${'1'.repeat(40)}`;
   const listeners = new Map<string, () => void>();
@@ -153,6 +154,10 @@ function scope(options: {
     );
   };
   const responses = new Map<string, () => Promise<Response>>([
+    [
+      '/api/account/approval-request',
+      () => options.approvalResponse ?? Promise.resolve(Response.json(null)),
+    ],
     ['/api/account/handoff-status', () => Promise.resolve(Response.json(null))],
     [
       '/api/account/session',
@@ -372,7 +377,7 @@ await test('pedido salvo antes de limpar URL sobrevive reabertura sem marcador, 
   await tick();
   assert.equal(reopened.approve.hidden, false);
   assert.match(reopened.diagnostic.textContent, /etapa=pedido-restaurado/u);
-  assert.equal(reopened.requests.length, 0);
+  assert.deepEqual(reopened.requests, ['/api/account/approval-request']);
   assert.deepEqual(reopened.states, []);
   assert.equal([...reopened.storage.values()][0], record);
   reopened.incoming('a'.repeat(64));
@@ -425,7 +430,7 @@ await test('prazo local encerra pedido ao retomar e ao reabrir; novo fragmento i
   await tick();
   assert.equal(expired.storage.size, 0);
   assert.equal(expired.approve.hidden, true);
-  assert.deepEqual(expired.requests, []);
+  assert.deepEqual(expired.requests, ['/api/account/approval-request']);
   expired.dispose();
 });
 
@@ -478,7 +483,7 @@ await test('registro corrompido, excedido ou com prazo adulterado nunca inicia a
     await tick();
     assert.equal(browser.storage.size, 0);
     assert.equal(browser.approve.hidden, true);
-    assert.deepEqual(browser.requests, []);
+    assert.deepEqual(browser.requests, ['/api/account/approval-request']);
     assert.deepEqual(browser.states, []);
     assert.doesNotMatch(browser.diagnostic.textContent, /PRIVATE|a{64}/u);
     browser.dispose();
@@ -540,7 +545,10 @@ await test('aprovação sem ticket ou com ticket inválido não restaura sessão
     browser.click();
     browser.confirmApproval();
     await tick();
-    assert.deepEqual(browser.requests, []);
+    assert.deepEqual(
+      browser.requests,
+      hash === '' ? ['/api/account/approval-request'] : [],
+    );
     assert.deepEqual(browser.states, []);
     assert.deepEqual(browser.navigated, []);
     assert.equal(browser.picker.hidden, true);
@@ -568,7 +576,7 @@ await test('marcador de diagnóstico expirado ou inválido nunca prova recebimen
       browser.diagnostic.textContent,
       /fragmento-recebido-antes|PRIVATE/u,
     );
-    assert.deepEqual(browser.requests, []);
+    assert.deepEqual(browser.requests, ['/api/account/approval-request']);
     assert.equal(browser.approve.hidden, true);
     browser.dispose();
   }
@@ -657,7 +665,12 @@ await test('diagnóstico distingue pedido ausente, inválido, recarga após frag
       browser.diagnostic.textContent,
       /PRIVATE|ticket=|0x|https:|a{64}/u,
     );
-    assert.deepEqual(browser.requests, []);
+    assert.deepEqual(
+      browser.requests,
+      options.hash === '' || options.hash === '#configuracoes'
+        ? ['/api/account/approval-request']
+        : [],
+    );
     assert.equal(browser.back.hidden, true);
     if (options.navigationType === 'reload') {
       assert.match(browser.diagnostic.textContent, /navegacao=reload/u);
@@ -690,5 +703,134 @@ await test('novo pedido durante desafio descarta resposta antiga sem abrir promp
   assert.match(browser.diagnostic.textContent, /chegada=novo-fragmento/u);
   assert.match(browser.diagnostic.textContent, /etapa=pedido-lido/u);
   assert.match(browser.diagnostic.textContent, /falha=nao/u);
+  browser.dispose();
+});
+
+function cookieApprovalResponse(ticket = 'b'.repeat(64), remaining = 60_000) {
+  const now = Date.now();
+  return Response.json({
+    request: { ticket, wallet: 'MetaMask', ecosystem: 'evm' },
+    serverTime: new Date(now).toISOString(),
+    expiresAt: new Date(now + remaining).toISOString(),
+  });
+}
+
+await test('URL limpa recupera pedido pelo cookie sem armazenamento novo, sessão ou assinatura automática', async () => {
+  const browser = scope({
+    pathname: '/wallet.html',
+    hash: '#configuracoes',
+    approvalResponse: Promise.resolve(cookieApprovalResponse()),
+  });
+  await tick();
+  assert.deepEqual(browser.requests, ['/api/account/approval-request']);
+  assert.equal(browser.storage.size, 0);
+  assert.equal(browser.approve.hidden, false);
+  assert.match(browser.diagnostic.textContent, /etapa=pedido-cookie-recebido/u);
+  assert.deepEqual(browser.providerRequests, []);
+  browser.confirmApproval();
+  await tick();
+  assert.equal(
+    (browser.inputs.get('/api/account/handoff-challenge') as { ticket: string })
+      .ticket,
+    'b'.repeat(64),
+  );
+  assert.equal(browser.requests.includes('/api/account/login'), false);
+  assert.equal(browser.requests.includes('/api/account/session'), false);
+  assert.deepEqual(browser.states, []);
+  assert.match(browser.status.textContent, /Assinatura confirmada/u);
+  browser.dispose();
+});
+
+await test('recuperação por cookie substitui registro antigo; cancelamento não recupera pedido obsoleto', async () => {
+  const first = scope({ pathname: '/wallet.html', hash: approvalHash });
+  await tick();
+  first.dispose();
+  const stored = first.storage;
+  const fresh = scope({
+    pathname: '/wallet.html',
+    hash: '#configuracoes',
+    storage: stored,
+    approvalResponse: Promise.resolve(cookieApprovalResponse()),
+  });
+  await tick();
+  assert.equal(stored.size, 0);
+  fresh.confirmApproval();
+  await tick();
+  assert.equal(
+    (fresh.inputs.get('/api/account/handoff-challenge') as { ticket: string })
+      .ticket,
+    'b'.repeat(64),
+  );
+  fresh.dispose();
+  const failed = scope({
+    pathname: '/wallet.html',
+    hash: '#configuracoes',
+    approvalResponse: Promise.resolve(
+      Response.json({ error: 'Pedido expirou.' }, { status: 401 }),
+    ),
+  });
+  await tick();
+  assert.equal(failed.approve.hidden, true);
+  assert.deepEqual(failed.providerRequests, []);
+  assert.match(failed.diagnostic.textContent, /falha=HTTP-401/u);
+  failed.dispose();
+});
+
+await test('resposta tardia do cookie não substitui fragmento novo nem revive tela encerrada', async () => {
+  for (const action of ['replace', 'dispose']) {
+    const response = deferred<Response>();
+    const browser = scope({
+      pathname: '/wallet.html',
+      hash: '#configuracoes',
+      approvalResponse: response.promise,
+    });
+    if (action === 'replace') browser.incoming('c'.repeat(64));
+    else browser.dispose();
+    response.resolve(cookieApprovalResponse());
+    await tick();
+    assert.deepEqual(browser.providerRequests, []);
+    if (action === 'replace') {
+      browser.confirmApproval();
+      await tick();
+      assert.equal(
+        (
+          browser.inputs.get('/api/account/handoff-challenge') as {
+            ticket: string;
+          }
+        ).ticket,
+        'c'.repeat(64),
+      );
+      browser.dispose();
+    }
+  }
+});
+
+await test('prazo inválido do cookie bloqueia aprovação; expiração local suspensa é conferida no foco', async () => {
+  for (const remaining of [-1, 300_001]) {
+    const browser = scope({
+      pathname: '/wallet.html',
+      approvalResponse: Promise.resolve(
+        cookieApprovalResponse('b'.repeat(64), remaining),
+      ),
+    });
+    await tick();
+    assert.equal(browser.approve.hidden, true);
+    assert.deepEqual(browser.providerRequests, []);
+    browser.dispose();
+  }
+  const clock = { now: Date.now() };
+  const browser = scope({
+    pathname: '/wallet.html',
+    clock,
+    approvalResponse: Promise.resolve(
+      cookieApprovalResponse('b'.repeat(64), 60_000),
+    ),
+  });
+  await tick();
+  clock.now += 60_001;
+  browser.resume();
+  await tick();
+  assert.equal(browser.approve.hidden, true);
+  assert.match(browser.diagnostic.textContent, /etapa=pedido-expirado/u);
   browser.dispose();
 });

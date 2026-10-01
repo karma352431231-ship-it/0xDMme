@@ -3,7 +3,6 @@ import {
   accountSession,
   boundedText,
   object,
-  keys,
 } from '../../shared/account/index.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
 import {
@@ -14,6 +13,10 @@ import type { Ecosystem } from '../../shared/wallet-identity/index.ts';
 import { walletBrowserUrl } from '../wallet/index.ts';
 import type { WalletName } from '../wallet/index.ts';
 import { approvalHistoryMarker } from './approval-diagnostics.ts';
+export { walletApprovalRequest } from '../../shared/wallet-approval/index.ts';
+export type { WalletApprovalRequest } from '../../shared/wallet-approval/index.ts';
+import { walletApprovalRequest } from '../../shared/wallet-approval/index.ts';
+import type { WalletApprovalRequest } from '../../shared/wallet-approval/index.ts';
 type Api = (
   path: string,
   options?: { input?: unknown; csrf?: string },
@@ -22,29 +25,6 @@ interface Pending {
   ecosystem: Ecosystem;
   address: string | null;
   expiresAt: string;
-}
-export interface WalletApprovalRequest {
-  ticket: string;
-  ecosystem: Ecosystem;
-  wallet: WalletName;
-}
-export function walletApprovalRequest(value: unknown): WalletApprovalRequest {
-  const data = object(value);
-  keys(data, ['ticket', 'wallet', 'ecosystem']);
-  const ticket = data['ticket'];
-  const wallet = data['wallet'];
-  if (
-    typeof ticket !== 'string' ||
-    !/^[a-f0-9]{64}$/u.test(ticket) ||
-    typeof wallet !== 'string' ||
-    !['MetaMask', 'Phantom', 'Solflare', 'Backpack'].includes(wallet)
-  )
-    throw new Error('Pedido de wallet inválido.');
-  return {
-    ticket,
-    wallet: wallet as WalletName,
-    ecosystem: ecosystem(data['ecosystem']),
-  };
 }
 export function incomingWalletRequest(
   remember?: (request: WalletApprovalRequest) => void,

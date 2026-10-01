@@ -130,6 +130,8 @@ await test('política offline limita cache a assets públicos fixados do build',
     '/?secret=x',
     '/app-old.js',
     '/wallet.html',
+    '/wallet-entry?ticket=synthetic',
+    '/api/account/approval-request',
   ])
     assert.equal(
       cacheableRequest(new Request(`${origin}${path}`), origin, assets),

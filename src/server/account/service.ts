@@ -27,6 +27,7 @@ import type {
   EncryptedProfile,
 } from '../../shared/account/index.ts';
 import type { AuthenticationStore } from '../database/index.ts';
+import { walletApprovalRequest } from '../../shared/wallet-approval/index.ts';
 
 export const challengeSeconds = 300;
 export const sessionSeconds = 43_200;
@@ -155,6 +156,26 @@ export class AccountService {
       deviceId: handoff.deviceId,
     });
     return this.issueChallenge(identity, hash, handoff.expiresAt);
+  }
+  async approvalRequest(input: unknown) {
+    let request;
+    try {
+      request = walletApprovalRequest(input);
+    } catch {
+      throw new AccountError(400, 'Pedido de wallet inválido.');
+    }
+    const handoff = await this.store.handoffByTicket(tokenHash(request.ticket));
+    if (request.ecosystem !== handoff.ecosystem)
+      throw new AccountError(401, 'Pedido de wallet inválido.');
+    const serverTime = new Date();
+    const remaining = handoff.expiresAt.getTime() - serverTime.getTime();
+    if (remaining <= 0 || remaining > challengeSeconds * 1000)
+      throw new AccountError(401, 'Pedido expirou.');
+    return {
+      request,
+      expiresAt: handoff.expiresAt.toISOString(),
+      serverTime: serverTime.toISOString(),
+    };
   }
   private handoffTicket(input: unknown): string {
     const value = boundedText(input, 64);

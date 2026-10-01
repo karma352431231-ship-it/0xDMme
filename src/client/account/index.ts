@@ -13,6 +13,7 @@ import { attemptBrowserReturn, browserReturnUrl } from './browser-return.ts';
 import { createApprovalDiagnostics } from './approval-diagnostics.ts';
 import type { ApprovalStage } from './approval-diagnostics.ts';
 import { createPendingApproval } from './pending-approval.ts';
+import { serverApproval } from './server-approval.ts';
 import { canonicalAddress } from '../../shared/wallet-identity/index.ts';
 import {
   createWalletReturn,
@@ -88,7 +89,7 @@ async function api(
     signal: AbortSignal.timeout(8000),
   });
   if (response.status === 401)
-    throw new Error('Sessão encerrada ou login rejeitado.');
+    throw new AccountError(401, 'Sessão encerrada ou login rejeitado.');
   const data: unknown = await response.json();
   if (!response.ok)
     throw new AccountError(
@@ -110,6 +111,8 @@ export function startAccount(options: {
   changed: (session: AccountSession | null) => void;
 }) {
   const approvalPage = location.pathname === '/wallet.html';
+  let cookieApprovalEligible =
+    approvalPage && (!location.hash || location.hash === '#configuracoes');
   let approvalOnly =
     approvalPage || (location.hash ?? '').startsWith('#configuracoes?');
   const diagnostics = createApprovalDiagnostics();
@@ -133,6 +136,8 @@ export function startAccount(options: {
   let disposed = false;
   let epoch = 0;
   let expiryTimer: number | undefined;
+  let approvalExpiryTimer: number | undefined;
+  let approvalDeadline: number | undefined;
   let photoUrl: string | undefined;
   let removeProviderListeners: (() => void) | undefined;
 
@@ -393,6 +398,8 @@ export function startAccount(options: {
   function expireApproval(): void {
     if (!incoming || incomingSigned) return;
     epoch++;
+    window.clearTimeout(approvalExpiryTimer);
+    approvalDeadline = undefined;
     incoming = null;
     approvalStep('pedido-expirado');
     status =
@@ -431,6 +438,9 @@ export function startAccount(options: {
   function receiveWalletRequest(): void {
     if (!location.hash.startsWith('#configuracoes?')) return;
     approvalOnly = true;
+    cookieApprovalEligible = false;
+    window.clearTimeout(approvalExpiryTimer);
+    approvalDeadline = undefined;
     epoch++;
     incomingSigned = false;
     clearPrivate();
@@ -820,9 +830,7 @@ export function startAccount(options: {
   }
   async function restore(): Promise<void> {
     if (approvalOnly) {
-      status = incoming
-        ? 'Confirme a assinatura para concluir o login no navegador que iniciou o pedido. Recuse pedidos recebidos de terceiros.'
-        : 'Pedido ausente ou perdido. Volte ao navegador original e crie um novo pedido.';
+      await restoreApprovalState();
       return;
     }
     const current = epoch;
@@ -854,11 +862,50 @@ export function startAccount(options: {
   function restoreContextIsCurrent(current: number): boolean {
     return current === epoch && !approvalOnly && !disposed;
   }
+  async function restoreApprovalState(): Promise<void> {
+    if (cookieApprovalEligible && !(await restoreCookieApproval())) return;
+    status = incoming
+      ? 'Confirme a assinatura para concluir o login no navegador que iniciou o pedido. Recuse pedidos recebidos de terceiros.'
+      : 'Pedido ausente ou perdido. Volte ao navegador original e crie um novo pedido.';
+  }
+  async function restoreCookieApproval(): Promise<boolean> {
+    const current = epoch;
+    const legacy = incoming;
+    incoming = null;
+    approvalStep('pedido-cookie-solicitado');
+    status = 'Recuperando o pedido iniciado no seu navegador…';
+    render();
+    let state;
+    try {
+      state = serverApproval(await api('approval-request'));
+    } catch (error: unknown) {
+      if (disposed || current !== epoch) return false;
+      pendingApproval.clear();
+      throw error;
+    }
+    if (disposed || current !== epoch) return false;
+    if (!state) {
+      incoming = legacy;
+      approvalStep(incoming ? 'pedido-restaurado' : 'pedido-ausente');
+      return true;
+    }
+    pendingApproval.clear();
+    incoming = state.request;
+    approvalDeadline = Date.now() + state.remaining;
+    approvalExpiryTimer = window.setTimeout(expireApproval, state.remaining);
+    approvalStep('pedido-cookie-recebido');
+    return true;
+  }
+  function checkApprovalDeadline(): void {
+    if (approvalDeadline !== undefined && Date.now() >= approvalDeadline)
+      expireApproval();
+  }
   function dispose(event: PageTransitionEvent): void {
     if (event.persisted) return;
     disposed = true;
     epoch++;
     window.clearTimeout(expiryTimer);
+    window.clearTimeout(approvalExpiryTimer);
     clearPrivate();
     removeProviderListeners?.();
     offWallets();
@@ -867,9 +914,15 @@ export function startAccount(options: {
     wallets.close();
     window.removeEventListener('pagehide', dispose);
     window.removeEventListener('hashchange', receiveWalletRequest);
+    window.removeEventListener('pageshow', checkApprovalDeadline);
+    window.removeEventListener('focus', checkApprovalDeadline);
+    document.removeEventListener('visibilitychange', checkApprovalDeadline);
   }
   window.addEventListener('pagehide', dispose);
   window.addEventListener('hashchange', receiveWalletRequest);
+  window.addEventListener('pageshow', checkApprovalDeadline);
+  window.addEventListener('focus', checkApprovalDeadline);
+  document.addEventListener('visibilitychange', checkApprovalDeadline);
   void operation(restore);
   function bindProfileControls(): void {
     node('[data-name-form]')?.addEventListener('submit', (event) => {

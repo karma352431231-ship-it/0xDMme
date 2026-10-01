@@ -12,7 +12,8 @@ import {
 import type { EvmProvider } from './evm.ts';
 import type { Ecosystem } from '../../shared/wallet-identity/index.ts';
 export type { EvmProvider } from './evm.ts';
-export type WalletName = 'MetaMask' | 'Phantom' | 'Solflare' | 'Backpack';
+import type { WalletName } from '../../shared/wallet-approval/index.ts';
+export type { WalletName } from '../../shared/wallet-approval/index.ts';
 export interface WalletIdentity {
   address: string;
   ecosystem: Ecosystem;
@@ -215,12 +216,12 @@ export function walletBrowserUrl(input: {
     return null;
   if (!/^[a-f0-9]{64}$/u.test(input.ticket))
     throw new Error('Pedido inválido.');
-  const hash = new URLSearchParams({
+  const query = new URLSearchParams({
     ticket: input.ticket,
     ecosystem: input.ecosystem,
     wallet: input.wallet,
   });
-  const target = `${origin.origin}/wallet.html#configuracoes?${hash}`;
+  const target = `${origin.origin}/wallet-entry?${query}`;
   if (input.wallet === 'MetaMask')
     return `https://link.metamask.io/dapp/${encodeURIComponent(target.slice('https://'.length))}`;
   const base = {

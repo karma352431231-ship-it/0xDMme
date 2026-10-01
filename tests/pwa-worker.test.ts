@@ -134,6 +134,8 @@ await test('worker real instala só shell público e atende offline sem intercep
     '/health/ready',
     '/objects/private',
     '/wallet.html',
+    '/wallet-entry?ticket=synthetic',
+    '/api/account/approval-request',
     '/?token=synthetic',
   ])
     assert.equal(

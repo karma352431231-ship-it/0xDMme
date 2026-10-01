@@ -5,6 +5,8 @@ export type ApprovalStage =
   | 'limpeza-url-falhou'
   | 'pedido-lido'
   | 'pedido-restaurado'
+  | 'pedido-cookie-solicitado'
+  | 'pedido-cookie-recebido'
   | 'pedido-expirado'
   | 'conexao-solicitada'
   | 'conexao-recebida'

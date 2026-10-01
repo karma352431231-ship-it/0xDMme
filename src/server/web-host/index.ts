@@ -67,9 +67,18 @@ function publicNavigation(request: IncomingMessage): boolean {
   // shell can be opened this way; account APIs and mutations remain protected.
   return (
     request.method === 'GET' &&
-    (request.url === '/' || request.url === '/wallet.html') &&
+    (request.url === '/' ||
+      request.url === '/wallet.html' ||
+      approvalEntry(request)) &&
     request.headers['sec-fetch-mode'] === 'navigate' &&
     request.headers['sec-fetch-dest'] === 'document'
+  );
+}
+
+function approvalEntry(request: IncomingMessage): boolean {
+  return (
+    request.url === '/wallet-entry' ||
+    request.url?.startsWith('/wallet-entry?') === true
   );
 }
 
@@ -149,7 +158,10 @@ export function createWebServer(options: {
       response.writeHead(403).end();
       return;
     }
-    if (request.url?.startsWith('/api/account/') && options.account) {
+    if (
+      (request.url?.startsWith('/api/account/') || approvalEntry(request)) &&
+      options.account
+    ) {
       if (stopping) {
         response.writeHead(503).end();
         return;

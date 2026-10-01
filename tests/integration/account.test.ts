@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { randomUUID } from 'node:crypto';
+import { request as httpRequest } from 'node:http';
 import { base58 } from '@scure/base';
 import { ed25519 } from '@noble/curves/ed25519';
 import pg from 'pg';
@@ -72,6 +73,44 @@ async function authenticate(
 }
 function unauthorized(error: unknown): boolean {
   return error instanceof AccountError && error.status === 401;
+}
+
+// fetch fixes Sec-Fetch-Mode to cors; real document navigation uses navigate.
+function navigateEntry(path: string): Promise<Response> {
+  return new Promise((resolve, reject) => {
+    const request = httpRequest(
+      `${origin}${path}`,
+      {
+        headers: {
+          'Sec-Fetch-Site': 'cross-site',
+          'Sec-Fetch-Mode': 'navigate',
+          'Sec-Fetch-Dest': 'document',
+        },
+      },
+      (response) => {
+        const chunks: Buffer[] = [];
+        response.on('data', (chunk: Buffer) => chunks.push(chunk));
+        response.on('end', () => {
+          const headers = new Headers();
+          for (let i = 0; i < response.rawHeaders.length; i += 2) {
+            const key = response.rawHeaders[i];
+            const value = response.rawHeaders[i + 1];
+            if (key !== undefined && value !== undefined)
+              headers.append(key, value);
+          }
+          resolve(
+            new Response(Buffer.concat(chunks), {
+              status: response.statusCode ?? 503,
+              headers,
+            }),
+          );
+        });
+        response.on('error', reject);
+      },
+    );
+    request.on('error', reject);
+    request.end();
+  });
 }
 
 await test('Autenticação e perfil persistentes', async (t) => {
@@ -469,6 +508,17 @@ await test('Autenticação e perfil persistentes', async (t) => {
         { ecosystem: 'evm', deviceId },
         '',
       );
+      const approval = {
+        ticket: pending.ticket,
+        wallet: 'MetaMask',
+        ecosystem: 'evm',
+      };
+      const recovered = await service.approvalRequest(approval);
+      assert.equal(recovered.expiresAt, pending.expiresAt);
+      await assert.rejects(
+        service.approvalRequest({ ...approval, ecosystem: 'solana' }),
+        unauthorized,
+      );
       const challenge = await service.handoffChallenge({
         ticket: pending.ticket,
         address: signer.address,
@@ -495,6 +545,7 @@ await test('Autenticação e perfil persistentes', async (t) => {
         { ticket: pending.ticket, id: challenge.id, signature },
         challenge.browserToken,
       );
+      await assert.rejects(service.approvalRequest(approval), unauthorized);
       const state = await service.handoffStatus(pending.browserToken);
       assert.equal(state?.address, signer.address.toLowerCase());
       const walletSessions = await inspector.query<{ total: number }>(
@@ -544,6 +595,10 @@ await test('Autenticação e perfil persistentes', async (t) => {
         '',
       );
       await service.cancelHandoff(cancelled.browserToken);
+      await assert.rejects(
+        service.approvalRequest({ ...approval, ticket: cancelled.ticket }),
+        unauthorized,
+      );
       await assert.rejects(
         service.handoffChallenge({
           ticket: cancelled.ticket,
@@ -603,6 +658,33 @@ await test('Autenticação e perfil persistentes', async (t) => {
       const remaining =
         Date.parse(pending.expiresAt) - Date.parse(pending.serverTime);
       assert.ok(remaining > 0 && remaining <= 300_000);
+      const entry = await navigateEntry(
+        `/wallet-entry?${new URLSearchParams({
+          ticket: pending.ticket,
+          wallet: 'MetaMask',
+          ecosystem: 'evm',
+        })}`,
+      );
+      assert.equal(entry.status, 303);
+      assert.equal(entry.headers.get('location'), '/wallet.html#configuracoes');
+      assert.equal(entry.headers.get('cache-control'), 'no-store');
+      assert.equal(entry.headers.get('referrer-policy'), 'no-referrer');
+      assert.match(
+        entry.headers.get('set-cookie') ?? '',
+        /HttpOnly; SameSite=Lax; Max-Age=\d+/u,
+      );
+      const entryCookie = entry.headers.getSetCookie()[0]?.split(';')[0] ?? '';
+      const recoveredResponse = await fetch(
+        `${origin}/api/account/approval-request`,
+        { headers: { Cookie: entryCookie } },
+      );
+      assert.equal(recoveredResponse.status, 200);
+      const recoveredEntry = (await recoveredResponse.json()) as {
+        request: { ticket: string };
+        expiresAt: string;
+      };
+      assert.equal(recoveredEntry.request.ticket, pending.ticket);
+      assert.equal(recoveredEntry.expiresAt, pending.expiresAt);
       const status = await fetch(`${origin}/api/account/handoff-status`, {
         headers: { Cookie: originalCookie },
       });
@@ -634,10 +716,20 @@ await test('Autenticação e perfil persistentes', async (t) => {
           id: challenge.id,
           signature: await signer.signMessage(challenge.message),
         },
-        walletCookie,
+        `${walletCookie}; ${entryCookie}`,
       );
       assert.equal(signed.status, 200);
       await signed.text();
+      assert.equal(
+        signed.headers
+          .getSetCookie()
+          .some((item) => item.startsWith('0xdmme-approval=')),
+        false,
+      );
+      const replay = await fetch(`${origin}/api/account/approval-request`, {
+        headers: { Cookie: entryCookie },
+      });
+      assert.equal(replay.status, 401);
       assert.equal(
         signed.headers
           .getSetCookie()

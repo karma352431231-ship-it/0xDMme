@@ -11,7 +11,7 @@ import {
   solanaPublicKey,
 } from '../src/shared/wallet-identity/index.ts';
 
-await test('links mobile limitam destino e preservam ticket no fragmento do site, sem token de sessão', () => {
+await test('links mobile limitam destino à entrada HTTPS própria sem fragmento ou token de sessão', () => {
   const ticket = 'a'.repeat(64);
   const origin = 'https://hash-talk.example';
   for (const wallet of [
@@ -30,8 +30,8 @@ await test('links mobile limitam destino e preservam ticket no fragmento do site
     const link = new URL(result);
     assert.equal(link.hash, '');
     const decoded = decodeURIComponent(link.pathname);
-    assert.ok(decoded.includes('#configuracoes?ticket='));
-    assert.ok(decoded.includes('/wallet.html#configuracoes?'));
+    assert.ok(decoded.includes('/wallet-entry?ticket='));
+    assert.ok(!decoded.includes('#'));
     assert.ok(decoded.includes(ticket));
     assert.ok(!link.searchParams.has('session'));
     assert.ok(!link.searchParams.has('signature'));
