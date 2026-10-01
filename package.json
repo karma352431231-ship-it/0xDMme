@@ -1,5 +1,5 @@
 {
-  "name": "hash-talk",
+  "name": "0xdmme",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -9,8 +9,9 @@
   },
   "packageManager": "npm@11.9.0",
   "scripts": {
-    "dev": "node --env-file-if-exists=.env src/server/main.ts",
+    "dev": "npm run build && node --env-file-if-exists=.env src/server/main.ts",
     "probe:crypto": "node src/server/probe.ts",
+    "probe:mobile": "node src/server/mobile-probe.ts",
     "probe:zk:prepare": "node src/tools/prepare-zk.ts",
     "probe:zk": "node src/tools/zk-probe.ts",
     "probe:measure": "node src/tools/measure-probes.ts",
@@ -20,7 +21,12 @@
     "format:check": "prettier --check .",
     "format": "prettier --write .",
     "test": "node --test tests/*.test.ts",
-    "check": "npm run lint && npm run typecheck && npm run boundaries && npm run format:check && npm test"
+    "check": "npm run lint && npm run typecheck && npm run boundaries && npm run licenses && npm run format:check && npm run build && npm test",
+    "build": "node src/tools/build-web.ts",
+    "test:integration": "node --env-file-if-exists=.local/web-test.env --test --test-concurrency=1 tests/integration/*.test.ts",
+    "licenses": "node src/tools/check-licenses.ts",
+    "observe:database": "node --env-file-if-exists=.env src/tools/observe-database.ts",
+    "dev:mobile": "npm run build && node --env-file=.local/web-test.env src/server/web-mobile.ts"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
@@ -29,6 +35,7 @@
     "@semaphore-protocol/identity": "4.14.3",
     "@semaphore-protocol/proof": "4.14.3",
     "@types/node": "24.19.0",
+    "@types/pg": "8.23.1",
     "dependency-cruiser": "18.4.0",
     "esbuild": "0.28.2",
     "eslint": "10.11.0",
@@ -42,5 +49,15 @@
     "circomkit": {
       "circom_tester": "0.0.24"
     }
-  }
+  },
+  "dependencies": {
+    "@noble/curves": "1.9.7",
+    "@scure/base": "2.4.0",
+    "@solana/wallet-standard-util": "1.1.4",
+    "@spruceid/siwe-parser": "3.0.0",
+    "@wallet-standard/app": "1.1.1",
+    "ethers": "6.17.0",
+    "pg": "8.23.1"
+  },
+  "license": "SEE LICENSE IN LICENSES.md"
 }

@@ -9,7 +9,16 @@ const responsibilityRules = {
 };
 
 export default defineConfig(
-  { ignores: ['node_modules/**', 'dist/**', 'build/**', 'coverage/**'] },
+  // Private runtime, temporary diagnostics and captures are not product source.
+  {
+    ignores: [
+      'node_modules/**',
+      'dist/**',
+      'build/**',
+      'coverage/**',
+      '.local/**',
+    ],
+  },
   {
     files: ['**/*.{js,mjs,cjs}'],
     extends: [js.configs.recommended],
