@@ -5,6 +5,10 @@ enviar a branch ao GitHub e usar Git para transferir código à VPS. O remoto
 permanece no repositório existente da conta Karma; isso não autoriza trocar a
 identidade/autenticação global nem vinculá-la à conta ohsael.
 
+O GitHub confirmou a renomeação do mesmo repositório para **0xDMme**, preservando
+seu identificador e proprietário. URL canônica do `origin`:
+`https://github.com/karma352431231-ship-it/0xDMme.git`.
+
 ## Fluxo aprovado
 
 1. Revisar arquivos, excluir dados privados e executar os checks necessários no

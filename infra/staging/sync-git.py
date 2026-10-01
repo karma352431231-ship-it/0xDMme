@@ -15,7 +15,7 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[2]
 OWNER = 'karma352431231-ship-it'
-ORIGIN = f'https://github.com/{OWNER}/Hash-Talk.git'
+ORIGIN = f'https://github.com/{OWNER}/0xDMme.git'
 REPOSITORY = '/var/lib/0xdmme/data/git/0xdmme.git'
 SSH = ['ssh', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=10',
        '-o', 'StrictHostKeyChecking=yes']
