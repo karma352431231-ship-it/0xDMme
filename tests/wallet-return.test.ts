@@ -28,6 +28,8 @@ function scope(hash = '', userAgent = 'Android', active = true) {
   window.clearTimeout = () => {};
   const replaced: string[] = [];
   const navigated: string[] = [];
+  const activation = { isActive: active };
+  const navigation = { rejected: false };
   const api = runInNewContext(`${source}\nReturn;`, {
     window,
     URL,
@@ -37,9 +39,12 @@ function scope(hash = '', userAgent = 'Android', active = true) {
     location: {
       hash,
       origin: 'https://0xdmme.app',
-      assign: (link: string) => navigated.push(link),
+      assign: (link: string) => {
+        if (navigation.rejected) throw new Error('Navigation rejected.');
+        navigated.push(link);
+      },
     },
-    navigator: { userAgent, userActivation: { isActive: active } },
+    navigator: { userAgent, userActivation: activation },
     history: {
       replaceState: (_state: unknown, _title: string, value: string) =>
         replaced.push(value),
@@ -49,7 +54,7 @@ function scope(hash = '', userAgent = 'Android', active = true) {
     incomingWalletRequest: typeof incomingWalletRequest;
     launchMobileWallet: typeof launchMobileWallet;
   };
-  return { api, replaced, navigated };
+  return { api, replaced, navigated, activation, navigation };
 }
 function session() {
   return {
@@ -196,21 +201,68 @@ await test('resposta inválida ou expirada nunca navega para a wallet', async ()
   }
 });
 
-await test('navegação automática exige aparelho e ativação do usuário; link manual continua disponível', () => {
+await test('navegação mobile não é vetada por ativação expirada; desktop continua sem abertura automática', () => {
   const link = 'https://phantom.app/ul/browse/example';
   for (const userAgent of ['Android', 'iPhone']) {
-    const mobile = scope('', userAgent);
+    const mobile = scope('', userAgent, false);
     assert.equal(mobile.api.launchMobileWallet(link), true);
     assert.deepEqual(mobile.navigated, [link]);
   }
-  for (const [userAgent, active] of [
-    ['Macintosh', true],
-    ['Android', false],
+  const desktop = scope('', 'Macintosh');
+  assert.equal(desktop.api.launchMobileWallet(link), false);
+  assert.deepEqual(desktop.navigated, []);
+});
+
+await test('resposta de rede após expirar o clique ainda tenta abrir uma vez e preserva link alternativo', async () => {
+  for (const [wallet, network] of [
+    ['MetaMask', 'evm'],
+    ['Phantom', 'solana'],
   ] as const) {
-    const blocked = scope('', userAgent, active);
-    assert.equal(blocked.api.launchMobileWallet(link), false);
-    assert.deepEqual(blocked.navigated, []);
+    const mobile = scope();
+    let complete!: (value: unknown) => void;
+    const response = new Promise<unknown>((resolve) => {
+      complete = resolve;
+    });
+    const controller = mobile.api.createWalletReturn({
+      api: (path) =>
+        path === 'handoff-start' ? response : Promise.resolve(null),
+      deviceId: randomUUID,
+      changed: () => {},
+      message: () => {},
+      authenticated: () => Promise.resolve(),
+      openWallet: mobile.api.launchMobileWallet,
+    });
+    const starting = controller.start(wallet, network);
+    assert.deepEqual(mobile.navigated, []);
+    mobile.activation.isActive = false;
+    complete(handoffResponse());
+    await starting;
+    assert.equal(mobile.navigated.length, 1);
+    assert.equal(mobile.navigated[0], controller.link());
+    await controller.refresh();
+    assert.equal(mobile.navigated.length, 1);
+    controller.close();
   }
+});
+
+await test('recusa de navegação mantém o pedido e oferece o link explícito sem simular abertura', async () => {
+  const mobile = scope();
+  mobile.navigation.rejected = true;
+  const messages: string[] = [];
+  const controller = mobile.api.createWalletReturn({
+    api: () => Promise.resolve(handoffResponse()),
+    deviceId: randomUUID,
+    changed: () => {},
+    message: (value) => messages.push(value),
+    authenticated: () => Promise.resolve(),
+    openWallet: mobile.api.launchMobileWallet,
+  });
+  await controller.start('Phantom', 'solana');
+  assert.equal(mobile.navigated.length, 0);
+  assert.ok(controller.link());
+  assert.ok(controller.state());
+  assert.match(messages.at(-1) ?? '', /^Toque em Abrir Phantom/u);
+  controller.close();
 });
 await test('confirmação tardia após cancelar é revogada e não abre a conta nem seu perfil', async () => {
   const { api } = scope();

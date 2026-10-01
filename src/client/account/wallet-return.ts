@@ -197,10 +197,21 @@ export function createWalletReturn(options: {
   };
 }
 
+export function mobileWalletBrowser(): boolean {
+  return /Android|iPhone|iPad|iPod/iu.test(navigator.userAgent);
+}
+
 export function launchMobileWallet(link: string): boolean {
-  if (!/Android|iPhone|iPad|iPod/iu.test(navigator.userAgent)) return false;
-  if (!navigator.userActivation?.isActive) return false;
+  if (!mobileWalletBrowser()) return false;
+  // Called only by an explicit selection after a validated, current handoff.
+  // A network round trip can expire transient activation. Do not veto the
+  // official HTTPS navigation ourselves; the browser/OS decides whether to
+  // launch the native app, and the explicit link remains available.
   // This is an attempt, not evidence that the operating system opened the app.
-  location.assign(link);
-  return true;
+  try {
+    location.assign(link);
+    return true;
+  } catch {
+    return false;
+  }
 }

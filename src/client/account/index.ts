@@ -14,6 +14,7 @@ import {
   createWalletReturn,
   incomingWalletRequest,
   launchMobileWallet,
+  mobileWalletBrowser,
 } from './wallet-return.ts';
 import {
   emptyProfile,
@@ -31,7 +32,7 @@ const template = `<article class="card account-card"><span class="eyebrow">CONTA
 <p>Conecte e assine o pedido de login. Essa assinatura não movimenta fundos e não abre o histórico.</p>
 <button class="primary" type="button" data-wallet-picker-toggle aria-expanded="false" aria-controls="wallet-picker">Conectar wallet</button>
 <section id="wallet-picker" class="wallet-picker" data-wallet-picker hidden aria-label="Escolher wallet">
-<div data-wallet-brands><h3>Escolha sua wallet</h3><p class="detail">As wallets detectadas estão disponíveis neste navegador.</p>
+<div data-wallet-brands><h3>Escolha sua wallet</h3><p class="detail">A detecção indica disponibilidade neste navegador. No Chrome/Safari do celular, escolha o app que você instalou; ele pode não ser detectado aqui.</p>
 <div class="wallet-options"><button type="button" class="wallet-option" data-wallet-brand="MetaMask"><span>MetaMask</span><span class="wallet-detection" data-brand-detection="MetaMask">Não detectada</span></button>
 <button type="button" class="wallet-option" data-wallet-brand="Phantom"><span>Phantom</span><span class="wallet-detection" data-brand-detection="Phantom">Não detectada</span></button>
 <button type="button" class="wallet-option" data-wallet-brand="Solflare"><span>Solflare</span><span class="wallet-detection" data-brand-detection="Solflare">Não detectada</span></button>
@@ -45,7 +46,7 @@ const template = `<article class="card account-card"><span class="eyebrow">CONTA
 <button type="button" class="wallet-option" data-wallet="Backpack:solana" data-network-brand="Backpack"><span>Solana</span><span class="wallet-detection" data-detection="Backpack:solana">Não detectada</span></button>
 <button type="button" class="wallet-option" data-wallet="Backpack" data-network-brand="Backpack"><span>EVM</span><span class="wallet-detection" data-detection="Backpack">Não detectada</span></button></div>
 <div data-other-wallet-networks class="wallet-options"></div></div>
-<p class="detail">Não detectada? No celular, você pode abrir a wallet, assinar e voltar a este navegador. EVM e Solana são contas separadas.</p></section>
+<p class="detail">No celular, selecionar o ecossistema tenta abrir a wallet para assinar. Depois volte a este navegador para confirmar o endereço. EVM e Solana são contas separadas.</p></section>
 <p data-wallet-purpose hidden>Assine apenas se você abriu este pedido no seu navegador. Ele conectará esse navegador à sua conta; recuse links recebidos de outras pessoas.</p>
 <div data-wallet-return hidden><a data-wallet-open referrerpolicy="no-referrer">Abrir wallet</a><p data-wallet-candidate></p><button data-wallet-confirm type="button" hidden>Confirmar este endereço neste navegador</button><button data-wallet-cancel type="button">Cancelar pedido</button></div>
 <a data-wallet-back hidden rel="noreferrer">Voltar ao 0xDMme</a>
@@ -218,7 +219,7 @@ export function startAccount(options: {
           brand !== undefined &&
           (wallets.get(brand) !== undefined ||
             wallets.get(`${brand}:solana`) !== undefined);
-        indicator.textContent = detected ? 'Detectada' : 'Não detectada';
+        indicator.textContent = detectionLabel(detected);
         indicator.classList.toggle('is-detected', detected);
       });
     mounted
@@ -254,9 +255,13 @@ export function startAccount(options: {
       .forEach((indicator) => {
         const id = indicator.dataset['detection'];
         const detected = id !== undefined && wallets.get(id) !== undefined;
-        indicator.textContent = detected ? 'Detectada' : 'Não detectada';
+        indicator.textContent = detectionLabel(detected);
         indicator.classList.toggle('is-detected', detected);
       });
+  }
+  function detectionLabel(detected: boolean): string {
+    if (detected) return 'Disponível neste navegador';
+    return mobileWalletBrowser() ? 'Abrir no app' : 'Não detectada aqui';
   }
   function renderPicker(): void {
     const trigger = node<HTMLButtonElement>('[data-wallet-picker-toggle]');
