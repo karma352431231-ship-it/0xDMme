@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="referrer" content="no-referrer" />
+    <link rel="icon" href="/icon.svg" />
+    <link rel="stylesheet" href="{{STYLE}}" />
+    <script type="module" src="{{SCRIPT}}"></script>
+    <title>Prova de retorno da Phantom · 0xDMme</title>
+  </head>
+  <body>
+    <main class="wallet-approval">
+      <header>
+        <p class="section-label">0xDMme / TESTE</p>
+        <h1>Retorno da Phantom</h1>
+      </header>
+      <article class="card account-card">
+        <h2>Phantom · Solana</h2>
+        <p>
+          Esta prova solicita conexão e assinatura de uma mensagem de teste. Não
+          cria uma conta, não envia transações e não acessa seu histórico.
+        </p>
+        <button class="primary" data-probe-start type="button" disabled>
+          Testar conexão e retorno
+        </button>
+        <a class="primary" data-probe-launch hidden rel="noreferrer"
+          >Abrir Phantom</a
+        >
+        <button data-probe-cancel type="button" hidden>Cancelar prova</button>
+        <p data-probe-status role="status">Preparando canal de teste…</p>
+        <p class="detail">
+          A chave temporária só é válida por cinco minutos e é apagada ao
+          concluir, cancelar ou retomar uma prova expirada. Se o navegador for
+          fechado, o registro pode permanecer até a próxima abertura. O retorno
+          pode abrir outra aba ou o navegador padrão. Essa prova não demonstra
+          suporte EVM nem fechamento de abas antigas da wallet.
+        </p>
+      </article>
+      <footer>
+        <a href="/">Voltar ao 0xDMme</a
+        ><a href="{{SOURCES}}" download>Código e licenças</a>
+      </footer>
+    </main>
+  </body>
+</html>

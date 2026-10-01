@@ -33,11 +33,18 @@ await test('fontes públicas incluem instruções/licenças do build e excluem b
     'package-lock.json',
     'src/tools/build-web.ts',
     'src/tools/frontend-source.ts',
+    'src/tools/frontend-vendor-source.ts',
     'src/client/account/index.ts',
     'src/client/app/wallet.html',
+    'src/client/phantom-native/index.ts',
+    'src/shared/wallet-approval/index.ts',
+    'src/client/app/phantom-probe.html',
     'LICENSE-GPL-3.0.txt',
     'docs/FONTES_FRONTEND.md',
+    'vendor/libsodium-0.8.4/README.md',
     'node_modules/@wallet-standard/app/LICENSE',
+    'node_modules/libsodium-wrappers/LICENSE',
+    'node_modules/libsodium/LICENSE',
   ])
     assert.ok(paths.includes(required), `Fonte necessária: ${required}`);
   for (const path of paths)
@@ -47,6 +54,14 @@ await test('fontes públicas incluem instruções/licenças do build e excluem b
     );
   const worker = Buffer.from(assets.get('/sw.js')?.content ?? []).toString();
   assert.ok(!worker.includes(sourcePath));
+  const preferredPath = [...assets.keys()].find((path) =>
+    path.endsWith('.tar.xz'),
+  );
+  assert.ok(preferredPath);
+  assert.ok(
+    (assets.get(preferredPath)?.content.length ?? Infinity) <= 2 * 1024 * 1024,
+  );
+  assert.ok(!worker.includes(preferredPath));
 });
 
 await test('configuração isola banco e objetos locais e recusa perfis públicos', () => {
@@ -118,7 +133,7 @@ await test('staging exige origem canônica HTTPS, cluster/role exclusivos e obje
 
 await test('política offline limita cache a assets públicos fixados do build', () => {
   const origin = 'https://hash-talk.example';
-  const assets = ['/', '/app-abcd.js', '/wallet.html'];
+  const assets = ['/', '/app-abcd.js', '/wallet.html', '/phantom-probe.html'];
   assert.equal(
     cacheableRequest(new Request(`${origin}/`), origin, assets),
     true,
@@ -132,6 +147,8 @@ await test('política offline limita cache a assets públicos fixados do build',
     '/wallet.html',
     '/wallet-entry?ticket=synthetic',
     '/api/account/approval-request',
+    '/phantom-probe.html',
+    '/phantom-probe.html?state=synthetic',
   ])
     assert.equal(
       cacheableRequest(new Request(`${origin}${path}`), origin, assets),
@@ -222,6 +239,69 @@ await test('servidor recusa origem, mutação, traversal e dados privados; saúd
   assert.equal(approval.status, 200);
   assert.match(approval.body, /Confirmar assinatura/u);
   assert.equal(approval.headers['cache-control'], 'no-store');
+  assert.doesNotMatch(
+    String(approval.headers['content-security-policy']),
+    /wasm-unsafe-eval/u,
+  );
+  const nativeProbe = await get(
+    '/phantom-probe.html?state=synthetic&phase=connect',
+    navigationHeaders,
+  );
+  assert.equal(nativeProbe.status, 200);
+  assert.match(nativeProbe.body, /Não\s+cria uma conta/u);
+  assert.equal(nativeProbe.headers['cache-control'], 'no-store');
+  assert.equal(nativeProbe.headers['referrer-policy'], 'no-referrer');
+  assert.match(
+    String(nativeProbe.headers['content-security-policy']),
+    /script-src 'self' 'wasm-unsafe-eval';/u,
+  );
+  assert.doesNotMatch(
+    String(nativeProbe.headers['content-security-policy']),
+    /'unsafe-eval'|'unsafe-inline'|https:/u,
+  );
+  for (const [path, headers, method, expectedStatus] of [
+    ['/phantom-probe.html', {}, 'HEAD', 200],
+    ['/phantom-probe.html', navigationHeaders, 'POST', 403],
+    ['/phantom-probe.html', {}, 'POST', 405],
+    ['/phantom-probe.html?state=' + 'a'.repeat(6144), {}, 'GET', 404],
+    ['/api/account/session', navigationHeaders, 'GET', 403],
+  ] as const) {
+    const response = await get(path, headers, method);
+    assert.equal(response.status, expectedStatus);
+    assert.equal(
+      String(response.headers['content-security-policy']).includes(
+        "'wasm-unsafe-eval'",
+      ),
+      expectedStatus === 200,
+    );
+  }
+  assert.equal(
+    (
+      await get(
+        '/phantom-probe.html?state=synthetic',
+        navigationHeaders,
+        'POST',
+      )
+    ).status,
+    403,
+  );
+  assert.equal(
+    (
+      await get('/phantom-probe.html?state=synthetic', {
+        'sec-fetch-site': 'cross-site',
+      })
+    ).status,
+    403,
+  );
+  assert.equal(
+    (
+      await get(
+        '/phantom-probe.html?state=' + 'a'.repeat(6144),
+        navigationHeaders,
+      )
+    ).status,
+    403,
+  );
   assert.equal(
     (await get('/wallet.html', navigationHeaders, 'POST')).status,
     403,
@@ -242,6 +322,10 @@ await test('servidor recusa origem, mutação, traversal e dados privados; saúd
   assert.match(
     String(page.headers['content-security-policy']),
     /frame-ancestors 'none'/,
+  );
+  assert.doesNotMatch(
+    String(page.headers['content-security-policy']),
+    /wasm-unsafe-eval/u,
   );
   assert.equal((await get('/', { host: 'attacker.example' })).status, 403);
   assert.equal(

@@ -9,12 +9,15 @@ const authored = [
   'src/client/account-profile',
   'src/client/app',
   'src/client/pwa',
+  'src/client/phantom-native',
   'src/client/wallet',
   'src/shared/account',
   'src/shared/pwa-policy',
   'src/shared/wallet-identity',
+  'src/shared/wallet-approval',
   'src/tools/build-web.ts',
   'src/tools/frontend-source.ts',
+  'src/tools/frontend-vendor-source.ts',
   'package.json',
   'package-lock.json',
   'tsconfig.json',
@@ -22,6 +25,8 @@ const authored = [
   'LICENSES.md',
   'LICENSE-GPL-3.0.txt',
   'docs/FONTES_FRONTEND.md',
+  'docs/PROVA_NATIVA_PHANTOM_SOLANA.md',
+  'vendor/libsodium-0.8.4/README.md',
 ];
 
 async function collect(root: string, path: string): Promise<string[]> {

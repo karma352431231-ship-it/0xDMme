@@ -10,6 +10,7 @@ export function cacheableRequest(
     url.origin === origin &&
     url.search === '' &&
     url.pathname !== '/wallet.html' &&
+    url.pathname !== '/phantom-probe.html' &&
     !request.headers.has('authorization') &&
     assets.includes(url.pathname)
   );

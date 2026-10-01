@@ -46,11 +46,14 @@ export async function loadWebAssets(): Promise<ReadonlyMap<string, WebAsset>> {
   return assets;
 }
 
-function securityHeaders(response: ServerResponse): void {
+function securityHeaders(
+  response: ServerResponse,
+  scriptSources = "'self'",
+): void {
   response.setHeader('Cache-Control', 'no-store');
   response.setHeader(
     'Content-Security-Policy',
-    "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' blob:; font-src 'self'; connect-src 'self'; worker-src 'self'; manifest-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
+    `default-src 'none'; script-src ${scriptSources}; style-src 'self'; img-src 'self' blob:; font-src 'self'; connect-src 'self'; worker-src 'self'; manifest-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'`,
   );
   response.setHeader('X-Content-Type-Options', 'nosniff');
   response.setHeader('Referrer-Policy', 'no-referrer');
@@ -62,6 +65,22 @@ function securityHeaders(response: ServerResponse): void {
   );
 }
 
+function sendPublicAsset(
+  request: IncomingMessage,
+  response: ServerResponse,
+  assets: ReadonlyMap<string, WebAsset>,
+): void {
+  const nativeProbe = nativeProbeRequest(request);
+  const entry = assets.get(
+    nativeProbe ? '/phantom-probe.html' : (request.url ?? '/'),
+  );
+  // Only this admitted document needs NaCl's WebAssembly. Keep the default
+  // policy on errors, APIs, the regular app and the EVM approval page.
+  if (nativeProbe && entry?.type.startsWith('text/html'))
+    securityHeaders(response, "'self' 'wasm-unsafe-eval'");
+  sendAsset(request, response, entry);
+}
+
 function publicNavigation(request: IncomingMessage): boolean {
   // A wallet's browse link may navigate from another site. Only the public
   // shell can be opened this way; account APIs and mutations remain protected.
@@ -69,9 +88,18 @@ function publicNavigation(request: IncomingMessage): boolean {
     request.method === 'GET' &&
     (request.url === '/' ||
       request.url === '/wallet.html' ||
+      nativeProbeRequest(request) ||
       approvalEntry(request)) &&
     request.headers['sec-fetch-mode'] === 'navigate' &&
     request.headers['sec-fetch-dest'] === 'document'
+  );
+}
+
+function nativeProbeRequest(request: IncomingMessage): boolean {
+  const raw = request.url ?? '';
+  return (
+    raw.length <= 6144 &&
+    (raw === '/phantom-probe.html' || raw.startsWith('/phantom-probe.html?'))
   );
 }
 
@@ -186,7 +214,7 @@ export function createWebServer(options: {
       sendHealth(response, request.method, healthy);
       return;
     }
-    sendAsset(request, response, options.assets.get(path));
+    sendPublicAsset(request, response, options.assets);
   }
   const listener = (request: IncomingMessage, response: ServerResponse) => {
     void handle(request, response).catch(() => {

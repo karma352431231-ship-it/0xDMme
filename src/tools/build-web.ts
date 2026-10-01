@@ -3,6 +3,10 @@ import { mkdir, readFile, readdir, unlink, writeFile } from 'node:fs/promises';
 import { build } from 'esbuild';
 import { fileURLToPath } from 'node:url';
 import { frontendSource } from './frontend-source.ts';
+import {
+  frontendVendorSource,
+  vendorSourceAsset,
+} from './frontend-vendor-source.ts';
 
 const root = new URL('../../', import.meta.url);
 const directory = new URL('dist/web/', root);
@@ -14,6 +18,7 @@ const mime = new Map([
   ['.png', 'image/png'],
   ['.webmanifest', 'application/manifest+json'],
   ['.gz', 'application/gzip'],
+  ['.xz', 'application/x-xz'],
 ]);
 const files = new Map<string, Uint8Array>();
 const inputs = new Set<string>();
@@ -55,7 +60,7 @@ async function pruneGeneratedAssets(): Promise<void> {
   if (entries.length > 128) throw new Error('Diretório de build excedido.');
   for (const entry of entries) {
     if (
-      !/^(?:app-[a-f0-9]{16}\.(?:js|css)|source-[a-f0-9]{16}\.tar\.gz)$/u.test(
+      !/^(?:(?:app|phantom-probe)-[a-f0-9]{16}\.(?:js|css)|source-[a-f0-9]{16}\.tar\.gz|libsodium-\d+\.\d+\.\d+-sources-[a-f0-9]{16}\.tar\.xz)$/u.test(
         entry.name,
       ) ||
       files.has(entry.name)
@@ -76,11 +81,17 @@ const style = hashedAsset(
   'css',
   await readFile(new URL('src/client/app/app.css', root)),
 );
+const nativeProbe = hashedAsset(
+  'phantom-probe',
+  'js',
+  await bundle('src/client/phantom-native/probe.ts'),
+);
 const sources = hashedAsset(
   'source',
   'tar.gz',
   await frontendSource(fileURLToPath(root), inputs),
 );
+asset(vendorSourceAsset, await frontendVendorSource(fileURLToPath(root)));
 const html = (
   await readFile(new URL('src/client/app/index.html', root), 'utf8')
 )
@@ -88,6 +99,15 @@ const html = (
   .replace('{{SOURCES}}', sources)
   .replace('{{STYLE}}', style);
 asset('index.html', Buffer.from(html));
+asset(
+  'phantom-probe.html',
+  Buffer.from(
+    (await readFile(new URL('src/client/app/phantom-probe.html', root), 'utf8'))
+      .replace('{{SCRIPT}}', nativeProbe)
+      .replace('{{STYLE}}', style)
+      .replace('{{SOURCES}}', sources),
+  ),
+);
 asset(
   'wallet.html',
   Buffer.from(
@@ -128,7 +148,13 @@ const workerSource = Buffer.from(
 const version = createHash('sha256').update(workerSource);
 for (const [name, bytes] of files) version.update(name).update(bytes);
 const paths = [...files.keys()]
-  .filter((name) => !name.endsWith('.tar.gz') && name !== 'wallet.html')
+  .filter(
+    (name) =>
+      !name.endsWith('.tar.gz') &&
+      !name.endsWith('.tar.xz') &&
+      name !== 'wallet.html' &&
+      !name.startsWith('phantom-probe'),
+  )
   .map((name) => (name === 'index.html' ? '/' : `/${name}`));
 const worker = workerSource
   .replace('{{ASSETS}}', JSON.stringify(paths).replaceAll('"', '\\"'))

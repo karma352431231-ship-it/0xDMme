@@ -1,5 +1,9 @@
 # 0xDMme — Licenças e distribuição
 
+O script autoral `src/tools/frontend-vendor-source.ts`, adicionado à entrega de fontes, também é GPL-3.0-only. Os arquivos da biblioteca em `vendor/` preservam suas licenças originais.
+
+Prova local Phantom/Solana em 01/10/2026: `libsodium-wrappers@0.8.4` e `libsodium@0.8.4` têm licença ISC entregue e revisada. O script da prova incorpora a biblioteca compilada. Além dos pacotes npm, o build entrega fontes preferenciais C/geradores, scripts de geração e avisos num arquivo separado da mesma origem, conforme [registro de proveniência e instruções](vendor/libsodium-0.8.4/README.md). O build verifica hash e versões; alterações exigem revisão. A versão pública anterior não incorpora essa adição, e o deploy da nova dependência ainda exige aprovação própria.
+
 Em 30/09/2026, o proprietário autorizou disponibilizar o código do frontend sob GPL-3.0, permitindo manter o Semaphore testado no bloco 01. O código autoral em `src/client/`, `src/shared/` e os scripts `src/tools/build-web.ts` e `src/tools/frontend-source.ts` são disponibilizados sob **GPL-3.0-only**, conforme [texto integral](LICENSE-GPL-3.0.txt). A autorização não relicencia dependências de terceiros nem concede automaticamente essa licença ao restante do backend/documentação.
 
 O pacote é privado durante o desenvolvimento. Antes da distribuição pública do frontend, entregar código correspondente à versão exata, incluindo fontes, configurações e instruções de build necessárias, com acesso equivalente ao JavaScript/WASM distribuído. Preservar avisos e licenças de terceiros, incluindo Apache-2.0, MIT, BSD e MPL. O [registro de revisão](docs/DEPENDENCIAS_E_SELECAO_BLOCO_01.md) descreve as árvores e os limites verificados. Não presumir que minificação, Worker separado ou licença MIT do pacote principal removam as obrigações das dependências GPL.

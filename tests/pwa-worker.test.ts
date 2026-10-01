@@ -123,6 +123,9 @@ await test('worker real instala só shell público e atende offline sem intercep
   assert.ok(scope.cache.size >= 7);
   assert.ok([...scope.cache.keys()].every((url) => !url.includes('/api/')));
   assert.equal(scope.cache.has(`${scope.origin}/wallet.html`), false);
+  assert.ok(
+    [...scope.cache.keys()].every((url) => !url.includes('/phantom-probe')),
+  );
   const count = scope.networkRequests();
   scope.offline();
   assert.equal(
@@ -134,6 +137,8 @@ await test('worker real instala só shell público e atende offline sem intercep
     '/health/ready',
     '/objects/private',
     '/wallet.html',
+    '/phantom-probe.html',
+    '/phantom-probe.html?state=synthetic&phase=connect',
     '/wallet-entry?ticket=synthetic',
     '/api/account/approval-request',
     '/?token=synthetic',

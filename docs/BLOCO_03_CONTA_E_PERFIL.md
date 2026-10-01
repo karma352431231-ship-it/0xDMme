@@ -1,5 +1,7 @@
 # 0xDMme — Bloco 03 — Conta por wallet e perfil
 
+A [prova nativa Phantom/Solana](PROVA_NATIVA_PHANTOM_SOLANA.md) foi autorizada separadamente em 01/10/2026, com exceção CSP restrita à página de teste. É validação local isolada; não substitui a autenticação existente nem resolve o retorno EVM. Distribuição/publicação e aceite físico continuam pendentes conforme os limites da prova.
+
 ## Estado
 
 Autenticação EVM/Solana, cadastro inicial, sessão, nome, perfil cifrado e retorno do navegador interno da wallet implementados. O fluxo aprovado usa conectores próprios e retorno vinculado ao navegador de origem, sem relay/SDK pago. O bloco ainda não está fechado: falta comprovar conexão e retorno nas wallets mobile escolhidas. MetaMask, Phantom, Solflare e Backpack são alvos conhecidos aprovados; suporte depende de capacidades verificadas por ecossistema. Não há chat ou cofre de produto para dados reais.
