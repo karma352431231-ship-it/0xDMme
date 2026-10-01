@@ -186,4 +186,30 @@ await test('entrada valida campos, limpa URL, limita cookie, preserva capacidade
   assert.equal((await get('/api/account/approval-request')).body, 'null');
   const later = await get('/api/account/approval-request', { cookie });
   assert.equal(later.headers['set-cookie'], undefined);
+  const chrome = await get(
+    `/wallet-entry?${query}&returnBrowser=chrome`,
+    navigation,
+  );
+  assert.equal(chrome.headers.location, '/wallet.html#configuracoes');
+  const chromeCookie = responseCookie(chrome.headers).split(';')[0] ?? '';
+  assert.match(chromeCookie, /\.chrome$/u);
+  const chromeRecovered = await get('/api/account/approval-request', {
+    cookie: chromeCookie,
+  });
+  assert.equal(
+    (JSON.parse(chromeRecovered.body) as { request: { returnBrowser: string } })
+      .request.returnBrowser,
+    'chrome',
+  );
+  for (const suffix of [
+    '&returnBrowser=javascript',
+    '&returnBrowser=chrome&returnBrowser=default',
+    '&returnBrowser=https://evil.example',
+  ]) {
+    const invalid = await get(`/wallet-entry?${query}${suffix}`, navigation);
+    assert.equal(
+      invalid.headers.location,
+      '/wallet.html#configuracoes?invalid=1',
+    );
+  }
 });

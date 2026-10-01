@@ -663,6 +663,7 @@ await test('Autenticação e perfil persistentes', async (t) => {
           ticket: pending.ticket,
           wallet: 'MetaMask',
           ecosystem: 'evm',
+          returnBrowser: 'chrome',
         })}`,
       );
       assert.equal(entry.status, 303);
@@ -680,10 +681,11 @@ await test('Autenticação e perfil persistentes', async (t) => {
       );
       assert.equal(recoveredResponse.status, 200);
       const recoveredEntry = (await recoveredResponse.json()) as {
-        request: { ticket: string };
+        request: { ticket: string; returnBrowser: string };
         expiresAt: string;
       };
       assert.equal(recoveredEntry.request.ticket, pending.ticket);
+      assert.equal(recoveredEntry.request.returnBrowser, 'chrome');
       assert.equal(recoveredEntry.expiresAt, pending.expiresAt);
       const status = await fetch(`${origin}/api/account/handoff-status`, {
         headers: { Cookie: originalCookie },

@@ -136,8 +136,11 @@ await test('assinatura encontrada exibe candidato, mas não autentica antes da c
   controller.close();
 });
 
-function launchController(startResponse: Promise<unknown>) {
-  const { api } = scope();
+function launchController(
+  startResponse: Promise<unknown>,
+  userAgent = 'Android',
+) {
+  const { api } = scope('', userAgent);
   const opened: string[] = [];
   const controller = api.createWalletReturn({
     deviceId: randomUUID,
@@ -167,11 +170,18 @@ function handoffResponse() {
 await test('seleção abre a wallet uma vez após pedido válido; consulta não abre novamente', async () => {
   const { controller, opened } = launchController(
     Promise.resolve(handoffResponse()),
+    'Android Chrome/141.0',
   );
   await controller.start('Phantom', 'solana');
   assert.equal(opened.length, 1);
   assert.match(opened[0] ?? '', /^https:\/\/phantom\.app\/ul\/browse\//u);
   assert.match(decodeURIComponent(opened[0] ?? ''), /0xdmme\.app/u);
+  const link = new URL(opened[0] ?? '');
+  const destination = new URL(
+    decodeURIComponent(link.pathname.slice('/ul/browse/'.length)),
+  );
+  assert.equal(destination.searchParams.get('returnBrowser'), 'chrome');
+  assert.equal(destination.searchParams.has('userAgent'), false);
   // A failed status response must not cause a second app launch.
   await controller.refresh();
   assert.equal(opened.length, 1);

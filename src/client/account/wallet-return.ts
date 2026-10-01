@@ -13,6 +13,7 @@ import type { Ecosystem } from '../../shared/wallet-identity/index.ts';
 import { walletBrowserUrl } from '../wallet/index.ts';
 import type { WalletName } from '../wallet/index.ts';
 import { approvalHistoryMarker } from './approval-diagnostics.ts';
+import { originatingBrowser } from './browser-return.ts';
 export { walletApprovalRequest } from '../../shared/wallet-approval/index.ts';
 export type { WalletApprovalRequest } from '../../shared/wallet-approval/index.ts';
 import { walletApprovalRequest } from '../../shared/wallet-approval/index.ts';
@@ -37,6 +38,9 @@ export function incomingWalletRequest(
       ticket: params.get('ticket'),
       wallet: params.get('wallet'),
       ecosystem: params.get('ecosystem'),
+      ...(params.has('returnBrowser')
+        ? { returnBrowser: params.get('returnBrowser') }
+        : {}),
     });
     remember?.(request);
     return request;
@@ -141,6 +145,7 @@ export function createWalletReturn(options: {
       wallet,
       ticket,
       ecosystem: network,
+      returnBrowser: originatingBrowser(),
     });
     if (!link) {
       await options.api('handoff-cancel', { input: {} });

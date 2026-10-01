@@ -3,14 +3,26 @@ import { ecosystem } from '../wallet-identity/index.ts';
 import type { Ecosystem } from '../wallet-identity/index.ts';
 
 export type WalletName = 'MetaMask' | 'Phantom' | 'Solflare' | 'Backpack';
+export type ReturnBrowser = 'chrome' | 'default';
+export function returnBrowser(value: unknown): ReturnBrowser {
+  if (value === undefined || value === 'default') return 'default';
+  if (value === 'chrome') return 'chrome';
+  throw new Error('Navegador de retorno inválido.');
+}
 export interface WalletApprovalRequest {
   ticket: string;
   ecosystem: Ecosystem;
   wallet: WalletName;
+  returnBrowser?: ReturnBrowser;
 }
 export function walletApprovalRequest(value: unknown): WalletApprovalRequest {
   const data = object(value);
-  keys(data, ['ticket', 'wallet', 'ecosystem']);
+  keys(data, [
+    'ticket',
+    'wallet',
+    'ecosystem',
+    ...(Object.hasOwn(data, 'returnBrowser') ? ['returnBrowser'] : []),
+  ]);
   const ticket = data['ticket'];
   const wallet = data['wallet'];
   if (
@@ -24,5 +36,8 @@ export function walletApprovalRequest(value: unknown): WalletApprovalRequest {
     ticket,
     wallet: wallet as WalletName,
     ecosystem: ecosystem(data['ecosystem']),
+    ...(data['returnBrowser'] === undefined
+      ? {}
+      : { returnBrowser: returnBrowser(data['returnBrowser']) }),
   };
 }

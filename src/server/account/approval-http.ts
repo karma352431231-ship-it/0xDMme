@@ -4,6 +4,23 @@ import { walletApprovalRequest } from '../../shared/wallet-approval/index.ts';
 import type { WalletApprovalRequest } from '../../shared/wallet-approval/index.ts';
 import type { AccountService } from './service.ts';
 
+function entryInput(raw: string, origin: string): Record<string, string> {
+  if (raw.length > 512) throw new AccountError(400, 'Pedido excedido.');
+  const params = new URL(raw, origin).searchParams;
+  const entries = [...params.keys()];
+  if (
+    entries.length < 3 ||
+    entries.length > 4 ||
+    new Set(entries).size !== entries.length ||
+    entries.some(
+      (key) =>
+        !['ticket', 'wallet', 'ecosystem', 'returnBrowser'].includes(key),
+    )
+  )
+    throw new AccountError(400, 'Pedido inválido.');
+  return Object.fromEntries(params);
+}
+
 /** This cookie can only propose a signature, never authenticate a browser. */
 export function createApprovalEntry(
   service: Pick<AccountService, 'approvalRequest'>,
@@ -22,12 +39,17 @@ export function createApprovalEntry(
     if (!matches.length) return null;
     if (matches.length !== 1)
       throw new AccountError(400, 'Cookie de aprovação inválido.');
-    const [ticket, wallet, ecosystem, extra] =
+    const [ticket, wallet, ecosystem, browser, extra] =
       matches[0]?.slice(name.length + 1).split('.') ?? [];
     if (extra !== undefined)
       throw new AccountError(400, 'Cookie de aprovação inválido.');
     try {
-      return walletApprovalRequest({ ticket, wallet, ecosystem });
+      return walletApprovalRequest({
+        ticket,
+        wallet,
+        ecosystem,
+        ...(browser === undefined ? {} : { returnBrowser: browser }),
+      });
     } catch {
       throw new AccountError(400, 'Cookie de aprovação inválido.');
     }
@@ -38,23 +60,15 @@ export function createApprovalEntry(
   async function enter(request: IncomingMessage, response: ServerResponse) {
     // No query is reflected, logged or used as a redirect destination.
     try {
-      const raw = request.url ?? '';
-      if (raw.length > 512) throw new AccountError(400, 'Pedido excedido.');
-      const params = new URL(raw, origin).searchParams;
-      const entries = [...params.keys()];
-      if (
-        entries.length !== 3 ||
-        new Set(entries).size !== 3 ||
-        entries.some((key) => !['ticket', 'wallet', 'ecosystem'].includes(key))
-      )
-        throw new AccountError(400, 'Pedido inválido.');
-      const state = await service.approvalRequest(Object.fromEntries(params));
+      const state = await service.approvalRequest(
+        entryInput(request.url ?? '', origin),
+      );
       const seconds = Math.max(
         0,
         Math.floor((Date.parse(state.expiresAt) - Date.now()) / 1000),
       );
       if (!seconds) throw new AccountError(401, 'Pedido expirou.');
-      const value = `${state.request.ticket}.${state.request.wallet}.${state.request.ecosystem}`;
+      const value = `${state.request.ticket}.${state.request.wallet}.${state.request.ecosystem}${state.request.returnBrowser ? '.' + state.request.returnBrowser : ''}`;
       response.setHeader('Set-Cookie', cookie(value, seconds));
       response.writeHead(303, { Location: '/wallet.html#configuracoes' }).end();
     } catch (error: unknown) {

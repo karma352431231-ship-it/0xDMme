@@ -110,12 +110,14 @@ function scope(options: {
   const status = { textContent: '' };
   const diagnostic = { textContent: '' };
   const back = { hidden: false, href: '' };
+  const backAlternative = { hidden: false, href: '' };
   const nodes = new Map<string, unknown>([
     ['[data-wallet-approve]', approve],
     ['[data-wallet-picker-toggle]', picker],
     ['[data-account-status]', status],
     ['[data-wallet-diagnostic]', diagnostic],
     ['[data-wallet-back]', back],
+    ['[data-wallet-back-alternative]', backAlternative],
   ]);
   const mounted = {
     innerHTML: '',
@@ -240,6 +242,7 @@ function scope(options: {
     approve,
     picker,
     back,
+    backAlternative,
     navigated,
     providerRequests,
     historyWrites,
@@ -832,5 +835,49 @@ await test('prazo inválido do cookie bloqueia aprovação; expiração local su
   await tick();
   assert.equal(browser.approve.hidden, true);
   assert.match(browser.diagnostic.textContent, /etapa=pedido-expirado/u);
+  browser.dispose();
+});
+
+await test('retorno do Chrome só tenta scheme externo após assinatura aceita; links preservam destino sem ticket', async () => {
+  const now = Date.now();
+  const signed = deferred<unknown>();
+  const response = Response.json({
+    request: {
+      ticket: 'a'.repeat(64),
+      wallet: 'MetaMask',
+      ecosystem: 'evm',
+      returnBrowser: 'chrome',
+    },
+    serverTime: new Date(now).toISOString(),
+    expiresAt: new Date(now + 60_000).toISOString(),
+  });
+  const browser = scope({
+    pathname: '/wallet.html',
+    hash: '#configuracoes',
+    approvalResponse: Promise.resolve(response),
+    handoffSign: signed.promise,
+  });
+  await tick();
+  assert.deepEqual(browser.navigated, []);
+  assert.equal(browser.back.hidden, true);
+  assert.equal(browser.backAlternative.hidden, true);
+  browser.confirmApproval();
+  await tick();
+  assert.deepEqual(browser.navigated, []);
+  signed.resolve({ status: 'signed' });
+  await tick();
+  assert.equal(browser.back.hidden, false);
+  assert.equal(browser.backAlternative.hidden, false);
+  assert.equal(
+    browser.back.href,
+    'googlechrome://navigate?url=https://0xdmme.app/#configuracoes',
+  );
+  assert.match(browser.backAlternative.href, /package=com.android.chrome;/u);
+  assert.deepEqual(browser.navigated, [browser.back.href]);
+  browser.resume();
+  await tick();
+  assert.equal(browser.navigated.length, 1);
+  assert.equal(browser.requests.includes('/api/account/login'), false);
+  assert.deepEqual(browser.states, []);
   browser.dispose();
 });

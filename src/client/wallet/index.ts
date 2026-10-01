@@ -13,6 +13,8 @@ import type { EvmProvider } from './evm.ts';
 import type { Ecosystem } from '../../shared/wallet-identity/index.ts';
 export type { EvmProvider } from './evm.ts';
 import type { WalletName } from '../../shared/wallet-approval/index.ts';
+import { returnBrowser } from '../../shared/wallet-approval/index.ts';
+import type { ReturnBrowser } from '../../shared/wallet-approval/index.ts';
 export type { WalletName } from '../../shared/wallet-approval/index.ts';
 export interface WalletIdentity {
   address: string;
@@ -206,6 +208,7 @@ export function walletBrowserUrl(input: {
   wallet: WalletName;
   ticket: string;
   ecosystem: Ecosystem;
+  returnBrowser?: ReturnBrowser;
 }): string | null {
   const origin = new URL(input.origin);
   if (
@@ -220,6 +223,9 @@ export function walletBrowserUrl(input: {
     ticket: input.ticket,
     ecosystem: input.ecosystem,
     wallet: input.wallet,
+    ...(input.returnBrowser === undefined
+      ? {}
+      : { returnBrowser: returnBrowser(input.returnBrowser) }),
   });
   const target = `${origin.origin}/wallet-entry?${query}`;
   if (input.wallet === 'MetaMask')
