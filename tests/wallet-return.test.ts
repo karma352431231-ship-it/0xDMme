@@ -189,24 +189,41 @@ await test('seleção abre a wallet uma vez após pedido válido; consulta não 
   controller.close();
 });
 
-await test('pedido Backpack usa a rota verificada no Android e mantém o link anterior em outros aparelhos', async () => {
+await test('pedido Backpack usa entrada HTTPS no Android e entrega fragmento limpo ao cliente iOS', async () => {
   for (const agent of ['Android Chrome/141.0', 'iPhone']) {
-    const { controller, opened } = launchController(
-      Promise.resolve(handoffResponse()),
-      agent,
-    );
-    await controller.start('Backpack', 'evm');
-    assert.equal(opened.length, 1);
-    const link = new URL(opened[0] ?? '');
-    if (agent.startsWith('Android')) {
+    for (const ecosystem of ['evm', 'solana'] as const) {
+      const { controller, opened } = launchController(
+        Promise.resolve(handoffResponse()),
+        agent,
+      );
+      await controller.start('Backpack', ecosystem);
+      assert.equal(opened.length, 1);
+      const link = new URL(opened[0] ?? '');
       assert.ok(link.pathname.startsWith('/ul/v1/browse/'));
-      assert.equal(link.search, '');
-    } else {
-      assert.ok(link.pathname.startsWith('/ul/v1/browse/'));
-      assert.equal(link.searchParams.get('ref'), 'https://0xdmme.app');
+      const destination = new URL(
+        decodeURIComponent(link.pathname.slice('/ul/v1/browse/'.length)),
+      );
+      assert.equal(destination.origin, 'https://0xdmme.app');
+      if (agent.startsWith('Android')) {
+        assert.equal(link.search, '');
+        assert.equal(destination.pathname, '/wallet-entry');
+        assert.equal(destination.searchParams.get('ecosystem'), ecosystem);
+        assert.equal(destination.hash, '');
+      } else {
+        assert.equal(link.searchParams.get('ref'), 'https://0xdmme.app');
+        assert.equal(destination.pathname, '/wallet.html');
+        assert.equal(destination.search, '');
+        const incoming = scope(destination.hash, agent);
+        const request = incoming.api.incomingWalletRequest();
+        assert.equal(request?.ticket, handoffResponse().ticket);
+        assert.equal(request?.wallet, 'Backpack');
+        assert.equal(request?.ecosystem, ecosystem);
+        assert.deepEqual(incoming.replaced, ['#configuracoes']);
+        assert.equal(incoming.navigated.length, 0);
+      }
+      assert.equal(controller.state()?.address, null);
+      controller.close();
     }
-    assert.equal(controller.state()?.address, null);
-    controller.close();
   }
 });
 await test('relógio do dispositivo adiantado ou atrasado não impede abertura nem consulta; confirmação continua obrigatória', async () => {

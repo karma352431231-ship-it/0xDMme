@@ -37,6 +37,12 @@ Até 1.024 desafios e 256 pedidos temporários de retorno persistidos, oito sess
 
 ## Conexão mobile e retorno aprovado
 
+**Estado mais recente em 02/10/2026:** o proprietário confirmou Backpack/EVM e Backpack/Solana no Android após `c0b35c6`, e MetaMask/EVM e MetaMask/Solana após revogar e reconectar a permissão do site. Corrigiu o aceite geral do iPhone: a Backpack abre `/wallet.html`, mas ambos os ecossistemas mostram D1 `sem-fragmento`, `pedido-ausente` e provider não avaliado. Reabrir somente o aceite Backpack/iOS; preservar os demais resultados.
+
+A abertura Backpack em iOS passa a entregar o mesmo ticket temporário diretamente no fragmento de `/wallet.html`, via URL codificada no HTTPS `browse` v1 com `ref`. O leitor de aprovação existente valida a estrutura, remove o fragmento com ticket antes do restante da navegação e preserva o pedido pelo mecanismo de aprovação da aba já implementado. Não depende do redirecionamento `/wallet-entry` nem do cookie dessa entrada. O servidor continua validando ticket, prazo, ecossistema, assinatura e consumo; a wallet não recebe sessão autenticada. Não mudar o destino Android, os links Phantom/MetaMask, o retorno manual ou a confirmação do endereço.
+
+**Ponto importante:** o D1 e o caminho informado comprovam que a página terminou sem recuperar o pedido, mas não estabelecem por que a Backpack perdeu o contexto. A correção de transporte iOS ainda precisa de teste físico, em EVM e Solana, após a publicação. Os registros anteriores abaixo são históricos.
+
 Em 02/10/2026, após os testes de abertura inconsistentes com outras rotas, o proprietário confirmou que o link HTTPS `/ul/v1/browse/<destino-codificado>` sem `ref` externo abre a Backpack no Android e carrega a página, inclusive com o app fechado. Autorizou usar esse formato na abertura normal e no botão explícito para EVM e Solana; o caminho anterior sem versão de `b0307c1` é substituído. O destino conserva ticket, wallet e ecossistema. Não há preparo obrigatório em Explore, intent ou esquema próprio. O proprietário também relatou todos os fluxos funcionando no iPhone; preservar os links desse aparelho.
 
 **Ponto importante:** a abertura pública Android foi confirmada; a confirmação da mensagem no fluxo normal Backpack/EVM e Backpack/Solana será testada pelo proprietário após a publicação. Assinatura, retorno manual e confirmação do endereço continuam como antes.

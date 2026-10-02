@@ -203,13 +203,27 @@ function legacySolana(name: string): WalletConnection | undefined {
   };
 }
 export { evmIdentity, signEvm } from './evm.ts';
+type MobilePlatform = 'android' | 'ios' | 'other';
+function approvalDestination(input: {
+  origin: string;
+  query: URLSearchParams;
+  wallet: WalletName;
+  platform?: MobilePlatform;
+}): string {
+  // Backpack on iOS reached the redirected page without a usable approval
+  // cookie. Its direct fragment uses the existing client approval reader,
+  // which removes the ticket before routing; the server still checks expiry.
+  if (input.wallet === 'Backpack' && input.platform === 'ios')
+    return `${input.origin}/wallet.html#configuracoes?${input.query}`;
+  return `${input.origin}/wallet-entry?${input.query}`;
+}
 export function walletBrowserUrl(input: {
   origin: string;
   wallet: WalletName;
   ticket: string;
   ecosystem: Ecosystem;
   returnBrowser?: ReturnBrowser;
-  platform?: 'android' | 'other';
+  platform?: MobilePlatform;
 }): string | null {
   const origin = new URL(input.origin);
   if (
@@ -228,7 +242,11 @@ export function walletBrowserUrl(input: {
       ? {}
       : { returnBrowser: returnBrowser(input.returnBrowser) }),
   });
-  const target = `${origin.origin}/wallet-entry?${query}`;
+  const target = approvalDestination({
+    ...input,
+    origin: origin.origin,
+    query,
+  });
   if (input.wallet === 'MetaMask')
     // MetaMask appends everything after /dapp/ to https:// without decoding
     // the path. Preserve URL delimiters; query values are already encoded.

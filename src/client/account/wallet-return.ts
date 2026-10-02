@@ -85,7 +85,11 @@ export function createWalletReturn(options: {
   authenticated: (session: AccountSession) => Promise<void>;
   openWallet?: (link: string) => boolean;
 }) {
-  const platform = /Android/iu.test(navigator.userAgent) ? 'android' : 'other';
+  const platform = /Android/iu.test(navigator.userAgent)
+    ? 'android'
+    : /iPhone|iPad|iPod/iu.test(navigator.userAgent)
+      ? 'ios'
+      : 'other';
   let pending: Pending | null = null;
   let link: string | null = null;
   let generation = 0;
