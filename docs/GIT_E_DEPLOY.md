@@ -39,6 +39,42 @@ sem reinícios. Evidências detalhadas permanecem exclusivamente em `.local/`.
 
 ## Ativação de uma versão
 
+### Transição específica dos blocos 04–05, aprovada em 02/10/2026
+
+Após a revisão de `203274b`, o proprietário autorizou a ativação com QR 0.7.2,
+migrações 004–009, backup do banco/objetos próprios e pausa temporária somente do
+serviço web próprio. Publicar com `npm run deploy:blocks45`; pré-flight com
+`python3 infra/staging/deploy_blocks45.py --check`. O deploy comum conserva todos
+os bloqueios anteriores. A transição específica exige o predecessor `d64711c`,
+fontes de aplicação idênticas às revisadas em `203274b`, lockfile/Node revisados e
+o pacote QR exato preparado no Mac. Somente o novo comando é acrescentado ao
+contrato de scripts. Não há npm, build ou atualização de Node na VPS.
+
+O commit do executor deve passar em CI e estar nos dois remotos. A release é
+montada pelo Git e vinculada ao manifesto do build; configurações, processos e
+respostas da baseline são comparados antes/depois. Os limites já aprovados do
+executor permanecem. Banco e objetos admitem, cada um, backup de até 64 MiB,
+com espaço adicional conferido, parsing integral do dump e hashes dos objetos.
+Uma restauração de ensaio executa DDL/dados/constraints em transação e termina em
+`ROLLBACK`; os digests originais precisam permanecer iguais antes de migrar.
+Acima desses limites, recusar e revisar, sem pular backup ou apagar dados.
+
+Com o escritor próprio parado, guardar backup privado, aplicar as migrações na
+transação versionada e conferir checksums, digests de contas/perfis/sessões e a
+contagem inicial de bytes usados. A nova release só abre após essas verificações.
+Falha anterior à reabertura permite restaurar exclusivamente o schema próprio,
+em uma transação, conferir o retorno e iniciar a versão antiga. Depois de iniciar
+a versão nova, **não restaurar automaticamente o dump antigo**: podem existir
+gravações novas. Nesse caso parar somente o serviço próprio e conservar banco,
+objetos, backup e releases para correção/revisão. Timeout/interrupção exige ler o
+receipt privado antes de repetir. Backups de dados não entram na limpeza de
+workspaces do deploy comum; sua exclusão exige revisão específica.
+
+**Ponto importante:** esta aprovação permite a publicação dos blocos 04–05 para
+testes; não autoriza futuras migrações/dependências, mudanças compartilhadas,
+retorno com perda de novas gravações ou uso de conversas reais. Teste físico
+mobile permanece com o proprietário após a publicação verificada.
+
 **Enviar commits e publicar uma versão são operações distintas.** O comando
 acima guarda fontes e histórico na VPS; ele não modifica a release em execução,
 não aplica migrações e não reinicia serviços. A versão HTTPS já testada permanece

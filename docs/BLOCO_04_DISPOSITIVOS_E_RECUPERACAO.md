@@ -1,5 +1,7 @@
 # 0xDMme — Bloco 04 — dispositivos, chaves e recuperação
 
+Publicação autorizada separadamente em 02/10/2026: o proprietário aprovou ativar a entrega dos blocos 04–05, incluindo QR e migrações, após revisão de backup/retorno e manutenção limitada ao serviço próprio. Os vetos de publicação abaixo descrevem o escopo da implementação local anterior. A execução segue o [procedimento específico](GIT_E_DEPLOY.md); aprovação não equivale a ativação concluída ou aceite físico mobile.
+
 Estado em 02/10/2026: bloco concluído localmente com implementação e revisão no Mac. O proprietário autorizou concluir o bloco sem novas pausas por compactação e considerar o trabalho concluído após implementação e revisão no Mac, deixando o aceite físico mobile para depois. Isso não autoriza publicar migrações na VPS ou usar conversas reais. [Plano aprovado](../DECISOES_E_PLANO_DE_IMPLEMENTACAO.md).
 
 ## Entrega

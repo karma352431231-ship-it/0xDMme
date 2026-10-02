@@ -1,5 +1,7 @@
 # Bloco 05 — Cofre remoto e cópia local
 
+Publicação autorizada separadamente em 02/10/2026: ativar a entrega revisada dos blocos 04–05 com backup e manutenção somente do serviço próprio, preservando contas/perfis/sessões e sem retorno automático que descarte gravações novas. Esta decisão substitui a pendência de autorização de publicação descrita nos registros locais abaixo; execução e teste físico mobile continuam distintos. Ver [procedimento](GIT_E_DEPLOY.md).
+
 Implementação local autorizada pelo proprietário em 02/10/2026. Testes físicos mobile serão feitos depois; validações de integridade, autorização, concorrência e banco continuam obrigatórias nesta etapa. Nenhuma ativação ou migração da VPS está incluída.
 
 ## Contrato de implementação

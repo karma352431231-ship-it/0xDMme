@@ -26,6 +26,7 @@
     "deploy:prepare": "python3 infra/staging/deploy.py --prepare",
     "deploy:check": "python3 infra/staging/deploy.py --check",
     "deploy:staging": "python3 infra/staging/deploy.py --activate",
+    "deploy:blocks45": "python3 infra/staging/deploy_blocks45.py --activate",
     "build": "node src/tools/build-web.ts",
     "test:integration": "node --env-file-if-exists=.local/web-test.env --test --test-concurrency=1 tests/integration/*.test.ts",
     "licenses": "node src/tools/check-licenses.ts",
