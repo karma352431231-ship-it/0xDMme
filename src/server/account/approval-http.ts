@@ -2,6 +2,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { AccountError } from '../../shared/account/index.ts';
 import {
   approvalDocumentId,
+  approvalDocumentPath,
   approvalPathRequest,
   walletApprovalRequest,
 } from '../../shared/wallet-approval/index.ts';
@@ -57,6 +58,16 @@ function approvalPage(document?: Uint8Array): string | undefined {
   return page;
 }
 
+function documentRejection(raw = '') {
+  if (raw === approvalDocumentPath) return;
+  if (raw.length > 512) throw new AccountError(400, 'Documento excedido.');
+  for (const reason of ['parameters', 'unavailable'] as const) {
+    if (raw === `${approvalDocumentPath}?invalid=1&reason=${reason}`)
+      return reason;
+  }
+  throw new AccountError(400, 'Documento de aprovação inválido.');
+}
+
 /** This cookie can only propose a signature, never authenticate a browser. */
 export function createApprovalEntry(
   service: Pick<AccountService, 'approvalRequest'>,
@@ -98,7 +109,7 @@ export function createApprovalEntry(
   function sendDocument(
     response: ServerResponse,
     state: unknown,
-    rejection?: 'parameters' | 'unavailable',
+    rejection?: 'parameters' | 'unavailable' | 'missing',
   ): void {
     if (!page)
       throw new AccountError(503, 'Documento de aprovação indisponível.');
@@ -114,17 +125,27 @@ export function createApprovalEntry(
     response.setHeader('Content-Length', content.byteLength);
     response.writeHead(200).end(content);
   }
+  async function pendingState(input: unknown) {
+    const state = await service.approvalRequest(input);
+    const seconds = Math.max(
+      0,
+      Math.floor((Date.parse(state.expiresAt) - Date.now()) / 1000),
+    );
+    if (!seconds) throw new AccountError(401, 'Pedido expirou.');
+    return { state, seconds };
+  }
   async function enter(request: IncomingMessage, response: ServerResponse) {
     // Embed validated state only. Never log or reflect the raw query, and
     // never accept a redirect destination from it.
     try {
       const entry = entryInput(request.url ?? '', origin);
-      const state = await service.approvalRequest(entry.input);
-      const seconds = Math.max(
-        0,
-        Math.floor((Date.parse(state.expiresAt) - Date.now()) / 1000),
-      );
-      if (!seconds) throw new AccountError(401, 'Pedido expirou.');
+      const { state, seconds } = await pendingState(entry.input);
+      if (request.url?.startsWith('/wallet-entry/')) {
+        const value = `${state.request.ticket}.${state.request.wallet}.${state.request.ecosystem}`;
+        response.setHeader('Set-Cookie', cookie(value, seconds));
+        response.writeHead(303, { Location: approvalDocumentPath }).end();
+        return;
+      }
       if (entry.inline) {
         sendDocument(response, state);
         return;
@@ -147,8 +168,11 @@ export function createApprovalEntry(
     // Fixed categories only: do not expose tickets, addresses or raw errors.
     const reason = error.status === 400 ? 'parameters' : 'unavailable';
     if (request.url?.startsWith('/wallet-entry/') && page) {
-      // Keep rejection on the document too: a wallet must not lose it at a redirect.
-      sendDocument(response, null, reason);
+      response
+        .writeHead(303, {
+          Location: `${approvalDocumentPath}?invalid=1&reason=${reason}`,
+        })
+        .end();
       return;
     }
     response
@@ -163,5 +187,33 @@ export function createApprovalEntry(
     const input = read(request);
     return input ? await service.approvalRequest(input) : null;
   }
-  return { enter, restore };
+  async function finalDocument(
+    request: IncomingMessage,
+    response: ServerResponse,
+  ) {
+    try {
+      const rejected = documentRejection(request.url);
+      if (rejected) {
+        sendDocument(response, null, rejected);
+        return;
+      }
+      const input = read(request);
+      if (!input) {
+        sendDocument(response, null, 'missing');
+        return;
+      }
+      if (input.wallet !== 'Backpack')
+        throw new AccountError(400, 'Wallet de aprovação inválida.');
+      sendDocument(response, (await pendingState(input)).state);
+    } catch (error: unknown) {
+      if (!(error instanceof AccountError)) throw error;
+      // A delayed document response must not erase a newer cookie.
+      sendDocument(
+        response,
+        null,
+        error.status === 400 ? 'parameters' : 'unavailable',
+      );
+    }
+  }
+  return { enter, restore, document: finalDocument };
 }

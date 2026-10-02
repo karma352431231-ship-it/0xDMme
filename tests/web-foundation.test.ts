@@ -133,7 +133,13 @@ await test('staging exige origem canônica HTTPS, cluster/role exclusivos e obje
 
 await test('política offline limita cache a assets públicos fixados do build', () => {
   const origin = 'https://hash-talk.example';
-  const assets = ['/', '/app-abcd.js', '/wallet.html', '/phantom-probe.html'];
+  const assets = [
+    '/',
+    '/app-abcd.js',
+    '/wallet.html',
+    '/wallet-approval',
+    '/phantom-probe.html',
+  ];
   assert.equal(
     cacheableRequest(new Request(`${origin}/`), origin, assets),
     true,
@@ -145,6 +151,7 @@ await test('política offline limita cache a assets públicos fixados do build',
     '/?secret=x',
     '/app-old.js',
     '/wallet.html',
+    '/wallet-approval',
     '/wallet-entry?ticket=synthetic',
     '/api/account/approval-request',
     '/phantom-probe.html',

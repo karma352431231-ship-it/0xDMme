@@ -1,5 +1,6 @@
 import {
   approvalDocumentId,
+  approvalDocumentUrl,
   approvalEntryUrl,
 } from '../../shared/wallet-approval/index.ts';
 
@@ -63,7 +64,11 @@ function navigationType(): string {
 }
 
 function inputKind(): string {
-  if (approvalEntryUrl(location.pathname)) return documentInputKind();
+  if (
+    approvalEntryUrl(location.pathname) ||
+    approvalDocumentUrl(location.pathname)
+  )
+    return documentInputKind();
   if (!location.hash) return 'sem-fragmento';
   if (location.hash === '#configuracoes') return 'rota-sem-pedido';
   if (location.hash.startsWith('#configuracoes?')) {
@@ -89,6 +94,7 @@ function documentInputKind(): string {
     ?.getAttribute?.('data-rejected');
   if (reason === 'parameters') return 'entrada-rejeitada-parametros';
   if (reason === 'unavailable') return 'entrada-rejeitada-pedido';
+  if (reason === 'missing') return 'entrada-sem-cookie';
   return 'entrada-documento';
 }
 
@@ -101,6 +107,8 @@ export function createApprovalDiagnostics() {
   let failure = 'nao';
   return {
     rejectionMessage(): string | null {
+      if (input === 'entrada-sem-cookie')
+        return 'O pedido não chegou à página de aprovação. Volte ao navegador original e crie um novo pedido.';
       if (input === 'entrada-rejeitada-parametros')
         return 'O link chegou com parâmetros inválidos ou incompletos. Volte ao navegador original e crie um novo pedido.';
       if (input === 'entrada-rejeitada-pedido')
@@ -132,7 +140,7 @@ export function createApprovalDiagnostics() {
       // Fixed categories only: never stringify input, errors or provider data.
       const availability =
         provider === null ? 'nao-avaliado' : provider ? 'presente' : 'ausente';
-      return `D1 · entrada=${input} · chegada=${source} · navegacao=${navigation} · historico=${previous} · etapa=${stage} · provider=${availability} · armazenamento=${storageAvailable ? 'disponivel' : 'indisponivel'} · falha=${failure} · protocolo=doc-2`;
+      return `D1 · entrada=${input} · chegada=${source} · navegacao=${navigation} · historico=${previous} · etapa=${stage} · provider=${availability} · armazenamento=${storageAvailable ? 'disponivel' : 'indisponivel'} · falha=${failure} · protocolo=doc-3`;
     },
   };
 }

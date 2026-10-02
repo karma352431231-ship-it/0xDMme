@@ -15,7 +15,10 @@ import { createPendingApproval } from './pending-approval.ts';
 import { serverApproval } from './server-approval.ts';
 import { takeApprovalDocument } from './approval-document.ts';
 import { canonicalAddress } from '../../shared/wallet-identity/index.ts';
-import { approvalEntryUrl } from '../../shared/wallet-approval/index.ts';
+import {
+  approvalDocumentUrl,
+  approvalEntryUrl,
+} from '../../shared/wallet-approval/index.ts';
 import {
   createWalletReturn,
   incomingWalletRequest,
@@ -109,7 +112,9 @@ function deviceId(): string {
 export function startAccount(options: {
   changed: (session: AccountSession | null) => void;
 }) {
-  const documentApproval = approvalEntryUrl(location.pathname);
+  const documentApproval =
+    approvalEntryUrl(location.pathname) ||
+    approvalDocumentUrl(location.pathname);
   let documentApprovalPending = documentApproval;
   const approvalPage = documentApproval || location.pathname === '/wallet.html';
   let cookieApprovalEligible =

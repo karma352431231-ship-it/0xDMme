@@ -199,7 +199,7 @@ await test('pedido Backpack mantém Android e solicita documento de aprovação 
       await controller.start('Backpack', ecosystem);
       const diagnostic = controller.openingDiagnostic();
       assert.ok(diagnostic);
-      assert.match(diagnostic, /^D2 · protocolo=doc-2/u);
+      assert.match(diagnostic, /^D2 · protocolo=doc-3/u);
       assert.match(diagnostic, /pedido=presente/u);
       assert.match(
         diagnostic,

@@ -5,6 +5,12 @@ import type { Ecosystem } from '../wallet-identity/index.ts';
 export type WalletName = 'MetaMask' | 'Phantom' | 'Backpack';
 export type ReturnBrowser = 'chrome' | 'default';
 export const approvalDocumentId = 'xdmme-wallet-approval-request';
+export const approvalDocumentPath = '/wallet-approval';
+export function approvalDocumentUrl(raw = ''): boolean {
+  return (
+    raw === approvalDocumentPath || raw.startsWith(`${approvalDocumentPath}?`)
+  );
+}
 export function approvalEntryUrl(raw = ''): boolean {
   return (
     raw === '/wallet-entry' ||

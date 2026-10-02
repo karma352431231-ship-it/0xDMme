@@ -1,4 +1,7 @@
-import { approvalDocumentId } from '../../shared/wallet-approval/index.ts';
+import {
+  approvalDocumentId,
+  approvalDocumentUrl,
+} from '../../shared/wallet-approval/index.ts';
 import { approvalHistoryMarker } from './approval-diagnostics.ts';
 import { serverApproval } from './server-approval.ts';
 
@@ -18,10 +21,13 @@ export function takeApprovalDocument(
     return state;
   } finally {
     node?.remove();
-    history.replaceState(
-      approvalHistoryMarker(),
-      '',
-      '/wallet.html#configuracoes',
-    );
+    // The server already scrubbed the ticket. Never notify the wallet's
+    // native navigation observer or depend on tab storage to keep this page.
+    if (!approvalDocumentUrl(location.pathname))
+      history.replaceState(
+        approvalHistoryMarker(),
+        '',
+        '/wallet.html#configuracoes',
+      );
   }
 }

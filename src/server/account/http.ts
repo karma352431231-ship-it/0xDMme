@@ -8,7 +8,10 @@ import {
 import { AccountService, challengeSeconds, sessionSeconds } from './service.ts';
 import { AccountRateLimit } from './rate-limit.ts';
 import { createApprovalEntry } from './approval-http.ts';
-import { approvalEntryUrl } from '../../shared/wallet-approval/index.ts';
+import {
+  approvalDocumentUrl,
+  approvalEntryUrl,
+} from '../../shared/wallet-approval/index.ts';
 
 function readCookie(request: IncomingMessage, name: string): string {
   const matches = (request.headers.cookie ?? '')
@@ -292,13 +295,15 @@ export function createAccountHandler(options: {
     request: IncomingMessage,
     response: ServerResponse,
   ): Promise<boolean> {
-    if (approvalEntryUrl(request.url)) {
+    if (approvalEntryUrl(request.url) || approvalDocumentUrl(request.url)) {
       if (
         request.headers['sec-fetch-mode'] !== 'navigate' ||
         request.headers['sec-fetch-dest'] !== 'document'
       )
         throw new AccountError(403, 'Entrada exige navegação de documento.');
-      await approval.enter(request, response);
+      if (approvalDocumentUrl(request.url))
+        await approval.document(request, response);
+      else await approval.enter(request, response);
       return true;
     }
     if (request.url === '/api/account/approval-request') {

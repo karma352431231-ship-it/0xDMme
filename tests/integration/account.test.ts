@@ -89,7 +89,7 @@ function unauthorized(error: unknown): boolean {
 }
 
 // fetch fixes Sec-Fetch-Mode to cors; real document navigation uses navigate.
-function navigateEntry(path: string): Promise<Response> {
+function navigateEntry(path: string, cookie = ''): Promise<Response> {
   return new Promise((resolve, reject) => {
     const request = httpRequest(
       `${origin}${path}`,
@@ -98,6 +98,7 @@ function navigateEntry(path: string): Promise<Response> {
           'Sec-Fetch-Site': 'cross-site',
           'Sec-Fetch-Mode': 'navigate',
           'Sec-Fetch-Dest': 'document',
+          Cookie: cookie,
         },
       },
       (response) => {
@@ -672,14 +673,28 @@ await test('Autenticação e perfil persistentes', async (t) => {
         Date.parse(pending.expiresAt) - Date.parse(pending.serverTime);
       assert.ok(remaining > 0 && remaining <= 300_000);
       const inlinePath = `/wallet-entry/${pending.ticket}/evm/Backpack`;
-      const inline = await navigateEntry(inlinePath);
-      assert.equal(inline.status, 200);
-      assert.equal(inline.headers.get('location'), null);
-      assert.equal(inline.headers.get('set-cookie'), null);
-      assert.match(
-        await inline.text(),
-        /type="application\/json" id="xdmme-wallet-approval-request"/u,
-      );
+      async function deliveredDocument(path: string) {
+        const inline = await navigateEntry(path);
+        assert.equal(inline.status, 303);
+        assert.equal(inline.headers.get('location'), '/wallet-approval');
+        const documentCookie =
+          inline.headers.getSetCookie()[0]?.split(';')[0] ?? '';
+        await inline.text();
+        const documentResponse = await navigateEntry(
+          '/wallet-approval',
+          documentCookie,
+        );
+        assert.equal(documentResponse.status, 200);
+        assert.equal(documentResponse.headers.get('location'), null);
+        assert.equal(documentResponse.headers.get('set-cookie'), null);
+        assert.match(
+          await documentResponse.text(),
+          /type="application\/json" id="xdmme-wallet-approval-request"/u,
+        );
+
+        return documentCookie;
+      }
+      const documentCookie = await deliveredDocument(inlinePath);
       const entry = await navigateEntry(
         `/wallet-entry?${new URLSearchParams({
           ticket: pending.ticket,
@@ -750,15 +765,33 @@ await test('Autenticação e perfil persistentes', async (t) => {
           .some((item) => item.startsWith('0xdmme-approval=')),
         false,
       );
+      const signedDocument = await navigateEntry(
+        '/wallet-approval',
+        documentCookie,
+      );
+      assert.equal(signedDocument.status, 200);
+      assert.match(
+        await signedDocument.text(),
+        /data-rejected="unavailable">null<\/script>/u,
+      );
+      assert.equal(signedDocument.headers.get('set-cookie'), null);
       const replay = await fetch(`${origin}/api/account/approval-request`, {
         headers: { Cookie: entryCookie },
       });
       assert.equal(replay.status, 401);
       const usedDocument = await navigateEntry(inlinePath);
-      assert.equal(usedDocument.status, 200);
-      assert.equal(usedDocument.headers.get('location'), null);
+      assert.equal(usedDocument.status, 303);
+      assert.equal(
+        usedDocument.headers.get('location'),
+        '/wallet-approval?invalid=1&reason=unavailable',
+      );
+      await usedDocument.text();
+      const rejection = await navigateEntry(
+        '/wallet-approval?invalid=1&reason=unavailable',
+      );
+      assert.equal(rejection.status, 200);
       assert.match(
-        await usedDocument.text(),
+        await rejection.text(),
         /data-rejected="unavailable">null<\/script>/u,
       );
       assert.equal(

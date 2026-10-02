@@ -5,6 +5,7 @@ import { AccountError } from '../src/shared/account/index.ts';
 import {
   walletApprovalRequest,
   approvalEntryUrl,
+  approvalDocumentUrl,
 } from '../src/shared/wallet-approval/index.ts';
 import { createApprovalEntry } from '../src/server/account/approval-http.ts';
 import { createWebServer } from '../src/server/web-host/index.ts';
@@ -71,6 +72,8 @@ await test('entrada valida campos, limpa URL, limita cookie, preserva capacidade
     account: {
       close: () => {},
       async handle(request, response) {
+        if (approvalDocumentUrl(request.url))
+          return entry.document(request, response);
         if (approvalEntryUrl(request.url))
           return entry.enter(request, response);
         if (request.url === '/api/account/approval-request') {
@@ -251,11 +254,20 @@ await test('entrada valida campos, limpa URL, limita cookie, preserva capacidade
       ['evm', 'b'.repeat(64)],
     ] as const) {
       const path = `/wallet-entry/${ticket}/${network}/Backpack`;
-      const direct = await get(path, navigation);
+      const entered = await get(path, navigation);
+      assert.equal(entered.status, 303);
+      assert.equal(entered.headers.location, '/wallet-approval');
+      assert.equal(entered.body, '');
+      const raw = responseCookie(entered.headers);
+      assert.ok(maxAge(raw) > 0 && maxAge(raw) <= 120);
+      assert.match(raw, /HttpOnly; SameSite=Lax; Max-Age=\d+; Secure$/u);
+      const cookie = raw.split(';')[0] ?? '';
+      const direct = await get('/wallet-approval', { ...navigation, cookie });
       assert.equal(direct.status, 200);
       assert.equal(direct.headers.location, undefined);
       assert.equal(direct.headers['set-cookie'], undefined);
       assert.equal(direct.headers['cache-control'], 'no-store');
+      assert.equal(direct.headers['referrer-policy'], 'no-referrer');
       assert.match(
         direct.body,
         /type="application\/json" id="xdmme-wallet-approval-request"/u,
@@ -265,17 +277,37 @@ await test('entrada valida campos, limpa URL, limita cookie, preserva capacidade
         direct.body,
         /data-rejected|sessionToken|browserToken|signature/u,
       );
+      assert.equal(
+        (
+          await get('/wallet-approval', { ...navigation, cookie })
+        ).body.includes(ticket),
+        true,
+      );
       assert.equal((await get(path, navigation, 'POST')).status, 403);
       assert.equal(
-        (await get(path, { 'Sec-Fetch-Site': 'cross-site' })).status,
+        (await get('/wallet-approval', navigation, 'POST')).status,
+        403,
+      );
+      assert.equal(
+        (
+          await get('/wallet-approval', {
+            'Sec-Fetch-Site': 'cross-site',
+            cookie,
+          })
+        ).status,
         403,
       );
       consumed.add(ticket);
-      const used = await get(path, navigation);
-      assert.equal(used.status, 200);
-      assert.equal(used.headers.location, undefined);
+      const used = await get('/wallet-approval', { ...navigation, cookie });
       assert.match(used.body, /data-rejected="unavailable">null<\/script>/u);
+      assert.equal(used.headers['set-cookie'], undefined);
       assert.ok(!used.body.includes(ticket));
+      const replay = await get(path, navigation);
+      assert.equal(replay.status, 303);
+      assert.equal(
+        replay.headers.location,
+        '/wallet-approval?invalid=1&reason=unavailable',
+      );
       consumed.clear();
     }
     for (const path of [
@@ -286,16 +318,39 @@ await test('entrada valida campos, limpa URL, limita cookie, preserva capacidade
       `/wallet-entry/${'a'.repeat(64)}/solana/Backpack/extra`,
     ]) {
       const invalid = await get(path, navigation);
-      assert.equal(invalid.status, 200);
-      assert.equal(invalid.headers.location, undefined);
-      assert.match(invalid.body, /data-rejected="parameters">null<\/script>/u);
-      assert.doesNotMatch(invalid.body, /PRIVATE|a{64}/u);
+      assert.equal(invalid.status, 303);
+      assert.equal(
+        invalid.headers.location,
+        '/wallet-approval?invalid=1&reason=parameters',
+      );
+      assert.equal(maxAge(responseCookie(invalid.headers)), 0);
+      const final = await get(invalid.headers.location, {
+        ...navigation,
+        cookie,
+      });
+      assert.match(final.body, /data-rejected="parameters">null<\/script>/u);
+      assert.doesNotMatch(final.body, /PRIVATE|a{64}/u);
     }
+    const missing = await get('/wallet-approval', navigation);
+    assert.match(missing.body, /data-rejected="missing">null<\/script>/u);
+    for (const cookie of [
+      '__Host-0xdmme-approval=bad',
+      '__Host-0xdmme-approval=' + 'a'.repeat(64) + '.Phantom.solana',
+    ]) {
+      const invalid = await get('/wallet-approval', { ...navigation, cookie });
+      assert.match(invalid.body, /data-rejected="parameters">null<\/script>/u);
+    }
+    const extra = await get('/wallet-approval?ticket=PRIVATE', {
+      ...navigation,
+      cookie,
+    });
+    assert.match(extra.body, /data-rejected="parameters">null<\/script>/u);
+    assert.doesNotMatch(extra.body, /PRIVATE|a{64}/u);
     expires = Date.now() - 1;
-    const expired = await get(
-      `/wallet-entry/${'a'.repeat(64)}/solana/Backpack`,
-      navigation,
-    );
+    const expired = await get('/wallet-approval', {
+      ...navigation,
+      cookie: '__Host-0xdmme-approval=' + 'a'.repeat(64) + '.Backpack.solana',
+    });
     assert.match(expired.body, /data-rejected="unavailable">null<\/script>/u);
   }
   async function checkDirectDocument() {

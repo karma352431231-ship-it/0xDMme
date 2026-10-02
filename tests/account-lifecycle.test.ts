@@ -767,6 +767,67 @@ function approvalDocumentPayload(ecosystem = 'evm', remaining = 60_000) {
   });
 }
 
+await test('documento final conserva o pedido sem mudar URL, sem sessão de armazenamento e sem conectar automaticamente', async () => {
+  for (const ecosystem of ['evm', 'solana']) {
+    const browser = scope({
+      pathname: '/wallet-approval',
+      approvalDocument: approvalDocumentPayload(ecosystem),
+      historyRejected: true,
+      storageRejected: true,
+    });
+    await tick();
+    assert.equal(browser.documentRemoved(), true);
+    assert.deepEqual(browser.historyWrites, []);
+    assert.deepEqual(browser.requests, []);
+    assert.deepEqual(browser.providerRequests, []);
+    assert.deepEqual(browser.states, []);
+    assert.equal(browser.approve.hidden, false);
+    assert.match(
+      browser.diagnostic.textContent,
+      /entrada=entrada-documento.*etapa=pedido-lido/u,
+    );
+    if (ecosystem === 'evm') {
+      browser.confirmApproval();
+      await tick();
+      assert.deepEqual(browser.requests, [
+        '/api/account/handoff-challenge',
+        '/api/account/handoff-sign',
+      ]);
+      assert.deepEqual(browser.historyWrites, []);
+      assert.deepEqual(browser.states, []);
+      assert.match(browser.status.textContent, /Assinatura confirmada/u);
+    }
+    browser.dispose();
+  }
+});
+
+await test('documento final com cookie ausente ou recusado não restaura pedido anterior nem chama provider', async () => {
+  const previous = scope({ pathname: '/wallet.html', hash: approvalHash });
+  await tick();
+  previous.dispose();
+  for (const reason of ['parameters', 'unavailable', 'missing']) {
+    const browser = scope({
+      pathname: '/wallet-approval',
+      approvalDocument: 'null',
+      approvalRejection: reason,
+      storage: new Map(previous.storage),
+    });
+    await tick();
+    assert.equal(browser.approve.hidden, true);
+    assert.equal(browser.storage.size, 0);
+    assert.deepEqual(browser.historyWrites, []);
+    assert.deepEqual(browser.requests, []);
+    assert.deepEqual(browser.providerRequests, []);
+    assert.match(browser.diagnostic.textContent, /etapa=pedido-invalido/u);
+    if (reason === 'missing')
+      assert.match(
+        browser.diagnostic.textContent,
+        /entrada=entrada-sem-cookie/u,
+      );
+    browser.dispose();
+  }
+});
+
 await test('documento entrega Backpack EVM/Solana sem fragmento ou cookie e remove ticket antes de qualquer RPC', async () => {
   for (const ecosystem of ['evm', 'solana']) {
     const browser = scope({
@@ -860,7 +921,7 @@ await test('rejeição documental chega sem redirecionamento ou fragmento e não
     assert.ok(browser.diagnostic.textContent.includes(`entrada=${category}`));
     assert.match(
       browser.diagnostic.textContent,
-      /etapa=pedido-invalido.*protocolo=doc-2/u,
+      /etapa=pedido-invalido.*protocolo=doc-3/u,
     );
     assert.doesNotMatch(
       browser.diagnostic.textContent,

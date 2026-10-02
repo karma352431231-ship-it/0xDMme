@@ -23,9 +23,9 @@ export function openingDiagnostics(
     );
     if (!outer.pathname.startsWith(prefix))
       throw new Error('Rota desconhecida.');
-    return `D2 · protocolo=doc-2 · plataforma=${agent} · ${targetSummary(target)} · ref=${outer.searchParams.has('ref') ? 'presente' : 'ausente'}`;
+    return `D2 · protocolo=doc-3 · plataforma=${agent} · ${targetSummary(target)} · ref=${outer.searchParams.has('ref') ? 'presente' : 'ausente'}`;
   } catch {
-    return `D2 · protocolo=doc-2 · plataforma=${agent} · destino=invalido`;
+    return `D2 · protocolo=doc-3 · plataforma=${agent} · destino=invalido`;
   }
 }
 
