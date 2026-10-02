@@ -77,9 +77,9 @@ await test('MetaMask abre o destino HTTPS completo sem exigir decodificação do
     );
   }
 });
-await test('Backpack Android recebe somente o destino próprio completo pelo caminho browse, sem ref externo', () => {
+await test('Backpack Android recebe o destino próprio completo pela rota HTTPS v1, sem ref externo', () => {
   const ticket = 'c'.repeat(64);
-  const prefix = 'https://backpack.app/ul/browse/';
+  const prefix = 'https://backpack.app/ul/v1/browse/';
   for (const ecosystem of ['evm', 'solana'] as const) {
     const link = walletBrowserUrl({
       origin: 'https://0xdmme.app:8443',

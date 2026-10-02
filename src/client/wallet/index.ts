@@ -233,10 +233,10 @@ export function walletBrowserUrl(input: {
     // MetaMask appends everything after /dapp/ to https:// without decoding
     // the path. Preserve URL delimiters; query values are already encoded.
     return `https://link.metamask.io/dapp/${target.slice('https://'.length)}`;
-  // The tested Android app opens /ul/browse/ and treats its entire decoded
-  // suffix as the destination, including an outer ref query. Keep only our URL.
+  // HTTPS v1 without an outer ref was verified on Android, including a closed
+  // Backpack app. Keep the encoded destination and its login parameters intact.
   if (input.wallet === 'Backpack' && input.platform === 'android')
-    return `https://backpack.app/ul/browse/${encodeURIComponent(target)}`;
+    return `https://backpack.app/ul/v1/browse/${encodeURIComponent(target)}`;
   const base = {
     Phantom: 'https://phantom.app/ul/browse/',
     Backpack: 'https://backpack.app/ul/v1/browse/',

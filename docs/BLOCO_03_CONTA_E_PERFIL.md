@@ -37,6 +37,10 @@ Até 1.024 desafios e 256 pedidos temporários de retorno persistidos, oito sess
 
 ## Conexão mobile e retorno aprovado
 
+Em 02/10/2026, após os testes de abertura inconsistentes com outras rotas, o proprietário confirmou que o link HTTPS `/ul/v1/browse/<destino-codificado>` sem `ref` externo abre a Backpack no Android e carrega a página, inclusive com o app fechado. Autorizou usar esse formato na abertura normal e no botão explícito para EVM e Solana; o caminho anterior sem versão de `b0307c1` é substituído. O destino conserva ticket, wallet e ecossistema. Não há preparo obrigatório em Explore, intent ou esquema próprio. O proprietário também relatou todos os fluxos funcionando no iPhone; preservar os links desse aparelho.
+
+**Ponto importante:** a abertura pública Android foi confirmada; a confirmação da mensagem no fluxo normal Backpack/EVM e Backpack/Solana será testada pelo proprietário após a publicação. Assinatura, retorno manual e confirmação do endereço continuam como antes.
+
 Revisão posterior ao deploy `0a1914b`, em 02/10/2026: o proprietário confirmou MetaMask/EVM funcionando. A MetaMask/Solana abre a página, mas exibe pedido ausente/inválido, com provider ainda não avaliado no D1; o relato anterior de tela branca antes da página foi corrigido. Esse diagnóstico ainda não distingue fragmento inválido de rejeição na entrada HTTPS por parâmetros, expiração ou cancelamento. Não atribuir a falha a `signMessage` nem alterar o EVM confirmado sem evidência.
 
 O proprietário também relatou Backpack abrindo o app sem navegador/pedido em EVM/Solana. A URL implementada corresponde ao [formato oficial `browse`](https://docs.backpack.app/deeplinks/other-methods/browse); isso não comprova sua execução no Android nem estabelece limitação definitiva da wallet. Solflare foi removida do seletor, validação de pedidos, abertura mobile e conectores específicos, inclusive da descoberta genérica quando anunciada com esse nome. As referências abaixo a Solflare são históricas. Nenhuma assinatura ou nova configuração do celular foi solicitada como parte dessa remoção.

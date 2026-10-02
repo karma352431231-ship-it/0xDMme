@@ -199,7 +199,7 @@ await test('pedido Backpack usa a rota verificada no Android e mantém o link an
     assert.equal(opened.length, 1);
     const link = new URL(opened[0] ?? '');
     if (agent.startsWith('Android')) {
-      assert.ok(link.pathname.startsWith('/ul/browse/'));
+      assert.ok(link.pathname.startsWith('/ul/v1/browse/'));
       assert.equal(link.search, '');
     } else {
       assert.ok(link.pathname.startsWith('/ul/v1/browse/'));
