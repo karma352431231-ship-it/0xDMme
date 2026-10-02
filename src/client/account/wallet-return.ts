@@ -13,6 +13,7 @@ import type { Ecosystem } from '../../shared/wallet-identity/index.ts';
 import { walletBrowserUrl } from '../wallet/index.ts';
 import type { WalletName } from '../wallet/index.ts';
 import { approvalHistoryMarker } from './approval-diagnostics.ts';
+import { openingDiagnostics } from './opening-diagnostics.ts';
 export { walletApprovalRequest } from '../../shared/wallet-approval/index.ts';
 export type { WalletApprovalRequest } from '../../shared/wallet-approval/index.ts';
 import { walletApprovalRequest } from '../../shared/wallet-approval/index.ts';
@@ -205,6 +206,7 @@ export function createWalletReturn(options: {
   return {
     state: () => pending,
     link: () => link,
+    openingDiagnostic: () => (link ? openingDiagnostics(link, platform) : null),
     start,
     refresh,
     confirm,

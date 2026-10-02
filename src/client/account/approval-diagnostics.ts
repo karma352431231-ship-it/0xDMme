@@ -118,7 +118,7 @@ export function createApprovalDiagnostics() {
       // Fixed categories only: never stringify input, errors or provider data.
       const availability =
         provider === null ? 'nao-avaliado' : provider ? 'presente' : 'ausente';
-      return `D1 · entrada=${input} · chegada=${source} · navegacao=${navigation} · historico=${previous} · etapa=${stage} · provider=${availability} · armazenamento=${storageAvailable ? 'disponivel' : 'indisponivel'} · falha=${failure}`;
+      return `D1 · entrada=${input} · chegada=${source} · navegacao=${navigation} · historico=${previous} · etapa=${stage} · provider=${availability} · armazenamento=${storageAvailable ? 'disponivel' : 'indisponivel'} · falha=${failure} · protocolo=doc-1`;
     },
   };
 }

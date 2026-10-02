@@ -197,6 +197,17 @@ await test('pedido Backpack mantém Android e solicita documento de aprovação 
         agent,
       );
       await controller.start('Backpack', ecosystem);
+      const diagnostic = controller.openingDiagnostic();
+      assert.ok(diagnostic);
+      assert.match(diagnostic, /^D2 · protocolo=doc-1/u);
+      assert.match(diagnostic, /pedido=presente/u);
+      assert.match(
+        diagnostic,
+        agent === 'iPhone'
+          ? /plataforma=ios.*modo=documento/u
+          : /plataforma=android.*modo=padrao/u,
+      );
+      assert.doesNotMatch(diagnostic, /a{64}|0x|https:|ticket=/u);
       assert.equal(opened.length, 1);
       const link = new URL(opened[0] ?? '');
       assert.ok(link.pathname.startsWith('/ul/v1/browse/'));
@@ -223,6 +234,7 @@ await test('pedido Backpack mantém Android e solicita documento de aprovação 
       }
       assert.equal(controller.state()?.address, null);
       controller.close();
+      assert.equal(controller.openingDiagnostic(), null);
     }
   }
 });

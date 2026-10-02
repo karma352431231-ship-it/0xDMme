@@ -361,14 +361,17 @@ export function startAccount(options: {
   }
 
   function renderDiagnostics(): void {
+    const opening = approvalOnly ? null : walletReturn.openingDiagnostic();
     const panel = node('[data-wallet-diagnostics]');
-    if (panel) panel.hidden = !approvalOnly || incomingSigned;
+    if (panel) panel.hidden = (!approvalOnly && !opening) || incomingSigned;
     const detail = node('[data-wallet-diagnostic]');
     if (detail)
-      detail.textContent = diagnostics.text(
-        incoming ? Boolean(wallets.get(approvalWalletId())) : null,
-        pendingApproval.availability(),
-      );
+      detail.textContent =
+        opening ??
+        diagnostics.text(
+          incoming ? Boolean(wallets.get(approvalWalletId())) : null,
+          pendingApproval.availability(),
+        );
   }
   function approvalStep(stage: ApprovalStage): void {
     if (approvalOnly) diagnostics.step(stage);
