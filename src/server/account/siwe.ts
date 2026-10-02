@@ -17,8 +17,12 @@ export function loginMessage(input: {
   handoff?: boolean;
 }): string {
   const url = new URL(input.origin);
+  // HTTPS is the EIP-4361 default when scheme is omitted. Use the domain-only
+  // form shown in Phantom's SIWE examples; HTTP development stays explicit.
+  const signingDomain =
+    url.protocol === 'https:' ? url.host : `${url.protocol}//${url.host}`;
   const message = [
-    `${url.protocol}//${url.host} wants you to sign in with your Ethereum account:`,
+    `${signingDomain} wants you to sign in with your Ethereum account:`,
     input.address,
     '',
     input.handoff
@@ -43,7 +47,7 @@ function authority(parsed: ParsedMessage, origin: string): void {
   const url = new URL(origin);
   if (
     parsed.domain !== url.host ||
-    parsed.scheme !== url.protocol.slice(0, -1) ||
+    (parsed.scheme ?? 'https') !== url.protocol.slice(0, -1) ||
     parsed.uri !== origin ||
     parsed.version !== '1'
   )
