@@ -229,7 +229,9 @@ export function walletBrowserUrl(input: {
   });
   const target = `${origin.origin}/wallet-entry?${query}`;
   if (input.wallet === 'MetaMask')
-    return `https://link.metamask.io/dapp/${encodeURIComponent(target.slice('https://'.length))}`;
+    // MetaMask appends everything after /dapp/ to https:// without decoding
+    // the path. Preserve URL delimiters; query values are already encoded.
+    return `https://link.metamask.io/dapp/${target.slice('https://'.length)}`;
   const base = {
     Phantom: 'https://phantom.app/ul/browse/',
     Solflare: 'https://solflare.com/ul/v1/browse/',

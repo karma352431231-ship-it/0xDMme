@@ -45,6 +45,7 @@ const template = `<article class="card account-card"><span class="eyebrow">CONTA
 <div data-other-wallets class="wallet-options"></div></div>
 <div data-wallet-networks hidden><button type="button" data-wallet-picker-back>← Trocar wallet</button><h3 data-wallet-network-title></h3><p class="detail">Escolha o ecossistema da conta.</p>
 <div class="wallet-options"><button type="button" class="wallet-option" data-wallet="MetaMask" data-network-brand="MetaMask"><span>EVM</span><span class="wallet-detection" data-detection="MetaMask">Não detectada</span></button>
+<button type="button" class="wallet-option" data-wallet="MetaMask:solana" data-network-brand="MetaMask"><span>Solana</span><span class="wallet-detection" data-detection="MetaMask:solana">Não detectada</span></button>
 <button type="button" class="wallet-option" data-wallet="Phantom" data-network-brand="Phantom"><span>EVM</span><span class="wallet-detection" data-detection="Phantom">Não detectada</span></button>
 <button type="button" class="wallet-option" data-wallet="Phantom:solana" data-network-brand="Phantom"><span>Solana</span><span class="wallet-detection" data-detection="Phantom:solana">Não detectada</span></button>
 <button type="button" class="wallet-option" data-wallet="Solflare:solana" data-network-brand="Solflare"><span>Solana</span><span class="wallet-detection" data-detection="Solflare:solana">Não detectada</span></button>
@@ -178,6 +179,7 @@ export function startAccount(options: {
     const brands = new Set(['MetaMask', 'Phantom', 'Solflare', 'Backpack']);
     const listedNetworks = new Set([
       'MetaMask:evm',
+      'MetaMask:solana',
       'Phantom:evm',
       'Phantom:solana',
       'Solflare:solana',
