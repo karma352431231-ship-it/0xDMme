@@ -189,6 +189,26 @@ await test('seleção abre a wallet uma vez após pedido válido; consulta não 
   controller.close();
 });
 
+await test('pedido Backpack usa a rota verificada no Android e mantém o link anterior em outros aparelhos', async () => {
+  for (const agent of ['Android Chrome/141.0', 'iPhone']) {
+    const { controller, opened } = launchController(
+      Promise.resolve(handoffResponse()),
+      agent,
+    );
+    await controller.start('Backpack', 'evm');
+    assert.equal(opened.length, 1);
+    const link = new URL(opened[0] ?? '');
+    if (agent.startsWith('Android')) {
+      assert.ok(link.pathname.startsWith('/ul/browse/'));
+      assert.equal(link.search, '');
+    } else {
+      assert.ok(link.pathname.startsWith('/ul/v1/browse/'));
+      assert.equal(link.searchParams.get('ref'), 'https://0xdmme.app');
+    }
+    assert.equal(controller.state()?.address, null);
+    controller.close();
+  }
+});
 await test('relógio do dispositivo adiantado ou atrasado não impede abertura nem consulta; confirmação continua obrigatória', async () => {
   for (const offset of [-3_600_000, -5000, 0, 3_600_000]) {
     const { api, navigated } = scope('', 'Android', true, offset);

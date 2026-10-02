@@ -85,6 +85,7 @@ export function createWalletReturn(options: {
   authenticated: (session: AccountSession) => Promise<void>;
   openWallet?: (link: string) => boolean;
 }) {
+  const platform = /Android/iu.test(navigator.userAgent) ? 'android' : 'other';
   let pending: Pending | null = null;
   let link: string | null = null;
   let generation = 0;
@@ -144,6 +145,7 @@ export function createWalletReturn(options: {
       wallet,
       ticket,
       ecosystem: network,
+      platform,
     });
     if (!link) {
       await options.api('handoff-cancel', { input: {} });

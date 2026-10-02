@@ -77,6 +77,45 @@ await test('MetaMask abre o destino HTTPS completo sem exigir decodificação do
     );
   }
 });
+await test('Backpack Android recebe somente o destino próprio completo pelo caminho browse, sem ref externo', () => {
+  const ticket = 'c'.repeat(64);
+  const prefix = 'https://backpack.app/ul/browse/';
+  for (const ecosystem of ['evm', 'solana'] as const) {
+    const link = walletBrowserUrl({
+      origin: 'https://0xdmme.app:8443',
+      wallet: 'Backpack',
+      ticket,
+      ecosystem,
+      platform: 'android',
+    });
+    assert.ok(link);
+    assert.ok(link.startsWith(prefix));
+    assert.equal(new URL(link).search, '');
+    // The observed Android handler forwards the entire decoded suffix.
+    const destination = new URL(decodeURIComponent(link.slice(prefix.length)));
+    assert.equal(destination.origin, 'https://0xdmme.app:8443');
+    assert.equal(destination.pathname, '/wallet-entry');
+    assert.equal(destination.hash, '');
+    assert.deepEqual(
+      [...destination.searchParams],
+      [
+        ['ticket', ticket],
+        ['ecosystem', ecosystem],
+        ['wallet', 'Backpack'],
+      ],
+    );
+    const other = walletBrowserUrl({
+      origin: 'https://0xdmme.app',
+      wallet: 'Backpack',
+      ticket,
+      ecosystem,
+      platform: 'other',
+    });
+    assert.ok(other);
+    assert.ok(other.startsWith('https://backpack.app/ul/v1/browse/'));
+    assert.equal(new URL(other).searchParams.get('ref'), 'https://0xdmme.app');
+  }
+});
 await test('endereços Solana são Base58 de 32 bytes e EVM normaliza somente seu ecossistema', () => {
   const bytes = new Uint8Array(32).fill(42);
   const address = base58.encode(bytes);
