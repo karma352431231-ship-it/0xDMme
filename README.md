@@ -6,9 +6,13 @@ O objetivo é oferecer autenticação por wallet e criptografia ponta a ponta, p
 
 ## Estado atual
 
+O [bloco 05](docs/BLOCO_05_COFRE.md) está concluído localmente: agenda/configurações privadas e dados fictícios cifrados, versões preservadas, conflitos explícitos, cópia local offline e recuperação em outro aparelho. A cota pessoal permanece 300 MB, contada conforme o conteúdo e os uploads concretos; cadastrar uma conta não reserva 300 MB. O teto de 1 GB por grupo também permanece, sem alocação antecipada, para o bloco de grupos. Testes físicos mobile dos blocos 04–05 ficam para depois. Migrações 006–009 ainda não foram ativadas na VPS.
+
+O [bloco 04](docs/BLOCO_04_DISPOSITIVOS_E_RECUPERACAO.md) implementa localmente autorização verificável dos aparelhos, vinculação por QR Code/código, recuperação com wallet original e segredo e revogação com troca de chaves. Sua validação física mobile fica para o proprietário após a revisão no Mac, conforme autorização de 02/10/2026. Há migrações novas; esta entrega não foi publicada na VPS e não representa chat para dados reais.
+
 O bloco 00 e a seleção técnica do bloco 01 estão concluídos: mensagens Matrix WASM, cofre Web Crypto e ZK Semaphore, com prova funcional aprovada em Mac/Android/iPhone. A [revisão de dependências/licenças](docs/DEPENDENCIAS_E_SELECAO_BLOCO_01.md) registra a GPL do frontend autorizada e a exceção de manutenção Rust. Não repetir roteiros manuais aprovados sem mudança relevante ou falha. Inventários, medidas e identificação de aparelhos ficam exclusivamente em `.local/`, ignorado pelo Git.
 
-A [base do bloco 02](docs/BLOCO_02_BASE_WEB.md) oferece interface responsiva/navegação, manifesto PWA, cache exclusivo da interface pública, atualização explícita, servidor local, PostgreSQL isolado e módulo de objetos opacos. Usa TypeScript, Node 24, módulos nativos do navegador e esbuild. O [bloco 03](docs/BLOCO_03_CONTA_E_PERFIL.md) acrescenta login EVM/Solana por assinatura, descoberta EIP-6963/Wallet Standard, sessão, cadastro inicial e perfil cifrado. O retorno ao Safari/PWA usa pedido temporário no servidor próprio, assinatura no navegador da wallet e confirmação do endereço no navegador original, sem SDK/relay pago ou código copiado. O aceite físico por wallet/ecossistema e do retorno continua pendente. Ainda não há chat ou cofre de produto para dados reais; os laboratórios continuam separados de `dev`.
+A [base do bloco 02](docs/BLOCO_02_BASE_WEB.md) oferece interface responsiva/navegação, manifesto PWA, cache exclusivo da interface pública, atualização explícita, servidor local, PostgreSQL isolado e módulo de objetos opacos. Usa TypeScript, Node 24, módulos nativos do navegador e esbuild. O [bloco 03](docs/BLOCO_03_CONTA_E_PERFIL.md) acrescenta login EVM/Solana por assinatura, descoberta EIP-6963/Wallet Standard, sessão, cadastro inicial e perfil cifrado. O retorno ao Safari/PWA usa pedido temporário no servidor próprio, assinatura no navegador da wallet e confirmação do endereço no navegador original, sem SDK/relay pago ou código copiado. O bloco 03 foi aceito pelo proprietário em 02/10/2026 nos fluxos registrados no documento; o aceite não anuncia suporte a combinações não testadas. Ainda não há chat ou cofre de produto para dados reais; os laboratórios continuam separados de `dev`.
 
 ## Preparação local
 
@@ -42,6 +46,8 @@ Para iPhone na mesma rede privada do Mac, o perfil opcional `npm run probe:mobil
 - [Seleção e dependências do bloco 01](docs/DEPENDENCIAS_E_SELECAO_BLOCO_01.md): versões, licenças, advisories e condições da integração.
 - [Base web do bloco 02](docs/BLOCO_02_BASE_WEB.md): execução, políticas PWA/backend, verificação e pendências.
 - [Conta e perfil do bloco 03](docs/BLOCO_03_CONTA_E_PERFIL.md): autenticação EVM, limites, perfil cifrado e impedimento mobile.
+- [Dispositivos e recuperação do bloco 04](docs/BLOCO_04_DISPOSITIVOS_E_RECUPERACAO.md): autoridade das chaves, vinculação, revogação, recuperação, perda e validação.
+- [Cofre do bloco 05](docs/BLOCO_05_COFRE.md): versões cifradas, uso efetivo, cópia local, conflitos e roteiro de teste.
 - [Domínio e ambiente de testes](docs/DOMINIO_E_AMBIENTE_TESTE.md): DNS Namecheap, HTTPS, isolamento da VPS e pendências de ativação.
 - [Git e envio à VPS](docs/GIT_E_DEPLOY.md): commits por escopo, sincronização do código por Git e limites da ativação de versões.
 - [Licenças](LICENSES.md): distribuição do frontend e fontes correspondentes.
