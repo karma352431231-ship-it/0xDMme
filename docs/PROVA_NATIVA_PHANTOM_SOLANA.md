@@ -2,6 +2,12 @@
 
 Estado: prova isolada para teste físico, com publicação autorizada em 01/10/2026. Não integra a sessão de conta do 0xDMme. A assinatura pelo provider dentro da Phantom continua disponível no fluxo existente; o retorno EVM permanece sem solução física comprovada.
 
+Após publicação do commit `507c7fb`, o proprietário confirmou em 01/10/2026 que a prova Solana abriu a Phantom e retornou ao navegador nas etapas de conexão e assinatura. Relatou duas idas à wallet e o clique intermediário para solicitar a mensagem, solicitando uma única ida para conectar e assinar. O fluxo implementado chama `connect`, recebe sua sessão/canal no navegador e só então constrói `signMessage`; a primeira autorização não é uma assinatura do desafio de login. Esse resultado comprova o retorno observado nessa prova, não autenticação integrada, retorno EVM, aba original ou fechamento de abas. Ainda não foi escolhido ajuste para o clique intermediário ou retenção de conexão para uso posterior.
+
+Decisão posterior do proprietário em 01/10/2026: rejeitar as duas idas como experiência de login e manter o modelo anterior pelo navegador interno da wallet. Não integrar a prova nativa, automatizar sua segunda etapa ou guardar conexão para futuros logins. Ela permanece experimento isolado, com resultado físico preservado. O retorno automático e por botão do fluxo principal continuam em investigação; não concluir impossibilidade sem evidência da limitação.
+
+Em 02/10/2026, o proprietário encerrou a investigação do retorno no fluxo principal e aprovou somente um aviso após assinatura aceita, orientando fechar a wallet e voltar ao navegador original para confirmar o endereço. Essa decisão substitui a exigência anterior de retorno automático e por botão, sem declarar impossibilidade técnica. A prova nativa e o resultado físico acima permanecem isolados; não serão integrados ao login.
+
 ## Protocolo e limites
 
 `/phantom-probe.html` abre o método nativo `connect` e recebe callback HTTPS cifrado. Após verificar conexão e sessão assinada, oferece uma mensagem de teste pelo método `signMessage`. A assinatura é verificada contra o endereço e a mensagem exatos. Não envia transações, cria conta, libera histórico ou usa relay/SDK comercial. A [documentação da Phantom](https://docs.phantom.com/phantom-deeplinks/deeplinks-ios-and-android) limita esses métodos a Solana; não extrapolar para EVM.

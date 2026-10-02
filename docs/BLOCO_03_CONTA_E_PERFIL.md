@@ -4,6 +4,8 @@ A [prova nativa Phantom/Solana](PROVA_NATIVA_PHANTOM_SOLANA.md) foi autorizada s
 
 ## Estado
 
+Decisão vigente em 02/10/2026: retorno manual após a assinatura, conforme a seção “Retorno manual após assinatura” deste documento. Os registros anteriores de botões e abertura automática descrevem tentativas históricas e foram substituídos por essa decisão.
+
 Autenticação EVM/Solana, cadastro inicial, sessão, nome, perfil cifrado e retorno do navegador interno da wallet implementados. O fluxo aprovado usa conectores próprios e retorno vinculado ao navegador de origem, sem relay/SDK pago. O bloco ainda não está fechado: falta comprovar conexão e retorno nas wallets mobile escolhidas. MetaMask, Phantom, Solflare e Backpack são alvos conhecidos aprovados; suporte depende de capacidades verificadas por ecossistema. Não há chat ou cofre de produto para dados reais.
 
 ## Autenticação e persistência
@@ -161,4 +163,16 @@ Referências técnicas: [Intents Android no Chrome](https://developer.chrome.com
 
 **Ponto importante:** as tentativas preservam a assinatura e a confirmação original; sucesso de `location.assign` informa tentativa, não abertura confirmada. O comportamento externo depende da wallet/SO e exige teste físico.
 
+Em 01/10/2026, o proprietário confirmou retorno físico da prova nativa Solana separada, mas rejeitou as duas idas exigidas por conexão e assinatura nesse protocolo. Manter este fluxo como caminho principal, sem integrar a prova ou persistir conexão nativa para futuros logins. A alternativa de botão de retorno continua desejada e a abertura automática continua em investigação até estabelecer uma limitação concreta. R2 confirmou intent correto e gesto real sem cancelamento pela página; não revelou o roteamento nativo da Phantom. A prova separada não resolve esse botão nem seu retorno EVM.
+
 Validação local do ajuste: lint, tipos, fronteiras, formatação e build passaram, além de 39 testes de cliente/wallet, um teste HTTP e dez testes de integração da conta. Cobrem compatibilidade de pedidos/cookies sem categoria, transporte da categoria até a aprovação, recusa de destinos/categorias arbitrários e campos duplicados, assinatura aceita antes da tentativa única, respostas antigas, ausência de sessão na wallet e confirmação exata no contexto original. A prova sintética no navegador do Codex exibiu os dois links somente após assinatura aceita; no Mac, os destinos seguem HTTPS, portanto essa prova não demonstra abertura de app Android. Fixture encerrada e captura exclusivamente em `.local/`. A renderização dos links foi separada por responsabilidade para respeitar o limite de complexidade existente, sem ampliar exceções. Não foi repetida a matriz manual do bloco 01. A abertura automática, o clique e a retomada da aba original na Phantom real continuam pendentes de aceite físico.
+
+## Retorno manual após assinatura — decisão de 02/10/2026
+
+O proprietário solicitou encerrar as tentativas de retorno externo e retirar os botões. Após `handoff-sign` aceito, a entrada mostra apenas o aviso: “Assinatura confirmada. Feche a Phantom e volte ao navegador onde iniciou o login para confirmar o endereço.” O nome corresponde à wallet selecionada; a regra vale para EVM e Solana. A tela final oculta as instruções de aprovação e o diagnóstico. Antes da aceitação, falhas, pedido ausente e expiração mantêm suas mensagens próprias, sem anunciar assinatura confirmada.
+
+Não há navegação automática, link HTTPS de saída ou alternativa por intent/Chrome nessa tela. Novos pedidos deixam de enviar a categoria de navegador; a validação de pedidos antigos com `returnBrowser` permanece por compatibilidade, sem efeito de navegação. A prova nativa continua isolada. O prazo, a limpeza do pedido local após assinatura, a ausência de sessão autenticada dentro da wallet e a confirmação explícita no navegador original são preservados.
+
+**Ponto importante:** o retorno manual foi escolhido pelo proprietário; não foi estabelecida impossibilidade definitiva de retorno automático na Phantom. A mudança não altera autenticação nem autoriza a publicação sem as verificações previstas em [Git e deploy](GIT_E_DEPLOY.md).
+
+Verificação local da mudança: lint, tipos, fronteiras, formatação e build passaram, junto com os 35 testes dirigidos de ciclo da conta, retorno e wallets. Cobrem aviso somente após aceitação no servidor, ausência de navegação ao concluir ou retomar, ocultação das instruções anteriores e diagnóstico no sucesso, compatibilidade de pedido antigo do Chrome, descarte de respostas antigas, ausência de sessão na wallet e confirmação obrigatória do endereço no navegador original. Não houve nova assinatura física, repetição da matriz do bloco 01 ou publicação desta mudança.

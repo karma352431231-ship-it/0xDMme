@@ -9,11 +9,6 @@ import {
 import type { AccountSession } from '../../shared/account/index.ts';
 import { discoverWallets } from '../wallet/index.ts';
 import type { WalletConnection, WalletName } from '../wallet/index.ts';
-import {
-  attemptBrowserReturn,
-  browserReturnUrl,
-  browserReturnIntent,
-} from './browser-return.ts';
 import { createApprovalDiagnostics } from './approval-diagnostics.ts';
 import type { ApprovalStage } from './approval-diagnostics.ts';
 import { createPendingApproval } from './pending-approval.ts';
@@ -59,8 +54,6 @@ const template = `<article class="card account-card"><span class="eyebrow">CONTA
 <p class="detail">No celular, selecionar o ecossistema tenta abrir a wallet para assinar. Depois volte a este navegador para confirmar o endereço. EVM e Solana são contas separadas.</p></section>
 <p data-wallet-purpose hidden>Assine apenas se você abriu este pedido no seu navegador. Ele conectará esse navegador à sua conta; recuse links recebidos de outras pessoas.</p>
 <div data-wallet-return hidden><a data-wallet-open referrerpolicy="no-referrer">Abrir wallet</a><p data-wallet-candidate></p><button data-wallet-confirm type="button" hidden>Confirmar este endereço neste navegador</button><button data-wallet-cancel type="button">Cancelar pedido</button></div>
-<a class="primary" data-wallet-back hidden rel="noreferrer">Voltar ao navegador</a>
-<a data-wallet-back-alternative hidden rel="noreferrer">Tentar abrir o Chrome de outra forma</a>
 <p class="detail" data-wallet-manual hidden>Para voltar ao navegador original, use a tela de apps recentes do celular. O pedido só terá assinatura confirmada quando esta página informar isso.</p>
 <p data-account-status role="status">Verificando sessão…</p>
 <details data-wallet-diagnostics hidden open><summary>Diagnóstico do login</summary><p class="detail" data-wallet-diagnostic></p><p class="detail">Se falhar, envie esta linha. Ela não contém ticket, endereço ou assinatura.</p></details>
@@ -351,36 +344,14 @@ export function startAccount(options: {
   }
   function renderWalletPurpose(): void {
     const purpose = node('[data-wallet-purpose]');
-    if (purpose) purpose.hidden = !incoming;
-    renderBrowserReturnLinks();
+    if (purpose) purpose.hidden = !incoming || incomingSigned;
     const manual = node('[data-wallet-manual]');
-    if (manual) manual.hidden = !approvalOnly;
-  }
-  function renderBrowserReturnLinks(): void {
-    const back = node<HTMLAnchorElement>('[data-wallet-back]');
-    if (back) {
-      back.hidden = !approvalOnly || !incomingSigned;
-      back.href = browserReturnUrl(incoming?.returnBrowser);
-      back.textContent =
-        incoming?.returnBrowser === 'chrome'
-          ? 'Voltar ao Chrome'
-          : 'Voltar ao navegador';
-    }
-    const alternative = node<HTMLAnchorElement>(
-      '[data-wallet-back-alternative]',
-    );
-    if (alternative) {
-      alternative.hidden =
-        !approvalOnly ||
-        !incomingSigned ||
-        incoming?.returnBrowser !== 'chrome';
-      alternative.href = browserReturnIntent('chrome');
-    }
+    if (manual) manual.hidden = !approvalOnly || incomingSigned;
   }
 
   function renderDiagnostics(): void {
     const panel = node('[data-wallet-diagnostics]');
-    if (panel) panel.hidden = !approvalOnly;
+    if (panel) panel.hidden = !approvalOnly || incomingSigned;
     const detail = node('[data-wallet-diagnostic]');
     if (detail)
       detail.textContent = diagnostics.text(
@@ -434,7 +405,10 @@ export function startAccount(options: {
     const title = node('[data-account-title]');
     if (title) title.textContent = 'Confirme o login no seu navegador';
     const intro = node('[data-account-intro]');
-    if (intro) intro.textContent = approvalDescription();
+    if (intro) {
+      intro.hidden = incomingSigned;
+      intro.textContent = approvalDescription();
+    }
     const approve = node<HTMLButtonElement>('[data-wallet-approve]');
     if (!approve) return;
     approve.hidden = !incoming || incomingSigned;
@@ -772,14 +746,9 @@ export function startAccount(options: {
       checkEpoch(proof.currentEpoch);
       incomingSigned = true;
       approvalStep('assinatura-confirmada');
-      status =
-        'Assinatura confirmada. Tentaremos abrir seu navegador. Se continuar aqui, toque no botão de retorno e confirme o endereço na aba que iniciou o pedido. Se abrir outra aba ou a abertura for bloqueada, volte manualmente à aba ou PWA original.';
+      status = `Assinatura confirmada. Feche a ${instance.name} e volte ao navegador onde iniciou o login para confirmar o endereço.`;
+      approvalStep('retorno-manual');
       render();
-      approvalStep(
-        attemptBrowserReturn(request.returnBrowser)
-          ? 'retorno-tentado'
-          : 'retorno-manual',
-      );
       return;
     }
     const authenticated = accountSession(

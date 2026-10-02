@@ -109,15 +109,19 @@ function scope(options: {
   });
   const status = { textContent: '' };
   const diagnostic = { textContent: '' };
-  const back = { hidden: false, href: '' };
-  const backAlternative = { hidden: false, href: '' };
+  const intro = { hidden: false, textContent: '' };
+  const manual = { hidden: false };
+  const purpose = { hidden: false };
+  const diagnosticsPanel = { hidden: false };
   const nodes = new Map<string, unknown>([
     ['[data-wallet-approve]', approve],
     ['[data-wallet-picker-toggle]', picker],
     ['[data-account-status]', status],
     ['[data-wallet-diagnostic]', diagnostic],
-    ['[data-wallet-back]', back],
-    ['[data-wallet-back-alternative]', backAlternative],
+    ['[data-account-intro]', intro],
+    ['[data-wallet-manual]', manual],
+    ['[data-wallet-purpose]', purpose],
+    ['[data-wallet-diagnostics]', diagnosticsPanel],
   ]);
   const mounted = {
     innerHTML: '',
@@ -241,8 +245,11 @@ function scope(options: {
     diagnostic,
     approve,
     picker,
-    back,
-    backAlternative,
+    intro,
+    manual,
+    purpose,
+    diagnosticsPanel,
+    view: mounted,
     navigated,
     providerRequests,
     historyWrites,
@@ -316,7 +323,7 @@ await test('resposta autenticada tardia após mudança é revogada sem abrir per
 
 const approvalHash = `#configuracoes?ticket=${'a'.repeat(64)}&wallet=MetaMask&ecosystem=evm`;
 
-await test('entrada de aprovação assina o retorno sem criar sessão independente e só depois tenta voltar ao navegador', async () => {
+await test('entrada de aprovação aceita assinatura sem criar sessão independente e orienta retorno manual', async () => {
   const signed = deferred<unknown>();
   const browser = scope({
     pathname: '/wallet.html',
@@ -328,7 +335,7 @@ await test('entrada de aprovação assina o retorno sem criar sessão independen
   assert.equal(browser.picker.hidden, true);
   assert.equal(browser.approve.hidden, false);
   assert.match(browser.approve.textContent, /MetaMask/u);
-  assert.equal(browser.back.hidden, true);
+  assert.equal(browser.intro.hidden, false);
   assert.match(browser.diagnostic.textContent, /etapa=pedido-lido/u);
   assert.equal(browser.historyWrites.length, 1);
   assert.deepEqual(Object.keys(browser.historyWrites[0] as object), [
@@ -345,13 +352,12 @@ await test('entrada de aprovação assina o retorno sem criar sessão independen
   signed.resolve({ status: 'signed' });
   await tick();
   assert.equal(browser.approve.hidden, true);
-  assert.equal(browser.back.hidden, false);
+  assert.equal(browser.intro.hidden, true);
   assert.match(browser.status.textContent, /Assinatura confirmada/u);
-  assert.deepEqual(browser.navigated, [browser.back.href]);
-  assert.ok(!browser.back.href.includes('a'.repeat(64)));
+  assert.deepEqual(browser.navigated, []);
   assert.deepEqual(browser.states, []);
   assert.equal(browser.storage.size, 0);
-  assert.match(browser.diagnostic.textContent, /etapa=retorno-tentado/u);
+  assert.match(browser.diagnostic.textContent, /etapa=retorno-manual/u);
   assert.doesNotMatch(browser.diagnostic.textContent, /a{64}|0x|https:/u);
   browser.dispose();
 });
@@ -531,7 +537,7 @@ await test('assinatura aceita de pedido anterior não apaga nem confirma um novo
   signed.resolve({ status: 'signed' });
   await tick();
   assert.equal([...browser.storage.values()][0], replacement);
-  assert.equal(browser.back.hidden, true);
+  assert.doesNotMatch(browser.status.textContent, /Assinatura confirmada/u);
   assert.equal(browser.approve.hidden, false);
   assert.deepEqual(browser.navigated, []);
   assert.match(browser.diagnostic.textContent, /etapa=pedido-lido/u);
@@ -556,7 +562,7 @@ await test('aprovação sem ticket ou com ticket inválido não restaura sessão
     assert.deepEqual(browser.navigated, []);
     assert.equal(browser.picker.hidden, true);
     assert.equal(browser.approve.hidden, true);
-    assert.equal(browser.back.hidden, true);
+    assert.doesNotMatch(browser.status.textContent, /Assinatura confirmada/u);
     assert.match(browser.diagnostic.textContent, /provider=nao-avaliado/u);
     browser.dispose();
   }
@@ -604,7 +610,7 @@ await test('falha HTTP do desafio informa somente categoria e etapa, sem assinat
   assert.equal(browser.providerRequests.includes('personal_sign'), false);
   assert.deepEqual(browser.states, []);
   assert.deepEqual(browser.navigated, []);
-  assert.equal(browser.back.hidden, true);
+  assert.doesNotMatch(browser.status.textContent, /Assinatura confirmada/u);
   browser.dispose();
 });
 
@@ -674,7 +680,7 @@ await test('diagnóstico distingue pedido ausente, inválido, recarga após frag
         ? ['/api/account/approval-request']
         : [],
     );
-    assert.equal(browser.back.hidden, true);
+    assert.doesNotMatch(browser.status.textContent, /Assinatura confirmada/u);
     if (options.navigationType === 'reload') {
       assert.match(browser.diagnostic.textContent, /navegacao=reload/u);
       assert.match(
@@ -838,7 +844,7 @@ await test('prazo inválido do cookie bloqueia aprovação; expiração local su
   browser.dispose();
 });
 
-await test('retorno do Chrome só tenta scheme externo após assinatura aceita; links preservam destino sem ticket', async () => {
+await test('assinatura aceita mostra somente aviso de retorno manual, inclusive para pedido antigo do Chrome', async () => {
   const now = Date.now();
   const signed = deferred<unknown>();
   const response = Response.json({
@@ -859,24 +865,30 @@ await test('retorno do Chrome só tenta scheme externo após assinatura aceita; 
   });
   await tick();
   assert.deepEqual(browser.navigated, []);
-  assert.equal(browser.back.hidden, true);
-  assert.equal(browser.backAlternative.hidden, true);
+  assert.doesNotMatch(browser.view.innerHTML, /data-wallet-back/u);
+  assert.equal(browser.intro.hidden, false);
+  assert.equal(browser.manual.hidden, false);
+  assert.equal(browser.purpose.hidden, false);
+  assert.equal(browser.diagnosticsPanel.hidden, false);
   browser.confirmApproval();
   await tick();
   assert.deepEqual(browser.navigated, []);
+  assert.doesNotMatch(browser.status.textContent, /Assinatura confirmada/u);
   signed.resolve({ status: 'signed' });
   await tick();
-  assert.equal(browser.back.hidden, false);
-  assert.equal(browser.backAlternative.hidden, false);
+  assert.equal(browser.intro.hidden, true);
+  assert.equal(browser.manual.hidden, true);
+  assert.equal(browser.purpose.hidden, true);
+  assert.equal(browser.diagnosticsPanel.hidden, true);
+  assert.equal(browser.approve.hidden, true);
   assert.equal(
-    browser.back.href,
-    'googlechrome://navigate?url=https://0xdmme.app/#configuracoes',
+    browser.status.textContent,
+    'Assinatura confirmada. Feche a MetaMask e volte ao navegador onde iniciou o login para confirmar o endereço.',
   );
-  assert.match(browser.backAlternative.href, /package=com.android.chrome;/u);
-  assert.deepEqual(browser.navigated, [browser.back.href]);
+  assert.deepEqual(browser.navigated, []);
   browser.resume();
   await tick();
-  assert.equal(browser.navigated.length, 1);
+  assert.deepEqual(browser.navigated, []);
   assert.equal(browser.requests.includes('/api/account/login'), false);
   assert.deepEqual(browser.states, []);
   browser.dispose();

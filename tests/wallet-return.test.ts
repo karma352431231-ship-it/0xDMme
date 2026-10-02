@@ -180,7 +180,7 @@ await test('seleção abre a wallet uma vez após pedido válido; consulta não 
   const destination = new URL(
     decodeURIComponent(link.pathname.slice('/ul/browse/'.length)),
   );
-  assert.equal(destination.searchParams.get('returnBrowser'), 'chrome');
+  assert.equal(destination.searchParams.has('returnBrowser'), false);
   assert.equal(destination.searchParams.has('userAgent'), false);
   // A failed status response must not cause a second app launch.
   await controller.refresh();

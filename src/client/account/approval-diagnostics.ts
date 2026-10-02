@@ -17,7 +17,6 @@ export type ApprovalStage =
   | 'wallet-reconferida'
   | 'assinatura-enviada'
   | 'assinatura-confirmada'
-  | 'retorno-tentado'
   | 'retorno-manual';
 
 const markerKey = 'xdmmeApprovalDiagnostic';
