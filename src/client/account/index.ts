@@ -40,7 +40,6 @@ const template = `<article class="card account-card"><span class="eyebrow">CONTA
 <div data-wallet-brands><h3>Escolha sua wallet</h3><p class="detail">A detecção indica disponibilidade neste navegador. No Chrome/Safari do celular, escolha o app que você instalou; ele pode não ser detectado aqui.</p>
 <div class="wallet-options"><button type="button" class="wallet-option" data-wallet-brand="MetaMask"><span>MetaMask</span><span class="wallet-detection" data-brand-detection="MetaMask">Não detectada</span></button>
 <button type="button" class="wallet-option" data-wallet-brand="Phantom"><span>Phantom</span><span class="wallet-detection" data-brand-detection="Phantom">Não detectada</span></button>
-<button type="button" class="wallet-option" data-wallet-brand="Solflare"><span>Solflare</span><span class="wallet-detection" data-brand-detection="Solflare">Não detectada</span></button>
 <button type="button" class="wallet-option" data-wallet-brand="Backpack"><span>Backpack</span><span class="wallet-detection" data-brand-detection="Backpack">Não detectada</span></button></div>
 <div data-other-wallets class="wallet-options"></div></div>
 <div data-wallet-networks hidden><button type="button" data-wallet-picker-back>← Trocar wallet</button><h3 data-wallet-network-title></h3><p class="detail">Escolha o ecossistema da conta.</p>
@@ -48,7 +47,6 @@ const template = `<article class="card account-card"><span class="eyebrow">CONTA
 <button type="button" class="wallet-option" data-wallet="MetaMask:solana" data-network-brand="MetaMask"><span>Solana</span><span class="wallet-detection" data-detection="MetaMask:solana">Não detectada</span></button>
 <button type="button" class="wallet-option" data-wallet="Phantom" data-network-brand="Phantom"><span>EVM</span><span class="wallet-detection" data-detection="Phantom">Não detectada</span></button>
 <button type="button" class="wallet-option" data-wallet="Phantom:solana" data-network-brand="Phantom"><span>Solana</span><span class="wallet-detection" data-detection="Phantom:solana">Não detectada</span></button>
-<button type="button" class="wallet-option" data-wallet="Solflare:solana" data-network-brand="Solflare"><span>Solana</span><span class="wallet-detection" data-detection="Solflare:solana">Não detectada</span></button>
 <button type="button" class="wallet-option" data-wallet="Backpack:solana" data-network-brand="Backpack"><span>Solana</span><span class="wallet-detection" data-detection="Backpack:solana">Não detectada</span></button>
 <button type="button" class="wallet-option" data-wallet="Backpack" data-network-brand="Backpack"><span>EVM</span><span class="wallet-detection" data-detection="Backpack">Não detectada</span></button></div>
 <div data-other-wallet-networks class="wallet-options"></div></div>
@@ -176,13 +174,12 @@ export function startAccount(options: {
     if (!other || !networks) return;
     other.replaceChildren();
     networks.replaceChildren();
-    const brands = new Set(['MetaMask', 'Phantom', 'Solflare', 'Backpack']);
+    const brands = new Set(['MetaMask', 'Phantom', 'Backpack']);
     const listedNetworks = new Set([
       'MetaMask:evm',
       'MetaMask:solana',
       'Phantom:evm',
       'Phantom:solana',
-      'Solflare:solana',
       'Backpack:evm',
       'Backpack:solana',
     ]);
@@ -420,7 +417,8 @@ export function startAccount(options: {
   function approvalDescription(): string {
     return incoming
       ? `${incoming.wallet} · ${incoming.ecosystem === 'solana' ? 'Solana' : 'EVM'}. Confirme somente o pedido que você iniciou. A wallet pode pedir conexão e assinatura; nenhuma transação ou acesso ao histórico será autorizado.`
-      : 'Pedido ausente ou perdido. Volte à aba que iniciou o login e crie um novo pedido.';
+      : (diagnostics.rejectionMessage() ??
+          'Pedido ausente ou perdido. Volte à aba que iniciou o login e crie um novo pedido.');
   }
   function confirmApproval(): void {
     if (incoming && !busy) void operation(() => login(approvalWalletId()));
@@ -651,7 +649,7 @@ export function startAccount(options: {
         'Wallet não disponível neste navegador interno. Abra novamente o pedido no navegador original.',
       );
     const [wallet, network] = name.split(':');
-    if (!['MetaMask', 'Phantom', 'Solflare', 'Backpack'].includes(wallet ?? ''))
+    if (!['MetaMask', 'Phantom', 'Backpack'].includes(wallet ?? ''))
       throw new Error('Wallet não disponível.');
     await walletReturn.start(
       wallet as WalletName,

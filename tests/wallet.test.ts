@@ -14,12 +14,7 @@ import {
 await test('links mobile limitam destino à entrada HTTPS própria sem fragmento ou token de sessão', () => {
   const ticket = 'a'.repeat(64);
   const origin = 'https://hash-talk.example';
-  for (const wallet of [
-    'MetaMask',
-    'Phantom',
-    'Solflare',
-    'Backpack',
-  ] as const) {
+  for (const wallet of ['MetaMask', 'Phantom', 'Backpack'] as const) {
     const result = walletBrowserUrl({
       origin,
       wallet,
@@ -189,6 +184,13 @@ await test('descobre outra wallet EIP-6963 e MetaMask Solana anunciada após a p
   assert.ok(sol);
   assert.equal(sol.ecosystem, 'solana');
   assert.equal(sol.name, 'MetaMask');
+  const offSolflare = getWallets().register({ ...standard, name: 'Solflare' });
+  t.after(offSolflare);
+  assert.equal(wallets.get('Solflare:solana'), undefined);
+  assert.equal(
+    wallets.list().some((item) => item.name === 'Solflare'),
+    false,
+  );
   await assert.rejects(sol.identity(false), /Selecione uma conta Solana/u);
   assert.equal((await sol.identity(true)).address, account.address);
   let changes = 0;

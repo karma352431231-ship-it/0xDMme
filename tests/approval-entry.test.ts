@@ -117,6 +117,18 @@ await test('entrada valida campos, limpa URL, limita cookie, preserva capacidade
   };
   const query = `ticket=${'a'.repeat(64)}&wallet=Phantom&ecosystem=solana`;
   const first = await get(`/wallet-entry?${query}`, navigation);
+  for (const wallet of ['MetaMask', 'Backpack']) {
+    const validSolana = await get(
+      `/wallet-entry?${query.replace('Phantom', wallet)}`,
+      navigation,
+    );
+    assert.equal(validSolana.status, 303);
+    assert.equal(validSolana.headers.location, '/wallet.html#configuracoes');
+    assert.match(
+      responseCookie(validSolana.headers),
+      new RegExp(`\\.${wallet}\\.solana;`, 'u'),
+    );
+  }
   assert.equal(first.status, 303);
   assert.equal(first.body, '');
   assert.equal(first.headers.location, '/wallet.html#configuracoes');
@@ -159,6 +171,7 @@ await test('entrada valida campos, limpa URL, limita cookie, preserva capacidade
     'ticket=bad&wallet=Phantom&ecosystem=solana',
     query.replace('solana', 'evm'),
     query.replace('Phantom', 'Other'),
+    query.replace('Phantom', 'Solflare'),
     'x'.repeat(513),
   ]) {
     const rejected = await get(`/wallet-entry?${bad}`, {
@@ -167,7 +180,7 @@ await test('entrada valida campos, limpa URL, limita cookie, preserva capacidade
     });
     assert.equal(
       rejected.headers.location,
-      '/wallet.html#configuracoes?invalid=1',
+      `/wallet.html#configuracoes?invalid=1&reason=${bad === query.replace('solana', 'evm') ? 'unavailable' : 'parameters'}`,
     );
     assert.match(responseCookie(rejected.headers), /Max-Age=0/u);
     assert.equal(rejected.body, '');
@@ -209,7 +222,7 @@ await test('entrada valida campos, limpa URL, limita cookie, preserva capacidade
     const invalid = await get(`/wallet-entry?${query}${suffix}`, navigation);
     assert.equal(
       invalid.headers.location,
-      '/wallet.html#configuracoes?invalid=1',
+      '/wallet.html#configuracoes?invalid=1&reason=parameters',
     );
   }
 });

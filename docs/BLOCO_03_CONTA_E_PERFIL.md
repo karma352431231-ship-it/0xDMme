@@ -6,7 +6,7 @@ A [prova nativa Phantom/Solana](PROVA_NATIVA_PHANTOM_SOLANA.md) foi autorizada s
 
 Decisão vigente em 02/10/2026: retorno manual após a assinatura, conforme a seção “Retorno manual após assinatura” deste documento. Os registros anteriores de botões e abertura automática descrevem tentativas históricas e foram substituídos por essa decisão.
 
-Autenticação EVM/Solana, cadastro inicial, sessão, nome, perfil cifrado e retorno do navegador interno da wallet implementados. O fluxo aprovado usa conectores próprios e retorno vinculado ao navegador de origem, sem relay/SDK pago. O bloco ainda não está fechado: falta comprovar conexão e retorno nas wallets mobile escolhidas. MetaMask, Phantom, Solflare e Backpack são alvos conhecidos aprovados; suporte depende de capacidades verificadas por ecossistema. Não há chat ou cofre de produto para dados reais.
+Autenticação EVM/Solana, cadastro inicial, sessão, nome, perfil cifrado e retorno do navegador interno da wallet implementados. O fluxo aprovado usa conectores próprios e retorno vinculado ao navegador de origem, sem relay/SDK pago. O bloco ainda não está fechado: falta comprovar conexão e retorno nas wallets mobile escolhidas. MetaMask, Phantom e Backpack são alvos conhecidos atuais; Solflare foi retirada pelo proprietário em 02/10/2026. Suporte depende de capacidades verificadas por ecossistema. Não há chat ou cofre de produto para dados reais.
 
 ## Autenticação e persistência
 
@@ -36,6 +36,12 @@ No máximo quatro operações HTTP de conta simultâneas; corpo até 4.088 KB ap
 Até 1.024 desafios e 256 pedidos temporários de retorno persistidos, oito sessões e 32 cadastros iniciais por conta; limpeza de expirados em lotes de 64 durante admissão. Não são expirações de mensagens aceitas. Tabelas de desafios/sessões usam autovacuum/analyze com fatores 0,05 e thresholds 20, a recalibrar por medidas reais. Sem logs de assinatura, mensagem SIWE, IP ou conteúdo privado.
 
 ## Conexão mobile e retorno aprovado
+
+Revisão posterior ao deploy `0a1914b`, em 02/10/2026: o proprietário confirmou MetaMask/EVM funcionando. A MetaMask/Solana abre a página, mas exibe pedido ausente/inválido, com provider ainda não avaliado no D1; o relato anterior de tela branca antes da página foi corrigido. Esse diagnóstico ainda não distingue fragmento inválido de rejeição na entrada HTTPS por parâmetros, expiração ou cancelamento. Não atribuir a falha a `signMessage` nem alterar o EVM confirmado sem evidência.
+
+O proprietário também relatou Backpack abrindo o app sem navegador/pedido em EVM/Solana. A URL implementada corresponde ao [formato oficial `browse`](https://docs.backpack.app/deeplinks/other-methods/browse); isso não comprova sua execução no Android nem estabelece limitação definitiva da wallet. Solflare foi removida do seletor, validação de pedidos, abertura mobile e conectores específicos, inclusive da descoberta genérica quando anunciada com esse nome. As referências abaixo a Solflare são históricas. Nenhuma assinatura ou nova configuração do celular foi solicitada como parte dessa remoção.
+
+A rejeição da entrada HTTPS agora transporta apenas uma categoria fixa no fragmento de erro: `parameters` para campos/estrutura inválidos e `unavailable` para pedido indisponível ou ecossistema incompatível. O D1 distingue `entrada-rejeitada-parametros`, `entrada-rejeitada-pedido` e rejeição antiga sem categoria, em vez de chamar todo erro de entrada de “fragmento-de-pedido”. A descrição informa que a entrada recusou o pedido; continua sem restaurar pedido anterior, avaliar provider ou assinar. Não há logging novo, dados privados, alteração de validade, cookie ou autenticação. Isso melhora a evidência para localizar a falha, sem declarar MetaMask/Solana corrigida.
 
 Atualização MetaMask em 02/10/2026: a matriz atual oferece EVM e Solana para MetaMask, mantendo detecção por capacidade neste navegador. As descrições históricas abaixo de MetaMask somente EVM referem-se ao seletor anterior. O proprietário declarou concluído o fluxo Phantom e iniciou o aceite MetaMask; isso não valida outras wallets.
 

@@ -645,6 +645,21 @@ await test('diagnóstico distingue pedido ausente, inválido, recarga após frag
       input: 'fragmento-de-pedido',
     },
     {
+      options: { hash: '#configuracoes?invalid=1&reason=parameters' },
+      stage: 'pedido-invalido',
+      input: 'entrada-rejeitada-parametros',
+    },
+    {
+      options: { hash: '#configuracoes?invalid=1&reason=unavailable' },
+      stage: 'pedido-invalido',
+      input: 'entrada-rejeitada-pedido',
+    },
+    {
+      options: { hash: '#configuracoes?invalid=1&reason=PRIVATE' },
+      stage: 'pedido-invalido',
+      input: 'entrada-rejeitada',
+    },
+    {
       options: {
         hash: '#configuracoes',
         navigationType: 'reload',
@@ -670,6 +685,14 @@ await test('diagnóstico distingue pedido ausente, inválido, recarga após frag
       new RegExp(`etapa=${stage}`, 'u'),
     );
     assert.ok(browser.diagnostic.textContent.includes(`entrada=${input}`));
+    if (input.startsWith('entrada-rejeitada')) {
+      assert.doesNotMatch(
+        browser.intro.textContent,
+        /Pedido ausente ou perdido/u,
+      );
+      assert.equal(browser.approve.hidden, true);
+      assert.deepEqual(browser.providerRequests, []);
+    }
     assert.doesNotMatch(
       browser.diagnostic.textContent,
       /PRIVATE|ticket=|0x|https:|a{64}/u,

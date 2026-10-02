@@ -60,6 +60,18 @@ function navigationType(): string {
 function inputKind(): string {
   if (!location.hash) return 'sem-fragmento';
   if (location.hash === '#configuracoes') return 'rota-sem-pedido';
+  if (location.hash.startsWith('#configuracoes?')) {
+    const params = new URLSearchParams(
+      location.hash.slice('#configuracoes?'.length),
+    );
+    if (params.get('invalid') === '1') {
+      if (params.get('reason') === 'parameters')
+        return 'entrada-rejeitada-parametros';
+      if (params.get('reason') === 'unavailable')
+        return 'entrada-rejeitada-pedido';
+      return 'entrada-rejeitada';
+    }
+  }
   return location.hash.startsWith('#configuracoes?')
     ? 'fragmento-de-pedido'
     : 'outro-fragmento';
@@ -73,6 +85,15 @@ export function createApprovalDiagnostics() {
   let stage: ApprovalStage = 'entrada';
   let failure = 'nao';
   return {
+    rejectionMessage(): string | null {
+      if (input === 'entrada-rejeitada-parametros')
+        return 'O link chegou com parâmetros inválidos ou incompletos. Volte ao navegador original e crie um novo pedido.';
+      if (input === 'entrada-rejeitada-pedido')
+        return 'O pedido foi recusado na entrada: pode ter expirado, sido cancelado ou já assinado, ou não corresponder ao ecossistema. Volte ao navegador original e crie um novo pedido.';
+      if (input === 'entrada-rejeitada')
+        return 'O pedido foi recusado na entrada. Volte ao navegador original e crie um novo pedido.';
+      return null;
+    },
     beginFragment() {
       source = 'novo-fragmento';
       input = inputKind();

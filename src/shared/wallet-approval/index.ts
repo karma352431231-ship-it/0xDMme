@@ -2,7 +2,7 @@ import { object, keys } from '../account/index.ts';
 import { ecosystem } from '../wallet-identity/index.ts';
 import type { Ecosystem } from '../wallet-identity/index.ts';
 
-export type WalletName = 'MetaMask' | 'Phantom' | 'Solflare' | 'Backpack';
+export type WalletName = 'MetaMask' | 'Phantom' | 'Backpack';
 export type ReturnBrowser = 'chrome' | 'default';
 export function returnBrowser(value: unknown): ReturnBrowser {
   if (value === undefined || value === 'default') return 'default';
@@ -29,7 +29,7 @@ export function walletApprovalRequest(value: unknown): WalletApprovalRequest {
     typeof ticket !== 'string' ||
     !/^[a-f0-9]{64}$/u.test(ticket) ||
     typeof wallet !== 'string' ||
-    !['MetaMask', 'Phantom', 'Solflare', 'Backpack'].includes(wallet)
+    !['MetaMask', 'Phantom', 'Backpack'].includes(wallet)
   )
     throw new Error('Pedido de wallet inválido.');
   return {

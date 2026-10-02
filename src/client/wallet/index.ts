@@ -94,7 +94,9 @@ function announcement(value: unknown): WalletConnection | null {
   if (!detail) return null;
   const info = announcementInfo(detail['info']);
   const instance = evmProvider(detail['provider']);
-  return info && instance ? evmConnection(info.id, info.name, instance) : null;
+  return info && instance && !/^Solflare$/iu.test(info.name)
+    ? evmConnection(info.id, info.name, instance)
+    : null;
 }
 export function discoverWallets() {
   const found = new Map<string, WalletConnection>();
@@ -118,7 +120,7 @@ export function discoverWallets() {
   function connections(): WalletConnection[] {
     const results = [...found.values()];
     for (const wallet of registry.get().slice(0, 32)) {
-      if (!supportsSolana(wallet)) continue;
+      if (/^Solflare$/iu.test(wallet.name) || !supportsSolana(wallet)) continue;
       results.push({
         id: `standard:${wallet.name}`,
         name: wallet.name.slice(0, 80),
@@ -183,12 +185,10 @@ function legacyEvm(name: string): WalletConnection | undefined {
 function legacySolana(name: string): WalletConnection | undefined {
   const globals = window as Window & {
     phantom?: { solana?: unknown };
-    solflare?: unknown;
     backpack?: { solana?: unknown };
   };
   const providers: Record<string, unknown> = {
     Phantom: globals.phantom?.solana,
-    Solflare: globals.solflare,
     Backpack: globals.backpack?.solana ?? globals.backpack,
   };
   const instance = solanaProvider(providers[name]);
@@ -234,7 +234,6 @@ export function walletBrowserUrl(input: {
     return `https://link.metamask.io/dapp/${target.slice('https://'.length)}`;
   const base = {
     Phantom: 'https://phantom.app/ul/browse/',
-    Solflare: 'https://solflare.com/ul/v1/browse/',
     Backpack: 'https://backpack.app/ul/v1/browse/',
   }[input.wallet];
   return `${base}${encodeURIComponent(target)}?ref=${encodeURIComponent(origin.origin)}`;

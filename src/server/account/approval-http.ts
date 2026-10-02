@@ -75,8 +75,12 @@ export function createApprovalEntry(
       clear(response);
       if (!(error instanceof AccountError)) throw error;
       // An invalid/replayed entry must not restore a previous stored request.
+      // Fixed categories only: do not expose tickets, addresses or raw errors.
+      const reason = error.status === 400 ? 'parameters' : 'unavailable';
       response
-        .writeHead(303, { Location: '/wallet.html#configuracoes?invalid=1' })
+        .writeHead(303, {
+          Location: `/wallet.html#configuracoes?invalid=1&reason=${reason}`,
+        })
         .end();
     }
   }
