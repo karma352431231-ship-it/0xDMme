@@ -92,6 +92,19 @@ terceiros antes de permitir a publicação. O pacote transferido contém somente
 com manifesto/hash que vincula fontes e build. Dependências de runtime existentes
 são reutilizadas somente quando lockfile/contrato permanecem iguais.
 
+Exceção específica aprovada em 01/10/2026 para publicar a prova isolada
+Phantom/Solana: permitir a transição entre os lockfiles SHA-256
+`4db68588987a5b5a1a3afedd09a6096a2c5ab51c37ac9f334af2cc06b8125092` e
+`fac024d2596d80a4450f9ad46cc212e6b51e536f02062f630fd8c8c1adcc0be5`,
+inclusive no sentido inverso, desde que suas entradas de execução sejam iguais.
+A revisão encontrou somente `libsodium-wrappers` e `libsodium` 0.8.4 novos,
+marcados para desenvolvimento; a biblioteca é incorporada no script público da
+prova, com licença ISC e fontes correspondentes. Não executar npm na VPS.
+Qualquer outro hash diferente continua recusado; Node, módulo de banco,
+contrato de runtime, preservação e limites mantêm as verificações anteriores.
+A autorização cobre publicar a prova e seu teste físico, sem substituir login
+ou considerar o retorno EVM resolvido.
+
 Outros modos:
 
 ```sh
@@ -122,8 +135,9 @@ livres. Há lock contra ativação simultânea. Antes/depois, comparar configura
 processos e respostas da baseline, além de configurações próprias e processo do
 PostgreSQL próprio. Não atualizar Nginx, certificados, firewall ou outros serviços.
 
-Mudanças no módulo de banco (incluindo migrações), lockfile, contrato de runtime
-ou Node são recusadas: precisam de revisão específica antes de ampliar o fluxo.
+Mudanças no módulo de banco (incluindo migrações), contrato de runtime ou Node
+são recusadas. Mudanças de lockfile são recusadas, exceto pelo par de hashes
+revisados acima; precisam de revisão específica antes de ampliar o fluxo.
 O Node já instalado pode estar numa versão superior à `.nvmrc`, desde que atenda
 ao intervalo aprovado em `engines.node` sem mudança desse contrato. Não atualizar
 o Node do sistema para igualar a versão do ambiente de desenvolvimento.

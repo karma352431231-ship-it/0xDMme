@@ -115,6 +115,68 @@ class DeploymentTests(unittest.TestCase):
                 remote.compatibility(new, old)
             self.assertEqual(command.call_args.args[0], ['/usr/bin/node', '--version'])
 
+    def reviewed_probe_locks(self):
+        # Reconstruct the previous lock from the current reviewed npm lock. The
+        # exact digest asserts no other change is hidden by this reconstruction;
+        # CI's shallow checkout does not need historical Git objects or fixtures.
+        current = (deploy.ROOT / 'package-lock.json').read_bytes()
+        previous = json.loads(current)
+        previous['packages']['']['devDependencies'].pop('libsodium-wrappers')
+        for name in ['libsodium', 'libsodium-wrappers']:
+            previous['packages'].pop('node_modules/' + name)
+        return ((json.dumps(previous, indent=2, ensure_ascii=False) + '\n').encode(), current)
+
+    def test_reviewed_probe_lock_transition_and_reverse_reuse_runtime(self):
+        before, after = self.reviewed_probe_locks()
+        self.assertEqual({remote.hashlib.sha256(blob).hexdigest() for blob in [before, after]},
+                         set(remote.PHANTOM_PROBE_LOCKFILES))
+        for old_bytes, new_bytes in [(before, after), (after, before)]:
+            with tempfile.TemporaryDirectory() as directory:
+                old, new = Path(directory) / 'old', Path(directory) / 'new'
+                self.runtime(old)
+                self.runtime(new)
+                (old / 'package-lock.json').write_bytes(old_bytes)
+                (new / 'package-lock.json').write_bytes(new_bytes)
+                with patch.object(remote, 'run', return_value=b'v24.14.0') as command:
+                    remote.compatibility(new, old)
+                command.assert_called_once_with(['/usr/bin/node', '--version'])
+
+    def test_probe_exception_rejects_unreviewed_dev_and_runtime_locks(self):
+        before, after = self.reviewed_probe_locks()
+        for entry in ['node_modules/libsodium', 'node_modules/pg']:
+            changed = json.loads(after)
+            changed['packages'][entry]['version'] = 'unreviewed'
+            with tempfile.TemporaryDirectory() as directory:
+                old, new = Path(directory) / 'old', Path(directory) / 'new'
+                self.runtime(old)
+                self.runtime(new)
+                (old / 'package-lock.json').write_bytes(before)
+                (new / 'package-lock.json').write_text(json.dumps(changed))
+                with patch.object(remote, 'run') as command:
+                    with self.assertRaises(RuntimeError):
+                        remote.compatibility(new, old)
+                command.assert_not_called()
+
+    def test_probe_exception_keeps_database_node_and_runtime_contract_guards(self):
+        before, after = self.reviewed_probe_locks()
+        for changed in ['src/server/database/index.ts', '.nvmrc', 'package.json']:
+            with tempfile.TemporaryDirectory() as directory:
+                old, new = Path(directory) / 'old', Path(directory) / 'new'
+                self.runtime(old)
+                self.runtime(new)
+                (old / 'package-lock.json').write_bytes(before)
+                (new / 'package-lock.json').write_bytes(after)
+                if changed == 'package.json':
+                    package = json.loads((new / changed).read_text())
+                    package['dependencies']['pg'] = 'unreviewed'
+                    (new / changed).write_text(json.dumps(package))
+                else:
+                    (new / changed).write_text('unreviewed')
+                with patch.object(remote, 'run') as command:
+                    with self.assertRaises(RuntimeError):
+                        remote.compatibility(new, old)
+                command.assert_not_called()
+
     def test_installed_node_uses_approved_range_and_never_updates_system(self):
         with tempfile.TemporaryDirectory() as directory:
             old, new = Path(directory) / 'old', Path(directory) / 'new'

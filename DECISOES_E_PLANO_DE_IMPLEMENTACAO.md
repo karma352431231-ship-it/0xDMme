@@ -368,6 +368,10 @@ Verificação da base: lint, tipos, fronteiras, formatação e 13 testes passara
 
 **Exceção CSP da prova aprovada em 01/10/2026:** o diagnóstico local reproduziu rejeição de `WebAssembly.instantiate` pelo `script-src 'self'` ao iniciar `libsodium@0.8.4`. O proprietário autorizou adicionar somente `'wasm-unsafe-eval'` ao documento `/phantom-probe.html`, inclusive seu callback com query limitada. Não habilitar `'unsafe-eval'`, código inline, CDN ou origens externas. A interface normal, entrada de assinatura EVM, APIs e respostas de erro conservam a política anterior. Essa autorização permite implementação e validação local da prova; não antecipa publicação, aceite físico ou revisão de fontes correspondentes/dependências do deploy.
 
+**Evidência adicional do retorno em 01/10/2026:** o diagnóstico R2 confirmou link intent correto, visível e clicado com ativação real, sem cancelamento pelo código da página. O erro de recurso local corresponde ao scheme `googlechrome://`; o motivo interno da falha do intent continua desconhecido. Investigar por comparação de clique no Chrome e evidência da wallet, sem novas tentativas publicadas às cegas. Isso não aprova substituir o fluxo EVM, ativar dependências novas ou considerar o retorno concluído.
+
+**Publicação da prova nativa aprovada em 01/10/2026:** após revisão das licenças/fontes ISC, build e CI da prova isolada, o proprietário autorizou sua publicação com `libsodium-wrappers`/`libsodium` 0.8.4 e exceção de deploy somente entre os hashes exatos dos dois lockfiles revisados, incluindo a transição inversa. Conferir novamente igualdade das entradas de execução; preservar os bloqueios de banco, Node, contrato de runtime e infraestrutura, comparações de preservação e rollback. Sem instalação npm na VPS, mudanças compartilhadas ou reinício além de `0xdmme-test.service`. A publicação permite teste físico da prova Solana; não substitui autenticação, aprova dados reais ou resolve retorno Phantom/EVM. Hashes e condições ficam em [Git e deploy](docs/GIT_E_DEPLOY.md).
+
 ### Bloco 04 — Dispositivos, chaves e recuperação
 
 **Depende de:** 01 e 03.

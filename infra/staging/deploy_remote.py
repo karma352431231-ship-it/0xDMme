@@ -19,6 +19,12 @@ UNIT = '0xdmme-test.service'
 ORIGIN = 'https://0xdmme.app'
 MAX_ARCHIVE = 16 * 1024 * 1024
 MAX_RELEASE = 128 * 1024 * 1024
+# Owner-reviewed dev-only NaCl transition, including rollback. Never a general
+# allowance for dev dependencies; every other changed lock remains blocked.
+PHANTOM_PROBE_LOCKFILES = frozenset([
+    '4db68588987a5b5a1a3afedd09a6096a2c5ab51c37ac9f334af2cc06b8125092',
+    'fac024d2596d80a4450f9ad46cc212e6b51e536f02062f630fd8c8c1adcc0be5',
+])
 
 
 def run(args, timeout=30):
@@ -136,6 +142,17 @@ def wait_ready(files=None):
             time.sleep(1)
 
 
+def reviewed_lockfile_change(before, after):
+    if frozenset([digest(before), digest(after)]) != PHANTOM_PROBE_LOCKFILES:
+        return False
+    # Recheck the runtime closure even for the exact reviewed hash pair.
+    def runtime_entries(path):
+        packages = json.loads(path.read_text())['packages']
+        return {name: value for name, value in packages.items()
+                if name and value.get('dev') is not True}
+    return runtime_entries(before) == runtime_entries(after)
+
+
 def compatibility(candidate, live):
     # Startup calls migrate(); guard both SQL and the code that executes it.
     for name in ['src/server/database', 'package-lock.json', '.nvmrc']:
@@ -148,8 +165,11 @@ def compatibility(candidate, live):
             new = {str(p.relative_to(after)): digest(p) for p in after.rglob('*') if p.is_file()}
             if old != new:
                 raise RuntimeError('Database code/migrations require separate review.')
-        elif not before.is_file() or not after.is_file() or digest(before) != digest(after):
+        elif not before.is_file() or not after.is_file():
             raise RuntimeError('Runtime dependency/Node change requires separate review.')
+        elif digest(before) != digest(after):
+            if name != 'package-lock.json' or not reviewed_lockfile_change(before, after):
+                raise RuntimeError('Runtime dependency/Node change requires separate review.')
     previous = json.loads((live / 'package.json').read_text())
     incoming = json.loads((candidate / 'package.json').read_text())
     for key in ['dependencies', 'overrides', 'engines', 'type']:
