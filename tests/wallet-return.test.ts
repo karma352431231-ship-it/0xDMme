@@ -189,7 +189,7 @@ await test('seleção abre a wallet uma vez após pedido válido; consulta não 
   controller.close();
 });
 
-await test('pedido Backpack usa entrada HTTPS no Android e entrega fragmento limpo ao cliente iOS', async () => {
+await test('pedido Backpack mantém Android e solicita documento de aprovação direto no iOS', async () => {
   for (const agent of ['Android Chrome/141.0', 'iPhone']) {
     for (const ecosystem of ['evm', 'solana'] as const) {
       const { controller, opened } = launchController(
@@ -211,15 +211,15 @@ await test('pedido Backpack usa entrada HTTPS no Android e entrega fragmento lim
         assert.equal(destination.hash, '');
       } else {
         assert.equal(link.searchParams.get('ref'), 'https://0xdmme.app');
-        assert.equal(destination.pathname, '/wallet.html');
-        assert.equal(destination.search, '');
-        const incoming = scope(destination.hash, agent);
-        const request = incoming.api.incomingWalletRequest();
-        assert.equal(request?.ticket, handoffResponse().ticket);
-        assert.equal(request?.wallet, 'Backpack');
-        assert.equal(request?.ecosystem, ecosystem);
-        assert.deepEqual(incoming.replaced, ['#configuracoes']);
-        assert.equal(incoming.navigated.length, 0);
+        assert.equal(destination.pathname, '/wallet-entry');
+        assert.equal(destination.hash, '');
+        assert.equal(destination.searchParams.get('view'), 'page');
+        assert.equal(
+          destination.searchParams.get('ticket'),
+          handoffResponse().ticket,
+        );
+        assert.equal(destination.searchParams.get('wallet'), 'Backpack');
+        assert.equal(destination.searchParams.get('ecosystem'), ecosystem);
       }
       assert.equal(controller.state()?.address, null);
       controller.close();

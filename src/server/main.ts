@@ -10,6 +10,8 @@ let database: Database | undefined;
 try {
   const config = readWebConfiguration(process.env);
   const assets = await loadWebAssets();
+  const approvalDocument = assets.get('/wallet.html')?.content;
+  if (!approvalDocument) throw new Error('Documento de aprovação ausente.');
   database = new Database(config.databaseUrl);
   const objects = new ObjectStore(config.objectDirectory);
   await database.migrate();
@@ -27,6 +29,7 @@ try {
         capacity: config.accountCapacityBytes,
       }),
       origin: config.origin,
+      approvalDocument,
       ...(config.walletConnectProjectId
         ? { walletConnectProjectId: config.walletConnectProjectId }
         : {}),

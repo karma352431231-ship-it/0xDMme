@@ -35,12 +35,25 @@ const service = new AccountService({
   capacity: config.accountCapacityBytes,
 });
 const ownAddresses: string[] = [];
+function freshHttpAccount() {
+  return createAccountHandler({
+    origin,
+    service,
+    approvalDocument: new TextEncoder().encode(
+      '<html><head><title>Aprovar</title></head><body>Documento próprio</body></html>',
+    ),
+  });
+}
+let httpAccount = freshHttpAccount();
 const host = createWebServer({
   origin,
   assets: new Map(),
   database,
   objects: { healthy: () => Promise.resolve(true) },
-  account: createAccountHandler({ origin, service }),
+  account: {
+    handle: (request, response) => httpAccount.handle(request, response),
+    close: () => httpAccount.close(),
+  },
 });
 
 function wallet() {
@@ -658,6 +671,20 @@ await test('Autenticação e perfil persistentes', async (t) => {
       const remaining =
         Date.parse(pending.expiresAt) - Date.parse(pending.serverTime);
       assert.ok(remaining > 0 && remaining <= 300_000);
+      const inlinePath = `/wallet-entry?${new URLSearchParams({
+        ticket: pending.ticket,
+        wallet: 'Backpack',
+        ecosystem: 'evm',
+        view: 'page',
+      })}`;
+      const inline = await navigateEntry(inlinePath);
+      assert.equal(inline.status, 200);
+      assert.equal(inline.headers.get('location'), null);
+      assert.equal(inline.headers.get('set-cookie'), null);
+      assert.match(
+        await inline.text(),
+        /type="application\/json" id="xdmme-wallet-approval-request"/u,
+      );
       const entry = await navigateEntry(
         `/wallet-entry?${new URLSearchParams({
           ticket: pending.ticket,
@@ -732,6 +759,13 @@ await test('Autenticação e perfil persistentes', async (t) => {
         headers: { Cookie: entryCookie },
       });
       assert.equal(replay.status, 401);
+      const usedDocument = await navigateEntry(inlinePath);
+      assert.equal(usedDocument.status, 303);
+      assert.equal(
+        usedDocument.headers.get('location'),
+        '/wallet.html#configuracoes?invalid=1&reason=unavailable',
+      );
+      assert.equal(await usedDocument.text(), '');
       assert.equal(
         signed.headers
           .getSetCookie()
@@ -757,6 +791,9 @@ await test('Autenticação e perfil persistentes', async (t) => {
   await t.test(
     'HTTP exige origem e CSRF, usa cookies HttpOnly, rejeita campos secretos e encerra sessão',
     async () => {
+      // This independent HTTP scenario gets its own unchanged rate limit.
+      httpAccount.close();
+      httpAccount = freshHttpAccount();
       const signer = wallet();
       const headers = { Origin: origin, 'Content-Type': 'application/json' };
       const input = {

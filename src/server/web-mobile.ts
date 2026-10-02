@@ -14,15 +14,19 @@ try {
   if (!new URL(config.databaseUrl).pathname.startsWith('/hash_talk_test'))
     throw new Error('Mobile temporário exige banco de teste exclusivo.');
   const mobile = await readMobileWebConfiguration();
+  const assets = await loadWebAssets();
+  const approvalDocument = assets.get('/wallet.html')?.content;
+  if (!approvalDocument) throw new Error('Documento de aprovação ausente.');
   database = new Database(config.databaseUrl);
   await database.migrate();
   const host = createWebServer({
     ...mobile,
     database,
-    assets: await loadWebAssets(),
+    assets,
     objects: { healthy: () => Promise.resolve(false) }, // Storage/photo envelopes use SQL; no public object endpoint.
     account: createAccountHandler({
       origin: mobile.origin,
+      approvalDocument,
       service: new AccountService({
         store: database.authentication,
         origin: mobile.origin,

@@ -58,6 +58,7 @@ function navigationType(): string {
 }
 
 function inputKind(): string {
+  if (location.pathname === '/wallet-entry') return 'entrada-documento';
   if (!location.hash) return 'sem-fragmento';
   if (location.hash === '#configuracoes') return 'rota-sem-pedido';
   if (location.hash.startsWith('#configuracoes?')) {

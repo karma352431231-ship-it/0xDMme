@@ -4,6 +4,7 @@ import type { Ecosystem } from '../wallet-identity/index.ts';
 
 export type WalletName = 'MetaMask' | 'Phantom' | 'Backpack';
 export type ReturnBrowser = 'chrome' | 'default';
+export const approvalDocumentId = 'xdmme-wallet-approval-request';
 export function returnBrowser(value: unknown): ReturnBrowser {
   if (value === undefined || value === 'default') return 'default';
   if (value === 'chrome') return 'chrome';

@@ -30,12 +30,23 @@ function validated(value: unknown) {
 
 await test('entrada valida campos, limpa URL, limita cookie, preserva capacidade nova e bloqueia navegação de APIs entre sites', async (t) => {
   const origin = 'https://0xdmme.app';
-  const expires = Date.now() + 120_000;
+  let expires = Date.now() + 120_000;
+  const consumed = new Set<string>();
   const entry = createApprovalEntry(
     {
       approvalRequest(value: unknown) {
         const request = validated(value);
-        if (request.ticket !== 'a'.repeat(64) || request.ecosystem !== 'solana')
+        const expected =
+          request.ticket === 'a'.repeat(64)
+            ? 'solana'
+            : request.ticket === 'b'.repeat(64)
+              ? 'evm'
+              : undefined;
+        if (
+          !expected ||
+          request.ecosystem !== expected ||
+          consumed.has(request.ticket)
+        )
           throw new AccountError(401, 'Pedido inválido.');
         return Promise.resolve({
           request,
@@ -45,6 +56,9 @@ await test('entrada valida campos, limpa URL, limita cookie, preserva capacidade
       },
     },
     origin,
+    new TextEncoder().encode(
+      '<!doctype html><html><head><title>Aprovar</title></head><body>Documento próprio</body></html>',
+    ),
   );
   const host = createWebServer({
     origin,
@@ -224,5 +238,58 @@ await test('entrada valida campos, limpa URL, limita cookie, preserva capacidade
       invalid.headers.location,
       '/wallet.html#configuracoes?invalid=1&reason=parameters',
     );
+  }
+  await checkDirectDocument();
+  async function checkDirectDocument() {
+    for (const [network, ticket] of [
+      ['solana', 'a'.repeat(64)],
+      ['evm', 'b'.repeat(64)],
+    ]) {
+      const direct = await get(
+        `/wallet-entry?ticket=${ticket}&wallet=Backpack&ecosystem=${network}&view=page`,
+        navigation,
+      );
+      assert.equal(direct.status, 200);
+      assert.equal(direct.headers.location, undefined);
+      assert.equal(direct.headers['set-cookie'], undefined);
+      assert.equal(direct.headers['content-type'], 'text/html; charset=utf-8');
+      assert.equal(direct.headers['cache-control'], 'no-store');
+      assert.equal(direct.headers['referrer-policy'], 'no-referrer');
+      assert.match(
+        direct.body,
+        /type="application\/json" id="xdmme-wallet-approval-request"/u,
+      );
+      const payload =
+        /id="xdmme-wallet-approval-request">([^<]+)<\/script>/u.exec(
+          direct.body,
+        )?.[1];
+      assert.ok(payload);
+      const state = JSON.parse(payload) as {
+        request: { wallet: string; ticket: string; ecosystem: string };
+      };
+      assert.equal(state.request.wallet, 'Backpack');
+      assert.equal(state.request.ticket, ticket);
+      assert.equal(state.request.ecosystem, network);
+      assert.doesNotMatch(direct.body, /sessionToken|signature|browserToken/u);
+    }
+    for (const suffix of ['&view=page', '&view=evil', '&view=page&view=page']) {
+      const direct = await get(`/wallet-entry?${query}${suffix}`, navigation);
+      assert.equal(direct.status, 303);
+      assert.equal(direct.body, '');
+      assert.match(direct.headers.location ?? '', /reason=parameters/u);
+    }
+    const directPath = `/wallet-entry?${query.replace('Phantom', 'Backpack')}&view=page`;
+    assert.equal((await get(directPath, navigation, 'POST')).status, 403);
+    consumed.add('a'.repeat(64));
+    const replay = await get(directPath, navigation);
+    assert.equal(replay.status, 303);
+    assert.equal(replay.body, '');
+    assert.match(replay.headers.location ?? '', /reason=unavailable/u);
+    consumed.clear();
+    expires = Date.now() - 1;
+    const expired = await get(directPath, navigation);
+    assert.equal(expired.status, 303);
+    assert.equal(expired.body, '');
+    assert.match(expired.headers.location ?? '', /reason=unavailable/u);
   }
 });

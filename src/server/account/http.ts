@@ -70,6 +70,7 @@ export function createAccountHandler(options: {
   service: AccountService;
   origin: string;
   walletConnectProjectId?: string;
+  approvalDocument?: Uint8Array;
 }) {
   const secure = new URL(options.origin).protocol === 'https:';
   const sessionName = secure ? '__Host-hash-talk-session' : 'hash-talk-session';
@@ -78,7 +79,11 @@ export function createAccountHandler(options: {
     : 'hash-talk-challenge';
   const limit = new AccountRateLimit();
   const handoffName = secure ? '__Host-hash-talk-return' : 'hash-talk-return';
-  const approval = createApprovalEntry(options.service, options.origin);
+  const approval = createApprovalEntry(
+    options.service,
+    options.origin,
+    options.approvalDocument,
+  );
   let active = 0;
 
   async function post(

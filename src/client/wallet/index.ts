@@ -210,11 +210,10 @@ function approvalDestination(input: {
   wallet: WalletName;
   platform?: MobilePlatform;
 }): string {
-  // Backpack on iOS reached the redirected page without a usable approval
-  // cookie. Its direct fragment uses the existing client approval reader,
-  // which removes the ticket before routing; the server still checks expiry.
+  // Serve the validated request with the approval document on iOS: neither
+  // a redirect cookie nor a URL fragment is required to deliver the ticket.
   if (input.wallet === 'Backpack' && input.platform === 'ios')
-    return `${input.origin}/wallet.html#configuracoes?${input.query}`;
+    return `${input.origin}/wallet-entry?${input.query}&view=page`;
   return `${input.origin}/wallet-entry?${input.query}`;
 }
 export function walletBrowserUrl(input: {

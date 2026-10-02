@@ -42,6 +42,7 @@ function scope(options: {
   storageRejected?: boolean;
   clock?: { now: number };
   approvalResponse?: Promise<Response>;
+  approvalDocument?: string;
 }) {
   const address = `0x${'1'.repeat(40)}`;
   const listeners = new Map<string, () => void>();
@@ -90,6 +91,14 @@ function scope(options: {
       timers.delete(id);
     },
   });
+  Object.assign(window, { backpack: { ethereum: window.ethereum } });
+  let documentRemoved = false;
+  const approvalDocument = {
+    textContent: options.approvalDocument,
+    remove: () => {
+      documentRemoved = true;
+    },
+  };
   const timers = new Map<number, () => void>();
   let timerId = 0;
   const button = Object.assign(new EventTarget(), {
@@ -210,7 +219,14 @@ function scope(options: {
     performance: {
       getEntriesByType: () => [{ type: options.navigationType ?? 'navigate' }],
     },
-    document: Object.assign(new EventTarget(), { activeElement: null }),
+    document: Object.assign(new EventTarget(), {
+      activeElement: null,
+      getElementById: (id: string) =>
+        id === 'xdmme-wallet-approval-request' &&
+        options.approvalDocument !== undefined
+          ? approvalDocument
+          : null,
+    }),
     localStorage: { getItem: () => session.deviceId },
     sessionStorage: {
       getItem: (key: string) => {
@@ -256,6 +272,7 @@ function scope(options: {
     storage,
     storedBeforeHistory,
     inputs,
+    documentRemoved: () => documentRemoved,
     confirmApproval: () => approve.dispatchEvent(new Event('click')),
     incoming: (ticket = 'b'.repeat(64)) => {
       location.hash = `#configuracoes?ticket=${ticket}&wallet=MetaMask&ecosystem=evm`;
@@ -736,6 +753,90 @@ await test('novo pedido durante desafio descarta resposta antiga sem abrir promp
   assert.match(browser.diagnostic.textContent, /etapa=pedido-lido/u);
   assert.match(browser.diagnostic.textContent, /falha=nao/u);
   browser.dispose();
+});
+
+function approvalDocumentPayload(ecosystem = 'evm', remaining = 60_000) {
+  const now = Date.now();
+  return JSON.stringify({
+    request: { ticket: 'a'.repeat(64), wallet: 'Backpack', ecosystem },
+    serverTime: new Date(now).toISOString(),
+    expiresAt: new Date(now + remaining).toISOString(),
+  });
+}
+
+await test('documento entrega Backpack EVM/Solana sem fragmento ou cookie e remove ticket antes de qualquer RPC', async () => {
+  for (const ecosystem of ['evm', 'solana']) {
+    const browser = scope({
+      pathname: '/wallet-entry',
+      approvalDocument: approvalDocumentPayload(ecosystem),
+      approvalResponse: Promise.resolve(cookieApprovalResponse()),
+    });
+    await tick();
+    assert.deepEqual(browser.requests, []);
+    assert.deepEqual(browser.providerRequests, []);
+    assert.deepEqual(browser.states, []);
+    assert.equal(browser.documentRemoved(), true);
+    assert.deepEqual(browser.storedBeforeHistory, [true]);
+    assert.equal(browser.storage.size, 1);
+    assert.match(browser.diagnostic.textContent, /entrada=entrada-documento/u);
+    assert.match(browser.diagnostic.textContent, /etapa=pedido-lido/u);
+    assert.doesNotMatch(browser.diagnostic.textContent, /a{64}|0x|https:/u);
+    if (ecosystem === 'evm') {
+      assert.equal(browser.approve.hidden, false);
+      browser.confirmApproval();
+      await tick();
+      assert.deepEqual(browser.requests, [
+        '/api/account/handoff-challenge',
+        '/api/account/handoff-sign',
+      ]);
+      assert.equal(
+        (
+          browser.inputs.get('/api/account/handoff-challenge') as {
+            ticket: string;
+          }
+        ).ticket,
+        'a'.repeat(64),
+      );
+      assert.deepEqual(browser.states, []);
+      assert.equal(browser.storage.size, 0);
+      assert.match(browser.status.textContent, /Assinatura confirmada/u);
+      browser.incoming('b'.repeat(64));
+      await tick();
+      assert.match(browser.diagnostic.textContent, /chegada=novo-fragmento/u);
+      assert.match(browser.diagnostic.textContent, /etapa=pedido-lido/u);
+      assert.match(browser.intro.textContent, /MetaMask/u);
+    }
+    browser.dispose();
+  }
+});
+
+await test('documento ausente, inválido ou expirado não recupera pedido antigo nem cookie e nunca conecta', async () => {
+  const previous = scope({ pathname: '/wallet.html', hash: approvalHash });
+  await tick();
+  previous.dispose();
+  for (const payload of [
+    undefined,
+    'null',
+    'bad',
+    'x'.repeat(1025),
+    approvalDocumentPayload('evm', 0),
+    approvalDocumentPayload().replace('Backpack', 'MetaMask'),
+  ]) {
+    const browser = scope({
+      pathname: '/wallet-entry',
+      storage: new Map(previous.storage),
+      approvalResponse: Promise.resolve(cookieApprovalResponse()),
+      ...(payload === undefined ? {} : { approvalDocument: payload }),
+    });
+    await tick();
+    assert.equal(browser.approve.hidden, true);
+    assert.equal(browser.storage.size, 0);
+    assert.deepEqual(browser.requests, []);
+    assert.deepEqual(browser.providerRequests, []);
+    assert.deepEqual(browser.states, []);
+    assert.match(browser.diagnostic.textContent, /etapa=pedido-invalido/u);
+    browser.dispose();
+  }
 });
 
 function cookieApprovalResponse(ticket = 'b'.repeat(64), remaining = 60_000) {

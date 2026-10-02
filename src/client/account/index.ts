@@ -13,6 +13,7 @@ import { createApprovalDiagnostics } from './approval-diagnostics.ts';
 import type { ApprovalStage } from './approval-diagnostics.ts';
 import { createPendingApproval } from './pending-approval.ts';
 import { serverApproval } from './server-approval.ts';
+import { takeApprovalDocument } from './approval-document.ts';
 import { canonicalAddress } from '../../shared/wallet-identity/index.ts';
 import {
   createWalletReturn,
@@ -107,13 +108,18 @@ function deviceId(): string {
 export function startAccount(options: {
   changed: (session: AccountSession | null) => void;
 }) {
-  const approvalPage = location.pathname === '/wallet.html';
+  const documentApproval = location.pathname === '/wallet-entry';
+  let documentApprovalPending = documentApproval;
+  const approvalPage = documentApproval || location.pathname === '/wallet.html';
   let cookieApprovalEligible =
-    approvalPage && (!location.hash || location.hash === '#configuracoes');
+    approvalPage &&
+    !documentApproval &&
+    (!location.hash || location.hash === '#configuracoes');
   let approvalOnly =
     approvalPage || (location.hash ?? '').startsWith('#configuracoes?');
   const diagnostics = createApprovalDiagnostics();
   const pendingApproval = createPendingApproval(expireApproval);
+  let documentRemaining: number | undefined;
   let incoming = readIncoming();
   const wallets = discoverWallets();
   let incomingSigned = false;
@@ -133,8 +139,14 @@ export function startAccount(options: {
   let disposed = false;
   let epoch = 0;
   let expiryTimer: number | undefined;
-  let approvalExpiryTimer: number | undefined;
-  let approvalDeadline: number | undefined;
+  let approvalExpiryTimer =
+    documentRemaining === undefined
+      ? undefined
+      : window.setTimeout(expireApproval, documentRemaining);
+  let approvalDeadline =
+    documentRemaining === undefined
+      ? undefined
+      : Date.now() + documentRemaining;
   let photoUrl: string | undefined;
   let removeProviderListeners: (() => void) | undefined;
 
@@ -362,6 +374,10 @@ export function startAccount(options: {
     if (approvalOnly) diagnostics.step(stage);
   }
   function readIncoming(): ReturnType<typeof incomingWalletRequest> {
+    if (documentApprovalPending) {
+      documentApprovalPending = false;
+      return readDocumentIncoming();
+    }
     try {
       const result = incomingWalletRequest((request) => {
         if (approvalPage) pendingApproval.remember(request);
@@ -377,6 +393,20 @@ export function startAccount(options: {
           : 'pedido-invalido',
       );
       // A malformed new request must never recover another stored request.
+      return null;
+    }
+  }
+  function readDocumentIncoming(): ReturnType<typeof incomingWalletRequest> {
+    try {
+      const state = takeApprovalDocument((received) => {
+        documentRemaining = received.remaining;
+        pendingApproval.remember(received.request);
+      });
+      approvalStep('pedido-lido');
+      return state.request;
+    } catch {
+      pendingApproval.clear();
+      approvalStep('pedido-invalido');
       return null;
     }
   }
