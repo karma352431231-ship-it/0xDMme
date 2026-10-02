@@ -2,6 +2,8 @@
 
 import io
 import json
+import os
+import shutil
 from pathlib import Path
 import subprocess
 import sys
@@ -119,7 +121,13 @@ class DeploymentTests(unittest.TestCase):
         # Reconstruct the previous lock from the current reviewed npm lock. The
         # exact digest asserts no other change is hidden by this reconstruction;
         # CI's shallow checkout does not need historical Git objects or fixtures.
-        current = (deploy.ROOT / 'package-lock.json').read_bytes()
+        current_lock = json.loads((deploy.ROOT / 'package-lock.json').read_bytes())
+        # QR belongs to a later local feature, outside this historical exception.
+        # Its removal reconstructs the old exact lock; pinned hashes still guard
+        # against any other unreviewed change. This does not approve QR deploys.
+        current_lock['packages']['']['dependencies'].pop('qr')
+        current_lock['packages'].pop('node_modules/qr')
+        current = (json.dumps(current_lock, indent=2, ensure_ascii=False) + '\n').encode()
         previous = json.loads(current)
         previous['packages']['']['devDependencies'].pop('libsodium-wrappers')
         for name in ['libsodium', 'libsodium-wrappers']:
@@ -281,20 +289,60 @@ class DeploymentTests(unittest.TestCase):
             self.assertEqual((sentinel / 'data').read_text(), 'preserved')
             self.assertTrue(interrupted.is_dir())
 
+    def test_qr_lock_is_outside_historical_probe_deploy_authorization(self):
+        _, reviewed = self.reviewed_probe_locks()
+        candidate = (deploy.ROOT / 'package-lock.json').read_bytes()
+        with tempfile.TemporaryDirectory() as directory:
+            old, new = Path(directory) / 'old', Path(directory) / 'new'
+            self.runtime(old)
+            self.runtime(new)
+            (old / 'package-lock.json').write_bytes(reviewed)
+            (new / 'package-lock.json').write_bytes(candidate)
+            with patch.object(remote, 'run') as command:
+                with self.assertRaises(RuntimeError):
+                    remote.compatibility(new, old)
+            command.assert_not_called()
+
     def test_real_git_build_contains_vendor_sources_and_excludes_private_files(self):
-        revision = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=deploy.ROOT, text=True).strip()
-        with tempfile.TemporaryDirectory() as directory, patch.object(deploy, 'LOCAL', Path(directory)):
-            value, archive_path = deploy.prepare(revision, 'codex/test')
-            remote.validate(value)
-            with tarfile.open(archive_path) as archive:
-                names = archive.getnames()
-                self.assertTrue(all(n == 'dist' or n.startswith('dist/') for n in names))
-                source = next(n for n in names if '/source-' in n and n.endswith('.tar.gz'))
-                with tarfile.open(fileobj=io.BytesIO(archive.extractfile(source).read())) as corresponding:
-                    entries = corresponding.getnames()
-                    self.assertTrue(any(n.startswith('node_modules/@scure/base/') for n in entries))
-                    self.assertTrue(any(n.startswith('node_modules/@wallet-standard/app/') for n in entries))
-                    self.assertFalse(any(n.startswith(('.local/', 'src/server/', '.git/')) for n in entries))
+        # Build a clean synthetic Git snapshot of the candidate sources. Never
+        # commit the user's checkout or bypass prepare's exact-lock protection.
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / 'source'
+            root.mkdir()
+            files = subprocess.check_output(['git', 'ls-files', '-co', '--exclude-standard', '-z'], cwd=deploy.ROOT).split(b'\0')
+            for raw in files:
+                if not raw:
+                    continue
+                relative = Path(os.fsdecode(raw))
+                target = root / relative
+                target.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copyfile(deploy.ROOT / relative, target)
+            subprocess.check_call(['git', 'init', '--quiet'], cwd=root)
+            subprocess.check_call(['git', 'add', '.'], cwd=root)
+            subprocess.check_call(['git', '-c', 'user.name=Test fixture', '-c',
+                                   'user.email=fixture@example.invalid', 'commit', '--quiet', '-m', 'Synthetic release candidate'], cwd=root)
+            revision = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=root, text=True).strip()
+            (root / 'node_modules').symlink_to(deploy.ROOT / 'node_modules', target_is_directory=True)
+            original_run = deploy.run
+            with (patch.object(deploy, 'LOCAL', Path(directory) / 'artifacts'),
+                  patch.object(deploy, 'ROOT', root),
+                  patch.object(deploy, 'run', side_effect=lambda args, cwd=root, timeout=30: original_run(args, cwd=cwd, timeout=timeout))):
+                value, archive_path = deploy.prepare(revision, 'codex/test')
+                remote.validate(value)
+                with tarfile.open(archive_path) as archive:
+                    names = archive.getnames()
+                    self.assertTrue(all(n == 'dist' or n.startswith('dist/') for n in names))
+                    source = next(n for n in names if '/source-' in n and n.endswith('.tar.gz'))
+                    with tarfile.open(fileobj=io.BytesIO(archive.extractfile(source).read())) as corresponding:
+                        entries = corresponding.getnames()
+                        self.assertTrue(any(n.startswith('node_modules/qr/src/') for n in entries))
+                        self.assertTrue(any(n.startswith('node_modules/@scure/base/') for n in entries))
+                        self.assertTrue(any(n.startswith('node_modules/@wallet-standard/app/') for n in entries))
+                        self.assertFalse(any(n.startswith(('.local/', 'src/server/', '.git/')) for n in entries))
+
+                (root / 'package-lock.json').write_text('unreviewed working tree')
+                with self.assertRaisesRegex(RuntimeError, 'Development lockfile differs'):
+                    deploy.prepare(revision, 'codex/test')
 
     def test_already_active_version_does_not_restart_or_upload(self):
         value = manifest()

@@ -51,15 +51,9 @@ function validatedEcosystem(value: unknown) {
 export class AccountService {
   private readonly store: AuthenticationStore;
   private readonly origin: string;
-  private readonly capacity: number;
-  constructor(options: {
-    store: AuthenticationStore;
-    origin: string;
-    capacity: number;
-  }) {
+  constructor(options: { store: AuthenticationStore; origin: string }) {
     this.store = options.store;
     this.origin = options.origin;
-    this.capacity = options.capacity;
   }
 
   async challenge(input: unknown) {
@@ -119,7 +113,6 @@ export class AccountService {
       tokenHash: tokenHash(sessionToken),
       csrf: token(),
       expiresAt: new Date(Date.now() + sessionSeconds * 1000),
-      capacity: this.capacity,
       ...(previousToken ? { previousTokenHash: tokenHash(previousToken) } : {}),
     });
     return { sessionToken, session: await this.session(sessionToken) };
@@ -222,7 +215,6 @@ export class AccountService {
       tokenHash: tokenHash(sessionToken),
       csrf: token(),
       expiresAt: new Date(Date.now() + sessionSeconds * 1000),
-      capacity: this.capacity,
       ...(previousToken ? { previousTokenHash: tokenHash(previousToken) } : {}),
     });
     return { sessionToken, session: await this.session(sessionToken) };

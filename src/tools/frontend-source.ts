@@ -7,11 +7,23 @@ const execute = promisify(execFile);
 const authored = [
   'src/client/account',
   'src/client/account-profile',
+  'src/client/device-keys',
+  'src/client/device-storage',
+  'src/client/device-operations',
+  'src/client/devices',
+  'src/client/device-qr',
+  'src/client/vault-authority',
+  'src/client/vault-crypto',
+  'src/client/vault-storage',
+  'src/client/vault-sync',
+  'src/client/vault-ui',
   'src/client/app',
   'src/client/pwa',
   'src/client/phantom-native',
   'src/client/wallet',
   'src/shared/account',
+  'src/shared/devices',
+  'src/shared/vault',
   'src/shared/pwa-policy',
   'src/shared/wallet-identity',
   'src/shared/wallet-approval',
@@ -60,6 +72,17 @@ export async function frontendSource(
   const files: string[] = [];
   for (const path of [...authored, ...dependencies].sort())
     files.push(...(await collect(root, path)));
+  const included = new Set(files);
+  for (const input of inputs) {
+    const path = relative(root, resolve(root, input));
+    if (
+      (path.startsWith('src/client/') || path.startsWith('src/shared/')) &&
+      !included.has(path)
+    )
+      throw new Error(
+        'Fonte autoral incorporada está ausente do pacote: ' + path,
+      );
+  }
   if (files.length > 1024) throw new Error('Quantidade de fontes excedida.');
   // Explicit paths only: no repository-wide archive, shell, .local or backend.
   const { stdout } = await execute(

@@ -6,7 +6,10 @@ import {
   profileEnvelope,
   uuid,
 } from '../../shared/account/index.ts';
-import type { AccountSession } from '../../shared/account/index.ts';
+import type {
+  AccountSession,
+  EncryptedProfile,
+} from '../../shared/account/index.ts';
 import { discoverWallets, SolanaConnectionError } from '../wallet/index.ts';
 import type { WalletConnection, WalletName } from '../wallet/index.ts';
 import { createApprovalDiagnostics } from './approval-diagnostics.ts';
@@ -62,7 +65,7 @@ const template = `<article class="card account-card"><span class="eyebrow">CONTA
 <p data-account-status role="status">Verificando sessão…</p>
 <details data-wallet-diagnostics hidden open><summary>Diagnóstico do login</summary><p class="detail" data-wallet-diagnostic></p><p class="detail">Se falhar, envie esta linha. Ela não contém ticket, endereço ou assinatura.</p></details>
 <div data-profile hidden><p data-account-address class="account-address"></p><p data-account-id class="account-address"></p>
-<p>Dispositivo cadastrado; autorização criptográfica e recuperação serão configuradas na próxima etapa.</p>
+<p>Login da conta confirmado. Confira a autorização e a recuperação na seção de aparelhos.</p>
 <form data-name-form><label>Nome mostrado nas solicitações de contato<input name="display-name" maxlength="80" autocomplete="nickname"></label><button class="primary" type="submit">Salvar nome</button></form>
 <div data-private-profile hidden><h3>Foto e preferências privadas</h3><p>Guardadas de forma cifrada. A foto será compartilhada somente com contatos aprovados, quando os contatos estiverem integrados.</p>
 <img data-photo-preview hidden alt="Sua foto de perfil" width="80" height="80"><label>Foto PNG, JPEG ou WebP · até 3 MB<input data-photo type="file" accept="image/png,image/jpeg,image/webp"></label><button data-remove-photo type="button">Remover foto</button>
@@ -111,6 +114,12 @@ function deviceId(): string {
 
 export function startAccount(options: {
   changed: (session: AccountSession | null) => void;
+  privateKey?: (session: AccountSession) => Promise<CryptoKey | null>;
+  saveProfile?: (
+    session: AccountSession,
+    profile: EncryptedProfile,
+    key: CryptoKey,
+  ) => Promise<void>;
 }) {
   const documentApproval =
     approvalEntryUrl(location.pathname) ||
@@ -591,13 +600,12 @@ export function startAccount(options: {
   }
   async function loadPrivate(current: AccountSession): Promise<void> {
     clearPrivate();
-    const localKey = await profileKey(
-      current.accountId,
-      current.profileRevision === 0,
-    );
+    const localKey = options.privateKey
+      ? await options.privateKey(current)
+      : await profileKey(current.accountId, current.profileRevision === 0);
     if (!localKey) {
       profileStatus =
-        'Perfil cifrado pertence a outro dispositivo. A vinculação e recuperação chegam na próxima etapa.';
+        'Perfil bloqueado. Autorize este aparelho por vinculação ou recuperação.';
       return;
     }
     const stored = await api('profile');
@@ -616,7 +624,7 @@ export function startAccount(options: {
     key = localKey;
     privateProfile = opened;
     profileStatus =
-      'Perfil privado disponível neste navegador. A sincronização de chaves entre aparelhos ainda será integrada.';
+      'Perfil privado disponível neste navegador. Confira a lista de aparelhos autorizados.';
   }
   async function operation(work: () => Promise<void>): Promise<void> {
     if (busy || disposed) return;
@@ -836,7 +844,9 @@ export function startAccount(options: {
         accountId: current.accountId,
         revision,
       });
-      await api('profile', { input: envelope, csrf: current.csrf });
+      if (options.saveProfile)
+        await options.saveProfile(current, envelope, currentKey);
+      else await api('profile', { input: envelope, csrf: current.csrf });
       if (session?.accountId === current.accountId)
         setSession({ ...current, profileRevision: revision });
       status = 'Foto e preferências salvas de forma cifrada.';
@@ -993,6 +1003,21 @@ export function startAccount(options: {
   }
   return {
     approvalPage,
+    async refreshPrivate(): Promise<void> {
+      if (!session || busy || dirtyProfile || dirtyName) return;
+      const current = accountSession(await api('session'));
+      setSession(current);
+      await loadPrivate(current);
+      render();
+    },
+    async replaceDevice(): Promise<void> {
+      await operation(async () => {
+        await logout();
+        localStorage.setItem('hash-talk:login-device', crypto.randomUUID());
+        status =
+          'Novo cadastro preparado. Entre com a wallet original para vincular ou recuperar.';
+      });
+    },
     canActivate: () =>
       !busy &&
       !dirtyName &&

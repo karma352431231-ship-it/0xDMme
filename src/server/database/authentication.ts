@@ -1,11 +1,7 @@
 import type { Ecosystem } from '../../shared/wallet-identity/index.ts';
 import type pg from 'pg';
-import {
-  AccountError,
-  accountReservation,
-  base64,
-  encode,
-} from '../../shared/account/index.ts';
+import { assertVaultQuota, assertContentCapacity } from './vault-quota.ts';
+import { AccountError, base64, encode } from '../../shared/account/index.ts';
 import type {
   AccountSession,
   EncryptedProfile,
@@ -63,8 +59,10 @@ async function transaction<T>(
 /** Owns authentication tables; signatures/RPC/HTTP never run in these transactions. */
 export class AuthenticationStore {
   private readonly pool: pg.Pool;
-  constructor(pool: pg.Pool) {
+  private readonly contentCapacity: number;
+  constructor(pool: pg.Pool, contentCapacity: number) {
     this.pool = pool;
+    this.contentCapacity = contentCapacity;
   }
 
   async createChallenge(challenge: LoginChallenge): Promise<void> {
@@ -116,29 +114,18 @@ export class AuthenticationStore {
   private async account(
     client: pg.PoolClient,
     identity: { address: string; ecosystem: Ecosystem },
-    capacity: number,
   ): Promise<string> {
-    await client.query(
-      'SELECT singleton FROM hash_talk.account_capacity WHERE singleton = true FOR UPDATE',
-    );
+    // Serialize only this wallet identity, without committing unused storage.
+    await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [
+      '0xdmme:account:' + identity.ecosystem + ':' + identity.address,
+    ]);
     const existing = await client.query<{ id: string }>(
-      'SELECT id FROM hash_talk.accounts WHERE address = $1 AND ecosystem = $2',
+      'SELECT id FROM hash_talk.accounts WHERE address=$1 AND ecosystem=$2 FOR UPDATE',
       [identity.address, identity.ecosystem],
     );
     if (existing.rows[0]) return existing.rows[0].id;
-    const reserved = await client.query(
-      `UPDATE hash_talk.account_capacity
-      SET reserved_bytes = reserved_bytes + $1 WHERE singleton = true
-      AND reserved_bytes + $1 <= $2 RETURNING singleton`,
-      [accountReservation, capacity],
-    );
-    if (reserved.rowCount !== 1)
-      throw new AccountError(
-        503,
-        'Capacidade de armazenamento indisponível para nova conta.',
-      );
     const created = await client.query<{ id: string }>(
-      'INSERT INTO hash_talk.accounts (address, ecosystem) VALUES ($1,$2) RETURNING id',
+      'INSERT INTO hash_talk.accounts(address,ecosystem) VALUES($1,$2) RETURNING id',
       [identity.address, identity.ecosystem],
     );
     const id = created.rows[0]?.id;
@@ -151,7 +138,6 @@ export class AuthenticationStore {
     tokenHash: string;
     csrf: string;
     expiresAt: Date;
-    capacity: number;
     previousTokenHash?: string;
   }): Promise<void> {
     await transaction(this.pool, async (client) => {
@@ -173,15 +159,10 @@ export class AuthenticationStore {
       tokenHash: string;
       csrf: string;
       expiresAt: Date;
-      capacity: number;
       previousTokenHash?: string;
     },
   ): Promise<void> {
-    const accountId = await this.account(
-      client,
-      input.identity,
-      input.capacity,
-    );
+    const accountId = await this.account(client, input.identity);
     await this.registerDevice(client, accountId, input.identity.deviceId);
     await this.reserveSession(client, accountId, input.previousTokenHash);
     await client.query(
@@ -288,7 +269,6 @@ export class AuthenticationStore {
     tokenHash: string;
     csrf: string;
     expiresAt: Date;
-    capacity: number;
     previousTokenHash?: string;
   }): Promise<void> {
     await transaction(this.pool, async (client) => {
@@ -418,22 +398,33 @@ export class AuthenticationStore {
     tokenHash: string,
     profile: EncryptedProfile,
   ): Promise<void> {
-    const result = await this.pool.query(
-      `UPDATE hash_talk.accounts SET profile_revision = $2,
-      profile_iv = $3, profile_ciphertext = $4 WHERE id =
-      (SELECT account_id FROM hash_talk.login_sessions WHERE token_hash = $1 AND expires_at > now())
-      AND profile_revision = $2 - 1 RETURNING id`,
-      [
-        tokenHash,
-        profile.revision,
-        Buffer.from(base64(profile.iv, 12)),
-        Buffer.from(base64(profile.ciphertext, 3_065_536)),
-      ],
-    );
-    if (result.rowCount !== 1)
-      throw new AccountError(
-        409,
-        'Perfil alterado em outra sessão ou sessão expirada. Recarregue.',
+    const iv = Buffer.from(base64(profile.iv, 12));
+    const ciphertext = Buffer.from(base64(profile.ciphertext, 3_065_536));
+    await transaction(this.pool, async (client) => {
+      // Match device mutations' account lock, then use a fresh SQL snapshot.
+      // A NOT EXISTS in a waiting UPDATE alone could miss new initialization.
+      await client.query(
+        `SELECT a.id FROM hash_talk.accounts a
+        JOIN hash_talk.login_sessions s ON s.account_id=a.id
+        WHERE s.token_hash=$1 AND s.expires_at>now() FOR UPDATE OF a`,
+        [tokenHash],
       );
+      const result = await client.query<{ id: string }>(
+        `UPDATE hash_talk.accounts SET profile_revision = $2,
+        profile_iv = $3, profile_ciphertext = $4 WHERE id =
+        (SELECT account_id FROM hash_talk.login_sessions WHERE token_hash = $1 AND expires_at > now())
+        AND profile_revision = $2 - 1
+        AND NOT EXISTS (SELECT 1 FROM hash_talk.device_directories d WHERE d.account_id = hash_talk.accounts.id) RETURNING id`,
+        [tokenHash, profile.revision, iv, ciphertext],
+      );
+      if (result.rowCount !== 1)
+        throw new AccountError(
+          409,
+          'Perfil alterado em outra sessão ou sessão expirada. Recarregue.',
+        );
+      const accountId = result.rows[0]?.id;
+      if (accountId) await assertVaultQuota(client, accountId);
+      await assertContentCapacity(client, this.contentCapacity);
+    });
   }
 }

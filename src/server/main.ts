@@ -4,6 +4,8 @@ import { ObjectStore } from './object-store/index.ts';
 import { createWebServer, loadWebAssets } from './web-host/index.ts';
 import { AccountService, createAccountHandler } from './account/index.ts';
 import { chmod } from 'node:fs/promises';
+import { DeviceService } from './devices/index.ts';
+import { VaultService } from './vault/index.ts';
 
 let database: Database | undefined;
 
@@ -12,10 +14,11 @@ try {
   const assets = await loadWebAssets();
   const approvalDocument = assets.get('/wallet.html')?.content;
   if (!approvalDocument) throw new Error('Documento de aprovação ausente.');
-  database = new Database(config.databaseUrl);
+  database = new Database(config.databaseUrl, config.accountCapacityBytes);
   const objects = new ObjectStore(config.objectDirectory);
   await database.migrate();
   await objects.initialize();
+  await database.vault.resumeInterrupted();
   if (!(await database.healthy())) throw new Error('Banco indisponível.');
   const host = createWebServer({
     origin: config.origin,
@@ -23,10 +26,15 @@ try {
     database,
     objects,
     account: createAccountHandler({
+      devices: new DeviceService(database.devices),
+      vault: new VaultService({
+        store: database.vault,
+        devices: database.devices,
+        objects,
+      }),
       service: new AccountService({
         store: database.authentication,
         origin: config.origin,
-        capacity: config.accountCapacityBytes,
       }),
       origin: config.origin,
       approvalDocument,

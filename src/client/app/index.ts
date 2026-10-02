@@ -1,5 +1,7 @@
 import { startPwa } from '../pwa/index.ts';
 import { startAccount } from '../account/index.ts';
+import { startDevices } from '../devices/index.ts';
+import { startVault } from '../vault-ui/index.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
 
 const pages = {
@@ -13,11 +15,11 @@ const pages = {
   },
   cofre: {
     title: 'Cofre',
-    content: `<div class="cards"><article class="card"><span class="eyebrow">HISTÓRICO RECUPERÁVEL</span><h2>Seu cofre pessoal</h2><p>O cofre preservará mensagens e mídias aceitas, dentro da cota de <strong>300 MB</strong>. Ainda não há cofre associado a esta sessão.</p><div class="progress" aria-hidden="true"></div><p>Uso indisponível · conta não conectada</p></article><article class="card"><span class="eyebrow">RECUPERAÇÃO</span><h2>O segredo fica com você.</h2><p>A recuperação exigirá a wallet original e o segredo gerado no dispositivo. O login isolado não abrirá o histórico.</p><button class="primary" disabled>Configurar recuperação · em preparação</button></article></div>`,
+    content: `<div class="cards" data-vault-container></div>`,
   },
   configuracoes: {
     title: 'Configurações',
-    content: `<div class="cards"><article class="card"><span class="eyebrow">PRIVACIDADE</span><h2>Você escolhe o que compartilhar.</h2><p>Salve suas escolhas no perfil cifrado acima. A distribuição de presença e leitura será integrada com os contatos e as mensagens.</p><div class="privacy-list"><div class="privacy-row"><span>Exibir online</span><span>Escolha no perfil</span></div><div class="privacy-row"><span>Exibir último acesso</span><span>Escolha no perfil</span></div><div class="privacy-row"><span>Enviar confirmação de leitura</span><span>Escolha no perfil</span></div></div></article><article class="card"><span class="eyebrow">APLICATIVO</span><h2>Seu espaço, também na tela inicial.</h2><p>Use a opção de instalação do navegador quando disponível. O modo offline mantém somente a interface pública desta versão.</p><p id="pwa-state" role="status">Verificando disponibilidade offline…</p><button class="primary" id="check-updates" type="button">Verificar atualização</button></article></div>`,
+    content: `<div class="cards"><article class="card"><span class="eyebrow">PRIVACIDADE</span><h2>Você escolhe o que compartilhar.</h2><p>Salve suas escolhas no perfil cifrado acima. A distribuição de presença e leitura será integrada com os contatos e as mensagens.</p><div class="privacy-list"><div class="privacy-row"><span>Exibir online</span><span>Escolha no perfil</span></div><div class="privacy-row"><span>Exibir último acesso</span><span>Escolha no perfil</span></div><div class="privacy-row"><span>Enviar confirmação de leitura</span><span>Escolha no perfil</span></div></div></article><article class="card"><span class="eyebrow">APLICATIVO</span><h2>Seu espaço, também na tela inicial.</h2><p>Use a opção de instalação do navegador quando disponível. Offline, abra a cópia local do cofre para consultar blocos já carregados neste aparelho.</p><p id="pwa-state" role="status">Verificando disponibilidade offline…</p><button class="primary" id="check-updates" type="button">Verificar atualização</button></article></div>`,
   },
 };
 
@@ -28,9 +30,28 @@ function element<T extends HTMLElement>(id: string): T {
 }
 
 let connectedAccount: AccountSession | null = null;
+const devices = startDevices({
+  changed: async () => {
+    await account.refreshPrivate();
+    connection();
+  },
+  replaceDevice: async () => {
+    await account.replaceDevice();
+  },
+});
+const vault = startVault(devices);
 const account = startAccount({
+  privateKey: async (session) => {
+    const key = await devices.privateKey(session);
+    connection();
+    return key;
+  },
+  saveProfile: (session, profile, key) =>
+    devices.saveProfile(session, profile, key),
   changed: (session) => {
     connectedAccount = session;
+    devices.setSession(session);
+    vault.setSession(session);
     connection();
     const label = document.getElementById('account-label');
     if (label)
@@ -42,7 +63,10 @@ const account = startAccount({
 // Approval HTML is loaded online and does not install or activate a shell.
 const pwa = account.approvalPage
   ? null
-  : startPwa({ canActivate: account.canActivate });
+  : startPwa({
+      canActivate: () =>
+        account.canActivate() && devices.canActivate() && vault.canActivate(),
+    });
 
 function route(): void {
   if (account.approvalPage) {
@@ -59,11 +83,12 @@ function route(): void {
   element('breadcrumb').textContent = page.title.toLocaleUpperCase('pt-BR');
   // Templates are static authored content. No user/server input enters HTML.
   element('page-content').innerHTML = page.content;
-  if (key === 'configuracoes' || key === 'conversas') {
-    const container = document.createElement('div');
-    container.className = 'account-section';
-    element('page-content').prepend(container);
-    account.mount(container);
+  mountAccountPanels(key);
+  if (key === 'cofre') {
+    const container = element('page-content').querySelector<HTMLElement>(
+      '[data-vault-container]',
+    );
+    if (container) vault.mount(container);
   }
   document.querySelectorAll<HTMLAnchorElement>('nav a').forEach((link) => {
     if (link.dataset['route'] === key)
@@ -76,6 +101,20 @@ function route(): void {
     void pwa?.check();
   });
   pwa?.render();
+}
+function mountAccountPanels(key: keyof typeof pages): void {
+  if (key === 'configuracoes' || key === 'conversas' || key === 'cofre') {
+    const container = document.createElement('div');
+    container.className = 'account-section';
+    element('page-content').prepend(container);
+    account.mount(container);
+  }
+  if (key === 'configuracoes' || key === 'cofre') {
+    const container = document.createElement('div');
+    container.className = 'account-section';
+    element('page-content').append(container);
+    devices.mount(container);
+  }
 }
 
 function renderApprovalPage(): void {
@@ -90,9 +129,11 @@ function renderApprovalPage(): void {
 function connection(): void {
   element('connection').textContent = navigator.onLine
     ? connectedAccount
-      ? 'Conta conectada · histórico bloqueado'
+      ? devices.authorized()
+        ? 'Conta conectada · aparelho autorizado'
+        : 'Conta conectada · aparelho pendente'
       : 'Conexão disponível · nenhuma conta conectada'
-    : 'Sem conexão · somente a interface está disponível';
+    : 'Sem conexão · abra a cópia local do cofre';
 }
 
 window.addEventListener('hashchange', route);

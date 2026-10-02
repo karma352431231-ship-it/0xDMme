@@ -2,7 +2,6 @@ import { canonicalAddress, ecosystem } from '../wallet-identity/index.ts';
 import type { Ecosystem } from '../wallet-identity/index.ts';
 export const profileLimit = 3_000_000;
 export const encryptedProfileLimit = profileLimit + 65_536;
-export const accountReservation = 300_000_000;
 
 export class AccountError extends Error {
   readonly status: number;

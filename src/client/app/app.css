@@ -160,6 +160,7 @@ main {
 }
 header {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 20px;
@@ -414,6 +415,8 @@ footer {
     font-size: 9px;
     padding: 6px 8px;
     margin-top: 6px;
+    max-width: 100%;
+    white-space: normal;
   }
   h1 {
     font-size: 25px;
@@ -514,12 +517,43 @@ footer {
   gap: 10px;
   font-size: 13px;
 }
-.account-card input:not([type='checkbox']) {
+.account-card input:not([type='checkbox']),
+.device-card input:not([type='checkbox']),
+.device-card textarea {
   width: 100%;
   padding: 12px;
   border: 1px solid #b7c9c7;
   border-radius: 6px;
   font: inherit;
+}
+
+.device-card label {
+  display: block;
+  margin-block: 12px;
+}
+
+.device-card textarea {
+  width: 100%;
+  min-height: 90px;
+  resize: vertical;
+}
+
+.device-card ul {
+  padding-left: 20px;
+}
+
+.device-card li {
+  margin-block: 12px;
+  overflow-wrap: anywhere;
+}
+
+.device-card [data-device-fingerprint],
+.device-card [data-device-candidate] {
+  overflow-wrap: anywhere;
+}
+
+.device-card button {
+  margin: 5px 8px 5px 0;
 }
 .account-card input[type='checkbox'] {
   width: 18px;
@@ -544,4 +578,84 @@ footer {
 .wallet-approval {
   max-width: 720px;
   margin: 0 auto;
+}
+
+.device-qr {
+  width: min(100%, 360px);
+  background: #fff;
+  margin-block: 16px;
+  line-height: 0;
+}
+.device-qr svg {
+  width: 100%;
+  height: auto;
+}
+.device-card [hidden] {
+  display: none;
+}
+.device-card fieldset {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.device-card video {
+  width: min(100%, 480px);
+  display: block;
+  background: #000;
+}
+.vault-card progress {
+  width: 100%;
+  height: 1rem;
+  accent-color: var(--accent, #23866c);
+}
+.vault-list {
+  padding-left: 1.2rem;
+  overflow-wrap: anywhere;
+}
+.vault-list li {
+  padding: 0.6rem 0;
+  border-bottom: 1px solid #e3e8eb;
+}
+.vault-card form {
+  display: grid;
+  gap: 12px;
+  margin: 24px 0;
+}
+.vault-card label {
+  display: grid;
+  gap: 8px;
+  font-size: 13px;
+}
+.vault-card input,
+.vault-card select,
+.vault-card textarea {
+  width: 100%;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid #b7c9c7;
+  border-radius: 6px;
+  background: white;
+  font: inherit;
+}
+.vault-card textarea {
+  resize: vertical;
+}
+.vault-card button {
+  max-width: 100%;
+  margin: 5px 8px 5px 0;
+  padding: 10px 12px;
+  border: 1px solid #b7c9c7;
+  border-radius: 6px;
+  background: #f6faf9;
+  color: #21343b;
+  font: inherit;
+  cursor: pointer;
+}
+.vault-card button.primary {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: white;
+}
+.vault-card button:disabled {
+  cursor: default;
+  opacity: 0.6;
 }

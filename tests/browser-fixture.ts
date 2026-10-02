@@ -1,4 +1,5 @@
 import { build } from 'esbuild';
+import { randomBytes } from 'node:crypto';
 import { Database } from '../src/server/database/index.ts';
 import {
   AccountService,
@@ -9,15 +10,37 @@ import {
   loadWebAssets,
 } from '../src/server/web-host/index.ts';
 import { readWebConfiguration } from '../src/server/web-configuration/index.ts';
+import { DeviceService } from '../src/server/devices/index.ts';
+import { VaultService } from '../src/server/vault/index.ts';
+import { ObjectStore } from '../src/server/object-store/index.ts';
 
 // Explicit manual-browser fixture, excluded from production build/entry point.
 // Isolated test database and fixed loopback origin; never accepts real wallet keys.
 const config = readWebConfiguration(process.env);
 if (!new URL(config.databaseUrl).pathname.startsWith('/hash_talk_test'))
   throw new Error('Fixture exige banco de teste exclusivo.');
-const origin = 'http://127.0.0.1:45111';
-const database = new Database(config.databaseUrl);
+const fixturePort = Number(process.env['HASH_TALK_FIXTURE_PORT'] ?? 45111);
+if (
+  !Number.isInteger(fixturePort) ||
+  fixturePort < 45111 ||
+  fixturePort > 45119
+)
+  throw new Error('Porta de fixture fora do intervalo exclusivo.');
+const fixtureHost = process.env['HASH_TALK_FIXTURE_HOST'] ?? '127.0.0.1';
+if (!['127.0.0.1', 'localhost'].includes(fixtureHost))
+  throw new Error('A fixture só aceita origem de loopback.');
+const origin = `http://${fixtureHost}:${fixturePort}`;
+const fixtureSeed =
+  process.env['HASH_TALK_FIXTURE_SYNTHETIC_SEED'] ??
+  `0x${randomBytes(32).toString('hex')}`;
+if (!/^0x[a-f0-9]{64}$/u.test(fixtureSeed))
+  throw new Error(
+    'Seed sintética de fixture inválida. Nunca forneça uma chave real.',
+  );
+const database = new Database(config.databaseUrl, config.accountCapacityBytes);
 await database.migrate();
+const objects = new ObjectStore(config.objectDirectory);
+await objects.initialize();
 const assets = new Map(await loadWebAssets());
 const root = assets.get('/');
 if (!root) throw new Error('Build ausente.');
@@ -31,6 +54,15 @@ const bundle = await build({
   format: 'esm',
   minify: true,
   write: false,
+  define: {
+    SYNTHETIC_VAULT_CONTROLS:
+      process.env['HASH_TALK_FIXTURE_VAULT_CONTROLS'] === '1'
+        ? 'true'
+        : 'false',
+    SYNTHETIC_FIXTURE_SEED: JSON.stringify(fixtureSeed),
+    SYNTHETIC_QR_CAMERA:
+      process.env['HASH_TALK_FIXTURE_QR_CAMERA'] === '1' ? 'true' : 'false',
+  },
 });
 const script = bundle.outputFiles[0]?.contents;
 if (!script) throw new Error('Fixture ausente.');
@@ -62,19 +94,24 @@ const host = createWebServer({
   origin,
   assets,
   database,
-  objects: { healthy: () => Promise.resolve(true) },
+  objects,
   account: createAccountHandler({
+    devices: new DeviceService(database.devices),
+    vault: new VaultService({
+      store: database.vault,
+      devices: database.devices,
+      objects,
+    }),
     origin,
     service: new AccountService({
       store: database.authentication,
       origin,
-      capacity: config.accountCapacityBytes,
     }),
   }),
 });
 await new Promise<void>((resolve, reject) => {
   host.server.once('error', reject);
-  host.server.listen(45111, '127.0.0.1', resolve);
+  host.server.listen(fixturePort, '127.0.0.1', resolve);
 });
 let closing = false;
 const close = () => {

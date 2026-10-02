@@ -62,7 +62,8 @@
     "@spruceid/siwe-parser": "3.0.0",
     "@wallet-standard/app": "1.1.1",
     "ethers": "6.17.0",
-    "pg": "8.23.1"
+    "pg": "8.23.1",
+    "qr": "0.7.2"
   },
   "license": "SEE LICENSE IN LICENSES.md"
 }

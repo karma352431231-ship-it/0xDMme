@@ -13,10 +13,7 @@ import {
 } from '../../src/server/account/index.ts';
 import { createWebServer } from '../../src/server/web-host/index.ts';
 import { readWebConfiguration } from '../../src/server/web-configuration/index.ts';
-import {
-  AccountError,
-  accountReservation,
-} from '../../src/shared/account/index.ts';
+import { AccountError } from '../../src/shared/account/index.ts';
 import {
   emptyProfile,
   openProfile,
@@ -32,7 +29,6 @@ const origin = 'http://127.0.0.1:45110';
 const service = new AccountService({
   store: database.authentication,
   origin,
-  capacity: config.accountCapacityBytes,
 });
 const ownAddresses: string[] = [];
 function freshHttpAccount() {
@@ -140,9 +136,6 @@ await test('Autenticação e perfil persistentes', async (t) => {
     // Only identities created by this run, never truncate or touch dev/user data.
     await inspector.query('BEGIN');
     try {
-      await inspector.query(
-        'SELECT singleton FROM hash_talk.account_capacity WHERE singleton FOR UPDATE',
-      );
       const accounts = await inspector.query<{ id: string }>(
         'SELECT id FROM hash_talk.accounts WHERE address = ANY($1::text[])',
         [ownAddresses],
@@ -163,10 +156,6 @@ await test('Autenticação e perfil persistentes', async (t) => {
       await inspector.query(
         'DELETE FROM hash_talk.login_challenges WHERE address = ANY($1::text[])',
         [ownAddresses],
-      );
-      await inspector.query(
-        'UPDATE hash_talk.account_capacity SET reserved_bytes = reserved_bytes - $1 WHERE singleton',
-        [ids.length * accountReservation],
       );
       await inspector.query('COMMIT');
     } catch (error: unknown) {
@@ -215,11 +204,10 @@ await test('Autenticação e perfil persistentes', async (t) => {
       const next = await authenticate(signer);
       assert.equal(next.session.accountId, login.value.session.accountId);
       assert.equal(next.session.name, 'Nome sintético');
-      const row = await inspector.query<{ reserved_bytes: string }>(
-        'SELECT reserved_bytes FROM hash_talk.accounts WHERE id = $1',
-        [next.session.accountId],
+      const row = await inspector.query<{ present: boolean }>(
+        "SELECT EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema='hash_talk' AND table_name='accounts' AND column_name='reserved_bytes') AS present",
       );
-      assert.equal(Number(row.rows[0]?.reserved_bytes), accountReservation);
+      assert.equal(row.rows[0]?.present, false);
     },
   );
 
@@ -289,70 +277,42 @@ await test('Autenticação e perfil persistentes', async (t) => {
   );
 
   await t.test(
-    'reserva global recusa nova conta e reverte consumo do desafio sem bloquear conta existente',
+    'cadastros vazios não comprometem cota e login concorrente preserva a identidade',
     async () => {
-      const capacity = await inspector.query<{ reserved_bytes: string }>(
-        'SELECT reserved_bytes FROM hash_talk.account_capacity WHERE singleton',
-      );
-      const capped = new AccountService({
-        store: database.authentication,
-        origin,
-        capacity: Number(capacity.rows[0]?.reserved_bytes),
-      });
       const signer = wallet();
-      const challenge = await requestChallenge(signer, capped);
-      const signature = await signer.signMessage(challenge.message);
-      await assert.rejects(
-        capped.login({ id: challenge.id, signature }, challenge.browserToken),
-        (error: unknown) =>
-          error instanceof AccountError && error.status === 503,
+      const results = await Promise.all([
+        authenticate(signer),
+        authenticate(signer),
+      ]);
+      assert.equal(results[0].session.accountId, results[1].session.accountId);
+      const counters = await inspector.query<{ present: string | null }>(
+        "SELECT to_regclass('hash_talk.account_capacity')::text AS present",
       );
-      const retry = await service.login(
-        { id: challenge.id, signature },
-        challenge.browserToken,
-      );
-      const existing = await authenticate(signer, capped);
-      assert.equal(existing.session.accountId, retry.session.accountId);
+      assert.equal(counters.rows[0]?.present, null);
     },
   );
-
   await t.test(
-    'cadastros simultâneos respeitam última reserva e sessão expirada não autoriza escrita',
+    'contas diferentes podem ser criadas sem reserva prévia; sessão expirada recusa escrita',
     async () => {
-      const current = await inspector.query<{ reserved_bytes: string }>(
-        'SELECT reserved_bytes FROM hash_talk.account_capacity WHERE singleton',
-      );
-      const capped = new AccountService({
-        store: database.authentication,
-        origin,
-        capacity: Number(current.rows[0]?.reserved_bytes) + accountReservation,
-      });
-      const results = await Promise.allSettled([
-        authenticate(wallet(), capped),
-        authenticate(wallet(), capped),
+      const results = await Promise.all([
+        authenticate(wallet()),
+        authenticate(wallet()),
       ]);
-      const success = results.filter((item) => item.status === 'fulfilled');
-      assert.equal(success.length, 1);
-      assert.ok(
-        results.some(
-          (item) =>
-            item.status === 'rejected' &&
-            item.reason instanceof AccountError &&
-            item.reason.status === 503,
-        ),
+      assert.notEqual(
+        results[0].session.accountId,
+        results[1].session.accountId,
       );
-      const loggedIn = success[0];
-      assert.ok(loggedIn && loggedIn.status === 'fulfilled');
+      const loggedIn = results[0];
       await inspector.query(
-        "UPDATE hash_talk.login_sessions SET expires_at = now() - interval '1 second' WHERE account_id = $1",
-        [loggedIn.value.session.accountId],
+        "UPDATE hash_talk.login_sessions SET expires_at=now()-interval '1 second' WHERE account_id=$1",
+        [loggedIn.session.accountId],
       );
       await assert.rejects(
-        capped.session(loggedIn.value.sessionToken),
+        service.session(loggedIn.sessionToken),
         unauthorized,
       );
       await assert.rejects(
-        capped.rename(loggedIn.value.sessionToken, { name: 'Expirada' }),
+        service.rename(loggedIn.sessionToken, { name: 'Expirada' }),
         unauthorized,
       );
     },

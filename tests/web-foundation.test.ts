@@ -45,6 +45,10 @@ await test('fontes públicas incluem instruções/licenças do build e excluem b
     'node_modules/@wallet-standard/app/LICENSE',
     'node_modules/libsodium-wrappers/LICENSE',
     'node_modules/libsodium/LICENSE',
+    'node_modules/qr/src/index.ts',
+    'node_modules/qr/src/decode.ts',
+    'node_modules/qr/LICENSE-MIT',
+    'src/client/device-qr/index.ts',
   ])
     assert.ok(paths.includes(required), `Fonte necessária: ${required}`);
   for (const path of paths)
@@ -326,6 +330,14 @@ await test('servidor recusa origem, mutação, traversal e dados privados; saúd
   assert.equal(page.status, 200);
   assert.match(page.body, /0xDMme/);
   assert.equal(page.headers['cache-control'], 'no-store');
+  assert.equal(
+    page.headers['permissions-policy'],
+    'camera=(self), microphone=(), geolocation=(), payment=()',
+  );
+  assert.equal(
+    (await get('/wallet.html')).headers['permissions-policy'],
+    'camera=(), microphone=(), geolocation=(), payment=()',
+  );
   assert.match(
     String(page.headers['content-security-policy']),
     /frame-ancestors 'none'/,

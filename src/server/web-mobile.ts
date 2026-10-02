@@ -2,6 +2,9 @@ import { Database } from './database/index.ts';
 import { AccountService, createAccountHandler } from './account/index.ts';
 import { createWebServer, loadWebAssets } from './web-host/index.ts';
 import { readWebConfiguration } from './web-configuration/index.ts';
+import { DeviceService } from './devices/index.ts';
+import { VaultService } from './vault/index.ts';
+import { ObjectStore } from './object-store/index.ts';
 import {
   readMobileWebConfiguration,
   recordMobileWebEntry,
@@ -17,20 +20,27 @@ try {
   const assets = await loadWebAssets();
   const approvalDocument = assets.get('/wallet.html')?.content;
   if (!approvalDocument) throw new Error('Documento de aprovação ausente.');
-  database = new Database(config.databaseUrl);
+  database = new Database(config.databaseUrl, config.accountCapacityBytes);
   await database.migrate();
+  const objects = new ObjectStore(config.objectDirectory);
+  await objects.initialize();
   const host = createWebServer({
     ...mobile,
     database,
     assets,
-    objects: { healthy: () => Promise.resolve(false) }, // Storage/photo envelopes use SQL; no public object endpoint.
+    objects,
     account: createAccountHandler({
+      devices: new DeviceService(database.devices),
+      vault: new VaultService({
+        store: database.vault,
+        devices: database.devices,
+        objects,
+      }),
       origin: mobile.origin,
       approvalDocument,
       service: new AccountService({
         store: database.authentication,
         origin: mobile.origin,
-        capacity: config.accountCapacityBytes,
       }),
     }),
   });

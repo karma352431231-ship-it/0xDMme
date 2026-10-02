@@ -1,9 +1,18 @@
 import { Wallet } from 'ethers';
 import { ed25519 } from '@noble/curves/ed25519';
 import { base58 } from '@scure/base';
+import { syntheticQrCamera } from './qr-camera.ts';
+import { syntheticVaultControls } from './vault-browser.ts';
 
-// Disposable wallet created only in this test browser. No private key leaves it.
-const wallet = Wallet.createRandom();
+// Explicitly fictitious seed supplied only by the loopback test fixture. It
+// permits independent origins to exercise the same account and survive reload.
+// Never use a real wallet here; this module is absent from the product build.
+declare const SYNTHETIC_FIXTURE_SEED: string;
+declare const SYNTHETIC_QR_CAMERA: boolean;
+declare const SYNTHETIC_VAULT_CONTROLS: boolean;
+if (SYNTHETIC_QR_CAMERA) syntheticQrCamera();
+if (SYNTHETIC_VAULT_CONTROLS) syntheticVaultControls();
+const wallet = new Wallet(SYNTHETIC_FIXTURE_SEED);
 const provider = {
   isMetaMask: true,
   request(input: { method: string; params?: string[] }): Promise<unknown> {

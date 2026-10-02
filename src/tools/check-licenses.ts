@@ -17,6 +17,7 @@ const permissive = new Set([
   'BlueOak-1.0.0',
   '0BSD',
   '(MIT OR CC0-1.0)',
+  '(MIT OR Apache-2.0)',
 ]);
 // Reviewed exact versions. Any new copyleft dependency needs an explicit review.
 const reviewedGpl = new Set([

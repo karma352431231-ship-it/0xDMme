@@ -113,6 +113,22 @@ export class ObjectStore {
     }
   }
 
+  /** Caller owns an exclusively reserved, unaccepted object. Never expire accepted files. */
+  async discardUnaccepted(identifier: string): Promise<void> {
+    if (!validIdentifier.test(identifier)) throw new Error('Objeto inválido.');
+    await unlink(resolve(this.directory, identifier)).catch(
+      (error: unknown) => {
+        if (!(
+          error instanceof Error &&
+          'code' in error &&
+          error.code === 'ENOENT'
+        ))
+          throw error;
+      },
+    );
+    await this.synchronizeDirectory();
+  }
+
   private async writeObject(bytes: Uint8Array): Promise<string> {
     // Snapshot above prevents caller mutation while filesystem operations await.
     const identifier = createHash('sha256').update(bytes).digest('hex');

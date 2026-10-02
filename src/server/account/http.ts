@@ -7,6 +7,9 @@ import {
 } from '../../shared/account/index.ts';
 import { AccountService, challengeSeconds, sessionSeconds } from './service.ts';
 import { AccountRateLimit } from './rate-limit.ts';
+import type { DeviceService } from '../devices/index.ts';
+import type { VaultService } from '../vault/index.ts';
+import { blockLimit } from '../../shared/vault/index.ts';
 import { createApprovalEntry } from './approval-http.ts';
 import {
   approvalDocumentUrl,
@@ -36,9 +39,13 @@ async function body(request: IncomingMessage): Promise<unknown> {
   if (request.headers['content-type'] !== 'application/json')
     throw new AccountError(415, 'Use JSON.');
   const maximum =
-    request.url === '/api/account/profile'
-      ? Math.ceil(encryptedProfileLimit / 3) * 4 + 256
-      : 4096;
+    request.url === '/api/account/vault/upload'
+      ? Math.ceil(blockLimit / 3) * 4 + 10000
+      : request.url === '/api/account/profile' ||
+          request.url === '/api/account/devices/commit' ||
+          request.url === '/api/account/devices/profile'
+        ? Math.ceil(encryptedProfileLimit / 3) * 4 + 70_000
+        : 4096;
   const parts: Buffer[] = [];
   let size = 0;
   const timer = setTimeout(() => request.destroy(), 5000);
@@ -75,6 +82,8 @@ export function createAccountHandler(options: {
   origin: string;
   walletConnectProjectId?: string;
   approvalDocument?: Uint8Array;
+  devices?: DeviceService;
+  vault?: VaultService;
 }) {
   const secure = new URL(options.origin).protocol === 'https:';
   const sessionName = secure ? '__Host-hash-talk-session' : 'hash-talk-session';
@@ -96,6 +105,10 @@ export function createAccountHandler(options: {
   ): Promise<void> {
     if (request.headers.origin !== options.origin)
       throw new AccountError(403, 'Origem inválida.');
+    if (request.url?.startsWith('/api/account/vault/') && options.vault) {
+      await vaultPost(request, response);
+      return;
+    }
     const input = await body(request);
     if (request.url?.startsWith('/api/account/handoff-')) {
       await handoffPost(request, response, input);
@@ -133,6 +146,30 @@ export function createAccountHandler(options: {
       request.headers['x-hash-talk-csrf'],
     );
     await authenticatedPost(request, response, sessionToken, input);
+  }
+
+  async function vaultPost(
+    request: IncomingMessage,
+    response: ServerResponse,
+  ): Promise<void> {
+    const token = readCookie(request, sessionName);
+    await options.service.authorize(token, request.headers['x-hash-talk-csrf']);
+    const session = await options.service.session(token);
+    if (request.url === '/api/account/vault/upload')
+      await options.vault?.preflight(
+        session,
+        request.headers['x-0xdmme-vault-id'],
+      );
+    const input = await body(request);
+    send(
+      response,
+      200,
+      await options.vault?.operate(
+        request.url?.slice('/api/account/vault/'.length) ?? '',
+        session,
+        input,
+      ),
+    );
   }
 
   async function handoffPost(
@@ -205,6 +242,19 @@ export function createAccountHandler(options: {
     sessionToken: string,
     input: unknown,
   ): Promise<void> {
+    if (request.url?.startsWith('/api/account/devices/') && options.devices) {
+      const session = await options.service.session(sessionToken);
+      send(
+        response,
+        200,
+        await options.devices.operate(
+          request.url.slice('/api/account/devices/'.length),
+          session,
+          input,
+        ),
+      );
+      return;
+    }
     if (request.url === '/api/account/logout') {
       await options.service.logout(sessionToken);
       response.setHeader('Set-Cookie', cookie(sessionName, '', 0, secure));

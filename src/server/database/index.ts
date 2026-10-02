@@ -2,6 +2,10 @@ import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import pg from 'pg';
 import { AuthenticationStore } from './authentication.ts';
+import { DeviceStore } from './devices.ts';
+import { VaultStore } from './vault.ts';
+export type { VaultStore } from './vault.ts';
+export type { DeviceStore, DeviceLink, DirectoryRow } from './devices.ts';
 export type {
   AuthenticationStore,
   LoginChallenge,
@@ -12,6 +16,12 @@ const migrations = [
   '001-foundation.sql',
   '002-accounts.sql',
   '003-wallet-ecosystems.sql',
+  '004-devices.sql',
+  '005-link-consumption.sql',
+  '006-vault.sql',
+  '007-used-capacity.sql',
+  '008-content-usage.sql',
+  '009-upload-expiry.sql',
 ];
 
 export interface MaintenanceSnapshot {
@@ -39,8 +49,10 @@ export class Database {
   private readonly pool: pg.Pool;
   private failed = false;
   readonly authentication: AuthenticationStore;
+  readonly devices: DeviceStore;
+  readonly vault: VaultStore;
 
-  constructor(connectionString: string) {
+  constructor(connectionString: string, contentCapacity = 3_000_000_000) {
     this.pool = new pg.Pool({
       connectionString,
       max: 4,
@@ -56,7 +68,9 @@ export class Database {
     this.pool.on('error', () => {
       this.failed = true;
     });
-    this.authentication = new AuthenticationStore(this.pool);
+    this.authentication = new AuthenticationStore(this.pool, contentCapacity);
+    this.devices = new DeviceStore(this.pool, contentCapacity);
+    this.vault = new VaultStore(this.pool, contentCapacity);
   }
 
   async migrate(): Promise<void> {

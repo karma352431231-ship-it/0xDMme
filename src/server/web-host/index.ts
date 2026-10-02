@@ -78,6 +78,11 @@ function sendPublicAsset(
   const entry = assets.get(
     nativeProbe ? '/phantom-probe.html' : (request.url ?? '/'),
   );
+  if (request.url === '/' && entry?.type.startsWith('text/html'))
+    response.setHeader(
+      'Permissions-Policy',
+      'camera=(self), microphone=(), geolocation=(), payment=()',
+    );
   // Only this admitted document needs NaCl's WebAssembly. Keep the default
   // policy on errors, APIs, the regular app and the EVM approval page.
   if (nativeProbe && entry?.type.startsWith('text/html'))
