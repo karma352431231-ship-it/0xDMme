@@ -1,3 +1,8 @@
+import {
+  approvalDocumentId,
+  approvalEntryUrl,
+} from '../../shared/wallet-approval/index.ts';
+
 export type ApprovalStage =
   | 'entrada'
   | 'pedido-ausente'
@@ -58,7 +63,7 @@ function navigationType(): string {
 }
 
 function inputKind(): string {
-  if (location.pathname === '/wallet-entry') return 'entrada-documento';
+  if (approvalEntryUrl(location.pathname)) return documentInputKind();
   if (!location.hash) return 'sem-fragmento';
   if (location.hash === '#configuracoes') return 'rota-sem-pedido';
   if (location.hash.startsWith('#configuracoes?')) {
@@ -76,6 +81,15 @@ function inputKind(): string {
   return location.hash.startsWith('#configuracoes?')
     ? 'fragmento-de-pedido'
     : 'outro-fragmento';
+}
+
+function documentInputKind(): string {
+  const reason = document
+    .getElementById(approvalDocumentId)
+    ?.getAttribute?.('data-rejected');
+  if (reason === 'parameters') return 'entrada-rejeitada-parametros';
+  if (reason === 'unavailable') return 'entrada-rejeitada-pedido';
+  return 'entrada-documento';
 }
 
 export function createApprovalDiagnostics() {
@@ -118,7 +132,7 @@ export function createApprovalDiagnostics() {
       // Fixed categories only: never stringify input, errors or provider data.
       const availability =
         provider === null ? 'nao-avaliado' : provider ? 'presente' : 'ausente';
-      return `D1 · entrada=${input} · chegada=${source} · navegacao=${navigation} · historico=${previous} · etapa=${stage} · provider=${availability} · armazenamento=${storageAvailable ? 'disponivel' : 'indisponivel'} · falha=${failure} · protocolo=doc-1`;
+      return `D1 · entrada=${input} · chegada=${source} · navegacao=${navigation} · historico=${previous} · etapa=${stage} · provider=${availability} · armazenamento=${storageAvailable ? 'disponivel' : 'indisponivel'} · falha=${failure} · protocolo=doc-2`;
     },
   };
 }

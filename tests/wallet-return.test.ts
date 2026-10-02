@@ -199,7 +199,7 @@ await test('pedido Backpack mantém Android e solicita documento de aprovação 
       await controller.start('Backpack', ecosystem);
       const diagnostic = controller.openingDiagnostic();
       assert.ok(diagnostic);
-      assert.match(diagnostic, /^D2 · protocolo=doc-1/u);
+      assert.match(diagnostic, /^D2 · protocolo=doc-2/u);
       assert.match(diagnostic, /pedido=presente/u);
       assert.match(
         diagnostic,
@@ -222,15 +222,12 @@ await test('pedido Backpack mantém Android e solicita documento de aprovação 
         assert.equal(destination.hash, '');
       } else {
         assert.equal(link.searchParams.get('ref'), 'https://0xdmme.app');
-        assert.equal(destination.pathname, '/wallet-entry');
-        assert.equal(destination.hash, '');
-        assert.equal(destination.searchParams.get('view'), 'page');
         assert.equal(
-          destination.searchParams.get('ticket'),
-          handoffResponse().ticket,
+          destination.pathname,
+          `/wallet-entry/${handoffResponse().ticket}/${ecosystem}/Backpack`,
         );
-        assert.equal(destination.searchParams.get('wallet'), 'Backpack');
-        assert.equal(destination.searchParams.get('ecosystem'), ecosystem);
+        assert.equal(destination.hash, '');
+        assert.equal(destination.search, '');
       }
       assert.equal(controller.state()?.address, null);
       controller.close();

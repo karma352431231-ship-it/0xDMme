@@ -1,3 +1,5 @@
+import { approvalPathRequest } from '../../shared/wallet-approval/index.ts';
+
 /** Classify a generated Backpack link without exposing any request capability. */
 export function openingDiagnostics(
   link: string,
@@ -21,13 +23,16 @@ export function openingDiagnostics(
     );
     if (!outer.pathname.startsWith(prefix))
       throw new Error('Rota desconhecida.');
-    return `D2 · protocolo=doc-1 · plataforma=${agent} · ${targetSummary(target)} · ref=${outer.searchParams.has('ref') ? 'presente' : 'ausente'}`;
+    return `D2 · protocolo=doc-2 · plataforma=${agent} · ${targetSummary(target)} · ref=${outer.searchParams.has('ref') ? 'presente' : 'ausente'}`;
   } catch {
-    return `D2 · protocolo=doc-1 · plataforma=${agent} · destino=invalido`;
+    return `D2 · protocolo=doc-2 · plataforma=${agent} · destino=invalido`;
   }
 }
 
 function targetSummary(target: URL): string {
+  const path = approvalPathRequest(target.pathname);
+  if (path)
+    return `destino=entrada-caminho · modo=documento · pedido=presente · rede=${path.ecosystem}`;
   const params = target.hash.startsWith('#configuracoes?')
     ? new URLSearchParams(target.hash.slice('#configuracoes?'.length))
     : target.searchParams;
@@ -39,6 +44,11 @@ function targetSummary(target: URL): string {
         ? 'presente'
         : 'invalido';
   const network = params.get('ecosystem');
+  const { route, mode } = routeMode(target);
+  return `destino=${route} · modo=${mode} · pedido=${request} · rede=${network === 'evm' || network === 'solana' ? network : 'outra'}`;
+}
+
+function routeMode(target: URL) {
   const route =
     target.pathname === '/wallet-entry'
       ? 'entrada'
@@ -51,5 +61,5 @@ function targetSummary(target: URL): string {
       : target.hash.startsWith('#configuracoes?')
         ? 'fragmento'
         : 'padrao';
-  return `destino=${route} · modo=${mode} · pedido=${request} · rede=${network === 'evm' || network === 'solana' ? network : 'outra'}`;
+  return { route, mode };
 }

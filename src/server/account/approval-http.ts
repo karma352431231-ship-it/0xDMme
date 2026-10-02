@@ -2,6 +2,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { AccountError } from '../../shared/account/index.ts';
 import {
   approvalDocumentId,
+  approvalPathRequest,
   walletApprovalRequest,
 } from '../../shared/wallet-approval/index.ts';
 import type { WalletApprovalRequest } from '../../shared/wallet-approval/index.ts';
@@ -9,7 +10,16 @@ import type { AccountService } from './service.ts';
 
 function entryInput(raw: string, origin: string) {
   if (raw.length > 512) throw new AccountError(400, 'Pedido excedido.');
-  const params = new URL(raw, origin).searchParams;
+  const url = new URL(raw, origin);
+  if (url.pathname.startsWith('/wallet-entry/')) {
+    if (raw !== url.pathname)
+      throw new AccountError(400, 'Caminho de aprovação inválido.');
+    return pathInput(url);
+  }
+  return queryInput(url.searchParams);
+}
+
+function queryInput(params: URLSearchParams) {
   const entries = [...params.keys()];
   if (
     entries.length < 3 ||
@@ -28,6 +38,13 @@ function entryInput(raw: string, origin: string) {
     throw new AccountError(400, 'Modo de aprovação inválido.');
   params.delete('view');
   return { input: Object.fromEntries(params), inline: view === 'page' };
+}
+
+function pathInput(url: URL) {
+  const input = approvalPathRequest(url.pathname);
+  if (!input || url.search || url.hash)
+    throw new AccountError(400, 'Caminho de aprovação inválido.');
+  return { input, inline: true };
 }
 
 function approvalPage(document?: Uint8Array): string | undefined {
@@ -78,6 +95,25 @@ export function createApprovalEntry(
   function clear(response: ServerResponse): void {
     response.setHeader('Set-Cookie', cookie('', 0));
   }
+  function sendDocument(
+    response: ServerResponse,
+    state: unknown,
+    rejection?: 'parameters' | 'unavailable',
+  ): void {
+    if (!page)
+      throw new AccountError(503, 'Documento de aprovação indisponível.');
+    const payload = JSON.stringify(state).replaceAll('<', '\\u003c');
+    const rejected = rejection ? ` data-rejected="${rejection}"` : '';
+    const content = Buffer.from(
+      page.replace(
+        '</head>',
+        `<script type="application/json" id="${approvalDocumentId}"${rejected}>${payload}</script></head>`,
+      ),
+    );
+    response.setHeader('Content-Type', 'text/html; charset=utf-8');
+    response.setHeader('Content-Length', content.byteLength);
+    response.writeHead(200).end(content);
+  }
   async function enter(request: IncomingMessage, response: ServerResponse) {
     // Embed validated state only. Never log or reflect the raw query, and
     // never accept a redirect destination from it.
@@ -90,35 +126,36 @@ export function createApprovalEntry(
       );
       if (!seconds) throw new AccountError(401, 'Pedido expirou.');
       if (entry.inline) {
-        if (!page)
-          throw new AccountError(503, 'Documento de aprovação indisponível.');
-        const payload = JSON.stringify(state).replaceAll('<', '\\u003c');
-        const content = Buffer.from(
-          page.replace(
-            '</head>',
-            `<script type="application/json" id="${approvalDocumentId}">${payload}</script></head>`,
-          ),
-        );
-        response.setHeader('Content-Type', 'text/html; charset=utf-8');
-        response.setHeader('Content-Length', content.byteLength);
-        response.writeHead(200).end(content);
+        sendDocument(response, state);
         return;
       }
       const value = `${state.request.ticket}.${state.request.wallet}.${state.request.ecosystem}${state.request.returnBrowser ? '.' + state.request.returnBrowser : ''}`;
       response.setHeader('Set-Cookie', cookie(value, seconds));
       response.writeHead(303, { Location: '/wallet.html#configuracoes' }).end();
     } catch (error: unknown) {
-      clear(response);
-      if (!(error instanceof AccountError)) throw error;
-      // An invalid/replayed entry must not restore a previous stored request.
-      // Fixed categories only: do not expose tickets, addresses or raw errors.
-      const reason = error.status === 400 ? 'parameters' : 'unavailable';
-      response
-        .writeHead(303, {
-          Location: `/wallet.html#configuracoes?invalid=1&reason=${reason}`,
-        })
-        .end();
+      rejectEntry(request, response, error);
     }
+  }
+  function rejectEntry(
+    request: IncomingMessage,
+    response: ServerResponse,
+    error: unknown,
+  ): void {
+    clear(response);
+    if (!(error instanceof AccountError)) throw error;
+    // An invalid/replayed entry must not restore a previous stored request.
+    // Fixed categories only: do not expose tickets, addresses or raw errors.
+    const reason = error.status === 400 ? 'parameters' : 'unavailable';
+    if (request.url?.startsWith('/wallet-entry/') && page) {
+      // Keep rejection on the document too: a wallet must not lose it at a redirect.
+      sendDocument(response, null, reason);
+      return;
+    }
+    response
+      .writeHead(303, {
+        Location: `/wallet.html#configuracoes?invalid=1&reason=${reason}`,
+      })
+      .end();
   }
   async function restore(request: IncomingMessage) {
     // No Set-Cookie on restore/sign: a delayed response must not erase a newer

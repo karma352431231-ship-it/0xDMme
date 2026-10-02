@@ -671,12 +671,7 @@ await test('Autenticação e perfil persistentes', async (t) => {
       const remaining =
         Date.parse(pending.expiresAt) - Date.parse(pending.serverTime);
       assert.ok(remaining > 0 && remaining <= 300_000);
-      const inlinePath = `/wallet-entry?${new URLSearchParams({
-        ticket: pending.ticket,
-        wallet: 'Backpack',
-        ecosystem: 'evm',
-        view: 'page',
-      })}`;
+      const inlinePath = `/wallet-entry/${pending.ticket}/evm/Backpack`;
       const inline = await navigateEntry(inlinePath);
       assert.equal(inline.status, 200);
       assert.equal(inline.headers.get('location'), null);
@@ -760,12 +755,12 @@ await test('Autenticação e perfil persistentes', async (t) => {
       });
       assert.equal(replay.status, 401);
       const usedDocument = await navigateEntry(inlinePath);
-      assert.equal(usedDocument.status, 303);
-      assert.equal(
-        usedDocument.headers.get('location'),
-        '/wallet.html#configuracoes?invalid=1&reason=unavailable',
+      assert.equal(usedDocument.status, 200);
+      assert.equal(usedDocument.headers.get('location'), null);
+      assert.match(
+        await usedDocument.text(),
+        /data-rejected="unavailable">null<\/script>/u,
       );
-      assert.equal(await usedDocument.text(), '');
       assert.equal(
         signed.headers
           .getSetCookie()

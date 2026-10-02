@@ -8,6 +8,7 @@ import {
 import { AccountService, challengeSeconds, sessionSeconds } from './service.ts';
 import { AccountRateLimit } from './rate-limit.ts';
 import { createApprovalEntry } from './approval-http.ts';
+import { approvalEntryUrl } from '../../shared/wallet-approval/index.ts';
 
 function readCookie(request: IncomingMessage, name: string): string {
   const matches = (request.headers.cookie ?? '')
@@ -234,7 +235,7 @@ export function createAccountHandler(options: {
         request.url === '/api/account/challenge' ||
           request.url === '/api/account/handoff-start' ||
           request.url === '/api/account/handoff-challenge' ||
-          request.url?.startsWith('/wallet-entry?') === true,
+          approvalEntryUrl(request.url),
       );
       if (request.method === 'POST') {
         await post(request, response);
@@ -291,10 +292,7 @@ export function createAccountHandler(options: {
     request: IncomingMessage,
     response: ServerResponse,
   ): Promise<boolean> {
-    if (
-      request.url?.startsWith('/wallet-entry?') ||
-      request.url === '/wallet-entry'
-    ) {
+    if (approvalEntryUrl(request.url)) {
       if (
         request.headers['sec-fetch-mode'] !== 'navigate' ||
         request.headers['sec-fetch-dest'] !== 'document'

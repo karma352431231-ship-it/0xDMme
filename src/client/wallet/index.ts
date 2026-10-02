@@ -210,10 +210,9 @@ function approvalDestination(input: {
   wallet: WalletName;
   platform?: MobilePlatform;
 }): string {
-  // Serve the validated request with the approval document on iOS: neither
-  // a redirect cookie nor a URL fragment is required to deliver the ticket.
+  // Keep the iOS request in a fixed path: query/fragment loss cannot remove it.
   if (input.wallet === 'Backpack' && input.platform === 'ios')
-    return `${input.origin}/wallet-entry?${input.query}&view=page`;
+    return `${input.origin}/wallet-entry/${input.query.get('ticket')}/${input.query.get('ecosystem')}/Backpack`;
   return `${input.origin}/wallet-entry?${input.query}`;
 }
 export function walletBrowserUrl(input: {

@@ -5,6 +5,27 @@ import type { Ecosystem } from '../wallet-identity/index.ts';
 export type WalletName = 'MetaMask' | 'Phantom' | 'Backpack';
 export type ReturnBrowser = 'chrome' | 'default';
 export const approvalDocumentId = 'xdmme-wallet-approval-request';
+export function approvalEntryUrl(raw = ''): boolean {
+  return (
+    raw === '/wallet-entry' ||
+    raw.startsWith('/wallet-entry?') ||
+    raw.startsWith('/wallet-entry/')
+  );
+}
+/** A fixed Backpack document route, with no query or fragment transport. */
+export function approvalPathRequest(
+  path: string,
+): WalletApprovalRequest | null {
+  const match =
+    /^\/wallet-entry\/([a-f0-9]{64})\/(evm|solana)\/Backpack$/u.exec(path);
+  return match
+    ? walletApprovalRequest({
+        ticket: match[1],
+        ecosystem: match[2],
+        wallet: 'Backpack',
+      })
+    : null;
+}
 export function returnBrowser(value: unknown): ReturnBrowser {
   if (value === undefined || value === 'default') return 'default';
   if (value === 'chrome') return 'chrome';

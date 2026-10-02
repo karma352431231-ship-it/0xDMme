@@ -43,6 +43,7 @@ function scope(options: {
   clock?: { now: number };
   approvalResponse?: Promise<Response>;
   approvalDocument?: string;
+  approvalRejection?: string;
 }) {
   const address = `0x${'1'.repeat(40)}`;
   const listeners = new Map<string, () => void>();
@@ -95,6 +96,8 @@ function scope(options: {
   let documentRemoved = false;
   const approvalDocument = {
     textContent: options.approvalDocument,
+    getAttribute: (name: string) =>
+      name === 'data-rejected' ? (options.approvalRejection ?? null) : null,
     remove: () => {
       documentRemoved = true;
     },
@@ -767,7 +770,7 @@ function approvalDocumentPayload(ecosystem = 'evm', remaining = 60_000) {
 await test('documento entrega Backpack EVM/Solana sem fragmento ou cookie e remove ticket antes de qualquer RPC', async () => {
   for (const ecosystem of ['evm', 'solana']) {
     const browser = scope({
-      pathname: '/wallet-entry',
+      pathname: `/wallet-entry/${'a'.repeat(64)}/${ecosystem}/Backpack`,
       approvalDocument: approvalDocumentPayload(ecosystem),
       approvalResponse: Promise.resolve(cookieApprovalResponse()),
     });
@@ -835,6 +838,35 @@ await test('documento ausente, inválido ou expirado não recupera pedido antigo
     assert.deepEqual(browser.providerRequests, []);
     assert.deepEqual(browser.states, []);
     assert.match(browser.diagnostic.textContent, /etapa=pedido-invalido/u);
+    browser.dispose();
+  }
+});
+
+await test('rejeição documental chega sem redirecionamento ou fragmento e não recupera pedido nem conecta', async () => {
+  for (const [reason, category] of [
+    ['parameters', 'entrada-rejeitada-parametros'],
+    ['unavailable', 'entrada-rejeitada-pedido'],
+  ] as const) {
+    const browser = scope({
+      pathname: `/wallet-entry/${'a'.repeat(64)}/evm/Backpack`,
+      approvalDocument: 'null',
+      approvalRejection: reason,
+    });
+    await tick();
+    assert.equal(browser.approve.hidden, true);
+    assert.equal(browser.storage.size, 0);
+    assert.deepEqual(browser.requests, []);
+    assert.deepEqual(browser.providerRequests, []);
+    assert.ok(browser.diagnostic.textContent.includes(`entrada=${category}`));
+    assert.match(
+      browser.diagnostic.textContent,
+      /etapa=pedido-invalido.*protocolo=doc-2/u,
+    );
+    assert.doesNotMatch(
+      browser.diagnostic.textContent,
+      /a{64}|ticket=|https:/u,
+    );
+    assert.equal(browser.documentRemoved(), true);
     browser.dispose();
   }
 });

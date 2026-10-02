@@ -2,7 +2,10 @@ import assert from 'node:assert/strict';
 import { request as httpRequest } from 'node:http';
 import { test } from 'node:test';
 import { AccountError } from '../src/shared/account/index.ts';
-import { walletApprovalRequest } from '../src/shared/wallet-approval/index.ts';
+import {
+  walletApprovalRequest,
+  approvalEntryUrl,
+} from '../src/shared/wallet-approval/index.ts';
 import { createApprovalEntry } from '../src/server/account/approval-http.ts';
 import { createWebServer } from '../src/server/web-host/index.ts';
 
@@ -68,7 +71,7 @@ await test('entrada valida campos, limpa URL, limita cookie, preserva capacidade
     account: {
       close: () => {},
       async handle(request, response) {
-        if (request.url?.startsWith('/wallet-entry?'))
+        if (approvalEntryUrl(request.url))
           return entry.enter(request, response);
         if (request.url === '/api/account/approval-request') {
           try {
@@ -240,6 +243,61 @@ await test('entrada valida campos, limpa URL, limita cookie, preserva capacidade
     );
   }
   await checkDirectDocument();
+  await checkPathDocument();
+  async function checkPathDocument() {
+    expires = Date.now() + 120_000;
+    for (const [network, ticket] of [
+      ['solana', 'a'.repeat(64)],
+      ['evm', 'b'.repeat(64)],
+    ] as const) {
+      const path = `/wallet-entry/${ticket}/${network}/Backpack`;
+      const direct = await get(path, navigation);
+      assert.equal(direct.status, 200);
+      assert.equal(direct.headers.location, undefined);
+      assert.equal(direct.headers['set-cookie'], undefined);
+      assert.equal(direct.headers['cache-control'], 'no-store');
+      assert.match(
+        direct.body,
+        /type="application\/json" id="xdmme-wallet-approval-request"/u,
+      );
+      assert.ok(direct.body.includes(ticket));
+      assert.doesNotMatch(
+        direct.body,
+        /data-rejected|sessionToken|browserToken|signature/u,
+      );
+      assert.equal((await get(path, navigation, 'POST')).status, 403);
+      assert.equal(
+        (await get(path, { 'Sec-Fetch-Site': 'cross-site' })).status,
+        403,
+      );
+      consumed.add(ticket);
+      const used = await get(path, navigation);
+      assert.equal(used.status, 200);
+      assert.equal(used.headers.location, undefined);
+      assert.match(used.body, /data-rejected="unavailable">null<\/script>/u);
+      assert.ok(!used.body.includes(ticket));
+      consumed.clear();
+    }
+    for (const path of [
+      `/wallet-entry/PRIVATE/evm/Backpack`,
+      `/wallet-entry/${'a'.repeat(64)}/other/Backpack`,
+      `/wallet-entry/${'a'.repeat(64)}/solana/Phantom`,
+      `/wallet-entry/${'a'.repeat(64)}/solana/Backpack?view=page`,
+      `/wallet-entry/${'a'.repeat(64)}/solana/Backpack/extra`,
+    ]) {
+      const invalid = await get(path, navigation);
+      assert.equal(invalid.status, 200);
+      assert.equal(invalid.headers.location, undefined);
+      assert.match(invalid.body, /data-rejected="parameters">null<\/script>/u);
+      assert.doesNotMatch(invalid.body, /PRIVATE|a{64}/u);
+    }
+    expires = Date.now() - 1;
+    const expired = await get(
+      `/wallet-entry/${'a'.repeat(64)}/solana/Backpack`,
+      navigation,
+    );
+    assert.match(expired.body, /data-rejected="unavailable">null<\/script>/u);
+  }
   async function checkDirectDocument() {
     for (const [network, ticket] of [
       ['solana', 'a'.repeat(64)],

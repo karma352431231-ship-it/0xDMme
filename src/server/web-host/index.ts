@@ -4,6 +4,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import type { Database } from '../database/index.ts';
 import type { ObjectStore } from '../object-store/index.ts';
+import { approvalEntryUrl } from '../../shared/wallet-approval/index.ts';
 
 export interface WebAsset {
   content: Uint8Array;
@@ -104,10 +105,7 @@ function nativeProbeRequest(request: IncomingMessage): boolean {
 }
 
 function approvalEntry(request: IncomingMessage): boolean {
-  return (
-    request.url === '/wallet-entry' ||
-    request.url?.startsWith('/wallet-entry?') === true
-  );
+  return approvalEntryUrl(request.url);
 }
 
 function admitted(request: IncomingMessage, origin: string): boolean {
