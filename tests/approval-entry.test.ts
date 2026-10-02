@@ -297,6 +297,24 @@ await test('entrada valida campos, limpa URL, limita cookie, preserva capacidade
         ).status,
         403,
       );
+      for (const ref of [origin, `${origin}/`]) {
+        for (const query of [`ref=${encodeURIComponent(ref)}`, `ref=${ref}`]) {
+          const forwarded = await get(`${path}?${query}`, navigation);
+          assert.equal(forwarded.status, 303);
+          assert.equal(forwarded.headers.location, '/wallet-approval');
+          const refCookie =
+            responseCookie(forwarded.headers).split(';')[0] ?? '';
+          const restored = await get('/wallet-approval', {
+            ...navigation,
+            cookie: refCookie,
+          });
+          assert.ok(restored.body.includes(ticket));
+          assert.doesNotMatch(
+            restored.body,
+            /data-rejected|"ref"|sessionToken|browserToken|signature/u,
+          );
+        }
+      }
       consumed.add(ticket);
       const used = await get('/wallet-approval', { ...navigation, cookie });
       assert.match(used.body, /data-rejected="unavailable">null<\/script>/u);
@@ -316,6 +334,21 @@ await test('entrada valida campos, limpa URL, limita cookie, preserva capacidade
       `/wallet-entry/${'a'.repeat(64)}/solana/Phantom`,
       `/wallet-entry/${'a'.repeat(64)}/solana/Backpack?view=page`,
       `/wallet-entry/${'a'.repeat(64)}/solana/Backpack/extra`,
+      ...[
+        'ref=',
+        'ref=https%3A%2F%2Fevil.example',
+        'ref=http%3A%2F%2F0xdmme.app',
+        'ref=https%3A%2F%2F0xdmme.app.evil.example',
+        'ref=https%3A%2F%2Fuser%400xdmme.app',
+        'ref=https%3A%2F%2F0xdmme.app%2Fwallet.html',
+        'ref=https%3A%2F%2F0xdmme.app&ref=https%3A%2F%2F0xdmme.app',
+        'ref=https%3A%2F%2F0xdmme.app&ecosystem=evm',
+        'ref=https%3A%2F%2F0xdmme.app&ticket=PRIVATE',
+        'ref=https%3A%2F%2F0xdmme.app&view=page',
+        'ref=https%3A%2F%2F0xdmme.app&other=PRIVATE',
+      ].map(
+        (query) => `/wallet-entry/${'a'.repeat(64)}/solana/Backpack?${query}`,
+      ),
     ]) {
       const invalid = await get(path, navigation);
       assert.equal(invalid.status, 303);

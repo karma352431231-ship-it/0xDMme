@@ -672,7 +672,7 @@ await test('Autenticação e perfil persistentes', async (t) => {
       const remaining =
         Date.parse(pending.expiresAt) - Date.parse(pending.serverTime);
       assert.ok(remaining > 0 && remaining <= 300_000);
-      const inlinePath = `/wallet-entry/${pending.ticket}/evm/Backpack`;
+      const inlinePath = `/wallet-entry/${pending.ticket}/evm/Backpack?${new URLSearchParams({ ref: origin })}`;
       async function deliveredDocument(path: string) {
         const inline = await navigateEntry(path);
         assert.equal(inline.status, 303);

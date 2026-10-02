@@ -13,9 +13,9 @@ function entryInput(raw: string, origin: string) {
   if (raw.length > 512) throw new AccountError(400, 'Pedido excedido.');
   const url = new URL(raw, origin);
   if (url.pathname.startsWith('/wallet-entry/')) {
-    if (raw !== url.pathname)
+    if (raw !== `${url.pathname}${url.search}`)
       throw new AccountError(400, 'Caminho de aprovação inválido.');
-    return pathInput(url);
+    return pathInput(url, origin);
   }
   return queryInput(url.searchParams);
 }
@@ -41,11 +41,22 @@ function queryInput(params: URLSearchParams) {
   return { input: Object.fromEntries(params), inline: view === 'page' };
 }
 
-function pathInput(url: URL) {
+function pathInput(url: URL, origin: string) {
   const input = approvalPathRequest(url.pathname);
-  if (!input || url.search || url.hash)
+  if (!input || url.hash)
     throw new AccountError(400, 'Caminho de aprovação inválido.');
+  pathRef(url.searchParams, origin);
   return { input, inline: true };
+}
+
+function pathRef(params: URLSearchParams, origin: string): void {
+  const names = [...params.keys()];
+  if (!names.length) return;
+  if (names.length !== 1 || names[0] !== 'ref')
+    throw new AccountError(400, 'Metadados de aprovação inválidos.');
+  const value = params.get('ref');
+  if (value !== origin && value !== `${origin}/`)
+    throw new AccountError(400, 'Origem de aprovação inválida.');
 }
 
 function approvalPage(document?: Uint8Array): string | undefined {
