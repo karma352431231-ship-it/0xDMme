@@ -1,3 +1,4 @@
+import { SolanaConnectionError } from '../wallet/index.ts';
 import {
   approvalDocumentId,
   approvalDocumentUrl,
@@ -127,13 +128,17 @@ export function createApprovalDiagnostics() {
       stage = next;
       failure = 'nao';
     },
-    fail(status?: number) {
+    fail(error?: number | SolanaConnectionError) {
+      if (error instanceof SolanaConnectionError) {
+        failure = error.category;
+        return;
+      }
       failure =
-        status !== undefined &&
-        Number.isInteger(status) &&
-        status >= 400 &&
-        status <= 599
-          ? `HTTP-${status}`
+        error !== undefined &&
+        Number.isInteger(error) &&
+        error >= 400 &&
+        error <= 599
+          ? `HTTP-${error}`
           : 'local-ou-provider';
     },
     text(provider: boolean | null, storageAvailable = true) {

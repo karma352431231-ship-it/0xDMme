@@ -1,5 +1,6 @@
 import { base58 } from '@scure/base';
 import { getWallets } from '@wallet-standard/app';
+import { connectionError, SolanaConnectionError } from './connection-error.ts';
 import {
   canonicalAddress,
   solanaPublicKey,
@@ -35,12 +36,16 @@ function selectedAccount(wallet: StandardWallet, address?: string) {
       item.features.includes('solana:signMessage') &&
       (address === undefined || item.address === address),
   );
-  if (
-    !account ||
-    base58.encode(new Uint8Array(account.publicKey)) !==
+  if (!account) throw new SolanaConnectionError('conta-solana-ausente');
+  try {
+    if (
+      base58.encode(new Uint8Array(account.publicKey)) !==
       canonicalAddress('solana', account.address)
-  )
-    throw new Error('Selecione uma conta Solana que assine mensagens.');
+    )
+      throw new SolanaConnectionError('conta-solana-invalida');
+  } catch {
+    throw new SolanaConnectionError('conta-solana-invalida');
+  }
   return account;
 }
 export async function standardIdentity(
@@ -51,7 +56,11 @@ export async function standardIdentity(
     const connect = feature(wallet, 'standard:connect') as {
       connect: () => Promise<unknown>;
     };
-    await connect.connect();
+    try {
+      await connect.connect();
+    } catch (error: unknown) {
+      throw connectionError(error);
+    }
   }
   return {
     address: selectedAccount(wallet).address,

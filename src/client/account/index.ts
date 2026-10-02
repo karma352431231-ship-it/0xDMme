@@ -7,7 +7,7 @@ import {
   uuid,
 } from '../../shared/account/index.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
-import { discoverWallets } from '../wallet/index.ts';
+import { discoverWallets, SolanaConnectionError } from '../wallet/index.ts';
 import type { WalletConnection, WalletName } from '../wallet/index.ts';
 import { createApprovalDiagnostics } from './approval-diagnostics.ts';
 import type { ApprovalStage } from './approval-diagnostics.ts';
@@ -651,10 +651,14 @@ export function startAccount(options: {
   ): void {
     if (approvalOnly && incoming === request)
       diagnostics.fail(
-        error instanceof AccountError ? error.status : undefined,
+        error instanceof AccountError
+          ? error.status
+          : error instanceof SolanaConnectionError
+            ? error
+            : undefined,
       );
     status =
-      error instanceof AccountError
+      error instanceof AccountError || error instanceof SolanaConnectionError
         ? error.message
         : 'Operação não concluída. Confira a wallet e a conexão; tente novamente.';
   }

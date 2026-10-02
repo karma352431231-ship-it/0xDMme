@@ -203,6 +203,7 @@ function legacySolana(name: string): WalletConnection | undefined {
   };
 }
 export { evmIdentity, signEvm } from './evm.ts';
+export { SolanaConnectionError } from './connection-error.ts';
 type MobilePlatform = 'android' | 'ios' | 'other';
 function approvalDestination(input: {
   origin: string;
