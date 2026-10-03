@@ -62,6 +62,10 @@ const bundle = await build({
     SYNTHETIC_FIXTURE_SEED: JSON.stringify(fixtureSeed),
     SYNTHETIC_QR_CAMERA:
       process.env['HASH_TALK_FIXTURE_QR_CAMERA'] === '1' ? 'true' : 'false',
+    SYNTHETIC_RECOVERY_CONTROLS:
+      process.env['HASH_TALK_FIXTURE_RECOVERY_CONTROLS'] === '1'
+        ? 'true'
+        : 'false',
   },
 });
 const script = bundle.outputFiles[0]?.contents;
@@ -70,19 +74,23 @@ assets.set('/fixture-wallet.js', {
   type: 'text/javascript; charset=utf-8',
   content: script,
 });
-for (const path of ['/', '/wallet.html']) {
+for (const path of ['/', '/wallet.html', '/recovery.html']) {
   const entry = assets.get(path);
   if (!entry) throw new Error('Página de teste ausente.');
+  const pageHtml = new TextDecoder().decode(entry.content);
+  const pageScript = pageHtml.match(
+    /src="(\/(?:app|recovery-return)-[a-f0-9]+\.js)"/u,
+  )?.[1];
+  if (!pageScript) throw new Error('Script de teste ausente.');
   assets.set(path, {
     ...entry,
     content: new TextEncoder().encode(
-      new TextDecoder()
-        .decode(entry.content)
+      pageHtml
         .replace(
           '<html lang="pt-BR">',
-          `<html lang="pt-BR" data-test-app="${app}">`,
+          `<html lang="pt-BR" data-test-app="${pageScript}">`,
         )
-        .replace(`src="${app}"`, 'src="/fixture-wallet.js"')
+        .replace(`src="${pageScript}"`, 'src="/fixture-wallet.js"')
         .replace(
           'Esta versão ainda não envia mensagens nem abre seu histórico.',
           'TESTE ISOLADO: wallet sintética, sem fundos, sem dados reais.',
@@ -96,7 +104,8 @@ const host = createWebServer({
   database,
   objects,
   account: createAccountHandler({
-    devices: new DeviceService(database.devices),
+    devices: new DeviceService(database.devices, origin),
+    ...fixtureDocuments(),
     vault: new VaultService({
       store: database.vault,
       devices: database.devices,
@@ -109,6 +118,16 @@ const host = createWebServer({
     }),
   }),
 });
+function fixtureDocuments(): {
+  approvalDocument: Uint8Array;
+  recoveryDocument: Uint8Array;
+} {
+  const approvalDocument = assets.get('/wallet.html')?.content;
+  const recoveryDocument = assets.get('/recovery.html')?.content;
+  if (!approvalDocument || !recoveryDocument)
+    throw new Error('Documentos de teste ausentes.');
+  return { approvalDocument, recoveryDocument };
+}
 await new Promise<void>((resolve, reject) => {
   host.server.once('error', reject);
   host.server.listen(fixturePort, '127.0.0.1', resolve);

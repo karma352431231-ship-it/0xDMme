@@ -4,6 +4,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import type { Database } from '../database/index.ts';
 import type { ObjectStore } from '../object-store/index.ts';
+import { recoveryEntry } from '../../shared/wallet-recovery/index.ts';
 import {
   approvalDocumentUrl,
   approvalEntryUrl,
@@ -98,6 +99,7 @@ function publicNavigation(request: IncomingMessage): boolean {
     (request.url === '/' ||
       request.url === '/wallet.html' ||
       nativeProbeRequest(request) ||
+      recoveryEntry(request.url) !== null ||
       approvalEntry(request)) &&
     request.headers['sec-fetch-mode'] === 'navigate' &&
     request.headers['sec-fetch-dest'] === 'document'
@@ -193,7 +195,9 @@ export function createWebServer(options: {
       return;
     }
     if (
-      (request.url?.startsWith('/api/account/') || approvalEntry(request)) &&
+      (request.url?.startsWith('/api/account/') ||
+        approvalEntry(request) ||
+        recoveryEntry(request.url) !== null) &&
       options.account
     ) {
       if (stopping) {

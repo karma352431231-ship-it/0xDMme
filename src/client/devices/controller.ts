@@ -38,6 +38,7 @@ import {
   nameIdentity,
   readCheckpoint,
   saveCheckpoint,
+  advanceCheckpoint,
   storedIdentity,
 } from '../device-storage/index.ts';
 import {
@@ -52,7 +53,31 @@ import {
   sealProfile,
 } from '../account-profile/index.ts';
 import type { PrivateProfile } from '../account-profile/index.ts';
+import {
+  createWalletRecovery,
+  walletRecoveryKey,
+} from '../wallet-recovery/index.ts';
+import { recoveryIdentity } from '../../shared/wallet-recovery/index.ts';
+import {
+  directRecovery,
+  requestRecovery,
+  receiveRecovery,
+  openRecoveryWallet,
+  recoveryApi,
+  rememberRecovery,
+  readRecovery,
+  forgetRecovery,
+} from '../recovery-return/index.ts';
+import type { RecoveryPlan, RecoveryFlow } from '../recovery-return/index.ts';
 
+interface WalletRecoveryStart {
+  mode: RecoveryPlan['mode'];
+  wallet: string;
+  name: string;
+  revoked: string[];
+  revision: number;
+  legacy?: string;
+}
 function readPage(value: unknown): {
   events: unknown[];
   revision: number;
@@ -138,7 +163,8 @@ export class DeviceController {
   current: DirectoryEvent | null = null;
   identity: LocalIdentity | null = null;
   ring: Keyring | null = null;
-  recoveryDraft: string | null = null;
+  walletPending: RecoveryFlow | null = null;
+  private legacyRecoverySecret = '';
   pendingCode: LinkCode | null = null;
   approvalCode: LinkCode | null = null;
   pendingFingerprint = '';
@@ -176,15 +202,19 @@ export class DeviceController {
     this.identity = identity;
   }
 
-  setSession(session: AccountSession | null): void {
-    if (
+  private sameSession(session: AccountSession | null): boolean {
+    return (
       session?.accountId === this.session?.accountId &&
       session?.deviceId === this.session?.deviceId &&
       session?.csrf === this.session?.csrf
-    ) {
+    );
+  }
+  setSession(session: AccountSession | null): void {
+    if (this.sameSession(session)) {
       this.session = session;
       return;
     }
+    if (this.session) forgetRecovery(this.session);
     this.generation++;
     this.session = session;
     this.current = null;
@@ -192,7 +222,8 @@ export class DeviceController {
     this.ring = null;
     this.events = [];
     this.trustedRoot = null;
-    this.recoveryDraft = null;
+    this.walletPending = null;
+    this.legacyRecoverySecret = '';
     this.pendingCode = null;
     this.pendingFingerprint = '';
     this.approvalCode = null;
@@ -219,7 +250,11 @@ export class DeviceController {
     });
   }
   async refresh(): Promise<void> {
-    return this.run((session) => this.synchronize(session));
+    return this.run(async (session) => {
+      await this.loadIdentity(session);
+      await this.synchronize(session);
+      await this.restoreWalletPending(session);
+    });
   }
   async withVault<T>(
     offline: boolean,
@@ -317,15 +352,20 @@ export class DeviceController {
       checkpoint.events,
     );
     if (generation !== this.generation) throw new Error('Sessão alterada.');
-    await saveCheckpoint(session.accountId, {
+    const trustedRoot = await this.reconciledRoot(checkpoint, current);
+    const persist =
+      trustedRoot === checkpoint.trustedRoot
+        ? saveCheckpoint
+        : advanceCheckpoint;
+    await persist(session.accountId, {
       events,
-      trustedRoot: checkpoint.trustedRoot,
+      trustedRoot,
     });
     this.assertSession(session);
     this.current = current;
     this.serverTime = serverTime;
     this.events = events;
-    this.trustedRoot = checkpoint.trustedRoot;
+    this.trustedRoot = trustedRoot;
     if (
       this.receiptTarget &&
       !current?.devices.some((device) => device.id === this.receiptTarget)
@@ -342,6 +382,16 @@ export class DeviceController {
         this.ring = await deviceSecrets(this.identity, current);
     }
   }
+  private async reconciledRoot(
+    checkpoint: { events: DirectoryEvent[]; trustedRoot: string | null },
+    current: DirectoryEvent | null,
+  ): Promise<string | null> {
+    const previous = checkpoint.events.at(-1);
+    if (!current || !previous) return checkpoint.trustedRoot;
+    if (checkpoint.trustedRoot !== (await digest(canonical(previous.root))))
+      return checkpoint.trustedRoot;
+    return digest(canonical(current.root));
+  }
   async privateKey(
     session: AccountSession,
   ): Promise<{ key: CryptoKey; epoch: number } | null> {
@@ -350,6 +400,7 @@ export class DeviceController {
       // Generate and durably store identity before any public grant is sent.
       await this.loadIdentity(current);
       await this.synchronize(current);
+      await this.restoreWalletPending(current);
       if (!this.current) {
         const key = await profileKey(
           current.accountId,
@@ -366,17 +417,268 @@ export class DeviceController {
         : null;
     });
   }
-  async beginRecovery(name: string): Promise<string> {
-    return this.run(async (session) => {
-      await this.synchronize(session);
-      if (this.current)
+  private async restoreWalletPending(session: AccountSession): Promise<void> {
+    if (this.identity && !this.walletPending)
+      this.walletPending = await readRecovery(
+        session,
+        this.identity.public.wrapping,
+      );
+  }
+  async beginWalletRecovery(input: WalletRecoveryStart): Promise<boolean> {
+    return this.run((session) =>
+      this.startWalletRecovery(session, {
+        ...input,
+        name: input.name || 'Meu aparelho',
+      }),
+    );
+  }
+  private async walletPlan(
+    session: AccountSession,
+    input: WalletRecoveryStart,
+  ): Promise<RecoveryPlan> {
+    await this.loadIdentity(session, input.name);
+    await this.synchronize(session);
+    if (this.walletPending)
+      throw new Error('Conclua ou cancele o pedido de recuperação anterior.');
+    this.validateWalletMode(input.mode, input.revision);
+    if (input.mode === 'migrate') {
+      if (!input.legacy || !this.current)
         throw new Error(
-          'A recuperação já foi configurada. Vincule ou recupere este aparelho.',
+          'Informe uma última vez o código antigo para autorizar a migração.',
         );
-      await this.loadIdentity(session, name || 'Meu aparelho');
-      this.recoveryDraft = newSecret();
-      return this.recoveryDraft;
+      await recoverSecrets(this.current, input.legacy);
+    }
+    const config = this.walletConfig(session, input.mode);
+    const plan: RecoveryPlan = {
+      mode: input.mode,
+      config,
+      name: input.name,
+      revoked: [...input.revoked],
+      revision: this.current ? this.current.revision : 0,
+      head: this.current ? await eventHash(this.current) : null,
+    };
+    return plan;
+  }
+  private walletConfig(session: AccountSession, mode: RecoveryPlan['mode']) {
+    const config =
+      mode === 'recover'
+        ? this.current?.root.wallet
+        : createWalletRecovery(session, location.origin);
+    if (!config)
+      throw new Error(
+        'Esta conta ainda usa o código antigo. Recupere ou migre pelo fluxo legado.',
+      );
+    recoveryIdentity(config, session, location.origin);
+    return config;
+  }
+  private async startWalletRecovery(
+    session: AccountSession,
+    input: WalletRecoveryStart,
+  ): Promise<boolean> {
+    const plan = await this.walletPlan(session, input);
+    if (!this.identity) throw new Error('Identidade local ausente.');
+    if (input.mode === 'recover' && this.current)
+      recoveryIdentities(this.current, plan.revoked);
+    const token = this.generation;
+    const deadline = Date.now() + 120_000;
+    const current = () => {
+      this.assertSession(session);
+      if (token !== this.generation || Date.now() > deadline)
+        throw new Error('Pedido interrompido ou expirado. Inicie novamente.');
+    };
+    const count = input.mode === 'recover' ? 1 : 2;
+    const signatures = await directRecovery({
+      config: plan.config,
+      wallet: input.wallet,
+      count,
+      current,
     });
+    if (signatures) {
+      await this.completeWalletRecovery({
+        session,
+        plan,
+        signatures,
+        legacy: input.legacy ?? '',
+        current,
+      });
+      return true;
+    }
+    if (!/Android|iPhone|iPad|iPod/iu.test(navigator.userAgent))
+      throw new Error(
+        'Wallet indisponível neste navegador. Abra uma wallet compatível para assinar.',
+      );
+    const pending = await requestRecovery({
+      session,
+      identity: this.identity,
+      config: plan.config,
+      wallet: input.wallet,
+      count,
+    });
+    current();
+    this.walletPending = { ...plan, pending };
+    this.legacyRecoverySecret = input.legacy ?? '';
+    rememberRecovery(session, this.walletPending);
+    return false;
+  }
+  private validateWalletMode(
+    mode: RecoveryPlan['mode'],
+    revision: number,
+  ): void {
+    if (mode === 'initialize') {
+      if (this.current) throw new Error('A recuperação já foi configurada.');
+      return;
+    }
+    if (!this.current || this.current.revision !== revision)
+      throw new Error(
+        'A lista de aparelhos mudou. Confira sua escolha novamente.',
+      );
+    if (mode === 'migrate' && (!this.authorized || this.current.root.wallet))
+      throw new Error(
+        'Migração exige aparelho autorizado e configuração antiga.',
+      );
+  }
+  openWalletRecovery(): void {
+    if (!this.walletPending) throw new Error('Pedido de recuperação ausente.');
+    openRecoveryWallet(this.walletPending.pending);
+  }
+  async finishWalletRecovery(legacy = ''): Promise<boolean> {
+    return this.run(async (session) => {
+      await this.loadIdentity(session);
+      await this.restoreWalletPending(session);
+      const flow = this.walletPending;
+      if (!flow || !this.identity)
+        throw new Error('Pedido ausente. Inicie novamente.');
+      await this.synchronize(session);
+      this.validateWalletMode(flow.mode, flow.revision);
+      if ((this.current ? await eventHash(this.current) : null) !== flow.head)
+        throw new Error(
+          'A autorização mudou durante a assinatura. Cancele e confira novamente.',
+        );
+      const oldSecret = legacy || this.legacyRecoverySecret;
+      if (flow.mode === 'migrate' && !oldSecret)
+        throw new Error(
+          'Informe uma última vez o código antigo para autorizar a migração.',
+        );
+      const signatures = await receiveRecovery({
+        session,
+        identity: this.identity,
+        pending: flow.pending,
+      });
+      if (!signatures) return false;
+      const token = this.generation;
+      const current = () => {
+        this.assertSession(session);
+        if (token !== this.generation)
+          throw new Error('Sessão alterada durante a recuperação.');
+      };
+      await this.completeWalletRecovery({
+        session,
+        plan: flow,
+        signatures,
+        legacy: oldSecret,
+        current,
+      });
+      forgetRecovery(session);
+      this.walletPending = null;
+      this.legacyRecoverySecret = '';
+      return true;
+    });
+  }
+  async cancelWalletRecovery(): Promise<void> {
+    return this.run(async (session) => {
+      const flow = this.walletPending;
+      forgetRecovery(session);
+      this.walletPending = null;
+      this.legacyRecoverySecret = '';
+      if (flow)
+        await recoveryApi(
+          'cancel',
+          {
+            ticket: flow.pending.transfer.ticket,
+            commitment: flow.pending.commitment,
+          },
+          session,
+        );
+    });
+  }
+  private async completeWalletRecovery(input: {
+    session: AccountSession;
+    plan: RecoveryPlan;
+    signatures: string[];
+    legacy: string;
+    current: () => void;
+  }): Promise<void> {
+    const { session, plan, signatures, current } = input;
+    try {
+      current();
+      const previous = this.current;
+      const key = await walletRecoveryKey(plan.config, signatures);
+      const { authority, ring } = await this.walletAuthority(
+        session,
+        plan,
+        key,
+        input.legacy,
+      );
+      const identities = this.walletIdentities(plan);
+      const profile = await this.rotatedProfile(session, ring);
+      const event = await prepareEvent({
+        accountId: session.accountId,
+        previous,
+        kind: plan.mode,
+        signer: 'recovery',
+        signing: authority.signing,
+        root: authority.root,
+        identities,
+        ring,
+        profile,
+      });
+      const restored = await recoverSecrets(
+        event,
+        await walletRecoveryKey(plan.config, [signatures.at(-1) ?? '']),
+      );
+      if (canonical(restored.ring) !== canonical(ring))
+        throw new Error('Verificação de recuperação falhou.');
+      current();
+      await this.commit(session, event, profile);
+    } finally {
+      signatures.fill('');
+      this.legacyRecoverySecret = '';
+    }
+  }
+  private async walletAuthority(
+    session: AccountSession,
+    plan: RecoveryPlan,
+    key: CryptoKey,
+    legacy: string,
+  ) {
+    if (!this.current)
+      return {
+        authority: await createRecovery(session.accountId, key, plan.config),
+        ring: freshKeyring(session.accountId),
+      };
+    const recovered = await recoverSecrets(
+      this.current,
+      plan.mode === 'migrate' ? legacy : key,
+    );
+    this.ring = recovered.ring;
+    const root =
+      plan.mode === 'recover'
+        ? this.current.root
+        : (await createRecovery(session.accountId, key, plan.config)).root;
+    return {
+      authority: { root, signing: recovered.signing },
+      ring: freshKeyring(session.accountId, recovered.ring),
+    };
+  }
+  private walletIdentities(plan: RecoveryPlan) {
+    if (!this.identity) throw new Error('Identidade local ausente.');
+    if (plan.mode === 'initialize') return [this.identity.public];
+    if (!this.current) throw new Error('Diretório ausente.');
+    if (plan.mode === 'migrate') return this.current.devices.map(identityOf);
+    return [
+      ...recoveryIdentities(this.current, plan.revoked),
+      this.identity.public,
+    ];
   }
   private async rotatedProfile(
     session: AccountSession,
@@ -436,10 +738,11 @@ export class DeviceController {
     // Pin the user-confirmed root before network publication. A lost response
     // or process interruption can then reconcile the signed committed event.
     const trustedRoot = await digest(canonical(event.root));
-    await saveCheckpoint(session.accountId, {
-      events: this.events,
-      trustedRoot,
-    });
+    if (event.kind !== 'migrate')
+      await saveCheckpoint(session.accountId, {
+        events: this.events,
+        trustedRoot,
+      });
     this.assertSession(session);
     const response = object(
       await api(session, 'devices/commit', { event, profile }),
@@ -453,7 +756,9 @@ export class DeviceController {
       );
     if (generation !== this.generation) throw new Error('Sessão alterada.');
     const events = [...this.events, event];
-    await saveCheckpoint(session.accountId, { events, trustedRoot });
+    const persist =
+      event.kind === 'migrate' ? advanceCheckpoint : saveCheckpoint;
+    await persist(session.accountId, { events, trustedRoot });
     this.events = events;
     this.current = event;
     this.trustedRoot = trustedRoot;
@@ -461,36 +766,6 @@ export class DeviceController {
       this.ring = await deviceSecrets(this.identity, event);
     this.receipt =
       event.kind === 'link' ? (await eventHash(event)).slice(0, 32) : '';
-  }
-  async confirmRecovery(confirmation: string): Promise<void> {
-    return this.run(async (session) => {
-      const secret = this.recoveryDraft;
-      if (!secret || confirmation.trim() !== secret)
-        throw new Error('Digite a chave guardada para confirmar.');
-      await this.synchronize(session);
-      if (this.current || !this.identity)
-        throw new Error('Configuração já existe ou identidade ausente.');
-      const recovery = await createRecovery(session.accountId, secret);
-      const ring = freshKeyring(session.accountId);
-      const profile = await this.rotatedProfile(session, ring);
-      const event = await prepareEvent({
-        accountId: session.accountId,
-        previous: null,
-        kind: 'initialize',
-        signer: 'recovery',
-        signing: recovery.signing,
-        root: recovery.root,
-        identities: [this.identity.public],
-        ring,
-        profile,
-      });
-      // Round-trip before publishing; the user must have kept the exact secret.
-      const restored = await recoverSecrets(event, confirmation.trim());
-      if (canonical(restored.ring) !== canonical(ring))
-        throw new Error('Verificação local de recuperação falhou.');
-      await this.commit(session, event, profile);
-      this.recoveryDraft = null;
-    });
   }
   async startLink(name: string): Promise<void> {
     return this.run(async (session) => {
@@ -704,7 +979,8 @@ export class DeviceController {
   clearTransient(): void {
     this.generation++;
     this.identity = null;
-    this.recoveryDraft = null;
+    this.walletPending = null;
+    this.legacyRecoverySecret = '';
     this.pendingCode = null;
     this.pendingFingerprint = '';
     this.approvalCode = null;

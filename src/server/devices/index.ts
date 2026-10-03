@@ -22,11 +22,14 @@ import {
 } from '../../shared/devices/index.ts';
 import type { DirectoryEvent } from '../../shared/devices/index.ts';
 import type { DeviceStore } from '../database/index.ts';
+import { recoveryIdentity } from '../../shared/wallet-recovery/index.ts';
 
 export class DeviceService {
   private readonly store: DeviceStore;
-  constructor(store: DeviceStore) {
+  private readonly origin: string | undefined;
+  constructor(store: DeviceStore, origin?: string) {
     this.store = store;
+    this.origin = origin;
   }
   private async current(
     session: AccountSession,
@@ -116,6 +119,7 @@ export class DeviceService {
     const event = await verifyTransition(previous, data['event']);
     if (event.accountId !== session.accountId)
       throw new AccountError(403, 'Diretório pertence a outra conta.');
+    this.authorizeRecovery(session, event);
     this.authorizeCommit(session, previous, event);
     if (event.linkId) {
       const link = await this.store.link(session.accountId, event.linkId);
@@ -143,6 +147,11 @@ export class DeviceService {
     previous: DirectoryEvent | null,
     event: DirectoryEvent,
   ): void {
+    if (
+      event.kind === 'migrate' &&
+      !previous?.devices.some((device) => device.id === session.deviceId)
+    )
+      throw new AccountError(403, 'Migração exige aparelho autorizado.');
     if (event.signer !== 'recovery' && event.signer !== session.deviceId)
       throw new AccountError(403, 'Assinatura pertence a outro aparelho.');
     if (event.kind === 'initialize' || event.kind === 'recover') {
@@ -150,6 +159,17 @@ export class DeviceService {
         throw new AccountError(403, 'Autorização pertence a outro aparelho.');
       requireFreshDevice(previous, session.deviceId);
     }
+  }
+  private authorizeRecovery(
+    session: AccountSession,
+    event: DirectoryEvent,
+  ): void {
+    if (event.root.wallet)
+      recoveryIdentity(
+        event.root.wallet,
+        session,
+        this.origin ?? event.root.wallet.origin,
+      );
   }
   async saveProfile(session: AccountSession, input: unknown) {
     const data = object(input);

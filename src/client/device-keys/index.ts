@@ -13,6 +13,8 @@ import {
   signedBody,
   verify,
 } from '../../shared/devices/index.ts';
+import { walletRecovery } from '../../shared/wallet-recovery/index.ts';
+import type { WalletRecovery } from '../../shared/wallet-recovery/index.ts';
 import type {
   DeviceIdentity,
   DirectoryEvent,
@@ -274,7 +276,8 @@ export async function deviceSecrets(
 }
 export async function createRecovery(
   accountId: string,
-  secret: string,
+  secret: string | CryptoKey,
+  wallet?: WalletRecovery,
 ): Promise<{ root: RecoveryRoot; signing: CryptoKey }> {
   const signing = await crypto.subtle.generateKey(signingAlgorithm, true, [
     'sign',
@@ -303,25 +306,26 @@ export async function createRecovery(
     wrapping: encode(
       new Uint8Array(await crypto.subtle.exportKey('spki', wrapping.publicKey)),
     ),
-    capsule: await sealAes(await aesKey(secret), material, [
-      '0xdmme-recovery-root',
-      1,
-      accountId,
-    ]),
+    ...(wallet ? { wallet: walletRecovery(wallet) } : {}),
+    capsule: await sealAes(
+      await recoveryKey(secret),
+      material,
+      recoveryContext(accountId, wallet),
+    ),
   };
   return { root, signing: signing.privateKey };
 }
 export async function recoverSecrets(
   event: DirectoryEvent,
-  secret: string,
+  secret: string | CryptoKey,
 ): Promise<{ ring: Keyring; signing: CryptoKey }> {
   try {
     const material = object(
-      await openAes(await aesKey(secret), event.root.capsule, [
-        '0xdmme-recovery-root',
-        1,
-        event.accountId,
-      ]),
+      await openAes(
+        await recoveryKey(secret),
+        event.root.capsule,
+        recoveryContext(event.accountId, event.root.wallet),
+      ),
     );
     keys(material, ['signing', 'wrapping']);
     const signing = await crypto.subtle.importKey(
@@ -354,6 +358,29 @@ export async function recoverSecrets(
       'Recuperação rejeitada: chave, conta ou integridade inválida.',
     );
   }
+}
+function recoveryContext(
+  accountId: string,
+  wallet?: WalletRecovery,
+): unknown[] {
+  if (wallet && walletRecovery(wallet).accountId !== accountId)
+    throw new Error('Configuração pertence a outra conta.');
+  return wallet
+    ? ['0xdmme-recovery-root', 2, accountId, walletRecovery(wallet)]
+    : ['0xdmme-recovery-root', 1, accountId];
+}
+async function recoveryKey(secret: string | CryptoKey): Promise<CryptoKey> {
+  if (typeof secret === 'string') return aesKey(secret);
+  if (
+    !(secret instanceof CryptoKey) ||
+    secret.extractable ||
+    secret.algorithm.name !== 'AES-GCM' ||
+    (secret.algorithm as AesKeyAlgorithm).length !== 256 ||
+    !secret.usages.includes('encrypt') ||
+    !secret.usages.includes('decrypt')
+  )
+    throw new Error('Chave de recuperação inválida.');
+  return secret;
 }
 export async function signEvent(
   event: DirectoryEvent,

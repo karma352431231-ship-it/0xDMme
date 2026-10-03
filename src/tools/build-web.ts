@@ -60,7 +60,7 @@ async function pruneGeneratedAssets(): Promise<void> {
   if (entries.length > 128) throw new Error('Diretório de build excedido.');
   for (const entry of entries) {
     if (
-      !/^(?:(?:app|phantom-probe)-[a-f0-9]{16}\.(?:js|css)|source-[a-f0-9]{16}\.tar\.gz|libsodium-\d+\.\d+\.\d+-sources-[a-f0-9]{16}\.tar\.xz)$/u.test(
+      !/^(?:(?:app|phantom-probe|recovery-return)-[a-f0-9]{16}\.(?:js|css)|source-[a-f0-9]{16}\.tar\.gz|libsodium-\d+\.\d+\.\d+-sources-[a-f0-9]{16}\.tar\.xz)$/u.test(
         entry.name,
       ) ||
       files.has(entry.name)
@@ -86,6 +86,11 @@ const nativeProbe = hashedAsset(
   'js',
   await bundle('src/client/phantom-native/probe.ts'),
 );
+const recoveryScript = hashedAsset(
+  'recovery-return',
+  'js',
+  await bundle('src/client/recovery-return/page.ts'),
+);
 const sources = hashedAsset(
   'source',
   'tar.gz',
@@ -99,6 +104,15 @@ const html = (
   .replace('{{SOURCES}}', sources)
   .replace('{{STYLE}}', style);
 asset('index.html', Buffer.from(html));
+asset(
+  'recovery.html',
+  Buffer.from(
+    (await readFile(new URL('src/client/app/recovery.html', root), 'utf8'))
+      .replace('{{SCRIPT}}', recoveryScript)
+      .replace('{{STYLE}}', style)
+      .replace('{{SOURCES}}', sources),
+  ),
+);
 asset(
   'phantom-probe.html',
   Buffer.from(
@@ -153,6 +167,7 @@ const paths = [...files.keys()]
       !name.endsWith('.tar.gz') &&
       !name.endsWith('.tar.xz') &&
       name !== 'wallet.html' &&
+      name !== 'recovery.html' &&
       !name.startsWith('phantom-probe'),
   )
   .map((name) => (name === 'index.html' ? '/' : `/${name}`));

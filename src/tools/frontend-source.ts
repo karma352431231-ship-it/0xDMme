@@ -21,12 +21,15 @@ const authored = [
   'src/client/pwa',
   'src/client/phantom-native',
   'src/client/wallet',
+  'src/client/wallet-recovery',
+  'src/client/recovery-return',
   'src/shared/account',
   'src/shared/devices',
   'src/shared/vault',
   'src/shared/pwa-policy',
   'src/shared/wallet-identity',
   'src/shared/wallet-approval',
+  'src/shared/wallet-recovery',
   'src/tools/build-web.ts',
   'src/tools/frontend-source.ts',
   'src/tools/frontend-vendor-source.ts',
@@ -59,6 +62,37 @@ async function collect(root: string, path: string): Promise<string[]> {
   return files;
 }
 
+async function dependencySources(
+  root: string,
+  path: string,
+  inputs: ReadonlySet<string>,
+): Promise<string[]> {
+  let preferred: string[];
+  if (path === 'node_modules/ethers')
+    preferred = [
+      'src.ts',
+      'LICENSE.md',
+      'README.md',
+      'package.json',
+      'rollup.config.mjs',
+    ];
+  else if (/\/@noble\/(?:curves|hashes)$/u.test(path))
+    preferred = ['src', 'LICENSE', 'README.md', 'package.json'];
+  else return collect(root, path);
+  // Preserve preferred sources, metadata/licenses and exact incorporated JS;
+  // omit duplicate distribution builds without increasing the resource caps.
+  const files: string[] = [];
+  for (const source of preferred)
+    files.push(...(await collect(root, `${path}/${source}`)));
+  files.push(
+    ...[...inputs].filter(
+      (input) =>
+        input.startsWith(`${path}/`) &&
+        !input.slice(path.length + 1).startsWith('node_modules/'),
+    ),
+  );
+  return files;
+}
 export async function frontendSource(
   root: string,
   inputs: ReadonlySet<string>,
@@ -66,29 +100,36 @@ export async function frontendSource(
   root = resolve(root);
   const dependencies = new Set<string>();
   for (const input of inputs) {
-    const dependency = /^(node_modules\/(?:@[^/]+\/)?[^/]+)\//u.exec(input);
+    const dependency = /^(.*node_modules\/(?:@[^/]+\/)?[^/]+)\//u.exec(input);
     if (dependency?.[1]) dependencies.add(dependency[1]);
   }
   const files: string[] = [];
   for (const path of [...authored, ...dependencies].sort())
-    files.push(...(await collect(root, path)));
+    files.push(...(await dependencySources(root, path, inputs)));
   const included = new Set(files);
-  for (const input of inputs) {
-    const path = relative(root, resolve(root, input));
-    if (
-      (path.startsWith('src/client/') || path.startsWith('src/shared/')) &&
-      !included.has(path)
-    )
-      throw new Error(
-        'Fonte autoral incorporada está ausente do pacote: ' + path,
-      );
-  }
-  if (files.length > 1024) throw new Error('Quantidade de fontes excedida.');
+  verifyInputs(root, inputs, included);
+  if (included.size > 1024) throw new Error('Quantidade de fontes excedida.');
   // Explicit paths only: no repository-wide archive, shell, .local or backend.
   const { stdout } = await execute(
     'tar',
-    ['-czf', '-', '--no-recursion', '-C', root, '--', ...files],
+    ['-czf', '-', '--no-recursion', '-C', root, '--', ...included],
     { encoding: 'buffer', maxBuffer: 2 * 1024 * 1024, timeout: 30_000 },
   );
   return stdout;
+}
+function verifyInputs(
+  root: string,
+  inputs: ReadonlySet<string>,
+  included: ReadonlySet<string>,
+): void {
+  for (const input of inputs) {
+    const path = relative(root, resolve(root, input));
+    if (
+      (path.startsWith('src/client/') ||
+        path.startsWith('src/shared/') ||
+        path.startsWith('node_modules/')) &&
+      !included.has(path)
+    )
+      throw new Error('Fonte incorporada está ausente do pacote: ' + path);
+  }
 }

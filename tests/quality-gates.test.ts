@@ -121,6 +121,14 @@ const architectureCases: ReadonlyArray<{
     },
     diagnostic: /module-public-interfaces-only/,
   },
+  {
+    name: 'exports de pacote recusam acesso a caminho privado não publicado',
+    files: {
+      'src/client/main.ts':
+        "export { Signature } from 'ethers/lib.esm/crypto/signature.js';\n",
+    },
+    diagnostic: /no-unresolved-imports/,
+  },
 ];
 
 for (const scenario of architectureCases) {
@@ -143,6 +151,8 @@ await test('interfaces públicas de módulos continuam permitidas', (t) => {
       "export { value } from '../vault/index.ts';\n",
     'src/server/vault/index.ts': "export { value } from './internal.ts';\n",
     'src/server/vault/internal.ts': 'export const value = 1;\n',
+    'src/client/wallet-proof/index.ts':
+      "export { Signature } from 'ethers/crypto';\nexport { verifyMessage } from 'ethers/hash';\nexport { getBytes } from 'ethers/utils';\n",
   });
   const result = runGate(
     directory,

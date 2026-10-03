@@ -6,6 +6,8 @@ import {
   object,
   uuid,
 } from '../account/index.ts';
+import { walletRecovery } from '../wallet-recovery/index.ts';
+import type { WalletRecovery } from '../wallet-recovery/index.ts';
 
 export const directoryLimit = 128;
 export const deviceLimit = 32;
@@ -29,6 +31,7 @@ export interface RecoveryRoot {
   signing: string;
   wrapping: string;
   capsule: { iv: string; ciphertext: string };
+  wallet?: WalletRecovery;
 }
 export interface DirectoryEvent {
   version: 1;
@@ -36,7 +39,7 @@ export interface DirectoryEvent {
   revision: number;
   epoch: number;
   previous: string | null;
-  kind: 'initialize' | 'link' | 'revoke' | 'recover';
+  kind: 'initialize' | 'link' | 'revoke' | 'recover' | 'migrate';
   signer: string;
   root: RecoveryRoot;
   devices: AuthorizedDevice[];
@@ -102,12 +105,20 @@ function authorizedDevice(value: unknown): AuthorizedDevice {
 }
 function recoveryRoot(value: unknown): RecoveryRoot {
   const data = object(value);
-  keys(data, ['signing', 'wrapping', 'capsule']);
+  keys(data, [
+    'signing',
+    'wrapping',
+    'capsule',
+    ...(Object.hasOwn(data, 'wallet') ? ['wallet'] : []),
+  ]);
   const capsule = object(data['capsule']);
   keys(capsule, ['iv', 'ciphertext']);
   return {
     signing: bytes(data['signing'], 65),
     wrapping: bytes(data['wrapping'], 422),
+    ...(Object.hasOwn(data, 'wallet')
+      ? { wallet: walletRecovery(data['wallet']) }
+      : {}),
     capsule: {
       iv: bytes(capsule['iv'], 12),
       ciphertext: ciphertext(capsule['ciphertext']),
@@ -135,7 +146,9 @@ export function directoryEvent(value: unknown): DirectoryEvent {
   const kind = data['kind'];
   if (
     data['version'] !== 1 ||
-    !['initialize', 'link', 'revoke', 'recover'].includes(String(kind))
+    !['initialize', 'link', 'revoke', 'recover', 'migrate'].includes(
+      String(kind),
+    )
   )
     reject();
   const { devices, revoked } = members(data);

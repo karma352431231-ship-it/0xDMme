@@ -59,6 +59,11 @@ module.exports = {
     },
   ],
   options: {
+    // Resolve the public ESM subpaths used by the actual browser/Node build.
+    enhancedResolveOptions: {
+      exportsFields: ['exports'],
+      conditionNames: ['import', 'node', 'default'],
+    },
     tsConfig: { fileName: 'tsconfig.json' },
     tsPreCompilationDeps: true,
     doNotFollow: { path: 'node_modules' },

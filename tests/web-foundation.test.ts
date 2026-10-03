@@ -49,6 +49,13 @@ await test('fontes públicas incluem instruções/licenças do build e excluem b
     'node_modules/qr/src/decode.ts',
     'node_modules/qr/LICENSE-MIT',
     'src/client/device-qr/index.ts',
+    'src/client/wallet-recovery/index.ts',
+    'src/client/recovery-return/page.ts',
+    'src/shared/wallet-recovery/index.ts',
+    'src/client/app/recovery.html',
+    'node_modules/ethers/src.ts/crypto/signature.ts',
+    'node_modules/ethers/LICENSE.md',
+    'node_modules/ethers/node_modules/@noble/curves/src/secp256k1.ts',
   ])
     assert.ok(paths.includes(required), `Fonte necessária: ${required}`);
   for (const path of paths)

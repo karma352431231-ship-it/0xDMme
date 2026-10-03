@@ -659,3 +659,7 @@ footer {
   cursor: default;
   opacity: 0.6;
 }
+.recovery-message {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

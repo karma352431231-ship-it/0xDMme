@@ -13,6 +13,8 @@ try {
   const config = readWebConfiguration(process.env);
   const assets = await loadWebAssets();
   const approvalDocument = assets.get('/wallet.html')?.content;
+  const recoveryDocument = assets.get('/recovery.html')?.content;
+  if (!recoveryDocument) throw new Error('Documento de recuperação ausente.');
   if (!approvalDocument) throw new Error('Documento de aprovação ausente.');
   database = new Database(config.databaseUrl, config.accountCapacityBytes);
   const objects = new ObjectStore(config.objectDirectory);
@@ -26,7 +28,7 @@ try {
     database,
     objects,
     account: createAccountHandler({
-      devices: new DeviceService(database.devices),
+      devices: new DeviceService(database.devices, config.origin),
       vault: new VaultService({
         store: database.vault,
         devices: database.devices,
@@ -38,6 +40,7 @@ try {
       }),
       origin: config.origin,
       approvalDocument,
+      recoveryDocument,
       ...(config.walletConnectProjectId
         ? { walletConnectProjectId: config.walletConnectProjectId }
         : {}),

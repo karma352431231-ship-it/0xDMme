@@ -12,6 +12,8 @@ export function cacheableRequest(
     url.origin === origin &&
     url.search === '' &&
     url.pathname !== '/wallet.html' &&
+    url.pathname !== '/recovery.html' &&
+    !url.pathname.startsWith('/recovery-entry/') &&
     url.pathname !== approvalDocumentPath &&
     url.pathname !== '/phantom-probe.html' &&
     !request.headers.has('authorization') &&

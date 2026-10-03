@@ -19,6 +19,8 @@ try {
   const mobile = await readMobileWebConfiguration();
   const assets = await loadWebAssets();
   const approvalDocument = assets.get('/wallet.html')?.content;
+  const recoveryDocument = assets.get('/recovery.html')?.content;
+  if (!recoveryDocument) throw new Error('Documento de recuperação ausente.');
   if (!approvalDocument) throw new Error('Documento de aprovação ausente.');
   database = new Database(config.databaseUrl, config.accountCapacityBytes);
   await database.migrate();
@@ -30,7 +32,7 @@ try {
     assets,
     objects,
     account: createAccountHandler({
-      devices: new DeviceService(database.devices),
+      devices: new DeviceService(database.devices, mobile.origin),
       vault: new VaultService({
         store: database.vault,
         devices: database.devices,
@@ -38,6 +40,7 @@ try {
       }),
       origin: mobile.origin,
       approvalDocument,
+      recoveryDocument,
       service: new AccountService({
         store: database.authentication,
         origin: mobile.origin,

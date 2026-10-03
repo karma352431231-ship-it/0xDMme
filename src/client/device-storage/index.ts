@@ -1,5 +1,11 @@
 import type { DirectoryEvent } from '../../shared/devices/index.ts';
-import { deviceIdentity, fingerprint } from '../../shared/devices/index.ts';
+import {
+  canonical,
+  digest,
+  verifyHistory,
+  deviceIdentity,
+  fingerprint,
+} from '../../shared/devices/index.ts';
 import { checkIdentity, createIdentity } from '../device-keys/index.ts';
 import type { LocalIdentity } from '../device-keys/index.ts';
 
@@ -171,6 +177,39 @@ export function saveCheckpoint(
       existing.trustedRoot !== checkpoint.trustedRoot
     )
       throw new Error('Raiz local alterada.');
+    store.put(checkpoint, `checkpoint:${accountId}`);
+  });
+}
+/** Move a pinned root only through a verified extension of the local journal.
+ * Verification happens before the short IDB transaction; its old head is then
+ * compared atomically so another tab cannot replace the reviewed checkpoint. */
+export async function advanceCheckpoint(
+  accountId: string,
+  checkpoint: Checkpoint,
+): Promise<void> {
+  const existing = await readCheckpoint(accountId);
+  const old = existing.events.at(-1);
+  if (
+    !old ||
+    existing.trustedRoot !== (await digest(canonical(old.root))) ||
+    canonical(checkpoint.events.slice(0, existing.events.length)) !==
+      canonical(existing.events)
+  )
+    throw new Error('Migração não estende a raiz local confiável.');
+  const current = await verifyHistory(checkpoint.events, accountId);
+  if (
+    !current ||
+    checkpoint.trustedRoot !== (await digest(canonical(current.root)))
+  )
+    throw new Error('Nova raiz sem transição verificada.');
+  return transaction(`checkpoint:${accountId}`, (store, value) => {
+    const actual = value as Checkpoint | undefined;
+    if (
+      !actual ||
+      actual.trustedRoot !== existing.trustedRoot ||
+      canonical(actual.events) !== canonical(existing.events)
+    )
+      throw new Error('Checkpoint mudou durante a migração.');
     store.put(checkpoint, `checkpoint:${accountId}`);
   });
 }

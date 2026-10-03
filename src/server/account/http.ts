@@ -11,6 +11,8 @@ import type { DeviceService } from '../devices/index.ts';
 import type { VaultService } from '../vault/index.ts';
 import { blockLimit } from '../../shared/vault/index.ts';
 import { createApprovalEntry } from './approval-http.ts';
+import { RecoveryReturn } from '../recovery-return/index.ts';
+import { recoveryEntry } from '../../shared/wallet-recovery/index.ts';
 import {
   approvalDocumentUrl,
   approvalEntryUrl,
@@ -82,6 +84,7 @@ export function createAccountHandler(options: {
   origin: string;
   walletConnectProjectId?: string;
   approvalDocument?: Uint8Array;
+  recoveryDocument?: Uint8Array;
   devices?: DeviceService;
   vault?: VaultService;
 }) {
@@ -91,6 +94,7 @@ export function createAccountHandler(options: {
     ? '__Host-hash-talk-challenge'
     : 'hash-talk-challenge';
   const limit = new AccountRateLimit();
+  const recovery = new RecoveryReturn(options.origin);
   const handoffName = secure ? '__Host-hash-talk-return' : 'hash-talk-return';
   const approval = createApprovalEntry(
     options.service,
@@ -110,6 +114,7 @@ export function createAccountHandler(options: {
       return;
     }
     const input = await body(request);
+    if (publicRecoveryPost(request, response, input)) return;
     if (request.url?.startsWith('/api/account/handoff-')) {
       await handoffPost(request, response, input);
       return;
@@ -148,6 +153,25 @@ export function createAccountHandler(options: {
     await authenticatedPost(request, response, sessionToken, input);
   }
 
+  function publicRecoveryPost(
+    request: IncomingMessage,
+    response: ServerResponse,
+    input: unknown,
+  ): boolean {
+    if (
+      request.url !== '/api/account/recovery-request' &&
+      request.url !== '/api/account/recovery-submit'
+    )
+      return false;
+    send(
+      response,
+      200,
+      request.url.endsWith('request')
+        ? recovery.requestPublic(input)
+        : recovery.submit(input),
+    );
+    return true;
+  }
   async function vaultPost(
     request: IncomingMessage,
     response: ServerResponse,
@@ -236,12 +260,39 @@ export function createAccountHandler(options: {
     throw new AccountError(404, 'Operação não encontrada.');
   }
 
+  async function privateRecoveryPost(
+    request: IncomingMessage,
+    response: ServerResponse,
+    sessionToken: string,
+    input: unknown,
+  ): Promise<void> {
+    const session = await options.service.session(sessionToken);
+    let result: unknown;
+    switch (request.url) {
+      case '/api/account/recovery-start':
+        result = await recovery.start(session, input);
+        break;
+      case '/api/account/recovery-take':
+        result = recovery.take(session, input);
+        break;
+      case '/api/account/recovery-cancel':
+        result = recovery.cancel(session, input);
+        break;
+      default:
+        throw new AccountError(404, 'Operação não encontrada.');
+    }
+    send(response, 200, result);
+  }
   async function authenticatedPost(
     request: IncomingMessage,
     response: ServerResponse,
     sessionToken: string,
     input: unknown,
   ): Promise<void> {
+    if (request.url?.startsWith('/api/account/recovery-')) {
+      await privateRecoveryPost(request, response, sessionToken, input);
+      return;
+    }
     if (request.url?.startsWith('/api/account/devices/') && options.devices) {
       const session = await options.service.session(sessionToken);
       send(
@@ -288,6 +339,7 @@ export function createAccountHandler(options: {
         request.url === '/api/account/challenge' ||
           request.url === '/api/account/handoff-start' ||
           request.url === '/api/account/handoff-challenge' ||
+          request.url === '/api/account/recovery-start' ||
           approvalEntryUrl(request.url),
       );
       if (request.method === 'POST') {
@@ -312,6 +364,7 @@ export function createAccountHandler(options: {
     if (request.method !== 'GET')
       throw new AccountError(405, 'Método inválido.');
     if (await approvalGet(request, response)) return;
+    if (recoveryGet(request, response)) return;
     if (request.url === '/api/account/config') {
       send(response, 200, {
         walletConnection: 'native',
@@ -362,5 +415,31 @@ export function createAccountHandler(options: {
     }
     return false;
   }
-  return { handle, close: () => limit.close() };
+  function recoveryGet(
+    request: IncomingMessage,
+    response: ServerResponse,
+  ): boolean {
+    const entry = recoveryEntry(request.url);
+    if (!entry) return false;
+    if (
+      request.headers['sec-fetch-mode'] !== 'navigate' ||
+      request.headers['sec-fetch-dest'] !== 'document'
+    )
+      throw new AccountError(403, 'Entrada exige navegação de documento.');
+    recovery.requestPublic(entry);
+    const document = options.recoveryDocument;
+    if (!document || document.length > 65_536)
+      throw new AccountError(503, 'Página de recuperação indisponível.');
+    response.setHeader('Content-Type', 'text/html; charset=utf-8');
+    response.setHeader('Content-Length', document.length);
+    response.writeHead(200).end(document);
+    return true;
+  }
+  return {
+    handle,
+    close: () => {
+      limit.close();
+      recovery.close();
+    },
+  };
 }

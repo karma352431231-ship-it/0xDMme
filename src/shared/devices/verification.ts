@@ -118,12 +118,7 @@ function additions(
   return added;
 }
 function transition(previous: DirectoryEvent, event: DirectoryEvent): void {
-  if (
-    !same(previous.root, event.root) ||
-    event.accountId !== previous.accountId ||
-    event.revision !== previous.revision + 1
-  )
-    reject();
+  validateContinuity(previous, event);
   const added = additions(previous, event);
   const removed = previous.devices
     .filter(
@@ -131,6 +126,10 @@ function transition(previous: DirectoryEvent, event: DirectoryEvent): void {
     )
     .map((device) => device.id);
   if (!same(event.revoked, [...previous.revoked, ...removed].sort())) reject();
+  if (event.kind === 'migrate') {
+    validateMigration({ previous, event, added, removed });
+    return;
+  }
   if (event.kind === 'link') {
     validateLink({ previous, event, added, removed });
     return;
@@ -139,11 +138,36 @@ function transition(previous: DirectoryEvent, event: DirectoryEvent): void {
   validateRotation({ previous, event, added, removed });
   if (event.kind === 'initialize') reject();
 }
+function validateContinuity(
+  previous: DirectoryEvent,
+  event: DirectoryEvent,
+): void {
+  if (
+    (event.kind !== 'migrate' && !same(previous.root, event.root)) ||
+    event.accountId !== previous.accountId ||
+    event.revision !== previous.revision + 1
+  )
+    reject();
+}
 interface Change {
   previous: DirectoryEvent;
   event: DirectoryEvent;
   added: DeviceIdentity[];
   removed: string[];
+}
+function validateMigration({ previous, event, added, removed }: Change): void {
+  if (
+    previous.root.wallet ||
+    !event.root.wallet ||
+    event.root.wallet.accountId !== event.accountId ||
+    event.signer !== 'recovery' ||
+    added.length ||
+    removed.length ||
+    event.epoch !== previous.epoch + 1 ||
+    event.linkId !== null ||
+    same(previous.root, event.root)
+  )
+    reject('Migração de recuperação inválida.');
 }
 function validateLink({ previous, event, added, removed }: Change): void {
   if (
@@ -200,6 +224,7 @@ async function validatePublicKeys(
         (device) => !previous.devices.some((known) => known.id === device.id),
       )
     : [...event.devices, event.root];
+  if (previous && event.kind === 'migrate') recipients.push(event.root);
   for (const recipient of recipients) {
     const wrapping = await crypto.subtle.importKey(
       'spki',
@@ -224,6 +249,8 @@ export async function verifyTransition(
   input: unknown,
 ): Promise<DirectoryEvent> {
   const event = directoryEvent(input);
+  if (event.root.wallet && event.root.wallet.accountId !== event.accountId)
+    reject('Recuperação pertence a outra conta.');
   if (new TextEncoder().encode(canonical(event)).length > eventBytes)
     reject('Diretório excede o orçamento de metadados.');
   membership(event);
@@ -234,6 +261,7 @@ export async function verifyTransition(
     transition(previous, event);
     if (event.previous !== (await eventHash(previous)))
       reject('Conflito ou versão antiga do diretório.');
+    if (event.kind === 'migrate') publicKey = previous.root.signing;
     if (event.signer !== 'recovery') {
       const signer = previous.devices.find(
         (device) => device.id === event.signer,
