@@ -152,6 +152,16 @@ armazenamento próprio e não apagar backups de transições para abrir espaço.
 **Ponto importante:** a aprovação destina o bloco 08 ao ambiente de testes na VPS.
 Ela não conclui testes físicos mobile nem o aceite final para conversas reais.
 
+**Resultado:** release `8acc99d` publicada com CI aprovada, migração 016,
+backup/ensaio de restauração e preservação verificados. Houve falha na primeira
+checagem após abrir: o app foi parado e o estado novo conservado. Após revisão,
+a mesma release foi reaberta e todos os 36 hashes públicos e saúde passaram;
+a falha não se reproduziu e sua causa exata não foi isolada. O receipt só foi
+concluído após nova conferência, sem repetir migração ou restaurar o dump.
+Backups e release anterior permaneceram privados. Um build gerado antigo,
+incompleto e nunca ativado foi conferido por hash e movido para evidência privada
+no armazenamento próprio, sem apagar conteúdo ou backups.
+
 Depois desse primeiro deploy, o proprietário aprovou um comando explícito
 reutilizável, mantendo o build no Mac/ambiente de desenvolvimento. Publicar:
 

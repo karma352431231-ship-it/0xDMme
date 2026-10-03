@@ -6,7 +6,7 @@ O objetivo é oferecer autenticação por wallet e criptografia ponta a ponta, p
 
 ## Estado atual
 
-O [bloco 08](docs/BLOCO_08_FOTOS_E_ARQUIVOS.md) está implementado localmente: foto otimizada com prévia e remoção verificada de metadados, arquivo original de até 3 MB, miniaturas cifradas, download sob demanda, retomada de uploads, recuperação e exclusão bilateral. Testes físicos mobile e aceite final de segurança permanecem posteriores; migração 016 e código desta entrega não ativados na VPS. Próximo bloco: backup exportável e recuperação completa (09).
+O [bloco 08](docs/BLOCO_08_FOTOS_E_ARQUIVOS.md) está implementado e ativo no ambiente de testes da VPS: foto otimizada com prévia e remoção verificada de metadados, arquivo original de até 3 MB, miniaturas cifradas, download sob demanda, retomada de uploads, recuperação e exclusão bilateral. Migração 016, saúde e arquivos públicos verificados; backups privados conservados. Testes físicos mobile e aceite final de segurança permanecem posteriores. Próximo bloco: backup exportável e recuperação completa (09).
 
 O [bloco 07](docs/BLOCO_07_MENSAGENS.md) integra texto/perfil pelo SDK Matrix, fila sem expiração, confirmação por aparelho e recuperação desde a aceitação. O [bloco 06](docs/BLOCO_06_CONTATOS.md) oferece agenda por wallet com apelidos cifrados, convite revogável por link/QR, descoberta escolhida pelo dono do perfil, solicitações paginadas sem tetos de quantidade/frequência, consentimento bilateral e bloqueio no servidor. A referência de identidade fica no cofre.
 

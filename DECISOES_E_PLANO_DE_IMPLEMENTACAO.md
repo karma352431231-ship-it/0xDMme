@@ -501,7 +501,7 @@ Foto própria permanece cifrada; distribuição para aprovados integrada pelo ca
 
 ### Bloco 08 — Fotos e arquivos
 
-**Estado:** implementado localmente em 03/10/2026, com foto otimizada/prévia, arquivos originais, miniaturas privadas, download sob demanda, retomada, recuperação e exclusão bilateral. [Contratos, limites e validação](docs/BLOCO_08_FOTOS_E_ARQUIVOS.md). Migração 016 somente no banco exclusivo de testes; nenhuma ativação na VPS. Testes físicos mobile e aceite final de segurança permanecem posteriores.
+**Estado:** implementado e publicado no ambiente de testes da VPS em 03/10/2026, com foto otimizada/prévia, arquivos originais, miniaturas privadas, download sob demanda, retomada, recuperação e exclusão bilateral. [Contratos, limites e validação](docs/BLOCO_08_FOTOS_E_ARQUIVOS.md). Release `8acc99d`, migração 016 aplicada no banco exclusivo, backup/ensaio de restauração e preservação verificados. Testes físicos mobile e aceite final de segurança permanecem posteriores.
 
 **Implementação autorizada em 03/10/2026:** o proprietário aprovou o bloco completo e delegou escolhas rotineiras dentro dos princípios e contratos existentes. A autorização específica permite continuar depois de compactação de contexto até concluir o bloco; preserva pausas para conflitos materiais, sem autorizar publicação ou migrações na VPS.
 
