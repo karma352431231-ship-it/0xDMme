@@ -10,17 +10,8 @@ import {
 import { canonical, fingerprint } from '../devices/index.ts';
 import { canonicalAddress, ecosystem } from '../wallet-identity/index.ts';
 import type { Ecosystem } from '../wallet-identity/index.ts';
-export const contactLimits = {
-  page: 16,
-  relationships: 256,
-  incoming: 64,
-  outgoing: 32,
-  blocks: 256,
-  global: 10000,
-  globalBlocks: 10000,
-  globalControls: 20000,
-  requestsPerDay: 32,
-} as const;
+// Page size bounds each response; it does not cap stored contacts or requests.
+export const contactPageSize = 16;
 export type DiscoveryMode = 'wallet' | 'invite' | 'contacts';
 export function discoveryMode(value: unknown): DiscoveryMode {
   if (value !== 'wallet' && value !== 'invite' && value !== 'contacts')

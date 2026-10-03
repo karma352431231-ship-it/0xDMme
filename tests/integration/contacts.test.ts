@@ -20,10 +20,14 @@ import {
   freshKeyring,
   prepareEvent,
 } from '../../src/client/device-operations/index.ts';
-import { contactBody, contactLimits } from '../../src/shared/contacts/index.ts';
+import {
+  contactBody,
+  contactPageSize,
+} from '../../src/shared/contacts/index.ts';
+import type { ContactList } from '../../src/shared/contacts/index.ts';
 import { digest, eventHash, sign } from '../../src/shared/devices/index.ts';
 import { object } from '../../src/shared/account/index.ts';
-await test('contatos persistentes: descoberta, consentimento, bloqueio, limites e HTTP', async (t) => {
+await test('contatos persistentes: descoberta, consentimento, bloqueio, ausência de tetos e HTTP', async (t) => {
   const config = readWebConfiguration(process.env);
   if (!new URL(config.databaseUrl).pathname.startsWith('/hash_talk_test'))
     throw new Error('Banco exclusivo de testes necessário.');
@@ -193,6 +197,51 @@ await test('contatos persistentes: descoberta, consentimento, bloqueio, limites 
       b.session.accountId,
     );
   }
+  // Historical thresholds are regression fixtures, not product policies.
+  const formerBudgets = {
+    incoming: 64,
+    outgoing: 32,
+    relationships: 256,
+    blocks: 256,
+    global: 10000,
+    globalBlocks: 10000,
+    globalControls: 20000,
+  };
+  async function seedAccounts(count: number): Promise<string[]> {
+    const seeded = Array.from({ length: count }, () => crypto.randomUUID());
+    ids.push(...seeded);
+    await inspector.query(
+      "INSERT INTO hash_talk.accounts(id,address) SELECT id,'0x'||replace(id::text,'-','')||'00000000' FROM unnest($1::uuid[]) AS seed(id)",
+      [seeded],
+    );
+    return seeded;
+  }
+  async function listed(user: User, kind: ContactList, expected: number) {
+    const seen = new Set<string>();
+    let after: string | null = null;
+    // Bound the test itself while checking that every stored item is accessible.
+    for (let n = 0; n <= Math.ceil(expected / contactPageSize); n++) {
+      const page = object(await op(user, 'list', { kind, after }));
+      const items = page['items'];
+      assert.ok(Array.isArray(items));
+      assert.ok(items.length <= contactPageSize);
+      for (const item of items) {
+        const id = String(
+          object(item)[kind === 'blocked' ? 'walletHash' : 'accountId'],
+        );
+        assert.equal(seen.has(id), false);
+        seen.add(id);
+      }
+      if (page['next'] === null) {
+        assert.equal(seen.size, expected);
+        return seen;
+      }
+      const next = page['next'];
+      assert.ok(typeof next === 'string');
+      after = next;
+    }
+    assert.fail('Paginação não chegou ao fim dos registros esperados.');
+  }
   const a = await create(),
     b = await create(),
     c = await create(),
@@ -251,6 +300,27 @@ await test('contatos persistentes: descoberta, consentimento, bloqueio, limites 
       );
       assert.equal((list['items'] as unknown[]).length, 1);
       assert.equal(JSON.stringify(list).includes('photo'), false);
+      await configure(b, 'wallet', await digest(token));
+      assert.equal(
+        object(await op(c, 'discover', b.wallet))['accountId'],
+        b.session.accountId,
+      );
+      assert.equal(
+        object(await op(c, 'invite', { owner: b.session.accountId, token }))[
+          'accountId'
+        ],
+        b.session.accountId,
+      );
+      await configure(b, 'contacts', await digest(token));
+      assert.equal(await op(c, 'discover', b.wallet), null);
+      assert.equal(
+        await op(c, 'invite', { owner: b.session.accountId, token }),
+        null,
+      );
+      assert.equal(
+        object(await op(a, 'discover', b.wallet))['accountId'],
+        b.session.accountId,
+      );
       await configure(b, 'invite', null);
       assert.equal(
         await op(c, 'invite', { owner: b.session.accountId, token }),
@@ -318,7 +388,7 @@ await test('contatos persistentes: descoberta, consentimento, bloqueio, limites 
     },
   );
   await t.test(
-    'block wallet antes do cadastro, limite diário durável e metadados sem apelido',
+    'bloqueio antes do cadastro e metadados sem apelido nem contadores diários',
     async () => {
       const unknown = { ecosystem: 'evm', address: '0x' + 'e'.repeat(40) };
       await op(a, 'block', {
@@ -336,13 +406,11 @@ await test('contatos persistentes: descoberta, consentimento, bloqueio, limites 
       assert.ok(JSON.stringify(list).includes(hash));
       assert.equal(JSON.stringify(list).includes(unknown.address), false);
       await op(a, 'unblock', { revision: await rev(a), walletHash: hash });
-      await inspector.query(
-        `UPDATE hash_talk.contact_controls SET requests_today=$2,request_day=(now() AT TIME ZONE 'UTC')::date WHERE account_id=$1`,
-        [c.session.accountId, contactLimits.requestsPerDay],
+      const obsolete = await inspector.query(
+        "SELECT column_name FROM information_schema.columns WHERE table_schema='hash_talk' AND table_name='contact_controls' AND column_name IN ('requests_today','request_day')",
       );
+      assert.equal(obsolete.rowCount, 0);
       await blocked(a, c, false);
-      await configure(b);
-      await assert.rejects(request(c, b));
       const rows = await inspector.query(
         'SELECT * FROM hash_talk.contact_relations WHERE lo=$1 OR hi=$1',
         [a.session.accountId],
@@ -351,103 +419,110 @@ await test('contatos persistentes: descoberta, consentimento, bloqueio, limites 
     },
   );
   await t.test(
-    'pedidos concorrentes não ultrapassam caixa; idempotência preserva um único registro; paginação limita resposta',
+    'recebidas excedem antigo teto, pedidos concorrentes são idempotentes e todas as páginas continuam acessíveis',
     async () => {
       const target = await create();
       await configure(target);
       const x = await create(),
         y = await create();
-      const synthetic: string[] = [];
-      for (let n = 0; n < contactLimits.incoming - 1; n++) {
-        const row = await inspector.query<{ id: string }>(
-          'INSERT INTO hash_talk.accounts(address) VALUES($1) RETURNING id',
-          ['0x' + crypto.randomUUID().replaceAll('-', '').padEnd(40, '0')],
-        );
-        const id = row.rows[0]!.id;
-        ids.push(id);
-        synthetic.push(id);
-        await inspector.query(
-          "INSERT INTO hash_talk.contact_relations(lo,hi,requester,state) VALUES(least($1::uuid,$2::uuid),greatest($1::uuid,$2::uuid),$1,'pending')",
-          [id, target.session.accountId],
-        );
-      }
-      const results = await Promise.allSettled([
-        request(x, target),
-        request(y, target),
-      ]);
-      assert.equal(results.filter((r) => r.status === 'fulfilled').length, 1);
-      const winner = results[0]?.status === 'fulfilled' ? x : y;
-      await request(winner, target);
-      const counts = await inspector.query<{ count: number }>(
-        "SELECT count(*)::int AS count FROM hash_talk.contact_relations WHERE (lo=$1 OR hi=$1) AND state='pending'",
-        [target.session.accountId],
+      const synthetic = await seedAccounts(formerBudgets.incoming);
+      await inspector.query(
+        "INSERT INTO hash_talk.contact_relations(lo,hi,requester,state) SELECT least(id,$2::uuid),greatest(id,$2::uuid),id,'pending' FROM unnest($1::uuid[]) AS seed(id)",
+        [synthetic, target.session.accountId],
       );
-      assert.equal(counts.rows[0]?.count, contactLimits.incoming);
-      const first = object(
-        await op(target, 'list', { kind: 'incoming', after: null }),
+      await Promise.all([request(x, target), request(y, target)]);
+      await request(x, target);
+      await request(y, target);
+      const seen = await listed(target, 'incoming', formerBudgets.incoming + 2);
+      assert.deepEqual(
+        seen,
+        new Set([...synthetic, x.session.accountId, y.session.accountId]),
       );
-      assert.equal((first['items'] as unknown[]).length, 16);
-      assert.equal(typeof first['next'], 'string');
-      const second = object(
-        await op(target, 'list', { kind: 'incoming', after: first['next'] }),
-      );
-      assert.equal((second['items'] as unknown[]).length, 16);
-      assert.notDeepEqual(first['items'], second['items']);
     },
   );
   await t.test(
-    'tetos globais recusam novas entradas sem apagar consentimento; controles existentes e remoção de bloqueio continuam disponíveis',
+    'relações e bloqueios excedem antigos tetos por conta; mais de 32 novas solicitações no mesmo dia são aceitas',
+    async () => {
+      const sender = await create();
+      const recipients: User[] = [];
+      for (let n = 0; n <= formerBudgets.outgoing; n++) {
+        const recipient = await create();
+        await configure(recipient);
+        recipients.push(recipient);
+      }
+      const synthetic = await seedAccounts(formerBudgets.relationships);
+      for (const owner of [sender, recipients[0]!])
+        await inspector.query(
+          "INSERT INTO hash_talk.contact_relations(lo,hi,requester,state) SELECT least(id,$2::uuid),greatest(id,$2::uuid),$2,'rejected' FROM unnest($1::uuid[]) AS seed(id)",
+          [synthetic, owner.session.accountId],
+        );
+      for (const recipient of recipients) await request(sender, recipient);
+      await request(sender, recipients[0]!);
+      assert.deepEqual(
+        await listed(sender, 'outgoing', recipients.length),
+        new Set(recipients.map((r) => r.session.accountId)),
+      );
+      const counts = await inspector.query<{ count: number }>(
+        'SELECT count(*)::int AS count FROM hash_talk.contact_relations WHERE lo=$1 OR hi=$1',
+        [sender.session.accountId],
+      );
+      assert.equal(
+        counts.rows[0]?.count,
+        formerBudgets.relationships + recipients.length,
+      );
+      const hashes = Array.from({ length: formerBudgets.blocks }, (_, n) =>
+        n.toString(16).padStart(64, '0'),
+      );
+      await inspector.query(
+        'INSERT INTO hash_talk.contact_blocks(account_id,wallet_hash) SELECT $1,unnest($2::text[])',
+        [sender.session.accountId, hashes],
+      );
+      const unknown = {
+        ecosystem: 'evm' as const,
+        address: Wallet.createRandom().address.toLowerCase(),
+      };
+      const payload = {
+        revision: await rev(sender),
+        wallet: unknown,
+        blocked: true,
+      };
+      await op(sender, 'block', payload);
+      await op(sender, 'block', { ...payload, revision: await rev(sender) });
+      assert.deepEqual(
+        await listed(sender, 'blocked', formerBudgets.blocks + 1),
+        new Set([...hashes, await walletHash(unknown)]),
+      );
+      assert.equal(await allowed(sender, recipients[0]!), false);
+    },
+  );
+  await t.test(
+    'controles, bloqueios e relações excedem antigos tetos globais sem alterar descoberta ou consentimento',
     async () => {
       const fresh = await create();
-      // Populate only synthetic boundary state, with one relation/block per
-      // owner. No wallet signatures, network traffic or user rows are invented.
-      const seeded = Array.from({ length: contactLimits.globalControls }, () =>
-        crypto.randomUUID(),
-      );
-      ids.push(...seeded);
-      await inspector.query(
-        "INSERT INTO hash_talk.accounts(id,address) SELECT id,'0x'||replace(id::text,'-','')||'00000000' FROM unnest($1::uuid[]) AS seed(id)",
-        [seeded],
-      );
-      const controls = await inspector.query<{ count: number }>(
-        'SELECT count(*)::int AS count FROM hash_talk.contact_controls',
-      );
+      // Synthetic persisted state crosses the former thresholds without
+      // creating traffic, signatures or content on behalf of these identities.
+      const seeded = await seedAccounts(formerBudgets.globalControls);
       await inspector.query(
         'INSERT INTO hash_talk.contact_controls(account_id) SELECT unnest($1::uuid[])',
-        [
-          seeded.slice(
-            0,
-            contactLimits.globalControls - controls.rows[0]!.count,
-          ),
-        ],
+        [seeded],
       );
-      await assert.rejects(configure(fresh), { status: 503 });
-      await configure(a, 'invite');
+      await configure(fresh);
       const saved = { ecosystem: 'evm', address: '0x' + 'd'.repeat(40) };
       await op(a, 'block', {
         revision: await rev(a),
         wallet: saved,
         blocked: true,
       });
-      const blocks = await inspector.query<{ count: number }>(
-        'SELECT count(*)::int AS count FROM hash_talk.contact_blocks',
-      );
       await inspector.query(
         'INSERT INTO hash_talk.contact_blocks(account_id,wallet_hash) SELECT unnest($1::uuid[]),$2',
-        [
-          seeded.slice(0, contactLimits.globalBlocks - blocks.rows[0]!.count),
-          'a'.repeat(64),
-        ],
+        [seeded.slice(0, formerBudgets.globalBlocks), 'a'.repeat(64)],
       );
       const another = { ecosystem: 'evm', address: '0x' + 'f'.repeat(40) };
-      await assert.rejects(
-        op(a, 'block', {
-          revision: await rev(a),
-          wallet: another,
-          blocked: true,
-        }),
-        { status: 503 },
-      );
+      await op(a, 'block', {
+        revision: await rev(a),
+        wallet: another,
+        blocked: true,
+      });
       await op(a, 'unblock', {
         revision: await rev(a),
         walletHash: await walletHash({
@@ -455,24 +530,21 @@ await test('contatos persistentes: descoberta, consentimento, bloqueio, limites 
           address: saved.address,
         }),
       });
-      await op(a, 'block', {
-        revision: await rev(a),
-        wallet: another,
-        blocked: true,
-      });
-      const relations = await inspector.query<{ count: number }>(
-        'SELECT count(*)::int AS count FROM hash_talk.contact_relations',
-      );
-      const remaining = contactLimits.global - relations.rows[0]!.count;
       await inspector.query(
         "INSERT INTO hash_talk.contact_relations(lo,hi,requester,state) SELECT least(a,b),greatest(a,b),a,'rejected' FROM unnest($1::uuid[],$2::uuid[]) AS pair(a,b)",
         [
-          Array.from({ length: remaining }, (_, i) => seeded[2 * i]),
-          Array.from({ length: remaining }, (_, i) => seeded[2 * i + 1]),
+          Array.from({ length: formerBudgets.global }, (_, i) => seeded[2 * i]),
+          Array.from(
+            { length: formerBudgets.global },
+            (_, i) => seeded[2 * i + 1],
+          ),
         ],
       );
-      await assert.rejects(request(a, c), { status: 429 });
+      await request(a, c);
+      await request(a, c);
+      assert.equal(await allowed(a, c), false);
       assert.equal(await allowed(a, b), true);
+      assert.equal(object(await op(c, 'state'))['mode'], 'wallet');
       const final = await inspector.query<{
         controls: number;
         blocks: number;
@@ -480,11 +552,10 @@ await test('contatos persistentes: descoberta, consentimento, bloqueio, limites 
       }>(
         'SELECT (SELECT count(*)::int FROM hash_talk.contact_controls) AS controls,(SELECT count(*)::int FROM hash_talk.contact_blocks) AS blocks,(SELECT count(*)::int FROM hash_talk.contact_relations) AS relations',
       );
-      assert.deepEqual(final.rows[0], {
-        controls: contactLimits.globalControls,
-        blocks: contactLimits.globalBlocks,
-        relations: contactLimits.global,
-      });
+      const totals = final.rows[0]!;
+      assert.ok(totals.controls > formerBudgets.globalControls);
+      assert.ok(totals.blocks > formerBudgets.globalBlocks);
+      assert.ok(totals.relations > formerBudgets.global);
     },
   );
   await t.test(

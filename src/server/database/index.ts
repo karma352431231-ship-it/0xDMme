@@ -26,6 +26,7 @@ const migrations = [
   '008-content-usage.sql',
   '009-upload-expiry.sql',
   '010-contacts.sql',
+  '011-contact-policy.sql',
 ];
 
 export interface MaintenanceSnapshot {

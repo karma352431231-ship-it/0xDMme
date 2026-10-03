@@ -6,7 +6,7 @@ O objetivo é oferecer autenticação por wallet e criptografia ponta a ponta, p
 
 ## Estado atual
 
-O [bloco 06](docs/BLOCO_06_CONTATOS.md) está concluído localmente: agenda por wallet com apelidos cifrados, convite revogável por link/QR, descoberta controlada, solicitações limitadas, consentimento bilateral e bloqueio no servidor. A referência de identidade fica no cofre. Testes físicos mobile permanecem posteriores; migração 010 não ativada na VPS. Próximo bloco: mensagens individuais e fila sem expiração (07).
+O [bloco 06](docs/BLOCO_06_CONTATOS.md) está concluído localmente: agenda por wallet com apelidos cifrados, convite revogável por link/QR, descoberta escolhida pelo dono do perfil, solicitações paginadas sem tetos de quantidade/frequência, consentimento bilateral e bloqueio no servidor. A referência de identidade fica no cofre. Testes físicos mobile permanecem posteriores; migrações 010/011 não ativadas na VPS. Próximo bloco: mensagens individuais e fila sem expiração (07).
 
 O [bloco 05](docs/BLOCO_05_COFRE.md) está concluído localmente: agenda/configurações privadas e dados fictícios cifrados, versões preservadas, conflitos explícitos, cópia local offline e recuperação em outro aparelho. A cota pessoal permanece 300 MB, contada conforme o conteúdo e os uploads concretos; cadastrar uma conta não reserva 300 MB. O teto de 1 GB por grupo também permanece, sem alocação antecipada, para o bloco de grupos. Testes físicos mobile dos blocos 04–05 ficam para depois. Migrações 006–009 ainda não foram ativadas na VPS.
 

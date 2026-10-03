@@ -7,6 +7,7 @@ import {
 import type { AccountSession } from '../../shared/account/index.ts';
 import {
   contactBody,
+  contactPageSize,
   contactList,
   discoveryMode,
   peer,
@@ -140,7 +141,7 @@ export class Contacts {
   private acceptPage(kind: ContactList, value: unknown): ContactPage {
     const data = object(value);
     keys(data, ['items', 'next']);
-    if (!Array.isArray(data['items']) || data['items'].length > 16)
+    if (!Array.isArray(data['items']) || data['items'].length > contactPageSize)
       throw new Error('Lista de contatos inválida.');
     const values: unknown[] = data['items'];
     const page: ContactPage = {

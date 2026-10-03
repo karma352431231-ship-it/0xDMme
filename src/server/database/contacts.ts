@@ -6,7 +6,7 @@ import {
   digest,
   directoryEvent,
 } from '../../shared/devices/index.ts';
-import { contactLimits } from '../../shared/contacts/index.ts';
+import { contactPageSize } from '../../shared/contacts/index.ts';
 import type {
   ContactList,
   DiscoveryMode,
@@ -121,29 +121,10 @@ export class ContactStore {
       );
   }
   private async bump(client: pg.PoolClient, ids: string[]): Promise<void> {
-    await this.controlCapacity(client, ids);
     await client.query(
       'INSERT INTO hash_talk.contact_controls(account_id,revision) SELECT unnest($1::uuid[]),1 ON CONFLICT(account_id) DO UPDATE SET revision=hash_talk.contact_controls.revision+1',
       [ids],
     );
-  }
-  private async controlCapacity(
-    client: pg.PoolClient,
-    ids: string[],
-  ): Promise<void> {
-    const result = await client.query<{ total: number; existing: number }>(
-      'SELECT count(*)::int AS total,count(*) FILTER(WHERE account_id=ANY($1::uuid[]))::int AS existing FROM hash_talk.contact_controls',
-      [ids],
-    );
-    const row = result.rows[0];
-    if (
-      !row ||
-      row.total + ids.length - row.existing > contactLimits.globalControls
-    )
-      throw new AccountError(
-        503,
-        'Orçamento global de permissões ocupado. Novas entradas não foram aceitas.',
-      );
   }
   private async account(client: pg.PoolClient, id: string): Promise<Peer> {
     const result = await client.query<Peer>(
@@ -235,13 +216,13 @@ export class ContactStore {
     };
     const result = await client.query<Peer & { requester: string }>(
       `SELECT a.id AS "accountId",a.ecosystem,a.address,a.display_name AS name,r.requester FROM hash_talk.contact_relations r JOIN hash_talk.accounts a ON a.id=CASE WHEN r.lo=$1 THEN r.hi ELSE r.lo END WHERE (r.lo=$1 OR r.hi=$1) AND r.state=$2 AND ($3::uuid IS NULL OR a.id>$3) ${directions[kind]} ORDER BY a.id LIMIT $4`,
-      [id, states[kind], after, contactLimits.page + 1],
+      [id, states[kind], after, contactPageSize + 1],
     );
     return {
-      items: result.rows.slice(0, contactLimits.page),
+      items: result.rows.slice(0, contactPageSize),
       next:
-        result.rows.length > contactLimits.page
-          ? (result.rows[contactLimits.page - 1]?.accountId ?? null)
+        result.rows.length > contactPageSize
+          ? (result.rows[contactPageSize - 1]?.accountId ?? null)
           : null,
     };
   }
@@ -252,13 +233,13 @@ export class ContactStore {
   ): Promise<{ items: unknown[]; next: string | null }> {
     const result = await client.query<{ walletHash: string }>(
       'SELECT wallet_hash AS "walletHash" FROM hash_talk.contact_blocks WHERE account_id=$1 AND ($2::text IS NULL OR wallet_hash>$2) ORDER BY wallet_hash LIMIT $3',
-      [id, after, contactLimits.page + 1],
+      [id, after, contactPageSize + 1],
     );
     return {
-      items: result.rows.slice(0, contactLimits.page),
+      items: result.rows.slice(0, contactPageSize),
       next:
-        result.rows.length > contactLimits.page
-          ? (result.rows[contactLimits.page - 1]?.walletHash ?? null)
+        result.rows.length > contactPageSize
+          ? (result.rows[contactPageSize - 1]?.walletHash ?? null)
           : null,
     };
   }
@@ -327,7 +308,6 @@ export class ContactStore {
         current.inviteHash === input.inviteHash
       )
         return current;
-      await this.controlCapacity(client, [id]);
       await client.query(
         'INSERT INTO hash_talk.contact_controls(account_id,revision,mode,invite_hash) VALUES($1,1,$2,$3) ON CONFLICT(account_id) DO UPDATE SET revision=hash_talk.contact_controls.revision+1,mode=$2,invite_hash=$3',
         [id, input.mode, input.inviteHash],
@@ -354,7 +334,6 @@ export class ContactStore {
         unavailable();
       const relation = await this.relation(client, id, target.accountId);
       if (!this.needsRequest(relation, id)) return;
-      await this.admitRequest(client, id, target.accountId, relation === null);
       await client.query(
         "INSERT INTO hash_talk.contact_relations(lo,hi,requester,state) VALUES(least($1::uuid,$2::uuid),greatest($1::uuid,$2::uuid),$1,'pending') ON CONFLICT(lo,hi) DO UPDATE SET requester=$1,state='pending'",
         [id, target.accountId],
@@ -375,57 +354,6 @@ export class ContactStore {
         'Há uma decisão ou solicitação pendente. Confira a caixa de solicitações.',
       );
     return true;
-  }
-  private async admitRequest(
-    client: pg.PoolClient,
-    actor: string,
-    target: string,
-    adding: boolean,
-  ): Promise<void> {
-    const counts = await client.query<{
-      incoming: number;
-      outgoing: number;
-      actorTotal: number;
-      targetTotal: number;
-      global: number;
-    }>(
-      `SELECT count(*) FILTER(WHERE state='pending' AND (lo=$2 OR hi=$2) AND requester<>$2)::int AS incoming,count(*) FILTER(WHERE state='pending' AND requester=$1)::int AS outgoing,count(*) FILTER(WHERE lo=$1 OR hi=$1)::int AS "actorTotal",count(*) FILTER(WHERE lo=$2 OR hi=$2)::int AS "targetTotal",count(*)::int AS global FROM hash_talk.contact_relations`,
-      [actor, target],
-    );
-    const c = counts.rows[0];
-    if (
-      !c ||
-      c.incoming >= contactLimits.incoming ||
-      c.outgoing >= contactLimits.outgoing
-    )
-      throw new AccountError(
-        429,
-        'Limite de solicitações atingido. Resolva as solicitações existentes.',
-      );
-    if (
-      adding &&
-      (c.actorTotal >= contactLimits.relationships ||
-        c.targetTotal >= contactLimits.relationships ||
-        c.global >= contactLimits.global)
-    )
-      throw new AccountError(
-        429,
-        'Orçamento de contatos ocupado. Novas solicitações não foram aceitas.',
-      );
-    await this.controlCapacity(client, [actor]);
-    await client.query(
-      'INSERT INTO hash_talk.contact_controls(account_id) VALUES($1) ON CONFLICT DO NOTHING',
-      [actor],
-    );
-    const rate = await client.query(
-      `UPDATE hash_talk.contact_controls SET request_day=(now() AT TIME ZONE 'UTC')::date,requests_today=CASE WHEN request_day=(now() AT TIME ZONE 'UTC')::date THEN requests_today+1 ELSE 1 END WHERE account_id=$1 AND (request_day<>(now() AT TIME ZONE 'UTC')::date OR requests_today<$2) RETURNING account_id`,
-      [actor, contactLimits.requestsPerDay],
-    );
-    if (!rate.rowCount)
-      throw new AccountError(
-        429,
-        'Limite diário de solicitações atingido. Aguarde.',
-      );
   }
   async respond(
     authority: ContactAuthority,
@@ -475,9 +403,12 @@ export class ContactStore {
         [id, hash],
       );
       if (!!exists.rowCount === input.blocked) return;
-      if (input.blocked) {
-        await this.insertBlock(client, id, hash);
-      } else
+      if (input.blocked)
+        await client.query(
+          'INSERT INTO hash_talk.contact_blocks(account_id,wallet_hash) VALUES($1,$2)',
+          [id, hash],
+        );
+      else
         await client.query(
           'DELETE FROM hash_talk.contact_blocks WHERE account_id=$1 AND wallet_hash=$2',
           [id, hash],
@@ -501,33 +432,6 @@ export class ContactStore {
         relationRemoved && targetId ? [id, targetId] : [id],
       );
     });
-  }
-  private async insertBlock(
-    client: pg.PoolClient,
-    id: string,
-    hash: string,
-  ): Promise<void> {
-    const count = await client.query<{ count: number; global: number }>(
-      'SELECT count(*)::int AS global,count(*) FILTER(WHERE account_id=$1)::int AS count FROM hash_talk.contact_blocks',
-      [id],
-    );
-    if ((count.rows[0]?.count ?? contactLimits.blocks) >= contactLimits.blocks)
-      throw new AccountError(
-        429,
-        'Lista de bloqueios cheia. Revise os bloqueios antes de adicionar outro.',
-      );
-    if (
-      (count.rows[0]?.global ?? contactLimits.globalBlocks) >=
-      contactLimits.globalBlocks
-    )
-      throw new AccountError(
-        503,
-        'Orçamento global de bloqueios ocupado. Novos bloqueios não foram aceitos.',
-      );
-    await client.query(
-      'INSERT INTO hash_talk.contact_blocks(account_id,wallet_hash) VALUES($1,$2)',
-      [id, hash],
-    );
   }
   async unblock(
     authority: ContactAuthority,
