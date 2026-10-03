@@ -2,6 +2,7 @@ import { createServer } from 'node:http';
 import { createServer as createTlsServer } from 'node:https';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { readFile } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
 import type { Database } from '../database/index.ts';
 import type { ObjectStore } from '../object-store/index.ts';
 import { recoveryEntry } from '../../shared/wallet-recovery/index.ts';
@@ -13,6 +14,7 @@ import {
 export interface WebAsset {
   content: Uint8Array;
   type: string;
+  etag?: string;
 }
 
 function assetEntry(entry: unknown): { path: string; type: string } {
@@ -48,6 +50,7 @@ export async function loadWebAssets(): Promise<ReadonlyMap<string, WebAsset>> {
     assets.set(entry.path === '/index.html' ? '/' : entry.path, {
       content,
       type: entry.type,
+      etag: `"${createHash('sha256').update(content).digest('hex')}"`,
     });
   }
   if (!assets.has('/') || !assets.has('/sw.js'))
@@ -146,6 +149,13 @@ function sendAsset(
   }
   if (request.url === '/sw.js')
     response.setHeader('Service-Worker-Allowed', '/');
+  if (asset.etag) {
+    response.setHeader('ETag', asset.etag);
+    if (request.headers['if-none-match'] === asset.etag) {
+      response.writeHead(304).end();
+      return;
+    }
+  }
   response.setHeader('Content-Type', asset.type);
   response.setHeader('Content-Length', asset.content.byteLength);
   response.writeHead(200);

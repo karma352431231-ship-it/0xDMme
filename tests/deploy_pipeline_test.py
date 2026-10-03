@@ -282,8 +282,13 @@ class DeploymentTests(unittest.TestCase):
             interrupted = base / ('deployment-' + 'c' * 40)
             interrupted.mkdir()
             (interrupted / 'result.json').write_text('{"status":"activating"}')
+            protected = base / ('deployment-' + 'd'*40)
+            protected.mkdir()
+            (protected/'database.dump').write_bytes(b'private backup')
+            (protected/'result.json').write_text(json.dumps({'status':'published','commit':'d'*40,'private_backup_retained':True}))
             with patch.object(remote, 'DATA', base):
                 remote.prune_completed(current)
+            self.assertEqual((protected/'database.dump').read_bytes(),b'private backup')
             self.assertTrue(current.is_dir())
             self.assertFalse(older.exists())
             self.assertEqual((sentinel / 'data').read_text(), 'preserved')
@@ -303,7 +308,7 @@ class DeploymentTests(unittest.TestCase):
                     remote.compatibility(new, old)
             command.assert_not_called()
 
-    def test_real_git_build_preserves_sources_and_refuses_unapproved_budget(self):
+    def test_real_git_build_preserves_sources_and_reuses_verified_cache(self):
         # Build a clean synthetic Git snapshot of the candidate sources. Never
         # commit the user's checkout or bypass prepare's exact-lock protection.
         with tempfile.TemporaryDirectory() as directory:
@@ -327,14 +332,14 @@ class DeploymentTests(unittest.TestCase):
             with (patch.object(deploy, 'LOCAL', Path(directory) / 'artifacts'),
                   patch.object(deploy, 'ROOT', root),
                   patch.object(deploy, 'run', side_effect=lambda args, cwd=root, timeout=30: original_run(args, cwd=cwd, timeout=timeout))):
-                # Block 07 deliberately cannot use the historical 16 MiB
-                # deployment authorization. Preserve full sources and prove
-                # refusal, without widening the limit or producing approval.
-                with self.assertRaisesRegex(RuntimeError, 'Archive budget exceeded'):
-                    deploy.prepare(revision, 'codex/test')
-                archive_path = Path(directory) / 'artifacts' / revision / 'build.tar.gz'
-                self.assertGreater(archive_path.stat().st_size, remote.MAX_ARCHIVE)
-                self.assertFalse((archive_path.parent / 'manifest.json').exists())
+                prepared, archive_path = deploy.prepare(revision, 'codex/test')
+                self.assertLessEqual(archive_path.stat().st_size, remote.MAX_ARCHIVE)
+                self.assertEqual(len(prepared['source_parts']), 18)
+                self.assertEqual(len([n for n in prepared['files'] if n in deploy.public_sources.PARTS]),18)
+                with patch.object(deploy.shutil, 'copytree', side_effect=AssertionError('cache rebuilt')):
+                    cached, cached_path = deploy.prepare(revision, 'codex/test')
+                    self.assertEqual(cached, prepared)
+                    self.assertEqual(cached_path, archive_path)
                 with tarfile.open(archive_path) as archive:
                     names = archive.getnames()
                     self.assertTrue(all(n == 'dist' or n.startswith('dist/') for n in names))
@@ -346,8 +351,13 @@ class DeploymentTests(unittest.TestCase):
                         self.assertTrue(any(n.startswith('node_modules/@wallet-standard/app/') for n in entries))
                         self.assertTrue(any(n.startswith('node_modules/@matrix-org/matrix-sdk-crypto-wasm/') for n in entries))
                         self.assertFalse(any(n.startswith(('.local/', 'src/server/', '.git/')) for n in entries))
-                    self.assertEqual(len([n for n in names if '/matrix-crypto-18.9.0-source-' in n and n.endswith('.bin')]), 18)
+                    self.assertEqual(len([n for n in names if '/matrix-crypto-18.9.0-source-' in n and n.endswith('.bin')]), 0)
 
+                original_archive=archive_path.read_bytes()
+                archive_path.write_bytes(b'corrupt cache')
+                with self.assertRaisesRegex(RuntimeError,'Cached build commit/archive mismatch'):
+                    deploy.prepare(revision,'codex/test')
+                archive_path.write_bytes(original_archive)
                 (root / 'package-lock.json').write_text('unreviewed working tree')
                 with self.assertRaisesRegex(RuntimeError, 'Development lockfile differs'):
                     deploy.prepare(revision, 'codex/test')
@@ -378,12 +388,33 @@ class DeploymentTests(unittest.TestCase):
             script = root / 'infra/staging/deploy_remote.py'
             script.parent.mkdir(parents=True)
             script.write_text('modified executor')
+            (script.parent/'deploy_sources.py').write_text('source reconstruction')
             value = manifest()
             value['files']['infra/staging/deploy_remote.py'] = 'a' * 64
             with patch.object(deploy, 'ROOT', root), patch.object(deploy.subprocess, 'run') as command:
                 with self.assertRaises(RuntimeError):
                     deploy.remote('check', value, 'root@example.test')
             command.assert_not_called()
+
+    def test_public_verification_uses_matching_hash_or_checks_full_content(self):
+        expected=remote.hashlib.sha256(b'public').hexdigest()
+        with patch.object(remote,'run',return_value=b'\n304') as command:
+            self.assertIsNone(remote.fetch('/asset.bin',expected))
+            self.assertIn('If-None-Match: "'+expected+'"',command.call_args.args[0])
+        for path,limit in [('/matrix-crypto-18.9.0.wasm',8*1024*1024),('/asset.bin',2*1024*1024)]:
+            with patch.object(remote,'run',return_value=b'public\n200') as command:
+                self.assertEqual(remote.fetch(path,expected),b'public')
+                args=command.call_args.args[0]
+                self.assertEqual(args[args.index('--max-filesize')+1],str(limit))
+        for body in [b'payload\n304',b'payload\n206',b'no status']:
+            with patch.object(remote,'run',return_value=body),self.assertRaises(RuntimeError):
+                remote.fetch('/asset.bin',expected)
+        value={'dist/web/asset.bin':expected}
+        for result in [None,b'public',b'changed']:
+            with patch.object(remote,'fetch',side_effect=[b'{"status":"ok"}',result]),patch.object(remote.time,'sleep'):
+                if result==b'changed':
+                    with self.assertRaises(RuntimeError):remote.healthy(value)
+                else: remote.healthy(value)
 
     def test_local_artifact_budget_fails_before_exporting_or_building(self):
         with tempfile.TemporaryDirectory() as directory:

@@ -17,6 +17,7 @@ import urllib.parse
 import urllib.request
 
 from deploy_remote import digest, validate
+import deploy_sources as public_sources
 
 ROOT = Path(__file__).resolve().parents[2]
 OWNER = 'karma352431231-ship-it'
@@ -78,6 +79,40 @@ def ci(revision, branch):
     return require_ci(json.loads(raw), revision, branch)
 
 
+def cached_build(output, revision, branch):
+    manifest_path, archive_path = output / 'manifest.json', output / 'build.tar.gz'
+    if not manifest_path.exists() and not archive_path.exists():
+        return None
+    if any(p.is_symlink() or not p.is_file() for p in [manifest_path, archive_path]):
+        raise RuntimeError('Incomplete/unsafe cached build; review this local artifact.')
+    if manifest_path.stat().st_size > 128 * 1024 or archive_path.stat().st_size > 16 * 1024 * 1024:
+        raise RuntimeError('Cached build budget exceeded.')
+    manifest = json.loads(manifest_path.read_text())
+    validate(manifest)
+    if (manifest['commit'] != revision or manifest['branch'] != branch
+            or archive_path.stat().st_size != manifest['archive_bytes']
+            or digest(archive_path) != manifest['archive_sha256']):
+        raise RuntimeError('Cached build commit/archive mismatch.')
+    exported = run(['git', 'archive', revision, 'src', 'infra', 'package.json', 'package-lock.json', '.nvmrc'])
+    with tarfile.open(fileobj=io.BytesIO(exported)) as archive:
+        authored = {m.name:hashlib.sha256(archive.extractfile(m).read()).hexdigest()
+                    for m in archive.getmembers() if m.isfile()}
+    if authored != {n:h for n,h in manifest['files'].items() if not n.startswith('dist/')}:
+        raise RuntimeError('Cached build source manifest differs from Git.')
+    if digest(ROOT / 'package-lock.json') != authored['package-lock.json']:
+        raise RuntimeError('Development lockfile differs from exported commit.')
+    with tarfile.open(archive_path) as archive:
+        from deploy_remote import extract
+        with tempfile.TemporaryDirectory(prefix='verify-', dir=output) as temporary:
+            extract(archive, Path(temporary), ['dist'])
+            actual = {str(p.relative_to(temporary)):digest(p) for p in Path(temporary).rglob('*') if p.is_file()}
+    expected = {n:h for n,h in manifest['files'].items() if n.startswith('dist/') and n not in manifest.get('source_parts', [])}
+    if actual != expected:
+        raise RuntimeError('Cached build public assets differ from its manifest.')
+    public_sources.verify_local(manifest, ROOT / public_sources.SOURCE_BLOB)
+    return manifest, archive_path
+
+
 def prepare(revision, branch):
     output = LOCAL / revision
     LOCAL.mkdir(parents=True, exist_ok=True, mode=0o700)
@@ -85,6 +120,9 @@ def prepare(revision, branch):
     if not output.exists() and len(retained) >= 16:
         raise RuntimeError('Local artifact budget reached; review old .local/deployment builds.')
     output.mkdir(parents=True, exist_ok=True, mode=0o700)
+    cached = cached_build(output, revision, branch)
+    if cached:
+        return cached
     archive_path = output / 'build.tar.gz'
     manifest_path = output / 'manifest.json'
     with tempfile.TemporaryDirectory(prefix='build-', dir=LOCAL) as temporary:
@@ -114,12 +152,14 @@ def prepare(revision, branch):
         for name in ['package.json', 'package-lock.json', '.nvmrc']:
             files[name] = digest(source / name)
         with tarfile.open(archive_path, 'w:gz') as archive:
-            archive.add(source / 'dist', arcname='dist')
+            archive.add(source / 'dist', arcname='dist',
+                        filter=lambda info:None if info.name in public_sources.PARTS else info)
         script = next('/' + p.name for p in (source / 'dist/web').glob('app-*.js'))
         manifest = {'commit': revision, 'branch': branch, 'files': files, 'script': script,
                     'archive_bytes': archive_path.stat().st_size,
-                    'archive_sha256': digest(archive_path)}
+                    'archive_sha256': digest(archive_path), **public_sources.metadata(files)}
         validate(manifest)
+        public_sources.verify_local(manifest, source / public_sources.SOURCE_BLOB)
         manifest_path.write_text(json.dumps(manifest, indent=2) + '\n')
         manifest_path.chmod(0o600)
         archive_path.chmod(0o600)
@@ -145,9 +185,13 @@ def private_inputs():
 
 def remote(action, config, target):
     path = ROOT / 'infra/staging/deploy_remote.py'
-    if digest(path) != config['files'].get('infra/staging/deploy_remote.py'):
+    sources = ROOT / 'infra/staging/deploy_sources.py'
+    if (digest(path) != config['files'].get('infra/staging/deploy_remote.py')
+            or digest(sources) != config['files'].get('infra/staging/deploy_sources.py')):
         raise RuntimeError('Deployment executor changed after the reviewed commit.')
-    code = path.read_text()
+    code = ("import sys,types; m=types.ModuleType('deploy_sources');"
+            "sys.modules['deploy_sources']=m;exec(" + repr(sources.read_text()) + " ,m.__dict__);"
+            "exec(" + repr(path.read_text()) + ")")
     command = shlex.join([
         'systemd-run', '--quiet', '--wait', '--pipe', '--collect',
         '--unit=0xdmme-deploy-' + action + '-' + config['commit'][:12],

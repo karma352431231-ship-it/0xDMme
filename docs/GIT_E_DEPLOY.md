@@ -136,12 +136,16 @@ diferente, commit não enviado, CI pendente/falha ou executor alterado. Consulta
 a CI pública sem copiar credenciais para a VPS. Não instala ferramentas de build,
 executa npm ou compila na VPS.
 
-O build é feito numa exportação do Git com as dependências de desenvolvimento
-já instaladas. Diretórios reais com hardlinks locais preservam a identificação
+O build é feito uma vez por commit numa exportação do Git com as dependências de desenvolvimento
+já instaladas. Repetir `prepare`, `check` ou `staging` para o mesmo commit reutiliza
+o pacote depois de validar manifesto, arquivos do Git, hashes dos assets, fontes
+Matrix e integridade do arquivo; cache incompleto/corrompido é recusado. Diretórios reais com hardlinks locais preservam a identificação
 dos pacotes incorporados pelo esbuild; um link simbólico para `node_modules`
 pode omitir esses pacotes do arquivo de fontes. O comando confere fontes dos
 terceiros antes de permitir a publicação. O pacote transferido contém somente
-`dist/`; as fontes de runtime são extraídas do commit no Git bare próprio da VPS,
+`dist/`, exceto as partes das fontes Matrix já versionadas: essas partes são
+reconstruídas do blob Git dedicado com hashes individuais e integral. Todas as
+fontes ficam na release pública. As fontes de runtime são extraídas do commit no Git bare próprio da VPS,
 com manifesto/hash que vincula fontes e build. Dependências de runtime existentes
 são reutilizadas somente quando lockfile/contrato permanecem iguais.
 
@@ -183,7 +187,7 @@ e logs de até 64 KB por etapa; exceder esse limite exige revisar os artefatos l
 Na VPS, o executor usa a slice própria: CPU 10%, memória 192 MB, swap zero,
 32 tarefas, I/O idle, sistema de arquivos protegido e escrita somente no
 armazenamento próprio já limitado a 2 GB. O arquivo de build tem limite de
-16 MB; extração e dependências têm orçamento de 128 MB cada; exigir 256 MB
+16 MB; código, assets e dependências juntos têm orçamento de 128 MB; exigir 256 MB
 livres. Há lock contra ativação simultânea. Antes/depois, comparar configurações,
 processos e respostas da baseline, além de configurações próprias e processo do
 PostgreSQL próprio. Não atualizar Nginx, certificados, firewall ou outros serviços.
@@ -199,8 +203,8 @@ restaura os arquivos anteriores e reinicia somente `0xdmme-test.service`; a
 saúde do retorno é conferida. Falha do próprio retorno é reportada como não
 verificada, nunca como sucesso.
 
-Uma release anterior é mantida para retorno. Só após uma publicação saudável
-podem ser removidos workspaces concluídos criados pelo próprio comando, contendo
+Uma release anterior é mantida para retorno. Workspaces de código de publicações anteriores saudáveis
+podem ser removidos para abrir espaço à próxima tentativa, contendo
 apenas código/build/backup de código; banco e objetos ficam fora dessas árvores.
 Até três tentativas pendentes/concluídas cabem no orçamento de workspaces;
 tentativas interrompidas ou com conteúdo inesperado exigem revisão. Backups
@@ -247,3 +251,15 @@ A evidência histórica de preservação permanece intacta. Uma diferença de HT
 O executor mantém CPU 10% de um núcleo, RAM 192 MiB, sem swap, 32 tarefas e duração de até 240 segundos por operação. O web mantém os limites próprios já configurados. Não reiniciar serviços compartilhados; somente o reload aprovado do Nginx. DNS/HTTPS e publicação de teste não constituem aceite de segurança nem substituem testes físicos mobile.
 
 Na operação de proxy, a validação enxerga logs temporários e `/dev/null` no lugar do arquivo PID, somente dentro de seu namespace. Isso permite `nginx -t` com filesystem protegido sem abrir os logs/PID reais para escrita; o reload é solicitado ao master existente pelo systemd.
+
+## Atualizações rotineiras após o bloco 07
+
+O proprietário pediu reaproveitar o script existente e reduzir a demora nas atualizações. Os comandos continuam sendo `npm run deploy:prepare`, `npm run deploy:check` e `npm run deploy:staging`; não há outro comando por bloco para mudanças comuns de código. Antes de ativar, commitar/push da branch `codex/`, conferir checkout limpo e CI do commit exato. O último comando prepara ou reutiliza o build, sincroniza os fontes, envia o pacote, troca a release e reinicia somente o app. Não é necessário rodar os três comandos em sequência.
+
+A preparação comum incorpora a distribuição Matrix já aprovada: pacote abaixo de 16 MiB, reconstrução das fontes do Git e manifesto completo. As restrições de banco, dependências, Node e infraestrutura permanecem; novos contratos desses tipos exigem revisão específica. Atualização comum não reaplica a transição 010–015, não faz backup/restauração de banco e não recarrega Nginx. As migrações já aplicadas continuam verificadas pelo app na inicialização.
+
+Cada asset público tem ETag calculada por SHA-256 dos bytes carregados pelo app. A conferência HTTPS usa o hash esperado com `If-None-Match`; uma resposta 304 confirma conteúdo correspondente sem retransmitir os arquivos grandes. Respostas 200 continuam verificadas pelo hash integral, permitindo conferir versões anteriores sem esse header. As chamadas respeitam o orçamento de requisições existente. APIs/dados privados não recebem essa ETag; a política `no-store` é preservada e o PWA continua com seu fluxo explícito de atualização.
+
+A limpeza automática remove somente workspaces de código concluídos e reconhecidos; backups privados de transições de banco são preservados e tentativas interrompidas continuam exigindo leitura do recibo. O orçamento de três workspaces não foi aumentado.
+
+**Ponto importante:** o comando é executado no Mac, publica código/build na release própria e verifica saúde/retorno. `git pull` ou envio dos fontes sozinho continua sem ativar o app. CI ainda precisa passar, mas preparar/verificar/ativar o mesmo commit não refaz o build nem precisa retransmitir os 50 MB de assets na conferência pública.

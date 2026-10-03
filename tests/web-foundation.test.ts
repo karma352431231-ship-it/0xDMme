@@ -284,6 +284,30 @@ await test('servidor recusa origem, mutação, traversal e dados privados; saúd
     'sec-fetch-dest': 'document',
   };
   assert.equal((await get('/', navigationHeaders)).status, 200);
+  const loaded = assets.get('/');
+  assert.ok(loaded);
+  const publicHash = createHash('sha256').update(loaded.content).digest('hex');
+  const conditional = await get('/', { 'if-none-match': `"${publicHash}"` });
+  assert.equal(conditional.status, 304);
+  assert.equal(conditional.body, '');
+  assert.equal(conditional.headers.etag, `"${publicHash}"`);
+  assert.equal(conditional.headers['cache-control'], 'no-store');
+  const changed = await get('/', { 'if-none-match': `"${'0'.repeat(64)}"` });
+  assert.equal(changed.status, 200);
+  assert.equal(changed.headers.etag, `"${publicHash}"`);
+  assert.equal(
+    createHash('sha256').update(changed.body).digest('hex'),
+    publicHash,
+  );
+  assert.equal(
+    (
+      await get('/', {
+        'if-none-match': `"${publicHash}"`,
+        'sec-fetch-site': 'cross-site',
+      })
+    ).status,
+    403,
+  );
   const approval = await get('/wallet.html', navigationHeaders);
   assert.equal(approval.status, 200);
   assert.match(approval.body, /Confirmar assinatura/u);

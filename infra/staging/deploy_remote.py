@@ -14,6 +14,8 @@ import sys
 import tarfile
 import time
 
+import deploy_sources as public_sources
+
 DATA = Path('/var/lib/0xdmme/data')
 UNIT = '0xdmme-test.service'
 ORIGIN = 'https://0xdmme.app'
@@ -58,6 +60,7 @@ def validate(config):
         raise RuntimeError('Invalid public script.')
     if 'dist/web' + config['script'] not in files:
         raise RuntimeError('Public script absent from manifest.')
+    public_sources.validate(config)
 
 
 def extract(archive, destination, allowed):
@@ -113,9 +116,21 @@ def own_state():
     return {'files': hashes, 'postgres': postgres}
 
 
-def fetch(path):
-    result = run(['curl', '--silent', '--fail', '--max-time', '5', ORIGIN + path], timeout=10)
-    if len(result) > 2 * 1024 * 1024:
+def fetch(path, expected=None):
+    limit = 8 * 1024 * 1024 if path == '/matrix-crypto-18.9.0.wasm' else 2 * 1024 * 1024
+    args = ['curl', '--silent', '--fail', '--max-time', '10', '--max-filesize', str(limit)]
+    if expected:
+        args += ['--header', 'If-None-Match: "' + expected + '"', '--write-out', '\n%{http_code}']
+    result = run([*args, ORIGIN + path], timeout=15)
+    if expected:
+        result, separator, status = result.rpartition(b'\n')
+        if not separator or status not in [b'200', b'304']:
+            raise RuntimeError('Unexpected public validation response.')
+        if status == b'304':
+            if result:
+                raise RuntimeError('Conditional response unexpectedly contains content.')
+            return None
+    if len(result) > limit:
         raise RuntimeError('Public response budget exceeded.')
     return result
 
@@ -126,8 +141,13 @@ def healthy(files=None):
     if files:
         for name, expected in files.items():
             if name.startswith('dist/web/') and name != 'dist/web/assets.json':
+                # Respect this site's existing request budget, including fast 304s.
+                time.sleep(0.25)
                 url = '/' if name.endswith('/index.html') else '/' + name[len('dist/web/'):]
-                if hashlib.sha256(fetch(url)).hexdigest() != expected:
+                result = fetch(url, expected)
+                # A matching SHA-256 ETag is calculated from the loaded public
+                # bytes by the app. Old servers without it return the full body.
+                if result is not None and hashlib.sha256(result).hexdigest() != expected:
                     raise RuntimeError('Public build/source digest mismatch.')
 
 
@@ -215,12 +235,13 @@ def prepare(config, work):
         extract(archive, candidate, ['src', 'infra', 'package.json', 'package-lock.json', '.nvmrc'])
     with tarfile.open(work / 'build.tar.gz') as archive:
         extract(archive, candidate, ['dist'])
+    public_sources.reconstruct(config, candidate, DATA / 'git/0xdmme.git')
     actual = {str(p.relative_to(candidate)): digest(p) for p in candidate.rglob('*') if p.is_file()}
     if actual != config['files']:
         raise RuntimeError('Git source/build manifest mismatch.')
     compatibility(candidate, DATA / 'release')
     dependencies = DATA / 'release/node_modules'
-    count, size = 0, 0
+    count, size = 0, sum(p.stat().st_size for p in candidate.rglob('*') if p.is_file())
     for path in dependencies.rglob('*'):
         count += 1
         if path.is_symlink() and not path.resolve().is_relative_to(dependencies):
@@ -321,6 +342,8 @@ def prune_completed(current):
         old = json.loads(marker.read_text())
         if old.get('status') != 'published' or old.get('commit') != work.name[len('deployment-'):]:
             continue
+        if old.get('private_backup_retained') is True:
+            continue
         if work.stat().st_uid != os.geteuid() or set(p.name for p in work.iterdir()) != {'build.tar.gz', 'previous', 'result.json'}:
             raise RuntimeError('Old deployment workspace requires manual review; new release remains active.')
         previous = work / 'previous'
@@ -364,6 +387,7 @@ def main():
             if len(archive) != config['archive_bytes'] or hashlib.sha256(archive).hexdigest() != config['archive_sha256']:
                 raise RuntimeError('Upload size/digest mismatch.')
             # At most three attempts/rollback copies. Never erase older releases implicitly.
+            prune_completed(work)
             if len(list(DATA.glob('deployment-*'))) >= 3:
                 raise RuntimeError('Deployment retention budget reached; review own old artifacts.')
             work.mkdir(mode=0o700)

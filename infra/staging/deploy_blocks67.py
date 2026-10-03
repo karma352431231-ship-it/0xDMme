@@ -13,18 +13,20 @@ import shutil
 import subprocess
 import sys
 import tarfile
-import time
 
 import deploy_remote as base
 import deploy_blocks45 as backup_tools
+import deploy_sources as public_sources
 
 BEFORE = '32663bb4a9a0e219d3529a061509846566239f0f'
 REVIEWED = '8e74bb1a1d7e8eb9cb9382ef146eb07df4c9a1e7'
-SOURCE_HASH = '1da81a1b9089e833800becb0fbd3ac46dd323d445cd8856c53695db13d4bfc60'
-SOURCE_BYTES = 37444636
-SOURCE_BLOB = 'vendor/matrix-crypto-18.9.0/preferred-source.tar.xz'
-PART_BYTES = 2 * 1024 * 1024
-PARTS = tuple('dist/web/matrix-crypto-18.9.0-source-1da81a1b9089e833-%02d.bin' % n for n in range(1, 19))
+# Compatibility names for the reviewed transition; the common module owns
+# source distribution so future routine updates do not duplicate this executor.
+SOURCE_HASH = public_sources.SOURCE_HASH
+SOURCE_BYTES = public_sources.SOURCE_BYTES
+SOURCE_BLOB = public_sources.SOURCE_BLOB
+PART_BYTES = public_sources.PART_BYTES
+PARTS = public_sources.PARTS
 PROXY = Path('/etc/nginx/sites-available/0xdmme-test.conf')
 OLD_TABLES = ('accounts', 'content_usage', 'device_directories', 'device_events', 'device_links',
               'login_challenges', 'login_devices', 'login_handoffs', 'login_sessions',
@@ -107,36 +109,9 @@ def proxy_change(config):
     return {'proxy_limit_mib':8, 'graceful_reload_verified':True, 'shared_services_restarted':False}
 
 
-def fetch(path):
-    limit = 8 * 1024 * 1024 if path == '/matrix-crypto-18.9.0.wasm' else PART_BYTES
-    # curl bounds the actual stream too, before Python allocates its response.
-    result = base.run(['curl', '--silent', '--fail', '--max-time', '10',
-                       '--max-filesize', str(limit), base.ORIGIN + path], timeout=15)
-    if len(result) > limit:
-        raise RuntimeError('Public response budget exceeded.')
-    return result
-
-
-def healthy(files=None):
-    if json.loads(fetch('/health/ready')).get('status') != 'ok':
-        raise RuntimeError('Own service not ready.')
-    if files:
-        for name, expected in files.items():
-            if name.startswith('dist/web/') and name != 'dist/web/assets.json':
-                url = '/' if name.endswith('/index.html') else '/' + name[len('dist/web/'):]
-                if hashlib.sha256(fetch(url)).hexdigest() != expected:
-                    raise RuntimeError('Public build/source digest mismatch.')
-
-
-def wait_ready(files=None):
-    for attempt in range(10):
-        try:
-            healthy(files)
-            return
-        except (RuntimeError, subprocess.SubprocessError):
-            if attempt == 9:
-                raise RuntimeError('Own service did not become ready.') from None
-            time.sleep(1)
+fetch = base.fetch
+healthy = base.healthy
+wait_ready = base.wait_ready
 
 
 def preflight(config):
@@ -182,41 +157,7 @@ def reviewed_candidate(candidate, live):
 
 
 def source_parts(config, candidate):
-    if (config['source_parts'] != list(PARTS) or config['source_sha256'] != SOURCE_HASH
-            or config['source_blob'] != SOURCE_BLOB or config['source_bytes'] != SOURCE_BYTES
-            or any(name not in config['files'] for name in PARTS)):
-        raise RuntimeError('Corresponding-source contract differs.')
-    args = ['git', '--git-dir=' + str(base.DATA / 'git/0xdmme.git'), 'show', config['commit'] + ':' + SOURCE_BLOB]
-    combined = hashlib.sha256()
-    process = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
-    try:
-        remaining = SOURCE_BYTES
-        for name in PARTS:
-            path = candidate / name
-            if path.exists() or path.is_symlink():
-                raise RuntimeError('Source part already present in transport archive.')
-            chunk_hash = hashlib.sha256()
-            size = min(PART_BYTES, remaining)
-            with path.open('xb') as handle:
-                while size:
-                    chunk = process.stdout.read(min(size, 65536))
-                    if not chunk:
-                        raise RuntimeError('Corresponding-source blob truncated.')
-                    handle.write(chunk)
-                    chunk_hash.update(chunk)
-                    combined.update(chunk)
-                    size -= len(chunk)
-                    remaining -= len(chunk)
-            if chunk_hash.hexdigest() != config['files'][name]:
-                raise RuntimeError('Corresponding-source part differs from Mac build.')
-        if remaining or process.stdout.read(1) or process.wait(timeout=30) != 0 or combined.hexdigest() != SOURCE_HASH:
-            raise RuntimeError('Corresponding-source size/hash differs.')
-    finally:
-        process.stdout.close()
-        if process.poll() is None:
-            process.kill()
-        process.wait(timeout=5)
-
+    public_sources.reconstruct(config, candidate, base.DATA / 'git/0xdmme.git')
 
 def prepare_candidate(config, work):
     blob = base.run(['git', '--git-dir=' + str(base.DATA / 'git/0xdmme.git'), 'archive',
@@ -407,7 +348,7 @@ def remote_main(action):
 
 def send(action, config, target, deploy):
     modules = []
-    for name in ['deploy_remote', 'deploy_blocks45', 'deploy_blocks67']:
+    for name in ['deploy_sources', 'deploy_remote', 'deploy_blocks45', 'deploy_blocks67']:
         source = (Path(__file__).parent / (name + '.py')).read_text()
         if hashlib.sha256(source.encode()).hexdigest() != config['files'].get('infra/staging/' + name + '.py'):
             raise RuntimeError('Transition executor differs from exact CI commit.')
@@ -440,47 +381,7 @@ def send(action, config, target, deploy):
 
 
 def prepare_local(revision, branch, deploy):
-    import tempfile
-    output = deploy.LOCAL / revision
-    if not output.exists() and len(list(deploy.LOCAL.glob('*/build.tar.gz'))) >= 16:
-        raise RuntimeError('Local artifact budget reached.')
-    output.mkdir(parents=True, exist_ok=True, mode=0o700)
-    with tempfile.TemporaryDirectory(prefix='blocks67-build-', dir=deploy.LOCAL) as directory:
-        source = Path(directory)
-        with tarfile.open(fileobj=io.BytesIO(deploy.run(['git', 'archive', revision], timeout=60))) as archive:
-            archive.extractall(source, filter='data')
-        if base.digest(source / 'package-lock.json') != base.digest(deploy.ROOT / 'package-lock.json'):
-            raise RuntimeError('Installed development lock differs from Git commit.')
-        shutil.copytree(deploy.ROOT / 'node_modules', source / 'node_modules', copy_function=os.link, symlinks=True)
-        deploy.run(['node', 'src/tools/build-web.ts'], cwd=source, timeout=90)
-        files = {}
-        for folder in ['src', 'infra', 'dist']:
-            files.update({folder + '/' + name:checksum for name,checksum in file_tree(source / folder).items()})
-        files.update({name:base.digest(source / name) for name in ['package.json', 'package-lock.json', '.nvmrc']})
-        if any(name not in files for name in PARTS):
-            raise RuntimeError('Corresponding-source parts absent from local build.')
-        combined = hashlib.sha256()
-        for name in PARTS:
-            combined.update((source / name).read_bytes())
-        if combined.hexdigest() != SOURCE_HASH:
-            raise RuntimeError('Local corresponding-source hash differs.')
-        build = output / 'build.tar.gz'
-        with tarfile.open(build, 'w:gz') as archive:
-            archive.add(source / 'dist', arcname='dist', filter=lambda info:None if info.name in PARTS else info)
-        manifest = {'commit':revision, 'branch':branch, 'files':files,
-                    'script':'/' + next((source / 'dist/web').glob('app-*.js')).name,
-                    'archive_bytes':build.stat().st_size, 'archive_sha256':base.digest(build),
-                    'source_parts':list(PARTS), 'source_sha256':SOURCE_HASH,
-                    'source_blob':SOURCE_BLOB, 'source_bytes':SOURCE_BYTES}
-        base.validate(manifest)
-        with tarfile.open(build) as archive:
-            included = {m.name for m in archive.getmembers() if m.isfile()}
-            if included != {n for n in files if n.startswith('dist/') and n not in PARTS}:
-                raise RuntimeError('Transport archive differs from full source-aware manifest.')
-        (output / 'manifest.json').write_text(json.dumps(manifest, indent=2) + '\n')
-        for path in [build, output / 'manifest.json']:
-            path.chmod(0o600)
-    return manifest, build
+    return deploy.prepare(revision, branch)
 
 
 def local_main():

@@ -399,10 +399,14 @@ def remote_main(action):
 def send(action, config, target, deploy):
     source = Path(__file__).read_text()
     base_source = (Path(__file__).parent / 'deploy_remote.py').read_text()
-    for name, code in [('infra/staging/deploy_blocks45.py', source), ('infra/staging/deploy_remote.py', base_source)]:
+    source_helper = (Path(__file__).parent / 'deploy_sources.py').read_text()
+    for name, code in [('infra/staging/deploy_blocks45.py', source), ('infra/staging/deploy_remote.py', base_source),
+                       ('infra/staging/deploy_sources.py', source_helper)]:
         if hashlib.sha256(code.encode()).hexdigest() != config['files'].get(name):
             raise RuntimeError('Transition executor differs from the exact CI commit.')
-    code = "import sys,types; module=types.ModuleType('deploy_remote'); exec(" + repr(base_source) + ",module.__dict__); sys.modules['deploy_remote']=module; exec(" + repr(source) + ")"
+    code = ("import sys,types; helper=types.ModuleType('deploy_sources'); exec(" + repr(source_helper) +
+            ",helper.__dict__); sys.modules['deploy_sources']=helper; module=types.ModuleType('deploy_remote'); exec(" +
+            repr(base_source) + ",module.__dict__); sys.modules['deploy_remote']=module; exec(" + repr(source) + ")")
     command = shlex.join(['systemd-run', '--quiet', '--wait', '--pipe', '--collect',
                          '--unit=0xdmme-transition-' + action + '-' + config['commit'][:12],
                          '--slice=xdmme-test.slice', '-p', 'CPUQuota=10%', '-p', 'MemoryMax=192M',

@@ -26,7 +26,7 @@ class PublicationTests(unittest.TestCase):
         from types import SimpleNamespace
         import shlex
         files={}
-        for name in ['deploy_remote','deploy_blocks45','deploy_blocks67']:
+        for name in ['deploy_sources','deploy_remote','deploy_blocks45','deploy_blocks67']:
             files['infra/staging/'+name+'.py']=hashlib.sha256((Path(transition.__file__).parent/(name+'.py')).read_bytes()).hexdigest()
         with tempfile.TemporaryDirectory() as directory:
             local=Path(directory); (local/('a'*40)).mkdir()
