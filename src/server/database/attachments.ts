@@ -249,6 +249,12 @@ export class AttachmentStore {
         ![row.sender, row.recipient].includes(a.session.accountId)
       )
         throw new AccountError(404, 'Anexo indisponível.');
+      const removed = await c.query(
+        "SELECT 1 FROM hash_talk.personal_removals WHERE account_id=$1 AND kind='message' AND id=$2",
+        [a.session.accountId, input.message],
+      );
+      if (removed.rowCount)
+        throw new AccountError(410, 'Anexo removido do cofre pessoal.');
       if (
         !(await this.contacts.messageDeliveryAllowed(
           c,

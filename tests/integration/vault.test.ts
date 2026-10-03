@@ -7,6 +7,8 @@ import pg from 'pg';
 import { Wallet } from 'ethers';
 import { Database } from '../../src/server/database/index.ts';
 import { ObjectStore } from '../../src/server/object-store/index.ts';
+import { MessageService } from '../../src/server/messages/index.ts';
+import { messageBody } from '../../src/shared/messages/index.ts';
 import { VaultService } from '../../src/server/vault/index.ts';
 import { DeviceService } from '../../src/server/devices/index.ts';
 import {
@@ -633,6 +635,7 @@ await test('cofre persistente: reservas, isolamento, concorrência, falhas, quot
             coalesce((SELECT sum(charge) FROM hash_talk.vault_operations),0)
             +coalesce((SELECT sum(octet_length(profile_ciphertext)+524) FROM hash_talk.accounts),0)
             +coalesce((SELECT sum(charge) FROM hash_talk.message_attachments),0)
+            +coalesce((SELECT sum(charge) FROM hash_talk.personal_removals),0)
             +coalesce((SELECT sum(charge) FROM hash_talk.message_recovery_keys),0)
             +coalesce((SELECT sum(charge) FROM hash_talk.message_packets),0)
             +coalesce((SELECT sum(charge) FROM hash_talk.matrix_devices),0)
@@ -719,6 +722,58 @@ await test('cofre persistente: reservas, isolamento, concorrência, falhas, quot
         vault.operate('read', a.session, { after: last.sequence + 1 }),
         /checkpoint/,
       );
+    },
+  );
+  await t.test(
+    'backup: limpeza de versão conserva cadeia/checkpoint e recusa acesso ao objeto',
+    async () => {
+      const service = new MessageService(database, database.devices, objects);
+      const current = await database.devices.current(a.session.accountId);
+      assert.ok(current);
+      const selected = {
+        kind: 'vault',
+        id: first.commit.id,
+        hash: await commitHash(first.commit),
+      };
+      const payload = {
+        backup: 'c'.repeat(64),
+        revision: current.revision,
+        items: [selected],
+      };
+      const proof = {
+        deviceId: a.session.deviceId,
+        directory: current.head,
+        payload,
+      };
+      const input = {
+        ...proof,
+        signature: await sign(
+          identity.signing,
+          messageBody(
+            a.session.accountId,
+            a.session.deviceId,
+            'personal-clean',
+            proof,
+          ),
+        ),
+      };
+      const before = await vault.operate('read', a.session, { after: 0 });
+      const cleaned = await service.operate('personal-clean', a.session, input);
+      assert.equal((cleaned as { status: string }).status, 'cleaned');
+      await assert.rejects(
+        vault.operate('object', a.session, { id: first.commit.id }),
+        { status: 410 },
+      );
+      const after = await vault.operate('read', a.session, { after: 0 });
+      assert.equal(
+        (after as { head: string }).head,
+        (before as { head: string }).head,
+      );
+      const commits = (after as { commits: VaultCommit[] }).commits;
+      assert.ok(commits.some((c) => c.id === first.commit.id));
+      await assert.rejects(objects.read(first.commit.block.hash));
+      const again = await service.operate('personal-clean', a.session, input);
+      assert.equal((again as { released: number }).released, 0);
     },
   );
 });

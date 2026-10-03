@@ -7,6 +7,7 @@ import {
   openFile,
 } from '../../src/client/attachment-crypto/index.ts';
 import { contentRefs, partLimit } from '../../src/shared/attachments/index.ts';
+import { indexedPacket } from '../../src/client/messages/history.ts';
 import { base64, encode } from '../../src/shared/account/index.ts';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
@@ -45,6 +46,10 @@ import {
   linkProof,
   sign,
 } from '../../src/shared/devices/index.ts';
+import {
+  verifyRemoval,
+  personalRemoval,
+} from '../../src/shared/backups/index.ts';
 import { messageBody, messagePacket } from '../../src/shared/messages/index.ts';
 import type {
   MessagePacket,
@@ -431,6 +436,128 @@ await test('mensagens persistentes: Olm/Megolm, recuperação, idempotência, ex
     text: 'Ainda não entregue',
   });
   await publish(pending);
+  await t.test(
+    'backup: limpeza imediata é pessoal, autenticada, idempotente e preserva entrega ao outro participante',
+    async () => {
+      const p = await packet(
+        'Backup sintético enquanto o computador está offline',
+      );
+      await publish(p);
+      const hash = await digest(JSON.stringify(p));
+      const target = { kind: 'message', id: p.id, hash };
+      const selection = {
+        items: [target],
+        backup: 'a'.repeat(64),
+        revision: bob.events.length,
+      };
+      const before = await inspector.query<{
+        account_id: string;
+        device_id: string;
+        status: string;
+      }>(
+        'SELECT account_id,device_id,status FROM hash_talk.message_references WHERE message_id=$1',
+        [p.id],
+      );
+      assert.ok(
+        before.rows.some(
+          (r) =>
+            r.account_id === bob.session.accountId && r.status === 'pending',
+        ),
+      );
+      await assert.rejects(
+        op(outsider, 'personal-clean', {
+          ...selection,
+          revision: outsider.events.length,
+        }),
+      );
+      await assert.rejects(
+        op(bob, 'personal-clean', {
+          ...selection,
+          items: [{ ...target, hash: 'b'.repeat(64) }],
+        }),
+      );
+      const result = object(await op(bob, 'personal-clean', selection));
+      assert.equal(result['status'], 'cleaned');
+      const after = await inspector.query<{
+        account_id: string;
+        device_id: string;
+        status: string;
+      }>(
+        'SELECT account_id,device_id,status FROM hash_talk.message_references WHERE message_id=$1',
+        [p.id],
+      );
+      assert.ok(
+        after.rows.every((r) => r.account_id !== bob.session.accountId),
+      );
+      assert.deepEqual(
+        after.rows,
+        before.rows.filter((r) => r.account_id === alice.session.accountId),
+      );
+      const page = object(await op(bob, 'personal-page', { after: 0 }));
+      const rows = page['items'];
+      assert.ok(Array.isArray(rows));
+      const removal = personalRemoval(
+        rows.find((r) => object(r)['id'] === p.id),
+      );
+      await verifyRemoval(bob.session.accountId, removal, bob.events);
+      await assert.rejects(
+        verifyRemoval(
+          bob.session.accountId,
+          { ...removal, hash: 'b'.repeat(64) },
+          bob.events,
+        ),
+      );
+      const again = object(await op(bob, 'personal-clean', selection));
+      assert.equal(again['released'], 0);
+      await assert.rejects(
+        op(bob, 'object', { id: p.id, snapshot: await op(bob, 'snapshot') }),
+        { status: 410 },
+      );
+      await assert.rejects(
+        op(computer, 'object', {
+          id: p.id,
+          snapshot: await op(computer, 'snapshot'),
+        }),
+        { status: 410 },
+      );
+      await assert.rejects(op(bob, 'acknowledge', { id: p.id, hash }), {
+        status: 410,
+      });
+      const peer = messagePacket(
+        await op(alice, 'object', {
+          id: p.id,
+          snapshot: await op(alice, 'snapshot'),
+        }),
+      );
+      assert.equal(peer.id, p.id);
+      const index = object(
+        await op(bob, 'page', {
+          snapshot: await op(bob, 'snapshot'),
+          after: 0,
+        }),
+      );
+      assert.ok(Array.isArray(index['items']));
+      assert.ok(
+        index['items'].some(
+          (r) => object(r)['id'] === p.id && object(r)['deleted'] === true,
+        ),
+      );
+      await op(alice, 'personal-clean', {
+        ...selection,
+        revision: alice.events.length,
+      });
+      const collected = await inspector.query<{
+        body: unknown;
+        personal_collected: boolean;
+      }>(
+        'SELECT body,personal_collected FROM hash_talk.message_packets WHERE id=$1',
+        [p.id],
+      );
+      assert.equal(collected.rows[0]?.body, null);
+      assert.equal(collected.rows[0]?.personal_collected, true);
+      await assert.rejects(publish(p), { status: 410 });
+    },
+  );
   const quotaPacket = await packet('Não aceitar sem capacidade');
   const photoBytes = new Uint8Array(3_000_000);
   photoBytes.set([137, 80, 78, 71, 13, 10, 26, 10]);
@@ -694,6 +821,18 @@ await test('mensagens persistentes: Olm/Megolm, recuperação, idempotência, ex
       const snap = await op(computer, 'snapshot'),
         decoder = await machine(computer),
         key = await openRecoveryKey(bobKey, await authority(computer));
+      const transported = await op(computer, 'object', {
+        id: media.id,
+        snapshot: snap,
+      });
+      const identity = {
+        id: media.id,
+        hash: await digest(JSON.stringify(media)),
+      };
+      assert.deepEqual(await indexedPacket(transported, identity), media);
+      await assert.rejects(
+        indexedPacket(transported, { ...identity, hash: 'f'.repeat(64) }),
+      );
       try {
         const recovered = JSON.parse(
           await decoder.decrypt({
@@ -722,6 +861,43 @@ await test('mensagens persistentes: Olm/Megolm, recuperação, idempotência, ex
         );
       }
       assert.deepEqual(await openFile(sealed.file, downloaded), bytes);
+      await op(alice, 'personal-clean', {
+        backup: 'c'.repeat(64),
+        revision: alice.events.length,
+        items: [
+          {
+            kind: 'message',
+            id: media.id,
+            hash: await digest(JSON.stringify(media)),
+          },
+        ],
+      });
+      await assert.rejects(
+        op(alice, 'attachment-get', {
+          message: media.id,
+          id: sealed.file.ref.id,
+          index: 0,
+          snapshot: await op(alice, 'snapshot'),
+        }),
+        { status: 410 },
+      );
+      const retained = object(
+        await op(computer, 'attachment-get', {
+          message: media.id,
+          id: sealed.file.ref.id,
+          index: 0,
+          snapshot: await op(computer, 'snapshot'),
+        }),
+      );
+      assert.deepEqual(
+        base64(retained['ciphertext'], partLimit),
+        sealed.bytes.subarray(0, partLimit),
+      );
+      assert.ok(
+        (await readdir(attachmentDirectory)).includes(
+          `attachment-${sealed.file.ref.id}`,
+        ),
+      );
       await assert.rejects(
         op(outsider, 'attachment-get', {
           message: media.id,

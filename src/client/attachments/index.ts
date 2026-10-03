@@ -238,19 +238,40 @@ export async function downloadAttachment(
 ): Promise<Uint8Array<ArrayBuffer>> {
   input.guard();
   await retainAttachment(input.account, input.message);
+  const bytes = await downloadSealedAttachment(input);
+  const result = await openStoredAttachment(
+    input.file,
+    bytes,
+    input.thumbnail,
+    input.image,
+  );
+  input.guard();
+  return result;
+}
+export async function downloadSealedAttachment(
+  input: DownloadInput,
+): Promise<Uint8Array<ArrayBuffer>> {
   const bytes = new Uint8Array(input.file.ref.bytes);
   for (let index = 0; index < input.file.ref.parts.length; index++) {
     input.guard();
     bytes.set(await fetchPart(input, index), index * partLimit);
   }
+  input.guard();
+  return bytes;
+}
+export async function openStoredAttachment(
+  file: PrivateFile,
+  bytes: Uint8Array<ArrayBuffer>,
+  thumbnail: boolean,
+  image: boolean,
+): Promise<Uint8Array<ArrayBuffer>> {
   const result = await attachmentWork<{ bytes: Uint8Array<ArrayBuffer> }>({
     operation: 'open',
-    file: input.file,
+    file,
     bytes,
-    maximum: input.thumbnail ? thumbnailLimit : fileLimit,
-    image: input.image,
+    maximum: thumbnail ? thumbnailLimit : fileLimit,
+    image,
   });
-  input.guard();
   return result.bytes;
 }
 /** Cache eviction only removes downloaded ciphertext, never queued drafts or remote objects. */

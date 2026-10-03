@@ -8,7 +8,8 @@ export async function vaultUsage(
   const result = await client.query<{ bytes: string }>(
     `SELECT (
     coalesce((SELECT sum(charge) FROM hash_talk.vault_operations WHERE account_id=$1),0)
-    + coalesce((SELECT sum(charge) FROM hash_talk.message_attachments WHERE sender=$1 OR recipient=$1),0)
+    + coalesce((SELECT sum(charge) FROM hash_talk.message_attachments WHERE (sender=$1 OR recipient=$1) AND NOT EXISTS(SELECT 1 FROM hash_talk.personal_removals r WHERE r.account_id=$1 AND r.kind='message' AND r.id=message_id)),0)
+    + coalesce((SELECT sum(charge-retained_bytes) FROM hash_talk.personal_removals WHERE account_id=$1),0)
     + coalesce((SELECT sum(charge) FROM hash_talk.message_recovery_keys WHERE account_id=$1),0)
     + coalesce((SELECT sum(sender_charge) FROM hash_talk.message_packets WHERE sender=$1),0)
     + coalesce((SELECT sum(recipient_charge) FROM hash_talk.message_packets WHERE recipient=$1),0)

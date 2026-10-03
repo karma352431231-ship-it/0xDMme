@@ -1,6 +1,7 @@
 import { startPwa } from '../pwa/index.ts';
 import { startAccount } from '../account/index.ts';
 import { startDevices } from '../devices/index.ts';
+import { startBackups } from '../backups/index.ts';
 import { startVault } from '../vault-ui/index.ts';
 import { startMessages } from '../messages/index.ts';
 import { startContacts } from '../contacts/index.ts';
@@ -42,6 +43,7 @@ const devices = startDevices({
   },
 });
 const vault = startVault(devices);
+const backups = startBackups(devices, vault.sync);
 const contacts = startContacts(devices, vault.sync);
 const messages = startMessages(devices, vault.sync, () =>
   account.sharedProfile(),
@@ -58,6 +60,7 @@ const account = startAccount({
     connectedAccount = session;
     devices.setSession(session);
     vault.setSession(session);
+    backups.setSession(session);
     contacts.setSession(session);
     messages.setSession(session);
     connection();
@@ -76,6 +79,7 @@ const pwa = account.approvalPage
         account.canActivate() &&
         devices.canActivate() &&
         vault.canActivate() &&
+        backups.canActivate() &&
         contacts.canActivate() &&
         messages.canActivate(),
     });
@@ -122,7 +126,13 @@ function mountFeature(key: keyof typeof pages): void {
   const vaultContainer = content.querySelector<HTMLElement>(
     '[data-vault-container]',
   );
-  if (key === 'cofre' && vaultContainer) vault.mount(vaultContainer);
+  if (key === 'cofre' && vaultContainer) {
+    vault.mount(vaultContainer);
+    const backupContainer = document.createElement('div');
+    backupContainer.className = 'backup-card';
+    vaultContainer.after(backupContainer);
+    backups.mount(backupContainer);
+  }
 }
 
 function mountAccountPanels(key: keyof typeof pages): void {

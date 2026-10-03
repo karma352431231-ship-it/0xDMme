@@ -5,7 +5,7 @@ import type { VaultAccess } from '../vault-authority/index.ts';
 import { VaultSync } from '../vault-sync/index.ts';
 import { storageEstimate, rememberLocator } from '../vault-storage/index.ts';
 const template = `<article class="card vault-card"><span class="eyebrow">COFRE PESSOAL</span><h2>Uma cópia que você pode recuperar.</h2>
-<p>Agenda privada, configurações e dados de teste ficam cifrados. Conversas e anexos serão integrados nas próximas etapas. Confirmado no cofre significa que o conteúdo está preservado remotamente; salvo só neste aparelho ainda precisa sincronizar.</p>
+<p>Agenda privada, configurações, conversas e anexos ficam cifrados. O painel abaixo mostra as versões de agenda/configurações; use Backup independente para selecionar mensagens e mídias. Confirmado no cofre significa que o conteúdo está preservado remotamente; salvo só neste aparelho ainda precisa sincronizar.</p>
 <p data-vault-status role="status">Conecte e autorize este aparelho para abrir o cofre.</p><progress data-vault-usage max="300000000" value="0" aria-label="Uso do cofre"></progress><p data-vault-quota>300 MB pessoais · uso ainda não conferido</p><p data-vault-local></p>
 <button data-vault-action="sync" class="primary" type="button">Abrir / sincronizar cofre</button><button data-vault-action="local" type="button">Abrir somente cópia local</button><button data-vault-action="persist" type="button">Solicitar persistência local</button>
 <div data-vault-pending hidden><p>Rascunho cifrado salvo neste aparelho. Ainda não confirmado no cofre.</p><button data-vault-action="retry" type="button">Retomar envio</button><button data-vault-action="discard" type="button">Descartar rascunho incompleto</button></div><div data-vault-reservations></div>
@@ -82,6 +82,7 @@ export function startVault(access: VaultAccess) {
     list.replaceChildren();
     const currentHeads = sync.currentHeads();
     for (const entry of [...sync.entries.values()]
+      .filter((entry) => !sync.isRemoved(entry.commit.id))
       .reverse()
       .slice(displayed, displayed + 16)) {
       const item = document.createElement('li');
@@ -267,7 +268,19 @@ export function startVault(access: VaultAccess) {
     message = 'Reabra o cofre para conferir a autorização.';
     render();
   });
-  channel?.addEventListener('message', () => {
+  function closeRemoved(): void {
+    sync.clear();
+    resetEditor();
+    message =
+      'Cofre alterado por limpeza pessoal. Sincronize antes de abrir versões.';
+    render();
+  }
+  window.addEventListener('0xdmme-personal-cleanup', closeRemoved);
+  channel?.addEventListener('message', (event) => {
+    if (event.data === 'personal-cleanup') {
+      closeRemoved();
+      return;
+    }
     if (!busy) {
       message = 'O cofre mudou em outra aba. Sincronize antes de continuar.';
       render();

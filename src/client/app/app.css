@@ -639,7 +639,8 @@ footer {
 .vault-card textarea {
   resize: vertical;
 }
-.vault-card button {
+.vault-card button,
+.backup-card button {
   max-width: 100%;
   margin: 5px 8px 5px 0;
   padding: 10px 12px;
@@ -650,12 +651,14 @@ footer {
   font: inherit;
   cursor: pointer;
 }
-.vault-card button.primary {
+.vault-card button.primary,
+.backup-card button.primary {
   border-color: var(--accent);
   background: var(--accent);
   color: white;
 }
-.vault-card button:disabled {
+.vault-card button:disabled,
+.backup-card button:disabled {
   cursor: default;
   opacity: 0.6;
 }
@@ -740,4 +743,44 @@ footer {
 .chat-message a {
   display: inline-block;
   overflow-wrap: anywhere;
+}
+
+.backup-card {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.backup-card label {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 10px 0;
+  font-size: 13px;
+}
+.backup-card input[type='file'] {
+  max-width: 100%;
+  min-width: 0;
+}
+.backup-list {
+  display: grid;
+  gap: 0.65rem;
+  margin: 1rem 0;
+}
+.backup-list label {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  overflow-wrap: anywhere;
+}
+.backup-list input[type='checkbox'] {
+  width: auto;
+  flex: 0 0 auto;
+}
+.backup-history article {
+  border-top: 1px solid currentColor;
+  padding: 1rem 0;
+  overflow-wrap: anywhere;
+}
+.backup-history p {
+  white-space: pre-wrap;
 }

@@ -8,6 +8,8 @@ O proprietário escolheu a opção 1: a pendência de cada aparelho autorizado c
 
 Na entrega normal, o pacote só pode ser removido após a preservação recuperável no cofre e a resolução de todas as referências necessárias. A exclusão explícita aprovada abaixo é uma transição diferente da conclusão de entrega. Mensagens aceitas não têm TTL; inatividade não equivale a revogação. Entrega e leitura são estados diferentes. Idempotência e confirmações vinculadas à mensagem, conta e aparelho devem impedir duplicação e confirmação de pendências alheias.
 
+Exceção aprovada em 03/10/2026 no [bloco 09](BLOCO_09_BACKUP_E_RECUPERACAO.md): após salvar e validar um backup independente, uma confirmação separada pode remover pessoalmente os itens preservados e encerrar as referências da própria conta, inclusive de aparelhos offline. Não é ACK, leitura ou revogação e não encerra as pendências nem remove a cópia do outro participante. A exportação isolada não apaga nada. Os aparelhos afetados dependerão do arquivo independente para consultar o conteúdo removido.
+
 Preservar as cotas já aprovadas: 300.000.000 bytes pessoais, recebidos incluídos, sem reservar antecipadamente a cota inteira. Cópias de sincronização em outro aparelho não duplicam a cobrança lógica do histórico. Pacotes, referências e operações concretas em andamento ocupam espaço real e precisam de contabilização antes da aceitação. Não reintroduzir os tetos de contatos removidos no bloco 06.
 
 ## Exclusão, bloqueio e revogação — decisões aprovadas

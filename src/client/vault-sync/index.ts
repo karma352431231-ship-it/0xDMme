@@ -1,3 +1,4 @@
+import { RemovalIndex } from '../personal-removals/index.ts';
 import {
   AccountError,
   base64,
@@ -103,6 +104,10 @@ export class VaultSync {
   private generation = 0;
   private locator: VaultLocator | null = null;
   private localOnly = false;
+  private readonly removals = new RemovalIndex();
+  isRemoved(id: string): boolean {
+    return this.removals.has('vault', id);
+  }
   constructor(access: VaultAccess) {
     this.access = access;
   }
@@ -121,6 +126,7 @@ export class VaultSync {
   clear(): void {
     this.generation++;
     this.entries.clear();
+    this.removals.reset();
     this.pending = null;
     this.complete = false;
     this.remotePending = [];
@@ -199,6 +205,13 @@ export class VaultSync {
     return { commit, change };
   }
   private async loadLocal(authority: VaultAuthority): Promise<void> {
+    await this.removals.load(authority, () => {
+      if (
+        this.session &&
+        this.session.accountId !== authority.session.accountId
+      )
+        throw new Error('Sessão alterada.');
+    });
     this.state = await checkpoint(authority.session.accountId);
     this.pending = await draft(authority.session.accountId);
     let previous = this.lastCommit();
@@ -304,6 +317,7 @@ export class VaultSync {
     );
     const heads = new Map<string, VaultEntry[]>();
     for (const entry of this.entries.values()) {
+      if (this.isRemoved(entry.commit.id)) continue;
       if (superseded.has(entry.commit.id)) continue;
       const siblings = heads.get(entry.change.entity) ?? [];
       siblings.push(entry);
@@ -320,6 +334,10 @@ export class VaultSync {
       if (!this.complete)
         throw new Error('Continue carregando o cofre antes de editar.');
       for (const id of input.change.parents) {
+        if (this.isRemoved(id))
+          throw new Error(
+            'A versão anterior foi removida. Crie uma nova versão deliberadamente.',
+          );
         const parent = this.entries.get(id);
         if (
           !parent ||
@@ -393,6 +411,10 @@ export class VaultSync {
       await authority.key(pending.commit.epoch),
       pending.commit,
     );
+    if (change.parents.some((id) => this.isRemoved(id)))
+      throw new Error(
+        'Rascunho anterior à limpeza. Nenhum conteúdo removido foi republicado; descarte-o ou recrie deliberadamente.',
+      );
     const value = await openBlock(
       await authority.key(pending.commit.epoch),
       pending.commit,
@@ -466,7 +488,13 @@ export class VaultSync {
     return this.run(async (authority) => {
       const entry = this.entries.get(id);
       if (!entry) throw new Error('Carregue esta versão primeiro.');
-      let bytes = await cachedBlock(authority.session.accountId, id);
+      if (this.isRemoved(id))
+        throw new Error(
+          'Versão removida do cofre pessoal. Consulte o backup independente.',
+        );
+      let bytes = authority.offline
+        ? await cachedBlock(authority.session.accountId, id)
+        : null;
       if (!bytes) {
         if (authority.offline)
           throw new Error(

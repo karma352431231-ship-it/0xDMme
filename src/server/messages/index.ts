@@ -57,20 +57,32 @@ function snapshot(input: unknown): MessageSnapshot {
 export class MessageService {
   private readonly db: Pick<
     Database,
-    'messages' | 'messageRecovery' | 'matrix' | 'contacts' | 'attachments'
+    | 'messages'
+    | 'messageRecovery'
+    | 'matrix'
+    | 'contacts'
+    | 'attachments'
+    | 'backups'
   >;
   private readonly devices: DeviceStore;
   private readonly actions: Record<string, Action>;
   private readonly attachments: AttachmentService | null;
+  private readonly objects: ObjectStore | null;
   constructor(
     db: Pick<
       Database,
-      'messages' | 'messageRecovery' | 'matrix' | 'contacts' | 'attachments'
+      | 'messages'
+      | 'messageRecovery'
+      | 'matrix'
+      | 'contacts'
+      | 'attachments'
+      | 'backups'
     >,
     devices: DeviceStore,
     objects?: ObjectStore,
   ) {
     this.db = db;
+    this.objects = objects ?? null;
     this.devices = devices;
     this.attachments = objects
       ? new AttachmentService(db.attachments, db.messages, objects)
@@ -97,6 +109,16 @@ export class MessageService {
       accepted: (a, d) => {
         keys(d, ['id', 'hash']);
         return db.messages.accepted(a, uuid(d['id']), fingerprint(d['hash']));
+      },
+      'personal-clean': async (a, _d, p) => {
+        const result = await db.backups.clean(a, p);
+        await this.cleanPersonal();
+        await this.attachments?.clean();
+        return result;
+      },
+      'personal-page': (a, d) => {
+        keys(d, ['after']);
+        return db.backups.page(a, sequence(d['after']));
       },
       snapshot: (a, d) => {
         keys(d, []);
@@ -196,7 +218,15 @@ export class MessageService {
         );
       };
   }
+  async cleanPersonal(): Promise<void> {
+    if (!this.objects) return;
+    for (const item of await this.db.backups.garbage()) {
+      await this.objects.discardPersonal(item.object_hash);
+      await this.db.backups.collected(item.account_id, item.id);
+    }
+  }
   async cleanAttachments(): Promise<void> {
+    await this.cleanPersonal();
     await this.attachments?.clean();
   }
   async preflightAttachment(

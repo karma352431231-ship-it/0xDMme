@@ -1,8 +1,11 @@
+import { RemovalIndex } from '../personal-removals/index.ts';
+import { personalRemoval, verifyRemoval } from '../../shared/backups/index.ts';
 import { attachmentContent } from '../../shared/attachments/index.ts';
 import {
   stageAttachment,
   uploadAttachments,
   downloadAttachment,
+  downloadSealedAttachment,
   forgetAttachment,
   retainAttachment,
 } from '../attachments/index.ts';
@@ -15,11 +18,7 @@ import {
   digest,
   verifyHistory,
 } from '../../shared/devices/index.ts';
-import {
-  messagePacket,
-  recoveryKey,
-  verifyRecoveryKey,
-} from '../../shared/messages/index.ts';
+import { recoveryKey, verifyRecoveryKey } from '../../shared/messages/index.ts';
 import type {
   MessagePacket,
   RecoveryKey,
@@ -53,11 +52,17 @@ import {
   MegolmDecryptionError,
   DecryptionErrorCode,
 } from '@matrix-org/matrix-sdk-crypto-wasm';
-import { messageApi } from './transport.ts';
+import { messageApi } from '../message-api/index.ts';
 import { MessageIndex } from './index-sync.ts';
 import { OfflineIndex } from './offline-index.ts';
 import { notifyMessageControls } from '../message-controls/index.ts';
-import { peerHistory, pinFor, verifyDeletion } from './history.ts';
+import {
+  messageItems,
+  peerHistory,
+  pinFor,
+  verifyDeletion,
+  indexedPacket,
+} from './history.ts';
 import type { MessageItem, PeerPin } from './history.ts';
 export interface MessageView {
   kind: MessagePacket['kind'];
@@ -216,6 +221,7 @@ export class Messages {
   private async loadPinEntry(
     entry: import('../vault-sync/index.ts').VaultEntry,
   ): Promise<void> {
+    if (this.sync.isRemoved(entry.commit.id)) return;
     if (entry.change.kind === 'address-book') {
       const stored = addressBookEntry(
         JSON.parse(await this.sync.open(entry.commit.id)) as unknown,
@@ -717,13 +723,27 @@ export class Messages {
     item: MessageItem,
   ): Promise<void> {
     if (item.deleted) {
-      const history = await this.history(
-        c.a,
-        c.generation,
-        item.sender,
-        Number(item.deletion?.payload['revision']),
-      );
-      await verifyDeletion(item, history);
+      if (item.removal) {
+        await verifyRemoval(
+          c.a.session.accountId,
+          personalRemoval({
+            kind: 'message',
+            id: item.id,
+            hash: item.hash,
+            sequence: item.removal_sequence,
+            proof: item.removal,
+          }),
+          c.a.events,
+        );
+      } else {
+        const history = await this.history(
+          c.a,
+          c.generation,
+          item.sender,
+          Number(item.deletion?.payload['revision']),
+        );
+        await verifyDeletion(item, history);
+      }
       await localDelete(c.a.session.accountId, `cache:${item.id}`);
       await localDelete(c.a.session.accountId, `profile:${item.id}`);
       await localDelete(c.a.session.accountId, `outbox:${item.id}`);
@@ -773,7 +793,10 @@ export class Messages {
     item: MessageItem,
   ): Promise<MessageView> {
     const { a, api, machine, snapshot } = c,
-      packet = messagePacket(await api('object', { id: item.id, snapshot }));
+      packet = await indexedPacket(
+        await api('object', { id: item.id, snapshot }),
+        item,
+      );
     let history = c.histories.get(packet.sender);
     if (!history) {
       history = await this.history(
@@ -789,8 +812,7 @@ export class Messages {
       c.histories.set(packet.sender, history);
     }
     const event = history[packet.senderRevision - 1];
-    if (!event || (await digest(JSON.stringify(packet))) !== item.hash)
-      throw new Error('Mensagem divergente do índice.');
+    if (!event) throw new Error('Mensagem divergente do índice.');
     const archive = packet.archives.find(
       (x) => x.accountId === a.session.accountId,
     );
@@ -971,6 +993,82 @@ export class Messages {
     }
     return received;
   }
+  async backupPage(
+    after: number,
+  ): Promise<{ items: MessageItem[]; next: number | null }> {
+    const generation = this.generation;
+    return this.access.withVault(false, async (a) => {
+      const guard = () => this.guard(generation);
+      const snapshot = await messageApi(a, 'snapshot', {}, guard);
+      const page = messageItems(
+        await messageApi(a, 'page', { after, snapshot }, guard),
+      );
+      for (const item of page.items)
+        if (item.deleted)
+          await this.indexItem({ a, generation, selected: null }, item);
+      await messageApi(a, 'confirm', { snapshot }, guard);
+      return { items: page.items.filter((i) => !i.deleted), next: page.next };
+    });
+  }
+  async backupOne(item: MessageItem): Promise<MessageView> {
+    const generation = this.generation;
+    return this.access.withVault(false, async (a) => {
+      const api = (op: string, d: Record<string, unknown>) =>
+        messageApi(a, op, d, () => this.guard(generation));
+      const snapshot = await api('snapshot', {}),
+        machine = await this.machine(a, generation);
+      try {
+        const view = await this.readPacket(
+          {
+            a,
+            generation,
+            api,
+            snapshot,
+            machine,
+            window: [item],
+            histories: new Map(),
+            keys: new Map(),
+          },
+          item,
+        );
+        await api('confirm', { snapshot });
+        return view;
+      } finally {
+        machine.close();
+      }
+    });
+  }
+  async backupMedia(
+    view: MessageView,
+    thumbnail: boolean,
+  ): Promise<Uint8Array<ArrayBuffer>> {
+    const generation = this.generation;
+    return this.access.withVault(false, async (a) => {
+      const guard = () => this.guard(generation),
+        api = (op: string, d: Record<string, unknown>) =>
+          messageApi(a, op, d, guard);
+      const snapshot = await api('snapshot', {});
+      await indexedPacket(await api('object', { id: view.id, snapshot }), view);
+      const content = attachmentContent(JSON.parse(view.text) as unknown),
+        file = thumbnail ? content.thumbnail : content.file;
+      if (!file) throw new Error('Miniatura ausente.');
+      const input = {
+        account: a.session.accountId,
+        message: view.id,
+        file,
+        thumbnail,
+        image: thumbnail || content.image,
+        api,
+        snapshot,
+        guard,
+      };
+      const opened = await downloadAttachment(input);
+      opened.fill(0);
+      const bytes = await downloadSealedAttachment(input);
+      await api('confirm', { snapshot });
+      return bytes;
+    });
+  }
   async probe(): Promise<boolean> {
     const token = this.visibility.begin(),
       generation = this.generation;
@@ -1045,6 +1143,8 @@ export class Messages {
       throw new Error('Não há cópia local autorizada neste aparelho.');
     try {
       await this.access.withLocalVault(locator, async (a) => {
+        const removed = new RemovalIndex();
+        await removed.load(a, () => this.guard(generation));
         const cached = await this.offlineIndex.read({
             account: a.session.accountId,
             peer,

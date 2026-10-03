@@ -317,8 +317,9 @@ class DeploymentTests(unittest.TestCase):
             root = Path(directory) / 'source'
             root.mkdir()
             files = subprocess.check_output(['git', 'ls-files', '-co', '--exclude-standard', '-z'], cwd=deploy.ROOT).split(b'\0')
+            deleted = set(subprocess.check_output(['git', 'ls-files', '--deleted', '-z'], cwd=deploy.ROOT).split(b'\0'))
             for raw in files:
-                if not raw:
+                if not raw or raw in deleted:
                     continue
                 relative = Path(os.fsdecode(raw))
                 target = root / relative

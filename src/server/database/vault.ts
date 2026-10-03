@@ -282,6 +282,12 @@ export class VaultStore {
   ): Promise<VaultCommit> {
     return this.transaction(async (client) => {
       await this.lock(client, session, directory);
+      const removed = await client.query(
+        "SELECT 1 FROM hash_talk.personal_removals WHERE account_id=$1 AND kind='vault' AND id=$2",
+        [session.accountId, id],
+      );
+      if (removed.rowCount)
+        throw new AccountError(410, 'Versão removida do cofre pessoal.');
       const operation = await this.operation(client, session.accountId, id);
       if (operation?.state !== 'accepted')
         throw new AccountError(404, 'Bloco não confirmado nesta conta.');

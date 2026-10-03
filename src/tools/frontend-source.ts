@@ -6,6 +6,12 @@ import { promisify } from 'node:util';
 
 const execute = promisify(execFile);
 const authored = [
+  'src/client/backups',
+  'src/client/backup-archive',
+  'src/client/backup-records',
+  'src/client/personal-removals',
+  'src/client/message-api',
+  'src/shared/backups',
   'src/client/attachment-crypto',
   'src/client/attachment-images',
   'src/client/attachments',

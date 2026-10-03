@@ -186,7 +186,7 @@ Regras da fila:
 - Uma confirmação de push, conexão WebSocket ou leitura de bytes não autoriza exclusão.
 - Acompanhar entregas por dispositivo e, em grupos, por destinatário aplicável.
 - Não apagar o pacote necessário ao computador apenas porque o celular confirmou recebimento.
-- Decisão do proprietário em 03/10/2026 para o bloco 07: manter a pendência de cada aparelho até sua própria confirmação autenticada de recebimento verificado e gravado. A cópia recuperável no cofre não substitui essa confirmação. Uma confirmação do celular não resolve a pendência do computador. A remoção final do pacote exige também a preservação recuperável no cofre e a resolução de todas as referências necessárias; exclusão explícita pelo remetente e revogação seguem as exceções aprovadas no bloco 07, sem TTL ou descarte por inatividade.
+- Decisão do proprietário em 03/10/2026 para o bloco 07: manter a pendência de cada aparelho até sua própria confirmação autenticada de recebimento verificado e gravado. A cópia recuperável no cofre não substitui essa confirmação. Uma confirmação do celular não resolve a pendência do computador. A remoção final do pacote exige também a preservação recuperável no cofre e a resolução de todas as referências necessárias; exclusão explícita pelo remetente e revogação seguem as exceções aprovadas no bloco 07; a limpeza pessoal após backup, aprovada no bloco 09, pode encerrar somente as pendências da própria conta. Sem TTL ou descarte por inatividade.
 - A remoção final do objeto depende de todas as referências necessárias terem sido resolvidas; remover uma referência não garante remoção do objeto compartilhado.
 - No bloco 07, exclusão explícita pelo remetente vale antes ou depois do recebimento e retira a mensagem do chat dos dois participantes e das entregas pendentes, preservando somente backups independentes salvos/exportados antes da exclusão; o conteúdo também é removido do cofre automático de ambos. Bloqueio suspende pendências sem apagá-las; retomada exige novo consentimento. Revogação barra o aparelho e resolve somente sua referência quando o cofre recuperável estiver comprovado. Exclusão de conta ainda exige política própria; não simular nenhuma dessas ações por inatividade.
 - Controlar cotas antes de aceitar dados; ao atingir capacidade, recusar novos envios de forma clara e preservar os já aceitos.
@@ -522,6 +522,10 @@ Foto própria permanece cifrada; distribuição para aprovados integrada pelo ca
 **Aceite:** servidor não recebe original legível; arquivo adulterado falha; transferência interrompida pode retomar; arquivo grande não congela o aparelho dentro dos limites definidos.
 
 ### Bloco 09 — Backup exportável e recuperação completa
+
+**Estado:** implementado localmente em 03/10/2026. [Escopo, decisão, validação e aceites pendentes](docs/BLOCO_09_BACKUP_E_RECUPERACAO.md). Exportação cifrada, consulta histórica local e limpeza pessoal integradas; o ensaio completo de download/reabertura no navegador e os aceites físicos mobile/segurança permanecem pendentes. O proprietário pediu envio e ativação na VPS em 03/10/2026; preparar a transição específica 016 → 017 no executor existente, com CI, backup/ensaio de restauração e preservação, antes de publicar no ambiente de testes.
+
+**Limpeza pessoal aprovada em 03/10/2026:** depois de salvar e validar o backup, a ação separada de limpeza pode remover imediatamente os itens escolhidos do cofre da própria conta e encerrar suas entregas pendentes, inclusive para aparelhos offline. Esses aparelhos dependerão da cópia independente para consultar os itens removidos. Esta é uma nova exceção explícita à confirmação por aparelho do bloco 07; não representa recebimento, leitura ou revogação. Preservar a cópia e as pendências do outro participante. Exportação isolada não apaga nada, e perda posterior do arquivo pode tornar os itens irrecuperáveis para a conta.
 
 **Depende de:** 05, 07 e 08.
 

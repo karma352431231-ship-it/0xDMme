@@ -65,6 +65,12 @@ export class MessageStore {
         existing.hash !== hash
       )
         throw new AccountError(409, 'Identificador de mensagem já utilizado.');
+      const removed = await client.query(
+        "SELECT 1 FROM hash_talk.personal_removals WHERE account_id=$1 AND kind='message' AND id=$2",
+        [authority.session.accountId, id],
+      );
+      if (removed.rowCount)
+        throw new AccountError(410, 'Mensagem removida do cofre pessoal.');
       if (!existing.body) throw new AccountError(410, 'Mensagem já apagada.');
       return true;
     });
@@ -264,6 +270,12 @@ export class MessageStore {
           409,
           'Mensagem apagada ou confirmação divergente.',
         );
+      const removed = await client.query(
+        "SELECT 1 FROM hash_talk.personal_removals WHERE account_id=$1 AND kind='message' AND id=$2",
+        [authority.session.accountId, id],
+      );
+      if (removed.rowCount)
+        throw new AccountError(410, 'Mensagem removida do cofre pessoal.');
       const { accountId, deviceId } = authority.session;
       const updated = await client.query(
         "UPDATE hash_talk.message_references SET status='received' WHERE message_id=$1 AND account_id=$2 AND device_id=$3 AND status='pending'",
@@ -336,7 +348,7 @@ export class MessageStore {
         queue_active: boolean;
         status: string | null;
       }>(
-        `SELECT m.id,m.kind,m.sender,m.recipient,m.sequence::text,m.hash,(m.body IS NULL) AS deleted,m.deletion,m.sender_revision,m.recipient_revision,m.queue_active,r.status FROM hash_talk.message_packets m LEFT JOIN hash_talk.message_references r ON r.message_id=m.id AND r.account_id=$1 AND r.device_id=$2 WHERE (m.sender=$1 OR m.recipient=$1) AND m.sequence>$3 ORDER BY m.sequence LIMIT $4`,
+        `SELECT m.id,m.kind,m.sender,m.recipient,m.sequence::text,m.hash,(m.body IS NULL OR pr.id IS NOT NULL) AS deleted,m.deletion,pr.proof AS removal,pr.sequence::text AS removal_sequence,m.sender_revision,m.recipient_revision,m.queue_active,r.status FROM hash_talk.message_packets m LEFT JOIN hash_talk.personal_removals pr ON pr.account_id=$1 AND pr.kind='message' AND pr.id=m.id LEFT JOIN hash_talk.message_references r ON r.message_id=m.id AND r.account_id=$1 AND r.device_id=$2 WHERE (m.sender=$1 OR m.recipient=$1) AND m.sequence>$3 ORDER BY m.sequence LIMIT $4`,
         [
           authority.session.accountId,
           authority.session.deviceId,
@@ -416,7 +428,15 @@ export class MessageStore {
       await this.expect(client, authority, snapshot);
       const row = await this.record(client, id);
       this.assertParticipant(authority, row);
-      if (!row.body) throw new AccountError(410, 'Mensagem apagada.');
+      const removed = await client.query(
+        "SELECT 1 FROM hash_talk.personal_removals WHERE account_id=$1 AND kind='message' AND id=$2",
+        [authority.session.accountId, id],
+      );
+      if (!row.body || removed.rowCount)
+        throw new AccountError(
+          410,
+          'Mensagem apagada ou removida do cofre pessoal.',
+        );
       const { accountId, deviceId } = authority.session;
       const ref = await client.query<{ status: string }>(
         'SELECT status FROM hash_talk.message_references WHERE message_id=$1 AND account_id=$2 AND device_id=$3',

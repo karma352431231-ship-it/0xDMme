@@ -260,3 +260,13 @@ export async function storageEstimate(): Promise<{
     persistent: await navigator.storage.persisted(),
   };
 }
+
+export function forgetCachedBlock(
+  accountId: string,
+  id: string,
+): Promise<void> {
+  return transaction((s, done) => {
+    s.blocks.delete(`${accountId}:${id}`);
+    done(undefined);
+  });
+}

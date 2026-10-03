@@ -189,6 +189,15 @@ export class ObjectStore {
 
   /** Caller owns an exclusively reserved, unaccepted object. Never expire accepted files. */
   async discardUnaccepted(identifier: string): Promise<void> {
+    return this.discardObject(identifier);
+  }
+
+  /** Caller has committed an authenticated personal removal; its retained bytes
+   * stay charged until this durable unlink and the corresponding collection receipt. */
+  async discardPersonal(identifier: string): Promise<void> {
+    return this.discardObject(identifier);
+  }
+  private async discardObject(identifier: string): Promise<void> {
     if (!validIdentifier.test(identifier)) throw new Error('Objeto inválido.');
     await unlink(resolve(this.directory, identifier)).catch(
       (error: unknown) => {

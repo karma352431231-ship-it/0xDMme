@@ -13,8 +13,12 @@ import {
   messageKind,
   messageProof,
   messagePageSize,
+  messagePacket,
 } from '../../shared/messages/index.ts';
-import type { MessageProof } from '../../shared/messages/index.ts';
+import type {
+  MessageProof,
+  MessagePacket,
+} from '../../shared/messages/index.ts';
 import { integer } from '../../shared/vault/index.ts';
 export interface MessageItem {
   kind: 'text' | 'profile' | 'attachment';
@@ -25,6 +29,8 @@ export interface MessageItem {
   hash: string;
   deleted: boolean;
   deletion: MessageProof | null;
+  removal?: MessageProof | null;
+  removal_sequence?: number;
   sender_revision: number;
   recipient_revision: number;
   queue_active: boolean;
@@ -34,6 +40,20 @@ export interface PeerPin {
   fingerprint: string;
   directory: string;
   revision: number;
+}
+/** JSON object order is not preserved by the transport/database. Normalize
+ * through the shared packet contract before binding it to the signed index. */
+export async function indexedPacket(
+  input: unknown,
+  item: Pick<MessageItem, 'id' | 'hash'>,
+): Promise<MessagePacket> {
+  const packet = messagePacket(input);
+  if (
+    packet.id !== item.id ||
+    (await digest(JSON.stringify(packet))) !== item.hash
+  )
+    throw new Error('Mensagem divergente do índice.');
+  return packet;
 }
 export type Api = (
   operation: string,
@@ -150,6 +170,11 @@ export function messageItems(input: unknown): {
       hash: fingerprint(row['hash']),
       deleted: row['deleted'],
       deletion: row['deletion'] === null ? null : messageProof(row['deletion']),
+      removal: row['removal'] == null ? null : messageProof(row['removal']),
+      removal_sequence:
+        row['removal_sequence'] == null
+          ? 0
+          : integer(Number(row['removal_sequence']), Number.MAX_SAFE_INTEGER),
       sender_revision: integer(row['sender_revision'], 128),
       recipient_revision: integer(row['recipient_revision'], 128),
       queue_active: row['queue_active'],

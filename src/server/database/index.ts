@@ -1,3 +1,5 @@
+import { BackupStore } from './backups.ts';
+export type { BackupStore } from './backups.ts';
 import { AttachmentStore } from './attachments.ts';
 export type { AttachmentStore } from './attachments.ts';
 import { createHash } from 'node:crypto';
@@ -40,6 +42,7 @@ const migrations = [
   '014-matrix-transport.sql',
   '015-message-kinds.sql',
   '016-attachments.sql',
+  '017-personal-backup-cleanup.sql',
 ];
 
 export interface MaintenanceSnapshot {
@@ -74,6 +77,7 @@ export class Database {
   readonly messages: MessageStore;
   readonly matrix: MatrixStore;
   readonly attachments: AttachmentStore;
+  readonly backups: BackupStore;
 
   constructor(connectionString: string, contentCapacity = 3_000_000_000) {
     this.pool = new pg.Pool({
@@ -109,6 +113,7 @@ export class Database {
       contentCapacity,
       this.attachments,
     );
+    this.backups = new BackupStore(this.pool, this.contacts, contentCapacity);
     this.matrix = new MatrixStore(this.contacts, contentCapacity);
   }
 

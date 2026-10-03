@@ -418,4 +418,5 @@ export function startMessages(
     },
   };
 }
+export type { MessageItem } from './history.ts';
 export { Messages } from './controller.ts';
