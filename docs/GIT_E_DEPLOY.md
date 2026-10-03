@@ -301,9 +301,15 @@ Os três workspaces anteriores estavam ocupados por transições concluídas com
 
 **Ponto importante:** publicação destinada ao ambiente de testes. Download/reabertura e limpeza pela interface, aparelhos físicos mobile e aceite final de segurança continuam pendentes. Esta transição não autoriza outras migrações nem estabelece prontidão para conversas reais.
 
+**Resultado:** release `62781eb` publicada em 03/10/2026 com CI aprovada, migração 017, backup/ensaio de restauração, preservação e 36 hashes públicos verificados. A primeira tentativa de preparar parou localmente porque o ambiente do npm encontrou um Python sem suporte a `tarfile.extractall(filter='data')`; selecionar o interpretador compatível já instalado no Mac resolveu, sem instalar dependências ou mudar a VPS. Uma consulta de CI também sofreu timeout antes de atingir a ativação e foi reconferida por leitura.
+
+A primeira conferência após reabrir a release falhou e o executor parou somente o app, conservando novas gravações e todos os backups. Depois de revisar receipt, schema e manifesto exato, a mesma versão foi reaberta e todos os hashes e saúde passaram; a publicação foi concluída somente depois dessa conferência. A reabertura mostrou respostas HTTP não bem-sucedidas antes da prontidão, mas a causa exata da falha original não foi isolada. Não se repetiu migração nem se restaurou o dump. Configurações/processos de preservação permaneceram idênticos. Os três backups históricos e o novo backup foram conservados; só os bundles de código concluídos mais antigos liberaram workspaces.
+
 ## Atualizações rotineiras após o bloco 07
 
 O proprietário pediu reaproveitar o script existente e reduzir a demora nas atualizações. Os comandos continuam sendo `npm run deploy:prepare`, `npm run deploy:check` e `npm run deploy:staging`; não há outro comando por bloco para mudanças comuns de código. Antes de ativar, commitar/push da branch `codex/`, conferir checkout limpo e CI do commit exato. O último comando prepara ou reutiliza o build, sincroniza os fontes, envia o pacote, troca a release e reinicia somente o app. Não é necessário rodar os três comandos em sequência.
+
+É possível manter vários commits coesos e enviá-los num único push: a CI exigida para a publicação é a do commit final, que inclui os anteriores, e somente essa versão precisa de build/transferência/ativação. No bloco 09, os commits de funcionalidade e executor foram enviados juntos para uma única publicação. Migrações, dependências e infraestrutura continuam sujeitas às revisões específicas; agrupar commits não dispensa esses contratos.
 
 A preparação comum incorpora a distribuição Matrix já aprovada: pacote abaixo de 16 MiB, reconstrução das fontes do Git e manifesto completo. As restrições de banco, dependências, Node e infraestrutura permanecem; novos contratos desses tipos exigem revisão específica. Atualização comum não reaplica a transição 010–015, não faz backup/restauração de banco e não recarrega Nginx. As migrações já aplicadas continuam verificadas pelo app na inicialização.
 
