@@ -52,6 +52,8 @@ Validação automatizada usa contas fictícias e PostgreSQL exclusivo. Testes f�
 
 As [fontes correspondentes](FONTES_FRONTEND.md) incluem o motor compilado e fontes preferenciais da versão selecionada. O artefato completo supera o teto atual do comando de deploy; preparar uma publicação futura requer resolver essa distribuição com preservação das fontes e revisar os recursos/migrações, sem aumentar limites ou ativar serviços implicitamente.
 
+Em 03/10/2026, o proprietário autorizou receber essas fontes com exceção de 64 MiB somente no processo Git deste envio. A configuração persistente mantém 16 MiB e todos os demais limites continuam aplicados; encerramento do processo encerra a exceção. Conferir preservação e hash recebido, conforme o [fluxo aprovado](GIT_E_DEPLOY.md). Esta aprovação de transferência não libera o artefato de deploy nem as migrações.
+
 ## Verificação e revisão final
 
 - Lint com tipos e complexidade, TypeScript estrito, fronteiras, licenças, formatação e build passaram. O build contém 35 assets, incluindo WASM e as 18 partes das fontes preferenciais do motor. Nenhuma dependência ou alteração de lockfile/Node foi introduzida.

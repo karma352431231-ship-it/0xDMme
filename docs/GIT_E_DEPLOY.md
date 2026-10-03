@@ -30,6 +30,23 @@ de sincronização não cria diretórios ou infraestrutura. Não usar `--force`,
 reconfigurar remotos globais ou instalar hooks de deploy automaticamente. A
 sincronização confere o hash recebido; falha é reportada, sem ativar código.
 
+### Exceção temporária de fontes do bloco 07 — aprovada em 03/10/2026
+
+O proprietário autorizou ampliar de 16 para 64 MiB o pacote recebido somente
+para sincronizar as fontes do bloco 07, mantendo os demais limites. Aplicar
+`-c receive.maxInputSize=64m` apenas ao processo Git desse recebimento. A
+configuração persistente do repositório continua em `16m`; término ou falha
+do processo encerra automaticamente a exceção, sem deixar um teto ampliado.
+
+Preservar CPU de 10% de um núcleo, memória de 128 MiB, 24 tarefas, timeout de
+120 segundos, verificação dos objetos e hooks desativados. Conferir espaço,
+configurações, serviços, respostas atuais e hash recebido antes/depois. A
+diferença HTTP preexistente em relação ao registro histórico fica registrada
+privadamente, sem substituir a baseline do deploy. A autorização não amplia
+o limite de build/deploy, não ativa uma release nem aplica migrações, e não
+autoriza novos envios grandes automaticamente. Evidências e acesso ficam
+exclusivamente em `.local/`.
+
 Antes do primeiro envio, `npm run check` passou com lint, tipos, fronteiras,
 licenças, formatação, build e 70 testes automatizados. Sintaxe do helper Python,
 links locais e ausência do acesso SSH/chaves privadas nos arquivos versionáveis

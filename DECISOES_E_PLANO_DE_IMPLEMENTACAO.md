@@ -483,6 +483,8 @@ Foto própria permanece cifrada; distribuição para aprovados integrada pelo ca
 
 **Depende de:** 04–06.
 
+**Envio de fontes aprovado em 03/10/2026:** o proprietário autorizou a exceção de 64 MiB somente no processo de recebimento Git do bloco 07, encerrada ao terminar ou falhar o envio. A configuração persistente conserva 16 MiB, assim como os limites anteriores de CPU, memória, tarefas, disco e tempo. Verificar preservação e hash remoto; nenhuma ativação/migração ou ampliação do limite de deploy. Ver [fluxo de Git e exceção temporária](docs/GIT_E_DEPLOY.md).
+
 1. Implementar texto com o protocolo escolhido e estados de envio definidos neste documento.
 2. Persistir antes de confirmar aceitação e aplicar cotas antes de admitir uploads.
 3. Implementar confirmação autenticada, reenvio, idempotência e acompanhamento por dispositivo.
