@@ -65,7 +65,7 @@ export async function sealBlock(
 }
 export async function openBlock(
   key: CryptoKey,
-  commit: VaultCommit,
+  commit: Pick<VaultCommit, 'accountId' | 'id' | 'epoch' | 'block'>,
   bytes: Uint8Array,
 ): Promise<string> {
   if (

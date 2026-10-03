@@ -5,6 +5,7 @@ import {
   uuid,
 } from '../../shared/account/index.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
+import { notifyMessageControls } from '../message-controls/index.ts';
 import {
   contactBody,
   contactPageSize,
@@ -87,6 +88,15 @@ export class Contacts {
           proof,
         ),
       );
+      const mutation = [
+        'configure',
+        'request',
+        'respond',
+        'cancel',
+        'block',
+        'unblock',
+      ].includes(operation);
+      if (mutation) notifyMessageControls();
       const response = await fetch(`/api/account/contacts/${operation}`, {
         method: 'POST',
         credentials: 'same-origin',
@@ -107,6 +117,7 @@ export class Contacts {
           response.status,
           String(object(data)['error']).slice(0, 200),
         );
+      if (mutation) notifyMessageControls();
       return data;
     });
   }

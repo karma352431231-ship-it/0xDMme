@@ -303,7 +303,7 @@ class DeploymentTests(unittest.TestCase):
                     remote.compatibility(new, old)
             command.assert_not_called()
 
-    def test_real_git_build_contains_vendor_sources_and_excludes_private_files(self):
+    def test_real_git_build_preserves_sources_and_refuses_unapproved_budget(self):
         # Build a clean synthetic Git snapshot of the candidate sources. Never
         # commit the user's checkout or bypass prepare's exact-lock protection.
         with tempfile.TemporaryDirectory() as directory:
@@ -327,8 +327,14 @@ class DeploymentTests(unittest.TestCase):
             with (patch.object(deploy, 'LOCAL', Path(directory) / 'artifacts'),
                   patch.object(deploy, 'ROOT', root),
                   patch.object(deploy, 'run', side_effect=lambda args, cwd=root, timeout=30: original_run(args, cwd=cwd, timeout=timeout))):
-                value, archive_path = deploy.prepare(revision, 'codex/test')
-                remote.validate(value)
+                # Block 07 deliberately cannot use the historical 16 MiB
+                # deployment authorization. Preserve full sources and prove
+                # refusal, without widening the limit or producing approval.
+                with self.assertRaisesRegex(RuntimeError, 'Archive budget exceeded'):
+                    deploy.prepare(revision, 'codex/test')
+                archive_path = Path(directory) / 'artifacts' / revision / 'build.tar.gz'
+                self.assertGreater(archive_path.stat().st_size, remote.MAX_ARCHIVE)
+                self.assertFalse((archive_path.parent / 'manifest.json').exists())
                 with tarfile.open(archive_path) as archive:
                     names = archive.getnames()
                     self.assertTrue(all(n == 'dist' or n.startswith('dist/') for n in names))
@@ -338,7 +344,9 @@ class DeploymentTests(unittest.TestCase):
                         self.assertTrue(any(n.startswith('node_modules/qr/src/') for n in entries))
                         self.assertTrue(any(n.startswith('node_modules/@scure/base/') for n in entries))
                         self.assertTrue(any(n.startswith('node_modules/@wallet-standard/app/') for n in entries))
+                        self.assertTrue(any(n.startswith('node_modules/@matrix-org/matrix-sdk-crypto-wasm/') for n in entries))
                         self.assertFalse(any(n.startswith(('.local/', 'src/server/', '.git/')) for n in entries))
+                    self.assertEqual(len([n for n in names if '/matrix-crypto-18.9.0-source-' in n and n.endswith('.bin')]), 18)
 
                 (root / 'package-lock.json').write_text('unreviewed working tree')
                 with self.assertRaisesRegex(RuntimeError, 'Development lockfile differs'):

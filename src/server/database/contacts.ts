@@ -187,6 +187,36 @@ export class ContactStore {
       this.controls(c, authority.session.accountId),
     );
   }
+  /** Coordinate message persistence with contact/device authority in this transaction. */
+  async withMessageAuthority<T>(
+    authority: ContactAuthority,
+    work: (client: pg.PoolClient) => Promise<T>,
+  ): Promise<T> {
+    return this.transaction(authority, work);
+  }
+  async withMessageConsent<T>(
+    authority: ContactAuthority,
+    targetId: string,
+    work: (client: pg.PoolClient) => Promise<T>,
+  ): Promise<T> {
+    return this.transaction(authority, async (client) => {
+      await client.query(
+        'SELECT id FROM hash_talk.accounts WHERE id=$1 FOR UPDATE',
+        [targetId],
+      );
+      if (!(await this.allowed(client, authority.session.accountId, targetId)))
+        unavailable();
+      return work(client);
+    });
+  }
+  /** Called only inside a coordinated message transaction, before releasing payloads. */
+  async messageDeliveryAllowed(
+    client: pg.PoolClient,
+    actorId: string,
+    targetId: string,
+  ): Promise<boolean> {
+    return this.allowed(client, actorId, targetId);
+  }
   async list(
     authority: ContactAuthority,
     kind: ContactList,

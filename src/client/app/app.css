@@ -674,3 +674,59 @@ footer {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+
+.chat-layout {
+  display: grid;
+  grid-template-columns: minmax(140px, 1fr) minmax(0, 3fr);
+  gap: 1rem;
+}
+.chat-contacts {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.chat-contacts button {
+  overflow-wrap: anywhere;
+  text-align: left;
+}
+.chat-history {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  max-height: 60vh;
+  overflow: auto;
+}
+.chat-history[hidden] {
+  display: none;
+}
+.chat-message {
+  max-width: 90%;
+  padding: 0.75rem;
+  border: 1px solid var(--border, #d5dde2);
+  border-radius: 0.75rem;
+  overflow-wrap: anywhere;
+}
+.chat-message p {
+  white-space: pre-wrap;
+}
+.chat-message.own {
+  align-self: flex-end;
+  background: #eef5fa;
+}
+.chat-message button {
+  display: block;
+  margin-top: 0.5rem;
+}
+.chat-panel textarea {
+  width: 100%;
+  box-sizing: border-box;
+}
+@media (max-width: 640px) {
+  .chat-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .chat-contacts {
+    max-height: 180px;
+    overflow: auto;
+  }
+}

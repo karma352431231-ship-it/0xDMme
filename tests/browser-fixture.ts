@@ -13,6 +13,7 @@ import { readWebConfiguration } from '../src/server/web-configuration/index.ts';
 import { DeviceService } from '../src/server/devices/index.ts';
 import { VaultService } from '../src/server/vault/index.ts';
 import { ObjectStore } from '../src/server/object-store/index.ts';
+import { MessageService } from '../src/server/messages/index.ts';
 import { ContactService } from '../src/server/contacts/index.ts';
 
 // Explicit manual-browser fixture, excluded from production build/entry point.
@@ -93,7 +94,7 @@ for (const path of ['/', '/wallet.html', '/recovery.html']) {
         )
         .replace(`src="${pageScript}"`, 'src="/fixture-wallet.js"')
         .replace(
-          'Esta versão ainda não envia mensagens nem abre seu histórico.',
+          'Chat em teste: use somente contas e mensagens fictícias.',
           'TESTE ISOLADO: wallet sintética, sem fundos, sem dados reais.',
         ),
     ),
@@ -106,6 +107,7 @@ const host = createWebServer({
   objects,
   account: createAccountHandler({
     contacts: new ContactService(database.contacts, database.devices),
+    messages: new MessageService(database, database.devices),
     devices: new DeviceService(database.devices, origin),
     ...fixtureDocuments(),
     vault: new VaultService({

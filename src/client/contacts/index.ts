@@ -712,3 +712,7 @@ export function startContacts(access: VaultAccess, sync: VaultSync) {
     },
   };
 }
+
+export { Contacts, checkPinnedIdentity } from './controller.ts';
+export { AddressBook, walletEntity } from './agenda.ts';
+export type { BookVersion } from './agenda.ts';

@@ -1,7 +1,7 @@
 # 0xDMme — decisões e plano de implementação
 
 Data: 29 de setembro de 2026  
-Estado: bloco 00 concluído; seleção técnica e prova funcional do bloco 01 concluídas; base local web/PWA do bloco 02 implementada, com validação automatizada de persistência; bloco 03 — Wallet, conta e perfil — concluído em 02/10/2026; blocos 04 — Dispositivos, chaves e recuperação — e 05 — Cofre remoto e cópia local — concluídos localmente com revisão no Mac, conforme autorização do proprietário. Testes físicos mobile dos blocos 04–05 ficam para depois. Bloco 06 — Contatos, consentimento e bloqueio — concluído localmente em 03/10/2026. Próxima fase: bloco 07 — Mensagens individuais e fila sem expiração. Ainda não há aplicação de chat para dados reais.
+Estado: bloco 00 concluído; seleção técnica e prova funcional do bloco 01 concluídas; base local web/PWA do bloco 02 implementada, com validação automatizada de persistência; bloco 03 — Wallet, conta e perfil — concluído em 02/10/2026; blocos 04 — Dispositivos, chaves e recuperação — e 05 — Cofre remoto e cópia local — concluídos localmente com revisão no Mac, conforme autorização do proprietário. Testes físicos mobile dos blocos 04–05 ficam para depois. Bloco 06 — Contatos, consentimento e bloqueio — concluído localmente em 03/10/2026. Bloco 07 — Mensagens individuais e fila sem expiração — concluído localmente em 03/10/2026, com Olm/Megolm, recuperação desde a aceitação, confirmação por aparelho, exclusão bilateral, bloqueio, revogação e chat oculto durante sincronização. Validação automatizada e ensaios no navegador concluídos; testes físicos e aceite de segurança posteriores. Ainda não há aplicação de chat para dados reais.
 
 Nome público aprovado em 01/10/2026: **0xDMme**. Domínio **0xdmme.app**, comprado pelo proprietário via **Namecheap**. Configurar HTTPS público válido em ambiente de teste isolado na infraestrutura própria para destravar os ensaios mobile. A identidade visual completa continua pendente; o domínio não representa lançamento do chat para dados reais.
 
@@ -134,7 +134,8 @@ O app criptografa e descriptografa. O backend roteia e persiste. Adaptar dados d
 | Dado                                             | Tratamento                                                                                              |
 | ------------------------------------------------ | ------------------------------------------------------------------------------------------------------- |
 | Identidade, vínculo com wallet e chaves públicas | Diretório no servidor, com autorização verificável para alterações.                                     |
-| Nome/foto públicos                               | Servidor, conforme visibilidade escolhida. Dados públicos não são apresentados como secretos.           |
+| Nome escolhido para descoberta/solicitação       | Metadado no servidor, mostrado conforme a descoberta permitida; não é apresentado como secreto.         |
+| Foto e cartão para contatos aprovados            | Cifrados pelo canal Olm/Megolm e recuperáveis pelo cofre, sem foto legível ou URL pública no servidor.  |
 | Perfil privado e agenda                          | Criptografados no cofre e nos dispositivos autorizados.                                                 |
 | Mensagens pendentes                              | Pacotes criptografados na fila, com referências de entrega.                                             |
 | Histórico recuperável                            | Blocos criptografados e manifestos autenticados no cofre.                                               |
@@ -151,7 +152,7 @@ O app criptografa e descriptografa. O backend roteia e persiste. Adaptar dados d
 - Separar autenticação da wallet, autorização de dispositivos, sessões de mensagens e recuperação do cofre.
 - Usar criptografia autenticada e formatos versionados nas estruturas persistidas.
 - Prever rotação, migração e revogação. Não usar uma assinatura pública de login como segredo de criptografia.
-- Cada usuário possui sua política de conservação do histórico. Apagar sua cópia não elimina a cópia do interlocutor.
+- Cada usuário possui sua política de conservação do histórico. A exclusão explícita de uma mensagem pelo remetente, aprovada para o bloco 07 em 03/10/2026, remove o conteúdo dos chats e cofres automáticos de ambos; backups independentes salvos/exportados antes da exclusão conservam sua cópia. Não confundir essa ação bilateral com a limpeza de uma cópia pessoal ou a exportação de backup.
 - Manter integridade verificável dos manifestos e identificar versões. Hashes isolados não impedem omissão ou rollback; definir como clientes reconhecem estados antigos e conflitos.
 - Busca inicial no histórico será local, após descriptografia. Não enviar termos de busca privados ao servidor.
 
@@ -185,9 +186,9 @@ Regras da fila:
 - Uma confirmação de push, conexão WebSocket ou leitura de bytes não autoriza exclusão.
 - Acompanhar entregas por dispositivo e, em grupos, por destinatário aplicável.
 - Não apagar o pacote necessário ao computador apenas porque o celular confirmou recebimento.
-- Com cofre recuperável, substituir a necessidade de uma entrega pendente por recuperação posterior somente quando isso for verificável e autorizado pelo modelo definido.
+- Decisão do proprietário em 03/10/2026 para o bloco 07: manter a pendência de cada aparelho até sua própria confirmação autenticada de recebimento verificado e gravado. A cópia recuperável no cofre não substitui essa confirmação. Uma confirmação do celular não resolve a pendência do computador. A remoção final do pacote exige também a preservação recuperável no cofre e a resolução de todas as referências necessárias; exclusão explícita pelo remetente e revogação seguem as exceções aprovadas no bloco 07, sem TTL ou descarte por inatividade.
 - A remoção final do objeto depende de todas as referências necessárias terem sido resolvidas; remover uma referência não garante remoção do objeto compartilhado.
-- Revogação de dispositivos, cancelamentos e exclusão de contas precisam de regras próprias e explícitas. Não simular esses eventos por inatividade.
+- No bloco 07, exclusão explícita pelo remetente vale antes ou depois do recebimento e retira a mensagem do chat dos dois participantes e das entregas pendentes, preservando somente backups independentes salvos/exportados antes da exclusão; o conteúdo também é removido do cofre automático de ambos. Bloqueio suspende pendências sem apagá-las; retomada exige novo consentimento. Revogação barra o aparelho e resolve somente sua referência quando o cofre recuperável estiver comprovado. Exclusão de conta ainda exige política própria; não simular nenhuma dessas ações por inatividade.
 - Controlar cotas antes de aceitar dados; ao atingir capacidade, recusar novos envios de forma clara e preservar os já aceitos.
 - Mensagens explicitamente efêmeras e status terão regras próprias de expiração escolhidas no produto; isso não altera a regra das mensagens comuns pendentes.
 
@@ -459,9 +460,9 @@ Verificação da base: lint, tipos, fronteiras, formatação e 13 testes passara
 
 **Revisão aprovada pelo proprietário em 03/10/2026:** remover todos os tetos iniciais acrescentados no bloco 06: recebidas/enviadas pendentes, novos pedidos por dia, relações e bloqueios por conta e totais globais de relações, bloqueios e controles. A descoberta é uma escolha do dono do perfil: somente convite ou também pelo endereço exato da wallet; o modo de apenas contatos aprovados continua disponível. Um único controle efetivo aplica essa escolha; não habilitar descoberta automaticamente nem alterar escolhas existentes. A paginação de 16 registros por resposta continua permitindo percorrer todos os registros, sem teto total. Essa decisão substitui a exigência anterior de caixa com cardinalidade limitada e os exemplos de frequência/quantidade de solicitações da seção 17.2. Consentimento, rejeição, bloqueio, assinatura, validação de formatos, timeouts e cotas anteriores do cofre permanecem. Os metadados crescem conforme os registros; não há orçamento numérico de contatos na aplicação nem garantia de capacidade física ilimitada. A migração 011 remove somente os contadores diários obsoletos, preservando modos, revisões, convites, relações e bloqueios.
 
-Foto própria permanece cifrada; distribuição para aprovados será integrada pelo canal Olm no bloco 07. Presença/leitura e notificações conservam seus blocos. Testes físicos mobile posteriores à conclusão local.
+Foto própria permanece cifrada; distribuição para aprovados integrada pelo canal Olm/Megolm no bloco 07. Presença/leitura e notificações conservam seus blocos. Testes físicos mobile posteriores à conclusão local.
 
-**Ponto importante:** salvar na agenda, solicitar e aprovar são ações separadas. Bloqueio retira aprovação bilateral e protege consultas/pedidos/diretório no backend; a admissão de mensagens do bloco 07 precisa conferir a mesma regra atomicamente. Nenhum chat real foi habilitado.
+**Ponto importante:** salvar na agenda, solicitar e aprovar são ações separadas. Bloqueio retira aprovação bilateral e protege consultas/pedidos/diretório no backend; a admissão de mensagens do bloco 07 confere a mesma regra atomicamente. Nenhum chat real foi habilitado.
 
 **Depende de:** 03–05.
 
@@ -476,13 +477,17 @@ Foto própria permanece cifrada; distribuição para aprovados será integrada p
 
 ### Bloco 07 — Mensagens individuais e fila sem expiração
 
+**Estado:** concluído localmente em 03/10/2026. Texto e cartões de perfil/foto pelo motor Olm/Megolm selecionado; persistência e cotas atômicas, confirmação por aparelho, reenvio idempotente, recuperação desde a aceitação, exclusão bilateral e integração de consentimento/revogação. Chat oculto durante sincronização e até conferir todas as exclusões. [Contrato, arquivos, validação e limitações](docs/BLOCO_07_MENSAGENS.md). Migrações 012–015 aplicadas somente no banco exclusivo de testes. Envio de fontes ao GitHub/VPS autorizado separadamente; nenhuma ativação ou migração na VPS nesta etapa. Testes físicos mobile e aceite de segurança continuam posteriores.
+
+**Decisão aprovada:** cada aparelho autorizado mantém sua referência de entrega até confirmar o recebimento verificado e gravado. Na entrega normal, preservação no cofre é uma condição adicional para liberar o pacote, sem substituir a confirmação dos aparelhos offline. Inatividade não encerra pendências, não há TTL e entrega não equivale a leitura. Download do mesmo histórico em outro aparelho não duplica a cobrança lógica no cofre; pacotes e metadados efetivamente persistidos precisam entrar no controle de capacidade. O remetente pode excluir suas mensagens antes ou depois da entrega: somem do chat de ambos, pendências são encerradas e backups anteriores permanecem. Bloqueio suspende entregas sem apagar e retomada exige novo consentimento. Revogação barra acesso e resolve somente a referência do revogado quando o cofre recuperável estiver comprovado. Durante sincronização, o chat fica oculto até aplicar todas as exclusões; falha ou resposta parcial mantém o histórico fechado, sem cache antigo como fallback. Exclusões concorrentes são propagadas quando recebidas; não prometer apagamento de cópias externas ou impedir o que já foi visto offline. Backup significa cópia independente salva/exportada antes da exclusão, conforme confirmação do proprietário em 03/10/2026. O conteúdo apagado também é removido dos cofres automáticos de ambos, incluindo cópias automáticas históricas; esta exceção não altera a conservação das versões dos demais dados do bloco 05. Também aprovada em 03/10/2026: representação cifrada recuperável para o destinatário desde a aceitação, mesmo antes do primeiro recebimento e após perda dos aparelhos antigos; não depender do retorno de outro aparelho.
+
 **Depende de:** 04–06.
 
 1. Implementar texto com o protocolo escolhido e estados de envio definidos neste documento.
 2. Persistir antes de confirmar aceitação e aplicar cotas antes de admitir uploads.
 3. Implementar confirmação autenticada, reenvio, idempotência e acompanhamento por dispositivo.
 4. Integrar preservação no cofre e recuperação das entregas de aparelhos offline.
-5. Definir cancelamento, falha permanente e remoção das referências da fila.
+5. Implementar exclusão bilateral explícita, falhas e resolução das referências da fila conforme as decisões acima.
 
 **Entrega:** chat individual funcional entre múltiplos aparelhos.
 
@@ -703,7 +708,7 @@ Revisão de fechamento conceitual: o escopo está suficientemente definido para 
 | Wallets EVM e rede inicial                  | 03                                                       | Login EVM/Solana aprovado; comprovar capacidades e retorno desktop/mobile. Descoberta genérica e alvos MetaMask, Phantom e Backpack; Solflare retirada em 02/10/2026. Sem SDK/relay pago. Elegibilidade por token e wallet auxiliar permanecem separadas do login.          |
 | Contabilização das cotas e limites          | 00, 05 e 08                                              | 300 MB por conta, 3 MB por arquivo e cobrança pelo conteúdo de cada cofre já fixados; definir reservas/overhead e testar capacidade.                                                                                                                                        |
 | Governança do cofre de grupo                | 05, 07 e 11                                              | Já fixados 1 GB, divisão 750/250 MB, tiers, uso global efetivo e expiração de mídias inclusive pendentes. Fechar poderes de limpeza manual, saída do proprietário e acesso remoto de ex-membros; não reabrir cotas aprovadas.                                               |
-| Política exata de ACK/cofre                 | 05–07                                                    | Ausência de perda silenciosa e semântica clara por dispositivo.                                                                                                                                                                                                             |
+| Política exata de ACK/cofre                 | 05–07                                                    | Confirmação por aparelho aprovada em 03/10/2026; preservação no cofre não substitui entrega. Exclusão, bloqueio, revogação e exibição após sincronização aprovados. Backup independente definido; exclusão também remove o conteúdo dos cofres automáticos de ambos.        |
 | Revogação de dispositivos                   | 04                                                       | Conta não pode ser tomada apenas manipulando o diretório do servidor. Troca/recuperação de wallet fora do escopo inicial.                                                                                                                                                   |
 | Representação de mute/bloqueio              | 06 concluído; mute no 10                                 | Bloqueio por digest de ecossistema/wallet aplicado no servidor, sem tetos de quantidade de contatos conforme decisão de 03/10/2026; custo operacional documentado no bloco 06. Mute/notificações permanecem no 10.                                                          |
 | Biblioteca/circuitos ZK                     | 01 e 12                                                  | Propriedades verificáveis, revisão existente e desempenho mobile.                                                                                                                                                                                                           |
@@ -805,7 +810,7 @@ Padrões aprovados para V1, com presença/leitura obrigatórias e configuráveis
 - Ocultar presença exige restringir emissão/distribuição dos eventos, não apenas esconder elementos visuais. Isso não impede o backend de observar conexões necessárias ao serviço. Não usar horário preciso de leitura no evento técnico de entrega.
 - Status, quando implementado, restrito à audiência escolhida entre contatos aprovados; participação num grupo não aprova automaticamente todos como contatos particulares.
 
-Decisão da implementação do bloco 06, reafirmada em 03/10/2026: o dono do perfil escolhe somente convite ou também descoberta por wallet exata, com apenas contatos aprovados como opção adicional e um único controle efetivo. Somente convite é o padrão inicial até uma escolha explícita; agenda/apelidos particulares no cofre e permissões atuais no servidor. Perfil/foto para aprovados será enviado pelo canal Olm autenticado do bloco 07, sem URL pública e sem compartilhar a chave do perfil particular. O nome escolhido já aparece nas solicitações; a foto própria continua cifrada. Bloqueio impede novas distribuições, preservando a limitação de cópias anteriores. Ver [decisões do bloco 06](docs/BLOCO_06_CONTATOS.md).
+Decisão da implementação do bloco 06, reafirmada em 03/10/2026: o dono do perfil escolhe somente convite ou também descoberta por wallet exata, com apenas contatos aprovados como opção adicional e um único controle efetivo. Somente convite é o padrão inicial até uma escolha explícita; agenda/apelidos particulares no cofre e permissões atuais no servidor. Perfil/foto para aprovados integrado pelo canal Olm/Megolm autenticado do bloco 07, sem URL pública e sem compartilhar a chave do perfil particular. O nome escolhido já aparece nas solicitações; a foto própria continua cifrada. Bloqueio impede novas distribuições, preservando a limitação de cópias anteriores. Ver [decisões do bloco 06](docs/BLOCO_06_CONTATOS.md).
 
 ### 12.3 Ordem de esforço para comparar recursos
 

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { request } from 'node:http';
 import { execFile } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { resolve } from 'node:path';
 import { promisify } from 'node:util';
 import { cacheableRequest } from '../src/shared/pwa-policy/index.ts';
@@ -34,6 +35,12 @@ await test('fontes públicas incluem instruções/licenças do build e excluem b
     'src/tools/build-web.ts',
     'src/tools/frontend-source.ts',
     'src/tools/frontend-vendor-source.ts',
+    'src/tools/frontend-matrix-source.ts',
+    'src/client/messages/index-sync.ts',
+    'src/client/message-controls/index.ts',
+    'node_modules/@matrix-org/matrix-sdk-crypto-wasm/LICENSE',
+    'node_modules/@matrix-org/matrix-sdk-crypto-wasm/pkg/matrix_sdk_crypto_wasm_bg.js',
+    'vendor/matrix-crypto-18.9.0/README.md',
     'src/client/account/index.ts',
     'src/client/app/wallet.html',
     'src/client/phantom-native/index.ts',
@@ -73,7 +80,31 @@ await test('fontes públicas incluem instruções/licenças do build e excluem b
     (assets.get(preferredPath)?.content.length ?? Infinity) <= 2 * 1024 * 1024,
   );
   assert.ok(!worker.includes(preferredPath));
+  verifyMatrixSources(assets, worker);
 });
+function verifyMatrixSources(
+  assets: ReadonlyMap<string, { content: Uint8Array }>,
+  worker: string,
+): void {
+  const matrixParts = [...assets.keys()]
+    .filter((path) => /matrix-crypto-18\.9\.0-source-.*\.bin$/u.test(path))
+    .sort();
+  assert.equal(matrixParts.length, 18);
+  for (const path of matrixParts) {
+    assert.ok(
+      (assets.get(path)?.content.length ?? Infinity) <= 2 * 1024 * 1024,
+    );
+    assert.ok(!worker.includes(path));
+  }
+  const sources = Buffer.concat(
+    matrixParts.map((path) => Buffer.from(assets.get(path)?.content ?? [])),
+  );
+  assert.equal(
+    createHash('sha256').update(sources).digest('hex'),
+    '1da81a1b9089e833800becb0fbd3ac46dd323d445cd8856c53695db13d4bfc60',
+  );
+  assert.ok(assets.get('/matrix-crypto-18.9.0.wasm'));
+}
 
 await test('configuração isola banco e objetos locais e recusa perfis públicos', () => {
   assert.equal(
@@ -351,7 +382,11 @@ await test('servidor recusa origem, mutação, traversal e dados privados; saúd
   );
   assert.doesNotMatch(
     String(page.headers['content-security-policy']),
-    /wasm-unsafe-eval/u,
+    /'unsafe-eval'|'unsafe-inline'|https:/u,
+  );
+  assert.match(
+    String(page.headers['content-security-policy']),
+    /script-src 'self' 'wasm-unsafe-eval';/u,
   );
   assert.equal((await get('/', { host: 'attacker.example' })).status, 403);
   assert.equal(

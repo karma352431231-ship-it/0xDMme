@@ -15,4 +15,4 @@ export const template = `<article class="card vault-card contacts-card"><span cl
 <h3>Contatos aprovados</h3><ul data-contact-list="approved" class="vault-list"></ul><button data-contact-page="approved" type="button">Próxima página de aprovados</button>
 <h3>Solicitações rejeitadas</h3><ul data-contact-list="rejected" class="vault-list"></ul><button data-contact-page="rejected" type="button">Próxima página de rejeitadas</button>
 <h3>Bloqueios atuais</h3><ul data-contact-list="blocked" class="vault-list"></ul><button data-contact-page="blocked" type="button">Próxima página de bloqueios</button>
-<p class="detail">Bloqueio vale para esta identidade, não para outras wallets da mesma pessoa. Desbloquear não restaura aprovação nem apaga cópias antigas. Mensagens serão habilitadas no bloco seguinte.</p></article>`;
+<p class="detail">Bloqueio vale para esta identidade, não para outras wallets da mesma pessoa. Desbloquear não restaura aprovação nem apaga cópias antigas. Novos envios são impedidos e entregas pendentes ficam suspensas até novo consentimento.</p></article>`;

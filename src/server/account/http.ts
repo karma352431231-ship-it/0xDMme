@@ -9,6 +9,7 @@ import { AccountService, challengeSeconds, sessionSeconds } from './service.ts';
 import { AccountRateLimit } from './rate-limit.ts';
 import type { DeviceService } from '../devices/index.ts';
 import type { VaultService } from '../vault/index.ts';
+import type { MessageService } from '../messages/index.ts';
 import type { ContactService } from '../contacts/index.ts';
 import { blockLimit } from '../../shared/vault/index.ts';
 import { createApprovalEntry } from './approval-http.ts';
@@ -38,17 +39,27 @@ function cookie(
   return `${name}=${value}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${seconds}${secure ? '; Secure' : ''}`;
 }
 
+function messageBodyLimit(url: string): number {
+  if (url.endsWith('/publish')) return 8_200_000;
+  if (url.endsWith('/matrix-upload')) return 200_000;
+  if (url.endsWith('/matrix-send')) return 1_100_000;
+  return 4096;
+}
+function bodyLimit(url: string | undefined): number {
+  if (url?.startsWith('/api/account/messages/')) return messageBodyLimit(url);
+  return url === '/api/account/vault/upload'
+    ? Math.ceil(blockLimit / 3) * 4 + 10000
+    : url === '/api/account/profile' ||
+        url === '/api/account/devices/commit' ||
+        url === '/api/account/devices/profile'
+      ? Math.ceil(encryptedProfileLimit / 3) * 4 + 70_000
+      : 4096;
+}
+
 async function body(request: IncomingMessage): Promise<unknown> {
   if (request.headers['content-type'] !== 'application/json')
     throw new AccountError(415, 'Use JSON.');
-  const maximum =
-    request.url === '/api/account/vault/upload'
-      ? Math.ceil(blockLimit / 3) * 4 + 10000
-      : request.url === '/api/account/profile' ||
-          request.url === '/api/account/devices/commit' ||
-          request.url === '/api/account/devices/profile'
-        ? Math.ceil(encryptedProfileLimit / 3) * 4 + 70_000
-        : 4096;
+  const maximum = bodyLimit(request.url);
   const parts: Buffer[] = [];
   let size = 0;
   const timer = setTimeout(() => request.destroy(), 5000);
@@ -89,6 +100,7 @@ export function createAccountHandler(options: {
   devices?: DeviceService;
   vault?: VaultService;
   contacts?: ContactService;
+  messages?: MessageService;
 }) {
   const secure = new URL(options.origin).protocol === 'https:';
   const sessionName = secure ? '__Host-hash-talk-session' : 'hash-talk-session';
@@ -111,10 +123,8 @@ export function createAccountHandler(options: {
   ): Promise<void> {
     if (request.headers.origin !== options.origin)
       throw new AccountError(403, 'Origem inválida.');
-    if (request.url?.startsWith('/api/account/vault/') && options.vault) {
-      await vaultPost(request, response);
-      return;
-    }
+    if (await earlyVaultPost(request, response)) return;
+    if (await earlyMessagePost(request, response)) return;
     const input = await body(request);
     if (publicRecoveryPost(request, response, input)) return;
     if (request.url?.startsWith('/api/account/handoff-')) {
@@ -155,6 +165,30 @@ export function createAccountHandler(options: {
     await authenticatedPost(request, response, sessionToken, input);
   }
 
+  async function earlyVaultPost(
+    request: IncomingMessage,
+    response: ServerResponse,
+  ): Promise<boolean> {
+    if (!request.url?.startsWith('/api/account/vault/') || !options.vault)
+      return false;
+    await vaultPost(request, response);
+    return true;
+  }
+  async function earlyMessagePost(
+    request: IncomingMessage,
+    response: ServerResponse,
+  ): Promise<boolean> {
+    if (request.url?.startsWith('/api/account/messages/') && options.messages) {
+      const token = readCookie(request, sessionName);
+      await options.service.authorize(
+        token,
+        request.headers['x-hash-talk-csrf'],
+      );
+      await messagePost(request, response, token, await body(request));
+      return true;
+    }
+    return false;
+  }
   function publicRecoveryPost(
     request: IncomingMessage,
     response: ServerResponse,
@@ -304,6 +338,26 @@ export function createAccountHandler(options: {
       ),
     );
     return true;
+  }
+  async function messagePost(
+    request: IncomingMessage,
+    response: ServerResponse,
+    sessionToken: string,
+    input: unknown,
+  ): Promise<boolean> {
+    if (request.url?.startsWith('/api/account/messages/') && options.messages) {
+      send(
+        response,
+        200,
+        await options.messages.operate(
+          request.url.slice('/api/account/messages/'.length),
+          await options.service.session(sessionToken),
+          input,
+        ),
+      );
+      return true;
+    }
+    return false;
   }
   async function authenticatedPost(
     request: IncomingMessage,

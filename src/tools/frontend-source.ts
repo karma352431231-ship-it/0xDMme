@@ -5,6 +5,16 @@ import { promisify } from 'node:util';
 
 const execute = promisify(execFile);
 const authored = [
+  'src/client/message-controls',
+  'src/client/messages',
+  'src/client/message-crypto',
+  'src/client/message-profile',
+  'src/client/message-recovery',
+  'src/client/message-visibility',
+  'src/client/message-storage',
+  'src/shared/messages',
+  'src/tools/frontend-matrix-source.ts',
+  'vendor/matrix-crypto-18.9.0/README.md',
   'src/client/account',
   'src/client/account-profile',
   'src/client/contacts',
@@ -70,7 +80,15 @@ async function dependencySources(
   inputs: ReadonlySet<string>,
 ): Promise<string[]> {
   let preferred: string[];
-  if (path === 'node_modules/ethers')
+  if (path === 'node_modules/@matrix-org/matrix-sdk-crypto-wasm')
+    preferred = [
+      'LICENSE',
+      'README.md',
+      'package.json',
+      'index.d.ts',
+      'pkg/matrix_sdk_crypto_wasm.d.ts',
+    ];
+  else if (path === 'node_modules/ethers')
     preferred = [
       'src.ts',
       'LICENSE.md',

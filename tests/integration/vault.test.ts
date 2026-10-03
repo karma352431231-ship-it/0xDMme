@@ -629,7 +629,15 @@ await test('cofre persistente: reservas, isolamento, concorrência, falhas, quot
           actual: string;
           used: string;
         }>(
-          `SELECT used_bytes::text AS used,(coalesce((SELECT sum(charge) FROM hash_talk.vault_operations),0)+coalesce((SELECT sum(octet_length(profile_ciphertext)+524) FROM hash_talk.accounts),0))::text AS actual FROM hash_talk.content_usage WHERE singleton`,
+          `SELECT used_bytes::text AS used,(
+            coalesce((SELECT sum(charge) FROM hash_talk.vault_operations),0)
+            +coalesce((SELECT sum(octet_length(profile_ciphertext)+524) FROM hash_talk.accounts),0)
+            +coalesce((SELECT sum(charge) FROM hash_talk.message_recovery_keys),0)
+            +coalesce((SELECT sum(charge) FROM hash_talk.message_packets),0)
+            +coalesce((SELECT sum(charge) FROM hash_talk.matrix_devices),0)
+            +coalesce((SELECT sum(charge) FROM hash_talk.matrix_one_time_keys),0)
+            +coalesce((SELECT sum(charge) FROM hash_talk.matrix_envelopes),0)
+          )::text AS actual FROM hash_talk.content_usage WHERE singleton`,
         );
         assert.equal(calculated.rows[0]?.used, calculated.rows[0]?.actual);
       } finally {

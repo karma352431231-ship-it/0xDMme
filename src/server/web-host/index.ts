@@ -34,13 +34,17 @@ export async function loadWebAssets(): Promise<ReadonlyMap<string, WebAsset>> {
   const manifest: unknown = JSON.parse(
     await readFile(new URL('assets.json', root), 'utf8'),
   );
-  if (!Array.isArray(manifest) || manifest.length > 16)
+  if (!Array.isArray(manifest) || manifest.length > 36)
     throw new Error('Build inválido.');
   const assets = new Map<string, WebAsset>();
   for (const value of manifest as unknown[]) {
     const entry = assetEntry(value);
     const content = await readFile(new URL(entry.path.slice(1), root));
-    if (content.length > 2 * 1024 * 1024) throw new Error('Asset excedido.');
+    const maximum =
+      entry.path === '/matrix-crypto-18.9.0.wasm'
+        ? 8 * 1024 * 1024
+        : 2 * 1024 * 1024;
+    if (content.length > maximum) throw new Error('Asset excedido.');
     assets.set(entry.path === '/index.html' ? '/' : entry.path, {
       content,
       type: entry.type,
@@ -79,15 +83,18 @@ function sendPublicAsset(
   const entry = assets.get(
     nativeProbe ? '/phantom-probe.html' : (request.url ?? '/'),
   );
+  // Only the app (Matrix) and the admitted NaCl probe need WebAssembly.
+  // Errors, APIs and wallet approval retain the default policy.
+  if (
+    (nativeProbe || request.url === '/') &&
+    entry?.type.startsWith('text/html')
+  )
+    securityHeaders(response, "'self' 'wasm-unsafe-eval'");
   if (request.url === '/' && entry?.type.startsWith('text/html'))
     response.setHeader(
       'Permissions-Policy',
       'camera=(self), microphone=(), geolocation=(), payment=()',
     );
-  // Only this admitted document needs NaCl's WebAssembly. Keep the default
-  // policy on errors, APIs, the regular app and the EVM approval page.
-  if (nativeProbe && entry?.type.startsWith('text/html'))
-    securityHeaders(response, "'self' 'wasm-unsafe-eval'");
   sendAsset(request, response, entry);
 }
 

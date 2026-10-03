@@ -3,6 +3,7 @@ import type {
   EncryptedProfile,
 } from '../../shared/account/index.ts';
 import { canonical } from '../../shared/devices/index.ts';
+import { notifyMessageControls } from '../message-controls/index.ts';
 import { QrCamera, qrLink, qrReceipt, renderQr } from '../device-qr/index.ts';
 import { discoverWallets } from '../wallet/index.ts';
 import { DeviceController } from './controller.ts';
@@ -10,7 +11,7 @@ import type { RecoveryPlan } from '../recovery-return/index.ts';
 import type { VaultAuthority, VaultLocator } from '../vault-authority/index.ts';
 
 const template = `<article class="card device-card"><span class="eyebrow">APARELHOS E RECUPERAÇÃO</span><h2>Suas chaves ficam com você.</h2>
-<p>O login conecta a conta. Autorize este navegador para abrir dados cifrados. Agenda e configurações já podem ser preservadas no cofre. Conversas serão integradas depois.</p>
+<p>O login conecta a conta. Autorize este navegador para abrir dados cifrados e conversar com contatos aprovados. Agenda, configurações e mensagens ficam protegidas pelo cofre.</p>
 <p data-device-status role="status">Conecte a wallet original primeiro.</p>
 <div data-device-connected hidden><label>Nome do aparelho<input data-device-name maxlength="60" autocomplete="off" value="Meu aparelho"></label>
 <button data-device-action="refresh" type="button">Atualizar aparelhos</button>
@@ -288,6 +289,7 @@ export function startDevices(options: {
   }
   async function changed(): Promise<void> {
     clearSecrets();
+    notifyMessageControls();
     channel?.postMessage('changed');
     await options.changed();
   }

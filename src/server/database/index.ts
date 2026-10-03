@@ -5,6 +5,12 @@ import { AuthenticationStore } from './authentication.ts';
 import { DeviceStore } from './devices.ts';
 import { VaultStore } from './vault.ts';
 import { ContactStore } from './contacts.ts';
+import { MessageRecoveryStore } from './message-recovery.ts';
+import { MessageStore } from './messages.ts';
+import { MatrixStore } from './matrix.ts';
+export type { MatrixStore, MatrixUpload } from './matrix.ts';
+export type { MessageStore, MessageSnapshot } from './messages.ts';
+export type { MessageRecoveryStore } from './message-recovery.ts';
 export type { ContactStore, ContactAuthority } from './contacts.ts';
 export { walletHash } from './contacts.ts';
 export type { VaultStore } from './vault.ts';
@@ -27,6 +33,10 @@ const migrations = [
   '009-upload-expiry.sql',
   '010-contacts.sql',
   '011-contact-policy.sql',
+  '012-message-recovery.sql',
+  '013-messages.sql',
+  '014-matrix-transport.sql',
+  '015-message-kinds.sql',
 ];
 
 export interface MaintenanceSnapshot {
@@ -57,6 +67,9 @@ export class Database {
   readonly devices: DeviceStore;
   readonly vault: VaultStore;
   readonly contacts: ContactStore;
+  readonly messageRecovery: MessageRecoveryStore;
+  readonly messages: MessageStore;
+  readonly matrix: MatrixStore;
 
   constructor(connectionString: string, contentCapacity = 3_000_000_000) {
     this.pool = new pg.Pool({
@@ -78,6 +91,12 @@ export class Database {
     this.devices = new DeviceStore(this.pool, contentCapacity);
     this.vault = new VaultStore(this.pool, contentCapacity);
     this.contacts = new ContactStore(this.pool);
+    this.messageRecovery = new MessageRecoveryStore(
+      this.contacts,
+      contentCapacity,
+    );
+    this.messages = new MessageStore(this.contacts, contentCapacity);
+    this.matrix = new MatrixStore(this.contacts, contentCapacity);
   }
 
   async migrate(): Promise<void> {

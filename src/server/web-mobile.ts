@@ -5,6 +5,7 @@ import { readWebConfiguration } from './web-configuration/index.ts';
 import { DeviceService } from './devices/index.ts';
 import { VaultService } from './vault/index.ts';
 import { ObjectStore } from './object-store/index.ts';
+import { MessageService } from './messages/index.ts';
 import { ContactService } from './contacts/index.ts';
 import {
   readMobileWebConfiguration,
@@ -34,6 +35,7 @@ try {
     objects,
     account: createAccountHandler({
       contacts: new ContactService(database.contacts, database.devices),
+      messages: new MessageService(database, database.devices),
       devices: new DeviceService(database.devices, mobile.origin),
       vault: new VaultService({
         store: database.vault,

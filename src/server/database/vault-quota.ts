@@ -8,6 +8,12 @@ export async function vaultUsage(
   const result = await client.query<{ bytes: string }>(
     `SELECT (
     coalesce((SELECT sum(charge) FROM hash_talk.vault_operations WHERE account_id=$1),0)
+    + coalesce((SELECT sum(charge) FROM hash_talk.message_recovery_keys WHERE account_id=$1),0)
+    + coalesce((SELECT sum(sender_charge) FROM hash_talk.message_packets WHERE sender=$1),0)
+    + coalesce((SELECT sum(recipient_charge) FROM hash_talk.message_packets WHERE recipient=$1),0)
+    + coalesce((SELECT sum(charge) FROM hash_talk.matrix_devices WHERE account_id=$1),0)
+    + coalesce((SELECT sum(charge) FROM hash_talk.matrix_one_time_keys WHERE account_id=$1),0)
+    + coalesce((SELECT sum(charge) FROM hash_talk.matrix_envelopes WHERE account_id=$1),0)
     + coalesce((SELECT octet_length(profile_ciphertext)+12+512 FROM hash_talk.accounts WHERE id=$1),0)
     )::text AS bytes`,
     [accountId],

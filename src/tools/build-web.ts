@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { mkdir, readFile, readdir, unlink, writeFile } from 'node:fs/promises';
 import { build } from 'esbuild';
 import { fileURLToPath } from 'node:url';
+import { frontendMatrixSources } from './frontend-matrix-source.ts';
 import { frontendSource } from './frontend-source.ts';
 import {
   frontendVendorSource,
@@ -19,6 +20,8 @@ const mime = new Map([
   ['.webmanifest', 'application/manifest+json'],
   ['.gz', 'application/gzip'],
   ['.xz', 'application/x-xz'],
+  ['.wasm', 'application/wasm'],
+  ['.bin', 'application/octet-stream'],
 ]);
 const files = new Map<string, Uint8Array>();
 const inputs = new Set<string>();
@@ -60,7 +63,7 @@ async function pruneGeneratedAssets(): Promise<void> {
   if (entries.length > 128) throw new Error('Diretório de build excedido.');
   for (const entry of entries) {
     if (
-      !/^(?:(?:app|phantom-probe|recovery-return)-[a-f0-9]{16}\.(?:js|css)|source-[a-f0-9]{16}\.tar\.gz|libsodium-\d+\.\d+\.\d+-sources-[a-f0-9]{16}\.tar\.xz)$/u.test(
+      !/^(?:(?:app|phantom-probe|recovery-return)-[a-f0-9]{16}\.(?:js|css)|source-[a-f0-9]{16}\.tar\.gz|matrix-crypto-18\.9\.0-source-[a-f0-9]{16}-\d{2}\.bin|libsodium-\d+\.\d+\.\d+-sources-[a-f0-9]{16}\.tar\.xz)$/u.test(
         entry.name,
       ) ||
       files.has(entry.name)
@@ -97,6 +100,17 @@ const sources = hashedAsset(
   await frontendSource(fileURLToPath(root), inputs),
 );
 asset(vendorSourceAsset, await frontendVendorSource(fileURLToPath(root)));
+for (const [name, bytes] of await frontendMatrixSources(fileURLToPath(root)))
+  asset(name, bytes);
+asset(
+  'matrix-crypto-18.9.0.wasm',
+  await readFile(
+    new URL(
+      'node_modules/@matrix-org/matrix-sdk-crypto-wasm/pkg/matrix_sdk_crypto_wasm_bg.wasm',
+      root,
+    ),
+  ),
+);
 const html = (
   await readFile(new URL('src/client/app/index.html', root), 'utf8')
 )
@@ -166,6 +180,7 @@ const paths = [...files.keys()]
     (name) =>
       !name.endsWith('.tar.gz') &&
       !name.endsWith('.tar.xz') &&
+      !name.startsWith('matrix-crypto-18.9.0-source') &&
       name !== 'wallet.html' &&
       name !== 'recovery.html' &&
       !name.startsWith('phantom-probe'),

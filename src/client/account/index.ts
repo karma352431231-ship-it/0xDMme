@@ -1002,6 +1002,14 @@ export function startAccount(options: {
     });
   }
   return {
+    sharedProfile: () =>
+      session && privateProfile
+        ? {
+            name: session.name,
+            revision: session.profileRevision,
+            photo: privateProfile.photo,
+          }
+        : null,
     approvalPage,
     async refreshPrivate(): Promise<void> {
       if (!session || busy || dirtyProfile || dirtyName) return;

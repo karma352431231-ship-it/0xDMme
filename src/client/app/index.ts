@@ -2,13 +2,14 @@ import { startPwa } from '../pwa/index.ts';
 import { startAccount } from '../account/index.ts';
 import { startDevices } from '../devices/index.ts';
 import { startVault } from '../vault-ui/index.ts';
+import { startMessages } from '../messages/index.ts';
 import { startContacts } from '../contacts/index.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
 
 const pages = {
   conversas: {
     title: 'Conversas',
-    content: `<div class="conversation-layout"><div class="list-placeholder"><h2>Suas conversas</h2><p>Nenhuma conversa ainda.<br>Seus contatos aparecerão aqui após a conexão da conta.</p></div><div class="empty-state"><span class="empty-symbol" aria-hidden="true">#</span><span class="eyebrow">CONVERSAS COM PRIVACIDADE</span><h2>Um espaço para se conectar.</h2><p>Seu próximo diálogo começa aqui. Conecte sua conta acima. O envio de mensagens será habilitado após a integração dos dispositivos e do cofre.</p><p class="detail">A prova criptográfica foi validada. O chat está em construção.</p></div></div>`,
+    content: `<div data-messages-container></div>`,
   },
   contatos: {
     title: 'Contatos',
@@ -42,6 +43,9 @@ const devices = startDevices({
 });
 const vault = startVault(devices);
 const contacts = startContacts(devices, vault.sync);
+const messages = startMessages(devices, vault.sync, () =>
+  account.sharedProfile(),
+);
 const account = startAccount({
   privateKey: async (session) => {
     const key = await devices.privateKey(session);
@@ -55,6 +59,7 @@ const account = startAccount({
     devices.setSession(session);
     vault.setSession(session);
     contacts.setSession(session);
+    messages.setSession(session);
     connection();
     const label = document.getElementById('account-label');
     if (label)
@@ -71,7 +76,8 @@ const pwa = account.approvalPage
         account.canActivate() &&
         devices.canActivate() &&
         vault.canActivate() &&
-        contacts.canActivate(),
+        contacts.canActivate() &&
+        messages.canActivate(),
     });
 
 function route(): void {
@@ -105,6 +111,10 @@ function route(): void {
 }
 function mountFeature(key: keyof typeof pages): void {
   const content = element('page-content');
+  const messageContainer = content.querySelector<HTMLElement>(
+    '[data-messages-container]',
+  );
+  if (key === 'conversas' && messageContainer) messages.mount(messageContainer);
   const contactContainer = content.querySelector<HTMLElement>(
     '[data-contacts-container]',
   );
@@ -145,6 +155,7 @@ function renderApprovalPage(): void {
 }
 
 function connection(): void {
+  if (connectedAccount && devices.authorized()) messages.ready();
   element('connection').textContent = navigator.onLine
     ? connectedAccount
       ? devices.authorized()
