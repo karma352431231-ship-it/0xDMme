@@ -291,6 +291,16 @@ O executor mantém CPU 10% de um núcleo, RAM 192 MiB, sem swap, 32 tarefas e du
 
 Na operação de proxy, a validação enxerga logs temporários e `/dev/null` no lugar do arquivo PID, somente dentro de seu namespace. Isso permite `nginx -t` com filesystem protegido sem abrir os logs/PID reais para escrita; o reload é solicitado ao master existente pelo systemd.
 
+## Transição específica do bloco 09, aprovada em 03/10/2026
+
+O proprietário pediu enviar e ativar o bloco 09 e autorizou a retomada após a pausa de contexto. Usar o mesmo `npm run deploy:staging`, com exceção restrita no executor existente: predecessor ativo `8acc99d`, fontes/runtime revisados em `343d334`, sequência 001–016 intacta e somente a nova migração 017. O commit final, que inclui o executor, precisa estar publicado e passar em CI. Não há alteração de dependências, Node, Nginx ou serviços compartilhados.
+
+Antes de reabrir o escritor, reutilizar dump privado e cópia de objetos, cada um limitado a 64 MiB, parsing integral e restauração em transação encerrada por `ROLLBACK`. Conferir checksums 001–017 e contagens/digests das 23 tabelas preexistentes. Somente a coluna nova `message_packets.personal_collected` fica fora da comparação de linhas; uma verificação separada exige que seja falsa em todas as mensagens existentes. A tabela nova `personal_removals` precisa estar vazia e o livro de uso físico continuar consistente, incluindo suas futuras cobranças. Objetos, configurações e processos são comparados antes/depois. Parar/iniciar somente `0xdmme-test.service`. Depois de reabrir, uma falha conserva novas gravações e para o app para revisão, sem restaurar automaticamente o dump antigo.
+
+Os três workspaces anteriores estavam ocupados por transições concluídas com backups. O executor separa bundles históricos em `migration-backups/<commit>` na área privada própria: conserva dump, objetos, receipt e eventual artefato QR; remove somente código/build de publicações concluídas conforme a autorização existente. A transição mais recente mantém sua release de retorno completa até uma nova publicação ter sucesso. Ownership, tipos, links, conteúdo e colisões são conferidos antes de mover; tentativas interrompidas permanecem para revisão. O teto de três workspaces de código e o filesystem próprio de 2 GB não aumentam; backups históricos não são apagados para abrir espaço.
+
+**Ponto importante:** publicação destinada ao ambiente de testes. Download/reabertura e limpeza pela interface, aparelhos físicos mobile e aceite final de segurança continuam pendentes. Esta transição não autoriza outras migrações nem estabelece prontidão para conversas reais.
+
 ## Atualizações rotineiras após o bloco 07
 
 O proprietário pediu reaproveitar o script existente e reduzir a demora nas atualizações. Os comandos continuam sendo `npm run deploy:prepare`, `npm run deploy:check` e `npm run deploy:staging`; não há outro comando por bloco para mudanças comuns de código. Antes de ativar, commitar/push da branch `codex/`, conferir checkout limpo e CI do commit exato. O último comando prepara ou reutiliza o build, sincroniza os fontes, envia o pacote, troca a release e reinicia somente o app. Não é necessário rodar os três comandos em sequência.

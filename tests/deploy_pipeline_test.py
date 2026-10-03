@@ -432,10 +432,19 @@ class DeploymentTests(unittest.TestCase):
 
 
 class AttachmentDeploymentTests(unittest.TestCase):
+    count = 16
+    before_key = 'ATTACHMENT_BEFORE'
+    reviewed_key = 'ATTACHMENT_REVIEWED'
+    review_name = 'attachment_review'
+    snapshot_name = 'attachment_snapshot'
+    verify_name = 'verify_attachment_migration'
+    activate_name = 'activate_attachments'
+    table_name = 'message_attachments'
+
     def migrations(self, root):
         directory = root / 'src/server/database/migrations'
         directory.mkdir(parents=True)
-        for number in range(1, 17):
+        for number in range(1, self.count + 1):
             (directory / ('%03d.sql' % number)).write_text('fixture%d' % number)
 
     def test_only_exact_reviewed_sources_and_predecessor_allow_migration(self):
@@ -448,42 +457,53 @@ class AttachmentDeploymentTests(unittest.TestCase):
             for path in (new / 'src/server/database/migrations').iterdir():
                 name = str(path.relative_to(new))
                 incoming[name] = path.read_bytes()
-                if not path.name.startswith('016'): previous[name] = path.read_bytes()
+                if not path.name.startswith('%03d' % self.count): previous[name] = path.read_bytes()
             for root, files in [(old, previous), (new, incoming)]:
                 for name, data in files.items():
                     path = root / name; path.parent.mkdir(parents=True, exist_ok=True); path.write_bytes(data)
-            exports = {remote.ATTACHMENT_BEFORE:previous, remote.ATTACHMENT_REVIEWED:incoming}
+            exports = {getattr(remote,self.before_key):previous, getattr(remote,self.reviewed_key):incoming}
+            review = getattr(remote,self.review_name)
             with patch.object(backups, 'git_export', side_effect=lambda r:exports[r]):
-                remote.attachment_review(new, old)
+                review(new, old)
+                remote.database_review(new, old)
                 for root, name in [(old, 'src/main.ts'), (new, 'src/main.ts'),
                                    (new, 'src/server/database/migrations/001.sql'),
                                    (new, 'package-lock.json')]:
                     path = root / name; value = path.read_bytes(); path.write_bytes(b'unreviewed')
-                    with self.assertRaises(RuntimeError): remote.attachment_review(new, old)
+                    with self.assertRaises(RuntimeError): review(new, old)
                     path.write_bytes(value)
-                (new / 'src/server/database/migrations/017.sql').write_text('unreviewed')
-                with self.assertRaises(RuntimeError): remote.attachment_review(new, old)
+                (new / ('src/server/database/migrations/%03d.sql' % (self.count + 1))).write_text('unreviewed')
+                with self.assertRaises(RuntimeError): review(new, old)
 
     def test_migration_checksums_existing_data_and_ledger_are_preserved(self):
         with tempfile.TemporaryDirectory() as directory:
             candidate = Path(directory); self.migrations(candidate)
             versions = remote.attachment_versions(candidate)
-            before = {'versions':versions[:15], 'tables':{'message_packets':'preserved','content_usage':'preserved'}}
+            before = {'versions':versions[:-1], 'tables':{'message_packets':'preserved','content_usage':'preserved'}}
             after = dict(before, versions=versions)
-            with patch.object(remote, 'attachment_snapshot', return_value=after), patch.object(backups, 'pg', return_value=b't') as pg:
-                remote.verify_attachment_migration(candidate, before)
+            verify = getattr(remote,self.verify_name)
+            with patch.object(remote, self.snapshot_name, return_value=after), patch.object(backups, 'pg', return_value=b't') as pg:
+                verify(candidate, before)
                 sql = pg.call_args.args[0][-1]
-                self.assertIn('NOT EXISTS(SELECT 1 FROM hash_talk.message_attachments)', sql)
+                self.assertIn('NOT EXISTS(SELECT 1 FROM hash_talk.' + self.table_name + ')', sql)
                 self.assertIn('sum(charge) FROM hash_talk.message_packets', sql)
-            for invalid in [dict(after,tables={}), dict(after,versions=versions[:15])]:
-                with patch.object(remote, 'attachment_snapshot', return_value=invalid), self.assertRaises(RuntimeError):
-                    remote.verify_attachment_migration(candidate, before)
-            with patch.object(remote, 'attachment_snapshot', return_value=after), patch.object(backups, 'pg', return_value=b'f'), self.assertRaises(RuntimeError):
-                remote.verify_attachment_migration(candidate, before)
+                if self.count == 17:
+                    self.assertIn('NOT EXISTS(SELECT 1 FROM hash_talk.message_packets WHERE personal_collected)',sql)
+                    self.assertIn('sum(charge) FROM hash_talk.personal_removals',sql)
+            for invalid in [dict(after,tables={}), dict(after,versions=versions[:-1])]:
+                with patch.object(remote, self.snapshot_name, return_value=invalid), self.assertRaises(RuntimeError):
+                    verify(candidate, before)
+            with patch.object(remote, self.snapshot_name, return_value=after), patch.object(backups, 'pg', return_value=b'f'), self.assertRaises(RuntimeError):
+                verify(candidate, before)
             with patch.object(backups, 'database_snapshot') as snapshot:
-                remote.attachment_snapshot()
-                snapshot.assert_called_once_with(remote.ATTACHMENT_TABLES)
-                self.assertEqual(len(remote.ATTACHMENT_TABLES), 22)
+                getattr(remote,self.snapshot_name)()
+                if self.count == 17:
+                    snapshot.assert_called_once_with(remote.BACKUP_TABLES,
+                        omit_columns={'message_packets':('personal_collected',)})
+                    self.assertEqual(len(remote.BACKUP_TABLES),23)
+                else:
+                    snapshot.assert_called_once_with(remote.ATTACHMENT_TABLES)
+                    self.assertEqual(len(remote.ATTACHMENT_TABLES),22)
 
     def check_activation(self, failure):
         with tempfile.TemporaryDirectory() as directory, ExitStack() as stack:
@@ -491,18 +511,18 @@ class AttachmentDeploymentTests(unittest.TestCase):
             work = root / 'deployment'; work.mkdir(); candidate = work / 'candidate'; candidate.mkdir()
             (candidate / 'version').write_text('new'); (work / 'objects-backup').mkdir()
             config = {'commit':'a'*40, 'baseline':{}, 'files':{}}
-            before = {'tables':{'message_packets':'preserved'}, 'versions':[{'version':n} for n in range(1,16)]}
+            before = {'tables':{'message_packets':'preserved'}, 'versions':[{'version':n} for n in range(1,self.count)]}
             state = {'value':before}
             def migrate(_):
-                state['value'] = dict(before, versions=[{'version':16}])
+                state['value'] = dict(before, versions=[{'version':self.count}])
                 if failure == 'migration': raise RuntimeError('failed before opening')
             def restore(*_, **kwargs): state['value'] = before
             for module, name, options in [
-                (remote,'DATA',{'new':root}), (remote,'attachment_review',{}),
-                (remote,'attachment_snapshot',{'side_effect':lambda:state['value']}),
+                (remote,'DATA',{'new':root}), (remote,self.review_name,{}),
+                (remote,self.snapshot_name,{'side_effect':lambda:state['value']}),
                 (remote,'attachment_versions',{'return_value':before['versions']}),
                 (remote,'own_state',{'return_value':{}}), (remote,'preservation',{}),
-                (remote,'verify_attachment_migration',{}),
+                (remote,self.verify_name,{}),
                 (backups,'own_free_bytes',{'return_value':2**30}),
                 (backups,'objects_snapshot',{'return_value':{}}),
                 (backups,'backup',{'return_value':'backup-hash'}),
@@ -511,14 +531,15 @@ class AttachmentDeploymentTests(unittest.TestCase):
             command = stack.enter_context(patch.object(remote,'run',return_value=b'0'))
             returned = stack.enter_context(patch.object(backups,'restore',side_effect=restore))
             ready = stack.enter_context(patch.object(remote,'wait_ready',side_effect=RuntimeError('failed after opening') if failure=='opened' else None))
+            activate = getattr(remote,self.activate_name)
             if failure:
-                with self.assertRaises(RuntimeError): remote.activate_attachments(config,work,candidate,{})
-            else: remote.activate_attachments(config,work,candidate,{})
+                with self.assertRaises(RuntimeError): activate(config,work,candidate,{})
+            else: activate(config,work,candidate,{})
             receipt = json.loads((work / 'result.json').read_text())
             commands = [c.args[0] for c in command.call_args_list]
             self.assertTrue(all(c[:2]==['systemctl','show'] or c in [['systemctl','start',remote.UNIT],['systemctl','stop',remote.UNIT]] for c in commands))
             if failure == 'migration':
-                returned.assert_called_once_with(work,before,'backup-hash',snapshot=remote.attachment_snapshot)
+                returned.assert_called_once_with(work,before,'backup-hash',snapshot=getattr(remote,self.snapshot_name))
                 self.assertTrue(receipt['rollback_verified']); self.assertEqual(state['value'],before)
                 self.assertEqual((live / 'version').read_text(),'old')
             elif failure == 'opened':
@@ -534,6 +555,80 @@ class AttachmentDeploymentTests(unittest.TestCase):
     def test_success_retains_backup_and_previous_release(self): self.check_activation(None)
     def test_preopening_failure_restores_schema_and_previous_release(self): self.check_activation('migration')
     def test_postopening_failure_preserves_new_data_and_stops_only_own_service(self): self.check_activation('opened')
+
+
+class BackupDeploymentTests(AttachmentDeploymentTests):
+    count = 17
+    before_key = 'BACKUP_BEFORE'
+    reviewed_key = 'BACKUP_REVIEWED'
+    review_name = 'backup_review'
+    snapshot_name = 'backup_snapshot'
+    verify_name = 'verify_backup_migration'
+    activate_name = 'activate_backups'
+    table_name = 'personal_removals'
+
+    def test_snapshot_column_projection_is_bounded_and_parameterized(self):
+        for columns in [{'other_table':('personal_collected',)},
+                        {'message_packets':("x';drop table accounts;--",)},
+                        {'message_packets':'personal_collected'}]:
+            with patch.object(backups,'node') as query, self.assertRaises(RuntimeError):
+                backups.database_snapshot(('message_packets',),omit_columns=columns)
+            query.assert_not_called()
+        with patch.object(backups,'node',return_value=b'{"tables":{},"versions":[]}') as query:
+            remote.backup_snapshot()
+        code = query.call_args.args[0]
+        self.assertIn('to_jsonb(t)-$1::text[]',code)
+        self.assertIn('"message_packets": ["personal_collected"]',code)
+
+
+class HistoricalBackupRetentionTests(unittest.TestCase):
+    def completed(self, root, commit, timestamp):
+        work = root / ('deployment-' + commit)
+        work.mkdir()
+        (work/'previous').mkdir(); (work/'previous/package.json').write_text('{}')
+        (work/'build.tar.gz').write_bytes(b'code')
+        (work/'database.dump').write_bytes(b'private database')
+        (work/'objects-backup').mkdir(); (work/'objects-backup/file').write_bytes(b'private object')
+        marker = work/'result.json'
+        marker.write_text(json.dumps({'status':'published','commit':commit,'private_backup_retained':True}))
+        os.utime(marker,(timestamp,timestamp))
+        return work
+
+    def test_completed_code_releases_slots_without_losing_historical_backups_or_latest_rollback(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            old = self.completed(root,'a'*40,1)
+            latest = self.completed(root,'b'*40,2)
+            interrupted = root/('deployment-'+'c'*40); interrupted.mkdir()
+            (interrupted/'result.json').write_text('{"status":"failed"}')
+            (old/'qr.tar.gz').write_bytes(b'approved QR artifact')
+            receipt = (old/'result.json').read_bytes()
+            with patch.object(remote,'DATA',root):
+                remote.prune_completed(root/('deployment-'+'d'*40))
+            kept = root/'migration-backups'/('a'*40)
+            self.assertFalse(old.exists())
+            self.assertEqual((kept/'database.dump').read_bytes(),b'private database')
+            self.assertEqual((kept/'objects-backup/file').read_bytes(),b'private object')
+            self.assertEqual((kept/'result.json').read_bytes(),receipt)
+            self.assertEqual((kept/'qr.tar.gz').read_bytes(),b'approved QR artifact')
+            self.assertFalse((kept/'previous').exists()); self.assertFalse((kept/'build.tar.gz').exists())
+            self.assertTrue((latest/'previous/package.json').is_file())
+            self.assertTrue(interrupted.is_dir())
+
+    def test_unexpected_contents_links_or_collisions_stop_before_modifying_backups(self):
+        for invalid in ['unexpected','link','collision']:
+            with self.subTest(invalid=invalid), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory); old = self.completed(root,'a'*40,1)
+                self.completed(root,'b'*40,2)
+                if invalid == 'unexpected': (old/'unexpected').write_text('preserve')
+                elif invalid == 'link':
+                    (old/'database.dump').unlink(); (old/'database.dump').symlink_to(old/'result.json')
+                else: (root/'migration-backups'/('a'*40)).mkdir(parents=True)
+                receipt = (old/'result.json').read_bytes()
+                with patch.object(remote,'DATA',root), self.assertRaises(RuntimeError):
+                    remote.prune_completed(root/('deployment-'+'d'*40))
+                self.assertEqual((old/'result.json').read_bytes(),receipt)
+                self.assertTrue((old/'objects-backup/file').is_file())
 
 
 if __name__ == '__main__':

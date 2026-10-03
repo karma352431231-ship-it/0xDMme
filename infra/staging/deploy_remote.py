@@ -37,6 +37,10 @@ ATTACHMENT_TABLES = ('accounts', 'content_usage', 'device_directories', 'device_
                      'contact_controls', 'contact_relations', 'contact_blocks',
                      'message_recovery_keys', 'message_packets', 'message_references',
                      'message_heads', 'matrix_devices', 'matrix_one_time_keys', 'matrix_envelopes')
+# Explicit block 09 publication request (03/10/2026); exact 016→017 only.
+BACKUP_BEFORE = '8acc99d0de9526f46ee78e6d49261b1b36b192e4'
+BACKUP_REVIEWED = '343d334f50a154b17a0d14348772f7de1397ec8d'
+BACKUP_TABLES = ATTACHMENT_TABLES + ('message_attachments',)
 
 
 def run(args, timeout=30):
@@ -198,7 +202,7 @@ def compatibility(candidate, live):
         if before.is_dir() and after.is_dir():
             old, new = database_files(live), database_files(candidate)
             if old != new:
-                attachment_review(candidate, live)
+                database_review(candidate, live)
         elif not before.is_file() or not after.is_file():
             raise RuntimeError('Runtime dependency/Node change requires separate review.')
         elif digest(before) != digest(after):
@@ -221,26 +225,54 @@ def compatibility(candidate, live):
         raise RuntimeError('Installed Node is outside the approved runtime range.')
 
 
-def attachment_review(candidate, live):
+def reviewed_database(candidate, live, approval):
     import deploy_blocks45 as backups
     paths = sorted((candidate / 'src/server/database/migrations').glob('*.sql'))
-    if len(paths) != 16 or [p.name[:3] for p in paths] != ['%03d' % n for n in range(1, 17)]:
-        raise RuntimeError('Block 08 migration sequence differs.')
-    previous = backups.git_export(ATTACHMENT_BEFORE)
-    approved = backups.git_export(ATTACHMENT_REVIEWED)
+    count = approval['versions']
+    if len(paths) != count or [p.name[:3] for p in paths] != ['%03d' % n for n in range(1, count + 1)]:
+        raise RuntimeError('Reviewed migration sequence differs.')
+    previous = backups.git_export(approval['before'])
+    approved = backups.git_export(approval['reviewed'])
     if not backups.matches_export(live, previous) or not backups.matches_export(candidate, approved):
-        raise RuntimeError('Database transition differs from the exact block 08 review.')
+        raise RuntimeError('Database transition differs from the exact reviewed sources.')
     if any(previous[name] != approved[name] for name in ['package-lock.json', '.nvmrc']):
-        raise RuntimeError('Block 08 approval does not include dependency/Node changes.')
-    for path in paths[:15]:
+        raise RuntimeError('Migration approval does not include dependency/Node changes.')
+    for path in paths[:count - 1]:
         name = 'src/server/database/migrations/' + path.name
         if previous.get(name) != approved.get(name):
-            raise RuntimeError('Block 08 changes a previously applied migration.')
+            raise RuntimeError('Reviewed transition changes a previously applied migration.')
+
+
+def attachment_review(candidate, live):
+    reviewed_database(candidate, live, {'before':ATTACHMENT_BEFORE,
+        'reviewed':ATTACHMENT_REVIEWED, 'versions':16})
+
+
+def backup_review(candidate, live):
+    reviewed_database(candidate, live, {'before':BACKUP_BEFORE,
+        'reviewed':BACKUP_REVIEWED, 'versions':17})
+
+
+def database_review(candidate, live):
+    count = len(list((candidate / 'src/server/database/migrations').glob('*.sql')))
+    if count == 17:
+        return backup_review(candidate, live)
+    if count == 16:
+        return attachment_review(candidate, live)
+    raise RuntimeError('Database change requires a separately pinned review.')
 
 
 def attachment_snapshot():
     import deploy_blocks45 as backups
     return backups.database_snapshot(ATTACHMENT_TABLES)
+
+
+def backup_snapshot():
+    import deploy_blocks45 as backups
+    # This new field did not exist in 016. All existing row fields remain bound
+    # to the digest; verify_backup_migration separately requires it to be false.
+    return backups.database_snapshot(BACKUP_TABLES,
+                                     omit_columns={'message_packets':('personal_collected',)})
 
 
 def attachment_versions(candidate):
@@ -254,15 +286,34 @@ def verify_attachment_migration(candidate, before):
     versions = attachment_versions(candidate)
     if before['versions'] != versions[:15] or after['versions'] != versions or after['tables'] != before['tables']:
         raise RuntimeError('Block 08 migration/data preservation failed.')
-    total = 'coalesce((SELECT sum(octet_length(profile_ciphertext)+524) FROM hash_talk.accounts),0)'
-    for table in ['vault_operations', 'message_recovery_keys', 'message_packets',
-                  'matrix_devices', 'matrix_one_time_keys', 'matrix_envelopes', 'message_attachments']:
-        total += ' + coalesce((SELECT sum(charge) FROM hash_talk.' + table + '),0)'
+    total = content_total()
     actual = backups.pg(['psql', '--no-psqlrc', '--set=ON_ERROR_STOP=1', '--tuples-only', '--no-align', '-c',
                          'SELECT used_bytes=(' + total + ') AND NOT EXISTS(SELECT 1 FROM hash_talk.message_attachments) '
                          'FROM hash_talk.content_usage WHERE singleton'])
     if actual.strip() != b't':
         raise RuntimeError('Block 08 attachment table/actual-use ledger inconsistent.')
+
+
+def content_total():
+    total = 'coalesce((SELECT sum(octet_length(profile_ciphertext)+524) FROM hash_talk.accounts),0)'
+    for table in ['vault_operations', 'message_recovery_keys', 'message_packets',
+                  'matrix_devices', 'matrix_one_time_keys', 'matrix_envelopes', 'message_attachments']:
+        total += ' + coalesce((SELECT sum(charge) FROM hash_talk.' + table + '),0)'
+    return total
+
+
+def verify_backup_migration(candidate, before):
+    import deploy_blocks45 as backups
+    after, versions = backup_snapshot(), attachment_versions(candidate)
+    if before['versions'] != versions[:16] or after['versions'] != versions or after['tables'] != before['tables']:
+        raise RuntimeError('Block 09 migration/data preservation failed.')
+    total = content_total() + ' + coalesce((SELECT sum(charge) FROM hash_talk.personal_removals),0)'
+    actual = backups.pg(['psql', '--no-psqlrc', '--set=ON_ERROR_STOP=1', '--tuples-only', '--no-align', '-c',
+        'SELECT used_bytes=(' + total + ') AND NOT EXISTS(SELECT 1 FROM hash_talk.personal_removals) '
+        'AND NOT EXISTS(SELECT 1 FROM hash_talk.message_packets WHERE personal_collected) '
+        'FROM hash_talk.content_usage WHERE singleton'])
+    if actual.strip() != b't':
+        raise RuntimeError('Block 09 initial cleanup state/actual-use ledger inconsistent.')
 
 
 def preflight(config):
@@ -358,10 +409,24 @@ def receipt(work, data):
 
 def activate_attachments(config, work, candidate, before_state):
     """Reviewed 015→016 transition; reuse existing private backup/restore tools."""
+    return activate_database(config, work, candidate, {'before_state':before_state,
+        'review':attachment_review, 'snapshot':attachment_snapshot, 'versions':15,
+        'verify':verify_attachment_migration})
+
+
+def activate_backups(config, work, candidate, before_state):
+    """Reviewed 016→017 transition; same maintenance and rollback contract."""
+    return activate_database(config, work, candidate, {'before_state':before_state,
+        'review':backup_review, 'snapshot':backup_snapshot, 'versions':16,
+        'verify':verify_backup_migration})
+
+
+def activate_database(config, work, candidate, transition):
     import deploy_blocks45 as backups
-    attachment_review(candidate, DATA / 'release')
-    if attachment_snapshot()['versions'] != attachment_versions(candidate)[:15]:
-        raise RuntimeError('Live schema differs from the block 08 predecessor.')
+    snapshot, before_state = transition['snapshot'], transition['before_state']
+    transition['review'](candidate, DATA / 'release')
+    if snapshot()['versions'] != attachment_versions(candidate)[:transition['versions']]:
+        raise RuntimeError('Live schema differs from the reviewed predecessor.')
     if backups.own_free_bytes() < 2 * MAX_RELEASE + 2 * backups.MAX_BACKUP:
         raise RuntimeError('Insufficient disk budget for private backups.')
     receipt(work, {'status':'maintenance', 'commit':config['commit']})
@@ -372,14 +437,14 @@ def activate_attachments(config, work, candidate, before_state):
         run(['systemctl', 'stop', UNIT])
         if run(['systemctl', 'show', UNIT, '--property=MainPID', '--value']).strip() != b'0':
             raise RuntimeError('Own writer did not stop.')
-        before, objects = attachment_snapshot(), backups.objects_snapshot()
+        before, objects = snapshot(), backups.objects_snapshot()
         checksum = backups.backup(work)
         if backups.file_tree(work / 'objects-backup') != objects:
             raise RuntimeError('Object backup verification failed.')
-        backups.validate_restore(work, before, checksum, snapshot=attachment_snapshot)
+        backups.validate_restore(work, before, checksum, snapshot=snapshot)
         receipt(work, {'status':'backed-up', 'commit':config['commit'], 'backup_sha256':checksum})
         backups.migrate(candidate)
-        verify_attachment_migration(candidate, before)
+        transition['verify'](candidate, before)
         if backups.objects_snapshot() != objects:
             raise RuntimeError('Existing objects changed during migration.')
         preservation(config['baseline'])
@@ -401,9 +466,9 @@ def activate_attachments(config, work, candidate, before_state):
         try:
             run(['systemctl', 'stop', UNIT])
             if not opened:
-                if checksum is not None and before is not None and attachment_snapshot() != before:
-                    backups.restore(work, before, checksum, snapshot=attachment_snapshot)
-                if before is not None and attachment_snapshot() != before:
+                if checksum is not None and before is not None and snapshot() != before:
+                    backups.restore(work, before, checksum, snapshot=snapshot)
+                if before is not None and snapshot() != before:
                     raise RuntimeError('Pre-opening database return failed.')
                 if installed:
                     live.rename(candidate)
@@ -438,6 +503,8 @@ def activate(config, work):
         raise RuntimeError('Own configuration/database service changed.')
     if database_files(candidate) != database_files(DATA / 'release'):
         # Any unreviewed database change was rejected by prepare()/compatibility().
+        if len(list((candidate / 'src/server/database/migrations').glob('*.sql'))) == 17:
+            return activate_backups(config, work, candidate, before)
         return activate_attachments(config, work, candidate, before)
     # Interrupted processes leave an explicit receipt; never blindly retry them.
     receipt(work, {'status': 'activating', 'commit': config['commit']})
@@ -460,8 +527,66 @@ def activate(config, work):
     return result
 
 
+def retain_migration_backup(work, old):
+    """Keep historical data backups; discard only reviewed completed code."""
+    import deploy_blocks45 as backups
+    required = {'build.tar.gz', 'previous', 'result.json', 'database.dump', 'objects-backup'}
+    entries = set(p.name for p in work.iterdir())
+    if not required.issubset(entries) or not entries.issubset(required | {'qr.tar.gz'}):
+        raise RuntimeError('Completed transition contents require manual review.')
+    if work.stat().st_uid != os.geteuid() or any(p.is_symlink() for p in work.iterdir()):
+        raise RuntimeError('Completed transition ownership/link requires review.')
+    for name, limit in [('database.dump',backups.MAX_BACKUP), ('build.tar.gz',MAX_ARCHIVE),
+                        ('result.json',65536), ('qr.tar.gz',2 * 1024 * 1024)]:
+        path = work / name
+        if path.exists() and (not path.is_file() or path.stat().st_size > limit):
+            raise RuntimeError('Completed transition artifact budget/type differs.')
+    objects, previous = work / 'objects-backup', work / 'previous'
+    if not objects.is_dir() or not previous.is_dir():
+        raise RuntimeError('Completed transition directories differ.')
+    object_files = backups.file_tree(objects)
+    if sum((objects / name).stat().st_size for name in object_files) > backups.MAX_BACKUP:
+        raise RuntimeError('Historical object backup budget exceeded.')
+    allowed = {'src', 'infra', 'dist', 'node_modules', 'package.json', 'package-lock.json', '.nvmrc'}
+    if not set(p.name for p in previous.iterdir()).issubset(allowed):
+        raise RuntimeError('Old rollback contents require manual review.')
+    archive = DATA / 'migration-backups'
+    if archive.is_symlink() or (archive.exists() and not archive.is_dir()):
+        raise RuntimeError('Historical backup directory requires review.')
+    archive.mkdir(mode=0o700, exist_ok=True)
+    if archive.stat().st_uid != os.geteuid() or archive.stat().st_mode & 0o077:
+        raise RuntimeError('Historical backup permissions differ.')
+    destination = archive / old['commit']
+    if destination.exists() or destination.is_symlink():
+        raise RuntimeError('Historical backup already exists; review interrupted cleanup.')
+    # Move the complete bundle first. Even interrupted code cleanup retains
+    # dump, objects and receipt together; bounded disk checks still apply.
+    work.rename(destination)
+    shutil.rmtree(destination / 'previous')
+    (destination / 'build.tar.gz').unlink()
+    for directory in [destination, archive, DATA]:
+        fd = os.open(directory, os.O_RDONLY)
+        try:
+            os.fsync(fd)
+        finally:
+            os.close(fd)
+
+
 def prune_completed(current):
     # Only workspaces made by this command; the current workspace keeps the previous release.
+    transitions = []
+    for work in DATA.glob('deployment-*'):
+        marker = work / 'result.json'
+        if (work.is_dir() and not work.is_symlink() and
+                re.fullmatch(r'deployment-[a-f0-9]{40}', work.name) and
+                marker.is_file() and not marker.is_symlink()):
+            old = json.loads(marker.read_text())
+            if (old.get('status') == 'published' and old.get('private_backup_retained') is True and
+                    old.get('commit') == work.name[len('deployment-'):]):
+                transitions.append((marker.stat().st_mtime_ns, work))
+    # Preserve the newest transition's full rollback until another publication
+    # has succeeded. Historical data backups never enter the code-workspace cap.
+    newest = max(transitions, key=lambda entry:entry[0])[1] if transitions else None
     for work in DATA.glob('deployment-*'):
         if work == current or work.is_symlink() or not work.is_dir():
             continue
@@ -474,6 +599,8 @@ def prune_completed(current):
         if old.get('status') != 'published' or old.get('commit') != work.name[len('deployment-'):]:
             continue
         if old.get('private_backup_retained') is True:
+            if work != newest:
+                retain_migration_backup(work, old)
             continue
         if work.stat().st_uid != os.geteuid() or set(p.name for p in work.iterdir()) != {'build.tar.gz', 'previous', 'result.json'}:
             raise RuntimeError('Old deployment workspace requires manual review; new release remains active.')
