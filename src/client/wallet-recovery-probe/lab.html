@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>0xDMme — ensaio local de recuperação</title>
+    <link rel="stylesheet" href="/probe.css" />
+  </head>
+  <body>
+    <main>
+      <h1>Ensaio local de recuperação</h1>
+      <p>
+        Somente dados fictícios e wallet de teste, sem fundos. Este laboratório
+        não acessa sua conta ou seu cofre do 0xDMme.
+      </p>
+      <p>
+        A assinatura exclusiva deste ensaio permite abrir seu pacote. Trate-a
+        como segredo; nunca a compartilhe. O laboratório não mostra, registra ou
+        envia a assinatura.
+      </p>
+      <label for="wallet">Wallet de teste</label>
+      <select id="wallet"></select>
+      <label
+        ><input type="checkbox" id="consent" /> Confirmo o uso de uma wallet de
+        teste e entendo que isto não protege dados reais.</label
+      >
+      <div>
+        <button id="create" type="button">
+          Criar ensaio — assinar duas vezes
+        </button>
+      </div>
+      <p id="status" role="status" aria-live="polite">
+        Selecione sua wallet de teste.
+      </p>
+      <div>
+        <button id="download" type="button">Baixar pacote cifrado</button>
+        <button id="erase" type="button">Apagar somente o ensaio</button>
+      </div>
+      <label for="import"
+        >Importar pacote fictício cifrado, processado neste navegador</label
+      >
+      <input id="import" type="file" accept=".json,application/json" />
+      <p>
+        O arquivo selecionado passa a ser o alvo da recuperação. Confira abaixo
+        a conta e o identificador do pacote ativo.
+      </p>
+      <p id="packet-status" aria-live="polite"></p>
+      <button id="recover" type="button">Testar este pacote</button>
+      <ol>
+        <li>
+          Crie o ensaio. Confira que os dois pedidos têm exatamente a mesma
+          mensagem.
+        </li>
+        <li>Recarregue esta página e clique em Testar este pacote.</li>
+        <li>
+          Troque a conta na wallet: recuperar deve recusar a conta diferente.
+        </li>
+        <li>
+          Baixe o pacote e escolha esse arquivo para importar. Confira seu
+          identificador e clique em Testar este pacote. Faça também o teste em
+          um perfil limpo, usando a mesma origem e a conta original.
+        </li>
+      </ol>
+      <p>
+        Um resultado positivo aqui não comprova compatibilidade entre wallets,
+        aparelhos ou futuras atualizações. O vínculo por QR e a recuperação
+        atual permanecem no app.
+      </p>
+      <p>
+        Fontes e licenças: repositório local,
+        <code>docs/ENSAIO_RECUPERACAO_WALLET.md</code>. Uso local; nenhuma
+        publicação deste ensaio foi aprovada.
+      </p>
+    </main>
+    <script type="module" src="{{SCRIPT}}"></script>
+  </body>
+</html>

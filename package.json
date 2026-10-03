@@ -11,6 +11,7 @@
   "scripts": {
     "dev": "npm run build && node --env-file-if-exists=.env src/server/main.ts",
     "probe:crypto": "node src/server/probe.ts",
+    "probe:wallet-recovery": "node src/server/wallet-recovery-probe.ts",
     "probe:mobile": "node src/server/mobile-probe.ts",
     "probe:zk:prepare": "node src/tools/prepare-zk.ts",
     "probe:zk": "node src/tools/zk-probe.ts",
