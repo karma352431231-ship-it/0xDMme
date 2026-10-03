@@ -231,3 +231,17 @@ pelo comando; o aceite físico mobile da autenticação continua pendente.
 **Ponto importante:** o envio ao GitHub/VPS não libera a V1, não substitui aceite
 mobile e não torna seguro usar conversas reais. O risco residual de hardware e
 rede compartilhados continua conforme a [decisão de isolamento](DOMINIO_E_AMBIENTE_TESTE.md).
+
+## Transição autorizada dos blocos 06–07 em 03/10/2026
+
+O proprietário pediu explicitamente publicação/ativação e aprovou aumentar somente `client_max_body_size` do site próprio de 5 MiB para 8 MiB. O limite de foto no app permanece 3.000.000 bytes; a cifra e seu transporte são maiores. Não há alteração de Node, dependências, serviços/bancos do outro projeto ou limites persistentes de Git. O reload do Nginx é gracioso, precedido por validação e seguido por comparação dos fingerprints/processos e respostas existentes.
+
+Comando específico: `python3 infra/staging/deploy_blocks67.py --activate`, executado no Mac em checkout limpo do commit exato com CI aprovada. `--check` prepara/sincroniza/verifica sem ativação. O executor aceita somente a aplicação revisada em `8e74bb1` sobre o predecessor `32663bb`, com migrações 010–015; o comando comum continua recusando mudanças de banco e artefatos maiores que 16 MiB.
+
+O Mac prepara o build completo e seu manifesto. O pacote transferido omite somente as 18 partes da fonte preferencial Matrix, já presente no Git dedicado da VPS. O executor copia esses bytes do blob versionado em blocos, sem compilar ou instalar, verificando tamanho, SHA-256 integral e hash de cada parte contra o build do Mac. Todas as fontes permanecem disponíveis na publicação. O pacote mantém teto de 16 MiB e a soma de código/assets/dependências permanece limitada a 128 MiB. Só a verificação HTTP do WASM conhecido admite 8 MiB; as demais respostas conservam 2 MiB.
+
+Antes de migrar, parar somente o writer `0xdmme-test.service`, conferir schema 1–9 e preservar hashes das 12 tabelas existentes. Fazer backup privado de até 64 MiB, verificar sua integridade e ensaiar restauração do schema próprio dentro de transação revertida. Após migrar, conferir checksums 1–15, dados anteriores, tabelas novas vazias e contabilidade de bytes. Falha antes de reabrir admite retorno verificado; após reabrir, nunca restaurar automaticamente o banco antigo, pois novos dados podem existir. Guardar backup/versão anterior em workspace próprio para revisão posterior.
+
+A evidência histórica de preservação permanece intacta. Uma diferença de HTTP já existente antes da operação foi investigada e registrada privadamente; esta transição exige os fingerprints/processos históricos e compara a resposta atual antes/depois, sem reescrever o baseline para ocultá-la. A entrada privada `.local/VPS_BLOCK67_REVIEW.json` contém a proposta exata do site próprio e a evidência de respostas, com permissões 0600. Acesso, inventário, recibos e backups ficam exclusivamente em `.local/` ou na área privada dedicada da VPS.
+
+O executor mantém CPU 10% de um núcleo, RAM 192 MiB, sem swap, 32 tarefas e duração de até 240 segundos por operação. O web mantém os limites próprios já configurados. Não reiniciar serviços compartilhados; somente o reload aprovado do Nginx. DNS/HTTPS e publicação de teste não constituem aceite de segurança nem substituem testes físicos mobile.

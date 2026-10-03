@@ -147,8 +147,10 @@ if(url.hostname!=='127.0.0.1'||url.port!=='45433'||url.pathname!=='/hash_talk_st
 """
 
 
-def database_snapshot():
-    tables = json.dumps(OLD_TABLES)
+def database_snapshot(tables=OLD_TABLES):
+    if not tables or any(not name.replace('_', '').isalnum() for name in tables):
+        raise RuntimeError('Invalid snapshot table contract.')
+    tables = json.dumps(tables)
     result = node("""
 import { createRequire } from 'node:module';
 const pg = createRequire('/var/lib/0xdmme/data/release/package.json')('pg');
@@ -253,21 +255,21 @@ def restore_sql(work, checksum):
     return sql
 
 
-def validate_restore(work, expected, checksum):
+def validate_restore(work, expected, checksum, *, snapshot=None):
     sql = restore_sql(work, checksum)
     # Exercise DDL, COPY and constraints while our writer is stopped, then roll back everything.
     pg(['psql', '--no-psqlrc', '--set=ON_ERROR_STOP=1', '--quiet'],
        input=b'BEGIN; DROP SCHEMA hash_talk CASCADE;\n' + sql + b'\nROLLBACK;\n')
-    if database_snapshot() != expected:
+    if (snapshot or database_snapshot)() != expected:
         raise RuntimeError('Restore rehearsal did not preserve the original database.')
 
 
-def restore(work, expected, checksum):
+def restore(work, expected, checksum, *, snapshot=None):
     sql = restore_sql(work, checksum)
     # Only our schema, in one transaction. Never restore after reopening the writer.
     pg(['psql', '--no-psqlrc', '--set=ON_ERROR_STOP=1', '--quiet'],
        input=b'BEGIN; DROP SCHEMA hash_talk CASCADE;\n' + sql + b'\nCOMMIT;\n')
-    if database_snapshot() != expected:
+    if (snapshot or database_snapshot)() != expected:
         raise RuntimeError('Database return could not be verified.')
 
 

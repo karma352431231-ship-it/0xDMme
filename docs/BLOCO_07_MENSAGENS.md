@@ -48,11 +48,11 @@ O proprietário escolheu a opção 1 em 03/10/2026: preparar uma representação
 
 ## Limites de aceite e publicação
 
-Validação automatizada usa contas fictícias e PostgreSQL exclusivo. Testes físicos mobile, auditoria externa e aceite final de segurança continuam pendentes. Não há ativação, migração ou dados reais na VPS nesta etapa. As migrações 012–015 pertencem à implementação local e precisam de revisão própria para publicação.
+Validação automatizada usa contas fictícias e PostgreSQL exclusivo. Testes físicos mobile, auditoria externa e aceite final de segurança continuam pendentes. A implementação inicial foi validada localmente, sem ativação na VPS. Em 03/10/2026 o proprietário pediu a publicação e aprovou a transição descrita abaixo, incluindo as migrações 010–015 com backup e preservação.
 
-As [fontes correspondentes](FONTES_FRONTEND.md) incluem o motor compilado e fontes preferenciais da versão selecionada. O artefato completo supera o teto atual do comando de deploy; preparar uma publicação futura requer resolver essa distribuição com preservação das fontes e revisar os recursos/migrações, sem aumentar limites ou ativar serviços implicitamente.
+As [fontes correspondentes](FONTES_FRONTEND.md) incluem o motor compilado e fontes preferenciais da versão selecionada. O artefato completo supera o teto do comando comum de deploy. A transição específica aprovada conserva esse teto: transfere o build abaixo de 16 MiB e reconstrói as partes de fontes a partir do blob já recebido no Git dedicado, conferindo todos os hashes. Não há compilação na VPS ou omissão de fontes públicas.
 
-Em 03/10/2026, o proprietário autorizou receber essas fontes com exceção de 64 MiB somente no processo Git deste envio. A configuração persistente mantém 16 MiB e todos os demais limites continuam aplicados; encerramento do processo encerra a exceção. Conferir preservação e hash recebido, conforme o [fluxo aprovado](GIT_E_DEPLOY.md). Esta aprovação de transferência não libera o artefato de deploy nem as migrações.
+Em 03/10/2026, o proprietário autorizou receber essas fontes com exceção de 64 MiB somente no processo Git deste envio. A configuração persistente mantém 16 MiB e todos os demais limites continuam aplicados; encerramento do processo encerra a exceção. Conferir preservação e hash recebido, conforme o [fluxo aprovado](GIT_E_DEPLOY.md). Essa aprovação inicial de transferência não liberou deploy/migrações; a autorização posterior de publicação é separada e explícita.
 
 ## Verificação e revisão final
 
@@ -72,3 +72,7 @@ As correções foram revalidadas nos contratos afetados; não se apresenta a pri
 - `src/server/messages` e `src/server/database/{messages,matrix,message-recovery}.ts`: autorização, persistência, fila por aparelho e transporte. Migrações `012`–`015` versionadas; contratos de contatos e cotas reutilizados.
 - `src/tools/frontend-matrix-source.ts`, `vendor/matrix-crypto-18.9.0` e integração no build/host: motor selecionado e distribuição de suas fontes/licenças, com limites explícitos de assets.
 - Testes de mensagens/recuperação/visibilidade/índice, integração de mensagens/cofre, host web e recusa de deploy; fixture exclusiva para ensaios no navegador.
+
+## Publicação de teste autorizada em 03/10/2026
+
+O proprietário pediu “publica e ativa” e confirmou aumento do limite HTTP do site próprio de 5 para 8 MiB. O [executor específico dos blocos 06–07](GIT_E_DEPLOY.md) mantém Node/dependências e recursos existentes, verifica CI do commit exato, preserva backup e dados anteriores, aplica 010–015 e confere todos os assets/fontes publicados. A foto continua limitada a 3.000.000 bytes no app. Evidências e recibo de ativação ficam privados, fora do Git. A mesma publicação web/PWA atende desktop e mobile; instalações abertas precisam concluir a atualização. Testes físicos e aceite final de segurança continuam pendentes.
