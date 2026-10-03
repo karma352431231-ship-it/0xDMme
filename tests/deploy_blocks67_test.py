@@ -22,6 +22,28 @@ class PublicationTests(unittest.TestCase):
                 'old_sha256':hashlib.sha256(old.encode()).hexdigest(),
                 'new_sha256':hashlib.sha256(new.encode()).hexdigest()}
 
+    def test_proxy_validation_shadows_shared_logs_and_pid_only_in_its_namespace(self):
+        from types import SimpleNamespace
+        import shlex
+        files={}
+        for name in ['deploy_remote','deploy_blocks45','deploy_blocks67']:
+            files['infra/staging/'+name+'.py']=hashlib.sha256((Path(transition.__file__).parent/(name+'.py')).read_bytes()).hexdigest()
+        with tempfile.TemporaryDirectory() as directory:
+            local=Path(directory); (local/('a'*40)).mkdir()
+            config={'commit':'a'*40,'files':files}
+            result=SimpleNamespace(returncode=0,stdout=b'{"verified":true}',stderr=b'')
+            with patch.object(transition.subprocess,'run',return_value=result) as run:
+                for action in ['proxy','check']:
+                    transition.send(action,config,'fixture',SimpleNamespace(LOCAL=local))
+                    command=shlex.split(run.call_args.args[0][-1])
+                    if action=='proxy':
+                        self.assertIn('TemporaryFileSystem=/var/log/nginx:rw',command)
+                        self.assertIn('BindPaths=/dev/null:/run/nginx.pid',command)
+                    else:
+                        self.assertFalse(any(x.startswith(('TemporaryFileSystem=','BindPaths=')) for x in command))
+                    self.assertIn('ProtectSystem=strict',command)
+                    self.assertIn('MemoryMax=192M',command)
+
     def test_proxy_scope_rejects_extra_changes_and_digest_tampering(self):
         proposal = self.proposal(transition.PROXY)
         transition.validate_proxy(proposal)

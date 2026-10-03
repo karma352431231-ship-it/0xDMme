@@ -419,6 +419,10 @@ def send(action, config, target, deploy):
     properties = ['CPUQuota=10%', 'MemoryMax=192M', 'MemorySwapMax=0', 'TasksMax=32',
                   'Nice=19', 'IOSchedulingClass=idle', 'NoNewPrivileges=yes',
                   'ProtectSystem=strict', 'ProtectHome=yes', 'ReadWritePaths=' + str(base.DATA) + (' ' + str(PROXY) if action == 'proxy' else ''), 'RuntimeMaxSec=240']
+    if action == 'proxy':
+        # nginx -t opens logs and its PID path even without starting a master.
+        # Shadow those paths in this validator only; retain the live PID/logs.
+        properties += ['TemporaryFileSystem=/var/log/nginx:rw', 'BindPaths=/dev/null:/run/nginx.pid']
     args = ['systemd-run', '--quiet', '--wait', '--pipe', '--collect',
             '--unit=0xdmme-block67-' + action + '-' + config['commit'][:12], '--slice=xdmme-test.slice']
     for value in properties:
