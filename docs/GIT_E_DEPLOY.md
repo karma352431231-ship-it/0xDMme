@@ -123,6 +123,35 @@ autorizado não habilita ativação automática para os próximos envios de Git.
 
 ## Comando reutilizável aprovado
 
+### Transição específica do bloco 08, aprovada em 03/10/2026
+
+Após revisar a implementação, o proprietário pediu enviar e ativar o bloco 08.
+Usar o mesmo `npm run deploy:staging`, com exceção restrita no executor existente:
+predecessor ativo `931b09b`, fontes/runtime revisados em `121a4eb`, sequência
+001–015 intacta e somente a nova migração 016. O commit que incorpora o executor
+precisa passar em CI e ser enviado aos dois repositórios. Não há mudança de
+dependências, Node, Nginx ou serviços compartilhados.
+
+Antes de reabrir o escritor, o fluxo reutiliza as ferramentas de backup já
+validadas: dump privado de até 64 MiB, cópia/hash de objetos até 64 MiB, espaço
+adicional, parsing integral e restauração em transação encerrada por `ROLLBACK`.
+Conferir checksums 001–016, digests das 22 tabelas preexistentes, tabela de anexos
+inicialmente vazia e contabilidade de uso real. Parar/iniciar somente
+`0xdmme-test.service`, conservando as impressões de configuração, processos e
+saúde dos demais serviços. A política de retorno dos blocos 04–05 também vale:
+antes de reabrir é possível restaurar o schema próprio; depois de reabrir,
+preservar novas gravações e parar somente o app para correção, sem restaurar
+automaticamente o dump antigo. Backups e release anterior ficam privados.
+
+O bloqueio de outras alterações de banco continua ativo. Atualizações posteriores
+sem mudança do banco seguem o caminho comum, com build preparado no Mac e
+reutilização por commit. Um artefato incompleto antigo sem receipt/ativação deve
+ser investigado antes de liberar uma vaga; conservar sua evidência dentro do
+armazenamento próprio e não apagar backups de transições para abrir espaço.
+
+**Ponto importante:** a aprovação destina o bloco 08 ao ambiente de testes na VPS.
+Ela não conclui testes físicos mobile nem o aceite final para conversas reais.
+
 Depois desse primeiro deploy, o proprietário aprovou um comando explícito
 reutilizável, mantendo o build no Mac/ambiente de desenvolvimento. Publicar:
 

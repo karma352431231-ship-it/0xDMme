@@ -184,14 +184,15 @@ def private_inputs():
 
 
 def remote(action, config, target):
-    path = ROOT / 'infra/staging/deploy_remote.py'
-    sources = ROOT / 'infra/staging/deploy_sources.py'
-    if (digest(path) != config['files'].get('infra/staging/deploy_remote.py')
-            or digest(sources) != config['files'].get('infra/staging/deploy_sources.py')):
-        raise RuntimeError('Deployment executor changed after the reviewed commit.')
-    code = ("import sys,types; m=types.ModuleType('deploy_sources');"
-            "sys.modules['deploy_sources']=m;exec(" + repr(sources.read_text()) + " ,m.__dict__);"
-            "exec(" + repr(path.read_text()) + ")")
+    modules = []
+    for name in ['deploy_sources', 'deploy_remote', 'deploy_blocks45']:
+        path = ROOT / 'infra/staging' / (name + '.py')
+        if digest(path) != config['files'].get('infra/staging/' + name + '.py'):
+            raise RuntimeError('Deployment executor changed after the reviewed commit.')
+        modules.append('m=types.ModuleType(' + repr(name) + ');sys.modules[' + repr(name) +
+                       ']=m;exec(' + repr(path.read_text()) + ',m.__dict__)')
+    code = ('import sys,types,json;' + ';'.join(modules) +
+            ';print(json.dumps(sys.modules["deploy_remote"].main()))')
     command = shlex.join([
         'systemd-run', '--quiet', '--wait', '--pipe', '--collect',
         '--unit=0xdmme-deploy-' + action + '-' + config['commit'][:12],

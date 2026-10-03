@@ -9,6 +9,7 @@ import subprocess
 import sys
 import tarfile
 import tempfile
+from contextlib import ExitStack
 from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
@@ -16,6 +17,7 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'infra/staging'))
 import deploy
 import deploy_remote as remote
+import deploy_blocks45 as backups
 
 
 def manifest():
@@ -426,6 +428,111 @@ class DeploymentTests(unittest.TestCase):
                     deploy.prepare('f' * 40, 'codex/test')
             command.assert_not_called()
             self.assertFalse((base / ('f' * 40)).exists())
+
+
+class AttachmentDeploymentTests(unittest.TestCase):
+    def migrations(self, root):
+        directory = root / 'src/server/database/migrations'
+        directory.mkdir(parents=True)
+        for number in range(1, 17):
+            (directory / ('%03d.sql' % number)).write_text('fixture%d' % number)
+
+    def test_only_exact_reviewed_sources_and_predecessor_allow_migration(self):
+        with tempfile.TemporaryDirectory() as directory:
+            old, new = Path(directory) / 'old', Path(directory) / 'new'
+            self.migrations(new)
+            previous = {'src/main.ts':b'old', 'package.json':b'{}',
+                        'package-lock.json':b'lock', '.nvmrc':b'24.14.0'}
+            incoming = dict(previous, **{'src/main.ts':b'reviewed'})
+            for path in (new / 'src/server/database/migrations').iterdir():
+                name = str(path.relative_to(new))
+                incoming[name] = path.read_bytes()
+                if not path.name.startswith('016'): previous[name] = path.read_bytes()
+            for root, files in [(old, previous), (new, incoming)]:
+                for name, data in files.items():
+                    path = root / name; path.parent.mkdir(parents=True, exist_ok=True); path.write_bytes(data)
+            exports = {remote.ATTACHMENT_BEFORE:previous, remote.ATTACHMENT_REVIEWED:incoming}
+            with patch.object(backups, 'git_export', side_effect=lambda r:exports[r]):
+                remote.attachment_review(new, old)
+                for root, name in [(old, 'src/main.ts'), (new, 'src/main.ts'),
+                                   (new, 'src/server/database/migrations/001.sql'),
+                                   (new, 'package-lock.json')]:
+                    path = root / name; value = path.read_bytes(); path.write_bytes(b'unreviewed')
+                    with self.assertRaises(RuntimeError): remote.attachment_review(new, old)
+                    path.write_bytes(value)
+                (new / 'src/server/database/migrations/017.sql').write_text('unreviewed')
+                with self.assertRaises(RuntimeError): remote.attachment_review(new, old)
+
+    def test_migration_checksums_existing_data_and_ledger_are_preserved(self):
+        with tempfile.TemporaryDirectory() as directory:
+            candidate = Path(directory); self.migrations(candidate)
+            versions = remote.attachment_versions(candidate)
+            before = {'versions':versions[:15], 'tables':{'message_packets':'preserved','content_usage':'preserved'}}
+            after = dict(before, versions=versions)
+            with patch.object(remote, 'attachment_snapshot', return_value=after), patch.object(backups, 'pg', return_value=b't') as pg:
+                remote.verify_attachment_migration(candidate, before)
+                sql = pg.call_args.args[0][-1]
+                self.assertIn('NOT EXISTS(SELECT 1 FROM hash_talk.message_attachments)', sql)
+                self.assertIn('sum(charge) FROM hash_talk.message_packets', sql)
+            for invalid in [dict(after,tables={}), dict(after,versions=versions[:15])]:
+                with patch.object(remote, 'attachment_snapshot', return_value=invalid), self.assertRaises(RuntimeError):
+                    remote.verify_attachment_migration(candidate, before)
+            with patch.object(remote, 'attachment_snapshot', return_value=after), patch.object(backups, 'pg', return_value=b'f'), self.assertRaises(RuntimeError):
+                remote.verify_attachment_migration(candidate, before)
+            with patch.object(backups, 'database_snapshot') as snapshot:
+                remote.attachment_snapshot()
+                snapshot.assert_called_once_with(remote.ATTACHMENT_TABLES)
+                self.assertEqual(len(remote.ATTACHMENT_TABLES), 22)
+
+    def check_activation(self, failure):
+        with tempfile.TemporaryDirectory() as directory, ExitStack() as stack:
+            root = Path(directory); live = root / 'release'; live.mkdir(); (live / 'version').write_text('old')
+            work = root / 'deployment'; work.mkdir(); candidate = work / 'candidate'; candidate.mkdir()
+            (candidate / 'version').write_text('new'); (work / 'objects-backup').mkdir()
+            config = {'commit':'a'*40, 'baseline':{}, 'files':{}}
+            before = {'tables':{'message_packets':'preserved'}, 'versions':[{'version':n} for n in range(1,16)]}
+            state = {'value':before}
+            def migrate(_):
+                state['value'] = dict(before, versions=[{'version':16}])
+                if failure == 'migration': raise RuntimeError('failed before opening')
+            def restore(*_, **kwargs): state['value'] = before
+            for module, name, options in [
+                (remote,'DATA',{'new':root}), (remote,'attachment_review',{}),
+                (remote,'attachment_snapshot',{'side_effect':lambda:state['value']}),
+                (remote,'attachment_versions',{'return_value':before['versions']}),
+                (remote,'own_state',{'return_value':{}}), (remote,'preservation',{}),
+                (remote,'verify_attachment_migration',{}),
+                (backups,'own_free_bytes',{'return_value':2**30}),
+                (backups,'objects_snapshot',{'return_value':{}}),
+                (backups,'backup',{'return_value':'backup-hash'}),
+                (backups,'validate_restore',{}), (backups,'migrate',{'side_effect':migrate})]:
+                stack.enter_context(patch.object(module, name, **options))
+            command = stack.enter_context(patch.object(remote,'run',return_value=b'0'))
+            returned = stack.enter_context(patch.object(backups,'restore',side_effect=restore))
+            ready = stack.enter_context(patch.object(remote,'wait_ready',side_effect=RuntimeError('failed after opening') if failure=='opened' else None))
+            if failure:
+                with self.assertRaises(RuntimeError): remote.activate_attachments(config,work,candidate,{})
+            else: remote.activate_attachments(config,work,candidate,{})
+            receipt = json.loads((work / 'result.json').read_text())
+            commands = [c.args[0] for c in command.call_args_list]
+            self.assertTrue(all(c[:2]==['systemctl','show'] or c in [['systemctl','start',remote.UNIT],['systemctl','stop',remote.UNIT]] for c in commands))
+            if failure == 'migration':
+                returned.assert_called_once_with(work,before,'backup-hash',snapshot=remote.attachment_snapshot)
+                self.assertTrue(receipt['rollback_verified']); self.assertEqual(state['value'],before)
+                self.assertEqual((live / 'version').read_text(),'old')
+            elif failure == 'opened':
+                returned.assert_not_called(); self.assertTrue(receipt['new_state_preserved'])
+                self.assertFalse(receipt['rollback_verified']); self.assertEqual(commands[-1],['systemctl','stop',remote.UNIT])
+                self.assertEqual((live / 'version').read_text(),'new')
+            else:
+                returned.assert_not_called(); self.assertEqual(receipt['status'],'published')
+                self.assertTrue(receipt['private_backup_retained']); self.assertEqual((live / 'version').read_text(),'new')
+                ready.assert_called_once_with(config['files'])
+            self.assertTrue((work / 'objects-backup').is_dir())
+
+    def test_success_retains_backup_and_previous_release(self): self.check_activation(None)
+    def test_preopening_failure_restores_schema_and_previous_release(self): self.check_activation('migration')
+    def test_postopening_failure_preserves_new_data_and_stops_only_own_service(self): self.check_activation('opened')
 
 
 if __name__ == '__main__':

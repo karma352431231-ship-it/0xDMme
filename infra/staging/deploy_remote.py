@@ -27,6 +27,16 @@ PHANTOM_PROBE_LOCKFILES = frozenset([
     '4db68588987a5b5a1a3afedd09a6096a2c5ab51c37ac9f334af2cc06b8125092',
     'fac024d2596d80a4450f9ad46cc212e6b51e536f02062f630fd8c8c1adcc0be5',
 ])
+# Explicit block 08 approval (03/10/2026), bound to the deployed predecessor
+# and reviewed application. This is not a general migration override.
+ATTACHMENT_BEFORE = '931b09b4171269663e2c8aab813cff24da1c7bf5'
+ATTACHMENT_REVIEWED = '121a4eb76e776109ce972633a4681416598cfce1'
+ATTACHMENT_TABLES = ('accounts', 'content_usage', 'device_directories', 'device_events',
+                     'device_links', 'login_challenges', 'login_devices', 'login_handoffs',
+                     'login_sessions', 'service_metadata', 'vault_heads', 'vault_operations',
+                     'contact_controls', 'contact_relations', 'contact_blocks',
+                     'message_recovery_keys', 'message_packets', 'message_references',
+                     'message_heads', 'matrix_devices', 'matrix_one_time_keys', 'matrix_envelopes')
 
 
 def run(args, timeout=30):
@@ -173,6 +183,11 @@ def reviewed_lockfile_change(before, after):
     return runtime_entries(before) == runtime_entries(after)
 
 
+def database_files(root):
+    directory = root / 'src/server/database'
+    return {str(p.relative_to(directory)): digest(p) for p in directory.rglob('*') if p.is_file()}
+
+
 def compatibility(candidate, live):
     # Startup calls migrate(); guard both SQL and the code that executes it.
     for name in ['src/server/database', 'package-lock.json', '.nvmrc']:
@@ -181,10 +196,9 @@ def compatibility(candidate, live):
             # Earlier runtime exports omitted .nvmrc. Confirm runtime major below.
             continue
         if before.is_dir() and after.is_dir():
-            old = {str(p.relative_to(before)): digest(p) for p in before.rglob('*') if p.is_file()}
-            new = {str(p.relative_to(after)): digest(p) for p in after.rglob('*') if p.is_file()}
+            old, new = database_files(live), database_files(candidate)
             if old != new:
-                raise RuntimeError('Database code/migrations require separate review.')
+                attachment_review(candidate, live)
         elif not before.is_file() or not after.is_file():
             raise RuntimeError('Runtime dependency/Node change requires separate review.')
         elif digest(before) != digest(after):
@@ -205,6 +219,50 @@ def compatibility(candidate, live):
     actual = tuple(int(installed.group(index)) for index in [1, 2, 3])
     if actual < minimum or actual >= (int(approved.group(4)), 0, 0):
         raise RuntimeError('Installed Node is outside the approved runtime range.')
+
+
+def attachment_review(candidate, live):
+    import deploy_blocks45 as backups
+    paths = sorted((candidate / 'src/server/database/migrations').glob('*.sql'))
+    if len(paths) != 16 or [p.name[:3] for p in paths] != ['%03d' % n for n in range(1, 17)]:
+        raise RuntimeError('Block 08 migration sequence differs.')
+    previous = backups.git_export(ATTACHMENT_BEFORE)
+    approved = backups.git_export(ATTACHMENT_REVIEWED)
+    if not backups.matches_export(live, previous) or not backups.matches_export(candidate, approved):
+        raise RuntimeError('Database transition differs from the exact block 08 review.')
+    if any(previous[name] != approved[name] for name in ['package-lock.json', '.nvmrc']):
+        raise RuntimeError('Block 08 approval does not include dependency/Node changes.')
+    for path in paths[:15]:
+        name = 'src/server/database/migrations/' + path.name
+        if previous.get(name) != approved.get(name):
+            raise RuntimeError('Block 08 changes a previously applied migration.')
+
+
+def attachment_snapshot():
+    import deploy_blocks45 as backups
+    return backups.database_snapshot(ATTACHMENT_TABLES)
+
+
+def attachment_versions(candidate):
+    return [{'version':i + 1, 'checksum':digest(path)} for i, path in
+            enumerate(sorted((candidate / 'src/server/database/migrations').glob('*.sql')))]
+
+
+def verify_attachment_migration(candidate, before):
+    import deploy_blocks45 as backups
+    after = attachment_snapshot()
+    versions = attachment_versions(candidate)
+    if before['versions'] != versions[:15] or after['versions'] != versions or after['tables'] != before['tables']:
+        raise RuntimeError('Block 08 migration/data preservation failed.')
+    total = 'coalesce((SELECT sum(octet_length(profile_ciphertext)+524) FROM hash_talk.accounts),0)'
+    for table in ['vault_operations', 'message_recovery_keys', 'message_packets',
+                  'matrix_devices', 'matrix_one_time_keys', 'matrix_envelopes', 'message_attachments']:
+        total += ' + coalesce((SELECT sum(charge) FROM hash_talk.' + table + '),0)'
+    actual = backups.pg(['psql', '--no-psqlrc', '--set=ON_ERROR_STOP=1', '--tuples-only', '--no-align', '-c',
+                         'SELECT used_bytes=(' + total + ') AND NOT EXISTS(SELECT 1 FROM hash_talk.message_attachments) '
+                         'FROM hash_talk.content_usage WHERE singleton'])
+    if actual.strip() != b't':
+        raise RuntimeError('Block 08 attachment table/actual-use ledger inconsistent.')
 
 
 def preflight(config):
@@ -298,6 +356,76 @@ def receipt(work, data):
     temporary.replace(work / 'result.json')
 
 
+def activate_attachments(config, work, candidate, before_state):
+    """Reviewed 015→016 transition; reuse existing private backup/restore tools."""
+    import deploy_blocks45 as backups
+    attachment_review(candidate, DATA / 'release')
+    if attachment_snapshot()['versions'] != attachment_versions(candidate)[:15]:
+        raise RuntimeError('Live schema differs from the block 08 predecessor.')
+    if backups.own_free_bytes() < 2 * MAX_RELEASE + 2 * backups.MAX_BACKUP:
+        raise RuntimeError('Insufficient disk budget for private backups.')
+    receipt(work, {'status':'maintenance', 'commit':config['commit']})
+    opened = installed = False
+    before = objects = checksum = None
+    live, previous = DATA / 'release', work / 'previous'
+    try:
+        run(['systemctl', 'stop', UNIT])
+        if run(['systemctl', 'show', UNIT, '--property=MainPID', '--value']).strip() != b'0':
+            raise RuntimeError('Own writer did not stop.')
+        before, objects = attachment_snapshot(), backups.objects_snapshot()
+        checksum = backups.backup(work)
+        if backups.file_tree(work / 'objects-backup') != objects:
+            raise RuntimeError('Object backup verification failed.')
+        backups.validate_restore(work, before, checksum, snapshot=attachment_snapshot)
+        receipt(work, {'status':'backed-up', 'commit':config['commit'], 'backup_sha256':checksum})
+        backups.migrate(candidate)
+        verify_attachment_migration(candidate, before)
+        if backups.objects_snapshot() != objects:
+            raise RuntimeError('Existing objects changed during migration.')
+        preservation(config['baseline'])
+        if own_state() != before_state:
+            raise RuntimeError('Configuration/database process changed.')
+        live.rename(previous)
+        candidate.rename(live)
+        installed = True
+        receipt(work, {'status':'opening', 'commit':config['commit'], 'backup_sha256':checksum})
+        # New writes may exist after this point; never automatically restore old data.
+        opened = True
+        run(['systemctl', 'start', UNIT])
+        wait_ready(config['files'])
+        preservation(config['baseline'])
+        if own_state() != before_state:
+            raise RuntimeError('Configuration/database process changed.')
+    except BaseException:
+        rollback = False
+        try:
+            run(['systemctl', 'stop', UNIT])
+            if not opened:
+                if checksum is not None and before is not None and attachment_snapshot() != before:
+                    backups.restore(work, before, checksum, snapshot=attachment_snapshot)
+                if before is not None and attachment_snapshot() != before:
+                    raise RuntimeError('Pre-opening database return failed.')
+                if installed:
+                    live.rename(candidate)
+                if previous.exists():
+                    previous.rename(live)
+                run(['systemctl', 'start', UNIT])
+                wait_ready()
+                preservation(config['baseline'])
+                rollback = own_state() == before_state
+        except BaseException:
+            rollback = False
+        receipt(work, {'status':'failed', 'commit':config['commit'],
+                       'rollback_verified':rollback, 'new_state_preserved':opened})
+        raise RuntimeError('Transition failed; old release returned.' if rollback else
+                           'Transition failed; own service stopped and state retained for review.') from None
+    result = {'status':'published', 'commit':config['commit'], 'migrations_verified':True,
+              'public_build_verified':True, 'preservation_checks_passed':True,
+              'private_backup_retained':True, 'shared_services_restarted':False}
+    receipt(work, result)
+    return result
+
+
 def activate(config, work):
     before = preflight(config)
     if not work.is_dir() or work.is_symlink() or (work / 'result.json').exists():
@@ -308,6 +436,9 @@ def activate(config, work):
     preservation(config['baseline'])
     if own_state() != before:
         raise RuntimeError('Own configuration/database service changed.')
+    if database_files(candidate) != database_files(DATA / 'release'):
+        # Any unreviewed database change was rejected by prepare()/compatibility().
+        return activate_attachments(config, work, candidate, before)
     # Interrupted processes leave an explicit receipt; never blindly retry them.
     receipt(work, {'status': 'activating', 'commit': config['commit']})
     def verify():
