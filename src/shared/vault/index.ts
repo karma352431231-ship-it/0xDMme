@@ -36,7 +36,7 @@ export interface VaultCommit {
 export interface VaultChange {
   version: 1;
   entity: string;
-  kind: 'contact' | 'settings' | 'test';
+  kind: 'contact' | 'settings' | 'test' | 'address-book' | 'contact-invite';
   parents: string[];
   label: string;
 }
@@ -112,7 +112,9 @@ export function vaultChange(value: unknown): VaultChange {
   const kind = data['kind'];
   if (
     data['version'] !== 1 ||
-    !['contact', 'settings', 'test'].includes(String(kind)) ||
+    !['contact', 'settings', 'test', 'address-book', 'contact-invite'].includes(
+      String(kind),
+    ) ||
     !Array.isArray(data['parents']) ||
     data['parents'].length > 16
   )

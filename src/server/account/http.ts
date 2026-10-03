@@ -9,6 +9,7 @@ import { AccountService, challengeSeconds, sessionSeconds } from './service.ts';
 import { AccountRateLimit } from './rate-limit.ts';
 import type { DeviceService } from '../devices/index.ts';
 import type { VaultService } from '../vault/index.ts';
+import type { ContactService } from '../contacts/index.ts';
 import { blockLimit } from '../../shared/vault/index.ts';
 import { createApprovalEntry } from './approval-http.ts';
 import { RecoveryReturn } from '../recovery-return/index.ts';
@@ -87,6 +88,7 @@ export function createAccountHandler(options: {
   recoveryDocument?: Uint8Array;
   devices?: DeviceService;
   vault?: VaultService;
+  contacts?: ContactService;
 }) {
   const secure = new URL(options.origin).protocol === 'https:';
   const sessionName = secure ? '__Host-hash-talk-session' : 'hash-talk-session';
@@ -283,12 +285,33 @@ export function createAccountHandler(options: {
     }
     send(response, 200, result);
   }
+  async function contactPost(
+    request: IncomingMessage,
+    response: ServerResponse,
+    sessionToken: string,
+    input: unknown,
+  ): Promise<boolean> {
+    if (!request.url?.startsWith('/api/account/contacts/') || !options.contacts)
+      return false;
+    const session = await options.service.session(sessionToken);
+    send(
+      response,
+      200,
+      await options.contacts.operate(
+        request.url.slice('/api/account/contacts/'.length),
+        session,
+        input,
+      ),
+    );
+    return true;
+  }
   async function authenticatedPost(
     request: IncomingMessage,
     response: ServerResponse,
     sessionToken: string,
     input: unknown,
   ): Promise<void> {
+    if (await contactPost(request, response, sessionToken, input)) return;
     if (request.url?.startsWith('/api/account/recovery-')) {
       await privateRecoveryPost(request, response, sessionToken, input);
       return;

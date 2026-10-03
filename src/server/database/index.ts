@@ -4,6 +4,9 @@ import pg from 'pg';
 import { AuthenticationStore } from './authentication.ts';
 import { DeviceStore } from './devices.ts';
 import { VaultStore } from './vault.ts';
+import { ContactStore } from './contacts.ts';
+export type { ContactStore, ContactAuthority } from './contacts.ts';
+export { walletHash } from './contacts.ts';
 export type { VaultStore } from './vault.ts';
 export type { DeviceStore, DeviceLink, DirectoryRow } from './devices.ts';
 export type {
@@ -22,6 +25,7 @@ const migrations = [
   '007-used-capacity.sql',
   '008-content-usage.sql',
   '009-upload-expiry.sql',
+  '010-contacts.sql',
 ];
 
 export interface MaintenanceSnapshot {
@@ -51,6 +55,7 @@ export class Database {
   readonly authentication: AuthenticationStore;
   readonly devices: DeviceStore;
   readonly vault: VaultStore;
+  readonly contacts: ContactStore;
 
   constructor(connectionString: string, contentCapacity = 3_000_000_000) {
     this.pool = new pg.Pool({
@@ -71,6 +76,7 @@ export class Database {
     this.authentication = new AuthenticationStore(this.pool, contentCapacity);
     this.devices = new DeviceStore(this.pool, contentCapacity);
     this.vault = new VaultStore(this.pool, contentCapacity);
+    this.contacts = new ContactStore(this.pool);
   }
 
   async migrate(): Promise<void> {

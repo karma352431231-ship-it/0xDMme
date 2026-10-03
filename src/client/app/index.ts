@@ -2,6 +2,7 @@ import { startPwa } from '../pwa/index.ts';
 import { startAccount } from '../account/index.ts';
 import { startDevices } from '../devices/index.ts';
 import { startVault } from '../vault-ui/index.ts';
+import { startContacts } from '../contacts/index.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
 
 const pages = {
@@ -11,7 +12,7 @@ const pages = {
   },
   contatos: {
     title: 'Contatos',
-    content: `<div class="card empty-state"><span class="empty-symbol" aria-hidden="true">◎</span><span class="eyebrow">CONEXÕES SOB SEU CONTROLE</span><h2>Sua agenda começa com você.</h2><p>Contatos por wallet, convites e solicitações estarão disponíveis depois do login e do cofre. Apelidos particulares serão preservados de forma cifrada.</p><button class="primary" disabled>Adicionar contato · em preparação</button></div>`,
+    content: `<div class="cards" data-contacts-container></div>`,
   },
   cofre: {
     title: 'Cofre',
@@ -40,6 +41,7 @@ const devices = startDevices({
   },
 });
 const vault = startVault(devices);
+const contacts = startContacts(devices, vault.sync);
 const account = startAccount({
   privateKey: async (session) => {
     const key = await devices.privateKey(session);
@@ -52,6 +54,7 @@ const account = startAccount({
     connectedAccount = session;
     devices.setSession(session);
     vault.setSession(session);
+    contacts.setSession(session);
     connection();
     const label = document.getElementById('account-label');
     if (label)
@@ -65,7 +68,10 @@ const pwa = account.approvalPage
   ? null
   : startPwa({
       canActivate: () =>
-        account.canActivate() && devices.canActivate() && vault.canActivate(),
+        account.canActivate() &&
+        devices.canActivate() &&
+        vault.canActivate() &&
+        contacts.canActivate(),
     });
 
 function route(): void {
@@ -73,7 +79,7 @@ function route(): void {
     renderApprovalPage();
     return;
   }
-  const selected = location.hash.slice(1);
+  const selected = location.hash.slice(1).split('?')[0] ?? '';
   if (selected === 'workspace') return;
   const key = Object.hasOwn(pages, selected)
     ? (selected as keyof typeof pages)
@@ -84,12 +90,7 @@ function route(): void {
   // Templates are static authored content. No user/server input enters HTML.
   element('page-content').innerHTML = page.content;
   mountAccountPanels(key);
-  if (key === 'cofre') {
-    const container = element('page-content').querySelector<HTMLElement>(
-      '[data-vault-container]',
-    );
-    if (container) vault.mount(container);
-  }
+  mountFeature(key);
   document.querySelectorAll<HTMLAnchorElement>('nav a').forEach((link) => {
     if (link.dataset['route'] === key)
       link.setAttribute('aria-current', 'page');
@@ -102,14 +103,31 @@ function route(): void {
   });
   pwa?.render();
 }
+function mountFeature(key: keyof typeof pages): void {
+  const content = element('page-content');
+  const contactContainer = content.querySelector<HTMLElement>(
+    '[data-contacts-container]',
+  );
+  if (key === 'contatos' && contactContainer) contacts.mount(contactContainer);
+  const vaultContainer = content.querySelector<HTMLElement>(
+    '[data-vault-container]',
+  );
+  if (key === 'cofre' && vaultContainer) vault.mount(vaultContainer);
+}
+
 function mountAccountPanels(key: keyof typeof pages): void {
-  if (key === 'configuracoes' || key === 'conversas' || key === 'cofre') {
+  if (
+    key === 'configuracoes' ||
+    key === 'conversas' ||
+    key === 'cofre' ||
+    key === 'contatos'
+  ) {
     const container = document.createElement('div');
     container.className = 'account-section';
     element('page-content').prepend(container);
     account.mount(container);
   }
-  if (key === 'configuracoes' || key === 'cofre') {
+  if (key === 'configuracoes' || key === 'cofre' || key === 'contatos') {
     const container = document.createElement('div');
     container.className = 'account-section';
     element('page-content').append(container);

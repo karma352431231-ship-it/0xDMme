@@ -659,6 +659,17 @@ footer {
   cursor: default;
   opacity: 0.6;
 }
+[data-contacts-container] {
+  grid-template-columns: minmax(0, 1fr);
+}
+.contacts-card {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.contacts-card form,
+.contacts-card label {
+  min-width: 0;
+}
 .recovery-message {
   white-space: pre-wrap;
   overflow-wrap: anywhere;

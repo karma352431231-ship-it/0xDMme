@@ -13,6 +13,7 @@ import { readWebConfiguration } from '../src/server/web-configuration/index.ts';
 import { DeviceService } from '../src/server/devices/index.ts';
 import { VaultService } from '../src/server/vault/index.ts';
 import { ObjectStore } from '../src/server/object-store/index.ts';
+import { ContactService } from '../src/server/contacts/index.ts';
 
 // Explicit manual-browser fixture, excluded from production build/entry point.
 // Isolated test database and fixed loopback origin; never accepts real wallet keys.
@@ -104,6 +105,7 @@ const host = createWebServer({
   database,
   objects,
   account: createAccountHandler({
+    contacts: new ContactService(database.contacts, database.devices),
     devices: new DeviceService(database.devices, origin),
     ...fixtureDocuments(),
     vault: new VaultService({

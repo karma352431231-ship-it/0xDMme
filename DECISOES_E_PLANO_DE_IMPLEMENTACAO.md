@@ -1,7 +1,7 @@
 # 0xDMme — decisões e plano de implementação
 
 Data: 29 de setembro de 2026  
-Estado: bloco 00 concluído; seleção técnica e prova funcional do bloco 01 concluídas; base local web/PWA do bloco 02 implementada, com validação automatizada de persistência; bloco 03 — Wallet, conta e perfil — concluído em 02/10/2026; blocos 04 — Dispositivos, chaves e recuperação — e 05 — Cofre remoto e cópia local — concluídos localmente com revisão no Mac, conforme autorização do proprietário. Testes físicos mobile dos blocos 04–05 ficam para depois. Próxima fase: bloco 06 — Contatos, consentimento e bloqueio. Ainda não há aplicação de chat para dados reais.
+Estado: bloco 00 concluído; seleção técnica e prova funcional do bloco 01 concluídas; base local web/PWA do bloco 02 implementada, com validação automatizada de persistência; bloco 03 — Wallet, conta e perfil — concluído em 02/10/2026; blocos 04 — Dispositivos, chaves e recuperação — e 05 — Cofre remoto e cópia local — concluídos localmente com revisão no Mac, conforme autorização do proprietário. Testes físicos mobile dos blocos 04–05 ficam para depois. Bloco 06 — Contatos, consentimento e bloqueio — concluído localmente em 03/10/2026. Próxima fase: bloco 07 — Mensagens individuais e fila sem expiração. Ainda não há aplicação de chat para dados reais.
 
 Nome público aprovado em 01/10/2026: **0xDMme**. Domínio **0xdmme.app**, comprado pelo proprietário via **Namecheap**. Configurar HTTPS público válido em ambiente de teste isolado na infraestrutura própria para destravar os ensaios mobile. A identidade visual completa continua pendente; o domínio não representa lançamento do chat para dados reais.
 
@@ -455,6 +455,12 @@ Verificação da base: lint, tipos, fronteiras, formatação e 13 testes passara
 
 ### Bloco 06 — Contatos, consentimento e bloqueio
 
+**Estado:** concluído localmente em 03/10/2026, conforme autorização para implementação integral e decisões técnicas dentro do plano. [Decisões, arquivos, validação e roteiro físico](docs/BLOCO_06_CONTATOS.md). Agenda/apelidos e pins cifrados no cofre; convite revogável por link/QR, três modos de descoberta, caixa limitada, aceite/rejeição/cancelamento e bloqueio aplicado no servidor. Desbloquear/restaurar agenda não restaura consentimento. Padrão somente convite; assinatura de aparelho, sessão, origem/CSRF e revisão de política obrigatórios. Migração 010 apenas no banco de teste local; não ativada na VPS.
+
+Limites iniciais implementados: 64 recebidas e 32 enviadas pendentes, 32 novos pedidos/dia UTC, 256 relações e 256 bloqueios por conta, 10.000 relações globais, 10.000 bloqueios globais, 20.000 controles de conta globais e páginas de 16. São budgets operacionais, sujeitos à calibração com carga; não mudam cotas de conteúdo nem reservam disco antecipadamente. Foto própria permanece cifrada; distribuição para aprovados será integrada pelo canal Olm no bloco 07. Presença/leitura e notificações conservam seus blocos. Testes físicos mobile posteriores à conclusão local.
+
+**Ponto importante:** salvar na agenda, solicitar e aprovar são ações separadas. Bloqueio retira aprovação bilateral e protege consultas/pedidos/diretório no backend; a admissão de mensagens do bloco 07 precisa conferir a mesma regra atomicamente. Nenhum chat real foi habilitado.
+
 **Depende de:** 03–05.
 
 1. Adicionar contatos por wallet, com apelidos particulares criptografados.
@@ -697,7 +703,7 @@ Revisão de fechamento conceitual: o escopo está suficientemente definido para 
 | Governança do cofre de grupo                | 05, 07 e 11                                              | Já fixados 1 GB, divisão 750/250 MB, tiers, uso global efetivo e expiração de mídias inclusive pendentes. Fechar poderes de limpeza manual, saída do proprietário e acesso remoto de ex-membros; não reabrir cotas aprovadas.                                      |
 | Política exata de ACK/cofre                 | 05–07                                                    | Ausência de perda silenciosa e semântica clara por dispositivo.                                                                                                                                                                                                    |
 | Revogação de dispositivos                   | 04                                                       | Conta não pode ser tomada apenas manipulando o diretório do servidor. Troca/recuperação de wallet fora do escopo inicial.                                                                                                                                          |
-| Representação de mute/bloqueio              | 06 e 10                                                  | Funcionamento em segundo plano com mínimo de metadados.                                                                                                                                                                                                            |
+| Representação de mute/bloqueio              | 06 concluído; mute no 10                                 | Bloqueio por digest de ecossistema/wallet e relações limitadas aplicado no servidor; custo operacional documentado no bloco 06. Mute/notificações permanecem no 10.                                                                                                |
 | Biblioteca/circuitos ZK                     | 01 e 12                                                  | Propriedades verificáveis, revisão existente e desempenho mobile.                                                                                                                                                                                                  |
 | Rede e contratos de recursos futuros        | 13, após V1                                              | Taxas, compatibilidade, RPC e custo de implantação explícitos. Não bloqueia núcleo/V1; token de elegibilidade tem decisão separada.                                                                                                                                |
 | Armazenamento permanente                    | 13, após V1                                              | Modelo real de disponibilidade/custo; não confundir hash com arquivo. Não bloqueia V1.                                                                                                                                                                             |
@@ -797,7 +803,7 @@ Padrões aprovados para V1, com presença/leitura obrigatórias e configuráveis
 - Ocultar presença exige restringir emissão/distribuição dos eventos, não apenas esconder elementos visuais. Isso não impede o backend de observar conexões necessárias ao serviço. Não usar horário preciso de leitura no evento técnico de entrega.
 - Status, quando implementado, restrito à audiência escolhida entre contatos aprovados; participação num grupo não aprova automaticamente todos como contatos particulares.
 
-Definir como padrões criptografados de perfil/foto são distribuídos a contatos autorizados. Um controle visual na interface não basta para tornar privada uma imagem servida por URL pública.
+Decisão da implementação do bloco 06: padrão somente convite; agenda/apelidos particulares no cofre e permissões atuais no servidor. Perfil/foto para aprovados será enviado pelo canal Olm autenticado do bloco 07, sem URL pública e sem compartilhar a chave do perfil particular. O nome escolhido já aparece nas solicitações; a foto própria continua cifrada. Bloqueio impede novas distribuições, preservando a limitação de cópias anteriores. Ver [decisões do bloco 06](docs/BLOCO_06_CONTATOS.md).
 
 ### 12.3 Ordem de esforço para comparar recursos
 

@@ -6,6 +6,8 @@ O objetivo é oferecer autenticação por wallet e criptografia ponta a ponta, p
 
 ## Estado atual
 
+O [bloco 06](docs/BLOCO_06_CONTATOS.md) está concluído localmente: agenda por wallet com apelidos cifrados, convite revogável por link/QR, descoberta controlada, solicitações limitadas, consentimento bilateral e bloqueio no servidor. A referência de identidade fica no cofre. Testes físicos mobile permanecem posteriores; migração 010 não ativada na VPS. Próximo bloco: mensagens individuais e fila sem expiração (07).
+
 O [bloco 05](docs/BLOCO_05_COFRE.md) está concluído localmente: agenda/configurações privadas e dados fictícios cifrados, versões preservadas, conflitos explícitos, cópia local offline e recuperação em outro aparelho. A cota pessoal permanece 300 MB, contada conforme o conteúdo e os uploads concretos; cadastrar uma conta não reserva 300 MB. O teto de 1 GB por grupo também permanece, sem alocação antecipada, para o bloco de grupos. Testes físicos mobile dos blocos 04–05 ficam para depois. Migrações 006–009 ainda não foram ativadas na VPS.
 
 O [bloco 04](docs/BLOCO_04_DISPOSITIVOS_E_RECUPERACAO.md) implementa localmente autorização verificável dos aparelhos, vinculação por QR Code/código, recuperação com wallet original e segredo e revogação com troca de chaves. Sua validação física mobile fica para o proprietário após a revisão no Mac, conforme autorização de 02/10/2026. Há migrações novas; esta entrega não foi publicada na VPS e não representa chat para dados reais.
@@ -47,6 +49,7 @@ Para iPhone na mesma rede privada do Mac, o perfil opcional `npm run probe:mobil
 - [Base web do bloco 02](docs/BLOCO_02_BASE_WEB.md): execução, políticas PWA/backend, verificação e pendências.
 - [Conta e perfil do bloco 03](docs/BLOCO_03_CONTA_E_PERFIL.md): autenticação EVM, limites, perfil cifrado e impedimento mobile.
 - [Dispositivos e recuperação do bloco 04](docs/BLOCO_04_DISPOSITIVOS_E_RECUPERACAO.md): autoridade das chaves, vinculação, revogação, recuperação, perda e validação.
+- [Contatos do bloco 06](docs/BLOCO_06_CONTATOS.md): agenda particular, descoberta, consentimento, bloqueio, budgets e roteiro de teste.
 - [Cofre do bloco 05](docs/BLOCO_05_COFRE.md): versões cifradas, uso efetivo, cópia local, conflitos e roteiro de teste.
 - [Domínio e ambiente de testes](docs/DOMINIO_E_AMBIENTE_TESTE.md): DNS Namecheap, HTTPS, isolamento da VPS e pendências de ativação.
 - [Git e envio à VPS](docs/GIT_E_DEPLOY.md): commits por escopo, sincronização do código por Git e limites da ativação de versões.

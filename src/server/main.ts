@@ -6,6 +6,7 @@ import { AccountService, createAccountHandler } from './account/index.ts';
 import { chmod } from 'node:fs/promises';
 import { DeviceService } from './devices/index.ts';
 import { VaultService } from './vault/index.ts';
+import { ContactService } from './contacts/index.ts';
 
 let database: Database | undefined;
 
@@ -28,6 +29,7 @@ try {
     database,
     objects,
     account: createAccountHandler({
+      contacts: new ContactService(database.contacts, database.devices),
       devices: new DeviceService(database.devices, config.origin),
       vault: new VaultService({
         store: database.vault,

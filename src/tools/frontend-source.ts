@@ -7,6 +7,7 @@ const execute = promisify(execFile);
 const authored = [
   'src/client/account',
   'src/client/account-profile',
+  'src/client/contacts',
   'src/client/device-keys',
   'src/client/device-storage',
   'src/client/device-operations',
@@ -24,6 +25,7 @@ const authored = [
   'src/client/wallet-recovery',
   'src/client/recovery-return',
   'src/shared/account',
+  'src/shared/contacts',
   'src/shared/devices',
   'src/shared/vault',
   'src/shared/pwa-policy',

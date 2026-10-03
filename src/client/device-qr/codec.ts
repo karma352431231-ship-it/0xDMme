@@ -3,7 +3,7 @@ import decodeQR from 'qr/decode.js';
 import { canonical, linkCode } from '../../shared/devices/index.ts';
 import type { LinkCode } from '../../shared/devices/index.ts';
 
-export type QrKind = 'link' | 'receipt';
+export type QrKind = 'link' | 'receipt' | 'invitation';
 const prefix = { link: '0xdmme-link:1:', receipt: '0xdmme-confirm:1:' };
 const frameMisses = new Set([
   'data',
@@ -25,6 +25,16 @@ export function qrReceipt(receipt: string): string {
   return prefix.receipt + receipt;
 }
 export function readQrPayload(payload: string, kind: QrKind): string {
+  if (kind === 'invitation') {
+    if (
+      payload.length > 512 ||
+      !/^https?:\/\/[^\s]+\/#contatos\?convite=[a-f0-9-]{36}\.[a-f0-9]{64}$/u.test(
+        payload,
+      )
+    )
+      throw new Error('Este QR Code não contém um convite do 0xDMme.');
+    return payload;
+  }
   if (payload.length > 4096 || !payload.startsWith(prefix[kind]))
     throw new Error('Este QR Code não corresponde à etapa de vinculação.');
   const value = payload.slice(prefix[kind].length);
@@ -37,13 +47,17 @@ export function qrMatrix(payload: string): boolean[][] {
   if (payload.length > 4096) throw new Error('QR Code excedido.');
   return encodeQR(payload, 'raw', { ecc: 'medium', border: 4 });
 }
-export function renderQr(container: HTMLElement, payload: string): void {
+export function renderQr(
+  container: HTMLElement,
+  payload: string,
+  label = 'QR Code de vinculação de aparelho',
+): void {
   if (container.dataset['qrPayload'] === payload) return;
   const matrix = qrMatrix(payload);
   const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
   svg.setAttribute('viewBox', `0 0 ${matrix.length} ${matrix.length}`);
   svg.setAttribute('role', 'img');
-  svg.setAttribute('aria-label', 'QR Code de vinculação de aparelho');
+  svg.setAttribute('aria-label', label);
   svg.setAttribute('shape-rendering', 'crispEdges');
   const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
   const cells: string[] = [];

@@ -300,6 +300,7 @@ export function startVault(access: VaultAccess) {
     );
   }
   return {
+    sync,
     setSession(session: AccountSession | null): void {
       const previous = sync.session;
       sync.setSession(session);
