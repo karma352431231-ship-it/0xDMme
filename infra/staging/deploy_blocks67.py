@@ -53,7 +53,7 @@ def preservation(config):
             differences += 1
             if old['status'] != '502' or current['current'] != '404':
                 raise RuntimeError('Unreviewed pre-existing HTTP discrepancy.')
-    if differences != 1:
+    if differences > 1:
         raise RuntimeError('Reviewed pre-existing HTTP discrepancy differs.')
     # Historical files/process fingerprints remain authoritative and immutable.
     # Only the recorded pre-existing HTTP difference is compared before/after.

@@ -55,6 +55,12 @@ class PublicationTests(unittest.TestCase):
             self.assertEqual(guard.call_args.args[0]['services'], historical['services'])
             self.assertEqual(guard.call_args.args[0]['sites'][0]['status'],'404')
         self.assertEqual(json.dumps(historical,sort_keys=True),original)
+        # The current approved deployment baseline already records the response.
+        current_baseline = dict(historical, sites=[{'host':'fixture.invalid','status':'404'}])
+        current_review = [dict(review[0], historical='404')]
+        with patch.object(base,'preservation') as guard:
+            transition.preservation({'baseline':current_baseline,'site_review':current_review})
+            self.assertEqual(guard.call_args.args[0]['sites'], current_baseline['sites'])
         review[0]['current'] = '200'
         with self.assertRaises(RuntimeError):
             transition.preservation({'baseline':historical,'site_review':review})
