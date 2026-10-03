@@ -1,4 +1,8 @@
 import {
+  attachmentContent,
+  contentRefs,
+} from '../../shared/attachments/index.ts';
+import {
   CollectStrategy,
   DecryptionSettings,
   DeviceId,
@@ -51,6 +55,31 @@ const silentLogger = {
   warn: () => {},
   error: () => {},
 };
+function messageType(kind: MessagePacket['kind']): string {
+  return kind === 'text' ? 'm.text' : `org.0xdmme.${kind}`;
+}
+function attachmentMetadata(
+  kind: MessagePacket['kind'] | undefined,
+  text: string,
+): {
+  attachments?: import('../../shared/attachments/index.ts').AttachmentRef[];
+} {
+  return kind === 'attachment'
+    ? {
+        attachments: contentRefs(
+          attachmentContent(JSON.parse(text) as unknown),
+        ),
+      }
+    : {};
+}
+function checkAttachmentPacket(packet: MessagePacket, text: string): void {
+  if (
+    packet.kind === 'attachment' &&
+    canonical(contentRefs(attachmentContent(JSON.parse(text) as unknown))) !==
+      canonical(packet.attachments)
+  )
+    throw new Error('Anexos divergentes da mensagem autenticada.');
+}
 function roomContent(input: {
   text: string;
   id: string;
@@ -59,7 +88,7 @@ function roomContent(input: {
   kind: MessagePacket['kind'];
 }): string {
   const value = JSON.stringify({
-    msgtype: input.kind === 'profile' ? 'org.0xdmme.profile' : 'm.text',
+    msgtype: messageType(input.kind),
     body: input.text,
     'org.0xdmme.message': {
       id: input.id,
@@ -339,6 +368,7 @@ export class MessageCrypto {
     const packet: MessagePacket = messagePacket({
       version: 1,
       kind: input.kind ?? 'text',
+      ...attachmentMetadata(input.kind, text),
       id,
       sender: authority.session.accountId,
       recipient: peer.accountId,
@@ -397,14 +427,14 @@ export class MessageCrypto {
           ),
           identity = object(payload['org.0xdmme.message']);
         if (
-          payload['msgtype'] !==
-            (packet.kind === 'profile' ? 'org.0xdmme.profile' : 'm.text') ||
+          payload['msgtype'] !== messageType(packet.kind) ||
           typeof payload['body'] !== 'string' ||
           identity['id'] !== packet.id ||
           identity['sender'] !== packet.sender ||
           identity['recipient'] !== packet.recipient
         )
           throw new Error('Conteúdo não corresponde à mensagem autenticada.');
+        checkAttachmentPacket(packet, payload['body']);
         return payload['body'];
       } finally {
         event.free();

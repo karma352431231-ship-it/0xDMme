@@ -40,6 +40,8 @@ function cookie(
 }
 
 function messageBodyLimit(url: string): number {
+  if (url.endsWith('/attachment-part')) return 360_000;
+  if (url.endsWith('/attachment-reserve')) return 12_000;
   if (url.endsWith('/publish')) return 8_200_000;
   if (url.endsWith('/matrix-upload')) return 200_000;
   if (url.endsWith('/matrix-send')) return 1_100_000;
@@ -184,6 +186,11 @@ export function createAccountHandler(options: {
         token,
         request.headers['x-hash-talk-csrf'],
       );
+      if (request.url.endsWith('/attachment-part'))
+        await options.messages.preflightAttachment(
+          await options.service.session(token),
+          request.headers['x-0xdmme-attachment-id'],
+        );
       await messagePost(request, response, token, await body(request));
       return true;
     }

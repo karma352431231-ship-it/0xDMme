@@ -83,3 +83,38 @@ await test('objeto e diretório com symlink não atravessam fronteira de armazen
     new ObjectStore(resolve(directory, 'linked')).initialize(),
   );
 });
+
+await test('retomada sob lease remove temporário recente de anexo sem apagar partes duráveis ou outro namespace', async (t) => {
+  const directory = await realpath(
+    await mkdtemp(join(tmpdir(), 'hash-talk-attachment-resume-')),
+  );
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  const store = new ObjectStore(directory);
+  await store.initialize();
+  const id = crypto.randomUUID(),
+    otherId = crypto.randomUUID(),
+    first = await store.attachment(id),
+    second = await store.attachment(otherId),
+    hash = await first.put(new Uint8Array([1, 2, 3])),
+    otherHash = await second.put(new Uint8Array([4, 5, 6]));
+  await writeFile(
+    join(
+      directory,
+      `attachment-${id}`,
+      '.staging',
+      `pending-${crypto.randomUUID()}`,
+    ),
+    'synthetic-recent-interrupted-write',
+  );
+  const resumed = await store.attachment(id);
+  assert.deepEqual(
+    await readdir(join(directory, `attachment-${id}`, '.staging')),
+    [],
+  );
+  assert.deepEqual([...(await resumed.read(hash))], [1, 2, 3]);
+  await store.discardAttachment(id);
+  assert.deepEqual(
+    [...(await (await store.readAttachment(otherId)).read(otherHash))],
+    [4, 5, 6],
+  );
+});

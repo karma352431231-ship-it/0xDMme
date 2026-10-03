@@ -29,6 +29,9 @@ export async function messageApi(
     headers: {
       'Content-Type': 'application/json',
       'X-Hash-Talk-CSRF': authority.session.csrf,
+      ...(operation === 'attachment-part'
+        ? { 'X-0xdmme-Attachment-Id': String(payload['id']) }
+        : {}),
     },
     body: JSON.stringify({ ...proof, signature }),
     signal: AbortSignal.timeout(15000),

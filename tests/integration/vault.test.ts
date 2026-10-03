@@ -632,6 +632,7 @@ await test('cofre persistente: reservas, isolamento, concorrência, falhas, quot
           `SELECT used_bytes::text AS used,(
             coalesce((SELECT sum(charge) FROM hash_talk.vault_operations),0)
             +coalesce((SELECT sum(octet_length(profile_ciphertext)+524) FROM hash_talk.accounts),0)
+            +coalesce((SELECT sum(charge) FROM hash_talk.message_attachments),0)
             +coalesce((SELECT sum(charge) FROM hash_talk.message_recovery_keys),0)
             +coalesce((SELECT sum(charge) FROM hash_talk.message_packets),0)
             +coalesce((SELECT sum(charge) FROM hash_talk.matrix_devices),0)

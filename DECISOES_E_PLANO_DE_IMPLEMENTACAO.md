@@ -501,6 +501,14 @@ Foto própria permanece cifrada; distribuição para aprovados integrada pelo ca
 
 ### Bloco 08 — Fotos e arquivos
 
+**Estado:** implementado localmente em 03/10/2026, com foto otimizada/prévia, arquivos originais, miniaturas privadas, download sob demanda, retomada, recuperação e exclusão bilateral. [Contratos, limites e validação](docs/BLOCO_08_FOTOS_E_ARQUIVOS.md). Migração 016 somente no banco exclusivo de testes; nenhuma ativação na VPS. Testes físicos mobile e aceite final de segurança permanecem posteriores.
+
+**Implementação autorizada em 03/10/2026:** o proprietário aprovou o bloco completo e delegou escolhas rotineiras dentro dos princípios e contratos existentes. A autorização específica permite continuar depois de compactação de contexto até concluir o bloco; preserva pausas para conflitos materiais, sem autorizar publicação ou migrações na VPS.
+
+**Ativação autorizada em 03/10/2026:** após revisar a entrega local, o proprietário pediu explicitamente enviar e ativar o bloco 08 na VPS. Isso aprova a transição específica da migração 016 no banco exclusivo do 0xDMme, com backup privado, ensaio de restauração, comparação dos dados existentes, limites de recursos e preservação dos demais serviços. Reutilizar `npm run deploy:staging`, mantendo a recusa de outras migrações ou mudanças de dependências sem revisão própria. Nenhuma alteração de Nginx, Node ou dependências está incluída. A publicação permanece ambiente de testes; aceite físico mobile e segurança final continuam posteriores.
+
+**Experiência aprovada em 03/10/2026:** foto otimizada por padrão, com prévia antes do envio e remoção verificada de metadados; opção de enviar original como arquivo de até 3 MB, avisando sobre GPS/EXIF e preservação dos bytes. Miniaturas cifradas carregam ao abrir a conversa; mídia completa e arquivos somente por toque. Envios já iniciados retomam automaticamente com o aplicativo aberto, conexão e autorização válidas; seleção/prévia não envia nada. Esta decisão promove essas partes da proposta da seção 16.4 a requisitos aprovados. Não prometer fidelidade sem perda ou remoção de metadados do original.
+
 **Depende de:** 05 e 07.
 
 1. Implementar criptografia antes do upload, limites e retomada de transferências.

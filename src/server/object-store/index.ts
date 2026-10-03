@@ -9,6 +9,7 @@ import {
   realpath,
   unlink,
   lstat,
+  rmdir,
 } from 'node:fs/promises';
 import { resolve } from 'node:path';
 
@@ -43,7 +44,9 @@ export class ObjectStore {
     await this.cleanStaging();
   }
 
-  private async cleanStaging(): Promise<void> {
+  private async cleanStaging(
+    olderThan = Date.now() - 60 * 60 * 1000,
+  ): Promise<void> {
     const entries = await opendir(this.staging);
     let count = 0;
     for await (const entry of entries) {
@@ -55,7 +58,78 @@ export class ObjectStore {
       if (!stat.isFile() || stat.size > maximumBytes)
         throw new Error('Temporário inválido.');
       // Only unaccepted temporary uploads. Never age/delete final objects.
-      if (Date.now() - stat.mtimeMs > 60 * 60 * 1000) await unlink(path);
+      if (stat.mtimeMs < olderThan) await unlink(path);
+    }
+  }
+
+  /** Caller holds the exclusive attachment writer lease. Random namespaces isolate
+   * reservations; interrupted temporary writes can be removed before resuming. */
+  async attachment(id: string): Promise<ObjectStore> {
+    if (
+      !/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/u.test(
+        id,
+      )
+    )
+      throw new Error('Identificador de anexo inválido.');
+    const child = new ObjectStore(resolve(this.directory, `attachment-${id}`));
+    await child.initialize();
+    await child.cleanStaging(Number.POSITIVE_INFINITY);
+    return child;
+  }
+  async readAttachment(id: string): Promise<ObjectStore> {
+    if (
+      !/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/u.test(
+        id,
+      )
+    )
+      throw new Error('Identificador de anexo inválido.');
+    const path = resolve(this.directory, `attachment-${id}`);
+    const stat = await lstat(path);
+    if (!stat.isDirectory() || (await realpath(path)) !== path)
+      throw new Error('Diretório de anexo inválido.');
+    return new ObjectStore(path);
+  }
+  async discardAttachment(id: string): Promise<void> {
+    if (
+      !/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/u.test(
+        id,
+      )
+    )
+      throw new Error('Identificador de anexo inválido.');
+    const path = resolve(this.directory, `attachment-${id}`);
+    try {
+      const stat = await lstat(path);
+      if (!stat.isDirectory() || (await realpath(path)) !== path)
+        throw new Error('Diretório de anexo inválido.');
+    } catch (error: unknown) {
+      if (error instanceof Error && 'code' in error && error.code === 'ENOENT')
+        return;
+      throw error;
+    }
+    await this.removeAttachmentFiles(path, false);
+    await rmdir(path);
+    await this.synchronizeDirectory();
+  }
+  private async removeAttachmentFiles(
+    path: string,
+    staging: boolean,
+  ): Promise<void> {
+    const entries = await opendir(path);
+    let count = 0;
+    for await (const entry of entries) {
+      if (++count > 32) throw new Error('Limpeza de anexo excedida.');
+      const file = resolve(path, entry.name);
+      if (!staging && entry.name === '.staging' && entry.isDirectory()) {
+        await this.removeAttachmentFiles(file, true);
+        await rmdir(file);
+      } else {
+        const valid = staging
+          ? /^pending-[a-f0-9-]{36}$/u.test(entry.name)
+          : validIdentifier.test(entry.name);
+        if (!valid || !entry.isFile())
+          throw new Error('Objeto de anexo irregular.');
+        await unlink(file);
+      }
     }
   }
 

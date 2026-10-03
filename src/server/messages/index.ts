@@ -1,3 +1,5 @@
+import { AttachmentService } from '../attachments/index.ts';
+import type { ObjectStore } from '../object-store/index.ts';
 import {
   AccountError,
   keys,
@@ -55,16 +57,24 @@ function snapshot(input: unknown): MessageSnapshot {
 export class MessageService {
   private readonly db: Pick<
     Database,
-    'messages' | 'messageRecovery' | 'matrix' | 'contacts'
+    'messages' | 'messageRecovery' | 'matrix' | 'contacts' | 'attachments'
   >;
   private readonly devices: DeviceStore;
   private readonly actions: Record<string, Action>;
+  private readonly attachments: AttachmentService | null;
   constructor(
-    db: Pick<Database, 'messages' | 'messageRecovery' | 'matrix' | 'contacts'>,
+    db: Pick<
+      Database,
+      'messages' | 'messageRecovery' | 'matrix' | 'contacts' | 'attachments'
+    >,
     devices: DeviceStore,
+    objects?: ObjectStore,
   ) {
     this.db = db;
     this.devices = devices;
+    this.attachments = objects
+      ? new AttachmentService(db.attachments, db.messages, objects)
+      : null;
     this.actions = {
       'recovery-current': (a, d) => {
         keys(d, []);
@@ -124,10 +134,12 @@ export class MessageService {
           fingerprint(d['hash']),
         );
       },
-      delete: (a, d, p) => {
+      delete: async (a, d, p) => {
         keys(d, ['id', 'hash', 'revision']);
         integer(d['revision'], 128);
-        return db.messages.remove(a, uuid(d['id']), fingerprint(d['hash']), p);
+        await db.messages.remove(a, uuid(d['id']), fingerprint(d['hash']), p);
+        await this.attachments?.clean();
+        return { status: 'saved' };
       },
       'peer-directory': (a, d) => {
         keys(d, ['accountId', 'after']);
@@ -166,6 +178,37 @@ export class MessageService {
         return db.matrix.received(a, values.map(sequence));
       },
     };
+    for (const operation of [
+      'attachment-reserve',
+      'attachment-part',
+      'attachment-finish',
+      'attachment-cancel',
+      'attachment-get',
+    ])
+      this.actions[operation] = (a, d) => {
+        if (!this.attachments)
+          throw new AccountError(503, 'Armazenamento de anexos indisponível.');
+        return this.attachments.operate(
+          a,
+          operation,
+          d,
+          operation === 'attachment-get' ? snapshot(d['snapshot']) : undefined,
+        );
+      };
+  }
+  async cleanAttachments(): Promise<void> {
+    await this.attachments?.clean();
+  }
+  async preflightAttachment(
+    session: AccountSession,
+    id: unknown,
+  ): Promise<void> {
+    const current = await this.devices.current(session.accountId);
+    if (!current) throw new AccountError(403, 'Aparelho não autorizado.');
+    await this.db.attachments.preflight(
+      { session, directory: current.head },
+      uuid(id),
+    );
   }
   async operate(
     operation: string,

@@ -1,3 +1,5 @@
+import { attachmentRefs } from '../attachments/index.ts';
+import type { AttachmentRef } from '../attachments/index.ts';
 import { AccountError, base64, keys, object, uuid } from '../account/index.ts';
 import { canonical, eventHash, fingerprint, verify } from '../devices/index.ts';
 import type { DirectoryEvent } from '../devices/index.ts';
@@ -41,7 +43,8 @@ export interface RoomKeyArchive {
   mac: string;
 }
 export interface MessagePacket {
-  kind: 'text' | 'profile';
+  kind: 'text' | 'profile' | 'attachment';
+  attachments?: AttachmentRef[];
   version: 1;
   id: string;
   sender: string;
@@ -98,6 +101,7 @@ export function messageBody(
 export function messagePacket(input: unknown): MessagePacket {
   const data = object(input);
   keys(data, [
+    ...(Object.hasOwn(data, 'attachments') ? ['attachments'] : []),
     'version',
     'kind',
     'id',
@@ -113,6 +117,12 @@ export function messagePacket(input: unknown): MessagePacket {
     'archives',
     'signature',
   ]);
+  const refs =
+    data['kind'] === 'attachment'
+      ? attachmentRefs(data['attachments'])
+      : undefined;
+  if (data['kind'] !== 'attachment' && Object.hasOwn(data, 'attachments'))
+    throw new AccountError(400, 'Referência fora de mensagem de anexo.');
   const content = megolmContent(data['content']);
   if (
     data['version'] !== 1 ||
@@ -129,6 +139,7 @@ export function messagePacket(input: unknown): MessagePacket {
     throw new AccountError(400, 'Assinatura de pacote inválida.');
   return {
     version: 1,
+    ...(refs ? { attachments: refs } : {}),
     kind: messageKind(data['kind']),
     id: uuid(data['id']),
     sender,
@@ -145,7 +156,7 @@ export function messagePacket(input: unknown): MessagePacket {
   };
 }
 export function messageKind(value: unknown): MessagePacket['kind'] {
-  if (value !== 'text' && value !== 'profile')
+  if (value !== 'text' && value !== 'profile' && value !== 'attachment')
     throw new AccountError(400, 'Tipo de mensagem inválido.');
   return value;
 }

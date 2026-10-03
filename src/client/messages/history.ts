@@ -17,7 +17,7 @@ import {
 import type { MessageProof } from '../../shared/messages/index.ts';
 import { integer } from '../../shared/vault/index.ts';
 export interface MessageItem {
-  kind: 'text' | 'profile';
+  kind: 'text' | 'profile' | 'attachment';
   id: string;
   sender: string;
   recipient: string;

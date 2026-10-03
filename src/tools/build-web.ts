@@ -40,10 +40,14 @@ function hashedAsset(
   return asset(`${name}-${hash}.${extension}`, bytes);
 }
 
-async function bundle(path: string): Promise<Uint8Array> {
+async function bundle(
+  path: string,
+  define: Record<string, string> = {},
+): Promise<Uint8Array> {
   const result = await build({
     entryPoints: [fileURLToPath(new URL(path, root))],
     bundle: true,
+    define,
     write: false,
     metafile: true,
     platform: 'browser',
@@ -63,7 +67,7 @@ async function pruneGeneratedAssets(): Promise<void> {
   if (entries.length > 128) throw new Error('Diretório de build excedido.');
   for (const entry of entries) {
     if (
-      !/^(?:(?:app|phantom-probe|recovery-return)-[a-f0-9]{16}\.(?:js|css)|source-[a-f0-9]{16}\.tar\.gz|matrix-crypto-18\.9\.0-source-[a-f0-9]{16}-\d{2}\.bin|libsodium-\d+\.\d+\.\d+-sources-[a-f0-9]{16}\.tar\.xz)$/u.test(
+      !/^(?:(?:app|phantom-probe|recovery-return|attachment-worker)-[a-f0-9]{16}\.(?:js|css)|source-[a-f0-9]{16}\.tar\.gz|matrix-crypto-18\.9\.0-source-[a-f0-9]{16}-\d{2}\.bin|libsodium-\d+\.\d+\.\d+-sources-[a-f0-9]{16}\.tar\.xz)$/u.test(
         entry.name,
       ) ||
       files.has(entry.name)
@@ -74,10 +78,17 @@ async function pruneGeneratedAssets(): Promise<void> {
   }
 }
 
+const attachmentWorker = hashedAsset(
+  'attachment-worker',
+  'js',
+  await bundle('src/client/attachments/worker.ts'),
+);
 const script = hashedAsset(
   'app',
   'js',
-  await bundle('src/client/app/index.ts'),
+  await bundle('src/client/app/index.ts', {
+    ATTACHMENT_WORKER_URL: JSON.stringify(attachmentWorker),
+  }),
 );
 const style = hashedAsset(
   'app',

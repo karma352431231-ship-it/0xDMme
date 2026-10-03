@@ -23,6 +23,9 @@ try {
   await database.migrate();
   await objects.initialize();
   await database.vault.resumeInterrupted();
+  await database.attachments.resumeInterrupted();
+  const messages = new MessageService(database, database.devices, objects);
+  await messages.cleanAttachments();
   if (!(await database.healthy())) throw new Error('Banco indisponível.');
   const host = createWebServer({
     origin: config.origin,
@@ -31,7 +34,7 @@ try {
     objects,
     account: createAccountHandler({
       contacts: new ContactService(database.contacts, database.devices),
-      messages: new MessageService(database, database.devices),
+      messages,
       devices: new DeviceService(database.devices, config.origin),
       vault: new VaultService({
         store: database.vault,

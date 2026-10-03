@@ -98,9 +98,21 @@ function sendPublicAsset(
       'Permissions-Policy',
       'camera=(self), microphone=(), geolocation=(), payment=()',
     );
+  attachmentWorkerPolicy(request, response, entry);
   sendAsset(request, response, entry);
 }
 
+function attachmentWorkerPolicy(
+  request: IncomingMessage,
+  response: ServerResponse,
+  entry: WebAsset | undefined,
+): void {
+  if (
+    /^\/attachment-worker-[a-f0-9]{16}\.js$/u.test(request.url ?? '') &&
+    entry
+  )
+    securityHeaders(response, "'self' 'wasm-unsafe-eval'");
+}
 function publicNavigation(request: IncomingMessage): boolean {
   // A wallet's browse link may navigate from another site. Only the public
   // shell can be opened this way; account APIs and mutations remain protected.

@@ -412,6 +412,28 @@ await test('servidor recusa origem, mutação, traversal e dados privados; saúd
     String(page.headers['content-security-policy']),
     /script-src 'self' 'wasm-unsafe-eval';/u,
   );
+  const attachmentWorker = [...assets.keys()].find((path) =>
+    path.startsWith('/attachment-worker-'),
+  );
+  assert.ok(attachmentWorker);
+  const attachmentResponse = await get(attachmentWorker);
+  assert.equal(attachmentResponse.status, 200);
+  assert.match(
+    String(attachmentResponse.headers['content-security-policy']),
+    /script-src 'self' 'wasm-unsafe-eval';/u,
+  );
+  assert.doesNotMatch(
+    String(attachmentResponse.headers['content-security-policy']),
+    /'unsafe-eval'|'unsafe-inline'|https:/u,
+  );
+  assert.equal(
+    attachmentResponse.headers['permissions-policy'],
+    'camera=(), microphone=(), geolocation=(), payment=()',
+  );
+  assert.doesNotMatch(
+    String((await get('/sw.js')).headers['content-security-policy']),
+    /wasm-unsafe-eval/u,
+  );
   assert.equal((await get('/', { host: 'attacker.example' })).status, 403);
   assert.equal(
     (await get('/', { origin: 'https://attacker.example' })).status,

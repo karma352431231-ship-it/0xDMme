@@ -1,3 +1,13 @@
+import { mkdtemp, realpath, rm, readdir } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { ObjectStore } from '../../src/server/object-store/index.ts';
+import {
+  sealFile,
+  openFile,
+} from '../../src/client/attachment-crypto/index.ts';
+import { contentRefs, partLimit } from '../../src/shared/attachments/index.ts';
+import { base64, encode } from '../../src/shared/account/index.ts';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import pg from 'pg';
@@ -60,12 +70,21 @@ await test('mensagens persistentes: Olm/Megolm, recuperação, idempotência, ex
     }),
     devices = new DeviceService(db.devices),
     contacts = new ContactService(db.contacts, db.devices);
-  let messages = new MessageService(db, db.devices);
+  const attachmentDirectory = await realpath(
+      await mkdtemp(join(tmpdir(), '0xdmme-attachment-test-')),
+    ),
+    objects = new ObjectStore(attachmentDirectory);
+  await objects.initialize();
+  let messages = new MessageService(db, db.devices, objects);
   const ids: string[] = [],
     machines: MessageCrypto[] = [];
   t.after(async () => {
     for (const machine of machines) machine.close();
     await inspector.query('BEGIN');
+    await inspector.query(
+      'DELETE FROM hash_talk.message_attachments WHERE sender=ANY($1::uuid[]) OR recipient=ANY($1::uuid[])',
+      [ids],
+    );
     await inspector.query<Record<string, unknown>>(
       'DELETE FROM hash_talk.message_packets WHERE sender=ANY($1::uuid[]) OR recipient=ANY($1::uuid[])',
       [ids],
@@ -96,6 +115,7 @@ await test('mensagens persistentes: Olm/Megolm, recuperação, idempotência, ex
     await inspector.query('COMMIT');
     await inspector.end();
     await db.close();
+    await rm(attachmentDirectory, { recursive: true, force: true });
   });
   async function login(wallet = Wallet.createRandom()) {
     const challenge = await accounts.challenge({
@@ -501,6 +521,56 @@ await test('mensagens persistentes: Olm/Megolm, recuperação, idempotência, ex
           'accepted',
         );
         assert.match(response.headers.get('cache-control') ?? '', /no-store/);
+        const sealed = await sealFile(new Uint8Array([3, 4, 5])),
+          message = crypto.randomUUID();
+        await op(alice, 'attachment-reserve', {
+          message,
+          peer: bob.session.accountId,
+          refs: [sealed.file.ref],
+        });
+        assert.equal(
+          (
+            await fetch(root + 'attachment-part', {
+              method: 'POST',
+              headers,
+              body: 'invalid',
+            })
+          ).status,
+          400,
+        );
+        assert.equal(
+          (
+            await fetch(root + 'attachment-part', {
+              method: 'POST',
+              headers: {
+                ...headers,
+                'X-0xdmme-Attachment-Id': crypto.randomUUID(),
+              },
+              body: 'invalid',
+            })
+          ).status,
+          404,
+        );
+        assert.equal(
+          (
+            await fetch(root + 'attachment-part', {
+              method: 'POST',
+              headers: {
+                ...headers,
+                'X-0xdmme-Attachment-Id': sealed.file.ref.id,
+              },
+              body: JSON.stringify(
+                await proof(alice, 'attachment-part', {
+                  id: sealed.file.ref.id,
+                  index: 0,
+                  ciphertext: encode(sealed.bytes),
+                }),
+              ),
+            })
+          ).status,
+          200,
+        );
+        await op(alice, 'attachment-cancel', { message });
         const forged = await proof(alice, 'snapshot', {});
         forged.signature = 'A'.repeat(86) + '==';
         assert.equal(
@@ -519,13 +589,301 @@ await test('mensagens persistentes: Olm/Megolm, recuperação, idempotência, ex
     },
   );
   await t.test(
+    'anexos retomam partes duráveis, sobrevivem reinício e recuperam sem sessão antiga; exclusão libera objetos',
+    async () => {
+      const bytes = new Uint8Array(600_000).fill(37),
+        sealed = await sealFile(bytes),
+        thumb = await sealFile(new Uint8Array([1, 2, 3]));
+      const content = {
+        version: 1 as const,
+        name: 'original.bin',
+        type: 'application/octet-stream',
+        caption: '',
+        image: false,
+        file: sealed.file,
+        thumbnail: null,
+      };
+      const media = await sender.encrypt({
+        authority: await authority(alice),
+        peerHistory: bob.events,
+        recovery: [aliceKey, bobKey],
+        id: crypto.randomUUID(),
+        text: JSON.stringify(content),
+        kind: 'attachment',
+      });
+      const reserve = {
+        message: media.id,
+        peer: bob.session.accountId,
+        refs: contentRefs(content),
+      };
+      await assert.rejects(publish(media), { status: 409 });
+      await assert.rejects(op(outsider, 'attachment-reserve', reserve));
+      await op(alice, 'attachment-reserve', reserve);
+      await assert.rejects(
+        op(alice, 'attachment-finish', { id: sealed.file.ref.id }),
+        { status: 409 },
+      );
+      await assert.rejects(
+        op(alice, 'attachment-part', {
+          id: sealed.file.ref.id,
+          index: 0,
+          ciphertext: encode(new Uint8Array([2])),
+        }),
+        { status: 400 },
+      );
+      await op(alice, 'attachment-part', {
+        id: sealed.file.ref.id,
+        index: 0,
+        ciphertext: encode(sealed.bytes.subarray(0, partLimit)),
+      });
+      const crashLease = await db.attachments.begin(
+        {
+          session: alice.session,
+          directory: (await authority(alice)).directory,
+        },
+        sealed.file.ref.id,
+        1,
+      );
+      assert.ok(crashLease.writer);
+      await (
+        await objects.attachment(sealed.file.ref.id)
+      ).put(sealed.bytes.subarray(partLimit, partLimit * 2));
+      await db.attachments.resumeInterrupted();
+      const resumed = (await op(alice, 'attachment-reserve', reserve)) as {
+        received: number[];
+      }[];
+      assert.deepEqual(resumed[0]?.received, [0]);
+      // Replayed upload is idempotent. One reserved namespace cannot delete another.
+      await op(alice, 'attachment-part', {
+        id: sealed.file.ref.id,
+        index: 0,
+        ciphertext: encode(sealed.bytes.subarray(0, partLimit)),
+      });
+      await assert.rejects(
+        op(alice, 'attachment-reserve', {
+          ...reserve,
+          refs: [sealed.file.ref, thumb.file.ref],
+          peer: outsider.session.accountId,
+        }),
+      );
+      for (let index = 1; index < sealed.file.ref.parts.length; index++)
+        await op(alice, 'attachment-part', {
+          id: sealed.file.ref.id,
+          index,
+          ciphertext: encode(
+            sealed.bytes.subarray(index * partLimit, (index + 1) * partLimit),
+          ),
+        });
+      await op(alice, 'attachment-finish', { id: sealed.file.ref.id });
+      await publish(media);
+      await publish(media);
+      await inspector.query(
+        "UPDATE hash_talk.message_attachments SET created_at=now()-interval '25 hours' WHERE id=$1",
+        [sealed.file.ref.id],
+      );
+      await messages.cleanAttachments();
+      assert.ok(
+        (await readdir(attachmentDirectory)).includes(
+          `attachment-${sealed.file.ref.id}`,
+        ),
+      );
+      await assert.rejects(
+        op(alice, 'attachment-cancel', { message: media.id }),
+        { status: 409 },
+      );
+      const snap = await op(computer, 'snapshot'),
+        decoder = await machine(computer),
+        key = await openRecoveryKey(bobKey, await authority(computer));
+      try {
+        const recovered = JSON.parse(
+          await decoder.decrypt({
+            packet: media,
+            senderEvent: alice.events.at(-1)!,
+            exported: openRoomKey(key, media.archives[1]!),
+          }),
+        ) as typeof content;
+        assert.equal(recovered.file.encryption, sealed.file.encryption);
+      } finally {
+        key.free();
+      }
+      const downloaded = new Uint8Array(sealed.bytes.length);
+      for (let index = 0; index < sealed.file.ref.parts.length; index++) {
+        const data = object(
+          await op(computer, 'attachment-get', {
+            message: media.id,
+            id: sealed.file.ref.id,
+            index,
+            snapshot: snap,
+          }),
+        );
+        downloaded.set(
+          base64(data['ciphertext'], partLimit),
+          index * partLimit,
+        );
+      }
+      assert.deepEqual(await openFile(sealed.file, downloaded), bytes);
+      await assert.rejects(
+        op(outsider, 'attachment-get', {
+          message: media.id,
+          id: sealed.file.ref.id,
+          index: 0,
+          snapshot: await op(outsider, 'snapshot'),
+        }),
+      );
+      await contactChange(bob, 'block', {
+        wallet: {
+          ecosystem: 'evm',
+          address: alice.wallet.address.toLowerCase(),
+        },
+        blocked: true,
+      });
+      await assert.rejects(
+        op(computer, 'attachment-get', {
+          message: media.id,
+          id: sealed.file.ref.id,
+          index: 0,
+          snapshot: await op(computer, 'snapshot'),
+        }),
+        { status: 423 },
+      );
+      const ownHash = await digest(JSON.stringify(media));
+      await op(alice, 'delete', {
+        id: media.id,
+        hash: ownHash,
+        revision: alice.events.length,
+      });
+      assert.ok(
+        !(await readdir(attachmentDirectory)).includes(
+          `attachment-${sealed.file.ref.id}`,
+        ),
+      );
+      await assert.rejects(
+        op(computer, 'attachment-get', {
+          message: media.id,
+          id: sealed.file.ref.id,
+          index: 0,
+          snapshot: await op(computer, 'snapshot'),
+        }),
+      );
+      // An explicitly saved independent copy still opens; the automatic object has gone.
+      assert.deepEqual(await openFile(sealed.file, downloaded), bytes);
+      await contactChange(bob, 'block', {
+        wallet: {
+          ecosystem: 'evm',
+          address: alice.wallet.address.toLowerCase(),
+        },
+        blocked: false,
+      });
+      await approve(alice, bob);
+    },
+  );
+  await t.test(
+    'reservas de anexos contam ambos os cofres/global antes do upload; temporários expiram sem afetar aceitos',
+    async () => {
+      const sealed = await sealFile(new Uint8Array([6, 7, 8])),
+        message = crypto.randomUUID(),
+        reserve = {
+          message,
+          peer: bob.session.accountId,
+          refs: [sealed.file.ref],
+        };
+      const small = new Database(config.databaseUrl, 1),
+        limited = new MessageService(small, small.devices, objects);
+      try {
+        await assert.rejects(
+          limited.operate(
+            'attachment-reserve',
+            alice.session,
+            await proof(alice, 'attachment-reserve', reserve),
+          ),
+          { status: 503 },
+        );
+      } finally {
+        await small.close();
+      }
+      assert.equal(
+        (
+          await inspector.query<{ count: string }>(
+            'SELECT count(*) FROM hash_talk.message_attachments WHERE id=$1',
+            [sealed.file.ref.id],
+          )
+        ).rows[0]?.count,
+        '0',
+      );
+      for (const column of ['sender_charge', 'recipient_charge']) {
+        const original = await inspector.query<Record<string, number>>(
+          `SELECT ${column} FROM hash_talk.message_packets WHERE id=$1`,
+          [pending.id],
+        );
+        await inspector.query(
+          `UPDATE hash_talk.message_packets SET ${column}=300000000 WHERE id=$1`,
+          [pending.id],
+        );
+        try {
+          await assert.rejects(op(alice, 'attachment-reserve', reserve), {
+            status: 413,
+          });
+        } finally {
+          await inspector.query(
+            `UPDATE hash_talk.message_packets SET ${column}=$2 WHERE id=$1`,
+            [pending.id, original.rows[0]?.[column]],
+          );
+        }
+      }
+      assert.equal(
+        (
+          await inspector.query<{ count: string }>(
+            'SELECT count(*) FROM hash_talk.message_attachments WHERE id=$1',
+            [sealed.file.ref.id],
+          )
+        ).rows[0]?.count,
+        '0',
+      );
+      await op(alice, 'attachment-reserve', reserve);
+      await op(alice, 'attachment-part', {
+        id: sealed.file.ref.id,
+        index: 0,
+        ciphertext: encode(sealed.bytes),
+      });
+      await inspector.query(
+        "UPDATE hash_talk.message_attachments SET created_at=now()-interval '25 hours' WHERE id=$1",
+        [sealed.file.ref.id],
+      );
+      await messages.cleanAttachments();
+      assert.ok(
+        !(await readdir(attachmentDirectory)).includes(
+          `attachment-${sealed.file.ref.id}`,
+        ),
+      );
+      await op(alice, 'attachment-reserve', reserve);
+      assert.equal(
+        (
+          await inspector.query<{ charge: number }>(
+            'SELECT charge FROM hash_talk.message_attachments WHERE id=$1',
+            [sealed.file.ref.id],
+          )
+        ).rows[0]?.charge,
+        4099,
+      );
+      await op(alice, 'attachment-cancel', { message });
+      await assert.rejects(
+        op(alice, 'attachment-part', {
+          id: sealed.file.ref.id,
+          index: 0,
+          ciphertext: encode(sealed.bytes),
+        }),
+        { status: 404 },
+      );
+    },
+  );
+  await t.test(
     'reabertura do servidor conserva fila e aparelho sem sessões anteriores recupera mensagem',
     async () => {
       sender.close();
       await db.close();
       db = new Database(config.databaseUrl);
       await db.migrate();
-      messages = new MessageService(db, db.devices);
+      messages = new MessageService(db, db.devices, objects);
       contacts = new ContactService(db.contacts, db.devices);
       devices = new DeviceService(db.devices);
       accounts = new AccountService({

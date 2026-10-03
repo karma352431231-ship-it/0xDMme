@@ -1,3 +1,12 @@
+import { attachmentContent } from '../../shared/attachments/index.ts';
+import {
+  stageAttachment,
+  uploadAttachments,
+  downloadAttachment,
+  forgetAttachment,
+  retainAttachment,
+} from '../attachments/index.ts';
+import type { AttachmentSelection } from '../attachments/index.ts';
 import { initAsync, StoreHandle } from '@matrix-org/matrix-sdk-crypto-wasm';
 import { AccountError, object } from '../../shared/account/index.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
@@ -51,7 +60,7 @@ import { notifyMessageControls } from '../message-controls/index.ts';
 import { peerHistory, pinFor, verifyDeletion } from './history.ts';
 import type { MessageItem, PeerPin } from './history.ts';
 export interface MessageView {
-  kind: 'text' | 'profile';
+  kind: MessagePacket['kind'];
   id: string;
   peer: string;
   own: boolean;
@@ -63,8 +72,9 @@ interface Outbox {
   id: string;
   peer: string;
   draft: LocalCipher[];
-  kind: 'text' | 'profile';
+  kind: MessagePacket['kind'];
   packet: MessagePacket | null;
+  transferStarted?: boolean;
 }
 interface ProfileCache {
   id: string;
@@ -322,13 +332,107 @@ export class Messages {
       );
     });
   }
+  async composeAttachment(
+    peer: string,
+    selection: AttachmentSelection,
+    caption: string,
+  ): Promise<void> {
+    const generation = this.generation;
+    await this.access.withVault(!navigator.onLine, async (a) => {
+      this.guard(generation);
+      const id = crypto.randomUUID();
+      try {
+        const content = await stageAttachment({
+          account: a.session.accountId,
+          id,
+          selection,
+          caption,
+        });
+        this.guard(generation);
+        const draft = [await sealLocal(a, id, JSON.stringify(content))];
+        await localPut(
+          a.session.accountId,
+          `outbox:${id}`,
+          {
+            id,
+            peer,
+            draft,
+            kind: 'attachment',
+            packet: null,
+          } satisfies Outbox,
+          draft[0]!.bytes.length + 512,
+        );
+      } catch (error: unknown) {
+        await forgetAttachment(a.session.accountId, id);
+        throw error;
+      }
+    });
+  }
+  async media(
+    view: MessageView,
+    thumbnail: boolean,
+  ): Promise<Uint8Array<ArrayBuffer>> {
+    const generation = this.generation,
+      confirmed = this.confirmed;
+    const guard = () => {
+      this.guard(generation);
+      if (
+        navigator.onLine &&
+        (this.confirmed !== confirmed ||
+          !confirmed?.views.some(
+            (r) => r.id === view.id && r.hash === view.hash,
+          ))
+      )
+        throw new Error('Sincronize antes de abrir o anexo.');
+    };
+    guard();
+    const content = attachmentContent(JSON.parse(view.text) as unknown),
+      file = thumbnail ? content.thumbnail : content.file;
+    if (!file) throw new Error('Miniatura ausente.');
+    const work = async (a: VaultAuthority) => {
+      const snapshot: unknown = confirmed
+        ? JSON.parse(confirmed.snapshot)
+        : null;
+      const api = a.offline
+        ? null
+        : (op: string, d: Record<string, unknown>) =>
+            messageApi(a, op, d, guard);
+      const bytes = await downloadAttachment({
+        account: a.session.accountId,
+        message: view.id,
+        file,
+        thumbnail,
+        image: thumbnail || content.image,
+        api,
+        snapshot,
+        guard,
+      });
+      if (api) await api('confirm', { snapshot });
+      guard();
+      return bytes;
+    };
+    try {
+      if (navigator.onLine) return await this.access.withVault(false, work);
+      const locator = await localLocator();
+      if (!locator) throw new Error('Cópia local não autorizada.');
+      return await this.access.withLocalVault(locator, work);
+    } catch (error: unknown) {
+      if (
+        error instanceof AccountError &&
+        [403, 409, 410, 423].includes(error.status)
+      )
+        this.close();
+      throw error;
+    }
+  }
   private async sealDraft(
     a: VaultAuthority,
     id: string,
     text: string,
     kind: MessagePacket['kind'],
   ): Promise<LocalCipher[]> {
-    if (kind === 'text') return [await sealLocal(a, id, text)];
+    if (kind === 'attachment') attachmentContent(JSON.parse(text) as unknown);
+    if (kind !== 'profile') return [await sealLocal(a, id, text)];
     profileCard(JSON.parse(text) as unknown);
     const chunks: LocalCipher[] = [];
     for (let after = 0; after < text.length; after += 1_500_000)
@@ -418,6 +522,7 @@ export class Messages {
     const { a, api, own, machine, generation, name, value } = context;
     if (await this.alreadyAccepted(api, value)) {
       await localDelete(a.session.accountId, name);
+      await this.retainOutbox(a, value);
       return;
     }
     const history = await this.history(a, generation, value.peer, null),
@@ -457,8 +562,41 @@ export class Messages {
           512,
       );
     }
+    await this.transferOutbox(a, api, value);
     await this.publishOutbox(api, value);
+    await this.retainOutbox(a, value);
     await localDelete(a.session.accountId, name);
+  }
+  private async retainOutbox(a: VaultAuthority, value: Outbox): Promise<void> {
+    if (value.kind === 'attachment')
+      await retainAttachment(a.session.accountId, value.id);
+  }
+  private async transferOutbox(
+    a: VaultAuthority,
+    api: (op: string, d: Record<string, unknown>) => Promise<unknown>,
+    value: Outbox,
+  ): Promise<void> {
+    if (value.kind === 'attachment') {
+      value.transferStarted = true;
+      await localPut(
+        a.session.accountId,
+        `outbox:${value.id}`,
+        value,
+        value.draft.reduce((total, part) => total + part.bytes.length, 0) +
+          JSON.stringify(value.packet).length +
+          512,
+      );
+      const content = attachmentContent(
+        JSON.parse(await openLocal(a, value.draft[0]!)) as unknown,
+      );
+      await uploadAttachments({
+        account: a.session.accountId,
+        message: value.id,
+        peer: value.peer,
+        content,
+        api,
+      });
+    }
   }
   private async alreadyAccepted(
     api: (op: string, d: Record<string, unknown>) => Promise<unknown>,
@@ -546,7 +684,7 @@ export class Messages {
       );
       this.guard(generation);
       this.oldest =
-        staged.items.filter((item) => item.kind === 'text')[0]?.sequence ??
+        staged.items.filter((item) => item.kind !== 'profile')[0]?.sequence ??
         this.before;
       this.confirmed = {
         snapshot: JSON.stringify(staged.snapshot),
@@ -589,6 +727,7 @@ export class Messages {
       await localDelete(c.a.session.accountId, `cache:${item.id}`);
       await localDelete(c.a.session.accountId, `profile:${item.id}`);
       await localDelete(c.a.session.accountId, `outbox:${item.id}`);
+      await forgetAttachment(c.a.session.accountId, item.id);
       return;
     }
   }
@@ -759,6 +898,8 @@ export class Messages {
       );
       return;
     }
+    if (packet.kind === 'attachment')
+      attachmentContent(JSON.parse(text) as unknown);
     const cipher = await sealLocal(a, packet.id, text);
     await localPut(
       a.session.accountId,
@@ -914,7 +1055,7 @@ export class Messages {
         for (const value of cached) {
           this.guard(generation);
           views.push({
-            kind: 'text',
+            kind: value.kind ?? 'text',
             id: value.id,
             peer: value.peer,
             own: value.own,
@@ -987,27 +1128,48 @@ export class Messages {
     await this.access.withVault(!navigator.onLine, async (a) => {
       const row = await localGet<Outbox>(a.session.accountId, `outbox:${id}`);
       if (!row) return;
-      if (row.packet) {
-        if (a.offline)
-          throw new Error(
-            'Reconecte para confirmar a exclusão de um envio que pode ter sido aceito.',
-          );
-        const hash = await digest(JSON.stringify(row.packet));
-        if (
-          await messageApi(a, 'accepted', { id, hash }, () =>
+      if (row.kind === 'attachment' && row.transferStarted && a.offline)
+        throw new Error(
+          'Reconecte para cancelar a reserva remota deste anexo.',
+        );
+      const accepted = await this.discardRemote(a, row, generation);
+      if (row.kind === 'attachment') {
+        if (!a.offline && !accepted)
+          await messageApi(a, 'attachment-cancel', { message: id }, () =>
             this.guard(generation),
-          )
-        )
-          await messageApi(
-            a,
-            'delete',
-            { id, hash, revision: a.events.length },
-            () => this.guard(generation),
           );
+        await forgetAttachment(a.session.accountId, id);
       }
       await localDelete(a.session.accountId, `outbox:${id}`);
     });
     notifyMessageControls();
+  }
+  private async discardRemote(
+    a: VaultAuthority,
+    row: Outbox,
+    generation: number,
+  ): Promise<boolean> {
+    let accepted = false;
+    if (row.packet) {
+      if (a.offline)
+        throw new Error(
+          'Reconecte para confirmar a exclusão de um envio que pode ter sido aceito.',
+        );
+      const hash = await digest(JSON.stringify(row.packet));
+      accepted = Boolean(
+        await messageApi(a, 'accepted', { id: row.id, hash }, () =>
+          this.guard(generation),
+        ),
+      );
+      if (accepted)
+        await messageApi(
+          a,
+          'delete',
+          { id: row.id, hash, revision: a.events.length },
+          () => this.guard(generation),
+        );
+    }
+    return accepted;
   }
   async pending(): Promise<{ id: string; peer: string }[]> {
     const session = this.session;

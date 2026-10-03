@@ -1,3 +1,4 @@
+import { gzipSync } from 'node:zlib';
 import { execFile } from 'node:child_process';
 import { lstat, readdir } from 'node:fs/promises';
 import { resolve, relative, sep } from 'node:path';
@@ -5,6 +6,11 @@ import { promisify } from 'node:util';
 
 const execute = promisify(execFile);
 const authored = [
+  'src/client/attachment-crypto',
+  'src/client/attachment-images',
+  'src/client/attachments',
+  'src/client/attachment-ui',
+  'src/shared/attachments',
   'src/client/message-controls',
   'src/client/messages',
   'src/client/message-crypto',
@@ -132,10 +138,13 @@ export async function frontendSource(
   // Explicit paths only: no repository-wide archive, shell, .local or backend.
   const { stdout } = await execute(
     'tar',
-    ['-czf', '-', '--no-recursion', '-C', root, '--', ...included],
-    { encoding: 'buffer', maxBuffer: 2 * 1024 * 1024, timeout: 30_000 },
+    ['-cf', '-', '--no-recursion', '-C', root, '--', ...included],
+    { encoding: 'buffer', maxBuffer: 24 * 1024 * 1024, timeout: 30_000 },
   );
-  return stdout;
+  const archive = gzipSync(stdout, { level: 9 });
+  if (archive.length > 2 * 1024 * 1024)
+    throw new Error('Fontes comprimidas excedem o teto de 2 MiB.');
+  return archive;
 }
 function verifyInputs(
   root: string,

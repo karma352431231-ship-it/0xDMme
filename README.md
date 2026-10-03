@@ -6,11 +6,13 @@ O objetivo é oferecer autenticação por wallet e criptografia ponta a ponta, p
 
 ## Estado atual
 
-O [bloco 06](docs/BLOCO_06_CONTATOS.md) está concluído localmente: agenda por wallet com apelidos cifrados, convite revogável por link/QR, descoberta escolhida pelo dono do perfil, solicitações paginadas sem tetos de quantidade/frequência, consentimento bilateral e bloqueio no servidor. A referência de identidade fica no cofre. Testes físicos mobile permanecem posteriores; migrações 010/011 não ativadas na VPS. Próximo bloco: mensagens individuais e fila sem expiração (07).
+O [bloco 08](docs/BLOCO_08_FOTOS_E_ARQUIVOS.md) está implementado localmente: foto otimizada com prévia e remoção verificada de metadados, arquivo original de até 3 MB, miniaturas cifradas, download sob demanda, retomada de uploads, recuperação e exclusão bilateral. Testes físicos mobile e aceite final de segurança permanecem posteriores; migração 016 e código desta entrega não ativados na VPS. Próximo bloco: backup exportável e recuperação completa (09).
 
-O [bloco 05](docs/BLOCO_05_COFRE.md) está concluído localmente: agenda/configurações privadas e dados fictícios cifrados, versões preservadas, conflitos explícitos, cópia local offline e recuperação em outro aparelho. A cota pessoal permanece 300 MB, contada conforme o conteúdo e os uploads concretos; cadastrar uma conta não reserva 300 MB. O teto de 1 GB por grupo também permanece, sem alocação antecipada, para o bloco de grupos. Testes físicos mobile dos blocos 04–05 ficam para depois. Migrações 006–009 ainda não foram ativadas na VPS.
+O [bloco 07](docs/BLOCO_07_MENSAGENS.md) integra texto/perfil pelo SDK Matrix, fila sem expiração, confirmação por aparelho e recuperação desde a aceitação. O [bloco 06](docs/BLOCO_06_CONTATOS.md) oferece agenda por wallet com apelidos cifrados, convite revogável por link/QR, descoberta escolhida pelo dono do perfil, solicitações paginadas sem tetos de quantidade/frequência, consentimento bilateral e bloqueio no servidor. A referência de identidade fica no cofre.
 
-O [bloco 04](docs/BLOCO_04_DISPOSITIVOS_E_RECUPERACAO.md) implementa localmente autorização verificável dos aparelhos, vinculação por QR Code/código, recuperação com wallet original e segredo e revogação com troca de chaves. Sua validação física mobile fica para o proprietário após a revisão no Mac, conforme autorização de 02/10/2026. Há migrações novas; esta entrega não foi publicada na VPS e não representa chat para dados reais.
+O [bloco 05](docs/BLOCO_05_COFRE.md) está concluído localmente: agenda/configurações privadas e dados fictícios cifrados, versões preservadas, conflitos explícitos, cópia local offline e recuperação em outro aparelho. A cota pessoal permanece 300 MB, contada conforme o conteúdo e os uploads concretos; cadastrar uma conta não reserva 300 MB. O teto de 1 GB por grupo também permanece, sem alocação antecipada, para o bloco de grupos. Testes físicos mobile dos blocos 04–05 ficam para depois.
+
+O [bloco 04](docs/BLOCO_04_DISPOSITIVOS_E_RECUPERACAO.md) implementa autorização verificável dos aparelhos, vinculação por QR Code/código, recuperação com wallet original e segredo e revogação com troca de chaves. Sua validação física mobile fica para o proprietário após a revisão no Mac, conforme autorização de 02/10/2026. Os fluxos continuam restritos a dados fictícios até o aceite final.
 
 O bloco 00 e a seleção técnica do bloco 01 estão concluídos: mensagens Matrix WASM, cofre Web Crypto e ZK Semaphore, com prova funcional aprovada em Mac/Android/iPhone. A [revisão de dependências/licenças](docs/DEPENDENCIAS_E_SELECAO_BLOCO_01.md) registra a GPL do frontend autorizada e a exceção de manutenção Rust. Não repetir roteiros manuais aprovados sem mudança relevante ou falha. Inventários, medidas e identificação de aparelhos ficam exclusivamente em `.local/`, ignorado pelo Git.
 
@@ -51,6 +53,8 @@ Para iPhone na mesma rede privada do Mac, o perfil opcional `npm run probe:mobil
 - [Dispositivos e recuperação do bloco 04](docs/BLOCO_04_DISPOSITIVOS_E_RECUPERACAO.md): autoridade das chaves, vinculação, revogação, recuperação, perda e validação.
 - [Contatos do bloco 06](docs/BLOCO_06_CONTATOS.md): agenda particular, descoberta, consentimento, bloqueio, budgets e roteiro de teste.
 - [Cofre do bloco 05](docs/BLOCO_05_COFRE.md): versões cifradas, uso efetivo, cópia local, conflitos e roteiro de teste.
+- [Mensagens do bloco 07](docs/BLOCO_07_MENSAGENS.md): fila por aparelho, SDK, recuperação, consentimento e exclusão bilateral.
+- [Fotos e arquivos do bloco 08](docs/BLOCO_08_FOTOS_E_ARQUIVOS.md): limites, processamento privado, transferência, cache e validação.
 - [Domínio e ambiente de testes](docs/DOMINIO_E_AMBIENTE_TESTE.md): DNS Namecheap, HTTPS, isolamento da VPS e pendências de ativação.
 - [Git e envio à VPS](docs/GIT_E_DEPLOY.md): commits por escopo, sincronização do código por Git e limites da ativação de versões.
 - [Licenças](LICENSES.md): distribuição do frontend e fontes correspondentes.

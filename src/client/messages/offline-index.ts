@@ -5,6 +5,7 @@ export type CachedText = LocalCipher & {
   sequence: number;
   hash: string;
   own: boolean;
+  kind?: 'text' | 'attachment';
 };
 /** Bounded cache scan, independent of remote verification. Only explicit offline
  * viewing may publish it; reconnect always closes it before applying deletions. */

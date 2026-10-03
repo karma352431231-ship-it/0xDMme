@@ -1,3 +1,4 @@
+import type { AttachmentStore } from './attachments.ts';
 import type pg from 'pg';
 import { AccountError } from '../../shared/account/index.ts';
 import { canonical, directoryEvent } from '../../shared/devices/index.ts';
@@ -28,9 +29,15 @@ export interface MessageSnapshot {
 export class MessageStore {
   private readonly contacts: ContactStore;
   private readonly capacity: number;
-  constructor(contacts: ContactStore, capacity: number) {
+  private readonly attachments: AttachmentStore;
+  constructor(
+    contacts: ContactStore,
+    capacity: number,
+    attachments: AttachmentStore,
+  ) {
     this.contacts = contacts;
     this.capacity = capacity;
+    this.attachments = attachments;
   }
   async profileKnown(
     authority: ContactAuthority,
@@ -92,6 +99,7 @@ export class MessageStore {
         }
         const events = await this.currentDirectories(client, packet);
         await this.assertRecoverable(client, packet, events);
+        await this.attachments.admit(client, packet);
         const serialized = JSON.stringify(packet);
         const personal = packet.archives.map(
           (archive) =>
@@ -234,6 +242,10 @@ export class MessageStore {
       );
       await client.query(
         'DELETE FROM hash_talk.message_references WHERE message_id=$1',
+        [id],
+      );
+      await client.query(
+        "UPDATE hash_talk.message_attachments SET status='deleting' WHERE message_id=$1 AND status='accepted'",
         [id],
       );
       await this.bump(client, [row.sender, row.recipient]);

@@ -107,7 +107,7 @@ const host = createWebServer({
   objects,
   account: createAccountHandler({
     contacts: new ContactService(database.contacts, database.devices),
-    messages: new MessageService(database, database.devices),
+    messages: new MessageService(database, database.devices, objects),
     devices: new DeviceService(database.devices, origin),
     ...fixtureDocuments(),
     vault: new VaultService({
