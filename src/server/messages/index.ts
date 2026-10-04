@@ -1,5 +1,9 @@
 import { AttachmentService } from '../attachments/index.ts';
 import type { NotificationService } from '../notifications/index.ts';
+import { GroupService, groupOperations } from '../groups/index.ts';
+import type { GroupEligibilityVerifier } from '../groups/index.ts';
+import { GroupMediaService, groupMediaOperations } from '../groups/index.ts';
+import { StatusService, statusOperations } from '../status/index.ts';
 import type { ObjectStore } from '../object-store/index.ts';
 import {
   AccountError,
@@ -37,6 +41,9 @@ import {
   matrixQuery,
   matrixSend,
   matrixUpload,
+  groupMatrixQuery,
+  groupMatrixClaim,
+  groupMatrixSend,
 } from './matrix.ts';
 type Action = (
   a: ContactAuthority,
@@ -64,12 +71,23 @@ export class MessageService {
     | 'contacts'
     | 'attachments'
     | 'backups'
+    | 'groups'
+    | 'groupDaily'
+    | 'groupMessages'
+    | 'groupMedia'
+    | 'groupRetention'
+    | 'statuses'
+    | 'statusMedia'
   >;
   private readonly devices: DeviceStore;
   private readonly actions: Record<string, Action>;
   private readonly attachments: AttachmentService | null;
   private readonly objects: ObjectStore | null;
   private readonly notifications: NotificationService | null;
+  private readonly groupMedia: GroupMediaService | null;
+  private readonly statuses: StatusService | null;
+  private maintenanceTimer: ReturnType<typeof setInterval> | null = null;
+  private maintenanceRunning: Promise<void> | null = null;
   constructor(
     db: Pick<
       Database,
@@ -79,18 +97,30 @@ export class MessageService {
       | 'contacts'
       | 'attachments'
       | 'backups'
+      | 'groups'
+      | 'groupDaily'
+      | 'groupMessages'
+      | 'groupMedia'
+      | 'groupRetention'
+      | 'statuses'
+      | 'statusMedia'
     >,
     devices: DeviceStore,
     objects?: ObjectStore,
-    notifications?: NotificationService,
+    services: {
+      notifications?: NotificationService;
+      groupEligibility?: GroupEligibilityVerifier | null;
+    } = {},
   ) {
     this.db = db;
-    this.notifications = notifications ?? null;
+    this.notifications = services.notifications ?? null;
     this.objects = objects ?? null;
     this.devices = devices;
     this.attachments = objects
       ? new AttachmentService(db.attachments, db.messages, objects)
       : null;
+    this.groupMedia = this.mediaService(objects);
+    this.statuses = this.statusService(objects);
     this.actions = {
       live: (a, d) => {
         keys(d, []);
@@ -267,7 +297,45 @@ export class MessageService {
           throw new AccountError(400, 'Lote inválido.');
         return db.matrix.received(a, values.map(sequence));
       },
+      'group-matrix-query': (a, d) => {
+        const { scope, payload } = groupMatrixInput(d);
+        return db.matrix.groupQuery(a, {
+          ...scope,
+          accounts: groupMatrixQuery(payload),
+        });
+      },
+      'group-matrix-claim': async (a, d) => {
+        const { scope, payload } = groupMatrixInput(d);
+        return {
+          response: await db.matrix.groupClaim(a, {
+            ...scope,
+            requests: groupMatrixClaim(payload),
+          }),
+        };
+      },
+      'group-matrix-send': async (a, d) => {
+        const { scope, payload } = groupMatrixInput(d);
+        return {
+          response: await db.matrix.groupSend(a, {
+            ...scope,
+            ...groupMatrixSend(payload),
+          }),
+        };
+      },
+      'group-matrix-inbox': (a, d) => {
+        keys(d, ['after']);
+        return db.matrix.groupInbox(a, sequence(d['after']));
+      },
+      'group-matrix-received': (a, d) => {
+        keys(d, ['sequences']);
+        const values = d['sequences'];
+        if (!Array.isArray(values) || values.length > 16)
+          throw new AccountError(400, 'Lote inválido.');
+        return db.matrix.groupReceived(a, values.map(sequence));
+      },
     };
+    this.installGroupOperations(services.groupEligibility ?? null);
+    this.installStatusOperations();
     for (const operation of [
       'daily-config',
       'daily-state',
@@ -312,6 +380,78 @@ export class MessageService {
   async cleanAttachments(): Promise<void> {
     await this.cleanPersonal();
     await this.attachments?.clean();
+    await this.groupMedia?.clean();
+    await this.db.groupDaily.clean();
+    await this.statuses?.clean();
+  }
+  private mediaService(
+    objects: ObjectStore | undefined,
+  ): GroupMediaService | null {
+    return objects
+      ? new GroupMediaService(
+          this.db.groupMedia,
+          this.db.groupRetention,
+          objects,
+        )
+      : null;
+  }
+  startMaintenance(): void {
+    if (this.maintenanceTimer) return;
+    this.maintenanceTimer = setInterval(() => {
+      if (this.maintenanceRunning || !this.groupMedia) return;
+      this.maintenanceRunning = this.maintainSharedContent()
+        .catch(() => {
+          process.stderr.write('Manutenção de mídia de grupos indisponível.\n');
+        })
+        .finally(() => {
+          this.maintenanceRunning = null;
+        });
+    }, 30000);
+    this.maintenanceTimer.unref();
+  }
+  async close(): Promise<void> {
+    if (this.maintenanceTimer) clearInterval(this.maintenanceTimer);
+    this.maintenanceTimer = null;
+    await this.maintenanceRunning;
+    await this.statuses?.close();
+  }
+  private statusService(
+    objects: ObjectStore | undefined,
+  ): StatusService | null {
+    return objects
+      ? new StatusService(this.db.statuses, this.db.statusMedia, objects)
+      : null;
+  }
+  private installGroupOperations(
+    eligibility: GroupEligibilityVerifier | null,
+  ): void {
+    const groups = new GroupService(
+      this.db.groups,
+      this.db.groupMessages,
+      eligibility,
+      this.db.groupDaily,
+    );
+    for (const operation of groupOperations)
+      this.actions[operation] = (a, d) => groups.operate(a, operation, d);
+    for (const operation of groupMediaOperations)
+      this.actions[operation] = (a, d) => {
+        if (!this.groupMedia)
+          throw new AccountError(503, 'Armazenamento de mídia indisponível.');
+        return this.groupMedia.operate(a, operation, d);
+      };
+  }
+  private installStatusOperations(): void {
+    for (const operation of statusOperations)
+      this.actions[operation] = (a, d) => {
+        if (!this.statuses)
+          throw new AccountError(503, 'Armazenamento de status indisponível.');
+        return this.statuses.operate(a, operation, d);
+      };
+  }
+  private async maintainSharedContent(): Promise<void> {
+    await this.groupMedia?.clean();
+    await this.db.groupDaily.clean();
+    await this.statuses?.clean();
   }
   async preflightAttachment(
     session: AccountSession,
@@ -417,4 +557,14 @@ export class MessageService {
     await verifyPacket(packet, directoryEvent(current.event));
     return this.db.messages.admit(a, packet, hash);
   }
+}
+function groupMatrixInput(data: Record<string, unknown>): {
+  scope: { groupId: string; head: string };
+  payload: Record<string, unknown>;
+} {
+  keys(data, ['groupId', 'head', 'payload']);
+  return {
+    scope: { groupId: uuid(data['groupId']), head: fingerprint(data['head']) },
+    payload: object(data['payload']),
+  };
 }

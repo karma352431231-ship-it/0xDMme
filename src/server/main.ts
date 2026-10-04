@@ -9,6 +9,7 @@ import { VaultService } from './vault/index.ts';
 import { MessageService } from './messages/index.ts';
 import { MessageLive } from './message-live/index.ts';
 import { ContactService } from './contacts/index.ts';
+import { localGroupEligibility } from './groups/index.ts';
 import {
   NotificationService,
   readPushConfiguration,
@@ -29,17 +30,20 @@ try {
   await objects.initialize();
   await database.vault.resumeInterrupted();
   await database.attachments.resumeInterrupted();
+  await database.groupMedia.resumeInterrupted();
+  await database.statusMedia.resumeInterrupted();
   const notifications = new NotificationService({
     store: database.daily,
     devices: database.devices,
     config: readPushConfiguration(process.env),
   });
-  const messages = new MessageService(
-    database,
-    database.devices,
-    objects,
+  const messages = new MessageService(database, database.devices, objects, {
     notifications,
-  );
+    groupEligibility: localGroupEligibility(
+      config,
+      process.env['HASH_TALK_GROUP_FIXTURES'] === '1',
+    ),
+  });
   await messages.cleanAttachments();
   if (!(await database.healthy())) throw new Error('Banco indisponível.');
   const host = createWebServer({
@@ -88,6 +92,7 @@ try {
   });
   let closing = false;
   notifications.start();
+  messages.startMaintenance();
   const shutdown = () => {
     if (closing) return;
     closing = true;
@@ -95,6 +100,7 @@ try {
     deadline.unref();
     void host
       .close()
+      .then(() => messages.close())
       .then(() => notifications.close())
       .then(() => database?.close())
       .then(() => {

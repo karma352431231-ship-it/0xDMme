@@ -638,19 +638,28 @@ footer {
   padding: 0.6rem 0;
   border-bottom: 1px solid #e3e8eb;
 }
-.vault-card form {
+.vault-card form,
+.chat-panel form,
+.status-card form {
   display: grid;
   gap: 12px;
   margin: 24px 0;
 }
-.vault-card label {
+.vault-card label,
+.chat-panel label,
+.status-card label {
   display: grid;
   gap: 8px;
   font-size: 13px;
 }
 .vault-card input,
 .vault-card select,
-.vault-card textarea {
+.vault-card textarea,
+.chat-panel input:not([type='checkbox']),
+.chat-panel select,
+.chat-panel textarea,
+.status-card input:not([type='checkbox']),
+.status-card textarea {
   width: 100%;
   min-width: 0;
   padding: 12px;
@@ -664,7 +673,9 @@ footer {
 }
 .vault-card button,
 .backup-card button,
-.notifications-card button {
+.notifications-card button,
+.chat-panel button,
+.status-card button {
   max-width: 100%;
   margin: 5px 8px 5px 0;
   padding: 10px 12px;
@@ -676,14 +687,18 @@ footer {
   cursor: pointer;
 }
 .vault-card button.primary,
-.backup-card button.primary {
+.backup-card button.primary,
+.chat-panel button.primary,
+.status-card button.primary {
   border-color: var(--accent);
   background: var(--accent);
   color: white;
 }
 .vault-card button:disabled,
 .backup-card button:disabled,
-.notifications-card button:disabled {
+.notifications-card button:disabled,
+.chat-panel button:disabled,
+.status-card button:disabled {
   cursor: default;
   opacity: 0.6;
 }
@@ -707,6 +722,44 @@ footer {
   display: grid;
   grid-template-columns: minmax(140px, 1fr) minmax(0, 3fr);
   gap: 1rem;
+}
+.chat-layout > aside,
+.chat-layout > section,
+.status-card {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.chat-panel [hidden],
+.status-card [hidden] {
+  display: none;
+}
+.chat-panel details,
+.status-card details {
+  margin-block: 1rem;
+}
+.chat-panel summary,
+.status-card summary {
+  cursor: pointer;
+  padding-block: 0.5rem;
+}
+.status-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  padding-block: 0.5rem;
+  border-bottom: 1px solid var(--border, #d5dde2);
+}
+.status-card img {
+  display: block;
+  max-width: 100%;
+  max-height: 28rem;
+  object-fit: contain;
+}
+.status-card [data-status-audience] label {
+  display: flex;
+  align-items: center;
+  margin-block: 0.75rem;
 }
 .chat-contacts {
   display: flex;

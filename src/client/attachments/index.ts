@@ -11,12 +11,12 @@ import type {
   PrivateFile,
   AttachmentRef,
 } from '../../shared/attachments/index.ts';
-import { bytesHash } from '../../shared/vault/index.ts';
+import { bytesHash, vaultQuota } from '../../shared/vault/index.ts';
 import {
   localDelete,
   localGet,
   localPage,
-  localPut,
+  localPutWithin,
 } from '../message-storage/index.ts';
 import { attachmentWork } from './worker-client.ts';
 import type { SealedFile } from '../attachment-crypto/index.ts';
@@ -68,6 +68,7 @@ export async function stageAttachment(input: {
   id: string;
   selection: AttachmentSelection;
   caption: string;
+  budget?: number;
 }): Promise<AttachmentContent> {
   if (input.selection.voice)
     validateVoice(input.selection.bytes, input.selection.voice);
@@ -76,7 +77,7 @@ export async function stageAttachment(input: {
     bytes: input.selection.bytes,
     maximum: fileLimit,
   });
-  await saveParts(input.account, input.id, main);
+  await saveParts(input.account, input.id, main, input.budget);
   let thumbnail: SealedFile | null = null;
   if (input.selection.thumbnail) {
     thumbnail = await attachmentWork<SealedFile>({
@@ -84,7 +85,7 @@ export async function stageAttachment(input: {
       bytes: input.selection.thumbnail,
       maximum: thumbnailLimit,
     });
-    await saveParts(input.account, input.id, thumbnail);
+    await saveParts(input.account, input.id, thumbnail, input.budget);
   }
   return attachmentContent({
     version: input.selection.voice ? 2 : 1,
@@ -101,18 +102,20 @@ async function saveParts(
   account: string,
   message: string,
   sealed: SealedFile,
+  maximum = vaultQuota,
 ): Promise<void> {
   for (let index = 0; index < sealed.file.ref.parts.length; index++) {
     const bytes = sealed.bytes.slice(
       index * partLimit,
       (index + 1) * partLimit,
     );
-    await localPut(
-      account,
-      name(message, sealed.file.ref.id, index),
-      bytes,
-      bytes.length + 128,
-    );
+    await localPutWithin({
+      scope: account,
+      name: name(message, sealed.file.ref.id, index),
+      value: bytes,
+      size: bytes.length + 128,
+      maximum,
+    });
   }
 }
 export async function forgetAttachment(
@@ -120,13 +123,14 @@ export async function forgetAttachment(
   message: string,
 ): Promise<void> {
   let after: string | null = null;
-  for (let page = 0; page < 2; page++) {
+  // Every transaction is bounded to 16 records. Repeated group restaging can
+  // leave more than the original 24 parts after an interrupted save.
+  do {
     const rows: { items: { name: string }[]; next: string | null } =
       await localPage(account, `attachment:${message}:`, after);
     for (const row of rows.items) await localDelete(account, row.name);
     after = rows.next;
-    if (after === null) break;
-  }
+  } while (after !== null);
   await localDelete(account, `attachment-cache:${message}`);
 }
 export async function uploadAttachments(input: {
@@ -202,6 +206,7 @@ async function storedPart(
   return null;
 }
 interface DownloadInput {
+  budget?: number;
   account: string;
   message: string;
   file: PrivateFile;
@@ -236,14 +241,20 @@ async function fetchPart(
   if (bytes.length !== part.bytes || (await bytesHash(bytes)) !== part.hash)
     throw new Error('Parte recebida adulterada.');
   input.guard();
-  await localPut(input.account, key, bytes, bytes.length + 128);
+  await localPutWithin({
+    scope: input.account,
+    name: key,
+    value: bytes,
+    size: bytes.length + 128,
+    maximum: input.budget ?? vaultQuota,
+  });
   return bytes;
 }
 export async function downloadAttachment(
   input: DownloadInput,
 ): Promise<Uint8Array<ArrayBuffer>> {
   input.guard();
-  await retainAttachment(input.account, input.message);
+  await retainAttachment(input.account, input.message, input.budget);
   const bytes = await downloadSealedAttachment(input);
   const result = await openStoredAttachment(
     input.file,
@@ -289,13 +300,15 @@ export async function openStoredAttachment(
 export async function retainAttachment(
   account: string,
   message: string,
+  maximum = vaultQuota,
 ): Promise<void> {
-  await localPut(
-    account,
-    `attachment-cache:${message}`,
-    { id: message, time: Date.now() },
-    128,
-  );
+  await localPutWithin({
+    scope: account,
+    name: `attachment-cache:${message}`,
+    value: { id: message, time: Date.now() },
+    size: 128,
+    maximum,
+  });
   const page = await localPage<{ id: string; time: number }>(
     account,
     'attachment-cache:',
@@ -314,4 +327,43 @@ export async function retainAttachment(
   throw new Error(
     'Cache ocupado por envios pendentes. Conclua ou cancele antes de baixar outros anexos.',
   );
+}
+
+/** Retrying an unaccepted group upload in a new participation period uses new opaque reservations. */
+export async function restageAttachments(input: {
+  account: string;
+  message: string;
+  content: AttachmentContent;
+  budget: number;
+}): Promise<AttachmentContent> {
+  const file = await restageFile(input, input.content.file),
+    thumbnail = input.content.thumbnail
+      ? await restageFile(input, input.content.thumbnail)
+      : null;
+  return attachmentContent({ ...input.content, file, thumbnail });
+}
+async function restageFile(
+  input: { account: string; message: string; budget: number },
+  file: PrivateFile,
+): Promise<PrivateFile> {
+  const ref = { ...file.ref, id: crypto.randomUUID() };
+  for (let index = 0; index < ref.parts.length; index++) {
+    const bytes = await storedPart(
+      input.account,
+      name(input.message, file.ref.id, index),
+      ref.parts[index]!,
+    );
+    if (!bytes)
+      throw new Error(
+        'Parte do rascunho ausente. O reenvio não foi confirmado.',
+      );
+    await localPutWithin({
+      scope: input.account,
+      name: name(input.message, ref.id, index),
+      value: bytes,
+      size: bytes.length + 128,
+      maximum: input.budget,
+    });
+  }
+  return { ...file, ref };
 }

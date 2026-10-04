@@ -24,8 +24,13 @@ import {
   deserializeRecord,
   cleanupTarget,
   recordKey,
+  groupSnapshotHash,
 } from '../backup-records/index.ts';
 import type { BackupRecord } from '../backup-records/index.ts';
+import {
+  attachmentContent,
+  contentRefs,
+} from '../../shared/attachments/index.ts';
 import { BackupOutput } from './output.ts';
 const encoder = new TextEncoder(),
   decoder = new TextDecoder('utf-8', { fatal: true });
@@ -284,9 +289,11 @@ export class BackupReader {
   private readonly file: Blob;
   private readonly frames: Frame[];
   private closed = false;
+  private groupsComplete = true;
   get complete(): boolean {
     return (
       this.report.omitted.length === 0 &&
+      this.groupsComplete &&
       this.targets.length ===
         this.report.records.filter(
           (r) => r.type === 'message' || r.type === 'vault',
@@ -390,25 +397,61 @@ export class BackupReader {
   }
   private async validate(guard: () => void): Promise<void> {
     const media = new Set<string>();
+    const groups = new Set<string>();
     for (let index = 0; index < this.report.records.length; index++) {
       guard();
       const row = await this.read(index);
-      if (
-        row.type === 'account' &&
-        (await bytesHash(encoder.encode(row.value))) !== row.hash
-      )
-        throw new Error('Perfil de backup adulterado.');
-      if (row.type === 'media') {
-        if ((await bytesHash(base64(row.bytes, 3_000_000))) !== row.hash)
-          throw new Error('Mídia de backup adulterada.');
-        media.add(`${row.message}:${row.id}:${row.hash}`);
-      }
+      await this.validateContent(row, groups, media);
     }
     for (let index = 0; index < this.report.records.length; index++) {
       guard();
-      const target = cleanupTarget(await this.read(index), media);
+      const row = await this.read(index);
+      if (row.type === 'group-message') this.checkGroupCopy(row, groups, media);
+      const target = cleanupTarget(row, media);
       if (target) this.targets.push(target);
     }
+  }
+  private async validateContent(
+    row: BackupRecord,
+    groups: Set<string>,
+    media: Set<string>,
+  ): Promise<void> {
+    if (
+      row.type === 'account' &&
+      (await bytesHash(encoder.encode(row.value))) !== row.hash
+    )
+      throw new Error('Perfil de backup adulterado.');
+    if (row.type === 'group') {
+      if ((await groupSnapshotHash(row)) !== row.hash)
+        throw new Error('Metadados de grupo adulterados.');
+      groups.add(row.state.groupId);
+    }
+    if (row.type === 'media' || row.type === 'group-media') {
+      if ((await bytesHash(base64(row.bytes, 3_000_000))) !== row.hash)
+        throw new Error('Mídia de backup adulterada.');
+      media.add(
+        row.type === 'media'
+          ? `${row.message}:${row.id}:${row.hash}`
+          : `${row.groupId}:${row.message}:${row.id}:${row.hash}`,
+      );
+    }
+  }
+  private checkGroupCopy(
+    row: Extract<BackupRecord, { type: 'group-message' }>,
+    groups: ReadonlySet<string>,
+    media: ReadonlySet<string>,
+  ): void {
+    if (row.own !== (row.sender === this.h.accountId))
+      throw new Error('Origem de grupo diverge da conta do backup.');
+    if (!groups.has(row.groupId)) this.groupsComplete = false;
+    if (row.kind !== 'attachment') return;
+    const content = attachmentContent(JSON.parse(row.text) as unknown);
+    if (
+      contentRefs(content).some(
+        (ref) => !media.has(`${row.groupId}:${row.id}:${ref.id}:${ref.hash}`),
+      )
+    )
+      this.groupsComplete = false;
   }
 }
 async function read(
@@ -539,7 +582,17 @@ function reportFields(d: Record<string, unknown>): {
 function parseInfo(value: unknown): RecordInfo {
   const r = object(value);
   keys(r, ['type', 'id', 'hash', 'start', 'parts', 'bytes', 'digest']);
-  if (!['vault', 'message', 'media', 'account'].includes(String(r['type'])))
+  if (
+    ![
+      'vault',
+      'message',
+      'media',
+      'account',
+      'group',
+      'group-message',
+      'group-media',
+    ].includes(String(r['type']))
+  )
     throw new Error('Registro não suportado.');
   return {
     type: r['type'] as BackupRecord['type'],

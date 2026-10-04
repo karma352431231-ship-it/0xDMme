@@ -64,7 +64,7 @@ export class ContactStore {
     pending.authorization ||= authorization;
   }
   private async transaction<T>(
-    authority: ContactAuthority,
+    authority: ContactAuthority | null,
     work: (client: pg.PoolClient) => Promise<T>,
   ): Promise<T> {
     const client = await this.pool.connect();
@@ -77,11 +77,13 @@ export class ContactStore {
       await client.query(
         "SELECT pg_advisory_xact_lock(hashtext('hash-talk:contact-admission'))",
       );
-      await client.query(
-        'SELECT id FROM hash_talk.accounts WHERE id=$1 FOR UPDATE',
-        [authority.session.accountId],
-      );
-      await this.authorize(client, authority);
+      if (authority) {
+        await client.query(
+          'SELECT id FROM hash_talk.accounts WHERE id=$1 FOR UPDATE',
+          [authority.session.accountId],
+        );
+        await this.authorize(client, authority);
+      }
       const result = await work(client);
       await client.query('COMMIT');
       this.pendingChanges.delete(client);
@@ -219,6 +221,12 @@ export class ContactStore {
   ): Promise<T> {
     return this.transaction(authority, work);
   }
+  /** Internal retention jobs share admission serialization and publish hints only after commit. */
+  async withMaintenance<T>(
+    work: (client: pg.PoolClient) => Promise<T>,
+  ): Promise<T> {
+    return this.transaction(null, work);
+  }
   async withMessageConsent<T>(
     authority: ContactAuthority,
     targetId: string,
@@ -241,6 +249,89 @@ export class ContactStore {
     targetId: string,
   ): Promise<boolean> {
     return this.allowed(client, actorId, targetId);
+  }
+  /** Bounded contact ACL for fanout/read filtering; preserves the same approved relation and block rule. */
+  async messageDeliveryBatch(
+    client: pg.PoolClient,
+    actorId: string,
+    targetIds: string[],
+  ): Promise<Set<string>> {
+    const denied = await this.messageBlockedBatch(client, actorId, targetIds);
+    const relations = await client.query<{ target: string }>(
+      "SELECT CASE WHEN lo=$1 THEN hi ELSE lo END AS target FROM hash_talk.contact_relations WHERE (lo=$1 AND hi=ANY($2::uuid[]) OR hi=$1 AND lo=ANY($2::uuid[])) AND state='approved'",
+      [actorId, targetIds],
+    );
+    return new Set(
+      relations.rows.filter((r) => !denied.has(r.target)).map((r) => r.target),
+    );
+  }
+  /** Frozen status audiences use current blocks without requiring a still-current contact relation. */
+  async messageBlockedBatch(
+    client: pg.PoolClient,
+    actorId: string,
+    targetIds: string[],
+  ): Promise<Set<string>> {
+    if (targetIds.length > 16)
+      throw new AccountError(413, 'Lote de contatos excedido.');
+    if (!targetIds.length) return new Set();
+    const peers = await client.query<Peer>(
+      'SELECT id AS "accountId",ecosystem,address,display_name AS name FROM hash_talk.accounts WHERE id=ANY($1::uuid[])',
+      [[actorId, ...targetIds]],
+    );
+    const hashes = new Map(
+      await Promise.all(
+        peers.rows.map(
+          async (p) => [p.accountId, await walletHash(p)] as const,
+        ),
+      ),
+    );
+    const blocks = await client.query<{
+      account_id: string;
+      wallet_hash: string;
+    }>(
+      'SELECT account_id,wallet_hash FROM hash_talk.contact_blocks WHERE (account_id=$1 AND wallet_hash=ANY($2::text[])) OR (account_id=ANY($3::uuid[]) AND wallet_hash=$4)',
+      [
+        actorId,
+        targetIds.map((id) => hashes.get(id)).filter((h) => h !== undefined),
+        targetIds,
+        hashes.get(actorId) ?? '',
+      ],
+    );
+    const denied = new Set(
+      blocks.rows.map((r) => `${r.account_id}:${r.wallet_hash}`),
+    );
+    return new Set(
+      targetIds.filter(
+        (target) =>
+          !hashes.has(target) ||
+          denied.has(`${actorId}:${hashes.get(target) ?? ''}`) ||
+          denied.has(`${target}:${hashes.get(actorId) ?? ''}`),
+      ),
+    );
+  }
+  /** Stable revision is checked again before publication; no RPC or upload is held in this transaction. */
+  async publicationRevision(
+    client: pg.PoolClient,
+    accountId: string,
+  ): Promise<number> {
+    return (await this.controls(client, accountId)).revision;
+  }
+  async publicationContacts(
+    client: pg.PoolClient,
+    accountId: string,
+    after: string | null,
+  ): Promise<{ accounts: string[]; next: string | null }> {
+    const result = await client.query<{ account_id: string }>(
+      "SELECT CASE WHEN lo=$1 THEN hi ELSE lo END AS account_id FROM hash_talk.contact_relations WHERE (lo=$1 OR hi=$1) AND state='approved' AND ($2::uuid IS NULL OR CASE WHEN lo=$1 THEN hi ELSE lo END>$2::uuid) ORDER BY account_id LIMIT 17",
+      [accountId, after],
+    );
+    const page = result.rows.slice(0, 16),
+      ids = page.map((r) => r.account_id);
+    const allowed = await this.messageDeliveryBatch(client, accountId, ids);
+    return {
+      accounts: ids.filter((id) => allowed.has(id)),
+      next: result.rows.length > 16 ? (page.at(-1)?.account_id ?? null) : null,
+    };
   }
   async list(
     authority: ContactAuthority,

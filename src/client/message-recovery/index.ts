@@ -130,3 +130,25 @@ export function openRoomKey(
     validated.ciphertext,
   );
 }
+
+/** Prepare the existing account recovery capsule before any shared publication. */
+export async function ensureMessageRecovery(
+  authority: VaultAuthority,
+  api: (
+    operation: string,
+    payload: Record<string, unknown>,
+  ) => Promise<unknown>,
+): Promise<RecoveryKey> {
+  let raw = await api('recovery-current', {});
+  if (raw === null)
+    raw = await api('recovery-register', {
+      key: await createRecoveryKey(authority),
+    });
+  const key = recoveryKey(raw),
+    event = authority.events[key.authorityRevision - 1];
+  if (!event) throw new Error('Autoridade da recuperação ausente.');
+  await verifyRecoveryKey(key, event);
+  const secret = await openRecoveryKey(key, authority);
+  secret.free();
+  return key;
+}

@@ -16,6 +16,7 @@ import { cleanPersonal } from '../personal-removals/index.ts';
 import { notifyMessageControls } from '../message-controls/index.ts';
 import { historyPage, importHistory } from '../local-history/index.ts';
 import { localGet, localPut } from '../message-storage/index.ts';
+import { GroupBackups } from '../groups/index.ts';
 export interface BackupChoice {
   type: 'vault' | 'message';
   id: string;
@@ -28,6 +29,7 @@ export class Backups {
   private readonly access: VaultAccess;
   private readonly sync: VaultSync;
   private readonly messages: Messages;
+  private readonly groups: GroupBackups;
   private session: AccountSession | null = null;
   private generation = 0;
   private after: number | null = 0;
@@ -49,6 +51,7 @@ export class Backups {
     this.sync = sync;
     this.profile = profile;
     this.messages = new Messages(access, sync, () => {});
+    this.groups = new GroupBackups(access, sync);
   }
   private sameIdentity(session: AccountSession | null): boolean {
     return (
@@ -65,6 +68,7 @@ export class Backups {
     } else if (session?.csrf !== this.session?.csrf) this.generation++;
     this.session = session;
     this.messages.setSession(session);
+    this.groups.setSession(session);
   }
   cancel(): void {
     this.generation++;
@@ -175,6 +179,7 @@ export class Backups {
   async generate(
     ids: ReadonlySet<string>,
     media: boolean,
+    groups = false,
   ): Promise<{ included: number; omitted: string[] }> {
     this.cancel();
     const guard = this.guard();
@@ -200,6 +205,13 @@ export class Backups {
           media,
           total: selected.length,
           done: included,
+        });
+      if (groups)
+        included += await this.groups.export({
+          append: (row) => writer.add(row, guard),
+          known: historical,
+          guard,
+          omitted,
         });
       this.generated = await writer.finish(omitted, guard);
       guard();
@@ -343,6 +355,7 @@ export class Backups {
     } while (this.more);
     return this.generate(
       new Set(this.list().map((r) => `${r.type}:${r.id}`)),
+      true,
       true,
     );
   }

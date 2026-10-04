@@ -1,3 +1,5 @@
+import { GroupDailyStore } from './group-daily.ts';
+export type { GroupDailyStore } from './group-daily.ts';
 import { BackupStore } from './backups.ts';
 import { DailyStore } from './daily.ts';
 export type { DailyStore, PushJob } from './daily.ts';
@@ -17,6 +19,18 @@ import { ContactStore } from './contacts.ts';
 import { MessageRecoveryStore } from './message-recovery.ts';
 import { MessageStore } from './messages.ts';
 import { MatrixStore } from './matrix.ts';
+import { GroupStore } from './groups.ts';
+import { GroupMessageStore } from './group-messages.ts';
+import { GroupMediaStore } from './group-media.ts';
+import { GroupRetentionStore } from './group-retention.ts';
+import { StatusStore } from './status.ts';
+import { StatusMediaStore } from './status-media.ts';
+export type { StatusStore, StatusRow } from './status.ts';
+export type { StatusMediaStore } from './status-media.ts';
+export type { GroupMediaStore, GroupScope } from './group-media.ts';
+export type { GroupRetentionStore } from './group-retention.ts';
+export type { GroupMessageStore } from './group-messages.ts';
+export type { GroupStore, GroupEligibility } from './groups.ts';
 export type { MatrixStore, MatrixUpload } from './matrix.ts';
 export type { MessageStore, MessageSnapshot } from './messages.ts';
 export type { MessageRecoveryStore } from './message-recovery.ts';
@@ -50,6 +64,11 @@ const migrations = [
   '017-personal-backup-cleanup.sql',
   '018-daily.sql',
   '019-linked-sessions.sql',
+  '020-groups-status.sql',
+  '021-group-delivery.sql',
+  '022-group-media.sql',
+  '023-status.sql',
+  '024-group-interface.sql',
 ];
 
 export interface MaintenanceSnapshot {
@@ -87,6 +106,13 @@ export class Database {
   readonly attachments: AttachmentStore;
   readonly backups: BackupStore;
   readonly daily: DailyStore;
+  readonly groups: GroupStore;
+  readonly groupDaily: GroupDailyStore;
+  readonly groupMessages: GroupMessageStore;
+  readonly groupMedia: GroupMediaStore;
+  readonly groupRetention: GroupRetentionStore;
+  readonly statuses: StatusStore;
+  readonly statusMedia: StatusMediaStore;
 
   constructor(connectionString: string, contentCapacity = 3_000_000_000) {
     this.pool = new pg.Pool({
@@ -128,7 +154,46 @@ export class Database {
       this.attachments,
     );
     this.backups = new BackupStore(this.pool, this.contacts, contentCapacity);
-    this.matrix = new MatrixStore(this.contacts, contentCapacity);
+    this.groups = new GroupStore(
+      this.contacts,
+      this.devices,
+      contentCapacity,
+      this.messageRecovery,
+    );
+    this.groupDaily = new GroupDailyStore(
+      this.pool,
+      this.groups,
+      this.contacts,
+      contentCapacity,
+    );
+    this.matrix = new MatrixStore(this.contacts, contentCapacity, this.groups);
+    this.groupMedia = new GroupMediaStore(
+      this.pool,
+      this.contacts,
+      this.groups,
+      contentCapacity,
+    );
+    this.groupRetention = new GroupRetentionStore(
+      this.pool,
+      this.contacts,
+      this.groups,
+      contentCapacity,
+    );
+    this.groupMessages = new GroupMessageStore(this.contacts, this.groups, {
+      devices: this.devices,
+      capacity: contentCapacity,
+      media: this.groupMedia,
+    });
+    this.statuses = new StatusStore(this.pool, this.contacts, {
+      devices: this.devices,
+      recovery: this.messageRecovery,
+      capacity: contentCapacity,
+    });
+    this.statusMedia = new StatusMediaStore(
+      this.pool,
+      this.statuses,
+      contentCapacity,
+    );
   }
 
   async migrate(): Promise<void> {

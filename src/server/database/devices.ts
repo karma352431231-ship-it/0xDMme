@@ -1,6 +1,7 @@
 import type pg from 'pg';
 import { assertVaultQuota, assertContentCapacity } from './vault-quota.ts';
 import { AccountError, base64 } from '../../shared/account/index.ts';
+import { directoryEvent } from '../../shared/devices/index.ts';
 import type {
   AccountSession,
   EncryptedProfile,
@@ -41,12 +42,85 @@ export class DeviceStore {
     );
     return result.rows[0] ?? null;
   }
+  /** Called under the caller's short, coordinated authorization transaction. */
+  async lockDirectories(
+    client: pg.PoolClient,
+    accountIds: readonly string[],
+  ): Promise<void> {
+    await client.query(
+      'SELECT id FROM hash_talk.accounts WHERE id=ANY($1::uuid[]) ORDER BY id FOR UPDATE',
+      [[...new Set(accountIds)].sort()],
+    );
+  }
+
+  async currentInTransaction(
+    client: pg.PoolClient,
+    accountId: string,
+  ): Promise<DirectoryEvent> {
+    const result = await client.query<{ event: unknown }>(
+      'SELECT event FROM hash_talk.device_directories WHERE account_id=$1',
+      [accountId],
+    );
+    const row = result.rows[0];
+    if (!row) throw new AccountError(403, 'Diretório de aparelho ausente.');
+    return directoryEvent(row.event);
+  }
   async page(accountId: string, after: number): Promise<unknown[]> {
     const result = await this.pool.query<{ event: unknown }>(
       'SELECT event FROM hash_talk.device_events WHERE account_id=$1 AND revision>$2 ORDER BY revision LIMIT 8',
       [accountId, after],
     );
     return result.rows.map((row) => row.event);
+  }
+  /** Historical authority is read only after the coordinating operation establishes its ACL. */
+  async revisionInTransaction(
+    client: pg.PoolClient,
+    accountId: string,
+    revision: number,
+  ): Promise<DirectoryEvent> {
+    const result = await client.query<{ event: unknown }>(
+      'SELECT event FROM hash_talk.device_events WHERE account_id=$1 AND revision=$2',
+      [accountId, revision],
+    );
+    const row = result.rows[0];
+    if (!row) throw new AccountError(403, 'Autoridade histórica indisponível.');
+    return directoryEvent(row.event);
+  }
+  /** The coordinating caller authorizes these accounts before this bounded public-key read. */
+  async historyBatch(
+    client: pg.PoolClient,
+    requests: { accountId: string; after: number }[],
+  ): Promise<
+    {
+      accountId: string;
+      head: string;
+      revision: number;
+      events: DirectoryEvent[];
+    }[]
+  > {
+    if (requests.length > 16)
+      throw new AccountError(413, 'Lote de diretórios excedido.');
+    const rows = await client.query<{
+      account_id: string;
+      head: string;
+      revision: number;
+      events: unknown[];
+    }>(
+      `SELECT r.account_id,d.head,d.revision,coalesce(h.events,'[]'::jsonb) AS events FROM jsonb_to_recordset($1::jsonb) AS r(account_id uuid,after integer) JOIN hash_talk.device_directories d ON d.account_id=r.account_id LEFT JOIN LATERAL (SELECT jsonb_agg(p.event ORDER BY p.revision) AS events FROM (SELECT event,revision FROM hash_talk.device_events WHERE account_id=r.account_id AND revision>r.after ORDER BY revision LIMIT 8) p) h ON true ORDER BY r.account_id`,
+      [
+        JSON.stringify(
+          requests.map((r) => ({ account_id: r.accountId, after: r.after })),
+        ),
+      ],
+    );
+    if (rows.rows.length !== requests.length)
+      throw new AccountError(403, 'Diretório de participante indisponível.');
+    return rows.rows.map((row) => ({
+      accountId: row.account_id,
+      head: row.head,
+      revision: row.revision,
+      events: row.events.map(directoryEvent),
+    }));
   }
   async link(accountId: string, id: string): Promise<DeviceLink> {
     const result = await this.pool.query<DeviceLink>(

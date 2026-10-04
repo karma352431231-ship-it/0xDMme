@@ -6,7 +6,10 @@ import {
   object,
   uuid,
 } from '../../shared/account/index.ts';
-import { fingerprint } from '../../shared/devices/index.ts';
+import { fingerprint, canonical, digest } from '../../shared/devices/index.ts';
+import { groupEvent } from '../../shared/groups/index.ts';
+import type { GroupEvent } from '../../shared/groups/index.ts';
+import { groupTitle } from '../../shared/group-messages/index.ts';
 import { integer } from '../../shared/vault/index.ts';
 import { vaultChange } from '../../shared/vault/index.ts';
 import type { VaultChange } from '../../shared/vault/index.ts';
@@ -24,6 +27,35 @@ import type { MessageRelation } from '../../shared/daily/index.ts';
 import { backupRecordLimit } from '../../shared/backups/index.ts';
 import type { BackupTarget } from '../../shared/backups/index.ts';
 export type BackupRecord =
+  | {
+      type: 'group';
+      id: string;
+      hash: string;
+      state: GroupEvent;
+      title: string;
+      profileSequence: number;
+    }
+  | {
+      type: 'group-message';
+      id: string;
+      hash: string;
+      groupId: string;
+      sequence: number;
+      epoch: number;
+      sender: string;
+      own: boolean;
+      kind: 'text' | 'profile' | 'attachment';
+      text: string;
+    }
+  | {
+      type: 'group-media';
+      id: string;
+      hash: string;
+      groupId: string;
+      message: string;
+      thumbnail: boolean;
+      bytes: string;
+    }
   | { type: 'account'; id: string; hash: string; value: string }
   | {
       type: 'vault';
@@ -52,6 +84,19 @@ export type BackupRecord =
       thumbnail: boolean;
       bytes: string;
     };
+export function groupSnapshotHash(row: {
+  state: GroupEvent;
+  title: string;
+  profileSequence: number;
+}): Promise<string> {
+  return digest(
+    canonical({
+      state: row.state,
+      title: row.title,
+      profileSequence: row.profileSequence,
+    }),
+  );
+}
 function optionalSequence(data: Record<string, unknown>): {
   sequence?: number;
 } {
@@ -71,6 +116,8 @@ export function backupRecord(input: unknown): BackupRecord {
     type = d['type'];
   const id = uuid(d['id']),
     hash = fingerprint(d['hash']);
+  const group = groupBackupRecord(d, id, hash);
+  if (group) return group;
   if (type === 'account') {
     keys(d, ['type', 'id', 'hash', 'value']);
     const value = boundedText(d['value'], 4_300_000);
@@ -101,6 +148,81 @@ export function backupRecord(input: unknown): BackupRecord {
     };
   }
   throw new Error('Tipo de registro de backup não suportado.');
+}
+function groupBackupRecord(
+  d: Record<string, unknown>,
+  id: string,
+  hash: string,
+): BackupRecord | null {
+  const type = d['type'];
+  if (type === 'group') {
+    keys(d, ['type', 'id', 'hash', 'state', 'title', 'profileSequence']);
+    return {
+      type,
+      id,
+      hash,
+      state: groupEvent(d['state']),
+      title: groupTitle({ version: 1, title: d['title'] }),
+      profileSequence: integer(d['profileSequence'], Number.MAX_SAFE_INTEGER),
+    };
+  }
+  if (type === 'group-message') return groupMessageRecord(d, id, hash);
+  if (type === 'group-media') {
+    keys(d, ['type', 'id', 'hash', 'groupId', 'message', 'thumbnail', 'bytes']);
+    if (typeof d['thumbnail'] !== 'boolean')
+      throw new Error('Mídia de grupo inválida.');
+    const bytes = base64(d['bytes'], fileLimit);
+    if (!bytes.length) throw new Error('Mídia vazia.');
+    return {
+      type,
+      id,
+      hash,
+      groupId: uuid(d['groupId']),
+      message: uuid(d['message']),
+      thumbnail: d['thumbnail'],
+      bytes: encode(bytes),
+    };
+  }
+  return null;
+}
+function groupMessageRecord(
+  d: Record<string, unknown>,
+  id: string,
+  hash: string,
+): Extract<BackupRecord, { type: 'group-message' }> {
+  keys(d, [
+    'type',
+    'id',
+    'hash',
+    'groupId',
+    'sequence',
+    'epoch',
+    'sender',
+    'own',
+    'kind',
+    'text',
+  ]);
+  const kind = d['kind'],
+    text = boundedText(d['text'], backupRecordLimit);
+  if (
+    typeof d['own'] !== 'boolean' ||
+    (kind !== 'text' && kind !== 'profile' && kind !== 'attachment')
+  )
+    throw new Error('Mensagem histórica de grupo inválida.');
+  if (kind === 'profile') groupTitle(JSON.parse(text) as unknown);
+  else validateContent(kind, text);
+  return {
+    type: 'group-message',
+    id,
+    hash,
+    groupId: uuid(d['groupId']),
+    sequence: integer(d['sequence'], Number.MAX_SAFE_INTEGER),
+    epoch: integer(d['epoch'], 100_000),
+    sender: uuid(d['sender']),
+    own: d['own'],
+    kind,
+    text,
+  };
 }
 function messageRecord(
   d: Record<string, unknown>,
@@ -154,7 +276,7 @@ export function cleanupTarget(
   row: BackupRecord,
   media: ReadonlySet<string>,
 ): BackupTarget | null {
-  if (row.type === 'media' || row.type === 'account') return null;
+  if (row.type !== 'message' && row.type !== 'vault') return null;
   if (row.type === 'message' && row.kind === 'attachment') {
     const content = attachmentContent(JSON.parse(row.text) as unknown);
     if (
@@ -176,7 +298,7 @@ export function serializeRecord(row: BackupRecord): Uint8Array<ArrayBuffer> {
   const field =
     row.type === 'vault' || row.type === 'account'
       ? 'value'
-      : row.type === 'message'
+      : row.type === 'message' || row.type === 'group-message'
         ? 'text'
         : null;
   const encoder = new TextEncoder();
@@ -184,7 +306,7 @@ export function serializeRecord(row: BackupRecord): Uint8Array<ArrayBuffer> {
   const bytes = encoder.encode(
     row.type === 'vault' || row.type === 'account'
       ? row.value
-      : row.type === 'message'
+      : row.type === 'message' || row.type === 'group-message'
         ? row.text
         : '',
   );
@@ -203,7 +325,8 @@ export function serializeRecord(row: BackupRecord): Uint8Array<ArrayBuffer> {
 export function deserializeRecord(bytes: Uint8Array): BackupRecord {
   const decoder = new TextDecoder('utf-8', { fatal: true });
   const raw = object(JSON.parse(decoder.decode(bytes)) as unknown);
-  if (raw['type'] === 'media') return backupRecord(raw);
+  if (['media', 'group', 'group-media'].includes(String(raw['type'])))
+    return backupRecord(raw);
   if (raw['encoding'] !== 'base64-utf8')
     throw new Error('Codificação do registro não suportada.');
   const { encoding: _encoding, ...value } = raw;

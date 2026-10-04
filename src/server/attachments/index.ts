@@ -1,4 +1,3 @@
-import type { AttachmentRef } from '../../shared/attachments/index.ts';
 import { createHash } from 'node:crypto';
 import {
   AccountError,
@@ -7,8 +6,12 @@ import {
   keys,
   uuid,
 } from '../../shared/account/index.ts';
-import { attachmentRefs, partLimit } from '../../shared/attachments/index.ts';
-import { bytesHash, integer } from '../../shared/vault/index.ts';
+import {
+  attachmentRefs,
+  partLimit,
+  verifyAttachmentPart,
+} from '../../shared/attachments/index.ts';
+import { integer } from '../../shared/vault/index.ts';
 import type {
   AttachmentStore,
   ContactAuthority,
@@ -27,20 +30,6 @@ function writeRequest(
     index: finishing ? null : integer(d['index'], 11),
     bytes: finishing ? null : base64(d['ciphertext'], partLimit),
   };
-}
-async function validPart(
-  ref: AttachmentRef,
-  index: number | null,
-  bytes: Uint8Array | null,
-): Promise<void> {
-  if (!bytes) return;
-  const part = ref.parts[index ?? 0];
-  if (
-    !part ||
-    bytes.length !== part.bytes ||
-    (await bytesHash(bytes)) !== part.hash
-  )
-    throw new AccountError(400, 'Parte de anexo adulterada ou incompleta.');
 }
 export class AttachmentService {
   private readonly store: AttachmentStore;
@@ -124,7 +113,7 @@ export class AttachmentService {
       lease = await this.store.begin(a, id, index);
     const status = index === null ? 'ready' : 'stored';
     try {
-      await validPart(lease.ref, index, bytes);
+      await verifyAttachmentPart(lease.ref, index, bytes);
     } catch (error: unknown) {
       if (lease.writer) await this.store.release(id, lease.writer);
       throw error;

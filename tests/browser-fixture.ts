@@ -14,6 +14,8 @@ import { DeviceService } from '../src/server/devices/index.ts';
 import { VaultService } from '../src/server/vault/index.ts';
 import { ObjectStore } from '../src/server/object-store/index.ts';
 import { MessageService } from '../src/server/messages/index.ts';
+import { MessageLive } from '../src/server/message-live/index.ts';
+import { localGroupEligibility } from '../src/server/groups/index.ts';
 import { ContactService } from '../src/server/contacts/index.ts';
 import { NotificationService } from '../src/server/notifications/index.ts';
 import { frontendEmoji, emojiAsset } from '../src/tools/frontend-emoji.ts';
@@ -54,33 +56,36 @@ if (!root) throw new Error('Build ausente.');
 const html = new TextDecoder().decode(root.content);
 const app = html.match(/src="(\/app-[a-f0-9]+\.js)"/u)?.[1];
 if (!app) throw new Error('Build de app ausente.');
-const bundle = await build({
-  entryPoints: ['tests/fixtures/wallet-browser.ts'],
-  bundle: true,
-  platform: 'browser',
-  format: 'esm',
-  minify: true,
-  write: false,
-  define: {
-    SYNTHETIC_VAULT_CONTROLS:
-      process.env['HASH_TALK_FIXTURE_VAULT_CONTROLS'] === '1'
-        ? 'true'
-        : 'false',
-    SYNTHETIC_FIXTURE_SEED: JSON.stringify(fixtureSeed),
-    SYNTHETIC_QR_CAMERA:
-      process.env['HASH_TALK_FIXTURE_QR_CAMERA'] === '1' ? 'true' : 'false',
-    SYNTHETIC_RECOVERY_CONTROLS:
-      process.env['HASH_TALK_FIXTURE_RECOVERY_CONTROLS'] === '1'
-        ? 'true'
-        : 'false',
-  },
-});
-const script = bundle.outputFiles[0]?.contents;
-if (!script) throw new Error('Fixture ausente.');
-assets.set('/fixture-wallet.js', {
-  type: 'text/javascript; charset=utf-8',
-  content: script,
-});
+async function walletAsset(seed: string): Promise<WebAsset> {
+  const bundle = await build({
+    entryPoints: ['tests/fixtures/wallet-browser.ts'],
+    bundle: true,
+    platform: 'browser',
+    format: 'esm',
+    minify: true,
+    write: false,
+    define: {
+      SYNTHETIC_VAULT_CONTROLS:
+        process.env['HASH_TALK_FIXTURE_VAULT_CONTROLS'] === '1'
+          ? 'true'
+          : 'false',
+      SYNTHETIC_FIXTURE_SEED: JSON.stringify(seed),
+      SYNTHETIC_QR_CAMERA:
+        process.env['HASH_TALK_FIXTURE_QR_CAMERA'] === '1' ? 'true' : 'false',
+      SYNTHETIC_RECOVERY_CONTROLS:
+        process.env['HASH_TALK_FIXTURE_RECOVERY_CONTROLS'] === '1'
+          ? 'true'
+          : 'false',
+    },
+  });
+  const script = bundle.outputFiles[0]?.contents;
+  if (!script) throw new Error('Fixture ausente.');
+  return {
+    type: 'text/javascript; charset=utf-8',
+    content: script,
+  };
+}
+assets.set('/fixture-wallet.js', await walletAsset(fixtureSeed));
 for (const path of ['/', '/wallet.html', '/recovery.html']) {
   const entry = assets.get(path);
   if (!entry) throw new Error('Página de teste ausente.');
@@ -110,34 +115,41 @@ const notifications = new NotificationService({
   devices: database.devices,
   config: null,
 });
-const host = createWebServer({
-  origin,
-  assets,
-  database,
-  objects,
-  account: createAccountHandler({
-    contacts: new ContactService(database.contacts, database.devices),
-    messages: new MessageService(
-      database,
-      database.devices,
-      objects,
-      notifications,
-    ),
-    notifications,
-    devices: new DeviceService(database.devices, origin),
-    ...fixtureDocuments(),
-    vault: new VaultService({
-      store: database.vault,
-      devices: database.devices,
-      objects,
-    }),
-    origin,
-    service: new AccountService({
-      store: database.authentication,
-      origin,
-    }),
-  }),
+const live = new MessageLive(database.changes);
+const messages = new MessageService(database, database.devices, objects, {
+  notifications,
+  groupEligibility: localGroupEligibility(config, true),
 });
+function fixtureServer(
+  testOrigin: string,
+  testAssets: ReadonlyMap<string, WebAsset>,
+) {
+  return createWebServer({
+    origin: testOrigin,
+    assets: testAssets,
+    database,
+    objects,
+    account: createAccountHandler({
+      live,
+      contacts: new ContactService(database.contacts, database.devices),
+      messages,
+      notifications,
+      devices: new DeviceService(database.devices, testOrigin),
+      ...fixtureDocuments(),
+      vault: new VaultService({
+        store: database.vault,
+        devices: database.devices,
+        objects,
+      }),
+      origin: testOrigin,
+      service: new AccountService({
+        store: database.authentication,
+        origin: testOrigin,
+      }),
+    }),
+  });
+}
+const host = fixtureServer(origin, assets);
 function fixtureDocuments(): {
   approvalDocument: Uint8Array;
   recoveryDocument: Uint8Array;
@@ -183,12 +195,60 @@ await new Promise<void>((resolve, reject) => {
   host.server.listen(fixturePort, '127.0.0.1', resolve);
 });
 let closing = false;
+const hosts = [host];
+if (process.env['HASH_TALK_FIXTURE_PAIR_PORT']) {
+  const port = Number(process.env['HASH_TALK_FIXTURE_PAIR_PORT']);
+  if (
+    !Number.isInteger(port) ||
+    port < 45111 ||
+    port > 45119 ||
+    port === fixturePort
+  )
+    throw new Error('Porta pareada fora do intervalo exclusivo.');
+  const otherAssets = new Map(assets);
+  otherAssets.set(
+    '/fixture-wallet.js',
+    await walletAsset(`0x${randomBytes(32).toString('hex')}`),
+  );
+  const hostname = fixtureHost === 'localhost' ? '127.0.0.1' : 'localhost';
+  const other = fixtureServer(`http://${hostname}:${port}`, otherAssets);
+  await new Promise<void>((resolve, reject) => {
+    other.server.once('error', reject);
+    other.server.listen(port, '127.0.0.1', resolve);
+  });
+  hosts.push(other);
+}
+const requestCounts = new Map<string, number>();
+if (process.env['HASH_TALK_FIXTURE_REQUEST_COUNTS'] === '1')
+  for (const value of hosts)
+    value.server.on('request', (request, response) => {
+      const path = request.url ?? '';
+      if (!/^\/api\/account\/[a-z/-]+$/u.test(path)) return;
+      response.once('finish', () => {
+        const key = `${response.statusCode} ${path}`;
+        if (requestCounts.size < 128 || requestCounts.has(key))
+          requestCounts.set(key, (requestCounts.get(key) ?? 0) + 1);
+      });
+    });
+const countTimer = setInterval(() => {
+  if (!requestCounts.size) return;
+  process.stdout.write(
+    JSON.stringify(Object.fromEntries(requestCounts)) + '\n',
+  );
+  requestCounts.clear();
+}, 30_000);
+countTimer.unref();
 const close = () => {
   if (closing) return;
   closing = true;
-  void host
-    .close()
-    .then(() => database.close())
+  clearInterval(countTimer);
+  live.close();
+  void Promise.all(hosts.map((value) => value.close()))
+    .then(async () => {
+      await messages.close();
+      await notifications.close();
+      await database.close();
+    })
     .catch(() => {
       process.exitCode = 1;
     });

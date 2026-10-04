@@ -15,6 +15,8 @@ import { resolve } from 'node:path';
 
 const maximumBytes = 3 * 1024 * 1024 + 64 * 1024;
 const validIdentifier = /^[a-f0-9]{64}$/u;
+const validUuid =
+  /^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/u;
 
 function isExisting(error: unknown): boolean {
   return error instanceof Error && 'code' in error && error.code === 'EEXIST';
@@ -75,6 +77,97 @@ export class ObjectStore {
     await child.initialize();
     await child.cleanStaging(Number.POSITIVE_INFINITY);
     return child;
+  }
+  /** Distinct from personal media even when a caller repeats an attachment UUID. */
+  async groupMedia(groupId: string): Promise<ObjectStore> {
+    if (!validUuid.test(groupId)) throw new Error('Grupo de objetos inválido.');
+    const child = new ObjectStore(resolve(this.directory, `group-${groupId}`));
+    await child.initialize();
+    return child;
+  }
+  async readGroupMedia(groupId: string): Promise<ObjectStore> {
+    if (!validUuid.test(groupId)) throw new Error('Grupo de objetos inválido.');
+    const path = resolve(this.directory, `group-${groupId}`);
+    const stat = await lstat(path);
+    if (!stat.isDirectory() || (await realpath(path)) !== path)
+      throw new Error('Diretório de grupo inválido.');
+    return new ObjectStore(path);
+  }
+  async discardGroupMedia(
+    groupId: string,
+    attachmentId: string,
+  ): Promise<void> {
+    try {
+      await (
+        await this.readGroupMedia(groupId)
+      ).discardAttachment(attachmentId);
+    } catch (error: unknown) {
+      if (!(
+        error instanceof Error &&
+        'code' in error &&
+        error.code === 'ENOENT'
+      ))
+        throw error;
+    }
+  }
+  async statusMedia(statusId: string): Promise<ObjectStore> {
+    if (!validUuid.test(statusId))
+      throw new Error('Publicação de objetos inválida.');
+    const child = new ObjectStore(
+      resolve(this.directory, `status-${statusId}`),
+    );
+    await child.initialize();
+    return child;
+  }
+  async readStatusMedia(statusId: string): Promise<ObjectStore> {
+    if (!validUuid.test(statusId))
+      throw new Error('Publicação de objetos inválida.');
+    const path = resolve(this.directory, `status-${statusId}`),
+      stat = await lstat(path);
+    if (!stat.isDirectory() || (await realpath(path)) !== path)
+      throw new Error('Diretório de status inválido.');
+    return new ObjectStore(path);
+  }
+  async discardStatusMedia(
+    statusId: string,
+    attachmentId: string,
+  ): Promise<void> {
+    try {
+      await (
+        await this.readStatusMedia(statusId)
+      ).discardAttachment(attachmentId);
+    } catch (error: unknown) {
+      if (!(
+        error instanceof Error &&
+        'code' in error &&
+        error.code === 'ENOENT'
+      ))
+        throw error;
+    }
+  }
+  /** Called only after every writer/media row of an irreversibly retired scope has been collected. */
+  async discardEmptyMediaScope(
+    kind: 'group' | 'status',
+    id: string,
+  ): Promise<void> {
+    if (!validUuid.test(id)) throw new Error('Escopo de objetos inválido.');
+    const path = resolve(this.directory, `${kind}-${id}`);
+    try {
+      const stat = await lstat(path);
+      if (!stat.isDirectory() || (await realpath(path)) !== path)
+        throw new Error('Diretório de objetos inválido.');
+    } catch (error: unknown) {
+      if (error instanceof Error && 'code' in error && error.code === 'ENOENT')
+        return;
+      throw error;
+    }
+    const entries = await opendir(path);
+    for await (const entry of entries)
+      if (entry.name !== '.staging')
+        throw new Error('Escopo ainda contém objetos.');
+    await this.removeAttachmentFiles(path, false);
+    await rmdir(path);
+    await this.synchronizeDirectory();
   }
   async readAttachment(id: string): Promise<ObjectStore> {
     if (

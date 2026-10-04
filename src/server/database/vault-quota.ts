@@ -21,6 +21,12 @@ export async function vaultUsage(
     + coalesce((SELECT sum(charge) FROM hash_talk.matrix_devices WHERE account_id=$1),0)
     + coalesce((SELECT sum(charge) FROM hash_talk.matrix_one_time_keys WHERE account_id=$1),0)
     + coalesce((SELECT sum(charge) FROM hash_talk.matrix_envelopes WHERE account_id=$1),0)
+    + coalesce((SELECT sum(charge) FROM hash_talk.group_controls WHERE account_id=$1),0)
+    + coalesce((SELECT sum(charge) FROM hash_talk.group_reads WHERE account_id=$1),0)
+    + coalesce((SELECT sum(charge) FROM hash_talk.status_posts WHERE author=$1),0)
+    + coalesce((SELECT sum(charge) FROM hash_talk.status_recipients WHERE author=$1),0)
+    + coalesce((SELECT sum(charge) FROM hash_talk.status_pages WHERE author=$1),0)
+    + coalesce((SELECT sum(charge) FROM hash_talk.status_media WHERE author=$1),0)
     + coalesce((SELECT octet_length(profile_ciphertext)+12+512 FROM hash_talk.accounts WHERE id=$1),0)
     )::text AS bytes`,
     [accountId],

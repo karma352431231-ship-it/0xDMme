@@ -13,6 +13,7 @@ import {
 import {
   backupRecord,
   cleanupTarget,
+  groupSnapshotHash,
 } from '../src/client/backup-records/index.ts';
 import { aesKey, newSecret } from '../src/client/device-keys/index.ts';
 import type { VaultAuthority } from '../src/client/vault-authority/index.ts';
@@ -20,6 +21,8 @@ import type { BackupRecord } from '../src/client/backup-records/index.ts';
 import { sealFile } from '../src/client/attachment-crypto/index.ts';
 import { encode } from '../src/shared/account/index.ts';
 import { bytesHash } from '../src/shared/vault/index.ts';
+import { groupParticipant } from './fixtures/group-participant.ts';
+import { createGroupEvent } from '../src/client/groups/transitions.ts';
 function fixture(): VaultAuthority {
   const secret = newSecret();
   return {
@@ -61,6 +64,95 @@ async function archive(
   for (const row of rows) await writer.add(row, () => {});
   return writer.finish(omitted, () => {});
 }
+await test('grupos e mídias reabrem como cópias independentes sem alvos de limpeza pessoal; faltas bloqueiam completude', async () => {
+  const a = fixture(),
+    participant = await groupParticipant({
+      accountId: a.session.accountId,
+      deviceId: a.session.deviceId,
+    }),
+    state = await createGroupEvent(participant.authority, crypto.randomUUID());
+  const data = { state, title: 'Grupo sintético', profileSequence: 1 },
+    group: BackupRecord = {
+      type: 'group',
+      id: crypto.randomUUID(),
+      hash: await groupSnapshotHash(data),
+      ...data,
+    };
+  const sealed = await sealFile(new Uint8Array([4, 5, 6])),
+    id = crypto.randomUUID(),
+    text = JSON.stringify({
+      version: 1,
+      name: 'teste.bin',
+      type: 'application/octet-stream',
+      caption: 'Foto sintética',
+      image: false,
+      file: sealed.file,
+      thumbnail: null,
+    });
+  const message: BackupRecord = {
+    type: 'group-message',
+    id,
+    hash: 'b'.repeat(64),
+    groupId: state.groupId,
+    sequence: 1,
+    epoch: 1,
+    sender: a.session.accountId,
+    own: true,
+    kind: 'attachment',
+    text,
+  };
+  const media: BackupRecord = {
+    type: 'group-media',
+    id: sealed.file.ref.id,
+    hash: sealed.file.ref.hash,
+    groupId: state.groupId,
+    message: id,
+    thumbnail: false,
+    bytes: encode(sealed.bytes),
+  };
+  for (const row of [group, message, media])
+    assert.equal(cleanupTarget(row, new Set()), null);
+  const missing = await BackupReader.open(
+    a,
+    await archive(a, [group, message]),
+    () => {},
+  );
+  assert.equal(missing.complete, false);
+  const complete = await BackupReader.open(
+    a,
+    await archive(a, [group, message, media]),
+    () => {},
+  );
+  assert.equal(complete.complete, true);
+  assert.deepEqual(complete.targets, []);
+  assert.deepEqual(await complete.read(1), message);
+  assert.deepEqual(await complete.read(2), media);
+  await assert.rejects(
+    BackupReader.open(
+      a,
+      await archive(a, [{ ...group, title: 'Nome adulterado' }]),
+      () => {},
+    ),
+  );
+  const wrong = await BackupReader.open(
+    a,
+    await archive(a, [
+      group,
+      message,
+      { ...media, groupId: crypto.randomUUID() },
+    ]),
+    () => {},
+  );
+  assert.equal(wrong.complete, false);
+  await assert.rejects(
+    BackupReader.open(
+      a,
+      await archive(a, [group, { ...message, own: false }, media]),
+      () => {},
+    ),
+  );
+  assert.throws(() => backupRecord({ ...message, type: 'status' }));
+});
 await test('arquivo acima de 3 MB abre em leitor limpo com chave histórica da conta; não depende de rede', async () => {
   const a = fixture(),
     rows = [record('x'.repeat(2_900_000)), record('y'.repeat(2_900_000))];

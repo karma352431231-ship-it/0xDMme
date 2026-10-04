@@ -245,10 +245,7 @@ export async function sealHistoryRecord(
       type: record.type,
       id: record.id,
       hash: record.hash,
-      peer: record.type === 'message' ? record.peer : '',
-      sequence: record.type === 'message' ? (record.sequence ?? 0) : 0,
-      relation: record.type === 'message' ? (record.relation?.id ?? '') : '',
-      kind: record.type === 'message' ? record.kind : '',
+      ...historyIndex(record),
       bytes: bytes.length,
       digest: await bytesHash(bytes),
       chunks,
@@ -269,6 +266,28 @@ export async function sealHistoryRecord(
   } finally {
     bytes.fill(0);
   }
+}
+function historyIndex(record: BackupRecord): {
+  peer: string;
+  sequence: number;
+  relation: string;
+  kind: string;
+} {
+  if (record.type === 'message')
+    return {
+      peer: record.peer,
+      sequence: record.sequence ?? 0,
+      relation: record.relation?.id ?? '',
+      kind: record.kind,
+    };
+  if (record.type === 'group-message')
+    return {
+      peer: record.groupId,
+      sequence: record.sequence,
+      relation: '',
+      kind: record.kind,
+    };
+  return { peer: '', sequence: 0, relation: '', kind: '' };
 }
 function validateStored(row: StoredRecord, account: string): void {
   if (
@@ -294,6 +313,11 @@ function validateIdentity(row: StoredRecord, record: BackupRecord): void {
       (record.peer !== row.peer || (record.sequence ?? 0) !== row.sequence))
   )
     throw new Error('Índice histórico divergente do conteúdo cifrado.');
+  if (
+    record.type === 'group-message' &&
+    (record.groupId !== row.peer || record.sequence !== row.sequence)
+  )
+    throw new Error('Índice histórico de outro grupo.');
 }
 export async function openHistoryRecord(
   a: VaultAuthority,
@@ -694,7 +718,7 @@ export async function conversationHistory(
         return;
       }
       const row = cursor.value as StoredRecord;
-      if (row.relation || row.kind === 'profile') {
+      if (row.type !== 'message' || row.relation || row.kind === 'profile') {
         cursor.continue();
         return;
       }
@@ -709,6 +733,98 @@ export async function conversationHistory(
     (row): row is Extract<BackupRecord, { type: 'message' }> =>
       row.type === 'message',
   );
+}
+/** Separate record types keep group copies out of individual peer identity indexes. */
+export async function groupHistoryPage(
+  a: VaultAuthority,
+  after: string | null,
+): Promise<{
+  items: Extract<BackupRecord, { type: 'group' }>[];
+  next: string | null;
+}> {
+  const page = await transaction<{ rows: StoredRecord[]; next: string | null }>(
+    (tx, done) => {
+      const request = tx
+        .objectStore('records')
+        .openCursor(
+          IDBKeyRange.bound(
+            after === null
+              ? [a.session.accountId, 'group']
+              : [a.session.accountId, 'group', after, '\uffff'],
+            [a.session.accountId, 'group', '\uffff', '\uffff'],
+            after !== null,
+          ),
+        );
+      const rows: StoredRecord[] = [];
+      request.onsuccess = () => {
+        const cursor = request.result;
+        if (!cursor || rows.length === 16) {
+          done({ rows, next: cursor ? (rows.at(-1)?.id ?? null) : null });
+          return;
+        }
+        queryReady(tx, [cursor.value as StoredRecord], (ready) => {
+          rows.push(...ready);
+          cursor.continue();
+        });
+      };
+    },
+  );
+  const items: Extract<BackupRecord, { type: 'group' }>[] = [];
+  for (const row of page.rows) {
+    const record = await openHistoryRecord(a, row);
+    if (record.type !== 'group') throw new Error('Grupo histórico inválido.');
+    items.push(record);
+  }
+  return { items, next: page.next };
+}
+export async function groupConversationHistory(
+  a: VaultAuthority,
+  groupId: string,
+  before: number | null,
+): Promise<Extract<BackupRecord, { type: 'group-message' }>[]> {
+  const rows = await transaction<StoredRecord[]>((tx, done) => {
+    const request = tx
+      .objectStore('records')
+      .index('conversation')
+      .openCursor(
+        IDBKeyRange.bound(
+          [a.session.accountId, groupId, 0],
+          [
+            a.session.accountId,
+            groupId,
+            before === null ? Number.MAX_SAFE_INTEGER : Math.max(0, before - 1),
+            '\uffff',
+            '\uffff',
+          ],
+        ),
+        'prev',
+      );
+    const result: StoredRecord[] = [];
+    request.onsuccess = () => {
+      const cursor = request.result;
+      if (!cursor || result.length === 16) {
+        done(result);
+        return;
+      }
+      const row = cursor.value as StoredRecord;
+      if (row.type !== 'group-message' || row.kind === 'profile') {
+        cursor.continue();
+        return;
+      }
+      queryReady(tx, [row], (ready) => {
+        result.push(...ready);
+        cursor.continue();
+      });
+    };
+  });
+  const result: Extract<BackupRecord, { type: 'group-message' }>[] = [];
+  for (const row of rows) {
+    const record = await openHistoryRecord(a, row);
+    if (record.type !== 'group-message' || record.groupId !== groupId)
+      throw new Error('Conversa histórica de outro grupo.');
+    result.push(record);
+  }
+  return result.sort((x, y) => x.sequence - y.sequence);
 }
 export function mergeHistory<
   T extends { id: string; hash: string; sequence?: number; text: string },

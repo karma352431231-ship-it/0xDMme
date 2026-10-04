@@ -96,6 +96,19 @@ export class MessageRecoveryStore {
       },
     );
   }
+  /** Current group permission is enforced by the coordinating GroupStore transaction. */
+  async currentBatch(
+    client: pg.PoolClient,
+    accounts: string[],
+  ): Promise<RecoveryKey[]> {
+    if (accounts.length > 16)
+      throw new AccountError(413, 'Lote de recuperação excedido.');
+    const rows = await client.query<{ body: RecoveryKey }>(
+      "SELECT k.body FROM hash_talk.message_recovery_keys k JOIN hash_talk.device_directories d ON d.account_id=k.account_id AND (d.event->>'epoch')::integer=k.epoch WHERE k.account_id=ANY($1::uuid[]) ORDER BY k.account_id",
+      [accounts],
+    );
+    return rows.rows.map((r) => r.body);
+  }
   private async epoch(
     client: pg.PoolClient,
     accountId: string,

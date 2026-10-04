@@ -37,6 +37,34 @@ const readRoutes = new Set(
     'attachment-get',
     'backup-window',
     'backup-ack',
+    'group-mode',
+    'group-list',
+    'group-current',
+    'group-history',
+    'group-incoming',
+    'group-directory',
+    'group-matrix-query',
+    'group-matrix-inbox',
+    'group-matrix-received',
+    'group-message-page',
+    'group-message-usage',
+    'group-profile',
+    'group-message-recent',
+    'group-message-accepted',
+    'group-daily-state',
+    'group-daily-states',
+    'group-daily-read',
+    'group-daily-receipts',
+    'group-message-received',
+    'group-attachment-get',
+    'group-media-usage',
+    'group-cleanup-notice',
+    'status-contacts',
+    'status-recipient-directory',
+    'status-list',
+    'status-read',
+    'status-origin',
+    'status-attachment-get',
   ]
     .map((name) => '/api/account/messages/' + name)
     .concat([
@@ -64,13 +92,26 @@ function cookie(
   return `${name}=${value}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${seconds}${secure ? '; Secure' : ''}`;
 }
 
+const messageBodyBudgets = new Map<string, number>([
+  ['group-message-publish', 6_700_000],
+  ['group-matrix-send', 8_400_000],
+  ['group-matrix-claim', 60_000],
+  ['group-commit', 75_000],
+  ['group-propose', 8_000],
+  ['attachment-part', 360_000],
+  ['group-attachment-part', 365_000],
+  ['group-attachment-reserve', 12_000],
+  ['status-attachment-reserve', 12_000],
+  ['status-attachment-part', 365_000],
+  ['status-recipients', 200_000],
+  ['status-publish', 5_800_000],
+  ['attachment-reserve', 12_000],
+  ['publish', 8_200_000],
+  ['matrix-upload', 200_000],
+  ['matrix-send', 1_100_000],
+]);
 function messageBodyLimit(url: string): number {
-  if (url.endsWith('/attachment-part')) return 360_000;
-  if (url.endsWith('/attachment-reserve')) return 12_000;
-  if (url.endsWith('/publish')) return 8_200_000;
-  if (url.endsWith('/matrix-upload')) return 200_000;
-  if (url.endsWith('/matrix-send')) return 1_100_000;
-  return 4096;
+  return messageBodyBudgets.get(url.slice(url.lastIndexOf('/') + 1)) ?? 4096;
 }
 function bodyLimit(url: string | undefined): number {
   if (url?.startsWith('/api/account/messages/')) return messageBodyLimit(url);

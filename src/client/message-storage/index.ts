@@ -93,6 +93,24 @@ export async function localPut(
   value: unknown,
   size: number,
 ): Promise<void> {
+  return localPutWithin({ scope, name, value, size, maximum: vaultQuota });
+}
+/** Explicit shared-group cache budgets never debit the personal logical vault. */
+export async function localPutWithin(input: {
+  scope: string;
+  name: string;
+  value: unknown;
+  size: number;
+  maximum: number;
+}): Promise<void> {
+  const { scope, name, value, size, maximum } = input;
+  if (
+    !Number.isSafeInteger(size) ||
+    size < 0 ||
+    !Number.isSafeInteger(maximum) ||
+    maximum < 0
+  )
+    throw new Error('Orçamento local inválido.');
   return transaction(scope, (store, done) => {
     const old = store.get([scope, name]),
       usage = store.get([scope, 'usage']);
@@ -102,7 +120,7 @@ export async function localPut(
     const update = () => {
       if (++reads !== 2) return;
       const next = used - (previous?.size ?? 0) + size;
-      if (next > vaultQuota) {
+      if (next > maximum) {
         old.transaction?.abort();
         return;
       }
@@ -162,6 +180,35 @@ export function localPage<T>(
         items,
         next: rows.length > 16 ? (items.at(-1)?.name ?? null) : null,
       });
+    };
+  });
+}
+export function localPrevious<T>(
+  scope: string,
+  prefix: string,
+  before: string | null,
+): Promise<{ items: { name: string; value: T }[]; next: string | null }> {
+  return transaction(scope, (store, done) => {
+    const range = IDBKeyRange.bound(
+        [scope, prefix],
+        [scope, before ?? prefix + '\uffff'],
+        false,
+        before !== null,
+      ),
+      request = store.openCursor(range, 'prev');
+    const rows: { name: string; value: T }[] = [];
+    request.onsuccess = () => {
+      const cursor = request.result;
+      if (!cursor || rows.length === 16) {
+        done({
+          items: rows,
+          next: cursor ? (rows.at(-1)?.name ?? null) : null,
+        });
+        return;
+      }
+      const row = cursor.value as RecordRow;
+      rows.push({ name: row.name, value: row.value as T });
+      cursor.continue();
     };
   });
 }

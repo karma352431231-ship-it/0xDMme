@@ -8,6 +8,7 @@ import { ObjectStore } from './object-store/index.ts';
 import { MessageService } from './messages/index.ts';
 import { MessageLive } from './message-live/index.ts';
 import { ContactService } from './contacts/index.ts';
+import { localGroupEligibility } from './groups/index.ts';
 import {
   NotificationService,
   readPushConfiguration,
@@ -33,11 +34,18 @@ try {
   await database.migrate();
   const objects = new ObjectStore(config.objectDirectory);
   await objects.initialize();
+  await database.groupMedia.resumeInterrupted();
+  await database.statusMedia.resumeInterrupted();
   const notifications = new NotificationService({
     store: database.daily,
     devices: database.devices,
     config: readPushConfiguration(process.env),
   });
+  const messages = new MessageService(database, database.devices, objects, {
+    notifications,
+    groupEligibility: localGroupEligibility(config, true),
+  });
+  await messages.cleanAttachments();
   const host = createWebServer({
     ...mobile,
     database,
@@ -46,12 +54,7 @@ try {
     account: createAccountHandler({
       live: new MessageLive(database.changes),
       contacts: new ContactService(database.contacts, database.devices),
-      messages: new MessageService(
-        database,
-        database.devices,
-        objects,
-        notifications,
-      ),
+      messages,
       notifications,
       devices: new DeviceService(database.devices, mobile.origin),
       vault: new VaultService({
@@ -70,6 +73,7 @@ try {
   });
   shutdown = async () => {
     await host.close();
+    await messages.close();
     await notifications.close();
     await database?.close();
   };
@@ -82,6 +86,7 @@ try {
     clearTimeout(lifetime);
     void host
       .close()
+      .then(() => messages.close())
       .then(() => notifications.close())
       .then(() => database?.close())
       .then(() => clearTimeout(deadline))
@@ -102,6 +107,7 @@ try {
   process.once('SIGINT', close);
   process.once('SIGTERM', close);
   notifications.start();
+  messages.startMaintenance();
   await recordMobileWebEntry(mobile.origin);
   process.stdout.write(
     'Base mobile temporária iniciada; acesso em .local/WEB_MOBILE_ACESSO.md.\n',

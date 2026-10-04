@@ -103,7 +103,7 @@ await test('mensagens persistentes: Olm/Megolm, recuperação, idempotência, ex
       return Promise.resolve();
     },
   });
-  let messages = new MessageService(db, db.devices, objects, notifications);
+  let messages = new MessageService(db, db.devices, objects, { notifications });
   const ids: string[] = [],
     machines: MessageCrypto[] = [];
   t.after(async () => {
@@ -1375,7 +1375,7 @@ await test('mensagens persistentes: Olm/Megolm, recuperação, idempotência, ex
           return Promise.resolve();
         },
       });
-      messages = new MessageService(db, db.devices, objects, notifications);
+      messages = new MessageService(db, db.devices, objects, { notifications });
       contacts = new ContactService(db.contacts, db.devices);
       devices = new DeviceService(db.devices);
       accounts = new AccountService({

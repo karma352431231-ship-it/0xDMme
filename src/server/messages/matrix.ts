@@ -15,6 +15,7 @@ import {
 } from '../../shared/messages/index.ts';
 import type { MatrixBinding } from '../../shared/messages/index.ts';
 import type { MatrixUpload } from '../database/index.ts';
+import { groupDeviceBatchSize } from '../../shared/group-messages/index.ts';
 export function matrixAccount(input: string): string {
   const match = /^@([a-f0-9-]+):0xdmme\.app$/u.exec(input);
   if (!match?.[1]) throw new AccountError(400, 'Conta Matrix inválida.');
@@ -54,6 +55,15 @@ export function matrixUpload(data: Record<string, unknown>): MatrixUpload {
   };
 }
 export function matrixQuery(data: Record<string, unknown>): string[] {
+  return queryAccounts(data, 2);
+}
+export function groupMatrixQuery(data: Record<string, unknown>): string[] {
+  return queryAccounts(data, 16);
+}
+function queryAccounts(
+  data: Record<string, unknown>,
+  maximum: number,
+): string[] {
   keys(data, ['sdk']);
   const sdk = object(data['sdk']);
   keys(
@@ -61,8 +71,8 @@ export function matrixQuery(data: Record<string, unknown>): string[] {
     Object.keys(sdk).filter((k) => ['device_keys', 'timeout'].includes(k)),
   );
   const users = object(sdk['device_keys']);
-  if (Object.keys(users).length > 2)
-    throw new AccountError(413, 'Consulta fora da conversa individual.');
+  if (Object.keys(users).length > maximum)
+    throw new AccountError(413, 'Lote de consulta de chaves excedido.');
   return Object.entries(users).map(([user, devices]) => {
     if (!Array.isArray(devices) || devices.length)
       throw new AccountError(400, 'Consulte o diretório completo.');
@@ -71,6 +81,17 @@ export function matrixQuery(data: Record<string, unknown>): string[] {
 }
 export function matrixClaim(
   data: Record<string, unknown>,
+): { account: string; device: string }[] {
+  return claimRequests(data, 64);
+}
+export function groupMatrixClaim(
+  data: Record<string, unknown>,
+): { account: string; device: string }[] {
+  return claimRequests(data, groupDeviceBatchSize);
+}
+function claimRequests(
+  data: Record<string, unknown>,
+  maximum: number,
 ): { account: string; device: string }[] {
   keys(data, ['sdk']);
   const sdk = object(data['sdk']);
@@ -86,7 +107,7 @@ export function matrixClaim(
         return { account: matrixAccount(user), device: uuid(device) };
       }),
   );
-  if (requests.length > 64)
+  if (requests.length > maximum)
     throw new AccountError(413, 'Lote de sessões excedido.');
   return requests;
 }
@@ -117,6 +138,12 @@ export function olmContent(input: unknown): Record<string, unknown> {
   return content;
 }
 export function matrixSend(data: Record<string, unknown>) {
+  return sendEnvelopes(data, 64);
+}
+export function groupMatrixSend(data: Record<string, unknown>) {
+  return sendEnvelopes(data, groupDeviceBatchSize);
+}
+function sendEnvelopes(data: Record<string, unknown>, maximum: number) {
   keys(data, ['sdk', 'id', 'type']);
   const id = boundedText(data['id'], 128);
   if (!/^[A-Za-z0-9_.-]+$/u.test(id) || data['type'] !== 'm.room.encrypted')
@@ -131,7 +158,7 @@ export function matrixSend(data: Record<string, unknown>) {
         content: olmContent(content),
       })),
   );
-  if (envelopes.length > 64)
+  if (envelopes.length > maximum)
     throw new AccountError(413, 'Lote de envelopes excedido.');
   return { id, envelopes };
 }

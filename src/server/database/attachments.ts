@@ -6,6 +6,7 @@ import type { AttachmentRef } from '../../shared/attachments/index.ts';
 import type { MessagePacket } from '../../shared/messages/index.ts';
 import type { ContactAuthority, ContactStore } from './contacts.ts';
 import { assertContentCapacity, assertVaultQuota } from './vault-quota.ts';
+import { pendingMedia } from './media-quota.ts';
 interface AttachmentRow {
   id: string;
   message_id: string;
@@ -36,23 +37,14 @@ export class AttachmentStore {
       );
       if (message.rowCount)
         throw new AccountError(409, 'Mensagem já aceita ou apagada.');
-      const pending = await c.query<{ personal: string; global: string }>(
-        `SELECT (SELECT count(*) FROM hash_talk.message_attachments WHERE sender=$1 AND status<>'accepted')::text AS personal,
-        (SELECT count(*) FROM hash_talk.message_attachments WHERE status<>'accepted')::text AS global`,
-        [a.session.accountId],
-      );
+      const counts = await pendingMedia(c, a.session.accountId);
       for (const ref of input.refs) {
         const existing = await this.row(c, ref.id);
         if (existing) {
           this.sameReservation(existing, a, input, ref);
           continue;
         }
-        const counts = pending.rows[0];
-        if (
-          !counts ||
-          Number(counts.personal) >= 4 ||
-          Number(counts.global) >= 256
-        )
+        if (counts.personal >= 4 || counts.global >= 256)
           throw new AccountError(
             429,
             'Transferências em andamento. Conclua ou cancele antes de iniciar outras.',
@@ -75,8 +67,8 @@ export class AttachmentStore {
             ref.bytes + 4096,
           ],
         );
-        counts.personal = String(Number(counts.personal) + 1);
-        counts.global = String(Number(counts.global) + 1);
+        counts.personal++;
+        counts.global++;
       }
       await assertVaultQuota(c, a.session.accountId);
       await assertVaultQuota(c, input.peer);

@@ -25,7 +25,7 @@ import {
   retainAttachment,
 } from '../attachments/index.ts';
 import type { AttachmentSelection } from '../attachments/index.ts';
-import { initAsync, StoreHandle } from '@matrix-org/matrix-sdk-crypto-wasm';
+import { openMessageMachine } from '../message-session/index.ts';
 import { AccountError, object } from '../../shared/account/index.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
 import {
@@ -38,8 +38,6 @@ import type {
   MessagePacket,
   RecoveryKey,
 } from '../../shared/messages/index.ts';
-import { addressBookEntry } from '../../shared/contacts/index.ts';
-import { fingerprint } from '../../shared/devices/index.ts';
 import { integer } from '../../shared/vault/index.ts';
 import { localLocator } from '../vault-storage/index.ts';
 import type { VaultAccess, VaultAuthority } from '../vault-authority/index.ts';
@@ -56,7 +54,6 @@ import {
   localPut,
   localDelete,
   localPage,
-  localStoreKey,
   sealLocal,
   openLocal,
 } from '../message-storage/index.ts';
@@ -75,12 +72,12 @@ import { notifyMessageControls } from '../message-controls/index.ts';
 import {
   messageItems,
   peerHistory,
-  pinFor,
   verifyDeletion,
   indexedPacket,
   assertRemovalIdentity,
 } from './history.ts';
-import type { MessageItem, PeerPin } from './history.ts';
+import type { MessageItem } from './history.ts';
+import { PeerIdentity } from '../peer-identity/index.ts';
 export interface MessageView {
   archived?: boolean;
   delivery?: DeliveryState;
@@ -119,8 +116,8 @@ export class Messages {
   private readonly visibility: MessageVisibility<MessageView>;
   private session: AccountSession | null = null;
   private generation = 0;
-  private readonly pins = new Map<string, PeerPin>();
-  private readonly newPins = new Map<string, PeerPin>();
+  private readonly identities: PeerIdentity;
+  private initializedDirectory = '';
   private readonly histories = new Map<
     string,
     import('../../shared/devices/index.ts').DirectoryEvent[]
@@ -139,6 +136,7 @@ export class Messages {
   ) {
     this.access = access;
     this.sync = sync;
+    this.identities = new PeerIdentity(sync);
     this.visibility = new MessageVisibility(publish);
   }
   setSession(session: AccountSession | null): void {
@@ -148,9 +146,9 @@ export class Messages {
       session?.deviceId !== this.session?.deviceId
     ) {
       this.close();
-      this.pins.clear();
-      this.newPins.clear();
+      this.identities.clear();
       this.histories.clear();
+      this.initializedDirectory = '';
     }
     this.session = session;
   }
@@ -178,23 +176,9 @@ export class Messages {
     a: VaultAuthority,
     generation: number,
   ): Promise<MessageCrypto> {
-    await initAsync('/matrix-crypto-18.9.0.wasm');
-    const key = await localStoreKey(a);
-    try {
-      const store = await StoreHandle.openWithKey(
-        `0xdmme-olm-${a.session.accountId}-${a.session.deviceId}`,
-        key,
-      );
-      return await MessageCrypto.create({
-        accountId: a.session.accountId,
-        deviceId: a.session.deviceId,
-        store,
-        transport: (op, data) =>
-          messageApi(a, op, data, () => this.guard(generation)),
-      });
-    } finally {
-      key.fill(0);
-    }
+    return openMessageMachine(a, (op, data) =>
+      messageApi(a, op, data, () => this.guard(generation)),
+    );
   }
   private async recoverable(
     a: VaultAuthority,
@@ -222,97 +206,23 @@ export class Messages {
     const generation = this.generation;
     await this.access.withVault(false, async (a) => {
       this.guard(generation);
+      if (this.initializedDirectory === a.directory) return;
       await this.recoverable(a, generation);
       const machine = await this.machine(a, generation);
       try {
         await machine.prepare(a);
+        this.guard(generation);
+        this.initializedDirectory = a.directory;
       } finally {
         machine.close();
       }
     });
   }
   async loadPins(): Promise<void> {
-    const deadline = Date.now() + 60_000;
-    do {
-      if (Date.now() > deadline)
-        throw new Error(
-          'Não foi possível concluir a sincronização. Tente novamente.',
-        );
-      await this.sync.refresh();
-    } while (!this.sync.complete);
-    for (const entry of [...this.sync.currentHeads().values()].flat()) {
-      await this.loadPinEntry(entry);
-    }
-  }
-  private async loadPinEntry(
-    entry: import('../vault-sync/index.ts').VaultEntry,
-  ): Promise<void> {
-    if (this.sync.isRemoved(entry.commit.id)) return;
-    if (entry.change.kind === 'address-book') {
-      const stored = addressBookEntry(
-        JSON.parse(await this.sync.open(entry.commit.id)) as unknown,
-      );
-      if (stored.accountId && stored.identity && stored.directory) {
-        this.acceptPin(stored.accountId, {
-          fingerprint: stored.identity,
-          directory: stored.directory,
-          revision: stored.identityRevision,
-        });
-      }
-      return;
-    }
-    if (
-      entry.change.kind !== 'contact' ||
-      entry.change.label !== 'Identidade para mensagens'
-    )
-      return;
-    const value = object(
-        JSON.parse(await this.sync.open(entry.commit.id)) as unknown,
-      ),
-      pin = object(value['pin']);
-    const id = String(value['accountId']),
-      next = {
-        fingerprint: fingerprint(pin['fingerprint']),
-        directory: fingerprint(pin['directory']),
-        revision: integer(pin['revision'], 128),
-      };
-    this.acceptPin(id, next);
-  }
-  private acceptPin(id: string, next: PeerPin): void {
-    const old = this.pins.get(id);
-    if (old && old.fingerprint !== next.fingerprint)
-      throw new Error('Identidades fixadas em conflito.');
-    if (
-      old &&
-      old.revision === next.revision &&
-      old.directory !== next.directory
-    )
-      throw new Error('Diretórios fixados divergentes.');
-    if (!old || old.revision < next.revision) this.pins.set(id, next);
+    await this.identities.load();
   }
   async savePins(): Promise<void> {
-    for (const [accountId, pin] of this.newPins) {
-      const previous = [...this.sync.currentHeads().values()]
-        .flat()
-        .filter(
-          (e) =>
-            e.change.kind === 'contact' &&
-            e.change.entity === accountId &&
-            e.change.label === 'Identidade para mensagens',
-        );
-      await this.sync.save({
-        change: {
-          version: 1,
-          entity: accountId,
-          kind: 'contact',
-          parents: previous.map((e) => e.commit.id),
-          label: 'Identidade para mensagens',
-        },
-        value: JSON.stringify({ accountId, pin }),
-      });
-      this.pins.set(accountId, pin);
-      this.newPins.delete(accountId);
-    }
+    await this.identities.save();
   }
   private async history(
     a: VaultAuthority,
@@ -328,20 +238,15 @@ export class Messages {
     if (through !== null && cached && cached.length >= through)
       return cached.slice(0, through);
     const history = await peerHistory(
-        (op, d) => messageApi(a, op, d, () => this.guard(generation)),
-        account,
-        through,
-        this.pins.get(account) ?? null,
-      ),
-      pin = await pinFor(history),
-      old = this.pins.get(account);
+      (op, d) => messageApi(a, op, d, () => this.guard(generation)),
+      account,
+      through,
+      this.identities.get(account),
+    );
     this.histories.set(account, history);
     if (this.histories.size > 16)
       this.histories.delete(this.histories.keys().next().value ?? '');
-    if (!old || pin.revision > old.revision) {
-      this.pins.set(account, pin);
-      this.newPins.set(account, pin);
-    }
+    await this.identities.remember(account, history);
     return history;
   }
   async compose(
@@ -580,6 +485,7 @@ export class Messages {
   }
 
   async sendPending(): Promise<void> {
+    if (!(await this.pending()).length) return;
     const generation = this.generation;
     // Persist the first trusted identity before distributing a room key or
     // accepting ciphertext. VaultSync owns a separate lock, so save outside it.

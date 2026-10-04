@@ -48,6 +48,7 @@ async function bundle(
   const result = await build({
     entryPoints: [fileURLToPath(new URL(path, root))],
     bundle: true,
+    minifyWhitespace: true,
     define,
     write: false,
     metafile: true,

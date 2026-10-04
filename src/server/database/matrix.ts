@@ -9,6 +9,15 @@ import { matrixUser } from '../../shared/messages/index.ts';
 import type { MatrixBinding } from '../../shared/messages/index.ts';
 import type { ContactAuthority, ContactStore } from './contacts.ts';
 import { assertContentCapacity, assertVaultQuota } from './vault-quota.ts';
+import { assertGroupContentQuota } from './group-quota.ts';
+import type { GroupStore } from './groups.ts';
+import {
+  assertGroupAccounts,
+  queryGroupKeys,
+  claimGroupKeys,
+  putGroupEnvelopes,
+} from './group-matrix.ts';
+import type { GroupEnvelope } from './group-matrix.ts';
 export interface MatrixUpload {
   binding: MatrixBinding;
   keys: Record<string, Record<string, unknown>>;
@@ -18,9 +27,115 @@ export interface MatrixUpload {
 export class MatrixStore {
   private readonly contacts: ContactStore;
   private readonly capacity: number;
-  constructor(contacts: ContactStore, capacity: number) {
+  private readonly groups: GroupStore;
+  constructor(contacts: ContactStore, capacity: number, groups: GroupStore) {
     this.contacts = contacts;
     this.capacity = capacity;
+    this.groups = groups;
+  }
+  async groupQuery(
+    authority: ContactAuthority,
+    input: { groupId: string; head: string; accounts: string[] },
+  ): Promise<unknown> {
+    return this.groups.withGroupAuthority(
+      authority,
+      input,
+      async (client, state) => {
+        assertGroupAccounts(state, input.accounts);
+        return queryGroupKeys(client, input.accounts);
+      },
+    );
+  }
+  async groupClaim(
+    authority: ContactAuthority,
+    input: {
+      groupId: string;
+      head: string;
+      requests: { account: string; device: string }[];
+    },
+  ): Promise<unknown> {
+    return this.groups.withGroupAuthority(
+      authority,
+      input,
+      async (client, state) => {
+        assertGroupAccounts(
+          state,
+          input.requests.map((r) => r.account),
+        );
+        return claimGroupKeys(client, input.requests);
+      },
+    );
+  }
+  async groupSend(
+    authority: ContactAuthority,
+    input: {
+      groupId: string;
+      head: string;
+      id: string;
+      envelopes: GroupEnvelope[];
+    },
+  ): Promise<unknown> {
+    return this.groups.withGroupAuthority(
+      authority,
+      input,
+      async (client, state) => {
+        await putGroupEnvelopes(client, authority, {
+          state,
+          id: input.id,
+          envelopes: input.envelopes,
+        });
+        await assertGroupContentQuota(client, input.groupId);
+        await assertContentCapacity(client, this.capacity);
+        this.contacts.changed(client, [
+          ...new Set(input.envelopes.map((e) => e.account)),
+        ]);
+        return {};
+      },
+    );
+  }
+  async groupInbox(
+    authority: ContactAuthority,
+    after: number,
+  ): Promise<unknown> {
+    return this.contacts.withMessageAuthority(authority, async (client) => {
+      const rows = await client.query<{
+        group_id: string;
+        epoch: number;
+        sequence: string;
+        body: unknown;
+      }>(
+        `SELECT group_id,epoch,sequence::text,body FROM hash_talk.group_matrix_envelopes WHERE account_id=$1 AND device_id=$2 AND sequence>$3 AND body IS NOT NULL ORDER BY sequence LIMIT 16`,
+        [authority.session.accountId, authority.session.deviceId, after],
+      );
+      const allowed = await this.groups.allowedPeriods(
+        client,
+        authority.session.accountId,
+        rows.rows.map((r) => ({ groupId: r.group_id, epoch: r.epoch })),
+      );
+      const keys = await client.query<{ count: number }>(
+        'SELECT count(*)::integer AS count FROM hash_talk.matrix_one_time_keys WHERE account_id=$1 AND device_id=$2 AND NOT fallback',
+        [authority.session.accountId, authority.session.deviceId],
+      );
+      return {
+        items: rows.rows
+          .filter((r) => allowed.has(`${r.group_id}:${r.epoch}`))
+          .map((r) => ({ sequence: Number(r.sequence), event: r.body })),
+        next:
+          rows.rows.length === 16 ? Number(rows.rows.at(-1)?.sequence) : null,
+        oneTimeKeys: keys.rows[0]?.count ?? 0,
+      };
+    });
+  }
+  async groupReceived(
+    authority: ContactAuthority,
+    sequences: number[],
+  ): Promise<void> {
+    await this.contacts.withMessageAuthority(authority, async (client) => {
+      await client.query(
+        'UPDATE hash_talk.group_matrix_envelopes SET body=NULL,charge=512 WHERE account_id=$1 AND device_id=$2 AND sequence=ANY($3::bigint[]) AND body IS NOT NULL',
+        [authority.session.accountId, authority.session.deviceId, sequences],
+      );
+    });
   }
   private async peerAllowed(
     client: pg.PoolClient,

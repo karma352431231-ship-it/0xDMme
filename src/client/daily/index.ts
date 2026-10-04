@@ -25,6 +25,7 @@ export interface PeerState {
   unread: number;
   online: boolean;
   lastSeen: string | null;
+  cleanup?: { dueAt: number; bytes: number };
 }
 export class Daily {
   private readonly access: VaultAccess;
@@ -34,6 +35,10 @@ export class Daily {
   private configured = '';
   private settings = new Map<string, ConversationSettings>();
   private conflicts = new Set<string>();
+  private groups = new Map<string, string>();
+  setGroups(groups: { id: string; head: string }[]): void {
+    this.groups = new Map(groups.map((g) => [g.id, g.head]));
+  }
   constructor(access: VaultAccess, sync: OrganizationSync) {
     this.access = access;
     this.sync = sync;
@@ -46,6 +51,7 @@ export class Daily {
     ) {
       this.generation++;
       this.configured = '';
+      this.groups.clear();
       this.settings.clear();
       this.conflicts.clear();
     }
@@ -83,6 +89,13 @@ export class Daily {
       await this.api('daily-heartbeat', { active });
   }
   async state(peer: string): Promise<PeerState> {
+    const head = this.groups.get(peer);
+    if (head)
+      return parseState({
+        ...object(await this.api('group-daily-state', { groupId: peer, head })),
+        online: false,
+        lastSeen: null,
+      });
     return parseState(await this.api('daily-state', { peer }));
   }
   async states(peers: string[]): Promise<Map<string, PeerState>> {
@@ -95,6 +108,25 @@ export class Daily {
         throw new Error('Estados inválidos.');
       for (const value of raw)
         states.set(String(object(value)['peer']), parseState(value));
+    }
+    return states;
+  }
+  async groupStates(): Promise<Map<string, PeerState>> {
+    const states = new Map<string, PeerState>(),
+      groups = [...this.groups].map(([groupId, head]) => ({ groupId, head }));
+    for (let offset = 0; offset < groups.length; offset += 16) {
+      const raw = await this.api('group-daily-states', {
+        groups: groups.slice(offset, offset + 16),
+      });
+      if (!Array.isArray(raw) || raw.length > 16)
+        throw new Error('Estados de grupo inválidos.');
+      for (const value of raw) {
+        const data = object(value);
+        states.set(
+          String(data['peer']),
+          parseState({ ...data, online: false, lastSeen: null }),
+        );
+      }
     }
     return states;
   }
@@ -117,8 +149,9 @@ export class Daily {
         : duration
           ? Date.now() + duration
           : 0;
-    await this.api('daily-mute', {
-      peer,
+    const head = this.groups.get(peer);
+    await this.api(head ? 'group-daily-mute' : 'daily-mute', {
+      ...(head ? { groupId: peer, head } : { peer }),
       revision: state.revision,
       mutedUntil,
     });
@@ -278,5 +311,15 @@ function parseState(value: unknown): PeerState {
     unread: integer(d['unread'], 2147483647),
     online: d['online'],
     lastSeen: d['lastSeen'],
+    ...cleanupState(d),
+  };
+}
+function cleanupState(d: Record<string, unknown>): Pick<PeerState, 'cleanup'> {
+  if (d['cleanupDueAt'] === undefined || d['cleanupDueAt'] === null) return {};
+  return {
+    cleanup: {
+      dueAt: integer(Number(d['cleanupDueAt']), Number.MAX_SAFE_INTEGER),
+      bytes: integer(d['cleanupBytes'], 750_000_000),
+    },
   };
 }

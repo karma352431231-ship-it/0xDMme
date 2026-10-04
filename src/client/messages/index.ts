@@ -1,7 +1,9 @@
+import { startGroups } from '../groups/index.ts';
 import type { VoicePlayback } from '../voice-playback/index.ts';
 import { VoiceRecording } from '../voice-recording/index.ts';
 import { voiceDuration, voiceRate } from '../../shared/voice/index.ts';
 import { AttachmentUi } from '../attachment-ui/index.ts';
+import type { LiveEvent } from '../message-live/index.ts';
 import { LiveMessages } from '../message-live/index.ts';
 import { Daily } from '../daily/index.ts';
 import type { PeerState } from '../daily/index.ts';
@@ -32,6 +34,8 @@ export function startMessages(
   sync: VaultSync,
   options: {
     playback: VoicePlayback;
+    liveEvent?: (event: LiveEvent) => void;
+    liveState?: (connected: boolean) => void;
     sharedProfile: () =>
       import('../message-profile/index.ts').ProfileCard | null;
     preferences: () => DailyPreferences | null;
@@ -110,13 +114,39 @@ export function startMessages(
     rows = value;
     renderHistory();
   });
+  const groups = startGroups(access, sync, {
+    playback,
+    daily,
+    run,
+    changed: () => renderContacts(peers),
+    peers: () => peers.filter((p) => !p.localOnly),
+    isBusy: () => busy,
+    alert: () => sound.beep(),
+    select: selectGroup,
+  });
+  function selectGroup(): void {
+    if (voice.active || attachments.selected?.voice)
+      throw new Error(
+        'Envie ou remova a prévia de voz antes de trocar de conversa.',
+      );
+    selected = null;
+    clearContext();
+    attachments.clearSelection();
+    controller.select(null);
+    renderHistory();
+    const direct = node('[data-direct-conversation]');
+    if (direct) direct.hidden = true;
+  }
   const live = new LiveMessages({
     access,
     changed: () => {
+      options.liveState?.(live.connected);
       const label = node('[data-message-live]');
       if (label) label.textContent = live.notice;
     },
     event: (event) => {
+      options.liveEvent?.(event);
+      invalidateGroupAuthority(event);
       if (event === 'ready') void checkVoiceAuthority();
       if (event === 'authorization') {
         void checkVoiceAuthority();
@@ -133,6 +163,10 @@ export function startMessages(
       requestRefresh();
     },
   });
+  function invalidateGroupAuthority(event: LiveEvent): void {
+    if (['invalidated', 'revoked', 'ended'].includes(event))
+      groups.suspend(event === 'revoked' || event === 'ended');
+  }
   async function checkVoiceAuthority(): Promise<void> {
     await playback.check((peer) => controller.playbackAllowed(peer));
     if (voice.active && recordingPeer) {
@@ -170,6 +204,7 @@ export function startMessages(
         control.disabled = busy;
       });
     voiceStatus();
+    groups.status();
   }
   function renderSoundSettings(): void {
     const toggle = settingsHost?.querySelector<HTMLButtonElement>(
@@ -503,15 +538,27 @@ export function startMessages(
     const list = node('[data-message-contacts]');
     if (!list) return;
     list.replaceChildren();
-    const sorted = [...peers]
-      .filter((p) => daily.conversation(p.accountId).archived === showArchived)
+    const conversations = [
+      ...peers.map((peer) => ({
+        id: peer.accountId,
+        label: contactLabel(peer),
+        open: () => openPeer(peer),
+      })),
+      ...groups.entries.map((group) => ({
+        id: group.state.groupId,
+        label: groups.listLabel(group),
+        open: () => groups.open(group),
+      })),
+    ];
+    const sorted = conversations
+      .filter((p) => daily.conversation(p.id).archived === showArchived)
       .sort(
         (a, b) =>
-          Number(daily.conversation(b.accountId).pinned) -
-          Number(daily.conversation(a.accountId).pinned),
+          Number(daily.conversation(b.id).pinned) -
+          Number(daily.conversation(a.id).pinned),
       );
-    for (const peer of sorted)
-      list.append(action(contactLabel(peer), () => openPeer(peer)));
+    for (const conversation of sorted)
+      list.append(action(conversation.label, conversation.open));
     renderPresence();
   }
   function contactLabel(peer: Peer): string {
@@ -530,6 +577,7 @@ export function startMessages(
       throw new Error(
         'Envie ou remova a prévia de voz antes de trocar de destinatário.',
       );
+    showDirectConversation();
     clearContext();
     selected = peer;
     if (mounted) mounted.dataset['voicePeer'] = peer.accountId;
@@ -550,6 +598,11 @@ export function startMessages(
     await controller.savePins();
     await dailyTick();
   }
+  function showDirectConversation(): void {
+    groups.deselect();
+    const direct = node('[data-direct-conversation]');
+    if (direct) direct.hidden = false;
+  }
   function renderPresence(): void {
     const presence = node('[data-peer-presence]'),
       state = selected ? states.get(selected.accountId) : null;
@@ -563,7 +616,10 @@ export function startMessages(
   function contactsMore(): void {
     const button = node('[data-message-more-contacts]');
     if (button)
-      button.hidden = !archivedMore && (!navigator.onLine || !remoteMore);
+      button.hidden =
+        !archivedMore &&
+        (!navigator.onLine || !remoteMore) &&
+        groups.next === null;
   }
   async function refreshLocalContacts(more = false): Promise<void> {
     if (!more) {
@@ -580,6 +636,7 @@ export function startMessages(
       if (!combined.has(peer.accountId))
         combined.set(peer.accountId, { ...peer, localOnly: true });
     peers = [...combined.values()];
+    await groups.refresh(more);
     renderContacts(peers);
     contactsMore();
     if (selected) await controller.openOffline(selected.accountId);
@@ -612,7 +669,6 @@ export function startMessages(
     for (const item of page.items) combined.set(item.accountId, item);
     peers = [...combined.values()];
     updateSelected(combined);
-    await daily.loadSettings(peers.map((p) => p.accountId));
     renderContacts(peers);
     contactsMore();
   }
@@ -623,6 +679,8 @@ export function startMessages(
     await controller.initialize();
     await controller.loadPins();
     await refreshContacts();
+    await groups.refresh();
+    contactsMore();
     await controller.sendPending();
     if (selected) {
       await refreshSelected();
@@ -777,6 +835,7 @@ export function startMessages(
   function suspend(): void {
     emojiPicker.close();
     controller.close();
+    groups.suspend();
     rows = null;
     node('[data-search-results]')?.replaceChildren();
     renderHistory();
@@ -848,9 +907,15 @@ export function startMessages(
   });
 
   window.addEventListener('0xdmme-history-imported', () => {
+    groups.historyChanged();
     if (mounted?.isConnected && !busy)
       void run(navigator.onLine ? refresh : refreshLocalContacts);
   });
+  async function groupTick(): Promise<void> {
+    if (!mounted?.isConnected) return;
+    if (!live.connected) await groups.refresh();
+    await groups.resumePending();
+  }
   const timer = setInterval(() => {
     if (
       busy ||
@@ -861,6 +926,7 @@ export function startMessages(
       return;
     void run(async () => {
       await dailyTick();
+      await groupTick();
       if (!mounted?.isConnected || !selected || selected.localOnly) return;
       await resumePending();
       if (!live.connected && (await controller.probe())) {
@@ -880,6 +946,7 @@ export function startMessages(
       );
     if (!event.persisted) {
       voice.cancel();
+      groups.suspend(true);
       playback.close();
       attachments.clearSelection();
       clearInterval(timer);
@@ -959,6 +1026,16 @@ export function startMessages(
       recordingPeer = null;
     });
   }
+  async function moreConversations(): Promise<void> {
+    await refreshContacts(true);
+    if (groups.next !== null) await groups.refresh(true);
+    else
+      await daily.loadSettings([
+        ...peers.map((p) => p.accountId),
+        ...groups.entries.map((g) => g.state.groupId),
+      ]);
+    contactsMore();
+  }
   function bindMessageControls(): void {
     bind('[data-message-refresh]', () => {
       if (session && navigator.onLine) live.retry();
@@ -966,7 +1043,7 @@ export function startMessages(
     });
     bind('[data-message-more-contacts]', () => {
       void run(() =>
-        navigator.onLine ? refreshContacts(true) : refreshLocalContacts(true),
+        navigator.onLine ? moreConversations() : refreshLocalContacts(true),
       );
     });
     bind('[data-message-older]', () => {
@@ -988,6 +1065,15 @@ export function startMessages(
       },
     );
   }
+  function mountGroups(container: HTMLElement): void {
+    const panel = container.querySelector<HTMLElement>(
+        '[data-group-conversation]',
+      ),
+      sidebar = container.querySelector<HTMLElement>('[data-group-sidebar]');
+    if (panel && sidebar) groups.mount(panel, sidebar);
+    const direct = node('[data-direct-conversation]');
+    if (direct) direct.hidden = !!groups.selected;
+  }
   return {
     applyPrivacy: (preferences: DailyPreferences) =>
       daily.configure(preferences),
@@ -995,6 +1081,7 @@ export function startMessages(
       if (sameSession(value)) {
         session = value;
         daily.setSession(value);
+        groups.setSession(value);
         return;
       }
       generation++;
@@ -1009,6 +1096,7 @@ export function startMessages(
       contacts.setSession(value);
       daily.setSession(value);
       controller.setSession(value);
+      groups.setSession(value);
       selected = null;
       peers = [];
       states.clear();
@@ -1035,8 +1123,13 @@ export function startMessages(
               },
         );
     },
-    canActivate: () => !busy && !voice.active && !attachments.selected?.voice,
+    canActivate: () =>
+      !busy &&
+      !voice.active &&
+      !attachments.selected?.voice &&
+      groups.canActivate(),
     leave(): void {
+      groups.leave();
       if (voice.active)
         void voice.stop(
           'Navegação interrompeu a gravação; trecho preservado para conferir ao voltar à conversa.',
@@ -1056,14 +1149,16 @@ export function startMessages(
         peerLabel.textContent =
           selected?.name ||
           selected?.address ||
+          groups.selected?.title ||
           'selecione uma conversa primeiro';
       on('[data-mute]', async () => {
-        if (!selected || selected.localOnly)
+        const target = groups.selected?.state.groupId ?? selected?.accountId;
+        if (!target || selected?.localOnly)
           throw new Error(
-            'Selecione uma conversa aprovada antes de alterar seus alertas.',
+            'Selecione uma conversa antes de alterar os alertas.',
           );
         await daily.mute(
-          selected.accountId,
+          target,
           Number(
             container.querySelector<HTMLSelectElement>('[data-mute-duration]')
               ?.value ?? 0,
@@ -1086,9 +1181,10 @@ export function startMessages(
     },
     mount(container: HTMLElement): void {
       mounted = container;
-      container.innerHTML = `<article class="card chat-panel"><h2>Conversas</h2><p data-message-status role="status"></p><p data-message-live role="status"></p><button data-message-refresh type="button" hidden>Tentar novamente</button><div class="chat-layout"><aside><h3>Contatos aprovados</h3><button data-archived-list type="button">Alternar arquivadas</button><div data-message-contacts class="chat-contacts"></div><button data-message-more-contacts type="button" hidden>Mais contatos</button></aside><section><h3 data-message-peer></h3><p data-peer-presence></p><button data-archive type="button">Arquivar/desarquivar</button><p>Arquivar silencia até reativar. Depois de desarquivar, vá a Configurações → Retomar alertas para voltar a receber notificações.</p><button data-pin type="button">Fixar/desfixar</button><p data-message-gate></p><div data-message-history class="chat-history" hidden></div><button data-message-older type="button">Mensagens anteriores</button><form data-message-form><p data-compose-context></p><button data-compose-cancel type="button">Cancelar resposta/edição</button><label>Mensagem<textarea data-message-text rows="3"></textarea></label><button data-message-emoji type="button">Escolher emoji</button><label>Enviar como<select data-attachment-mode><option value="photo">Foto otimizada</option><option value="file">Arquivo original (até 3 MB)</option></select></label><button data-voice-record type="button">Gravar voz</button><button data-voice-stop type="button" hidden>Parar e conferir</button><button data-voice-cancel type="button" hidden>Cancelar gravação</button><p data-voice-status role="status"></p><p>Voz: até 90 segundos. Ouça a prévia e toque em Enviar. Se o sistema interromper o microfone, o trecho capturado será preservado enquanto esta página continuar aberta.</p><label>Foto ou arquivo<input data-attachment-file type="file"></label><p>Foto: prévia e remoção de metadados no aparelho. Original: pode compartilhar GPS/EXIF. Vídeos ainda não são aceitos.</p><div data-attachment-preview></div><button data-attachment-clear type="button">Remover seleção</button><button class="primary" type="submit">Enviar</button></form><label>Busca local<input data-message-search maxlength="128" type="search"></label><button data-search type="button">Buscar neste aparelho</button><button data-search-more type="button" hidden>Continuar busca</button><ul data-search-results></ul><h3>Envios deste aparelho</h3><ul data-message-pending></ul></section></div></article>`;
+      container.innerHTML = `<article class="card chat-panel"><h2>Conversas</h2><p data-message-status role="status"></p><p data-message-live role="status"></p><button data-message-refresh type="button" hidden>Tentar novamente</button><div class="chat-layout"><aside><h3>Conversas</h3><div data-group-sidebar></div><button data-archived-list type="button">Alternar arquivadas</button><div data-message-contacts class="chat-contacts"></div><button data-message-more-contacts type="button" hidden>Mais conversas</button></aside><section data-direct-conversation><h3 data-message-peer></h3><p data-peer-presence></p><button data-archive type="button">Arquivar/desarquivar</button><p>Arquivar silencia até reativar. Depois de desarquivar, vá a Configurações → Retomar alertas para voltar a receber notificações.</p><button data-pin type="button">Fixar/desfixar</button><p data-message-gate></p><div data-message-history class="chat-history" hidden></div><button data-message-older type="button">Mensagens anteriores</button><form data-message-form><p data-compose-context></p><button data-compose-cancel type="button">Cancelar resposta/edição</button><label>Mensagem<textarea data-message-text rows="3"></textarea></label><button data-message-emoji type="button">Escolher emoji</button><label>Enviar como<select data-attachment-mode><option value="photo">Foto otimizada</option><option value="file">Arquivo original (até 3 MB)</option></select></label><button data-voice-record type="button">Gravar voz</button><button data-voice-stop type="button" hidden>Parar e conferir</button><button data-voice-cancel type="button" hidden>Cancelar gravação</button><p data-voice-status role="status"></p><p>Voz: até 90 segundos. Ouça a prévia e toque em Enviar. Se o sistema interromper o microfone, o trecho capturado será preservado enquanto esta página continuar aberta.</p><label>Foto ou arquivo<input data-attachment-file type="file"></label><p>Foto: prévia e remoção de metadados no aparelho. Original: pode compartilhar GPS/EXIF. Vídeos ainda não são aceitos.</p><div data-attachment-preview></div><button data-attachment-clear type="button">Remover seleção</button><button class="primary" type="submit">Enviar</button></form><label>Busca local<input data-message-search maxlength="128" type="search"></label><button data-search type="button">Buscar neste aparelho</button><button data-search-more type="button" hidden>Continuar busca</button><ul data-search-results></ul><h3>Envios deste aparelho</h3><ul data-message-pending></ul></section><section data-group-conversation hidden></section></div></article>`;
       if (selected) container.dataset['voicePeer'] = selected.accountId;
       attachments.mount(container, run);
+      mountGroups(container);
       bindVoiceControls();
       bindDailyControls();
       bindMessageControls();

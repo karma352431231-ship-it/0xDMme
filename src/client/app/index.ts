@@ -4,6 +4,7 @@ import { startDevices } from '../devices/index.ts';
 import { startBackups } from '../backups/index.ts';
 import { startVault } from '../vault-ui/index.ts';
 import { startMessages } from '../messages/index.ts';
+import { startStatus } from '../status/index.ts';
 import { startContacts } from '../contacts/index.ts';
 import { VoicePlayback } from '../voice-playback/index.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
@@ -12,6 +13,10 @@ const pages = {
   conversas: {
     title: 'Conversas',
     content: `<div data-messages-container></div>`,
+  },
+  status: {
+    title: 'Status',
+    content: `<div class="cards" data-status-container></div>`,
   },
   contatos: {
     title: 'Contatos',
@@ -50,8 +55,11 @@ const backups = startBackups(devices, vault.sync, playback, {
   profile: () => account.backupProfile(),
 });
 const contacts = startContacts(devices, vault.sync);
+const statuses = startStatus(devices, vault.sync);
 const messages = startMessages(devices, vault.sync, {
   playback,
+  liveEvent: (event) => statuses.event(event),
+  liveState: (connected) => statuses.liveConnection(connected),
   sharedProfile: () => account.sharedProfile(),
   preferences: () => account.privacyPreferences(),
 });
@@ -71,6 +79,7 @@ const account = startAccount({
     backups.setSession(session);
     contacts.setSession(session);
     messages.setSession(session);
+    statuses.setSession(session);
     connection();
     const label = document.getElementById('account-label');
     if (label)
@@ -89,7 +98,8 @@ const pwa = account.approvalPage
         vault.canActivate() &&
         backups.canActivate() &&
         contacts.canActivate() &&
-        messages.canActivate(),
+        messages.canActivate() &&
+        statuses.canActivate(),
     });
 
 function route(): void {
@@ -106,6 +116,7 @@ function route(): void {
   element('page-title').textContent = page.title;
   element('breadcrumb').textContent = page.title.toLocaleUpperCase('pt-BR');
   messages.leave();
+  statuses.leave();
   backups.leave();
   vault.leave();
   // Templates are static authored content. No user/server input enters HTML.
@@ -138,6 +149,7 @@ function mountFeature(key: keyof typeof pages): void {
     '[data-messages-container]',
   );
   if (key === 'conversas' && messageContainer) messages.mount(messageContainer);
+  mountStatusFeature(key, content);
   const contactContainer = content.querySelector<HTMLElement>(
     '[data-contacts-container]',
   );
@@ -154,12 +166,23 @@ function mountFeature(key: keyof typeof pages): void {
   }
 }
 
+function mountStatusFeature(
+  key: keyof typeof pages,
+  content: HTMLElement,
+): void {
+  const container = content.querySelector<HTMLElement>(
+    '[data-status-container]',
+  );
+  if (key === 'status' && container) statuses.mount(container);
+}
+
 function mountAccountPanels(key: keyof typeof pages): void {
   if (
     key === 'configuracoes' ||
     key === 'conversas' ||
     key === 'cofre' ||
-    key === 'contatos'
+    key === 'contatos' ||
+    key === 'status'
   ) {
     const container = document.createElement('div');
     container.className = 'account-section';
@@ -187,6 +210,7 @@ function connection(): void {
   if (connectedAccount && devices.authorized()) {
     messages.ready();
     contacts.ready();
+    statuses.ready();
     void vault.ready();
   }
   element('connection').textContent = navigator.onLine

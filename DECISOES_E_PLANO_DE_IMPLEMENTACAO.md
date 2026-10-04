@@ -39,7 +39,7 @@ Este documento registra o escopo, a arquitetura pretendida e a sequência de exe
 | Hash de backup                | Verificação auxiliar e registro opcional de versões; nunca única prova de legitimidade ou única condição de restauração.                                                                                                                                                                                                                 |
 | Entrega offline               | Fila criptografada sem expiração automática para mensagens aceitas, com exceção explícita das mídias de grupo sujeitas à retenção rotativa, inclusive pendentes.                                                                                                                                                                         |
 | Capacidade                    | Cota fixa inicial de 300 MB por conta, com controle de admissão. Não prometer armazenamento ou tráfego ilimitados.                                                                                                                                                                                                                       |
-| Cofre cheio                   | Aviso antecipado, exportação/exclusão pelo usuário e bloqueio de novas aceitações que não possam ser preservadas. Nunca descartar silenciosamente mensagens já aceitas. Grupos terão cota própria, com regras detalhadas ainda propostas.                                                                                                |
+| Cofre cheio                   | Aviso antecipado, exportação/exclusão pelo usuário e bloqueio de novas aceitações que não possam ser preservadas. Nunca descartar silenciosamente mensagens já aceitas. Grupos têm cota própria e retenção aprovadas nas seções 14–16 e no bloco 11.                                                                                     |
 | Contabilização                | Conteúdo pessoal consome os 300 MB da conta; conteúdo compartilhado de grupo usa o cofre próprio do grupo. Download em outro aparelho não duplica a cobrança lógica. Status libera espaço ao expirar.                                                                                                                                    |
 | Cofre de grupo                | Decidido: 1 GB por grupo, compartilhado e criptografado, independente dos 300 MB pessoais. Divisão aprovada: 750 MB para mídias e 250 MB para texto/informações. Mídias podem expirar automaticamente, inclusive pendentes.                                                                                                              |
 | Token e criação de grupos     | Token próprio planejado pelo proprietário. Criar grupos é condicionado ao saldo no momento da criação: 10.000 tokens = 2 grupos; 50.000 = 10; 100.000 = sem teto de tier. Rede/mint ainda pendentes. Capacidade global e controle de abuso continuam aplicáveis. Usuários gratuitos podem participar de grupos e usar as demais funções. |
@@ -234,7 +234,7 @@ Detalhes da implementação: vinculação requer a origem aberta/visível para a
 - Fotos, arquivos, áudio gravado e figurinhas, conforme seleção de escopo. Vídeos reproduzíveis ficam fora da versão inicial.
 - GIFs por arquivo; integração com catálogo externo somente após avaliar privacidade e custos.
 - Grupos, administradores, convites, saída/remoção e controle de participação.
-- Status de texto e foto com audiência escolhida e duração de 24 horas; vídeo somente em etapa posterior.
+- Status de texto e foto para contatos aprovados, com exclusões por perfil e duração de 24 horas; fora dos backups. Vídeo somente em etapa posterior.
 - Arquivar, fixar, marcar não lida, indicadores de envio/entrega e leitura opcional.
 - Online e visto por último presentes na V1, com controles de visibilidade. Confirmação de leitura pode ser desativada pelo usuário. Digitação permanece opcional no escopo.
 - Notificações, som permitido pela plataforma, mute por contato/grupo e horários/preferências.
@@ -602,6 +602,14 @@ Publicação do bloco 10 solicitada em 03/10/2026: revisão específica 017→01
 
 ### Bloco 11 — Grupos e status
 
+**Início autorizado pelo proprietário em 04/10/2026:** grupos e conversas individuais ficam juntos na aba **Conversas**, na mesma lista/área de chats; não criar uma aba separada de grupos. **Status** terá item e área próprios na navegação **Seu espaço**. Esta autorização inicia a implementação local do bloco, preservando a revisão de novas decisões materiais e a separação entre código local e ativação/migração na VPS. [Registro do bloco 11](docs/BLOCO_11_GRUPOS_E_STATUS.md).
+
+**Regras aprovadas pelo proprietário em 04/10/2026:** até 200 participantes inicialmente. Dono escolhe administradores; dono/admins gerenciam convites e removem membros; somente o dono limpa o cofre ou exclui o grupo. A transferência com aceite e elegibilidade foi incluída posteriormente, conforme atualização abaixo. Status tem como audiência padrão todos os contatos aprovados, com exclusões opcionais por perfil individual, expira em 24 horas e fica excluído dos backups. Texto de grupo não terá expiração nem temporizador nesta etapa; a limpeza automática abrange somente mídias. Aviso coletivo de limpeza de mídia por 24 horas, preservando os percentuais de 90% → 70% já aprovados, conforme a pergunta corrigida que substituiu a sugestão de 80%. O proprietário confirmou que o token ainda não existe e autorizou continuar com testes locais; criação pública permanece indisponível até configuração real verificada.
+
+**Atualização aprovada em 04/10/2026:** incluir transferência explícita de propriedade neste bloco, substituindo o adiamento anterior: o dono escolhe outro membro, ele aceita e comprova saldo/vagas para assumir, e somente então o dono pode sair. O antigo dono fica como membro comum, podendo ser nomeado admin pelo novo dono. Sem sucessor automático/aleatório. Frequência de criação: até uma por minuto e dez por hora por conta. Bloqueios entre pessoas não ocultam mensagens dentro de grupo compartilhado, mas impedem contato direto, convites diretos e status entre elas. Quem sai ou é removido perde acesso ao cofre remoto; reentrada começa novo período sem acesso automático ao anterior. Alterações de contatos/exclusões de status valem somente para próximas publicações, com audiência congelada por publicação e preservação da regra de bloqueio.
+
+**Margem operacional aprovada em 04/10/2026:** reservar logicamente o último 1 MB dos 250 MB de texto/controle para convites e mudanças de participação/propriedade. Novas mensagens e suas chaves cifradas respeitam o patamar de 249 MB; administração respeita a cota total de 250 MB e a capacidade efetivamente disponível, sem alocação antecipada no disco.
+
 **Depende de:** 07, 08, 10 e 10A, mantendo grupos/status depois do núcleo básico.
 
 1. Implementar grupos com o mecanismo criptográfico estabelecido, funções e convites.
@@ -614,6 +622,8 @@ Publicação do bloco 10 solicitada em 03/10/2026: revisão específica 017→01
 7. Integrar limpeza/exportação e referências de entrega pendente, aplicando a exceção aprovada de expiração de mídias de grupo e preservando a regra de entrega para os demais conteúdos. Testar grupo com membro offline por longo período e disco/cota cheia.
 
 **Entrega:** grupos e status privados.
+
+**Entrega local em 04/10/2026:** grupos integrados à aba Conversas e status em Seu espaço, com E2EE, governança/transferência, períodos de participação, mídias/cotas/limpeza, SSE, checks e exportação/importação de histórico. Status fica fora dos backups. Migrações 020–024 somente no banco local de testes; ativação na VPS exige revisão própria. Token ainda ausente: criação e transferência públicas indisponíveis, testes sintéticos locais aprovados. Validação, limites e aceite físico no [registro do bloco 11](docs/BLOCO_11_GRUPOS_E_STATUS.md).
 
 **Aceite:** membro removido não obtém novos segredos; novo membro só acessa histórico autorizado; usuário fora da audiência não abre status; expiração não é anunciada como impedimento de screenshots.
 
@@ -829,7 +839,7 @@ Não confundir:
 
 Regra aprovada para cofre cheio: avisar antecipadamente, permitir exportar/apagar e impedir novas aceitações que não possam ser preservadas. Verificar/reservar capacidade antes de confirmar aceitação; não transformar a fila sem expiração em armazenamento ilimitado fora da cota. Nunca descartar silenciosamente conteúdo já aceito. O comportamento específico em grupos continua pendente, conforme seção 14.
 
-Contabilização aprovada: cada conta contabiliza o conteúdo pessoal preservado no próprio cofre, incluindo o recebido em conversas individuais; sincronizar/baixar o mesmo conteúdo em outro aparelho não duplica a cota lógica. Com a decisão de cofre próprio para grupos, conteúdo compartilhado desses grupos é contabilizado no cofre do grupo, sem cópia pessoal automática integral. Estado/chaves de acesso pessoais continuam necessários para recuperação. Status libera espaço ao expirar e não deve ser automaticamente eternizado no backup/cofre. Definir contabilização de reservas e overhead sem alterar os tetos pessoais aprovados. A cota dos grupos ainda será fechada.
+Contabilização aprovada: cada conta contabiliza o conteúdo pessoal preservado no próprio cofre, incluindo o recebido em conversas individuais; sincronizar/baixar o mesmo conteúdo em outro aparelho não duplica a cota lógica. Com a decisão de cofre próprio para grupos, conteúdo compartilhado desses grupos é contabilizado no cofre do grupo, sem cópia pessoal automática integral. Estado/chaves de acesso pessoais continuam necessários para recuperação. Status libera espaço ao expirar e não deve ser automaticamente eternizado no backup/cofre. Definir contabilização de reservas e overhead sem alterar os tetos pessoais aprovados. A cota dos grupos está aprovada nas seções 14–16, com margem administrativa de 1 MB registrada no bloco 11.
 
 Com a cota aprovada de 300 MB, 10.000 contas cheias representam até 3 TB lógicos. Acrescentar filas, metadados, versões, overhead e cópias de recuperação. Compartilhamento de objetos pode reduzir bytes físicos, mas não deve ser presumido nem comprometer a privacidade por deduplicação global.
 
@@ -860,7 +870,7 @@ Padrões aprovados para V1, com presença/leitura obrigatórias e configuráveis
 - Online, visto por último e confirmação de leitura existem na V1. Oferecer controles independentes para ocultar online, ocultar último acesso e não enviar confirmação de leitura. Manter padrão de privacidade desligado para divulgação, com ativação opcional, salvo ajuste explícito no produto.
 - Aplicar a preferência de leitura também aos grupos; não criar exceção silenciosa. Quando desativada, não transmitir nem enfileirar eventos de leitura para revelação posterior. Não confundir confirmação de leitura com confirmação técnica de entrega, que continua necessária.
 - Ocultar presença exige restringir emissão/distribuição dos eventos, não apenas esconder elementos visuais. Isso não impede o backend de observar conexões necessárias ao serviço. Não usar horário preciso de leitura no evento técnico de entrega.
-- Status, quando implementado, restrito à audiência escolhida entre contatos aprovados; participação num grupo não aprova automaticamente todos como contatos particulares.
+- Status usa contatos aprovados por padrão, com exclusões por perfil e audiência congelada por publicação; participação num grupo não aprova automaticamente todos como contatos particulares.
 
 Decisão da implementação do bloco 06, reafirmada em 03/10/2026: o dono do perfil escolhe somente convite ou também descoberta por wallet exata, com apenas contatos aprovados como opção adicional e um único controle efetivo. Somente convite é o padrão inicial até uma escolha explícita; agenda/apelidos particulares no cofre e permissões atuais no servidor. Perfil/foto para aprovados integrado pelo canal Olm/Megolm autenticado do bloco 07, sem URL pública e sem compartilhar a chave do perfil particular. O nome escolhido já aparece nas solicitações; a foto própria continua cifrada. Bloqueio impede novas distribuições, preservando a limitação de cópias anteriores. Ver [decisões do bloco 06](docs/BLOCO_06_CONTATOS.md).
 
@@ -1059,23 +1069,23 @@ Proposta de leitura posterior: abrir o arquivo no app em modo local de consulta,
 
 O servidor mantém objetos criptografados e referências do grupo. Um anexo compartilhado pode ocupar uma cópia física no cofre do grupo; cada download ainda consome banda. Participantes mantêm localmente o que consultarem. Preferências e material secreto pessoal necessário para recuperar acesso ficam protegidos no cofre pessoal, sem copiar automaticamente todo o arquivo do grupo.
 
-| Regra             | Proposta para piloto/V1                                                                                        | Motivo                                                                                                                        |
-| ----------------- | -------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| Cota por grupo    | 1 GB (1.000 MB), aprovado                                                                                      | Espaço separado e finito; não consome os 300 MB de cada membro.                                                               |
-| Tamanho por anexo | 3 MB, já decidido para o app                                                                                   | Mesmo teto para chat individual e grupo.                                                                                      |
-| Participantes     | Até 50 inicialmente                                                                                            | Limitar distribuição e custo de sincronização até medir capacidade.                                                           |
-| Criação           | Saldo atual: 10 mil = 2 grupos; 50 mil = 10; 100 mil = sem teto de tier, sujeito à capacidade global           | Posse de token não substitui orçamento global nem impede reutilização entre contas. Participação gratuita continua permitida. |
-| Capacidade global | Admitir grupos/novos dados apenas dentro do orçamento real da máquina                                          | Limite por wallet não impede múltiplas wallets. O orçamento global é obrigatório.                                             |
-| Administração     | Proprietário gerencia administradores; limpeza remota pelo proprietário inicialmente                           | Regra simples, com poder destrutivo reduzido. Saída/transferência de propriedade deve ser explícita.                          |
-| Alertas           | Avisos aos responsáveis em 80% e 90%                                                                           | Dar tempo para exportar/limpar. Percentuais ainda propostos.                                                                  |
-| Reserva           | Aprovado: limitar mídia a 750 MB; últimos 250 MB reservados a texto/controle, com sub-reserva operacional      | Evitar que anexos esgotem imediatamente todos os caminhos de conversa/gerenciamento. Não cria texto ilimitado.                |
-| Retenção          | Mídias antigas do grupo expiram automaticamente, inclusive pendentes; texto não entra nessa limpeza automática | Aviso coletivo no topo, exportação e prazo informado. Prazo do aviso ainda pendente.                                          |
+| Regra             | Proposta para piloto/V1                                                                                                                  | Motivo                                                                                                                        |
+| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| Cota por grupo    | 1 GB (1.000 MB), aprovado                                                                                                                | Espaço separado e finito; não consome os 300 MB de cada membro.                                                               |
+| Tamanho por anexo | 3 MB, já decidido para o app                                                                                                             | Mesmo teto para chat individual e grupo.                                                                                      |
+| Participantes     | Até 200 inicialmente, aprovado em 04/10/2026                                                                                             | Validar distribuição e custo de sincronização antes da publicação.                                                            |
+| Criação           | Saldo atual: 10 mil = 2 grupos; 50 mil = 10; 100 mil = sem teto de tier, sujeito à capacidade global                                     | Posse de token não substitui orçamento global nem impede reutilização entre contas. Participação gratuita continua permitida. |
+| Capacidade global | Admitir grupos/novos dados apenas dentro do orçamento real da máquina                                                                    | Limite por wallet não impede múltiplas wallets. O orçamento global é obrigatório.                                             |
+| Administração     | Dono escolhe admins; dono/admins convidam/removem; só dono limpa/exclui; transferência com aceite e elegibilidade aprovada em 04/10/2026 | Saída do dono precisa preservar a governança; não transferir nem apagar dados de terceiros automaticamente.                   |
+| Alertas           | Avisos aos responsáveis em 80% e 90%                                                                                                     | Dar tempo para exportar/limpar. Percentuais ainda propostos.                                                                  |
+| Reserva           | Aprovado: limitar mídia a 750 MB; últimos 250 MB reservados a texto/controle, com sub-reserva operacional                                | Evitar que anexos esgotem imediatamente todos os caminhos de conversa/gerenciamento. Não cria texto ilimitado.                |
+| Retenção          | Mídias antigas do grupo expiram automaticamente, inclusive pendentes; texto não entra nessa limpeza automática                           | Aviso coletivo de 24 horas aprovado em 04/10/2026, com seleção congelada e possibilidade de exportar.                         |
 
 Não prometer 1 GB a um número ilimitado de grupos. Exemplo de compromisso lógico: 1.000 grupos cheios usam 1 TB; 10.000, 10 TB, além de cofres pessoais, filas, versões e backups. Limitar globalmente o piloto à capacidade disponível, sem presumir compra de discos. A quota de tráfego/concorrência é independente do espaço em disco.
 
 **Quando o cofre estiver cheio:** bloquear novas aceitações de mídia ao atingir a parcela disponível; permitir texto enquanto sua reserva comportar; ao esgotar espaço de conteúdo, impedir novas aceitações de conteúdo até limpeza. Manter operações mínimas de administração e exportação dentro de limites operacionais. Não transferir silenciosamente o excesso para filas ilimitadas.
 
-**Acesso por período de participação:** novo membro não recebe chaves que abram conteúdo anterior à entrada. Remoção/saída exige atualização de autorização e chaves para conteúdo futuro. Para V1, propor que ex-membros deixem de consultar o cofre remoto do grupo; cópias locais/exportadas já recebidas não são recolhidas. Reentrada não devolve automaticamente intervalos anteriores; a política precisa ser implementada consistentemente. Recuperar com wallet/segredo em novo aparelho restaura somente as autorizações válidas e períodos permitidos. O protocolo deve demonstrar isso, sem uma chave global permanente que exponha todo o histórico.
+**Acesso por período de participação:** novo membro não recebe chaves que abram conteúdo anterior à entrada. Remoção/saída exige atualização de autorização e chaves para conteúdo futuro. Aprovado em 04/10/2026: ex-membros deixam de consultar o cofre remoto do grupo; cópias locais/exportadas já recebidas não são recolhidas. Reentrada começa novo período sem acesso automático aos intervalos anteriores. Recuperar com wallet/segredo em novo aparelho restaura somente as autorizações válidas e períodos permitidos. O protocolo deve demonstrar isso, sem uma chave global permanente que exponha todo o histórico.
 
 **Exportação e limpeza propostas:**
 
@@ -1090,7 +1100,7 @@ Não prometer 1 GB a um número ilimitado de grupos. Exemplo de compromisso lóg
 
 O cofre compartilhado não garante anonimato do grupo perante o servidor: referências, acessos, tamanhos e roteamento continuam sendo metadados a minimizar. Integrar ao modelo de autorização ZK sem prometer ocultação que não foi demonstrada.
 
-As cotas estão fechadas em 300 MB pessoais e 1 GB por grupo, divididos em 750 MB para mídia e 250 MB para texto/controle. Tiers e expiração inclusive de mídia pendente estão aprovados. Continuam pendentes quantidade de participantes, prazo do aviso, frequência máxima de criação, orçamento real da VPS e detalhes de governança. Ver seções 15–16.
+As cotas estão fechadas em 300 MB pessoais e 1 GB por grupo, divididos em 750 MB para mídia e 250 MB para texto/controle. Tiers e expiração inclusive de mídia pendente estão aprovados. Em 04/10/2026 foram aprovados 200 participantes, aviso de 24 horas, funções administrativas, transferência com aceite/elegibilidade e frequência de uma criação por minuto/dez por hora por conta, registradas no bloco 11. Continuam pendentes capacidade operacional real da VPS e configuração do token; governança desta etapa está aprovada no bloco 11. Ver seções 15–16.
 
 ## 15. Revisão de capacidade, retenção e token do projeto
 
@@ -1101,7 +1111,7 @@ As cotas estão fechadas em 300 MB pessoais e 1 GB por grupo, divididos em 750 M
 - O proprietário pretende lançar token próprio, provavelmente em Solana; rede, mint e lançamento ainda não definidos. Não realizar emissão/compra/transações como parte do planejamento.
 - Criar grupos será a única funcionalidade condicionada à elegibilidade de 10.000 tokens; usuários gratuitos continuam podendo participar de grupos e usar os demais recursos do app.
 - Aprovado: verificar saldo atual no momento de cada criação. Grupos existentes não são apagados se o saldo cair. Vínculo privado EVM–Solana pode ser conhecido pelo backend; não deve ser divulgado a outros usuários ou exposto em APIs públicas.
-- Aprovada exclusão automática de mídias antigas de grupos, inclusive ainda pendentes, com aviso coletivo. Texto deve ser preservado separadamente; prazo do aviso ainda a definir. Nenhuma exclusão real ocorre durante este planejamento.
+- Aprovada exclusão automática de mídias antigas de grupos, inclusive ainda pendentes, com aviso coletivo de 24 horas definido em 04/10/2026. Texto de grupo não expira. Nenhuma exclusão real ocorre durante este planejamento.
 
 Esta seção prevalece sobre recomendações anteriores conflitantes. O token para criação de grupos passa a ser uma dependência de escopo a resolver na V1; isso não antecipa pagamentos, transferências, escrow ou comunidades de holders do roadmap. Limitar elegibilidade de criadores não equivale a restringir entrada de membros em grupos.
 
@@ -1124,14 +1134,14 @@ Com mensagens de 1–2 KB, uma foto de 300 KB equivale ao espaço de aproximadam
 
 Objetivo: grupo continuar utilizável sem depender de limpeza manual constante, com aviso no topo visível a todos os membros autorizados. Isso implica definir um histórico remoto limitado; não significa apagar todas as cópias dos participantes.
 
-Política aprovada, com prazo do aviso ainda pendente:
+Política aprovada, com prazo do aviso de 24 horas definido em 04/10/2026:
 
 1. Separar 750 MB para mídia e 250 MB para texto/controle.
 2. Anunciar a política no ingresso e nas informações do grupo. Avisos perto do limite mostram o que será removido, quando e uma ação para exportar; quem ficar offline pode não ver o aviso a tempo.
 3. Planejar limpeza por classes: mídias antigas primeiro, mantendo texto e indicação de anexo indisponível. Evitar apagar 500 MB de conversas indiscriminadamente.
-4. Usar os patamares propostos e aceitos: a 90% da cota de mídia (675 MB), programar remoção das mais antigas até 70% (525 MB). O prazo do aviso ainda precisa ser definido. Congelar a seleção de objetos da limpeza e respeitar aviso antes de remover.
+4. Usar os patamares propostos e aceitos: a 90% da cota de mídia (675 MB), programar remoção das mais antigas até 70% (525 MB). Avisar por 24 horas, prazo aprovado em 04/10/2026. Congelar a seleção de objetos da limpeza e respeitar aviso antes de remover.
 5. Durante o prazo de aviso, ao atingir o teto real, suspender novos anexos em vez de ultrapassar a cota ou excluir antecipadamente. Texto usa somente a reserva disponível.
-6. Definir regra separada para texto quando sua reserva encher; não prometer texto ilimitado. Proposta inicial: exportação/limpeza explícita, sem exclusão automática de texto na primeira versão da política.
+6. Texto sem expiração, aprovado em 04/10/2026, dentro da reserva finita de 250 MB para texto/controle. Ao encher, recusar novos dados dessa categoria e oferecer exportação/limpeza explícita; não habilitar temporizador nem exclusão automática de texto nesta etapa.
 7. Não salvar automaticamente no cofre pessoal o conteúdo expirado do grupo: isso contornaria limites e expectativas. Exportação é a forma de conservação independente.
 8. A seleção de arquivos e manifesto de exportação deve respeitar acesso por período. Conteúdo ainda não exportável/reconstruível não pode ser marcado como protegido por backup só porque existe um hash.
 
@@ -1183,7 +1193,7 @@ Referências técnicas: [Sign In With Solana](https://github.com/phantom/sign-in
 | De 50.000 até menos de 100.000  | 10                                                                              |
 | Pelo menos 100.000              | Sem teto numérico do tier, sujeito à capacidade global e controle de frequência |
 
-Contabilização aprovada: número de grupos existentes sob responsabilidade da conta, incluindo arquivados que ainda ocupam armazenamento. Arquivar não libera vaga. Exclusão concluída libera vaga e bytes efetivamente usados conforme referências remanescentes; manter contagem global de bytes ainda retidos. Transferência de propriedade não pode servir para multiplicar cotas: adiar essa função ou validar elegibilidade/capacidade do destinatário sem apagar dados de terceiros automaticamente.
+Contabilização aprovada: número de grupos existentes sob responsabilidade da conta, incluindo arquivados que ainda ocupam armazenamento. Arquivar não libera vaga. Exclusão concluída libera vaga e bytes efetivamente usados conforme referências remanescentes; manter contagem global de bytes ainda retidos. Transferência de propriedade não pode servir para multiplicar cotas: em 04/10/2026 foi aprovada a função com aceite e validação de elegibilidade/capacidade do destinatário, sem apagar dados de terceiros automaticamente.
 
 Exemplos: quem tem 10 grupos e cai para 20.000 tokens conserva os 10, mas não pode criar outro pelo limite atual de 2. Quem tem um grupo e 20.000 tokens pode criar mais um. Tier ilimitado não dispensa capacidade global, nem autoriza infinitas requisições simultâneas.
 
@@ -1193,7 +1203,7 @@ Exemplos: quem tem 10 grupos e cai para 20.000 tokens conserva os 10, mas não p
 2. Vincular a wallet Solana de elegibilidade por provas das duas identidades. Impedir vinculação simultânea do mesmo endereço a contas diferentes. Não oferecer desvínculo/revínculo que reinicie quotas na V1 sem política específica.
 3. Verificar saldo recente no mint/rede exatos para cada criação, usando quantidades inteiras/decimais corretos. Cache deve ser curto e com frescor explícito; falha de RPC não vira aprovação automática.
 4. Em transação atômica, conferir a vaga do tier e admitir apenas os metadados reais de criação, sem comprometer 1 GB antecipadamente. Pedidos idempotentes e serialização por conta impedem ultrapassar limite com duas abas.
-5. Aplicar limite de frequência a criação/assinaturas/verificações, inclusive no tier sem teto. Valor inicial a medir, não é restrição às demais funções gratuitas.
+5. Aplicar limite de frequência a criação/assinaturas/verificações, inclusive no tier sem teto. Em 04/10/2026 foi aprovado o limite de até uma criação por minuto e dez por hora por conta; validar capacidade antes da publicação. Não restringe as demais funções gratuitas.
 6. Mostrar ao criador seu tier e vagas; nunca divulgar sua carteira auxiliar/saldo aos membros por esse mecanismo. Contadores administrativos não precisam estar em endpoints públicos.
 
 **Limite estrutural aceito pelo modelo, a tornar explícito:** como o usuário pode mover os tokens após criar sem perder grupos, pode repeti-lo com outras wallets/contas. Não há como assegurar exclusividade persistente dos mesmos tokens apenas consultando saldos pontuais. O controle global protege o servidor, mas não elimina esse abuso. Staking/bloqueio, cobrança por criação ou regra de identidade mais forte seriam mudanças futuras de produto, não aprovadas.

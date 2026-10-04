@@ -1,5 +1,30 @@
 import { optionalRelation } from '../../shared/daily/index.ts';
 import {
+  assertGroupPacketPeriod,
+  groupPacket,
+  groupPacketProof,
+  groupKeys,
+  groupKeysHash,
+  groupKeysProof,
+  verifyGroupKeys,
+  verifyGroupPacket,
+} from '../../shared/group-messages/index.ts';
+import type {
+  GroupDestination,
+  GroupEncryptedMessage,
+  GroupKeys,
+  GroupPacket,
+} from '../../shared/group-messages/index.ts';
+import {
+  groupCanRead,
+  groupEventHash,
+  groupRoom,
+} from '../../shared/groups/index.ts';
+import type { GroupEvent } from '../../shared/groups/index.ts';
+import { groupTransport } from './group-transport.ts';
+import type { MatrixOperation, MessageTransport } from './transport.ts';
+export type { MessageTransport } from './transport.ts';
+import {
   attachmentContent,
   contentRefs,
 } from '../../shared/attachments/index.ts';
@@ -23,7 +48,11 @@ import {
   UserId,
 } from '@matrix-org/matrix-sdk-crypto-wasm';
 import { object } from '../../shared/account/index.ts';
-import { canonical, eventHash } from '../../shared/devices/index.ts';
+import {
+  canonical,
+  eventHash,
+  verifyHistory,
+} from '../../shared/devices/index.ts';
 import type { DirectoryEvent } from '../../shared/devices/index.ts';
 import {
   matrixBindingProof,
@@ -34,6 +63,7 @@ import {
   packetProof,
   verifyMatrixBinding,
   verifyPacket,
+  verifyRecoveryKey,
 } from '../../shared/messages/index.ts';
 import type {
   MatrixBinding,
@@ -43,12 +73,17 @@ import type {
 } from '../../shared/messages/index.ts';
 import type { VaultAuthority } from '../vault-authority/index.ts';
 import { archiveRoomKey } from '../message-recovery/index.ts';
-type MatrixOperation =
-  'matrix-upload' | 'matrix-query' | 'matrix-claim' | 'matrix-send';
-export type MessageTransport = (
-  operation: MatrixOperation,
-  payload: Record<string, unknown>,
-) => Promise<unknown>;
+export interface GroupEncryptionInput {
+  authority: VaultAuthority;
+  state: GroupEvent;
+  histories: DirectoryEvent[][];
+  recovery: RecoveryKey[];
+  transport: MessageTransport;
+  id: string;
+  text: string;
+  kind?: GroupPacket['kind'];
+  existingKeys?: GroupKeys;
+}
 // Tracing payloads may contain protocol data. Errors still reject the operation.
 const silentLogger = {
   debug: () => {},
@@ -113,6 +148,8 @@ export class MessageCrypto {
   private readonly rooms = new Map<string, string>();
   private binding: MatrixBinding | null = null;
   private closed = false;
+  private sending: Promise<void> = Promise.resolve();
+  private lastGroupKeys: GroupKeys | null = null;
   private constructor(machine: OlmMachine, transport: MessageTransport) {
     this.machine = machine;
     this.transport = transport;
@@ -214,6 +251,7 @@ export class MessageCrypto {
   private async dispatch(
     request:
       KeysUploadRequest | KeysQueryRequest | KeysClaimRequest | ToDeviceRequest,
+    transport: MessageTransport = this.transport,
   ): Promise<void> {
     this.assertOpen();
     if (!this.binding) throw new Error('Vínculo do aparelho ausente.');
@@ -230,7 +268,7 @@ export class MessageCrypto {
       payload['id'] = request.txn_id;
       payload['type'] = request.event_type;
     }
-    const result = object(await this.transport(operation, payload));
+    const result = object(await transport(operation, payload));
     this.assertOpen();
     if (operation === 'matrix-query') await this.verifyQuery(result);
     await this.machine.markRequestAsSent(
@@ -270,17 +308,24 @@ export class MessageCrypto {
       throw new Error('Chave de aparelho revogado.');
     return binding;
   }
-  private async trustDevices(history: DirectoryEvent[]): Promise<void> {
+  private async trustDevices(
+    history: DirectoryEvent[],
+    transport: MessageTransport = this.transport,
+  ): Promise<void> {
     const event = history.at(-1);
     if (!event) throw new Error('Diretório do contato ausente.');
     const user = matrixUser(event.accountId);
     this.contexts.set(user, history);
     const query = this.machine.queryKeysForUsers([new UserId(user)]);
     try {
-      await this.dispatch(query);
+      await this.dispatch(query, transport);
     } finally {
       query.free();
     }
+    await this.trustKnownDevices(event);
+  }
+  private async trustKnownDevices(event: DirectoryEvent): Promise<void> {
+    const user = matrixUser(event.accountId);
     for (const identity of event.devices) {
       const device = await this.machine.getDevice(
         new UserId(user),
@@ -303,6 +348,19 @@ export class MessageCrypto {
     kind?: MessagePacket['kind'];
     relation?: MessagePacket['relation'];
   }): Promise<MessagePacket> {
+    return this.serializeSend(() => this.encryptIndividual(input));
+  }
+  private serializeSend<T>(send: () => Promise<T>): Promise<T> {
+    const job = this.sending.then(send);
+    this.sending = job.then(
+      () => {},
+      () => {},
+    );
+    return job;
+  }
+  private async encryptIndividual(
+    input: Parameters<MessageCrypto['encrypt']>[0],
+  ): Promise<MessagePacket> {
     this.assertOpen();
     const { authority, peerHistory, id, text } = input,
       peer = peerHistory.at(-1);
@@ -389,6 +447,379 @@ export class MessageCrypto {
     });
     packet.signature = await authority.sign(packetProof(packet));
     return packet;
+  }
+  encryptGroup(input: GroupEncryptionInput): Promise<GroupEncryptedMessage> {
+    return this.serializeSend(() => this.encryptGroupMessage(input));
+  }
+  private async encryptGroupMessage(
+    input: GroupEncryptionInput,
+  ): Promise<GroupEncryptedMessage> {
+    this.assertOpen();
+    await this.prepare(input.authority);
+    const histories = await this.groupHistories(input);
+    const transport = groupTransport(input.transport);
+    await this.trustGroupDevices(histories, transport);
+    const room = groupRoom(input.state.groupId, input.state.epoch);
+    const destinations = await Promise.all(
+      histories.map(async (history) => {
+        const event = history.at(-1);
+        if (!event) throw new Error('Diretório do grupo ausente.');
+        return {
+          accountId: event.accountId,
+          directory: await eventHash(event),
+          authorityRevision: event.revision,
+        };
+      }),
+    );
+    const membership = canonical([
+      destinations,
+      input.recovery.map((key) => key.id),
+    ]);
+    await this.restoreGroupSession(input, { room, destinations, membership });
+    if (this.rooms.get(room) !== membership)
+      await this.machine.invalidateGroupSession(new RoomId(room));
+    this.rooms.set(room, membership);
+    await this.shareGroupSession({
+      room,
+      accounts: destinations.map((d) => d.accountId),
+      transport,
+    });
+    const text = this.groupContent(input);
+    const content = object(
+      JSON.parse(
+        await this.machine.encryptRoomEvent(
+          new RoomId(room),
+          'm.room.message',
+          text,
+        ),
+      ) as unknown,
+    );
+    if (!this.binding) throw new Error('Vínculo Matrix ausente.');
+    const bundle = await this.groupSessionKeys(input, {
+      content,
+      destinations,
+      room,
+    });
+    const packet = groupPacket({
+      version: 1,
+      id: input.id,
+      groupId: input.state.groupId,
+      head: await groupEventHash(input.state),
+      epoch: input.state.epoch,
+      kind: input.kind ?? 'text',
+      sender: input.authority.session.accountId,
+      deviceId: input.authority.session.deviceId,
+      binding: bundle.binding,
+      content,
+      directory: input.authority.directory,
+      authorityRevision: input.authority.events.length,
+      keyHash: await groupKeysHash(bundle),
+      ...attachmentMetadata(input.kind, input.text),
+      signature: 'A'.repeat(86) + '==',
+    });
+    packet.signature = await input.authority.sign(groupPacketProof(packet));
+    return { packet, keys: bundle };
+  }
+  /** Encrypted local checkpoints restore only a bundle for this SDK identity and the current full audience. */
+  private async restoreGroupSession(
+    input: GroupEncryptionInput,
+    session: {
+      room: string;
+      destinations: GroupDestination[];
+      membership: string;
+    },
+  ): Promise<void> {
+    const cached = input.existingKeys;
+    if (!cached || this.rooms.has(session.room)) return;
+    if (
+      !this.groupCheckpointMatches(input, {
+        cached,
+        destinations: session.destinations,
+      })
+    )
+      return;
+    const signer = input.authority.events[cached.binding.authorityRevision - 1];
+    if (!signer) throw new Error('Autoridade da sessão de grupo ausente.');
+    await verifyGroupKeys(cached, signer);
+    if (cached.head !== (await groupEventHash(input.state))) return;
+    this.rooms.set(session.room, session.membership);
+    this.lastGroupKeys = cached;
+  }
+  private groupCheckpointMatches(
+    input: GroupEncryptionInput,
+    session: { cached: GroupKeys; destinations: GroupDestination[] },
+  ): boolean {
+    if (!this.binding) throw new Error('Identidade Matrix não preparada.');
+    const cached = session.cached;
+    const origin = [
+      cached.groupId,
+      cached.epoch,
+      cached.sender,
+      cached.deviceId,
+      cached.binding.directory,
+      canonical(cached.binding.public.keys),
+    ];
+    const current = [
+      input.state.groupId,
+      input.state.epoch,
+      input.authority.session.accountId,
+      input.authority.session.deviceId,
+      input.authority.directory,
+      canonical(this.binding.public.keys),
+    ];
+    return (
+      canonical(origin) === canonical(current) &&
+      canonical(cached.destinations) === canonical(session.destinations) &&
+      canonical(cached.archives.map((a) => [a.accountId, a.keyId])) ===
+        canonical(input.recovery.map((key) => [key.accountId, key.id]))
+    );
+  }
+  private async groupSessionKeys(
+    input: GroupEncryptionInput,
+    session: {
+      content: Record<string, unknown>;
+      destinations: GroupDestination[];
+      room: string;
+    },
+  ): Promise<GroupKeys> {
+    const cached = this.lastGroupKeys;
+    if (
+      cached &&
+      cached.sessionId === session.content['session_id'] &&
+      cached.groupId === input.state.groupId &&
+      cached.epoch === input.state.epoch
+    )
+      return cached;
+    if (!this.binding) throw new Error('Vínculo Matrix ausente.');
+    const exported = await this.machine.exportRoomKeys(
+      (key) =>
+        key.roomId.toString() === session.room &&
+        key.sessionId === session.content['session_id'],
+    );
+    const bundle = groupKeys({
+      version: 1,
+      groupId: input.state.groupId,
+      head: await groupEventHash(input.state),
+      epoch: input.state.epoch,
+      sender: input.authority.session.accountId,
+      deviceId: input.authority.session.deviceId,
+      sessionId: session.content['session_id'],
+      binding: this.binding,
+      destinations: session.destinations,
+      archives: await Promise.all(
+        input.recovery.map((key) => archiveRoomKey(key, exported)),
+      ),
+      signature: 'A'.repeat(86) + '==',
+    });
+    bundle.signature = await input.authority.sign(groupKeysProof(bundle));
+    this.lastGroupKeys = bundle;
+    return bundle;
+  }
+  private async groupHistories(
+    input: GroupEncryptionInput,
+  ): Promise<DirectoryEvent[][]> {
+    if (
+      !groupCanRead(
+        input.state,
+        input.authority.session.accountId,
+        input.state.epoch,
+      ) ||
+      !input.text.trim()
+    )
+      throw new Error('Grupo sem participação atual ou conteúdo.');
+    const histories = input.histories,
+      accounts = histories.map(historyAccount);
+    if (
+      canonical(accounts) !==
+        canonical(input.state.members.map((m) => m.accountId)) ||
+      input.recovery.length !== histories.length
+    )
+      throw new Error('Audiência ou recuperação incompleta.');
+    for (const [index, history] of histories.entries())
+      await this.checkGroupRecovery({
+        history,
+        account: accounts[index],
+        recovery: input.recovery[index],
+      });
+    await this.checkGroupOrigin(histories, input.authority);
+    return histories;
+  }
+  private async checkGroupOrigin(
+    histories: DirectoryEvent[][],
+    authority: VaultAuthority,
+  ): Promise<void> {
+    const own = histories
+      .find((h) => historyAccount(h) === authority.session.accountId)
+      ?.at(-1);
+    if (!own || (await eventHash(own)) !== authority.directory)
+      throw new Error('Diretório de origem mudou.');
+  }
+  private async checkGroupRecovery(input: {
+    history: DirectoryEvent[];
+    account: string | undefined;
+    recovery: RecoveryKey | undefined;
+  }): Promise<void> {
+    const { account, recovery, history } = input;
+    if (!account || !recovery)
+      throw new Error('Recuperação de membro ausente.');
+    const current = await verifyHistory(history, account),
+      event = history[recovery.authorityRevision - 1];
+    if (
+      !current ||
+      !event ||
+      recovery.accountId !== account ||
+      !current.devices.some((d) => d.id === recovery.deviceId)
+    )
+      throw new Error('Recuperação ou aparelho sem autorização atual.');
+    await verifyRecoveryKey(recovery, event);
+  }
+  private async claimGroupSessions(
+    accounts: string[],
+    transport: MessageTransport,
+  ): Promise<void> {
+    const claim = await this.machine.getMissingSessions(
+      accounts.map((a) => new UserId(matrixUser(a))),
+    );
+    if (!claim) return;
+    try {
+      await this.dispatch(claim, transport);
+    } finally {
+      claim.free();
+    }
+  }
+  private async trustGroupDevices(
+    histories: DirectoryEvent[][],
+    transport: MessageTransport,
+  ): Promise<void> {
+    const accounts = histories.map(historyAccount);
+    for (const [index, history] of histories.entries()) {
+      const account = accounts[index];
+      if (!account) throw new Error('Conta de grupo ausente.');
+      this.contexts.set(matrixUser(account), history);
+    }
+    const query = this.machine.queryKeysForUsers(
+      accounts.map((account) => new UserId(matrixUser(account))),
+    );
+    try {
+      await this.dispatch(query, transport);
+    } finally {
+      query.free();
+    }
+    for (const history of histories) {
+      const current = history.at(-1);
+      if (!current) throw new Error('Diretório do grupo ausente.');
+      await this.trustKnownDevices(current);
+    }
+  }
+  private async shareGroupSession(input: {
+    room: string;
+    accounts: string[];
+    transport: MessageTransport;
+  }): Promise<void> {
+    const settings = new EncryptionSettings();
+    settings.sharingStrategy = CollectStrategy.onlyTrustedDevices();
+    try {
+      await this.claimGroupSessions(input.accounts, input.transport);
+      // Supply the complete membership once; transport batches must not be
+      // mistaken by the SDK for changes to the room's membership.
+      for (const request of await this.machine.shareRoomKey(
+        new RoomId(input.room),
+        input.accounts.map((a) => new UserId(matrixUser(a))),
+        settings,
+      )) {
+        try {
+          await this.dispatch(request, input.transport);
+        } finally {
+          request.free();
+        }
+      }
+    } finally {
+      settings.free();
+    }
+  }
+  private groupContent(input: GroupEncryptionInput): string {
+    const content = JSON.stringify({
+      msgtype: messageType(input.kind ?? 'text'),
+      body: input.text,
+      'org.0xdmme.group': {
+        id: input.id,
+        sender: input.authority.session.accountId,
+        groupId: input.state.groupId,
+        epoch: input.state.epoch,
+      },
+    });
+    if (new TextEncoder().encode(content).length > 3_000_000)
+      throw new Error('Conteúdo de grupo excedido.');
+    return content;
+  }
+  async decryptGroup(input: {
+    packet: GroupPacket;
+    keys: GroupKeys;
+    period: GroupEvent;
+    senderEvent: DirectoryEvent;
+    exported?: string;
+  }): Promise<string> {
+    this.assertOpen();
+    const packet = await verifyGroupPacket(input.packet, input.senderEvent);
+    const bundle = await verifyGroupKeys(input.keys, input.senderEvent);
+    await assertGroupPacketPeriod(packet, input.period, bundle);
+    if (input.exported !== undefined) {
+      const imported = await this.machine.importExportedRoomKeys(
+        input.exported,
+        () => {},
+      );
+      imported.free();
+    }
+    const settings = new DecryptionSettings(TrustRequirement.Untrusted);
+    try {
+      const event = await this.machine.decryptRoomEvent(
+        JSON.stringify({
+          type: 'm.room.encrypted',
+          event_id: `$${packet.id}`,
+          sender: matrixUser(packet.sender),
+          origin_server_ts: 0,
+          content: packet.content,
+        }),
+        new RoomId(groupRoom(packet.groupId, packet.epoch)),
+        settings,
+      );
+      try {
+        if (
+          event.senderCurve25519Key !== packet.content.sender_key ||
+          event.senderClaimedEd25519Key !==
+            packet.binding.public.keys[`ed25519:${packet.deviceId}`]
+        )
+          throw new Error('Chave de origem de grupo divergente.');
+        return this.openGroupContent(packet, event.event);
+      } finally {
+        event.free();
+      }
+    } finally {
+      settings.free();
+    }
+  }
+  private openGroupContent(packet: GroupPacket, event: string): string {
+    const payload = object(object(JSON.parse(event) as unknown)['content']),
+      identity = object(payload['org.0xdmme.group']);
+    if (
+      payload['msgtype'] !== messageType(packet.kind) ||
+      typeof payload['body'] !== 'string' ||
+      identity['id'] !== packet.id ||
+      identity['sender'] !== packet.sender ||
+      identity['groupId'] !== packet.groupId ||
+      identity['epoch'] !== packet.epoch
+    )
+      throw new Error(
+        'Conteúdo de grupo não corresponde ao pacote autenticado.',
+      );
+    if (
+      packet.kind === 'attachment' &&
+      canonical(
+        contentRefs(attachmentContent(JSON.parse(payload['body']) as unknown)),
+      ) !== canonical(packet.attachments)
+    )
+      throw new Error('Anexo de grupo divergente.');
+    return payload['body'];
   }
   async decrypt(input: {
     packet: MessagePacket;
@@ -484,5 +915,12 @@ export class MessageCrypto {
     this.rooms.clear();
     this.binding = null;
     this.machine.close();
+    this.lastGroupKeys = null;
   }
+}
+
+function historyAccount(history: DirectoryEvent[]): string {
+  const current = history.at(-1);
+  if (!current) throw new Error('Diretório de membro ausente.');
+  return current.accountId;
 }

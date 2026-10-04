@@ -6,7 +6,7 @@ import {
   uuid,
 } from '../account/index.ts';
 import { fingerprint } from '../devices/index.ts';
-import { integer } from '../vault/index.ts';
+import { integer, bytesHash } from '../vault/index.ts';
 import { voiceMetadata } from '../voice/index.ts';
 import type { VoiceMetadata } from '../voice/index.ts';
 export const fileLimit = 3_000_000;
@@ -65,6 +65,20 @@ export function attachmentRefs(input: unknown): AttachmentRef[] {
   if (new Set(refs.map((r) => r.id)).size !== refs.length)
     throw new AccountError(400, 'Referência repetida.');
   return refs;
+}
+export async function verifyAttachmentPart(
+  ref: AttachmentRef,
+  index: number | null,
+  bytes: Uint8Array | null,
+): Promise<void> {
+  if (!bytes) return;
+  const part = ref.parts[index ?? 0];
+  if (
+    !part ||
+    part.bytes !== bytes.length ||
+    (await bytesHash(bytes)) !== part.hash
+  )
+    throw new AccountError(400, 'Parte de anexo adulterada ou incompleta.');
 }
 function privateFile(input: unknown, maximum: number): PrivateFile {
   const row = object(input);
