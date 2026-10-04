@@ -56,3 +56,32 @@ export async function prepareMessageRequest(
     body: JSON.stringify({ ...proof, signature }),
   };
 }
+
+/** Export reads are repeatable; generation guards interrupt waits after logout/cancel. */
+export async function backupMessageApi(
+  a: VaultAuthority,
+  op: string,
+  payload: Record<string, unknown>,
+  guard: () => void,
+): Promise<unknown> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await messageApi(a, op, payload, guard);
+    } catch (error: unknown) {
+      if (
+        !(error instanceof AccountError) ||
+        error.status !== 429 ||
+        attempt >= 2
+      )
+        throw error;
+      const until = Date.now() + 61_000;
+      while (Date.now() < until) {
+        guard();
+        await new Promise<void>((resolve) =>
+          setTimeout(resolve, Math.min(1000, until - Date.now())),
+        );
+      }
+      guard();
+    }
+  }
+}

@@ -1,17 +1,21 @@
 import type { AccountSession } from '../../shared/account/index.ts';
-import { encode, object } from '../../shared/account/index.ts';
+import { encode } from '../../shared/account/index.ts';
 import { attachmentContent } from '../../shared/attachments/index.ts';
 import { backupItemLimit } from '../../shared/backups/index.ts';
-import { commitHash } from '../../shared/vault/index.ts';
+import { bytesHash, commitHash } from '../../shared/vault/index.ts';
+import { Contacts } from '../contacts/index.ts';
+import type { Peer } from '../../shared/contacts/index.ts';
 import type { VaultAccess, VaultAuthority } from '../vault-authority/index.ts';
 import { localLocator } from '../vault-storage/index.ts';
 import type { VaultSync } from '../vault-sync/index.ts';
 import { Messages } from '../messages/index.ts';
-import type { MessageItem } from '../messages/index.ts';
+import type { MessageView, MessageItem } from '../messages/index.ts';
 import { BackupReader, BackupWriter } from '../backup-archive/index.ts';
 import type { BackupRecord } from '../backup-records/index.ts';
 import { cleanPersonal } from '../personal-removals/index.ts';
 import { notifyMessageControls } from '../message-controls/index.ts';
+import { historyPage, importHistory } from '../local-history/index.ts';
+import { localGet, localPut } from '../message-storage/index.ts';
 export interface BackupChoice {
   type: 'vault' | 'message';
   id: string;
@@ -30,24 +34,35 @@ export class Backups {
   private readonly choices = new Map<string, BackupChoice>();
   private reader: BackupReader | null = null;
   private generated: Blob | null = null;
+  private writer: BackupWriter | null = null;
   private readonly exported = new Map<string, string>();
   private readonly priorCleanup = new Set<string>();
-  constructor(access: VaultAccess, sync: VaultSync) {
+  private discoverySnapshot: unknown = undefined;
+  private readonly profile: () => string | null;
+  private readonly peers = new Map<string, Peer>();
+  constructor(
+    access: VaultAccess,
+    sync: VaultSync,
+    profile: () => string | null = () => null,
+  ) {
     this.access = access;
     this.sync = sync;
+    this.profile = profile;
     this.messages = new Messages(access, sync, () => {});
   }
+  private sameIdentity(session: AccountSession | null): boolean {
+    return (
+      session?.accountId === this.session?.accountId &&
+      session?.deviceId === this.session?.deviceId
+    );
+  }
   setSession(session: AccountSession | null): void {
-    if (
-      session?.accountId !== this.session?.accountId ||
-      session?.deviceId !== this.session?.deviceId ||
-      session?.csrf !== this.session?.csrf
-    ) {
+    if (!this.sameIdentity(session)) {
       this.cancel();
       this.choices.clear();
       this.after = 0;
       this.priorCleanup.clear();
-    }
+    } else if (session?.csrf !== this.session?.csrf) this.generation++;
     this.session = session;
     this.messages.setSession(session);
   }
@@ -56,10 +71,12 @@ export class Backups {
     this.reader?.close();
     this.reader = null;
     this.generated = null;
+    this.writer?.abort();
+    this.writer = null;
     this.exported.clear();
   }
   guard(token = this.generation): () => void {
-    const deadline = Date.now() + 300_000;
+    const deadline = Date.now() + 7200_000;
     return () => {
       if (token !== this.generation || Date.now() > deadline)
         throw new Error(
@@ -80,6 +97,7 @@ export class Backups {
     return this.reader;
   }
   get cleanupCount(): number {
+    if (!this.reader?.complete) return 0;
     return (
       this.reader?.targets.filter(
         (t) =>
@@ -122,7 +140,10 @@ export class Backups {
       });
     }
     if (this.after === null) return;
-    const page = await this.messages.backupPage(this.after);
+    const page = await this.messages.backupPage(
+      this.after,
+      this.discoverySnapshot,
+    );
     guard();
     for (const item of page.items)
       this.choose(this.messageChoice(item, this.session.accountId));
@@ -148,9 +169,7 @@ export class Backups {
       !this.choices.has(`${choice.type}:${choice.id}`) &&
       this.choices.size >= backupItemLimit
     )
-      throw new Error(
-        'Seleção de até 4096 itens por etapa. Exporte o conjunto carregado.',
-      );
+      throw new Error('O histórico excede o limite de registros por arquivo.');
     this.choices.set(`${choice.type}:${choice.id}`, choice);
   }
   async generate(
@@ -162,33 +181,26 @@ export class Backups {
     const selected = this.list().filter((row) =>
       ids.has(`${row.type}:${row.id}`),
     );
-    if (!selected.length) throw new Error('Selecione pelo menos um item.');
     const writer = await this.authority((a) => BackupWriter.create(a));
+    this.writer = writer;
     const omitted: string[] = [];
-    let included = 0;
+    let included: number;
     try {
-      for (const choice of selected) {
-        guard();
-        let row: BackupRecord;
-        try {
-          row = await this.record(choice);
-          guard();
-        } catch {
-          guard();
-          omitted.push(`${choice.type}:${choice.id} indisponível`);
-          continue;
-        }
-        await writer.add(row, guard);
-        included++;
-        this.exported.set(`${choice.type}:${choice.id}`, choice.hash);
-        if (row.type === 'message' && row.kind === 'attachment')
-          await this.addMedia({ writer, row, choice, media, omitted, guard });
-        window.dispatchEvent(
-          new CustomEvent('0xdmme-backup-progress', {
-            detail: { done: included, total: selected.length },
-          }),
-        );
-      }
+      const saved = await this.preserveHistorical(writer, guard);
+      included = saved.included;
+      const historical = saved.historical;
+      await this.addProfile(writer, historical, guard);
+      for (const choices of this.windows(selected))
+        included += await this.writeWindow({
+          choices,
+          writer,
+          historical,
+          guard,
+          omitted,
+          media,
+          total: selected.length,
+          done: included,
+        });
       this.generated = await writer.finish(omitted, guard);
       guard();
       return { included, omitted };
@@ -198,7 +210,146 @@ export class Backups {
       throw error;
     }
   }
-  private async record(choice: BackupChoice): Promise<BackupRecord> {
+  private async writeWindow(c: {
+    choices: BackupChoice[];
+    writer: BackupWriter;
+    historical: ReadonlyMap<string, string>;
+    guard: () => void;
+    omitted: string[];
+    media: boolean;
+    total: number;
+    done: number;
+  }): Promise<number> {
+    const views = await this.messages.backupBatch(
+      c.choices.flatMap((choice) => (choice.item ? [choice.item] : [])),
+    );
+    let included = c.done;
+    for (const choice of c.choices) {
+      c.guard();
+      let row: BackupRecord;
+      try {
+        row = await this.record(choice, views.get(choice.id));
+        c.guard();
+      } catch {
+        c.guard();
+        c.omitted.push(`${choice.type}:${choice.id} indisponível`);
+        continue;
+      }
+      const existing = c.historical.get(`${row.type}:${row.id}`);
+      if (existing && existing !== row.hash)
+        throw new Error('Histórico diverge da cópia remota.');
+      if (!existing) {
+        await c.writer.add(row, c.guard);
+        included++;
+      }
+      this.exported.set(`${choice.type}:${choice.id}`, choice.hash);
+      if (row.type === 'message' && row.kind === 'attachment')
+        await this.addMedia({
+          writer: c.writer,
+          row,
+          choice,
+          media: c.media,
+          omitted: c.omitted,
+          guard: c.guard,
+          historical: c.historical,
+        });
+      window.dispatchEvent(
+        new CustomEvent('0xdmme-backup-progress', {
+          detail: { done: included, total: c.total },
+        }),
+      );
+    }
+    return included - c.done;
+  }
+  private *windows(selected: BackupChoice[]): Generator<BackupChoice[]> {
+    let window: BackupChoice[] = [],
+      bytes = 0;
+    for (const choice of selected) {
+      if (
+        window.length &&
+        (window.length === 32 || bytes + choice.bytes > 8_200_000)
+      ) {
+        yield window;
+        window = [];
+        bytes = 0;
+      }
+      window.push(choice);
+      bytes += choice.bytes;
+    }
+    if (window.length) yield window;
+  }
+  private async preserveHistorical(writer: BackupWriter, guard: () => void) {
+    let included = 0;
+    let after: IDBValidKey | null = null;
+    const historical = new Map<string, string>();
+    do {
+      const page = await this.authority((a) => historyPage(a, after, 1));
+      guard();
+      for (const row of page.rows) {
+        const identity = `${row.type}:${row.id}`;
+        historical.set(identity, row.hash);
+        await writer.add(row, guard);
+        included++;
+      }
+      after = page.next;
+    } while (after !== null);
+    return { included, historical };
+  }
+  private async addProfile(
+    writer: BackupWriter,
+    historical: ReadonlyMap<string, string>,
+    guard: () => void,
+  ): Promise<void> {
+    const value = this.profile();
+    if (value === null)
+      throw new Error(
+        'Aguarde a abertura do perfil antes de salvar o backup completo.',
+      );
+    const hash = await bytesHash(new TextEncoder().encode(value));
+    const id = `${hash.slice(0, 8)}-${hash.slice(8, 12)}-4${hash.slice(13, 16)}-a${hash.slice(17, 20)}-${hash.slice(20, 32)}`;
+    if (!historical.has(`account:${id}`))
+      await writer.add({ type: 'account', id, hash, value }, guard);
+  }
+  private async discoverPeers(guard: () => void): Promise<void> {
+    this.peers.clear();
+    const contacts = new Contacts(this.access);
+    contacts.setSession(this.session);
+    let more = false;
+    for (;;) {
+      const page = await contacts.list('approved', more);
+      guard();
+      for (const row of page.items)
+        this.peers.set(row.accountId, {
+          accountId: row.accountId,
+          name: row.name,
+          address: row.address,
+          ecosystem: row.ecosystem,
+        });
+      if (!page.next) return;
+      if (this.peers.size >= backupItemLimit)
+        throw new Error('Contatos excedem o limite do backup.');
+      more = true;
+    }
+  }
+  async generateComplete(): Promise<{ included: number; omitted: string[] }> {
+    const guard = this.guard();
+    this.choices.clear();
+    this.after = 0;
+    await this.discoverPeers(guard);
+    this.discoverySnapshot = await this.messages.backupSnapshot();
+    do {
+      guard();
+      await this.discover();
+    } while (this.more);
+    return this.generate(
+      new Set(this.list().map((r) => `${r.type}:${r.id}`)),
+      true,
+    );
+  }
+  private async record(
+    choice: BackupChoice,
+    view?: MessageView,
+  ): Promise<BackupRecord> {
     if (choice.type === 'vault') {
       const entry = this.sync.entries.get(choice.id);
       if (!entry) throw new Error('Versão ausente.');
@@ -211,7 +362,7 @@ export class Backups {
       };
     }
     if (!choice.item) throw new Error('Mensagem ausente.');
-    const view = await this.messages.backupOne(choice.item);
+    if (!view) throw new Error('Mensagem indisponível.');
     return {
       type: 'message',
       id: view.id,
@@ -219,6 +370,10 @@ export class Backups {
       peer: view.peer,
       own: view.own,
       kind: view.kind,
+      sequence: view.sequence ?? choice.item.sequence,
+      ...(this.peers.has(view.peer)
+        ? { participant: this.peers.get(view.peer)! }
+        : {}),
       ...(view.relation ? { relation: view.relation } : {}),
       text: view.text,
     };
@@ -230,11 +385,18 @@ export class Backups {
     media: boolean;
     omitted: string[];
     guard: () => void;
+    historical: ReadonlyMap<string, string>;
   }): Promise<void> {
     const content = attachmentContent(JSON.parse(c.row.text) as unknown);
     for (const thumbnail of [false, true]) {
       const file = thumbnail ? content.thumbnail : content.file;
       if (!file) continue;
+      const preserved = c.historical.get(`media:${file.ref.id}`);
+      if (preserved) {
+        if (preserved !== file.ref.hash)
+          throw new Error('Mídia histórica divergente.');
+        continue;
+      }
       const omission = `media:${file.ref.id} ${c.media ? 'indisponível' : 'não selecionada'}`;
       if (!c.media) {
         c.omitted.push(omission);
@@ -277,7 +439,25 @@ export class Backups {
       BackupReader.open(a, file, guard),
     );
     guard();
-    this.reader = reader;
+    try {
+      await this.authority(async (a) => {
+        await importHistory(a, reader, guard);
+        await localPut(
+          'backup:' + a.session.accountId,
+          'validatedAt',
+          Date.now(),
+          32,
+        );
+      });
+      guard();
+      this.reader = reader;
+      this.exported.clear();
+      for (const target of reader.targets)
+        this.exported.set(`${target.kind}:${target.id}`, target.hash);
+    } catch (error: unknown) {
+      reader.close();
+      throw error;
+    }
     return reader;
   }
   async cleanup(): Promise<{ used: number; released: number }> {
@@ -285,6 +465,10 @@ export class Backups {
     if (!reader || !navigator.onLine || !this.session)
       throw new Error(
         'Selecione e valide o arquivo salvo e conecte antes de limpar.',
+      );
+    if (!reader.complete)
+      throw new Error(
+        'Backup incompleto. O reset exige todas as conversas e mídias.',
       );
     const items = reader.targets.filter(
       (t) =>
@@ -317,57 +501,14 @@ export class Backups {
       this.sync.clear();
     }
   }
-  async register(remind: boolean): Promise<void> {
-    const reader = this.reader;
-    if (!reader) throw new Error('Valide um arquivo antes de registrar.');
-    await this.sync.refresh();
-    if (!this.sync.complete)
-      throw new Error('Conclua o índice do cofre antes de registrar.');
-    const existing = [...this.sync.currentHeads().values()]
-      .flat()
-      .filter(
-        (e) =>
-          e.change.kind === 'settings' &&
-          e.change.label === 'Exportações independentes',
-      );
-    const entity = existing[0]?.change.entity ?? crypto.randomUUID();
-    await this.sync.save({
-      change: {
-        version: 1,
-        entity,
-        kind: 'settings',
-        parents: existing.map((e) => e.commit.id).slice(0, 16),
-        label: 'Exportações independentes',
-      },
-      value: JSON.stringify({
-        version: 1,
-        hash: reader.hash,
-        id: reader.id,
-        validatedAt: Date.now(),
-        remind,
-      }),
-    });
-  }
   async reminder(): Promise<string | null> {
-    if (!this.sync.complete) return null;
-    const records = [...this.sync.currentHeads().values()]
-      .flat()
-      .filter(
-        (e) =>
-          e.change.kind === 'settings' &&
-          e.change.label === 'Exportações independentes',
-      );
-    for (const e of records) {
-      const value = object(
-        JSON.parse(await this.sync.open(e.commit.id)) as unknown,
-      );
-      if (
-        value['remind'] === true &&
-        typeof value['validatedAt'] === 'number' &&
-        Date.now() - value['validatedAt'] > 7 * 86400000
-      )
-        return 'Seu último backup registrado foi validado há mais de sete dias. Considere exportar as novidades.';
-    }
-    return null;
+    if (!this.session) return null;
+    const last = await localGet<number>(
+      'backup:' + this.session.accountId,
+      'validatedAt',
+    );
+    return last && Date.now() - last < 7 * 86400000
+      ? null
+      : 'Salve um backup completo para manter uma cópia com você.';
   }
 }

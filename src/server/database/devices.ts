@@ -80,17 +80,37 @@ export class DeviceStore {
   private async lock(
     client: pg.PoolClient,
     session: AccountSession,
+    scope: 'device' | 'wallet' = 'device',
   ): Promise<void> {
     await client.query(
       'SELECT id FROM hash_talk.accounts WHERE id=$1 FOR UPDATE',
       [session.accountId],
     );
     const valid = await client.query(
-      'SELECT token_hash FROM hash_talk.login_sessions WHERE account_id=$1 AND device_id=$2 AND csrf=$3 AND expires_at>now()',
-      [session.accountId, session.deviceId, session.csrf],
+      "SELECT token_hash FROM hash_talk.login_sessions WHERE account_id=$1 AND device_id=$2 AND csrf=$3 AND expires_at>now() AND ($4 <> 'wallet' OR wallet_confirmed)",
+      [session.accountId, session.deviceId, session.csrf, scope],
     );
     if (!valid.rowCount)
       throw new AccountError(401, 'Sessão encerrada ou expirada.');
+  }
+  async assertEnrollmentSource(
+    session: AccountSession,
+    head: string,
+  ): Promise<void> {
+    await this.transaction(async (client) => {
+      await this.lock(client, session);
+      const current = await client.query(
+        `SELECT d.account_id FROM hash_talk.device_directories d JOIN hash_talk.login_sessions s ON s.account_id=d.account_id
+        WHERE d.account_id=$1 AND d.head=$4 AND s.device_id=$2 AND s.csrf=$3 AND s.wallet_confirmed AND s.expires_at>now()
+        AND EXISTS (SELECT 1 FROM jsonb_array_elements(d.event->'devices') device WHERE device->>'id'=$2::text)`,
+        [session.accountId, session.deviceId, session.csrf, head],
+      );
+      if (!current.rowCount)
+        throw new AccountError(
+          403,
+          'Confirmação da wallet ou autorização do aparelho ausente.',
+        );
+    });
   }
   async createLink(session: AccountSession, link: DeviceLink): Promise<void> {
     await this.transaction(async (client) => {
@@ -187,7 +207,7 @@ export class DeviceStore {
   }): Promise<void> {
     const { session, event, head, profile } = input;
     await this.transaction(async (client) => {
-      await this.lock(client, session);
+      await this.lock(client, session, 'wallet');
       const current = await client.query<DirectoryRow>(
         'SELECT head,revision,event FROM hash_talk.device_directories WHERE account_id=$1',
         [session.accountId],

@@ -1,5 +1,13 @@
 # Bloco 06 — Contatos, consentimento e bloqueio
 
+## Experiência vigente em 04/10/2026
+
+Contatos contém agenda, pedido por wallet e solicitações recebidas/enviadas. Configurações reúne modo de descoberta, convite e QR/câmera. **Pedir conversa** resolve a wallet e solicita ao destinatário em um fluxo; o convite também resolve a identidade automaticamente antes do pedido explícito. Compartilhar um convite continua sem aprovar consentimento nem autorizar aparelho.
+
+Não há comparação manual de fingerprint ou botão para verificar identidade. Backend confere conta/permissões e o cliente verifica assinaturas/continuidade automaticamente. Isso não fornece prova independente contra servidor malicioso no primeiro contato; a limitação foi debatida e a experiência automática foi aprovada. Consentimento bilateral, bloqueio e exigência de novo aceite após desbloqueio continuam inalterados. Agenda/conflitos particulares permanecem cifrados; sincronização e retomada são automáticas.
+
+Os controles/roteiro anteriores de comparação manual, descoberta na aba Contatos e retomada pelo Cofre abaixo são históricos, substituídos por esta revisão e pelo [roteiro físico vigente](TESTES_MANUAIS_SIMPLIFICACAO.md).
+
 Implementação local integral autorizada pelo proprietário neste pedido, com liberdade para decisões técnicas dentro do plano. Continuação após compactações também autorizada expressamente neste pedido. Testes físicos dos blocos anteriores continuam posteriores; esta entrega não autoriza ativação nem migrações na VPS.
 
 **Estado:** concluído localmente em 03/10/2026. Aplicação e banco de teste com dados sintéticos; aceite físico mobile e ativação das migrações 010/011 na VPS permanecem posteriores.
@@ -34,7 +42,7 @@ Revisão sem tetos validada localmente em 03/10/2026. A migração 011 foi aplic
 
 O bloco 07 integrou consentimento/bloqueio à mesma admissão transacional das mensagens, antes de persistir/confirmar entrega, usando o contrato explícito de autorização do módulo de contatos. `ContactStore.approved` fornece consulta autenticada para diagnóstico; consultar e depois escrever em outra transação não elimina corrida com bloqueio. O bloqueio atual já protege descoberta, solicitações e diretório no servidor. Não criar exceções por presença em grupo ou cópia antiga da agenda.
 
-## Roteiro físico e limites de aceite
+## Roteiro histórico e limites do aceite anterior
 
 Usar contas/wallets e nomes fictícios, sem fundos ou conversas reais, após revisão e disponibilização específica das migrações deste bloco:
 

@@ -365,7 +365,7 @@ function settingsEntry(entity: string, sequence: number): VaultEntry {
     },
   };
 }
-await test('organização não escolhe silenciosamente um conflito do cofre nem abre preferências fora da página', async () => {
+await test('organização conserva silêncio concorrente e uma nova escolha resolve os ramos sem abrir outra conversa', async () => {
   const first = settingsEntry(original.peer, 1),
     sibling = settingsEntry(original.peer, 2),
     other = settingsEntry(crypto.randomUUID(), 3),
@@ -401,18 +401,22 @@ await test('organização não escolhe silenciosamente um conflito do cofre nem 
   );
   await daily.loadSettings([original.peer]);
   assert.equal(daily.organizationConflict(original.peer), true);
-  assert.deepEqual(opened, []);
-  await assert.rejects(
-    daily.organize(original.peer, { pinned: true }),
-    /em conflito/,
-  );
-  assert.equal(saves, 0);
+  assert.deepEqual(opened, [first.commit.id, sibling.commit.id]);
+  await daily.organize(original.peer, { pinned: true });
+  assert.equal(saves, 1);
+  assert.deepEqual(daily.conversation(original.peer), {
+    mutedUntil: 0,
+    archived: true,
+    pinned: true,
+  });
+  assert.ok(!opened.includes(other.commit.id));
+  opened.length = 0;
   heads.set(original.peer, [first]);
   await daily.loadSettings([original.peer]);
   assert.equal(daily.organizationConflict(original.peer), false);
   assert.deepEqual(opened, [first.commit.id]);
   await daily.organize(original.peer, { pinned: true });
-  assert.equal(saves, 1);
+  assert.equal(saves, 2);
   assert.deepEqual(daily.conversation(original.peer), {
     mutedUntil: 0,
     archived: true,

@@ -2,8 +2,12 @@ import encodeQR from 'qr';
 import decodeQR from 'qr/decode.js';
 import { canonical, linkCode } from '../../shared/devices/index.ts';
 import type { LinkCode } from '../../shared/devices/index.ts';
+import {
+  readEnrollment,
+  enrollmentPayload,
+} from '../../shared/device-enrollment/index.ts';
 
-export type QrKind = 'link' | 'receipt' | 'invitation';
+export type QrKind = 'link' | 'receipt' | 'invitation' | 'enrollment';
 const prefix = { link: '0xdmme-link:1:', receipt: '0xdmme-confirm:1:' };
 const frameMisses = new Set([
   'data',
@@ -25,6 +29,7 @@ export function qrReceipt(receipt: string): string {
   return prefix.receipt + receipt;
 }
 export function readQrPayload(payload: string, kind: QrKind): string {
+  if (kind === 'enrollment') return enrollmentPayload(readEnrollment(payload));
   if (kind === 'invitation') {
     if (
       payload.length > 512 ||

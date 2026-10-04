@@ -1,3 +1,9 @@
+import { readBackupWindow } from '../src/client/messages/backup-window.ts';
+import {
+  encodePrivateProfile,
+  decodePrivateProfile,
+  emptyProfile,
+} from '../src/client/account-profile/index.ts';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
@@ -156,6 +162,13 @@ await test('limpeza exige todas as mídias do descritor presentes e autenticadas
     () => {},
   );
   assert.equal(without.targets.length, 0);
+  assert.equal(without.complete, false);
+  const missing = await BackupReader.open(
+    a,
+    await archive(a, [message]),
+    () => {},
+  );
+  assert.equal(missing.complete, false);
   const media: BackupRecord = {
     type: 'media',
     id: sealed.file.ref.id,
@@ -173,6 +186,7 @@ await test('limpeza exige todas as mídias do descritor presentes e autenticadas
   assert.deepEqual(complete.targets, [
     { kind: 'message', id, hash: message.hash },
   ]);
+  assert.equal(complete.complete, true);
 });
 
 await test('texto válido com controles não explode por escapes JSON; mídia com hash falso é rejeitada', async () => {
@@ -260,4 +274,54 @@ await test('backup independente conserva voz v2 e mídia de 90 segundos para out
   } finally {
     opened.close();
   }
+});
+
+await test('backup do perfil conserva foto e preferências com hash, sem conceder permissão', async () => {
+  const profile = emptyProfile();
+  profile.preferences.backupReminder = true;
+  profile.photo = {
+    type: 'image/png',
+    bytes: Uint8Array.from([137, 80, 78, 71, 13, 10, 26, 10, 1]),
+  };
+  const value = encodePrivateProfile(profile),
+    hash = await bytesHash(new TextEncoder().encode(value));
+  const row: BackupRecord = {
+    type: 'account',
+    id: crypto.randomUUID(),
+    hash,
+    value,
+  };
+  const a = fixture(),
+    reader = await BackupReader.open(a, await archive(a, [row]), () => {});
+  assert.equal(reader.complete, true);
+  assert.deepEqual(await reader.read(0), row);
+  assert.deepEqual(decodePrivateProfile(value), profile);
+  assert.equal(cleanupTarget(row, new Set()), null);
+  await assert.rejects(
+    BackupReader.open(
+      a,
+      await archive(a, [{ ...row, hash: '0'.repeat(64) }]),
+      () => {},
+    ),
+    /perfil|hash|divergente/iu,
+  );
+});
+await test('lote do backup recusa resposta vazia, ordem trocada e falha simulada', () => {
+  const id = crypto.randomUUID();
+  assert.throws(() => readBackupWindow({ rows: [], recovery: [] }, [id]));
+  assert.throws(() =>
+    readBackupWindow(
+      { rows: [{ id: crypto.randomUUID(), packet: {} }], recovery: [] },
+      [id],
+    ),
+  );
+  assert.throws(() =>
+    readBackupWindow({ rows: [{ id, unavailable: 403 }], recovery: [] }, [id]),
+  );
+  const result = readBackupWindow(
+    { rows: [{ id, unavailable: 423 }], recovery: [] },
+    [id],
+  );
+  assert.equal(result.count, 1);
+  assert.equal(result.packets.size, 0);
 });

@@ -196,7 +196,7 @@ Apagar a fila não apaga o histórico do cofre. A interface e a política de dad
 
 ### 5.5 Backup e recuperação
 
-- Exportação gerada no dispositivo, com seleção de mensagens e mídias suportadas disponíveis. Vídeos ficam para uma etapa posterior.
+- Revisão aprovada em 04/10/2026: exportação completa gerada no dispositivo, sem seleção de itens, incluindo histórico local importado, conversas, versões, reações e mídias suportadas. Vídeos ficam para uma etapa posterior.
 - Informar tamanho estimado, itens indisponíveis e o que ficou fora do arquivo.
 - Importação processada localmente; não exigir upload do arquivo inteiro ao backend.
 - Formato autenticado e versionado, vinculado à identidade apropriada, com validação de estrutura e proteção contra arquivos malformados.
@@ -204,8 +204,24 @@ Apagar a fila não apaga o histórico do cofre. A interface e a política de dad
 - Distinguir restauração histórica de reativação de permissões antigas: um backup anterior não pode reautorizar aparelho revogado ou desfazer silenciosamente bloqueios atuais.
 - Recuperação com a wallet original e sua assinatura exclusiva deve funcionar sem aparelho anterior, se reproduzir a assinatura da configuração. Contas legadas usam o código até migrar explicitamente.
 - Sem aparelho autorizado e sem conseguir reproduzir a assinatura exclusiva (ou sem código em conta legada), perde-se acesso ao conteúdo. Não introduzir chave mestra administrativa para contornar isso.
-- Exportar, por si só, não apaga conteúdo nem libera cota. A limpeza do cofre é uma ação explícita separada, limitada ao conteúdo selecionado e preservado na exportação.
+- Exportar, por si só, não apaga conteúdo nem libera cota. A limpeza do cofre é uma ação explícita separada, limitada ao conteúdo preservado em uma exportação completa validada. Novidades posteriores ao corte permanecem no servidor.
 - O teto de 3 MB vale para anexos de conversa, não para o arquivo agregado de backup. Importar backup é leitura local; republicar conteúdo no cofre continua sujeito aos 300 MB.
+
+### 5.6 Simplificação aprovada em 04/10/2026
+
+O proprietário autorizou implementar esta revisão após discussão dos fluxos. Estas decisões substituem os controles de laboratório e os passos manuais anteriores dos blocos 04–10; não exigem compatibilidade de produto com usuários legados, pois ainda não há usuários ativos.
+
+- Cofre mostra somente uso/disponibilidade dos 300 MB, salvar backup completo, validar/importar arquivo e resetar o conteúdo pessoal do backend com confirmação. Sincronização, paginação, integridade e retomada são automáticas; falhas apresentam uma ação contextual.
+- Preferências, lembrete de backup, descoberta por wallet/convite, aparelhos e vinculação por QR/código ficam em Configurações. Avatar é alterado pelo perfil na navegação, com nome, wallet abreviada e cópia do endereço completo.
+- Login com wallet reutiliza sempre a conta existente do mesmo ecossistema/endereço e conduz automaticamente à abertura das chaves e à autorização do aparelho. Assinatura pública de login não é chave de conteúdo; a prova privada de recuperação continua necessária, sem editor técnico ou escolha de revogações durante login.
+- Vinculação por QR/código autoriza o aparelho na mesma conta sem exigir wallet no destino. Uso comum e leitura local com chaves válidas dispensam wallet. Reset remoto, autorizar outro aparelho e revogar exigem sessão comprovada pela wallet; uma confirmação vale para as demais operações sensíveis nessa sessão. Logout, expiração, troca de conta ou revogação invalidam essa capacidade; o backend a impõe em cada operação.
+- Histórico importado permanece cifrado no aparelho, consultado em páginas e integrado ao histórico novo, sem republicação automática. Arquivos independentes continuam recuperáveis fora do armazenamento do navegador; web/PWA permanece sujeita às quotas e limpeza local. Aplicativo nativo não foi incluído nesta implementação.
+- Validação confere integridade, vínculo da conta e completude. Exportação incompleta não habilita reset; importação não restaura bloqueios, consentimento ou autorizações antigas.
+- Convites/QR de contato e pedidos por wallet permanecem. Verificação de conta/permissões ocorre no backend; assinaturas e continuidade das chaves são verificadas automaticamente no cliente. Retirar comparação manual não fornece, por si só, prova independente contra servidor malicioso no primeiro contato; essa limitação foi discutida e o fluxo automático aprovado.
+
+Detalhes da implementação: vinculação requer a origem aberta/visível para assinar automaticamente; o servidor não possui as chaves. A migração 019 distingue sessões vinculadas sem wallet de confirmações sensíveis por wallet. Em 04/10/2026, após informar essa migração pendente, o proprietário autorizou concluir, commitar e atualizar o site na VPS. A ativação deve usar o executor existente, com transição 018 → 019 restrita às fontes revisadas, backup/ensaio de restauração e preservação dos dados e serviços compartilhados; nenhuma exclusão de conteúdo faz parte do deploy. Backup/histórico usam processamento paginado, OPFS cifrado quando disponível e orçamento local explícito, conforme [bloco 09](docs/BLOCO_09_BACKUP_E_RECUPERACAO.md). Silêncio da conversa fica em Configurações. Controles, roteiros e aceites de interfaces anteriores nos documentos dos blocos são registros históricos substituídos por esta seção.
+
+**Ponto importante:** simplicidade de interface não autoriza remover criptografia, consentimento, revogação, validação de backup ou limites operacionais. Não executar exclusão de dados como parte da limpeza de interface.
 
 ## 6. Escopo funcional
 

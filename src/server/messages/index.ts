@@ -157,6 +157,52 @@ export class MessageService {
         keys(d, ['id', 'snapshot']);
         return db.messages.object(a, uuid(d['id']), snapshot(d['snapshot']));
       },
+      'backup-window': async (a, d) => {
+        keys(d, ['ids', 'snapshot']);
+        if (
+          !Array.isArray(d['ids']) ||
+          !d['ids'].length ||
+          d['ids'].length > 32
+        )
+          throw new AccountError(400, 'Lote inválido.');
+        const ids = d['ids'].map(uuid);
+        if (new Set(ids).size !== ids.length)
+          throw new AccountError(400, 'Lote duplicado.');
+        const rows = await db.messages.backupWindow(
+          a,
+          ids,
+          snapshot(d['snapshot']),
+        );
+        const recovery = new Map<string, unknown>();
+        for (const row of rows) {
+          const archive = row.packet?.archives.find(
+            (k) => k.accountId === a.session.accountId,
+          );
+          if (archive && !recovery.has(archive.keyId))
+            recovery.set(
+              archive.keyId,
+              await db.messageRecovery.historical(a, archive.keyId),
+            );
+        }
+        await db.messages.confirmSnapshot(a, snapshot(d['snapshot']));
+        return { rows, recovery: [...recovery.values()] };
+      },
+      'backup-ack': async (a, d) => {
+        keys(d, ['items', 'snapshot']);
+        if (!Array.isArray(d['items']) || d['items'].length > 32)
+          throw new AccountError(400, 'Lote inválido.');
+        await db.messages.confirmSnapshot(a, snapshot(d['snapshot']));
+        for (const item of d['items']) {
+          const row = object(item);
+          keys(row, ['id', 'hash']);
+          await db.messages.acknowledge(
+            a,
+            uuid(row['id']),
+            fingerprint(row['hash']),
+          );
+        }
+        await db.messages.confirmSnapshot(a, snapshot(d['snapshot']));
+      },
       confirm: (a, d) => {
         keys(d, ['snapshot']);
         return db.messages.confirmSnapshot(a, snapshot(d['snapshot']));

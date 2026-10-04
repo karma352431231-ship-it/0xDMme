@@ -516,6 +516,18 @@ await test('mensagens persistentes: Olm/Megolm, recuperação, idempotência, ex
           items: [{ ...target, hash: 'b'.repeat(64) }],
         }),
       );
+      await inspector.query(
+        'UPDATE hash_talk.login_sessions SET wallet_confirmed=false WHERE account_id=$1 AND device_id=$2',
+        [bob.session.accountId, bob.session.deviceId],
+      );
+      try {
+        await assert.rejects(op(bob, 'personal-clean', selection), /wallet/u);
+      } finally {
+        await inspector.query(
+          'UPDATE hash_talk.login_sessions SET wallet_confirmed=true WHERE account_id=$1 AND device_id=$2',
+          [bob.session.accountId, bob.session.deviceId],
+        );
+      }
       const result = object(await op(bob, 'personal-clean', selection));
       assert.equal(result['status'], 'cleaned');
       const after = await inspector.query<{
@@ -989,6 +1001,16 @@ await test('mensagens persistentes: Olm/Megolm, recuperação, idempotência, ex
           ).status,
           409,
         );
+        const readBody = JSON.stringify(await proof(alice, 'snapshot', {}));
+        for (let i = 0; i < 70; i++) {
+          const response = await fetch(root + 'snapshot', {
+            method: 'POST',
+            headers,
+            body: readBody,
+          });
+          assert.equal(response.status, 200);
+          await response.text();
+        }
       } finally {
         await host.close();
       }
@@ -2081,6 +2103,86 @@ await test('mensagens persistentes: Olm/Megolm, recuperação, idempotência, ex
           assert.equal(rows.rowCount, 0);
         },
       );
+    },
+  );
+  await t.test(
+    'exportação atravessa o limite de 32 mensagens em lotes assinados e confirma apenas hashes válidos',
+    async () => {
+      const a = await create(),
+        b = await create(),
+        other = await create();
+      await approve(a, b);
+      const ka = await recovery(a),
+        kb = await recovery(b),
+        cryptoSender = await machine(a);
+      const packets: MessagePacket[] = [];
+      for (let i = 0; i < 33; i++) {
+        const p = await cryptoSender.encrypt({
+          authority: await authority(a),
+          peerHistory: b.events,
+          recovery: [ka, kb],
+          id: crypto.randomUUID(),
+          text: 'Exportação sintética ' + i,
+        });
+        await op(a, 'publish', { packet: p });
+        packets.push(p);
+      }
+      const snap = await op(b, 'snapshot'),
+        all: MessagePacket[] = [];
+      for (let offset = 0; offset < packets.length; offset += 32) {
+        const ids = packets.slice(offset, offset + 32).map((p) => p.id);
+        const response = object(
+          await op(b, 'backup-window', { ids, snapshot: snap }),
+        );
+        assert.ok(
+          Array.isArray(response['rows']) &&
+            Array.isArray(response['recovery']),
+        );
+        for (const value of response['rows'])
+          all.push(messagePacket(object(value)['packet']));
+        assert.equal(response['recovery'].length, 1);
+        await assert.rejects(
+          op(b, 'backup-ack', {
+            snapshot: snap,
+            items: [{ id: packets[offset]!.id, hash: '0'.repeat(64) }],
+          }),
+          { status: 409 },
+        );
+        const accepted = await Promise.all(
+          packets.slice(offset, offset + 32).map(async (p) => ({
+            id: p.id,
+            hash: await digest(JSON.stringify(p)),
+          })),
+        );
+        await op(b, 'backup-ack', { snapshot: snap, items: accepted });
+      }
+      assert.deepEqual(all, packets);
+      await assert.rejects(
+        op(other, 'backup-window', {
+          ids: [packets[0]!.id],
+          snapshot: await op(other, 'snapshot'),
+        }),
+        { status: 404 },
+      );
+      await assert.rejects(
+        op(b, 'backup-window', {
+          ids: Array.from({ length: 33 }, () => packets[0]!.id),
+          snapshot: snap,
+        }),
+        { status: 400 },
+      );
+      await assert.rejects(
+        op(b, 'backup-window', {
+          ids: [packets[0]!.id, packets[0]!.id],
+          snapshot: snap,
+        }),
+        { status: 400 },
+      );
+      const refs = await inspector.query<{ count: string }>(
+        "SELECT count(*)::text FROM hash_talk.message_references WHERE account_id=$1 AND status='received' AND message_id=ANY($2::uuid[])",
+        [b.session.accountId, packets.map((p) => p.id)],
+      );
+      assert.equal(refs.rows[0]?.count, '33');
     },
   );
 });

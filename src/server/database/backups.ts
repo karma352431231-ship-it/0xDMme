@@ -40,6 +40,15 @@ export class BackupStore {
   async clean(a: ContactAuthority, proof: MessageProof) {
     const selection = cleanupSelection(proof);
     return this.contacts.withMessageAuthority(a, async (c) => {
+      const confirmed = await c.query(
+        'SELECT token_hash FROM hash_talk.login_sessions WHERE account_id=$1 AND device_id=$2 AND csrf=$3 AND expires_at>now() AND wallet_confirmed',
+        [a.session.accountId, a.session.deviceId, a.session.csrf],
+      );
+      if (!confirmed.rowCount)
+        throw new AccountError(
+          403,
+          'Confirme a wallet nesta sessão antes de resetar o cofre.',
+        );
       const current = await c.query<{ revision: number }>(
         'SELECT revision FROM hash_talk.device_directories WHERE account_id=$1',
         [a.session.accountId],

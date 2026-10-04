@@ -158,6 +158,9 @@ function scope(options: {
     csrf: 'c'.repeat(64),
     profileRevision: 0,
   };
+  const loginStorage = new Map<string, string>([
+    ['hash-talk:login-device', session.deviceId],
+  ]);
   const states: unknown[] = [];
   const challengeResponse = async () => {
     if (options.challengeFailure)
@@ -230,7 +233,14 @@ function scope(options: {
           ? approvalDocument
           : null,
     }),
-    localStorage: { getItem: () => session.deviceId },
+    localStorage: {
+      getItem: (key: string) => loginStorage.get(key) ?? null,
+      setItem: (key: string, value: string) => {
+        if (options.storageRejected && options.pathname === '/wallet.html')
+          throw new Error('LocalStorage blocked');
+        loginStorage.set(key, value);
+      },
+    },
     sessionStorage: {
       getItem: (key: string) => {
         if (options.storageRejected) throw new Error('Storage blocked');

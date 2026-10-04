@@ -4,6 +4,7 @@ import type { EmojiPicker } from '../emoji/index.ts';
 export function messageActions<T extends DailyRow>(c: {
   view: DailyView<T>;
   peers: readonly Peer[];
+  replyAllowed?: boolean;
   action: (label: string, work: () => Promise<void>) => HTMLButtonElement;
   choose: (mode: 'reply' | 'edit', view: T) => void;
   react: (view: T, reaction: string) => Promise<void>;
@@ -13,13 +14,14 @@ export function messageActions<T extends DailyRow>(c: {
   const host = document.createElement('div');
   host.className = 'message-actions';
   if (c.view.kind === 'profile') return host;
-  host.append(
-    c.action('Responder', () => {
-      c.choose('reply', c.view);
-      return Promise.resolve();
-    }),
-  );
-  if (c.view.own && c.view.kind === 'text')
+  if (c.replyAllowed !== false)
+    host.append(
+      c.action('Responder', () => {
+        c.choose('reply', c.view);
+        return Promise.resolve();
+      }),
+    );
+  if (!c.view.archived && c.view.own && c.view.kind === 'text')
     host.append(
       c.action('Editar', () => {
         c.choose('edit', c.view);
@@ -30,10 +32,11 @@ export function messageActions<T extends DailyRow>(c: {
     const emoji = await c.picker.choose(reaction);
     if (emoji !== null) await c.react(c.view, emoji);
   });
-  host.append(
-    reaction,
-    c.action('Remover minha reação', () => c.react(c.view, '')),
-  );
+  if (!c.view.archived)
+    host.append(
+      reaction,
+      c.action('Remover minha reação', () => c.react(c.view, '')),
+    );
   const target = document.createElement('select');
   target.setAttribute('aria-label', 'Contato para encaminhar');
   for (const peer of c.peers) {

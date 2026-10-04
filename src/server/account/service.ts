@@ -223,6 +223,22 @@ export class AccountService {
   async session(sessionToken: string): Promise<AccountSession> {
     return this.store.session(tokenHash(sessionToken));
   }
+  async beginLinked(
+    source: AccountSession,
+    deviceId: string,
+    previousToken?: string,
+  ) {
+    const sessionToken = token();
+    await this.store.beginLinked({
+      source,
+      deviceId: uuid(deviceId),
+      tokenHash: tokenHash(sessionToken),
+      csrf: token(),
+      expiresAt: new Date(Date.now() + sessionSeconds * 1000),
+      ...(previousToken ? { previousTokenHash: tokenHash(previousToken) } : {}),
+    });
+    return { sessionToken, session: await this.session(sessionToken) };
+  }
 
   async authorize(sessionToken: string, csrf: unknown): Promise<void> {
     const session = await this.session(sessionToken);

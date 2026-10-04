@@ -7,6 +7,7 @@ import {
   uuid,
 } from '../../shared/account/index.ts';
 import { fingerprint } from '../../shared/devices/index.ts';
+import { integer } from '../../shared/vault/index.ts';
 import { vaultChange } from '../../shared/vault/index.ts';
 import type { VaultChange } from '../../shared/vault/index.ts';
 import {
@@ -15,11 +16,15 @@ import {
   fileLimit,
 } from '../../shared/attachments/index.ts';
 import { profileCard } from '../message-profile/index.ts';
+import { decodePrivateProfile } from '../account-profile/index.ts';
+import { peer } from '../../shared/contacts/index.ts';
+import type { Peer } from '../../shared/contacts/index.ts';
 import { optionalRelation, relationKeys } from '../../shared/daily/index.ts';
 import type { MessageRelation } from '../../shared/daily/index.ts';
 import { backupRecordLimit } from '../../shared/backups/index.ts';
 import type { BackupTarget } from '../../shared/backups/index.ts';
 export type BackupRecord =
+  | { type: 'account'; id: string; hash: string; value: string }
   | {
       type: 'vault';
       id: string;
@@ -29,6 +34,8 @@ export type BackupRecord =
     }
   | {
       type: 'message';
+      sequence?: number;
+      participant?: Peer;
       relation?: MessageRelation;
       id: string;
       hash: string;
@@ -45,11 +52,31 @@ export type BackupRecord =
       thumbnail: boolean;
       bytes: string;
     };
+function optionalSequence(data: Record<string, unknown>): {
+  sequence?: number;
+} {
+  return Object.hasOwn(data, 'sequence')
+    ? { sequence: integer(data['sequence'], Number.MAX_SAFE_INTEGER) }
+    : {};
+}
+function participant(data: Record<string, unknown>): { participant?: Peer } {
+  if (!Object.hasOwn(data, 'participant')) return {};
+  const result = peer(data['participant']);
+  if (result.accountId !== data['peer'])
+    throw new Error('Participante histórico divergente.');
+  return { participant: result };
+}
 export function backupRecord(input: unknown): BackupRecord {
   const d = object(input),
     type = d['type'];
   const id = uuid(d['id']),
     hash = fingerprint(d['hash']);
+  if (type === 'account') {
+    keys(d, ['type', 'id', 'hash', 'value']);
+    const value = boundedText(d['value'], 4_300_000);
+    decodePrivateProfile(value).photo?.bytes.fill(0);
+    return { type, id, hash, value };
+  }
   if (type === 'vault') {
     keys(d, ['type', 'id', 'hash', 'change', 'value']);
     const value = boundedText(d['value'], 3_000_000);
@@ -57,36 +84,7 @@ export function backupRecord(input: unknown): BackupRecord {
       throw new Error('Conteúdo do cofre excedido.');
     return { type, id, hash, change: vaultChange(d['change']), value };
   }
-  if (type === 'message') {
-    keys(d, [
-      'type',
-      'id',
-      'hash',
-      'peer',
-      'own',
-      'kind',
-      'text',
-      ...relationKeys(d),
-    ]);
-    const kind = d['kind'];
-    if (
-      typeof d['own'] !== 'boolean' ||
-      !['text', 'profile', 'attachment'].includes(String(kind))
-    )
-      throw new Error('Mensagem histórica inválida.');
-    const text = boundedText(d['text'], backupRecordLimit);
-    validateContent(String(kind), text);
-    return {
-      type,
-      id,
-      hash,
-      peer: uuid(d['peer']),
-      own: d['own'],
-      kind: kind as 'text' | 'profile' | 'attachment',
-      ...optionalRelation(d['relation']),
-      text,
-    };
-  }
+  if (type === 'message') return messageRecord(d, id, hash);
   if (type === 'media') {
     keys(d, ['type', 'id', 'hash', 'message', 'thumbnail', 'bytes']);
     if (typeof d['thumbnail'] !== 'boolean')
@@ -104,6 +102,45 @@ export function backupRecord(input: unknown): BackupRecord {
   }
   throw new Error('Tipo de registro de backup não suportado.');
 }
+function messageRecord(
+  d: Record<string, unknown>,
+  id: string,
+  hash: string,
+): BackupRecord {
+  keys(d, [
+    'type',
+    'id',
+    'hash',
+    'peer',
+    'own',
+    'kind',
+    'text',
+    ...(Object.hasOwn(d, 'sequence') ? ['sequence'] : []),
+    ...(Object.hasOwn(d, 'participant') ? ['participant'] : []),
+    ...relationKeys(d),
+  ]);
+  const kind = d['kind'];
+  if (
+    typeof d['own'] !== 'boolean' ||
+    !['text', 'profile', 'attachment'].includes(String(kind))
+  )
+    throw new Error('Mensagem histórica inválida.');
+  const text = boundedText(d['text'], backupRecordLimit);
+  validateContent(String(kind), text);
+  return {
+    type: 'message',
+    id,
+    hash,
+    ...optionalSequence(d),
+    ...participant(d),
+    peer: uuid(d['peer']),
+    own: d['own'],
+    kind: kind as 'text' | 'profile' | 'attachment',
+    ...optionalRelation(d['relation']),
+    text,
+  };
+}
+
 function validateContent(kind: string, text: string): void {
   if (kind === 'profile') profileCard(JSON.parse(text) as unknown);
   if (kind === 'attachment') attachmentContent(JSON.parse(text) as unknown);
@@ -117,7 +154,7 @@ export function cleanupTarget(
   row: BackupRecord,
   media: ReadonlySet<string>,
 ): BackupTarget | null {
-  if (row.type === 'media') return null;
+  if (row.type === 'media' || row.type === 'account') return null;
   if (row.type === 'message' && row.kind === 'attachment') {
     const content = attachmentContent(JSON.parse(row.text) as unknown);
     if (
@@ -137,11 +174,19 @@ export function cleanupTarget(
 /** Base64 text avoids unbounded JSON escape expansion for valid 3 MB vault blocks. */
 export function serializeRecord(row: BackupRecord): Uint8Array<ArrayBuffer> {
   const field =
-    row.type === 'vault' ? 'value' : row.type === 'message' ? 'text' : null;
+    row.type === 'vault' || row.type === 'account'
+      ? 'value'
+      : row.type === 'message'
+        ? 'text'
+        : null;
   const encoder = new TextEncoder();
   if (!field) return encoder.encode(JSON.stringify(row));
   const bytes = encoder.encode(
-    row.type === 'vault' ? row.value : row.type === 'message' ? row.text : '',
+    row.type === 'vault' || row.type === 'account'
+      ? row.value
+      : row.type === 'message'
+        ? row.text
+        : '',
   );
   try {
     return encoder.encode(
@@ -163,7 +208,8 @@ export function deserializeRecord(bytes: Uint8Array): BackupRecord {
     throw new Error('Codificação do registro não suportada.');
   const { encoding: _encoding, ...value } = raw;
   void _encoding;
-  const field = raw['type'] === 'vault' ? 'value' : 'text';
+  const field =
+    raw['type'] === 'vault' || raw['type'] === 'account' ? 'value' : 'text';
   const decoded = base64(
     raw[field],
     raw['type'] === 'vault' ? 3_000_000 : 4_300_000,

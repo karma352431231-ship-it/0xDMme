@@ -12,6 +12,8 @@ import {
   backupLimit,
   backupRecordLimit,
   backupItemLimit,
+  backupFrameLimit,
+  backupReportLimit,
 } from '../../shared/backups/index.ts';
 import type { BackupTarget } from '../../shared/backups/index.ts';
 import type { VaultAuthority } from '../vault-authority/index.ts';
@@ -24,6 +26,7 @@ import {
   recordKey,
 } from '../backup-records/index.ts';
 import type { BackupRecord } from '../backup-records/index.ts';
+import { BackupOutput } from './output.ts';
 const encoder = new TextEncoder(),
   decoder = new TextDecoder('utf-8', { fatal: true });
 const magic = encoder.encode('0xDMme01');
@@ -136,16 +139,17 @@ async function chain(previous: string, bytes: Uint8Array): Promise<string> {
 export class BackupWriter {
   private readonly h: Header;
   private readonly key: CryptoKey;
-  private readonly parts: Blob[] = [];
+  private readonly output: BackupOutput;
   private readonly records: RecordInfo[] = [];
   private readonly ids = new Set<string>();
   private size = 0;
   private index = 0;
   private root = '';
   private finished = false;
-  private constructor(h: Header, key: CryptoKey) {
+  private constructor(h: Header, key: CryptoKey, output: BackupOutput) {
     this.h = h;
     this.key = key;
+    this.output = output;
   }
   static async create(a: VaultAuthority): Promise<BackupWriter> {
     const id = crypto.randomUUID(),
@@ -171,7 +175,7 @@ export class BackupWriter {
           ciphertext: encode(wrapped),
         },
       };
-      const result = new BackupWriter(h, key),
+      const result = new BackupWriter(h, key, await BackupOutput.create()),
         json = encoder.encode(canonical(h));
       const length = new Uint8Array(4);
       new DataView(length.buffer).setUint32(0, json.length);
@@ -179,7 +183,7 @@ export class BackupWriter {
       initial.set(magic);
       initial.set(length, magic.length);
       initial.set(json, magic.length + 4);
-      result.parts.push(new Blob([initial]));
+      await result.output.write(initial);
       result.size = initial.length;
       result.root = await bytesHash(initial);
       return result;
@@ -189,7 +193,9 @@ export class BackupWriter {
   }
   abort(): void {
     this.finished = true;
-    this.parts.length = 0;
+    void this.output.dispose().catch(() => {
+      console.warn('Limpeza do arquivo temporário de backup pendente.');
+    });
     this.records.length = 0;
     this.ids.clear();
   }
@@ -224,8 +230,8 @@ export class BackupWriter {
     }
   }
   private async append(kind: number, bytes: Uint8Array): Promise<void> {
-    if (this.index >= 4095 && kind === 1)
-      throw new Error('Partes de backup excedidas. Divida a seleção.');
+    if (this.index >= backupFrameLimit - 1 && kind === 1)
+      throw new Error('Partes de backup excedidas.');
     const sealed = await cipher(
         this.key,
         { h: this.h, index: this.index, kind },
@@ -233,13 +239,11 @@ export class BackupWriter {
       ),
       p = prefix(kind, sealed.length);
     if (this.size + p.length + sealed.length > backupLimit)
-      throw new Error(
-        'Backup excede 64 MiB. Divida a seleção em arquivos menores.',
-      );
+      throw new Error('Backup excede o limite de 4 GiB por arquivo.');
     const frame = new Uint8Array(p.length + sealed.length);
     frame.set(p);
     frame.set(sealed, p.length);
-    this.parts.push(new Blob([frame]));
+    await this.output.write(frame);
     this.size += frame.length;
     this.root = await chain(this.root, frame);
     this.index++;
@@ -259,14 +263,12 @@ export class BackupWriter {
     };
     const bytes = encoder.encode(JSON.stringify(report));
     try {
-      if (bytes.length > 2_000_000)
+      if (bytes.length > backupReportLimit)
         throw new Error('Relatório de backup excedido.');
       await this.append(2, bytes);
       guard();
       this.finished = true;
-      const file = new Blob(this.parts, { type: 'application/octet-stream' });
-      this.parts.length = 0;
-      return file;
+      return await this.output.finish();
     } finally {
       bytes.fill(0);
     }
@@ -282,6 +284,15 @@ export class BackupReader {
   private readonly file: Blob;
   private readonly frames: Frame[];
   private closed = false;
+  get complete(): boolean {
+    return (
+      this.report.omitted.length === 0 &&
+      this.targets.length ===
+        this.report.records.filter(
+          (r) => r.type === 'message' || r.type === 'vault',
+        ).length
+    );
+  }
   private constructor(input: {
     h: Header;
     key: CryptoKey;
@@ -308,7 +319,7 @@ export class BackupReader {
     guard: () => void,
   ): Promise<BackupReader> {
     if (file.size < 64 || file.size > backupLimit)
-      throw new Error('Backup vazio ou acima de 64 MiB.');
+      throw new Error('Backup vazio ou acima de 1 GiB.');
     const start = await read(file, 0, 12);
     if (!magic.every((b, i) => start[i] === b))
       throw new Error('Arquivo de backup não suportado.');
@@ -382,6 +393,11 @@ export class BackupReader {
     for (let index = 0; index < this.report.records.length; index++) {
       guard();
       const row = await this.read(index);
+      if (
+        row.type === 'account' &&
+        (await bytesHash(encoder.encode(row.value))) !== row.hash
+      )
+        throw new Error('Perfil de backup adulterado.');
       if (row.type === 'media') {
         if ((await bytesHash(base64(row.bytes, 3_000_000))) !== row.hash)
           throw new Error('Mídia de backup adulterada.');
@@ -429,7 +445,7 @@ function frameLength(p: Uint8Array): { kind: number; length: number } {
   if (
     (kind !== 1 && kind !== 2) ||
     length < 29 ||
-    length > (kind === 1 ? backupChunk : 2_000_000) + 28
+    length > (kind === 1 ? backupChunk : backupReportLimit) + 28
   )
     throw new Error('Parte de backup inválida.');
   return { kind, length };
@@ -446,7 +462,8 @@ async function scan(input: {
   const frames: Frame[] = [];
   while (offset < input.file.size) {
     input.guard();
-    if (frames.length >= 4096) throw new Error('Partes de backup excedidas.');
+    if (frames.length >= backupFrameLimit)
+      throw new Error('Partes de backup excedidas.');
     const { kind, length } = frameLength(await read(input.file, offset, 5));
     const plaintext = await decipher(
       input.key,
@@ -522,13 +539,13 @@ function reportFields(d: Record<string, unknown>): {
 function parseInfo(value: unknown): RecordInfo {
   const r = object(value);
   keys(r, ['type', 'id', 'hash', 'start', 'parts', 'bytes', 'digest']);
-  if (!['vault', 'message', 'media'].includes(String(r['type'])))
+  if (!['vault', 'message', 'media', 'account'].includes(String(r['type'])))
     throw new Error('Registro não suportado.');
   return {
     type: r['type'] as BackupRecord['type'],
     id: uuid(r['id']),
     hash: fingerprint(r['hash']),
-    start: integer(r['start'], 4096),
+    start: integer(r['start'], backupFrameLimit),
     parts: integer(r['parts'], 32),
     bytes: integer(r['bytes'], backupRecordLimit),
     digest: fingerprint(r['digest']),

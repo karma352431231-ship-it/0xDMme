@@ -66,6 +66,19 @@ export function conversationSettings(input: unknown): ConversationSettings {
     pinned: d['pinned'],
   };
 }
+/** Concurrent copies retain silence/archive until an explicit new user choice joins their heads. */
+export function mergeConversationSettings(
+  values: readonly ConversationSettings[],
+): ConversationSettings {
+  return values.reduce(
+    (merged, value) => ({
+      mutedUntil: Math.max(merged.mutedUntil, value.mutedUntil),
+      archived: merged.archived || value.archived,
+      pinned: merged.pinned || value.pinned,
+    }),
+    { mutedUntil: 0, archived: false, pinned: false },
+  );
+}
 export interface PushRegistration {
   endpoint: string;
   keys: { p256dh: string; auth: string };

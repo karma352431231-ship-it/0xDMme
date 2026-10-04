@@ -5,6 +5,7 @@ import { prepareAttachment } from '../attachments/index.ts';
 import type { AttachmentSelection } from '../attachments/index.ts';
 import { decodeDailyText } from '../../shared/daily/index.ts';
 interface MediaView {
+  archived?: boolean;
   id: string;
   text: string;
   peer: string;
@@ -161,7 +162,7 @@ export class AttachmentUi {
             bytes,
             voice: content.voice,
             id: input.view.id,
-            peer: input.view.peer,
+            peer: playbackPeer(input.view),
           });
         } finally {
           bytes.fill(0);
@@ -216,4 +217,8 @@ export class AttachmentUi {
       this.queued--;
     });
   }
+}
+
+function playbackPeer(view: MediaView): string | null {
+  return view.archived ? null : view.peer;
 }

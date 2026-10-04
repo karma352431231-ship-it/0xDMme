@@ -23,7 +23,7 @@ const pages = {
   },
   configuracoes: {
     title: 'Configurações',
-    content: `<div data-daily-settings></div><div class="cards"><article class="card"><span class="eyebrow">PRIVACIDADE</span><h2>Você escolhe o que compartilhar.</h2><p>Salve suas escolhas no perfil cifrado acima. Online, último acesso e leitura começam desligados, com escolhas independentes. Somente contatos aprovados podem consultar os sinais habilitados.</p><div class="privacy-list"><div class="privacy-row"><span>Exibir online</span><span>Escolha no perfil</span></div><div class="privacy-row"><span>Exibir último acesso</span><span>Escolha no perfil</span></div><div class="privacy-row"><span>Enviar confirmação de leitura</span><span>Escolha no perfil</span></div></div></article><article class="card"><span class="eyebrow">APLICATIVO</span><h2>Seu espaço, também na tela inicial.</h2><p>Use a opção de instalação do navegador quando disponível. Offline, abra a cópia local do cofre para consultar blocos já carregados neste aparelho.</p><p id="pwa-state" role="status">Verificando disponibilidade offline…</p><button class="primary" id="check-updates" type="button">Verificar atualização</button></article></div>`,
+    content: `<div data-contact-settings-container></div><div data-daily-settings></div><article class="card"><h2>Aplicativo</h2><p id="pwa-state" role="status">Verificando atualização…</p><button id="check-updates" type="button">Verificar atualização</button></article>`,
   },
 };
 
@@ -39,13 +39,16 @@ const devices = startDevices({
     await account.refreshPrivate();
     connection();
   },
-  replaceDevice: async () => {
-    await account.replaceDevice();
-  },
+  linked: (session) => account.acceptLinkedSession(session),
+  confirmWallet: () => account.confirmWallet(),
 });
 const vault = startVault(devices);
 const playback = new VoicePlayback();
-const backups = startBackups(devices, vault.sync, playback);
+const backups = startBackups(devices, vault.sync, playback, {
+  reminder: () => account.backupReminder(),
+  confirmWallet: () => account.confirmWallet(),
+  profile: () => account.backupProfile(),
+});
 const contacts = startContacts(devices, vault.sync);
 const messages = startMessages(devices, vault.sync, {
   playback,
@@ -104,6 +107,7 @@ function route(): void {
   element('breadcrumb').textContent = page.title.toLocaleUpperCase('pt-BR');
   messages.leave();
   backups.leave();
+  vault.leave();
   // Templates are static authored content. No user/server input enters HTML.
   element('page-content').innerHTML = page.content;
   mountAccountPanels(key);
@@ -126,6 +130,10 @@ function mountFeature(key: keyof typeof pages): void {
     '[data-daily-settings]',
   );
   if (dailyContainer) messages.mountSettings(dailyContainer);
+  const contactSettings = content.querySelector<HTMLElement>(
+    '[data-contact-settings-container]',
+  );
+  if (contactSettings) contacts.mount(contactSettings, 'settings');
   const messageContainer = content.querySelector<HTMLElement>(
     '[data-messages-container]',
   );
@@ -156,9 +164,9 @@ function mountAccountPanels(key: keyof typeof pages): void {
     const container = document.createElement('div');
     container.className = 'account-section';
     element('page-content').prepend(container);
-    account.mount(container);
+    account.mount(container, key === 'configuracoes' ? 'settings' : 'login');
   }
-  if (key === 'configuracoes' || key === 'cofre' || key === 'contatos') {
+  if (key === 'configuracoes') {
     const container = document.createElement('div');
     container.className = 'account-section';
     element('page-content').append(container);
@@ -176,14 +184,18 @@ function renderApprovalPage(): void {
 }
 
 function connection(): void {
-  if (connectedAccount && devices.authorized()) messages.ready();
+  if (connectedAccount && devices.authorized()) {
+    messages.ready();
+    contacts.ready();
+    void vault.ready();
+  }
   element('connection').textContent = navigator.onLine
     ? connectedAccount
       ? devices.authorized()
-        ? 'Conta conectada · aparelho autorizado'
-        : 'Conta conectada · aparelho pendente'
+        ? 'Conta conectada'
+        : 'Abrindo sua conta…'
       : 'Conexão disponível · nenhuma conta conectada'
-    : 'Sem conexão · abra a cópia local do cofre';
+    : 'Sem conexão · histórico salvo disponível neste aparelho';
 }
 
 window.addEventListener('hashchange', route);

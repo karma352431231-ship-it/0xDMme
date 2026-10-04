@@ -3,6 +3,7 @@ import {
   encode,
   encryptedProfileLimit,
   object,
+  keys,
   profileEnvelope,
   profileLimit,
 } from '../../shared/account/index.ts';
@@ -13,6 +14,7 @@ export interface ProfilePreferences {
   online: boolean;
   lastSeen: boolean;
   readReceipts: boolean;
+  backupReminder: boolean;
 }
 export interface PrivateProfile {
   preferences: ProfilePreferences;
@@ -25,6 +27,7 @@ export function emptyProfile(): PrivateProfile {
       online: false,
       lastSeen: false,
       readReceipts: false,
+      backupReminder: false,
     },
     photo: null,
   };
@@ -32,11 +35,50 @@ export function emptyProfile(): PrivateProfile {
 
 function preferences(value: unknown): ProfilePreferences {
   const data = object(value);
+  keys(
+    data,
+    data['backupReminder'] === undefined
+      ? ['discoverable', 'online', 'lastSeen', 'readReceipts']
+      : [
+          'discoverable',
+          'online',
+          'lastSeen',
+          'readReceipts',
+          'backupReminder',
+        ],
+  );
   const result = emptyProfile().preferences;
   for (const name of Object.keys(result) as (keyof ProfilePreferences)[]) {
+    if (name === 'backupReminder' && data[name] === undefined) continue;
     if (typeof data[name] !== 'boolean')
       throw new Error('Preferência inválida.');
     result[name] = data[name];
+  }
+  return result;
+}
+export function encodePrivateProfile(profile: PrivateProfile): string {
+  return JSON.stringify({
+    preferences: preferences(profile.preferences),
+    photo: profile.photo
+      ? { type: profile.photo.type, bytes: encode(profile.photo.bytes) }
+      : null,
+  });
+}
+export function decodePrivateProfile(value: string): PrivateProfile {
+  const data = object(JSON.parse(value) as unknown);
+  keys(data, ['preferences', 'photo']);
+  const result: PrivateProfile = {
+    preferences: preferences(data['preferences']),
+    photo: null,
+  };
+  if (data['photo'] !== null) {
+    const photo = object(data['photo']);
+    keys(photo, ['type', 'bytes']);
+    if (typeof photo['type'] !== 'string')
+      throw new Error('Foto de perfil inválida.');
+    const bytes = base64(photo['bytes'], profileLimit);
+    validatePhoto(photo['type'], bytes);
+    result.photo = { type: photo['type'], bytes };
   }
   return result;
 }

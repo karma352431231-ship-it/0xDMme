@@ -61,6 +61,7 @@ export interface AccountSession {
   expiresAt: string;
   csrf: string;
   profileRevision: number;
+  walletConfirmed?: boolean;
 }
 
 export interface EncryptedProfile {
@@ -75,6 +76,8 @@ export function accountSession(value: unknown): AccountSession {
   const expiresAt = boundedText(data['expiresAt'], 32);
   if (
     !Number.isFinite(Date.parse(expiresAt)) ||
+    (data['walletConfirmed'] !== undefined &&
+      typeof data['walletConfirmed'] !== 'boolean') ||
     data['deviceState'] !== 'pending' ||
     data['historyAuthorized'] !== false
   )
@@ -100,7 +103,15 @@ export function accountSession(value: unknown): AccountSession {
     expiresAt,
     csrf,
     profileRevision: data['profileRevision'],
+    walletConfirmed: data['walletConfirmed'] === true,
   };
+}
+export function requireWalletSession(session: AccountSession): void {
+  if (session.walletConfirmed !== true)
+    throw new AccountError(
+      403,
+      'Confirme a wallet nesta sessão para executar esta ação.',
+    );
 }
 
 export function base64(

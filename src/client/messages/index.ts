@@ -26,6 +26,7 @@ import { Contacts } from '../contacts/index.ts';
 import { profileCard } from '../message-profile/index.ts';
 import { Messages } from './controller.ts';
 import type { MessageView } from './controller.ts';
+type ConversationPeer = Peer & { localOnly?: boolean };
 export function startMessages(
   access: VaultAccess,
   sync: VaultSync,
@@ -42,7 +43,7 @@ export function startMessages(
     daily = new Daily(access, sync);
   const sound = new NotificationSound();
   const emojiPicker = new EmojiPicker();
-  let peers: Peer[] = [],
+  let peers: ConversationPeer[] = [],
     states = new Map<string, PeerState>(),
     showArchived = false;
   let composing: { mode: 'reply' | 'edit'; view: MessageView } | null = null;
@@ -51,13 +52,17 @@ export function startMessages(
     searchQuery = '';
   let mounted: HTMLElement | null = null,
     busy = false,
-    selected: Peer | null = null,
+    selected: ConversationPeer | null = null,
     session: AccountSession | null = null,
     rows: readonly MessageView[] | null = null,
     generation = 0,
     refreshRequested = false,
     automaticAttempts = 0,
     lastTransferAttempt = 0;
+  let archivedAfter: string | null = null;
+  let remoteMore = true,
+    archivedMore = true;
+  let failed = false;
   let settingsHost: HTMLElement | null = null;
   let message = 'Entre e autorize este aparelho para conversar.';
   let recordingPeer: string | null = null;
@@ -147,6 +152,8 @@ export function startMessages(
   function status(): void {
     const immediate = node('[data-message-live]');
     if (immediate) immediate.textContent = live.notice;
+    const retry = node('[data-message-refresh]');
+    if (retry) retry.hidden = !failed;
     const text = node('[data-message-status]');
     if (text) text.textContent = message;
     const dailyStatus = settingsHost?.querySelector('[data-daily-status]');
@@ -211,6 +218,7 @@ export function startMessages(
   async function run(work: () => Promise<void>): Promise<void> {
     if (busy) return;
     busy = true;
+    failed = false;
     const current = generation;
     status();
     try {
@@ -218,14 +226,16 @@ export function startMessages(
       if (current !== generation) return;
       if (navigator.onLine)
         message = controller.transportPending
-          ? 'Histórico verificado pelo cofre; algumas chaves de transporte permanecem pendentes, sem confirmação falsa.'
-          : 'Estado atual conferido. Recebimento não é confirmação de leitura.';
+          ? 'Alguns envios ainda estão pendentes. A retomada é automática.'
+          : 'Conversas atualizadas.';
     } catch (error: unknown) {
-      if (current === generation)
+      if (current === generation) {
+        failed = true;
         message =
           error instanceof Error
             ? error.message
             : 'Não foi possível concluir a operação.';
+      }
     } finally {
       busy = false;
       if (current === generation) {
@@ -285,6 +295,8 @@ export function startMessages(
     }
     const title = node('[data-message-peer]');
     if (title) title.textContent = peerLabel();
+    const form = node('[data-message-form]');
+    if (form) form.hidden = selected?.localOnly === true;
     for (const view of dailyViews(rows ?? []))
       history.append(renderMessage(view));
   }
@@ -339,7 +351,8 @@ export function startMessages(
     article.append(
       messageActions({
         view,
-        peers,
+        peers: peers.filter((p) => !p.localOnly),
+        replyAllowed: !selected?.localOnly,
         action,
         picker: emojiPicker,
         choose,
@@ -358,7 +371,7 @@ export function startMessages(
         forward,
       }),
     );
-    if (view.own)
+    if (view.own && !view.archived)
       article.append(
         action('Apagar para ambos', async () => {
           await controller.remove(view);
@@ -424,7 +437,7 @@ export function startMessages(
     view: DailyView<MessageView>,
     peer: string,
   ): Promise<void> {
-    if (!peers.some((p) => p.accountId === peer))
+    if (!peers.some((p) => p.accountId === peer && !p.localOnly))
       throw new Error('Selecione um contato aprovado para encaminhar.');
     if (view.kind === 'text')
       await controller.compose(
@@ -505,11 +518,11 @@ export function startMessages(
     const state = states.get(peer.accountId),
       settings = daily.conversation(peer.accountId);
     const conflict = daily.organizationConflict(peer.accountId)
-      ? ' · organização em conflito: escolha no Cofre'
+      ? ' · organização em conflito'
       : '';
     return `${settings.pinned ? '📌 ' : ''}${peer.name || peer.address}${state?.unread ? ` · ${state.unread} não lidas` : ''}${state && state.mutedUntil > Date.now() ? ' · silenciada' : ''}${conflict}`;
   }
-  async function openPeer(peer: Peer): Promise<void> {
+  async function openPeer(peer: ConversationPeer): Promise<void> {
     if (
       (voice.active || attachments.selected?.voice) &&
       selected?.accountId !== peer.accountId
@@ -524,6 +537,10 @@ export function startMessages(
     renderHistory();
     if (!navigator.onLine) {
       await controller.openOffline(peer.accountId);
+      return;
+    }
+    if (peer.localOnly) {
+      await controller.openArchive(peer.accountId);
       return;
     }
     await controller.loadPins();
@@ -543,13 +560,61 @@ export function startMessages(
           ? `Último acesso: ${new Date(state.lastSeen).toLocaleString('pt-BR')}`
           : 'Presença não compartilhada';
   }
-  async function refreshContacts(more = false): Promise<void> {
-    const page = await contacts.list('approved', more);
-    peers = page.items;
-    await daily.loadSettings(peers.map((peer) => peer.accountId));
+  function contactsMore(): void {
+    const button = node('[data-message-more-contacts]');
+    if (button)
+      button.hidden = !archivedMore && (!navigator.onLine || !remoteMore);
+  }
+  async function refreshLocalContacts(more = false): Promise<void> {
+    if (!more) {
+      archivedAfter = null;
+      archivedMore = true;
+    }
+    const local = archivedMore
+      ? await controller.archivedPeers(archivedAfter)
+      : { items: [], next: null };
+    archivedAfter = local.next;
+    archivedMore = local.next !== null;
+    const combined = new Map(peers.map((p) => [p.accountId, p]));
+    for (const peer of local.items)
+      if (!combined.has(peer.accountId))
+        combined.set(peer.accountId, { ...peer, localOnly: true });
+    peers = [...combined.values()];
     renderContacts(peers);
-    const moreButton = node('[data-message-more-contacts]');
-    if (moreButton) moreButton.hidden = page.next === null;
+    contactsMore();
+    if (selected) await controller.openOffline(selected.accountId);
+  }
+  function updateSelected(combined: Map<string, ConversationPeer>): void {
+    if (selected && combined.has(selected.accountId))
+      selected = combined.get(selected.accountId)!;
+  }
+  async function refreshContacts(more = false): Promise<void> {
+    if (!more) {
+      remoteMore = true;
+      archivedMore = true;
+      archivedAfter = null;
+    }
+    const page = remoteMore
+      ? await contacts.list('approved', more)
+      : { items: [], next: null };
+    remoteMore = page.next !== null;
+    const local = archivedMore
+      ? await controller.archivedPeers(archivedAfter)
+      : { items: [], next: null };
+    archivedAfter = local.next;
+    archivedMore = local.next !== null;
+    const combined = new Map<string, ConversationPeer>(
+      more ? peers.map((p) => [p.accountId, p]) : [],
+    );
+    for (const item of local.items)
+      if (!combined.has(item.accountId))
+        combined.set(item.accountId, { ...item, localOnly: true });
+    for (const item of page.items) combined.set(item.accountId, item);
+    peers = [...combined.values()];
+    updateSelected(combined);
+    await daily.loadSettings(peers.map((p) => p.accountId));
+    renderContacts(peers);
+    contactsMore();
   }
   async function refresh(): Promise<void> {
     refreshRequested = false;
@@ -560,9 +625,7 @@ export function startMessages(
     await refreshContacts();
     await controller.sendPending();
     if (selected) {
-      const card = sharedProfile();
-      if (card) await controller.shareProfile(selected.accountId, card);
-      await controller.synchronize();
+      await refreshSelected();
     }
     await controller.savePins();
     await dailyTick();
@@ -573,7 +636,21 @@ export function startMessages(
     )
       live.start();
   }
+  async function refreshSelected(): Promise<void> {
+    if (!selected) return;
+    if (selected.localOnly) {
+      await controller.openArchive(selected.accountId);
+      return;
+    }
+    const card = sharedProfile();
+    if (card) await controller.shareProfile(selected.accountId, card);
+    await controller.synchronize();
+  }
   async function submit(): Promise<void> {
+    if (selected?.localOnly)
+      throw new Error(
+        'Peça autorização ao contato para enviar novas mensagens. Seu histórico salvo continua disponível.',
+      );
     if (voice.active)
       throw new Error('Pare a gravação e confira a prévia antes de enviar.');
     const text = node<HTMLTextAreaElement>('[data-message-text]');
@@ -650,12 +727,18 @@ export function startMessages(
         sound.beep();
   }
   async function markVisibleRead(): Promise<void> {
-    if (!selected || rows === null || document.visibilityState !== 'visible')
+    if (
+      !selected ||
+      selected.localOnly ||
+      rows === null ||
+      document.visibilityState !== 'visible'
+    )
       return;
     const incoming = rows
       .filter(
         (r) =>
           !r.own &&
+          !r.archived &&
           !r.relation &&
           r.kind !== 'profile' &&
           r.state !== 'Suspensa',
@@ -664,7 +747,9 @@ export function startMessages(
     if (incoming.length) await daily.read(selected.accountId, incoming);
     readIds = await daily.receipts(
       rows
-        .filter((r) => r.own && !r.relation && r.kind !== 'profile')
+        .filter(
+          (r) => r.own && !r.archived && !r.relation && r.kind !== 'profile',
+        )
         .map((r) => r.id),
     );
     renderHistory();
@@ -712,7 +797,8 @@ export function startMessages(
     live.stop();
     suspend();
     message =
-      'Sem conexão. Os envios ficam cifrados neste aparelho. Abra deliberadamente a cópia local para consultar o que já recebeu.';
+      'Sem conexão. O histórico salvo continua disponível neste aparelho.';
+    void run(refreshLocalContacts);
     status();
   });
   window.addEventListener('online', () => {
@@ -761,6 +847,10 @@ export function startMessages(
     void checkVoiceAuthority();
   });
 
+  window.addEventListener('0xdmme-history-imported', () => {
+    if (mounted?.isConnected && !busy)
+      void run(navigator.onLine ? refresh : refreshLocalContacts);
+  });
   const timer = setInterval(() => {
     if (
       busy ||
@@ -771,7 +861,7 @@ export function startMessages(
       return;
     void run(async () => {
       await dailyTick();
-      if (!mounted?.isConnected || !selected) return;
+      if (!mounted?.isConnected || !selected || selected.localOnly) return;
       await resumePending();
       if (!live.connected && (await controller.probe())) {
         await controller.synchronize();
@@ -835,16 +925,6 @@ export function startMessages(
       showArchived = !showArchived;
       renderContacts(peers);
     });
-    bind('[data-mute]', () => {
-      void run(async () => {
-        if (!selected) return;
-        await daily.mute(
-          selected.accountId,
-          Number(node<HTMLSelectElement>('[data-mute-duration]')?.value ?? 0),
-        );
-        await dailyTick();
-      });
-    });
     bind('[data-archive]', () => {
       void run(async () => {
         if (!selected) return;
@@ -884,29 +964,18 @@ export function startMessages(
       if (session && navigator.onLine) live.retry();
       void run(refresh);
     });
-    bind('[data-message-resend]', () => {
-      void run(async () => {
-        await controller.loadPins();
-        await controller.sendPending();
-        await controller.synchronize();
-        await controller.savePins();
-      });
-    });
-    bind('[data-message-local]', () => {
-      void run(async () => {
-        await controller.openOffline(selected?.accountId ?? null);
-        message =
-          'Cópia local offline: alterações remotas serão aplicadas antes da próxima abertura online.';
-      });
-    });
     bind('[data-message-more-contacts]', () => {
-      void run(() => refreshContacts(true));
+      void run(() =>
+        navigator.onLine ? refreshContacts(true) : refreshLocalContacts(true),
+      );
     });
     bind('[data-message-older]', () => {
       void run(async () => {
         if (!selected) return;
         controller.select(selected.accountId, true);
-        if (navigator.onLine) await controller.synchronize();
+        if (selected.localOnly)
+          await controller.openArchive(selected.accountId);
+        else if (navigator.onLine) await controller.synchronize();
         else await controller.openOffline(selected.accountId);
         await controller.savePins();
       });
@@ -977,11 +1046,30 @@ export function startMessages(
     },
     mountSettings(container: HTMLElement): void {
       settingsHost = container;
-      container.innerHTML = `<article class="card notifications-card"><h2>Notificações</h2><p>Alertas exibem apenas “0xDMme” e atividade genérica. O serviço push do navegador recebe endereço de inscrição e horários, sem texto, wallet ou nome de contato.</p><p>No iPhone/iPad, adicione o app à tela inicial e abra pelo ícone antes de ativar. A permissão depende de um toque seu e pode ser alterada nas configurações do sistema.</p><p data-daily-status role="status"></p><button data-push-enable type="button">Ativar push neste aparelho</button><button data-push-disable type="button">Desativar push neste aparelho</button><button data-sound-toggle type="button" aria-pressed="true">Desativar sons</button><p data-sound-status role="status"></p><p>Sons ligados por padrão. Sua escolha é salva neste navegador e continua ao trocar de conta ou reabrir o app. O navegador pode aguardar um toque para liberar áudio; volume e som de push seguem o sistema. Conversas silenciadas ou arquivadas continuam sem alertas. Offline ou sem sessão válida, não há alerta remoto novo.</p></article>`;
+      container.innerHTML = `<article class="card notifications-card"><h2>Notificações</h2><p>Alertas exibem apenas “0xDMme” e atividade genérica. O serviço push do navegador recebe endereço de inscrição e horários, sem texto, wallet ou nome de contato.</p><p>No iPhone/iPad, adicione o app à tela inicial e abra pelo ícone antes de ativar. A permissão depende de um toque seu e pode ser alterada nas configurações do sistema.</p><p data-daily-status role="status"></p><p>Silêncio da conversa selecionada: <span data-mute-peer></span></p><label>Silenciar<select data-mute-duration><option value="0">Retomar alertas</option><option value="3600000">1 hora</option><option value="28800000">8 horas</option><option value="86400000">24 horas</option><option value="604800000">7 dias</option><option value="9007199254740991">Até reativar</option></select></label><button data-mute type="button">Salvar silêncio</button><button data-push-enable type="button">Ativar push neste aparelho</button><button data-push-disable type="button">Desativar push neste aparelho</button><button data-sound-toggle type="button" aria-pressed="true">Desativar sons</button><p data-sound-status role="status"></p><p>Sons ligados por padrão. Sua escolha é salva neste navegador e continua ao trocar de conta ou reabrir o app. O navegador pode aguardar um toque para liberar áudio; volume e som de push seguem o sistema. Conversas silenciadas ou arquivadas continuam sem alertas. Offline ou sem sessão válida, não há alerta remoto novo.</p></article>`;
       const on = (selector: string, work: () => Promise<void>) =>
         container.querySelector(selector)?.addEventListener('click', () => {
           void run(work);
         });
+      const peerLabel = container.querySelector('[data-mute-peer]');
+      if (peerLabel)
+        peerLabel.textContent =
+          selected?.name ||
+          selected?.address ||
+          'selecione uma conversa primeiro';
+      on('[data-mute]', async () => {
+        if (!selected || selected.localOnly)
+          throw new Error(
+            'Selecione uma conversa aprovada antes de alterar seus alertas.',
+          );
+        await daily.mute(
+          selected.accountId,
+          Number(
+            container.querySelector<HTMLSelectElement>('[data-mute-duration]')
+              ?.value ?? 0,
+          ),
+        );
+      });
       on('[data-push-enable]', () => daily.enablePush());
       on('[data-push-disable]', () => daily.disablePush());
       on('[data-sound-toggle]', async () => {
@@ -998,7 +1086,7 @@ export function startMessages(
     },
     mount(container: HTMLElement): void {
       mounted = container;
-      container.innerHTML = `<article class="card chat-panel"><h2>Conversas</h2><p data-message-status role="status"></p><p data-message-live role="status"></p><button data-message-refresh type="button">Sincronizar</button><button data-message-resend type="button">Reenviar pendentes</button><button data-message-local type="button">Abrir cópia local offline</button><div class="chat-layout"><aside><h3>Contatos aprovados</h3><button data-archived-list type="button">Alternar arquivadas</button><div data-message-contacts class="chat-contacts"></div><button data-message-more-contacts type="button" hidden>Mais contatos</button></aside><section><h3 data-message-peer></h3><p data-peer-presence></p><label>Silenciar<select data-mute-duration><option value="0">Retomar alertas</option><option value="3600000">1 hora</option><option value="28800000">8 horas</option><option value="86400000">24 horas</option><option value="604800000">7 dias</option><option value="9007199254740991">Até reativar</option></select></label><button data-mute type="button">Aplicar mute</button><button data-archive type="button">Arquivar/desarquivar</button><p>Arquivar silencia até reativar. Depois de desarquivar, use Retomar alertas para voltar a receber notificações.</p><button data-pin type="button">Fixar/desfixar</button><p data-message-gate></p><div data-message-history class="chat-history" hidden></div><button data-message-older type="button">Mensagens anteriores</button><form data-message-form><p data-compose-context></p><button data-compose-cancel type="button">Cancelar resposta/edição</button><label>Mensagem<textarea data-message-text rows="3"></textarea></label><button data-message-emoji type="button">Escolher emoji</button><label>Enviar como<select data-attachment-mode><option value="photo">Foto otimizada</option><option value="file">Arquivo original (até 3 MB)</option></select></label><button data-voice-record type="button">Gravar voz</button><button data-voice-stop type="button" hidden>Parar e conferir</button><button data-voice-cancel type="button" hidden>Cancelar gravação</button><p data-voice-status role="status"></p><p>Voz: até 90 segundos. Ouça a prévia e toque em Enviar. Se o sistema interromper o microfone, o trecho capturado será preservado enquanto esta página continuar aberta.</p><label>Foto ou arquivo<input data-attachment-file type="file"></label><p>Foto: prévia e remoção de metadados no aparelho. Original: pode compartilhar GPS/EXIF. Vídeos ainda não são aceitos.</p><div data-attachment-preview></div><button data-attachment-clear type="button">Remover seleção</button><button class="primary" type="submit">Enviar</button></form><label>Busca local<input data-message-search maxlength="128" type="search"></label><button data-search type="button">Buscar neste aparelho</button><button data-search-more type="button" hidden>Continuar busca</button><ul data-search-results></ul><h3>Envios deste aparelho</h3><ul data-message-pending></ul></section></div></article>`;
+      container.innerHTML = `<article class="card chat-panel"><h2>Conversas</h2><p data-message-status role="status"></p><p data-message-live role="status"></p><button data-message-refresh type="button" hidden>Tentar novamente</button><div class="chat-layout"><aside><h3>Contatos aprovados</h3><button data-archived-list type="button">Alternar arquivadas</button><div data-message-contacts class="chat-contacts"></div><button data-message-more-contacts type="button" hidden>Mais contatos</button></aside><section><h3 data-message-peer></h3><p data-peer-presence></p><button data-archive type="button">Arquivar/desarquivar</button><p>Arquivar silencia até reativar. Depois de desarquivar, vá a Configurações → Retomar alertas para voltar a receber notificações.</p><button data-pin type="button">Fixar/desfixar</button><p data-message-gate></p><div data-message-history class="chat-history" hidden></div><button data-message-older type="button">Mensagens anteriores</button><form data-message-form><p data-compose-context></p><button data-compose-cancel type="button">Cancelar resposta/edição</button><label>Mensagem<textarea data-message-text rows="3"></textarea></label><button data-message-emoji type="button">Escolher emoji</button><label>Enviar como<select data-attachment-mode><option value="photo">Foto otimizada</option><option value="file">Arquivo original (até 3 MB)</option></select></label><button data-voice-record type="button">Gravar voz</button><button data-voice-stop type="button" hidden>Parar e conferir</button><button data-voice-cancel type="button" hidden>Cancelar gravação</button><p data-voice-status role="status"></p><p>Voz: até 90 segundos. Ouça a prévia e toque em Enviar. Se o sistema interromper o microfone, o trecho capturado será preservado enquanto esta página continuar aberta.</p><label>Foto ou arquivo<input data-attachment-file type="file"></label><p>Foto: prévia e remoção de metadados no aparelho. Original: pode compartilhar GPS/EXIF. Vídeos ainda não são aceitos.</p><div data-attachment-preview></div><button data-attachment-clear type="button">Remover seleção</button><button class="primary" type="submit">Enviar</button></form><label>Busca local<input data-message-search maxlength="128" type="search"></label><button data-search type="button">Buscar neste aparelho</button><button data-search-more type="button" hidden>Continuar busca</button><ul data-search-results></ul><h3>Envios deste aparelho</h3><ul data-message-pending></ul></section></div></article>`;
       if (selected) container.dataset['voicePeer'] = selected.accountId;
       attachments.mount(container, run);
       bindVoiceControls();
@@ -1007,8 +1095,11 @@ export function startMessages(
       renderHistory();
       status();
       if (session && navigator.onLine) void run(refresh);
+      else void run(refreshLocalContacts);
     },
   };
 }
 export type { MessageItem } from './history.ts';
 export { Messages } from './controller.ts';
+
+export type { MessageView } from './controller.ts';

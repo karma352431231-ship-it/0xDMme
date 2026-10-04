@@ -1,5 +1,6 @@
 import type { Ecosystem } from '../../shared/wallet-identity/index.ts';
 import type pg from 'pg';
+import { randomUUID } from 'node:crypto';
 import { assertVaultQuota, assertContentCapacity } from './vault-quota.ts';
 import { AccountError, base64, encode } from '../../shared/account/index.ts';
 import type {
@@ -28,6 +29,7 @@ export interface LoginHandoff {
 }
 
 interface SessionRow {
+  walletConfirmed: boolean;
   accountId: string;
   address: string;
   ecosystem: Ecosystem;
@@ -173,7 +175,14 @@ export class AuthenticationStore {
     },
   ): Promise<{ accountId: string; csrf: string } | null> {
     const accountId = await this.account(client, input.identity);
-    await this.registerDevice(client, accountId, input.identity.deviceId);
+    const state = await client.query<{ revoked: boolean }>(
+      "SELECT event->'revoked' ? $2::text AS revoked FROM hash_talk.device_directories WHERE account_id=$1",
+      [accountId, input.identity.deviceId],
+    );
+    const deviceId = state.rows[0]?.revoked
+      ? randomUUID()
+      : input.identity.deviceId;
+    await this.registerDevice(client, accountId, deviceId);
     const ended = await this.reserveSession(
       client,
       accountId,
@@ -182,15 +191,51 @@ export class AuthenticationStore {
     await client.query(
       `INSERT INTO hash_talk.login_sessions
         (token_hash, csrf, account_id, device_id, expires_at) VALUES ($1,$2,$3,$4,$5)`,
-      [
-        input.tokenHash,
-        input.csrf,
-        accountId,
-        input.identity.deviceId,
-        input.expiresAt,
-      ],
+      [input.tokenHash, input.csrf, accountId, deviceId, input.expiresAt],
     );
     return ended;
+  }
+  async beginLinked(input: {
+    source: AccountSession;
+    deviceId: string;
+    tokenHash: string;
+    csrf: string;
+    expiresAt: Date;
+    previousTokenHash?: string;
+  }): Promise<void> {
+    const ended = await transaction(this.pool, async (client) => {
+      await client.query(
+        'SELECT id FROM hash_talk.accounts WHERE id=$1 FOR UPDATE',
+        [input.source.accountId],
+      );
+      const source = await client.query(
+        'SELECT token_hash FROM hash_talk.login_sessions WHERE account_id=$1 AND device_id=$2 AND csrf=$3 AND expires_at>now() AND wallet_confirmed',
+        [input.source.accountId, input.source.deviceId, input.source.csrf],
+      );
+      if (!source.rowCount)
+        throw new AccountError(
+          403,
+          'Vinculação sem confirmação atual da wallet.',
+        );
+      await this.registerDevice(client, input.source.accountId, input.deviceId);
+      const ended = await this.reserveSession(
+        client,
+        input.source.accountId,
+        input.previousTokenHash,
+      );
+      await client.query(
+        'INSERT INTO hash_talk.login_sessions(token_hash,csrf,account_id,device_id,expires_at,wallet_confirmed) VALUES($1,$2,$3,$4,$5,false)',
+        [
+          input.tokenHash,
+          input.csrf,
+          input.source.accountId,
+          input.deviceId,
+          input.expiresAt,
+        ],
+      );
+      return ended;
+    });
+    this.sessionEnded(ended);
   }
 
   async createHandoff(input: Omit<LoginHandoff, 'address'>): Promise<void> {
@@ -357,7 +402,7 @@ export class AuthenticationStore {
     const result = await this.pool.query<SessionRow>(
       `SELECT a.id AS "accountId", a.address, a.ecosystem,
       a.display_name AS name, s.device_id AS "deviceId", s.expires_at AS "expiresAt", s.csrf,
-      a.profile_revision AS "profileRevision" FROM hash_talk.login_sessions s
+      a.profile_revision AS "profileRevision", s.wallet_confirmed AS "walletConfirmed" FROM hash_talk.login_sessions s
       JOIN hash_talk.accounts a ON a.id = s.account_id
       WHERE s.token_hash = $1 AND s.expires_at > now()`,
       [tokenHash],
@@ -392,7 +437,9 @@ export class AuthenticationStore {
   async rename(tokenHash: string, name: string): Promise<void> {
     const result = await this.pool.query(
       `UPDATE hash_talk.accounts SET display_name = $2
-      WHERE id = (SELECT account_id FROM hash_talk.login_sessions WHERE token_hash = $1 AND expires_at > now())
+      WHERE id = (SELECT s.account_id FROM hash_talk.login_sessions s WHERE s.token_hash = $1 AND s.expires_at > now()
+        AND (s.wallet_confirmed OR EXISTS (SELECT 1 FROM hash_talk.device_directories d,
+          jsonb_array_elements(d.event->'devices') device WHERE d.account_id=s.account_id AND device->>'id'=s.device_id::text)))
       RETURNING id`,
       [tokenHash, name],
     );

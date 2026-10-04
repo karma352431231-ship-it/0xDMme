@@ -1,6 +1,7 @@
 import { object, base64 } from '../../shared/account/index.ts';
 import {
   conversationSettings,
+  mergeConversationSettings,
   pushRegistration,
   genericNotification,
 } from '../../shared/daily/index.ts';
@@ -85,12 +86,17 @@ export class Daily {
     return parseState(await this.api('daily-state', { peer }));
   }
   async states(peers: string[]): Promise<Map<string, PeerState>> {
-    const raw = await this.api('daily-states', { peers });
-    if (!Array.isArray(raw) || raw.length > 16)
-      throw new Error('Estados inválidos.');
-    return new Map(
-      raw.map((value) => [String(object(value)['peer']), parseState(value)]),
-    );
+    const states = new Map<string, PeerState>();
+    for (let offset = 0; offset < peers.length; offset += 16) {
+      const raw = await this.api('daily-states', {
+        peers: peers.slice(offset, offset + 16),
+      });
+      if (!Array.isArray(raw) || raw.length > 16)
+        throw new Error('Estados inválidos.');
+      for (const value of raw)
+        states.set(String(object(value)['peer']), parseState(value));
+    }
+    return states;
   }
   async mute(peer: string, duration: number): Promise<void> {
     await this.refreshOrganization(peer);
@@ -148,16 +154,15 @@ export class Daily {
       );
       const e = entries[0];
       if (!e) continue;
-      if (entries.length > 1) {
-        this.conflicts.add(e.change.entity);
-        continue;
-      }
-      this.settings.set(
-        e.change.entity,
-        conversationSettings(
-          JSON.parse(await this.sync.open(e.commit.id)) as unknown,
-        ),
-      );
+      if (entries.length > 1) this.conflicts.add(e.change.entity);
+      const values = [];
+      for (const entry of entries)
+        values.push(
+          conversationSettings(
+            JSON.parse(await this.sync.open(entry.commit.id)) as unknown,
+          ),
+        );
+      this.settings.set(e.change.entity, mergeConversationSettings(values));
     }
   }
   organizationConflict(peer: string): boolean {
@@ -213,9 +218,9 @@ export class Daily {
     await this.sync.refresh();
     const visible = [...new Set([...this.settings.keys(), peer])].slice(-16);
     await this.loadSettings(visible);
-    if (this.organizationConflict(peer))
+    if ((this.sync.currentHeads().get(peer)?.length ?? 0) > 16)
       throw new Error(
-        'Preferências da conversa em conflito. Escolha uma versão no Cofre antes de organizar.',
+        'Muitas alterações simultâneas nesta conversa. Tente novamente após sincronizar.',
       );
   }
   async enablePush(): Promise<void> {

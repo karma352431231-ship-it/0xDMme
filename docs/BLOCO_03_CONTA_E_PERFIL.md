@@ -1,5 +1,11 @@
 # 0xDMme — Bloco 03 — Conta por wallet e perfil
 
+## Experiência vigente em 04/10/2026
+
+Login com a wallet conduz automaticamente à mesma conta e à autorização/recuperação das chaves, sem cadastro duplicado ou botão técnico de autorização. A assinatura pública de login continua distinta da prova privada que abre as chaves. Uma confirmação de wallet na sessão habilita as tarefas sensíveis; sessões criadas por vinculação começam sem essa capacidade. Alterar nome e preferências fica em Configurações. Foto é alterada pelo avatar da navegação; abaixo ficam nome, wallet abreviada e botão para copiar o endereço completo. Lembrete de backup integra as preferências cifradas, desligado por padrão.
+
+Os contratos criptográficos e aceites anteriores abaixo permanecem como histórico; os controles antigos de foto/autorizar manualmente foram substituídos por esta revisão.
+
 A [prova nativa Phantom/Solana](PROVA_NATIVA_PHANTOM_SOLANA.md) foi autorizada separadamente em 01/10/2026, com exceção CSP restrita à página de teste. É validação local isolada; não substitui a autenticação existente nem resolve o retorno EVM. Distribuição/publicação e aceite físico continuam pendentes conforme os limites da prova.
 
 ## Estado

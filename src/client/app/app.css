@@ -385,9 +385,12 @@ footer {
     height: 36px;
   }
   .sidebar > .section-label,
-  .sidebar-note,
-  .account {
+  .sidebar-note {
     display: none;
+  }
+  .account {
+    margin-top: 12px;
+    padding-top: 12px;
   }
   nav {
     display: flex;
@@ -943,4 +946,22 @@ footer {
   display: block;
   width: 100%;
   margin-bottom: 0.5rem;
+}
+.account .avatar {
+  padding: 0;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.account .avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.account #copy-wallet {
+  margin: 0;
+  padding: 0.2rem 0.4rem;
+  font-size: 0.75rem;
+}
+.account #account-profile-feedback:empty {
+  display: none;
 }

@@ -2,6 +2,7 @@ import { decodeDailyText, validReaction } from '../../shared/daily/index.ts';
 import { attachmentContent } from '../../shared/attachments/index.ts';
 import type { DailyText, MessageRelation } from '../../shared/daily/index.ts';
 export interface DailyRow {
+  archived?: boolean;
   state?: string;
   id: string;
   hash: string;

@@ -1,4 +1,16 @@
+import { readBackupWindow } from './backup-window.ts';
 import { RemovalIndex } from '../personal-removals/index.ts';
+import {
+  conversationHistory,
+  relatedHistory,
+  historyRecord,
+  historyPeers,
+  mergeHistory,
+  searchHistory,
+} from '../local-history/index.ts';
+import type { BackupRecord } from '../backup-records/index.ts';
+import { base64 } from '../../shared/account/index.ts';
+import { openStoredAttachment } from '../attachments/index.ts';
 import { indexSearch, searchMessages } from '../message-search/index.ts';
 import type { DeliveryState } from '../message-status/index.ts';
 import type { MessageRelation } from '../../shared/daily/index.ts';
@@ -55,7 +67,7 @@ import {
   MegolmDecryptionError,
   DecryptionErrorCode,
 } from '@matrix-org/matrix-sdk-crypto-wasm';
-import { messageApi } from '../message-api/index.ts';
+import { messageApi, backupMessageApi } from '../message-api/index.ts';
 import { MessageIndex } from './index-sync.ts';
 import { OfflineIndex } from './offline-index.ts';
 import type { CachedText } from './offline-index.ts';
@@ -70,6 +82,7 @@ import {
 } from './history.ts';
 import type { MessageItem, PeerPin } from './history.ts';
 export interface MessageView {
+  archived?: boolean;
   delivery?: DeliveryState;
   relation?: MessageRelation;
   sequence?: number;
@@ -219,11 +232,14 @@ export class Messages {
     });
   }
   async loadPins(): Promise<void> {
-    await this.sync.refresh();
-    if (!this.sync.complete)
-      throw new Error(
-        'Continue carregando o índice do cofre antes de conferir as identidades das mensagens.',
-      );
+    const deadline = Date.now() + 60_000;
+    do {
+      if (Date.now() > deadline)
+        throw new Error(
+          'Não foi possível concluir a sincronização. Tente novamente.',
+        );
+      await this.sync.refresh();
+    } while (!this.sync.complete);
     for (const entry of [...this.sync.currentHeads().values()].flat()) {
       await this.loadPinEntry(entry);
     }
@@ -439,6 +455,7 @@ export class Messages {
     const content = attachmentContent(JSON.parse(view.text) as unknown),
       file = thumbnail ? content.thumbnail : content.file;
     if (!file) throw new Error('Miniatura ausente.');
+    if (view.archived) return this.historicalMedia(view, thumbnail, guard);
     const work = async (a: VaultAuthority) => {
       const snapshot: unknown = confirmed
         ? JSON.parse(confirmed.snapshot)
@@ -479,6 +496,37 @@ export class Messages {
         this.close();
       throw error;
     }
+  }
+  private async historicalMedia(
+    view: MessageView,
+    thumbnail: boolean,
+    guard: () => void,
+  ): Promise<Uint8Array<ArrayBuffer>> {
+    const content = attachmentContent(JSON.parse(view.text) as unknown);
+    const file = thumbnail ? content.thumbnail : content.file;
+    if (!file) throw new Error('Miniatura ausente.');
+
+    const work = async (a: VaultAuthority) => {
+      const row = await historyRecord(a, 'media', file.ref.id);
+      guard();
+      if (
+        !row ||
+        row.type !== 'media' ||
+        row.hash !== file.ref.hash ||
+        row.message !== view.id
+      )
+        throw new Error('Mídia não está disponível no histórico importado.');
+      return openStoredAttachment(
+        file,
+        base64(row.bytes, 3_000_000),
+        thumbnail,
+        thumbnail || content.image,
+      );
+    };
+    if (navigator.onLine) return this.access.withVault(false, work);
+    const locator = await localLocator();
+    if (!locator) throw new Error('Histórico local não autorizado.');
+    return this.access.withLocalVault(locator, work);
   }
   private async sealDraft(
     a: VaultAuthority,
@@ -755,6 +803,18 @@ export class Messages {
         views: staged.views,
       };
       await this.refreshDelivery(staged.snapshot, generation);
+      await this.access.withVault(false, async (a) => {
+        if (!this.confirmed) throw new Error('Histórico alterado.');
+        this.confirmed.views = await this.includeHistory(
+          a,
+          this.confirmed.views,
+          generation,
+        );
+      });
+      this.oldest =
+        this.confirmed.views.filter(
+          (v) => !v.relation && v.kind !== 'profile',
+        )[0]?.sequence ?? this.before;
       this.visibility.stage(token, this.confirmed.views);
       this.visibility.complete(token);
       this.index.reset();
@@ -763,6 +823,81 @@ export class Messages {
       this.visibility.fail(token);
       throw error;
     }
+  }
+  private historicalView(
+    a: VaultAuthority,
+    row: Extract<BackupRecord, { type: 'message' }>,
+  ): MessageView {
+    return {
+      ...row,
+      archived: true,
+      author: row.own ? a.session.accountId : row.peer,
+      state: 'Histórico local',
+    };
+  }
+  async archivedPeers(after: string | null) {
+    if (this.session && navigator.onLine)
+      return this.access.withVault(false, (a) => historyPeers(a, after));
+    const locator = await localLocator();
+    if (!locator) return { items: [], next: null };
+    return this.access.withLocalVault(locator, (a) => historyPeers(a, after));
+  }
+  async openArchive(peer: string): Promise<void> {
+    this.selected = peer;
+    const generation = this.generation,
+      token = this.visibility.begin();
+    const open = async (a: VaultAuthority) => {
+      const views = await this.includeHistory(a, [], generation);
+      this.guard(generation);
+      this.oldest =
+        views.filter((v) => !v.relation && v.kind !== 'profile')[0]?.sequence ??
+        this.before;
+      this.confirmed = { snapshot: 'local', views };
+      this.visibility.stage(token, views);
+      this.visibility.complete(token);
+    };
+    try {
+      if (this.session && navigator.onLine)
+        await this.access.withVault(false, open);
+      else {
+        const locator = await localLocator();
+        if (!locator) throw new Error('Histórico local indisponível.');
+        await this.access.withLocalVault(locator, open);
+      }
+    } catch (error: unknown) {
+      this.visibility.fail(token);
+      throw error;
+    }
+  }
+  private async includeHistory(
+    a: VaultAuthority,
+    remote: readonly MessageView[],
+    generation: number,
+  ): Promise<MessageView[]> {
+    if (!this.selected) return [...remote];
+    const local = await conversationHistory(a, this.selected, this.before);
+    this.guard(generation);
+    const merged = mergeHistory(
+      remote,
+      local.map((r) => this.historicalView(a, r)),
+    );
+    const base = merged
+      .filter((r) => !r.relation && r.kind !== 'profile')
+      .slice(-16);
+    const ids = new Set(base.map((r) => r.id));
+    const related = await relatedHistory(a, [...ids], () =>
+      this.guard(generation),
+    );
+    const combined = mergeHistory(
+      merged,
+      related.map((r) => this.historicalView(a, r)),
+    );
+    return combined.filter(
+      (r) =>
+        r.kind === 'profile' ||
+        ids.has(r.id) ||
+        (r.relation && ids.has(r.relation.id)),
+    );
   }
   private async synchronizeIndex(c: {
     a: VaultAuthority;
@@ -825,6 +960,7 @@ export class Messages {
       window: MessageItem[];
       histories: Map<string, Awaited<ReturnType<Messages['history']>>>;
       keys: Map<string, RecoveryKey>;
+      acknowledge?: (id: string, hash: string) => Promise<void>;
     },
     item: MessageItem,
   ): Promise<MessageView> {
@@ -856,6 +992,7 @@ export class Messages {
       window: MessageItem[];
       histories: Map<string, Awaited<ReturnType<Messages['history']>>>;
       keys: Map<string, RecoveryKey>;
+      acknowledge?: (id: string, hash: string) => Promise<void>;
     },
     item: MessageItem,
   ): Promise<MessageView> {
@@ -909,7 +1046,8 @@ export class Messages {
       own,
       item,
     });
-    await api('acknowledge', { id: packet.id, hash: item.hash });
+    if (c.acknowledge) await c.acknowledge(packet.id, item.hash);
+    else await api('acknowledge', { id: packet.id, hash: item.hash });
     return {
       kind: packet.kind,
       ...(packet.relation ? { relation: packet.relation } : {}),
@@ -1066,44 +1204,85 @@ export class Messages {
   }
   async backupPage(
     after: number,
+    frozen?: unknown,
   ): Promise<{ items: MessageItem[]; next: number | null }> {
     const generation = this.generation;
     return this.access.withVault(false, async (a) => {
       const guard = () => this.guard(generation);
-      const snapshot = await messageApi(a, 'snapshot', {}, guard);
+      const snapshot =
+        frozen ?? (await backupMessageApi(a, 'snapshot', {}, guard));
       const page = messageItems(
-        await messageApi(a, 'page', { after, snapshot }, guard),
+        await backupMessageApi(a, 'page', { after, snapshot }, guard),
       );
       for (const item of page.items)
         if (item.deleted)
           await this.indexItem({ a, generation, selected: null }, item);
-      await messageApi(a, 'confirm', { snapshot }, guard);
+      await backupMessageApi(a, 'confirm', { snapshot }, guard);
       return { items: page.items.filter((i) => !i.deleted), next: page.next };
     });
   }
-  async backupOne(item: MessageItem): Promise<MessageView> {
+  async backupSnapshot(): Promise<unknown> {
+    return this.access.withVault(false, (a) =>
+      backupMessageApi(a, 'snapshot', {}, () => {}),
+    );
+  }
+  async backupBatch(items: MessageItem[]): Promise<Map<string, MessageView>> {
+    if (!items.length) return new Map();
+    if (items.length > 32) throw new Error('Lote de backup excedido.');
     const generation = this.generation;
     return this.access.withVault(false, async (a) => {
+      const guard = () => this.guard(generation);
       const api = (op: string, d: Record<string, unknown>) =>
-        messageApi(a, op, d, () => this.guard(generation));
+        backupMessageApi(a, op, d, guard);
       const snapshot = await api('snapshot', {}),
         machine = await this.machine(a, generation);
+      const views = new Map<string, MessageView>(),
+        histories = new Map<string, Awaited<ReturnType<Messages['history']>>>(),
+        keys = new Map<string, RecoveryKey>();
+      const acknowledgements: { id: string; hash: string }[] = [];
       try {
-        const view = await this.readPacket(
-          {
+        let remaining = items;
+        while (remaining.length) {
+          const response = readBackupWindow(
+            await api('backup-window', {
+              ids: remaining.map((i) => i.id),
+              snapshot,
+            }),
+            remaining.map((i) => i.id),
+          );
+          for (const [id, key] of response.keys) keys.set(id, key);
+          const packets = response.packets;
+          const localApi = (
+            op: string,
+            d: Record<string, unknown>,
+          ): Promise<unknown> =>
+            op === 'object' && packets.has(String(d['id']))
+              ? Promise.resolve(packets.get(String(d['id'])))
+              : api(op, d);
+          const context = {
             a,
             generation,
-            api,
+            api: localApi,
             snapshot,
             machine,
-            window: [item],
-            histories: new Map(),
-            keys: new Map(),
-          },
-          item,
-        );
-        await api('confirm', { snapshot });
-        return view;
+            window: items,
+            histories,
+            keys,
+            acknowledge: (id: string, hash: string) => {
+              acknowledgements.push({ id, hash });
+              return Promise.resolve();
+            },
+          };
+          for (const item of remaining
+            .slice(0, response.count)
+            .filter((i) => packets.has(i.id))) {
+            guard();
+            views.set(item.id, await this.readPacket(context, item));
+          }
+          remaining = remaining.slice(response.count);
+        }
+        await api('backup-ack', { items: acknowledgements, snapshot });
+        return views;
       } finally {
         machine.close();
       }
@@ -1117,7 +1296,7 @@ export class Messages {
     return this.access.withVault(false, async (a) => {
       const guard = () => this.guard(generation),
         api = (op: string, d: Record<string, unknown>) =>
-          messageApi(a, op, d, guard);
+          backupMessageApi(a, op, d, guard);
       const snapshot = await api('snapshot', {});
       await indexedPacket(await api('object', { id: view.id, snapshot }), view);
       const content = attachmentContent(JSON.parse(view.text) as unknown),
@@ -1168,15 +1347,14 @@ export class Messages {
     if (!confirmed) return;
     const raw = await this.access.withVault(false, async (a) => {
       const result: unknown[] = [];
-      for (let offset = 0; offset < confirmed.views.length; offset += 18) {
+      const onlineViews = confirmed.views.filter((v) => !v.archived);
+      for (let offset = 0; offset < onlineViews.length; offset += 18) {
         const batch = await messageApi(
           a,
           'delivery',
           {
             snapshot,
-            ids: confirmed.views
-              .slice(offset, offset + 18)
-              .map((view) => view.id),
+            ids: onlineViews.slice(offset, offset + 18).map((view) => view.id),
           },
           () => this.guard(generation),
         );
@@ -1207,6 +1385,7 @@ export class Messages {
       }),
     );
     confirmed.views = confirmed.views.map((view) => {
+      if (view.archived) return view;
       const state = states.get(view.id);
       if (!state || state.hash !== view.hash)
         throw new Error('Estado de entrega divergente.');
@@ -1263,9 +1442,13 @@ export class Messages {
           });
         }
         if (peer) await this.offlineProfiles(a, peer, views);
-        this.oldest = cached[0]?.sequence ?? this.before;
+        this.selected = peer;
+        const merged = await this.includeHistory(a, views, generation);
+        this.oldest =
+          merged.filter((v) => !v.relation && v.kind !== 'profile')[0]
+            ?.sequence ?? this.before;
         this.guard(generation);
-        this.visibility.stage(token, views);
+        this.visibility.stage(token, merged);
         this.visibility.complete(token);
         this.offlineIndex.reset();
       });
@@ -1325,10 +1508,10 @@ export class Messages {
     if (navigator.onLine && !confirmed)
       throw new Error('Sincronize antes de buscar; o histórico está oculto.');
     const guard = () => this.guard(generation);
-    return this.access.withVault(!navigator.onLine, async (a) => {
+    const work = async (a: VaultAuthority) => {
       const check = async () => {
         guard();
-        if (!a.offline)
+        if (!a.offline && confirmed?.snapshot !== 'local')
           await messageApi(
             a,
             'confirm',
@@ -1337,10 +1520,28 @@ export class Messages {
           );
       };
       await check();
+      if (after?.startsWith('archive:') || confirmed?.snapshot === 'local') {
+        const archived = await searchHistory(
+          a,
+          query,
+          after?.slice('archive:'.length) ?? null,
+          guard,
+        );
+        return {
+          ...archived,
+          next: archived.next === null ? null : 'archive:' + archived.next,
+        };
+      }
       const result = await searchMessages({ a, query, after, guard });
+      if (result.next === null) result.next = 'archive:';
       await check();
       return result;
-    });
+    };
+    if (this.session && navigator.onLine)
+      return this.access.withVault(false, work);
+    const locator = await localLocator();
+    if (!locator) throw new Error('Histórico local indisponível.');
+    return this.access.withLocalVault(locator, work);
   }
   async discard(id: string): Promise<void> {
     this.close();

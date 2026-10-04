@@ -1,5 +1,15 @@
 # 0xDMme — Bloco 04 — dispositivos, chaves e recuperação
 
+## Experiência vigente em 04/10/2026
+
+Em Configurações, o aparelho de origem gera QR e código equivalentes. O destino recebe sessão da mesma conta e cria sua identidade local sem wallet. O segredo do convite fixa a raiz e autentica as chaves do destino por HMAC-SHA-256; a origem confere e assina o vínculo automaticamente. Ela precisa permanecer aberta e visível até concluir. O backend guarda somente hash/capacidade temporária, jamais as chaves do conteúdo. Convite vale cinco minutos, é consumido uma única vez e o serviço mantém no máximo 128 convites temporários. Reiniciar o serviço encerra esses convites, sem revogar vínculos concluídos.
+
+No destino vinculado, leitura com as chaves e uso comum são permitidos. Autorizar outro aparelho, revogar e resetar exigem a wallet da mesma conta. Uma confirmação vale durante a sessão atual; o banco confere a capacidade em cada operação. Revogação encerra sessões e direitos remotos, sem prometer apagar cópias externas. Login posterior pela wallet original reutiliza a conta e cria outra identidade caso a anterior esteja revogada. Login abre/recupera chaves automaticamente; não apresenta configuração técnica nem escolha de aparelhos a revogar. Aparelhos anteriores são preservados até revogação explícita em Configurações.
+
+Migração local `019-linked-sessions.sql` distingue confirmação por wallet de sessão vinculada. Não foi autorizada nem ativada na VPS por esta implementação. Limites anteriores de identidade/eventos, criptografia, consentimento e distribuição de fontes permanecem aplicáveis.
+
+Os fluxos de QR em duas direções, aprovação manual, comparação e seleção durante recuperação descritos abaixo são registros históricos substituídos. Validações criptográficas anteriores continuam relevantes.
+
 Publicação autorizada separadamente em 02/10/2026: o proprietário aprovou ativar a entrega dos blocos 04–05, incluindo QR e migrações, após revisão de backup/retorno e manutenção limitada ao serviço próprio. Os vetos de publicação abaixo descrevem o escopo da implementação local anterior. A execução segue o [procedimento específico](GIT_E_DEPLOY.md); aprovação não equivale a ativação concluída ou aceite físico mobile.
 
 Estado em 02/10/2026: bloco concluído localmente com implementação e revisão no Mac. O proprietário autorizou concluir o bloco sem novas pausas por compactação e considerar o trabalho concluído após implementação e revisão no Mac, deixando o aceite físico mobile para depois. Isso não autoriza publicar migrações na VPS ou usar conversas reais. [Plano aprovado](../DECISOES_E_PLANO_DE_IMPLEMENTACAO.md).

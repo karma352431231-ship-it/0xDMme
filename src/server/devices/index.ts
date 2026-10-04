@@ -4,6 +4,7 @@ import {
   object,
   profileEnvelope,
   uuid,
+  requireWalletSession,
 } from '../../shared/account/index.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
 import {
@@ -23,8 +24,36 @@ import {
 import type { DirectoryEvent } from '../../shared/devices/index.ts';
 import type { DeviceStore } from '../database/index.ts';
 import { recoveryIdentity } from '../../shared/wallet-recovery/index.ts';
+import { enrollmentBody } from '../../shared/device-enrollment/index.ts';
 
 export class DeviceService {
+  async assertEnrollmentSource(
+    session: AccountSession,
+    head: string,
+  ): Promise<void> {
+    requireWalletSession(session);
+    await this.store.assertEnrollmentSource(session, head);
+  }
+  async enrollmentSource(
+    session: AccountSession,
+    payload: { head: string; root: string },
+    signature: string,
+  ): Promise<void> {
+    await this.assertEnrollmentSource(session, payload.head);
+    const current = await this.current(session);
+    const device = current?.devices.find((d) => d.id === session.deviceId);
+    if (
+      !current ||
+      !device ||
+      (await digest(canonical(current.root))) !== payload.root
+    )
+      throw new AccountError(403, 'Identidade de vinculação divergente.');
+    await verify(
+      device.signing,
+      signature,
+      enrollmentBody(session.accountId, session.deviceId, payload),
+    );
+  }
   private readonly store: DeviceStore;
   private readonly origin: string | undefined;
   constructor(store: DeviceStore, origin?: string) {
@@ -117,6 +146,12 @@ export class DeviceService {
     keys(data, ['event', 'profile']);
     const previous = await this.current(session);
     const event = await verifyTransition(previous, data['event']);
+    if (
+      ['initialize', 'recover', 'migrate', 'link', 'revoke'].includes(
+        event.kind,
+      )
+    )
+      requireWalletSession(session);
     if (event.accountId !== session.accountId)
       throw new AccountError(403, 'Diretório pertence a outra conta.');
     this.authorizeRecovery(session, event);

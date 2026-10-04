@@ -16,12 +16,35 @@ import type { MessageLive } from '../message-live/index.ts';
 import { blockLimit } from '../../shared/vault/index.ts';
 import { createApprovalEntry } from './approval-http.ts';
 import { RecoveryReturn } from '../recovery-return/index.ts';
+import { EnrollmentLinks } from '../device-enrollment/index.ts';
 import { recoveryEntry } from '../../shared/wallet-recovery/index.ts';
 import {
   approvalDocumentUrl,
   approvalEntryUrl,
 } from '../../shared/wallet-approval/index.ts';
 
+// Only bounded ciphertext/index reads and idempotent backup acknowledgements use this budget.
+// Each route still authenticates the session, CSRF and signed device authority.
+const readRoutes = new Set(
+  [
+    'snapshot',
+    'page',
+    'object',
+    'confirm',
+    'history',
+    'recovery-key',
+    'personal-page',
+    'attachment-get',
+    'backup-window',
+    'backup-ack',
+  ]
+    .map((name) => '/api/account/messages/' + name)
+    .concat([
+      '/api/account/devices/read',
+      '/api/account/vault/read',
+      '/api/account/vault/object',
+    ]),
+);
 function readCookie(request: IncomingMessage, name: string): string {
   const matches = (request.headers.cookie ?? '')
     .split(';')
@@ -115,6 +138,9 @@ export function createAccountHandler(options: {
     : 'hash-talk-challenge';
   const limit = new AccountRateLimit();
   const recovery = new RecoveryReturn(options.origin);
+  const enrollments = options.devices
+    ? new EnrollmentLinks(options.devices)
+    : null;
   const handoffName = secure ? '__Host-hash-talk-return' : 'hash-talk-return';
   const approval = createApprovalEntry(
     options.service,
@@ -123,6 +149,30 @@ export function createAccountHandler(options: {
   );
   let active = 0;
 
+  async function enrollmentJoin(
+    request: IncomingMessage,
+    response: ServerResponse,
+    input: unknown,
+  ): Promise<boolean> {
+    if (request.url !== '/api/account/enrollment-join' || !enrollments)
+      return false;
+    const login = await enrollments.join(
+      input,
+      (source, device) =>
+        options.service.beginLinked(
+          source,
+          device,
+          readCookie(request, sessionName),
+        ),
+      (token) => options.service.logout(token),
+    );
+    response.setHeader(
+      'Set-Cookie',
+      cookie(sessionName, login.sessionToken, sessionSeconds, secure),
+    );
+    send(response, 200, login.session);
+    return true;
+  }
   async function post(
     request: IncomingMessage,
     response: ServerResponse,
@@ -132,6 +182,7 @@ export function createAccountHandler(options: {
     if (await earlyVaultPost(request, response)) return;
     if (await earlyMessagePost(request, response)) return;
     const input = await body(request);
+    if (await enrollmentJoin(request, response, input)) return;
     if (publicRecoveryPost(request, response, input)) return;
     if (request.url?.startsWith('/api/account/handoff-')) {
       await handoffPost(request, response, input);
@@ -400,6 +451,40 @@ export function createAccountHandler(options: {
     if (!response.destroyed)
       options.live?.open({ session, response, validate });
   }
+  async function devicePost(
+    request: IncomingMessage,
+    response: ServerResponse,
+    sessionToken: string,
+    input: unknown,
+  ): Promise<boolean> {
+    if (!request.url?.startsWith('/api/account/devices/') || !options.devices)
+      return false;
+    const session = await options.service.session(sessionToken);
+    if (
+      request.url === '/api/account/devices/enrollment-create' &&
+      enrollments
+    ) {
+      send(response, 200, await enrollments.create(session, input));
+      return true;
+    }
+    if (
+      request.url === '/api/account/devices/enrollment-pending' &&
+      enrollments
+    ) {
+      send(response, 200, await enrollments.pending(session, input));
+      return true;
+    }
+    send(
+      response,
+      200,
+      await options.devices.operate(
+        request.url.slice('/api/account/devices/'.length),
+        session,
+        input,
+      ),
+    );
+    return true;
+  }
   async function authenticatedPost(
     request: IncomingMessage,
     response: ServerResponse,
@@ -411,19 +496,7 @@ export function createAccountHandler(options: {
       await privateRecoveryPost(request, response, sessionToken, input);
       return;
     }
-    if (request.url?.startsWith('/api/account/devices/') && options.devices) {
-      const session = await options.service.session(sessionToken);
-      send(
-        response,
-        200,
-        await options.devices.operate(
-          request.url.slice('/api/account/devices/'.length),
-          session,
-          input,
-        ),
-      );
-      return;
-    }
+    if (await devicePost(request, response, sessionToken, input)) return;
     if (request.url === '/api/account/logout') {
       await options.service.logout(sessionToken);
       response.setHeader('Set-Cookie', cookie(sessionName, '', 0, secure));
@@ -442,6 +515,18 @@ export function createAccountHandler(options: {
     throw new AccountError(404, 'Operação não encontrada.');
   }
 
+  function admit(request: IncomingMessage): void {
+    limit.admit(
+      request.socket.remoteAddress ?? 'unknown',
+      request.url === '/api/account/challenge' ||
+        request.url === '/api/account/handoff-start' ||
+        request.url === '/api/account/handoff-challenge' ||
+        request.url === '/api/account/recovery-start' ||
+        request.url === '/api/account/enrollment-join' ||
+        approvalEntryUrl(request.url),
+      request.method === 'POST' && readRoutes.has(request.url ?? ''),
+    );
+  }
   async function handle(
     request: IncomingMessage,
     response: ServerResponse,
@@ -452,14 +537,7 @@ export function createAccountHandler(options: {
     }
     active++;
     try {
-      limit.admit(
-        request.socket.remoteAddress ?? 'unknown',
-        request.url === '/api/account/challenge' ||
-          request.url === '/api/account/handoff-start' ||
-          request.url === '/api/account/handoff-challenge' ||
-          request.url === '/api/account/recovery-start' ||
-          approvalEntryUrl(request.url),
-      );
+      admit(request);
       if (request.method === 'POST') {
         await post(request, response);
         return;
@@ -575,6 +653,7 @@ export function createAccountHandler(options: {
       options.live?.close();
       limit.close();
       recovery.close();
+      enrollments?.close();
     },
   };
 }

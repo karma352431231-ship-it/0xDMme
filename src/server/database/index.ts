@@ -49,6 +49,7 @@ const migrations = [
   '016-attachments.sql',
   '017-personal-backup-cleanup.sql',
   '018-daily.sql',
+  '019-linked-sessions.sql',
 ];
 
 export interface MaintenanceSnapshot {

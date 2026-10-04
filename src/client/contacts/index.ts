@@ -16,10 +16,10 @@ import { digest } from '../../shared/devices/index.ts';
 import type { VaultAccess } from '../vault-authority/index.ts';
 import type { VaultSync } from '../vault-sync/index.ts';
 import { QrCamera, renderQr } from '../device-qr/index.ts';
-import { AddressBook, incomingInvitation, walletEntity } from './agenda.ts';
+import { AddressBook, incomingInvitation } from './agenda.ts';
 import type { BookVersion } from './agenda.ts';
 import { Contacts } from './controller.ts';
-import { template } from './template.ts';
+import { template, settingsTemplate } from './template.ts';
 export function startContacts(access: VaultAccess, sync: VaultSync) {
   const contacts = new Contacts(access),
     book = new AddressBook(sync);
@@ -33,11 +33,8 @@ export function startContacts(access: VaultAccess, sync: VaultSync) {
   let found: Peer | null = null,
     received: Invitation | null = null,
     invitePeer: Peer | null = null;
-  let ownLink: string | null = null,
-    ownIdentity: Awaited<ReturnType<Contacts['ownIdentity']>> | null = null,
-    identityResult: Awaited<ReturnType<Contacts['identity']>> | null = null;
-  let identityPeer: Peer | null = null,
-    camera: QrCamera | null = null;
+  let ownLink: string | null = null;
+  let camera: QrCamera | null = null;
   function node<T extends HTMLElement>(selector: string): T | null {
     return mounted?.querySelector<T>(selector) ?? null;
   }
@@ -65,7 +62,11 @@ export function startContacts(access: VaultAccess, sync: VaultSync) {
     render();
     try {
       await work();
+      const retry = node('[data-contact-action="refresh"]');
+      if (retry) retry.hidden = true;
     } catch (error: unknown) {
+      const retry = node('[data-contact-action="refresh"]');
+      if (retry) retry.hidden = false;
       if (current === generation)
         status =
           error instanceof Error
@@ -82,19 +83,21 @@ export function startContacts(access: VaultAccess, sync: VaultSync) {
       b.disabled = busy;
     });
     renderInvite();
-    renderOwnIdentity();
-    renderIdentity();
     renderBook();
     renderLists();
+    renderPagination();
   }
-  function renderOwnIdentity(): void {
-    const panel = node('[data-contact-own-identity]');
-    if (panel) panel.hidden = !ownIdentity;
-    if (!ownIdentity) return;
-    const code = `0xdmme-contact-identity:1:${ownIdentity.accountId}.${ownIdentity.fingerprint}`;
-    text('[data-contact-own-fingerprint]', code);
-    const qr = node('[data-contact-own-identity-qr]');
-    if (qr) renderQr(qr, code, 'QR Code da minha identidade pública');
+  function renderPagination(): void {
+    mounted
+      ?.querySelectorAll<HTMLButtonElement>('[data-contact-page]')
+      .forEach((button) => {
+        button.hidden = !contacts.pages.get(
+          button.dataset['contactPage'] as ContactList,
+        )?.next;
+      });
+    const next = node('[data-contact-action="book-more"]');
+    if (next)
+      next.hidden = book.versions(value('[data-book-search]')).length <= 16;
   }
   function renderInvite(): void {
     const own = node('[data-contact-own-invite]');
@@ -105,20 +108,9 @@ export function startContacts(access: VaultAccess, sync: VaultSync) {
     const qr = node('[data-contact-invite-qr]');
     if (qr) renderQr(qr, ownLink, 'QR Code de convite para contato');
   }
-  function renderIdentity(): void {
-    const detail = node('[data-contact-identity]');
-    if (detail) detail.hidden = !identityResult;
-    if (!identityResult || !identityPeer) return;
-    const fingerprint = `0xdmme-contact-identity:1:${identityPeer.accountId}.${identityResult.fingerprint}`;
-    text('[data-contact-fingerprint]', fingerprint);
-    const qr = node('[data-contact-identity-qr]');
-    if (qr) renderQr(qr, fingerprint, 'QR Code de identidade do contato');
-  }
   function resetEditor(): void {
     editing = null;
     parents = undefined;
-    identityResult = null;
-    identityPeer = null;
     found = null;
     node<HTMLFormElement>('[data-book-form]')?.reset();
     text('[data-book-title]', 'Salvar wallet na agenda');
@@ -126,7 +118,13 @@ export function startContacts(access: VaultAccess, sync: VaultSync) {
     node('[data-contact-discovery-actions]')?.replaceChildren();
   }
   async function refresh(): Promise<void> {
-    await sync.refresh();
+    const deadline = Date.now() + 60_000;
+    do {
+      if (Date.now() >= deadline)
+        throw new Error('Sincronização interrompida. Tente novamente.');
+      await sync.refresh();
+    } while (!sync.complete);
+    if (sync.pending) await sync.retry();
     await contacts.snapshot();
     const mode = node<HTMLSelectElement>('[data-contact-mode]');
     if (mode) mode.value = contacts.state.mode;
@@ -138,12 +136,13 @@ export function startContacts(access: VaultAccess, sync: VaultSync) {
     status = sync.complete
       ? 'Agenda e permissões atuais conferidas. Conteúdo privado é aberto sob demanda.'
       : 'Permissões conferidas. Continue carregando o índice do cofre antes de editar a agenda.';
+    if (received) await inspectInvite();
   }
   function renderBook(): void {
     const entries = book.versions(value('[data-book-search]'));
     text(
       '[data-book-state]',
-      `${entries.length} versões atuais no índice carregado · ${sync.complete ? 'índice conferido' : 'índice parcial'} · apelidos buscados apenas neste aparelho`,
+      `${entries.length} contatos na agenda · busca particular neste aparelho`,
     );
     const list = node('[data-book-list]');
     if (!list) return;
@@ -216,7 +215,7 @@ export function startContacts(access: VaultAccess, sync: VaultSync) {
   async function save(): Promise<void> {
     await book.save(draft(), editing, parents);
     status = sync.pending
-      ? 'Contato cifrado salvo como rascunho neste aparelho. Retome o envio no Cofre.'
+      ? 'Contato salvo neste aparelho. Será enviado quando a conexão voltar.'
       : 'Contato particular confirmado no cofre. Isso não aprovou conversa.';
     resetEditor();
   }
@@ -235,17 +234,6 @@ export function startContacts(access: VaultAccess, sync: VaultSync) {
     );
     const actions = node('[data-contact-discovery-actions]');
     actions?.replaceChildren();
-    if (found) {
-      const selected = found;
-      actions?.append(
-        button('Solicitar conversa', async () => {
-          await contacts.request(selected.accountId, null);
-          await refresh();
-          status =
-            'Solicitação enviada. Aguarde consentimento; nenhuma mensagem foi enviada.';
-        }),
-      );
-    }
   }
   function renderLists(): void {
     for (const kind of [
@@ -306,10 +294,6 @@ export function startContacts(access: VaultAccess, sync: VaultSync) {
         status = 'Wallet bloqueada; aprovação retirada nos dois sentidos.';
       }),
     );
-    if (kind === 'approved')
-      li.append(
-        button('Verificar identidade', async () => verifyIdentity(contact)),
-      );
     if (kind === 'outgoing')
       li.append(
         button('Cancelar solicitação', async () => {
@@ -357,86 +341,6 @@ export function startContacts(access: VaultAccess, sync: VaultSync) {
     status = 'Confira o apelido particular e salve explicitamente na agenda.';
     await Promise.resolve();
   }
-  async function knownIdentity(
-    contact: Peer,
-  ): Promise<
-    Pick<AddressBookEntry, 'identity' | 'directory' | 'identityRevision'>
-  > {
-    if (!sync.complete)
-      throw new Error(
-        'Confira o índice completo da agenda antes de verificar a identidade.',
-      );
-    const heads = sync.heads(await walletEntity(contact));
-    if (heads.length > 16)
-      throw new Error(
-        'Resolva os conflitos da agenda antes de verificar este contato.',
-      );
-    let known: Pick<
-      AddressBookEntry,
-      'identity' | 'directory' | 'identityRevision'
-    > = { identity: null, directory: null, identityRevision: 0 };
-    for (const head of heads) {
-      const { contact: stored } = await book.open(head.commit.id);
-      if (
-        known.identity &&
-        stored.identity &&
-        known.identity !== stored.identity
-      )
-        throw new Error(
-          'Referências de identidade conflitantes na agenda. Compare com o contato antes de resolver.',
-        );
-      if (stored.identityRevision >= known.identityRevision && stored.identity)
-        known = stored;
-    }
-    return known;
-  }
-  async function verifyIdentity(contact: Peer): Promise<void> {
-    const known = await knownIdentity(contact);
-    identityResult = await contacts.identity(contact.accountId, known);
-    identityPeer = contact;
-    status =
-      'Cadeia de chaves verificada. Compare o fingerprint por um canal independente antes de guardar a referência.';
-  }
-  async function pinVersion(selected: Peer): Promise<BookVersion | null> {
-    if (
-      editing &&
-      (editing.contact.ecosystem !== selected.ecosystem ||
-        editing.contact.address !== selected.address)
-    )
-      throw new Error(
-        'Abra o contato correspondente na agenda antes de guardar a identidade.',
-      );
-    const heads = sync.heads(await walletEntity(selected));
-    if (heads.length > 1 && !parents)
-      throw new Error(
-        'Resolva o conflito deste contato na agenda antes de atualizar a referência de identidade.',
-      );
-    if (editing) return editing;
-    const first = heads[0];
-    return first ? book.open(first.commit.id) : null;
-  }
-  async function pin(): Promise<void> {
-    if (!identityResult || !identityPeer)
-      throw new Error('Confira um contato aprovado primeiro.');
-    const selected = identityPeer,
-      result = identityResult;
-    const previous = await pinVersion(selected);
-    const contact: AddressBookEntry = {
-      version: 1,
-      ecosystem: selected.ecosystem,
-      address: selected.address,
-      alias: previous?.contact.alias ?? selected.name,
-      accountId: selected.accountId,
-      identity: result.fingerprint,
-      directory: result.directory,
-      identityRevision: result.revision,
-      removed: false,
-    };
-    await book.save(contact, previous, parents);
-    status = sync.pending
-      ? 'Referência cifrada como rascunho; retome no cofre.'
-      : 'Referência de identidade confirmada no cofre.';
-  }
   async function configure(): Promise<void> {
     await contacts.configure(
       discoveryMode(value('[data-contact-mode]')),
@@ -469,14 +373,13 @@ export function startContacts(access: VaultAccess, sync: VaultSync) {
       throw error;
     }
     status = sync.pending
-      ? 'Convite ativo; cópia cifrada ainda é rascunho. Retome o envio no cofre.'
+      ? 'Convite ativo; a cópia cifrada será enviada automaticamente ao reconectar.'
       : 'Novo convite ativo e preservado no cofre. O anterior foi invalidado.';
   }
   async function inspectInvite(): Promise<void> {
-    received = readInvitation(
-      value('[data-contact-received]'),
-      location.origin,
-    );
+    const link = value('[data-contact-received]');
+    if (link) received = readInvitation(link, location.origin);
+    if (!received) throw new Error('Informe um convite válido.');
     invitePeer = await contacts.invite(received);
     const target = node('[data-contact-invite-peer]');
     target?.replaceChildren();
@@ -489,35 +392,41 @@ export function startContacts(access: VaultAccess, sync: VaultSync) {
       invite = received;
     const p = document.createElement('p');
     p.textContent = `${selected.name || 'Sem nome'} · nome escolhido pelo usuário · ${selected.ecosystem} · ${selected.address}`;
-    target?.append(
-      p,
-      button('Solicitar conversa com esta wallet', async () => {
-        await contacts.request(selected.accountId, invite.token);
-        await refresh();
-        status = 'Solicitação enviada pelo convite. Aguarde consentimento.';
-      }),
-    );
+    target?.append(p);
+    if (!node('[data-contact-invite-form]'))
+      target?.append(
+        button('Solicitar conversa', () =>
+          requestInvite(selected, invite.token),
+        ),
+      );
+  }
+  async function requestInvite(selected: Peer, token: string): Promise<void> {
+    await contacts.request(selected.accountId, token);
+    received = null;
+    invitePeer = null;
+    node('[data-contact-invite-peer]')?.replaceChildren();
+    await refresh();
+    status = 'Solicitação enviada. Aguarde o aceite.';
+  }
+  async function sendInvite(): Promise<void> {
+    await inspectInvite();
+    if (invitePeer && received) await requestInvite(invitePeer, received.token);
+  }
+  async function requestWallet(): Promise<void> {
+    await discover();
+    if (found) {
+      await contacts.request(found.accountId, null);
+      await refresh();
+      status = 'Solicitação enviada. Aguarde o aceite.';
+    }
   }
   const actions: Record<string, () => Promise<void>> = {
     refresh,
-    local: async () => {
-      await sync.openLocal();
-      contacts.clear();
-      ownLink = null;
-      status =
-        'Agenda local aberta. Permissões e revogações atuais não foram consultadas; novas alterações ficam cifradas como rascunho.';
-    },
     new: async () => {
       resetEditor();
       await Promise.resolve();
     },
-    discover,
-    'own-identity': async () => {
-      ownIdentity = await contacts.ownIdentity();
-      status =
-        'Identidade pública conferida. Compare por um canal independente.';
-    },
-    pin,
+    discover: requestWallet,
     rotate,
     revoke: async () => {
       await contacts.configure(contacts.state.mode, null);
@@ -548,12 +457,6 @@ export function startContacts(access: VaultAccess, sync: VaultSync) {
           : 0;
       await Promise.resolve();
     },
-    'book-load': async () => {
-      await sync.refresh();
-      status = sync.complete
-        ? 'Índice da agenda conferido.'
-        : 'Parte do índice carregada; continue para conferir.';
-    },
     scan: async () => {
       camera?.start('invitation');
       await Promise.resolve();
@@ -568,9 +471,6 @@ export function startContacts(access: VaultAccess, sync: VaultSync) {
     camera?.stop();
     contacts.clear();
     ownLink = null;
-    ownIdentity = null;
-    identityResult = null;
-    identityPeer = null;
     editing = null;
     parents = undefined;
     found = null;
@@ -580,11 +480,7 @@ export function startContacts(access: VaultAccess, sync: VaultSync) {
     });
     node('[data-contact-invite-peer]')?.replaceChildren();
     node('[data-contact-discovery-actions]')?.replaceChildren();
-    for (const selector of [
-      '[data-contact-invite-qr]',
-      '[data-contact-identity-qr]',
-      '[data-contact-own-identity-qr]',
-    ]) {
+    for (const selector of ['[data-contact-invite-qr]']) {
       const qr = node(selector);
       qr?.replaceChildren();
       if (qr) delete qr.dataset['qrPayload'];
@@ -622,6 +518,8 @@ export function startContacts(access: VaultAccess, sync: VaultSync) {
       video,
       state: (active) => {
         video.hidden = !active;
+        const stop = node('[data-contact-action="stop-camera"]');
+        if (stop) stop.hidden = !active;
       },
       failed: (message) => {
         status = message;
@@ -646,6 +544,9 @@ export function startContacts(access: VaultAccess, sync: VaultSync) {
     render();
   });
   return {
+    ready(): void {
+      if (mounted && contacts.session && navigator.onLine) void run(refresh);
+    },
     setSession(session: AccountSession | null): void {
       const firstConnection = !contacts.session && session !== null;
       if (sessionChanged(session)) clear();
@@ -659,7 +560,10 @@ export function startContacts(access: VaultAccess, sync: VaultSync) {
       !camera?.active &&
       !value('[data-book-address]') &&
       !value('[data-contact-received]'),
-    mount(container: HTMLElement): void {
+    mount(
+      container: HTMLElement,
+      mode: 'contacts' | 'settings' = 'contacts',
+    ): void {
       const formValues = [
         '[data-book-network]',
         '[data-book-address]',
@@ -670,7 +574,7 @@ export function startContacts(access: VaultAccess, sync: VaultSync) {
       ].map((selector) => ({ selector, value: value(selector) }));
       camera?.stop();
       mounted = container;
-      container.innerHTML = template;
+      container.innerHTML = mode === 'settings' ? settingsTemplate : template;
       restoreForm(formValues);
       readIncomingInvite();
       showReceivedInvite();
@@ -698,7 +602,7 @@ export function startContacts(access: VaultAccess, sync: VaultSync) {
       for (const [selector, action] of [
         ['[data-book-form]', save],
         ['[data-contact-settings]', configure],
-        ['[data-contact-invite-form]', inspectInvite],
+        ['[data-contact-invite-form]', sendInvite],
       ] as const)
         node<HTMLFormElement>(selector)?.addEventListener('submit', (event) => {
           event.preventDefault();
@@ -709,6 +613,10 @@ export function startContacts(access: VaultAccess, sync: VaultSync) {
         renderBook();
       });
       render();
+      void run(async () => {
+        if (navigator.onLine && contacts.session) await refresh();
+        else await sync.openLocal();
+      });
     },
   };
 }

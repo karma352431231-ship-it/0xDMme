@@ -1,5 +1,13 @@
 # Bloco 05 — Cofre remoto e cópia local
 
+## Experiência vigente em 04/10/2026
+
+Cofre contém uso/disponibilidade dos 300 MB e as ações **Salvar arquivo de backup**, **Validar arquivo** e **Resetar cofre**. Consulta de quota, sincronização e retomada de rascunhos são automáticas; erro oferece tentativa contextual. Editor de “Contato privado”, tipos de dado, versões e controles de persistência saíram da interface. Agenda pertence a Contatos; preferências, lembrete, descoberta e aparelhos pertencem a Configurações. Os módulos de histórico/manifestos continuam preservando as garantias descritas abaixo.
+
+O [bloco 09](BLOCO_09_BACKUP_E_RECUPERACAO.md) define backup completo e integração do histórico local. Reset exige arquivo completo validado e confirmação sensível por wallet na sessão, apaga somente o conteúdo pessoal comprovadamente preservado e mantém novidades posteriores ao corte. Não apaga a conta/wallet, perfil, preferências de privacidade, contatos aprovados ou aparelhos.
+
+O roteiro antigo do laboratório abaixo foi substituído pelo [roteiro físico vigente](TESTES_MANUAIS_SIMPLIFICACAO.md). As validações datadas continuam como evidência histórica, sem estabelecer aceite da interface nova.
+
 Publicação autorizada separadamente em 02/10/2026: ativar a entrega revisada dos blocos 04–05 com backup e manutenção somente do serviço próprio, preservando contas/perfis/sessões e sem retorno automático que descarte gravações novas. Esta decisão substitui a pendência de autorização de publicação descrita nos registros locais abaixo; execução e teste físico mobile continuam distintos. Ver [procedimento](GIT_E_DEPLOY.md).
 
 Implementação local autorizada pelo proprietário em 02/10/2026. Testes físicos mobile serão feitos depois; validações de integridade, autorização, concorrência e banco continuam obrigatórias nesta etapa. Nenhuma ativação ou migração da VPS está incluída.
@@ -29,7 +37,7 @@ Testes automatizados verificam assinatura/AAD/hash, adulteração, isolamento en
 
 **Ponto importante:** os 300 MB pessoais e 1 GB por grupo são tetos, não espaço pré-alocado nem garantia de que toda conta possa preencher o teto simultaneamente. A margem de 4 KiB é cobrada por registro de operação existente, não pelo histórico futuro e não cria um arquivo reservado em disco. O orçamento configurável `HASH_TALK_ACCOUNT_CAPACITY_BYTES` conserva o nome histórico, mas limita conteúdo efetivamente usado/em upload; índices/WAL/backups e autoridade de aparelhos têm orçamento operacional próprio. Versões confirmadas não são excluídas pela limpeza de temporários. O bloco 09 adicionará exportação/exclusão explícitas. Teste físico mobile, CI remoto e publicação/ativação na VPS permanecem pendentes; o proprietário autorizou concluir esta etapa no Mac.
 
-## Roteiro manual posterior
+## Roteiro histórico — substituído em 04/10/2026
 
 Usar apenas dados fictícios em uma versão que inclua os blocos 04–05. A versão pública anterior não recebe essas funções por concluir a implementação local; o perfil `npm run dev:mobile` pode servir o build pelo HTTPS de teste já configurado conforme [bloco 02](BLOCO_02_BASE_WEB.md), antes de uma ativação revisada na VPS.
 

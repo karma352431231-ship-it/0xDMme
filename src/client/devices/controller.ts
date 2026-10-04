@@ -4,6 +4,7 @@ import {
   keys,
   object,
   profileEnvelope,
+  accountSession,
 } from '../../shared/account/index.ts';
 import type {
   AccountSession,
@@ -69,6 +70,14 @@ import {
   forgetRecovery,
 } from '../recovery-return/index.ts';
 import type { RecoveryPlan, RecoveryFlow } from '../recovery-return/index.ts';
+import {
+  readEnrollment,
+  enrollmentBody,
+  enrollmentHash,
+  enrollmentMac,
+  verifyEnrollmentMac,
+} from '../../shared/device-enrollment/index.ts';
+import type { EnrollmentCode } from '../../shared/device-enrollment/index.ts';
 
 interface WalletRecoveryStart {
   mode: RecoveryPlan['mode'];
@@ -159,6 +168,113 @@ async function api(
   return data;
 }
 export class DeviceController {
+  async createEnrollment(): Promise<EnrollmentCode> {
+    return this.withVault(false, async (a) => {
+      if (this.session?.walletConfirmed !== true)
+        throw new Error('Confirme a wallet para vincular outro aparelho.');
+      const code: EnrollmentCode = {
+        version: 1,
+        id: crypto.randomUUID(),
+        accountId: a.session.accountId,
+        root: await digest(canonical(this.current?.root)),
+        secret: [...crypto.getRandomValues(new Uint8Array(32))]
+          .map((v) => v.toString(16).padStart(2, '0'))
+          .join(''),
+        expiresAt: new Date(
+          Date.parse(this.serverTime) + 300_000,
+        ).toISOString(),
+      };
+      const payload = {
+        id: code.id,
+        codeHash: await enrollmentHash(code),
+        root: code.root,
+        head: a.directory,
+        expiresAt: code.expiresAt,
+      };
+      if (!this.session) throw new Error('Sessão ausente.');
+      await api(this.session, 'devices/enrollment-create', {
+        ...payload,
+        signature: await a.sign(
+          enrollmentBody(a.session.accountId, a.session.deviceId, payload),
+        ),
+      });
+      return code;
+    });
+  }
+  async joinEnrollment(serialized: string): Promise<AccountSession> {
+    const invitation = readEnrollment(serialized);
+    if (Date.parse(invitation.expiresAt) <= Date.now())
+      throw new Error('Código expirado.');
+    const deviceId = crypto.randomUUID();
+    const identity = await localIdentity(
+      invitation.accountId,
+      deviceId,
+      'Meu aparelho',
+    );
+    const checkpoint = await readCheckpoint(invitation.accountId);
+    if (checkpoint.trustedRoot && checkpoint.trustedRoot !== invitation.root)
+      throw new Error('Código diverge da identidade conhecida da conta.');
+    await saveCheckpoint(invitation.accountId, {
+      ...checkpoint,
+      trustedRoot: invitation.root,
+    });
+    const code: LinkCode = {
+      version: 1,
+      accountId: invitation.accountId,
+      id: crypto.randomUUID(),
+      nonce: await digest(newSecret()),
+      expiresAt: invitation.expiresAt,
+      device: identity.public,
+    };
+    const input = {
+      id: invitation.id,
+      codeHash: await enrollmentHash(invitation),
+      code,
+      signature: await sign(identity.signing, linkProof(code)),
+      proof: await enrollmentMac(invitation.secret, code),
+    };
+    const response = await fetch('/api/account/enrollment-join', {
+      method: 'POST',
+      credentials: 'same-origin',
+      cache: 'no-store',
+      redirect: 'error',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(input),
+      signal: AbortSignal.timeout(8000),
+    });
+    const data: unknown = await response.json();
+    if (!response.ok) throw new Error(boundedText(object(data)['error'], 200));
+    const session = accountSession(data);
+    if (
+      session.accountId !== invitation.accountId ||
+      session.deviceId !== deviceId ||
+      session.walletConfirmed
+    )
+      throw new Error('Sessão diverge da vinculação solicitada.');
+    this.setSession(session);
+    return session;
+  }
+  async approveEnrollment(invitation: EnrollmentCode): Promise<boolean> {
+    const candidate = await this.run((session) =>
+      api(session, 'devices/enrollment-pending', { id: invitation.id }),
+    );
+    if (candidate === null) return false;
+    const data = object(candidate),
+      code = linkCode(data['code']);
+    if (
+      code.accountId !== invitation.accountId ||
+      code.expiresAt !== invitation.expiresAt
+    )
+      throw new Error('Pedido de vinculação divergente.');
+    await verifyEnrollmentMac(
+      invitation.secret,
+      code,
+      boundedText(data['proof'], 64),
+    );
+    await this.inspectCode(canonical(code));
+    await this.approveLink();
+    return true;
+  }
   session: AccountSession | null = null;
   current: DirectoryEvent | null = null;
   identity: LocalIdentity | null = null;

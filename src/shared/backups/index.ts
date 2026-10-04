@@ -5,10 +5,12 @@ import { integer } from '../vault/index.ts';
 import { messageBody, messageProof } from '../messages/index.ts';
 import type { MessageProof } from '../messages/index.ts';
 
-export const backupLimit = 64 * 1024 * 1024;
+export const backupLimit = 4 * 1024 * 1024 * 1024;
+export const backupFrameLimit = 65536;
+export const backupReportLimit = 32_000_000;
 export const backupChunk = 262144;
 export const backupRecordLimit = 6_000_000;
-export const backupItemLimit = 4096;
+export const backupItemLimit = 65536;
 export interface BackupTarget {
   kind: 'vault' | 'message';
   id: string;

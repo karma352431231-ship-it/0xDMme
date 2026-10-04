@@ -44,10 +44,31 @@
           <p>A base está em construção. Use somente dados fictícios.</p>
         </div>
         <div class="account">
-          <span class="avatar" aria-hidden="true">#</span>
+          <button
+            class="avatar"
+            id="account-avatar"
+            type="button"
+            aria-label="Alterar foto de perfil"
+          >
+            #
+          </button>
+          <input
+            id="account-photo"
+            type="file"
+            accept="image/png,image/jpeg,image/webp"
+            hidden
+          />
           <div>
             <span id="account-label">Conta não conectada</span
-            ><small>Login por wallet · histórico protegido</small>
+            ><small id="account-wallet">Entrar na conta</small
+            ><button
+              id="copy-wallet"
+              type="button"
+              aria-label="Copiar endereço completo da wallet"
+              hidden
+            >
+              Copiar</button
+            ><small id="account-profile-feedback" role="status"></small>
           </div>
         </div>
       </aside>

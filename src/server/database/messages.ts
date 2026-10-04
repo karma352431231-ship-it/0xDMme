@@ -486,44 +486,90 @@ export class MessageStore {
   ): Promise<MessagePacket> {
     return this.contacts.withMessageAuthority(authority, async (client) => {
       await this.expect(client, authority, snapshot);
-      const row = await this.record(client, id);
-      this.assertParticipant(authority, row);
-      const removed = await client.query(
-        "SELECT 1 FROM hash_talk.personal_removals WHERE account_id=$1 AND kind='message' AND id IN ($2,$3)",
-        [authority.session.accountId, id, originalId(row, id)],
-      );
-      if (!row.body || removed.rowCount)
-        throw new AccountError(
-          410,
-          'Mensagem apagada ou removida do cofre pessoal.',
-        );
-      const { accountId, deviceId } = authority.session;
-      const ref = await client.query<{ status: string }>(
-        'SELECT status FROM hash_talk.message_references WHERE message_id=$1 AND account_id=$2 AND device_id=$3',
-        [id, accountId, deviceId],
-      );
-      const peer = row.sender === accountId ? row.recipient : row.sender;
-      if (
-        ref.rows[0]?.status !== 'received' &&
-        !(await this.contacts.messageDeliveryAllowed(client, accountId, peer))
-      )
-        throw new AccountError(
-          423,
-          'Entrega suspensa. É necessário novo consentimento.',
-        );
-      const inserted = await client.query(
-        'INSERT INTO hash_talk.message_references(message_id,account_id,device_id) VALUES($1,$2,$3) ON CONFLICT DO NOTHING',
-        [id, accountId, deviceId],
-      );
-      if (inserted.rowCount) {
-        await client.query(
-          'UPDATE hash_talk.message_packets SET charge=charge+256 WHERE id=$1',
-          [id],
-        );
-        await assertContentCapacity(client, this.capacity);
-      }
-      return row.body;
+      return this.openObject(client, authority, id);
     });
+  }
+  async backupWindow(
+    authority: ContactAuthority,
+    ids: string[],
+    snapshot: MessageSnapshot,
+  ) {
+    return this.contacts.withMessageAuthority(authority, async (client) => {
+      await this.expect(client, authority, snapshot);
+      const rows: {
+        id: string;
+        packet?: MessagePacket;
+        unavailable?: number;
+      }[] = [];
+      let bytes = 0;
+      for (const id of ids) {
+        const result = await this.backupObject(client, authority, id);
+        const size = Buffer.byteLength(JSON.stringify(result));
+        if (rows.length && bytes + size > 16_000_000) break;
+        bytes += size;
+        rows.push(result);
+      }
+      return rows;
+    });
+  }
+  private async backupObject(
+    client: pg.PoolClient,
+    authority: ContactAuthority,
+    id: string,
+  ) {
+    try {
+      return { id, packet: await this.openObject(client, authority, id) };
+    } catch (error: unknown) {
+      if (
+        !(error instanceof AccountError) ||
+        ![410, 423].includes(error.status)
+      )
+        throw error;
+      return { id, unavailable: error.status };
+    }
+  }
+  private async openObject(
+    client: pg.PoolClient,
+    authority: ContactAuthority,
+    id: string,
+  ): Promise<MessagePacket> {
+    const row = await this.record(client, id);
+    this.assertParticipant(authority, row);
+    const removed = await client.query(
+      "SELECT 1 FROM hash_talk.personal_removals WHERE account_id=$1 AND kind='message' AND id IN ($2,$3)",
+      [authority.session.accountId, id, originalId(row, id)],
+    );
+    if (!row.body || removed.rowCount)
+      throw new AccountError(
+        410,
+        'Mensagem apagada ou removida do cofre pessoal.',
+      );
+    const { accountId, deviceId } = authority.session;
+    const ref = await client.query<{ status: string }>(
+      'SELECT status FROM hash_talk.message_references WHERE message_id=$1 AND account_id=$2 AND device_id=$3',
+      [id, accountId, deviceId],
+    );
+    const peer = row.sender === accountId ? row.recipient : row.sender;
+    if (
+      ref.rows[0]?.status !== 'received' &&
+      !(await this.contacts.messageDeliveryAllowed(client, accountId, peer))
+    )
+      throw new AccountError(
+        423,
+        'Entrega suspensa. É necessário novo consentimento.',
+      );
+    const inserted = await client.query(
+      'INSERT INTO hash_talk.message_references(message_id,account_id,device_id) VALUES($1,$2,$3) ON CONFLICT DO NOTHING',
+      [id, accountId, deviceId],
+    );
+    if (inserted.rowCount) {
+      await client.query(
+        'UPDATE hash_talk.message_packets SET charge=charge+256 WHERE id=$1',
+        [id],
+      );
+      await assertContentCapacity(client, this.capacity);
+    }
+    return row.body;
   }
 }
 

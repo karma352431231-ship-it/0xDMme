@@ -84,6 +84,7 @@ export function createWalletReturn(options: {
   changed: () => void;
   message: (text: string) => void;
   authenticated: (session: AccountSession) => Promise<void>;
+  expectedAccount?: () => Pick<AccountSession, 'address' | 'ecosystem'> | null;
   openWallet?: (link: string) => boolean;
 }) {
   const platform = /Android/iu.test(navigator.userAgent)
@@ -176,6 +177,15 @@ export function createWalletReturn(options: {
   async function confirm(): Promise<void> {
     const state = pending;
     if (!state?.address) throw new Error('A wallet ainda não assinou.');
+    const expected = options.expectedAccount?.();
+    if (
+      expected &&
+      (expected.ecosystem !== state.ecosystem ||
+        canonicalAddress(state.ecosystem, expected.address) !== state.address)
+    )
+      throw new Error(
+        'Confirme a wallet da conta que já está aberta neste aparelho.',
+      );
     const current = ++generation;
     const authenticated = accountSession(
       await options.api('handoff-confirm', {

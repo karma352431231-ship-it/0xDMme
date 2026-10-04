@@ -30,6 +30,7 @@ import {
 } from './wallet-return.ts';
 import {
   emptyProfile,
+  encodePrivateProfile,
   openProfile,
   profileKey,
   sealProfile,
@@ -41,7 +42,7 @@ import type {
 } from '../account-profile/index.ts';
 
 const template = `<article class="card account-card"><span class="eyebrow">CONTA POR WALLET</span><h2 data-account-title>Seu perfil no 0xDMme</h2>
-<p data-account-intro>Conecte e assine o pedido de login. Essa assinatura não movimenta fundos e não abre o histórico.</p>
+<p data-account-intro>Entre com sua wallet ou vincule este aparelho em Configurações. Assinaturas de acesso não movimentam fundos.</p>
 <button class="primary" type="button" data-wallet-approve hidden>Confirmar assinatura</button>
 <button class="primary" type="button" data-wallet-picker-toggle aria-expanded="false" aria-controls="wallet-picker">Conectar wallet</button>
 <section id="wallet-picker" class="wallet-picker" data-wallet-picker hidden aria-label="Escolher wallet">
@@ -64,12 +65,10 @@ const template = `<article class="card account-card"><span class="eyebrow">CONTA
 <p class="detail" data-wallet-manual hidden>Para voltar ao navegador original, use a tela de apps recentes do celular. O pedido só terá assinatura confirmada quando esta página informar isso.</p>
 <p data-account-status role="status">Verificando sessão…</p>
 <details data-wallet-diagnostics hidden open><summary>Diagnóstico do login</summary><p class="detail" data-wallet-diagnostic></p><p class="detail">Se falhar, envie esta linha. Ela não contém ticket, endereço ou assinatura.</p></details>
-<div data-profile hidden><p data-account-address class="account-address"></p><p data-account-id class="account-address"></p>
-<p>Login da conta confirmado. Confira a autorização e a recuperação na seção de aparelhos.</p>
+<div data-profile hidden>
 <form data-name-form><label>Nome mostrado nas solicitações de contato<input name="display-name" maxlength="80" autocomplete="nickname"></label><button class="primary" type="submit">Salvar nome</button></form>
-<div data-private-profile hidden><h3>Foto e preferências privadas</h3><p>Guardadas de forma cifrada. A foto será compartilhada pelo canal cifrado de mensagens, somente com contatos aprovados.</p>
-<img data-photo-preview hidden alt="Sua foto de perfil" width="80" height="80"><label>Foto PNG, JPEG ou WebP · até 3 MB<input data-photo type="file" accept="image/png,image/jpeg,image/webp"></label><button data-remove-photo type="button">Remover foto</button>
-<form data-preferences><p>Controle quem pode encontrar sua wallet e solicitar conversa em <a href="#contatos">Contatos → Visibilidade</a>.</p><label><input type="checkbox" name="online"> Exibir online para contatos aprovados</label><label><input type="checkbox" name="lastSeen"> Exibir último acesso para contatos aprovados</label><label><input type="checkbox" name="readReceipts"> Enviar confirmação de leitura</label><p class="detail">Controles independentes, desligados por padrão. Ao salvar, apenas os sinais habilitados são compartilhados com contatos aprovados. Recebimento técnico não equivale a leitura.</p><button class="primary" type="submit">Salvar foto e preferências</button></form></div>
+<div data-private-profile hidden><h3>Privacidade</h3>
+<form data-preferences><label><input type="checkbox" name="online"> Exibir online para contatos aprovados</label><label><input type="checkbox" name="lastSeen"> Exibir último acesso para contatos aprovados</label><label><input type="checkbox" name="readReceipts"> Enviar confirmação de leitura</label><label><input type="checkbox" name="backupReminder"> Lembrar de salvar um backup a cada sete dias</label><button class="primary" type="submit">Salvar preferências</button></form></div>
 <p data-profile-status role="status"></p><button data-logout type="button">Encerrar sessão</button></div></article>`;
 
 async function api(
@@ -143,6 +142,8 @@ export function startAccount(options: {
   let privateProfile: PrivateProfile | null = null;
   let key: CryptoKey | null = null;
   let mounted: HTMLElement | null = null;
+  let mountMode: 'settings' | 'login' = 'settings';
+  let forcePicker = false;
   let status = 'Conecte sua wallet para entrar.';
   let profileStatus = '';
   let busy = false;
@@ -167,6 +168,7 @@ export function startAccount(options: {
   let removeProviderListeners: (() => void) | undefined;
 
   const walletReturn = createWalletReturn({
+    expectedAccount: () => (forcePicker ? session : null),
     api,
     deviceId,
     openWallet: launchMobileWallet,
@@ -177,7 +179,7 @@ export function startAccount(options: {
     },
     authenticated: async (authenticated) => {
       setSession(authenticated);
-      status = 'Conta conectada. O histórico continua bloqueado.';
+      status = 'Abrindo sua conta…';
       await loadPrivate(authenticated);
     },
   });
@@ -305,10 +307,13 @@ export function startAccount(options: {
     if (detected) return 'Disponível neste navegador';
     return mobileWalletBrowser() ? 'Abrir no app' : 'Não detectada aqui';
   }
+  function pickerVisible(): boolean {
+    return (session === null || forcePicker) && !approvalOnly;
+  }
   function renderPicker(): void {
     const trigger = node<HTMLButtonElement>('[data-wallet-picker-toggle]');
     const panel = node('[data-wallet-picker]');
-    const visible = session === null && !approvalOnly;
+    const visible = pickerVisible();
     if (trigger) {
       trigger.hidden = !visible;
       trigger.setAttribute('aria-expanded', String(pickerOpen && visible));
@@ -515,6 +520,8 @@ export function startAccount(options: {
   }
   function setSession(value: AccountSession | null): void {
     session = value;
+    forcePicker = false;
+    if (value) localStorage.setItem('hash-talk:login-device', value.deviceId);
     pickerOpen = false;
     window.clearTimeout(expiryTimer);
     if (value)
@@ -539,14 +546,20 @@ export function startAccount(options: {
           }),
         )
       : undefined;
-    const image = node<HTMLImageElement>('[data-photo-preview]');
-    if (!image) return;
-    image.hidden = !photoUrl;
-    if (photoUrl) image.src = photoUrl;
-    else image.removeAttribute('src');
+    const avatar = document.getElementById('account-avatar');
+    if (!avatar) return;
+    avatar.replaceChildren();
+    if (photoUrl) {
+      const image = document.createElement('img');
+      image.src = photoUrl;
+      image.alt = 'Sua foto de perfil';
+      avatar.append(image);
+    } else avatar.textContent = session?.name.slice(0, 1) || '#';
   }
   function render(): void {
+    renderSidebar();
     if (disposed || !mounted) return;
+    mounted.hidden = mountMode === 'login' && session !== null;
     const message = node('[data-account-status]');
     if (message) message.textContent = status;
     const profileMessage = node('[data-profile-status]');
@@ -599,6 +612,16 @@ export function startAccount(options: {
       }
     renderPhoto();
   }
+  function updateProfileRevision(
+    stored: unknown,
+    current: AccountSession,
+  ): void {
+    if (stored !== null && session?.accountId === current.accountId) {
+      const revision = profileEnvelope(stored).revision;
+      if (session.profileRevision !== revision)
+        setSession({ ...session, profileRevision: revision });
+    }
+  }
   async function loadPrivate(current: AccountSession): Promise<void> {
     clearPrivate();
     const localKey = options.privateKey
@@ -610,6 +633,7 @@ export function startAccount(options: {
       return;
     }
     const stored = await api('profile');
+    updateProfileRevision(stored, current);
     const opened =
       stored === null
         ? emptyProfile()
@@ -625,8 +649,8 @@ export function startAccount(options: {
     key = localKey;
     privateProfile = opened;
     window.dispatchEvent(new Event('0xdmme-profile-preferences'));
-    profileStatus =
-      'Perfil privado disponível neste navegador. Confira a lista de aparelhos autorizados.';
+    status = 'Conta pronta.';
+    profileStatus = 'Perfil disponível.';
   }
   async function operation(work: () => Promise<void>): Promise<void> {
     if (busy || disposed) return;
@@ -697,6 +721,7 @@ export function startAccount(options: {
   }
 
   async function openMobileWallet(name: string): Promise<void> {
+    rememberLoginWallet(name);
     if (incoming)
       throw new Error(
         'Wallet não disponível neste navegador interno. Abra novamente o pedido no navegador original.',
@@ -728,6 +753,7 @@ export function startAccount(options: {
     renderDiagnostics();
     const identity = await instance.identity(true);
     checkEpoch(currentEpoch);
+    checkConfirmationWallet(identity);
     approvalStep('conexao-recebida');
     observeProvider(instance);
     approvalStep('desafio-solicitado');
@@ -768,7 +794,27 @@ export function startAccount(options: {
     approvalStep('wallet-reconferida');
     return { id: uuid(challenge['id']), signature, currentEpoch };
   }
+  function checkConfirmationWallet(identity: {
+    ecosystem: AccountSession['ecosystem'];
+    address: string;
+  }): void {
+    if (
+      forcePicker &&
+      session &&
+      (session.ecosystem !== identity.ecosystem ||
+        canonicalAddress(identity.ecosystem, identity.address) !==
+          session.address)
+    )
+      throw new Error(
+        'Selecione a wallet da conta aberta para confirmar as ações sensíveis.',
+      );
+  }
+  function rememberLoginWallet(name: string): void {
+    if (!approvalOnly)
+      localStorage.setItem('0xdmme:login-wallet', name.split(':')[0] ?? name);
+  }
   async function login(name: string): Promise<void> {
+    rememberLoginWallet(name);
     if (approvalOnly && !incoming)
       throw new AccountError(
         400,
@@ -814,7 +860,7 @@ export function startAccount(options: {
       return;
     }
     setSession(authenticated);
-    status = 'Conta conectada. O histórico continua bloqueado.';
+    status = 'Abrindo sua conta…';
     await loadPrivate(authenticated);
   }
   async function saveName(event: Event): Promise<void> {
@@ -838,27 +884,34 @@ export function startAccount(options: {
     const currentKey = key;
     const profile = privateProfile;
     if (!current || !currentKey || !profile) return;
-    await operation(async () => {
-      const revision = current.profileRevision + 1;
-      const envelope = await sealProfile({
-        profile,
-        key: currentKey,
-        accountId: current.accountId,
-        revision,
-      });
-      if (options.saveProfile)
-        await options.saveProfile(current, envelope, currentKey);
-      else await api('profile', { input: envelope, csrf: current.csrf });
-      if (session?.accountId === current.accountId)
-        setSession({ ...current, profileRevision: revision });
-      await options.privacyChanged?.(profile.preferences);
-      status = 'Foto e preferências salvas de forma cifrada.';
-      dirtyProfile = false;
-      window.dispatchEvent(new Event('0xdmme-profile-preferences'));
+    await operation(() => persistPrivate(current, currentKey, profile));
+  }
+  async function persistPrivate(
+    current: AccountSession,
+    currentKey: CryptoKey,
+    profile: PrivateProfile,
+  ): Promise<void> {
+    const revision = current.profileRevision + 1;
+    const envelope = await sealProfile({
+      profile,
+      key: currentKey,
+      accountId: current.accountId,
+      revision,
     });
+    if (options.saveProfile)
+      await options.saveProfile(current, envelope, currentKey);
+    else await api('profile', { input: envelope, csrf: current.csrf });
+    if (session?.accountId === current.accountId)
+      setSession({ ...current, profileRevision: revision });
+    await options.privacyChanged?.(profile.preferences);
+    status = 'Perfil salvo.';
+    dirtyProfile = false;
+    window.dispatchEvent(new Event('0xdmme-profile-preferences'));
+    renderSidebar();
   }
   async function selectPhoto(): Promise<void> {
-    const file = node<HTMLInputElement>('[data-photo]')?.files?.[0];
+    const file =
+      document.querySelector<HTMLInputElement>('#account-photo')?.files?.[0];
     const currentProfile = privateProfile;
     if (!file || !currentProfile || file.size > 3_000_000) {
       status = 'Selecione uma foto de até 3 MB.';
@@ -872,10 +925,19 @@ export function startAccount(options: {
         bytes.fill(0);
         return;
       }
-      currentProfile.photo?.bytes.fill(0);
+      const previous = currentProfile.photo;
       currentProfile.photo = { type: file.type, bytes };
-      dirtyProfile = true;
-      status = 'Foto selecionada. Salve foto e preferências para confirmar.';
+      if (!session || !key)
+        throw new Error('Abra sua conta para alterar a foto.');
+      try {
+        await persistPrivate(session, key, currentProfile);
+        previous?.bytes.fill(0);
+      } catch (error: unknown) {
+        currentProfile.photo = previous;
+        bytes.fill(0);
+        throw error;
+      }
+      renderPhoto();
     });
   }
   async function restore(): Promise<void> {
@@ -901,7 +963,7 @@ export function startAccount(options: {
       const restored = accountSession((await response.json()) as unknown);
       if (!restoreContextIsCurrent(current)) return;
       setSession(restored);
-      status = 'Conta conectada. O histórico continua bloqueado.';
+      status = 'Abrindo sua conta…';
       await loadPrivate(restored);
     } catch {
       status =
@@ -981,15 +1043,6 @@ export function startAccount(options: {
     node('[data-preferences]')?.addEventListener('submit', (event) => {
       void savePrivate(event);
     });
-    node('[data-photo]')?.addEventListener('change', () => {
-      void selectPhoto();
-    });
-    node('[data-remove-photo]')?.addEventListener('click', () => {
-      privateProfile?.photo?.bytes.fill(0);
-      if (privateProfile) privateProfile.photo = null;
-      dirtyProfile = true;
-      render();
-    });
     node('[data-name-form]')?.addEventListener('input', () => {
       dirtyName = true;
       draftName =
@@ -1005,7 +1058,66 @@ export function startAccount(options: {
       dirtyProfile = true;
     });
   }
+  function renderSidebar(): void {
+    const label = document.getElementById('account-label');
+    if (label)
+      label.textContent =
+        session?.name || (session ? 'Minha conta' : 'Entrar na conta');
+    const wallet = document.getElementById('account-wallet');
+    if (wallet)
+      wallet.textContent = session
+        ? `${session.address.slice(0, 6)}…${session.address.slice(-4)}`
+        : 'Login por wallet ou vinculação';
+    const copy = document.getElementById('copy-wallet');
+    if (copy) copy.hidden = !session;
+    const feedback = document.getElementById('account-profile-feedback');
+    if (feedback) feedback.textContent = busy ? 'Aguarde…' : status;
+    renderPhoto();
+  }
+  function bindSidebar(): void {
+    document.getElementById('account-avatar')?.addEventListener('click', () => {
+      if (!session || !privateProfile) {
+        location.hash = '#configuracoes';
+        return;
+      }
+      document.getElementById('account-photo')?.click();
+    });
+    document.getElementById('account-photo')?.addEventListener('change', () => {
+      void selectPhoto();
+    });
+    document.getElementById('copy-wallet')?.addEventListener('click', () => {
+      if (!session) return;
+      void navigator.clipboard
+        .writeText(session.address)
+        .then(() => {
+          status = 'Wallet copiada.';
+          renderSidebar();
+        })
+        .catch(() => {
+          status = 'Não foi possível copiar a wallet.';
+          renderSidebar();
+        });
+    });
+  }
+  bindSidebar();
   return {
+    backupProfile: () =>
+      privateProfile ? encodePrivateProfile(privateProfile) : null,
+    backupReminder: () => privateProfile?.preferences.backupReminder ?? false,
+    async acceptLinkedSession(linked: AccountSession): Promise<void> {
+      setSession(linked);
+      await loadPrivate(linked);
+      render();
+    },
+    confirmWallet(): void {
+      forcePicker = true;
+      pickerOpen = true;
+      selectedWallet = null;
+      location.hash = '#configuracoes';
+      status =
+        'Confirme a wallet da sua conta para liberar as ações sensíveis nesta sessão.';
+      render();
+    },
     privacyPreferences: () =>
       privateProfile && !dirtyProfile
         ? {
@@ -1030,21 +1142,17 @@ export function startAccount(options: {
       await loadPrivate(current);
       render();
     },
-    async replaceDevice(): Promise<void> {
-      await operation(async () => {
-        await logout();
-        localStorage.setItem('hash-talk:login-device', crypto.randomUUID());
-        status =
-          'Novo cadastro preparado. Entre com a wallet original para vincular ou recuperar.';
-      });
-    },
     canActivate: () =>
       !busy &&
       !dirtyName &&
       !dirtyProfile &&
       !walletReturn.state() &&
       !incoming,
-    mount(container: HTMLElement): void {
+    mount(
+      container: HTMLElement,
+      mode: 'settings' | 'login' = 'settings',
+    ): void {
+      mountMode = mode;
       mounted = container;
       container.innerHTML = template; // Authored templates only.
       mountPicker(container);
