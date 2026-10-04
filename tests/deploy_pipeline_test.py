@@ -278,6 +278,32 @@ class DeploymentTests(unittest.TestCase):
         prepare.assert_not_called()
         exchange.assert_not_called()
 
+    def test_readiness_accepts_slow_start_and_checks_assets_only_after_ready(self):
+        clock = {'seconds':0}
+        def sleep(seconds): clock['seconds'] += seconds
+        def healthy(files=None):
+            if clock['seconds'] < 16: raise RuntimeError('starting')
+        with (patch.object(remote.time,'monotonic',side_effect=lambda:clock['seconds']),
+              patch.object(remote.time,'sleep',side_effect=sleep),
+              patch.object(remote,'healthy',side_effect=healthy) as check):
+            remote.wait_ready({'dist/web/asset':'digest'})
+        self.assertEqual(clock['seconds'],16)
+        self.assertEqual([c.args for c in check.call_args_list if c.args],
+                         [({'dist/web/asset':'digest'},)])
+
+    def test_readiness_stops_at_deadline_and_asset_mismatch_is_not_retried(self):
+        clock = {'seconds':0}
+        def sleep(seconds): clock['seconds'] += seconds
+        with (patch.object(remote.time,'monotonic',side_effect=lambda:clock['seconds']),
+              patch.object(remote.time,'sleep',side_effect=sleep),
+              patch.object(remote,'healthy',side_effect=RuntimeError('starting'))):
+            with self.assertRaises(RuntimeError):remote.wait_ready({'dist/web/asset':'digest'})
+        self.assertEqual(clock['seconds'],60)
+        with patch.object(remote,'healthy',side_effect=[None,RuntimeError('asset mismatch')]) as check:
+            with self.assertRaisesRegex(RuntimeError,'asset mismatch'):
+                remote.wait_ready({'dist/web/asset':'digest'})
+        self.assertEqual(check.call_count,2)
+
     def test_interrupted_attempt_is_not_retried(self):
         with tempfile.TemporaryDirectory() as directory:
             work = Path(directory)

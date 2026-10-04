@@ -6,7 +6,7 @@ O objetivo é oferecer autenticação por wallet e criptografia ponta a ponta, p
 
 ## Estado atual
 
-O [bloco 10](docs/BLOCO_10_NOTIFICACOES_E_EXPERIENCIA.md) está implementado localmente: push genérico com consentimento, mute, som, contadores, resposta/reação/edição/encaminhamento, busca local cifrada, arquivar/fixar e presença/leitura independentes. Aceite físico e ativação do push pendentes; a rede isolada da VPS exige revisão própria antes do envio externo. O [bloco 09](docs/BLOCO_09_BACKUP_E_RECUPERACAO.md) está ativo no ambiente de testes, com backup independente e limpeza pessoal; seus aceites físicos continuam pendentes. Próximo bloco de implementação: áudio gravado (10A).
+O [bloco 10](docs/BLOCO_10_NOTIFICACOES_E_EXPERIENCIA.md) está publicado no ambiente de testes, com migração 018 e painel de emojis: push genérico com consentimento, mute, som, contadores, resposta/reação/edição/encaminhamento, busca local cifrada, arquivar/fixar e presença/leitura independentes. Aceite físico e ativação do push pendentes; a rede isolada da VPS exige revisão própria antes do envio externo. O [bloco 09](docs/BLOCO_09_BACKUP_E_RECUPERACAO.md) está ativo no ambiente de testes, com backup independente e limpeza pessoal; seus aceites físicos continuam pendentes. Próximo bloco de implementação: áudio gravado (10A).
 
 O [bloco 08](docs/BLOCO_08_FOTOS_E_ARQUIVOS.md) está implementado e ativo no ambiente de testes da VPS: foto otimizada com prévia e remoção verificada de metadados, arquivo original de até 3 MB, miniaturas cifradas, download sob demanda, retomada de uploads, recuperação e exclusão bilateral. Migração 016, saúde e arquivos públicos verificados; backups privados conservados. Testes físicos mobile e aceite final de segurança permanecem posteriores.
 

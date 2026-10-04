@@ -173,14 +173,21 @@ def healthy(files=None):
 
 
 def wait_ready(files=None):
-    for attempt in range(10):
+    # Loading/hash-checking corresponding sources under the existing I/O budget
+    # can take over ten seconds. The whole executor remains bounded at 240s;
+    # wait at most 60s for readiness, then verify the public manifest once.
+    deadline = time.monotonic() + 60
+    while True:
         try:
-            healthy(files)
-            return
+            healthy()
+            break
         except (RuntimeError, subprocess.SubprocessError):
-            if attempt == 9:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
                 raise RuntimeError('Own service did not become ready.') from None
-            time.sleep(1)
+            time.sleep(min(2, remaining))
+    if files:
+        healthy(files)
 
 
 def reviewed_lockfile_change(before, after):
