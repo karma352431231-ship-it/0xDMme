@@ -17,9 +17,11 @@ async function worker(
     networkAvailable?: boolean;
     failWriteAt?: number;
     unreadLimit?: number;
+    networkDelayMs?: number;
     pushAllowed?: boolean;
     pushCheckFails?: boolean;
     pushSound?: string;
+    networkStatus?: number;
   } = {},
 ) {
   let networkAvailable = options.networkAvailable ?? true;
@@ -40,6 +42,13 @@ async function worker(
   let networkRequests = 0;
   let unreadResponses = 0;
   let peakUnread = 0;
+  let elapsed = 0;
+  let networkBody = 'public-shell';
+  let lastResponse: Response | undefined;
+  const deadlines = new WeakMap<
+    AbortSignal,
+    { at: number; controller: AbortController }
+  >();
   const notifications: { title: string; options: NotificationOptions }[] = [];
   const opened: string[] = [];
   const origin = 'https://hash-talk.example';
@@ -48,6 +57,27 @@ async function worker(
       origin + '/.0xdmme/sound-preference',
       new Response(options.pushSound),
     );
+  function fetchPath(input: string | Request, request: RequestInit): string {
+    if (typeof input === 'string') {
+      assert.ok(request.signal instanceof AbortSignal);
+      return input;
+    }
+    const path = new URL(input.url).pathname;
+    assert.equal(input.mode, 'navigate');
+    assert.equal(path, '/');
+    assert.equal(request.cache, 'no-store');
+    assert.equal(request.redirect, 'error');
+    return path;
+  }
+  function advanceNetwork(signal: AbortSignal | null | undefined): void {
+    networkRequests++;
+    elapsed += options.networkDelayMs ?? 0;
+    if (!signal) return;
+    const deadline = deadlines.get(signal);
+    if (deadline && elapsed > deadline.at)
+      deadline.controller.abort(new Error('synthetic-installation-timeout'));
+    signal.throwIfAborted();
+  }
   runInNewContext(source, {
     location: { origin },
     addEventListener: (type: string, callback: (event: WorkerEvent) => void) =>
@@ -57,7 +87,16 @@ async function worker(
       return Promise.resolve();
     },
     Request,
-    AbortSignal,
+    AbortSignal: {
+      timeout(milliseconds: number) {
+        const controller = new AbortController();
+        deadlines.set(controller.signal, {
+          at: elapsed + milliseconds,
+          controller,
+        });
+        return controller.signal;
+      },
+    },
     URL,
     JSON,
     registration: {
@@ -97,10 +136,10 @@ async function worker(
         return Promise.resolve(stores.delete(name));
       },
     },
-    fetch: (_path: string, request: RequestInit) => {
-      assert.ok(request.signal instanceof AbortSignal);
-      networkRequests++;
-      if (_path === '/api/account/push-check') {
+    fetch: (input: string | Request, request: RequestInit = {}) => {
+      const path = fetchPath(input, request);
+      advanceNetwork(request.signal);
+      if (path === '/api/account/push-check') {
         assert.equal(request.credentials, 'same-origin');
         assert.equal(request.cache, 'no-store');
         if (options.pushCheckFails)
@@ -117,12 +156,15 @@ async function worker(
         return Promise.reject(new Error('synthetic-unconsumed-response-limit'));
       unreadResponses++;
       peakUnread = Math.max(peakUnread, unreadResponses);
-      const response = new Response('public-shell');
+      const response = new Response(networkBody, {
+        status: options.networkStatus ?? 200,
+      });
       Object.defineProperty(response, 'type', { value: 'basic' });
       return Promise.resolve(response);
     },
   });
   async function dispatch(type: string, input: Partial<WorkerEvent> = {}) {
+    lastResponse = undefined;
     const promises: Promise<unknown>[] = [];
     let intercepted = false;
     callbacks.get(type)?.({
@@ -130,7 +172,7 @@ async function worker(
       waitUntil: (promise) => promises.push(promise),
       respondWith: (promise) => {
         intercepted = true;
-        promises.push(promise);
+        promises.push(promise.then((response) => (lastResponse = response)));
       },
     });
     await Promise.all(promises);
@@ -144,6 +186,10 @@ async function worker(
     activations: () => activations,
     networkRequests: () => networkRequests,
     peakUnread: () => peakUnread,
+    response: () => lastResponse,
+    setNetworkBody: (body: string) => {
+      networkBody = body;
+    },
     offline: () => {
       networkAvailable = false;
     },
@@ -152,6 +198,60 @@ async function worker(
     opened,
   };
 }
+
+function navigation(url: string): Request {
+  // Node cannot construct navigate-mode requests; browsers supply them to SWs.
+  return Object.defineProperty(new Request(url), 'mode', { value: 'navigate' });
+}
+
+await test('URL padrão abre o HTML atual online e conserva a versão completa para navegação offline', async () => {
+  const scope = await worker();
+  await scope.dispatch('install');
+  scope.setNetworkBody('current-online-shell');
+  const request = navigation(`${scope.origin}/`);
+  assert.equal(await scope.dispatch('fetch', { request }), true);
+  assert.equal(await scope.response()?.text(), 'current-online-shell');
+  assert.equal(
+    await scope.cache.get(request.url)?.clone().text(),
+    'public-shell',
+  );
+  scope.offline();
+  await scope.dispatch('fetch', { request });
+  assert.equal(await scope.response()?.text(), 'public-shell');
+  assert.equal(scope.activations(), 0);
+  assert.equal(scope.deleted.length, 0);
+
+  for (const path of [
+    '/?atualizar=1',
+    '/?token=synthetic',
+    '/wallet.html',
+    '/api/messages',
+  ])
+    assert.equal(
+      await scope.dispatch('fetch', {
+        request: navigation(`${scope.origin}${path}`),
+      }),
+      false,
+    );
+});
+
+await test('navegação sem rede nem cache falha e erro HTTP do servidor não é mascarado pelo cache', async () => {
+  const offline = await worker({ networkAvailable: false });
+  await assert.rejects(
+    offline.dispatch('fetch', { request: navigation(`${offline.origin}/`) }),
+    /synthetic-offline/,
+  );
+  const unavailable = await worker({ networkStatus: 503 });
+  unavailable.cache.set(`${unavailable.origin}/`, new Response('old-shell'));
+  await unavailable.dispatch('fetch', {
+    request: navigation(`${unavailable.origin}/`),
+  });
+  assert.equal(unavailable.response()?.status, 503);
+  assert.equal(
+    await unavailable.cache.get(`${unavailable.origin}/`)?.text(),
+    'old-shell',
+  );
+});
 
 await test('worker real instala só shell público e atende offline sem interceptar API', async () => {
   const scope = await worker();
@@ -277,4 +377,20 @@ await test('instalação consome corpos antes de novos fetches sob orçamento pe
   for (const response of scope.cache.values()) {
     assert.equal(await response.clone().text(), 'public-shell');
   }
+});
+
+await test('downloads lentos instalam além de oito segundos; instalação acima do prazo preserva versão anterior', async () => {
+  const slow = await worker({ networkDelayMs: 3_000 });
+  await slow.dispatch('install');
+  assert.ok(slow.cache.size >= 7);
+  assert.equal(slow.activations(), 0);
+  const stalled = await worker({ networkDelayMs: 10_000 });
+  await assert.rejects(
+    stalled.dispatch('install'),
+    /synthetic-installation-timeout/,
+  );
+  assert.equal(stalled.cache.size, 0);
+  assert.equal(stalled.deleted.length, 1);
+  assert.equal(stalled.stores.has('hash-talk-shell-old'), true);
+  assert.equal(stalled.stores.has('unrelated-project-cache'), true);
 });

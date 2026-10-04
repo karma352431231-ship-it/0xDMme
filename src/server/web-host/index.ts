@@ -83,23 +83,31 @@ function sendPublicAsset(
   assets: ReadonlyMap<string, WebAsset>,
 ): void {
   const nativeProbe = nativeProbeRequest(request);
-  const entry = assets.get(
-    nativeProbe ? '/phantom-probe.html' : (request.url ?? '/'),
-  );
+  const appShell = appShellRequest(request);
+  const entry = assets.get(publicAssetPath(request));
   // Only the app (Matrix) and the admitted NaCl probe need WebAssembly.
   // Errors, APIs and wallet approval retain the default policy.
-  if (
-    (nativeProbe || request.url === '/') &&
-    entry?.type.startsWith('text/html')
-  )
+  if ((nativeProbe || appShell) && entry?.type.startsWith('text/html'))
     securityHeaders(response, "'self' 'wasm-unsafe-eval'");
-  if (request.url === '/' && entry?.type.startsWith('text/html'))
+  if (appShell && entry?.type.startsWith('text/html'))
     response.setHeader(
       'Permissions-Policy',
       'camera=(self), microphone=(self), geolocation=(), payment=()',
     );
   attachmentWorkerPolicy(request, response, entry);
   sendAsset(request, response, entry);
+}
+
+function appShellRequest(request: IncomingMessage): boolean {
+  // This fixed public entry bypasses old offline shells without clearing keys.
+  // Other query strings remain outside the public asset allowlist.
+  return request.url === '/' || request.url === '/?atualizar=1';
+}
+
+function publicAssetPath(request: IncomingMessage): string {
+  if (appShellRequest(request)) return '/';
+  if (nativeProbeRequest(request)) return '/phantom-probe.html';
+  return request.url ?? '/';
 }
 
 function attachmentWorkerPolicy(
@@ -118,7 +126,7 @@ function publicNavigation(request: IncomingMessage): boolean {
   // shell can be opened this way; account APIs and mutations remain protected.
   return (
     request.method === 'GET' &&
-    (request.url === '/' ||
+    (appShellRequest(request) ||
       request.url === '/wallet.html' ||
       nativeProbeRequest(request) ||
       recoveryEntry(request.url) !== null ||

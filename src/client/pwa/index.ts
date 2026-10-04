@@ -36,7 +36,7 @@ export function startPwa(options: { canActivate?: () => boolean } = {}) {
       // Browser registration/update promises cannot be cancelled. Keep the
       // concurrency lock until they settle rather than accumulating retries.
       finish(
-        'O navegador não concluiu a instalação offline. A interface segue disponível com conexão.',
+        'O preparo offline continua. Mantenha o app aberto e conectado; a versão atual segue disponível.',
       );
     }, 10_000);
   };
@@ -123,7 +123,9 @@ export function startPwa(options: { canActivate?: () => boolean } = {}) {
     applying = true;
     const changed = () => {
       stop();
-      location.reload();
+      if (location.search === '?atualizar=1')
+        location.replace('/' + location.hash);
+      else location.reload();
     };
     const stop = () => {
       window.clearTimeout(timer);
@@ -187,7 +189,11 @@ export function startPwa(options: { canActivate?: () => boolean } = {}) {
         render();
         return;
       }
-      if (busy || registration?.installing) return;
+      if (busy || registration?.installing) {
+        state = 'Atualização em andamento. Mantenha o app aberto e conectado.';
+        render();
+        return;
+      }
       if (!registration?.active) {
         await prepare();
         return;

@@ -228,6 +228,7 @@ await test('política offline limita cache a assets públicos fixados do build',
     '/api/messages',
     '/objects/private',
     '/?secret=x',
+    '/?atualizar=1',
     '/app-old.js',
     '/wallet.html',
     '/wallet-approval',
@@ -321,6 +322,33 @@ await test('servidor recusa origem, mutação, traversal e dados privados; saúd
     'sec-fetch-dest': 'document',
   };
   assert.equal((await get('/', navigationHeaders)).status, 200);
+  const fresh = await get('/?atualizar=1', navigationHeaders);
+  assert.equal(fresh.status, 200);
+  assert.equal(fresh.body, (await get('/')).body);
+  assert.equal(fresh.headers['cache-control'], 'no-store');
+  assert.match(
+    String(fresh.headers['content-security-policy']),
+    /'wasm-unsafe-eval'/u,
+  );
+  assert.equal(
+    fresh.headers['permissions-policy'],
+    'camera=(self), microphone=(), geolocation=(), payment=()',
+  );
+  assert.equal(
+    (await get('/?atualizar=1', navigationHeaders, 'POST')).status,
+    403,
+  );
+  assert.equal((await get('/?atualizar=1', {}, 'POST')).status, 405);
+  assert.equal(
+    (await get('/?atualizar=1', { 'sec-fetch-site': 'cross-site' })).status,
+    403,
+  );
+  for (const path of [
+    '/?atualizar=2',
+    '/?atualizar=1&extra=1',
+    '/?atualizar=1&atualizar=1',
+  ])
+    assert.equal((await get(path)).status, 404);
   const loaded = assets.get('/');
   assert.ok(loaded);
   const publicHash = createHash('sha256').update(loaded.content).digest('hex');
