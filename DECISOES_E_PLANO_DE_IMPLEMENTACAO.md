@@ -557,7 +557,7 @@ Foto própria permanece cifrada; distribuição para aprovados integrada pelo ca
 
 **Aceite:** matriz real de testes em desktop, Android e iOS; conversa mutada não gera alerta indevido; push não carrega conteúdo legível; limitações de som/segundo plano ficam documentadas.
 
-Publicação do bloco 10 solicitada em 03/10/2026: revisão específica 017→018 e runtime `web-push@3.6.7`, vinculada ao predecessor `62781eb` e fontes `1f4d33c`, usando o executor existente. Preservar rede isolada e envio push pendente; não gerar VAPID nem alterar serviços compartilhados. Contrato e resultado em [Git e deploy](docs/GIT_E_DEPLOY.md).
+Publicação do bloco 10 solicitada em 03/10/2026: revisão específica 017→018 e runtime `web-push@3.6.7`, vinculada ao predecessor `62781eb` e fontes `1f4d33c`, usando o executor existente. Preservar rede isolada e envio push pendente; não gerar VAPID nem alterar serviços compartilhados. Release final `7adefc0` publicada com CI, prontidão e 37 assets conferidos; banco 018 e backups preservados. Contrato e resultado em [Git e deploy](docs/GIT_E_DEPLOY.md).
 
 ### Bloco 10A — Áudio gravado após o núcleo básico
 
