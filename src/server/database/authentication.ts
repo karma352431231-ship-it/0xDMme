@@ -60,9 +60,15 @@ async function transaction<T>(
 export class AuthenticationStore {
   private readonly pool: pg.Pool;
   private readonly contentCapacity: number;
-  constructor(pool: pg.Pool, contentCapacity: number) {
+  private readonly changes: import('./changes.ts').DatabaseChanges | undefined;
+  constructor(
+    pool: pg.Pool,
+    contentCapacity: number,
+    changes?: import('./changes.ts').DatabaseChanges,
+  ) {
     this.pool = pool;
     this.contentCapacity = contentCapacity;
+    this.changes = changes;
   }
 
   async createChallenge(challenge: LoginChallenge): Promise<void> {
@@ -140,7 +146,7 @@ export class AuthenticationStore {
     expiresAt: Date;
     previousTokenHash?: string;
   }): Promise<void> {
-    await transaction(this.pool, async (client) => {
+    const ended = await transaction(this.pool, async (client) => {
       const consumed = await client.query(
         `DELETE FROM hash_talk.login_challenges
         WHERE id = $1 AND browser_hash = $2 AND expires_at > now() AND handoff_hash IS NULL RETURNING id`,
@@ -148,8 +154,12 @@ export class AuthenticationStore {
       );
       if (consumed.rowCount !== 1)
         throw new AccountError(401, 'Desafio inválido ou expirado.');
-      await this.insertSession(client, { ...input, identity: input.challenge });
+      return this.insertSession(client, {
+        ...input,
+        identity: input.challenge,
+      });
     });
+    this.sessionEnded(ended);
   }
 
   private async insertSession(
@@ -161,10 +171,14 @@ export class AuthenticationStore {
       expiresAt: Date;
       previousTokenHash?: string;
     },
-  ): Promise<void> {
+  ): Promise<{ accountId: string; csrf: string } | null> {
     const accountId = await this.account(client, input.identity);
     await this.registerDevice(client, accountId, input.identity.deviceId);
-    await this.reserveSession(client, accountId, input.previousTokenHash);
+    const ended = await this.reserveSession(
+      client,
+      accountId,
+      input.previousTokenHash,
+    );
     await client.query(
       `INSERT INTO hash_talk.login_sessions
         (token_hash, csrf, account_id, device_id, expires_at) VALUES ($1,$2,$3,$4,$5)`,
@@ -176,6 +190,7 @@ export class AuthenticationStore {
         input.expiresAt,
       ],
     );
+    return ended;
   }
 
   async createHandoff(input: Omit<LoginHandoff, 'address'>): Promise<void> {
@@ -271,7 +286,7 @@ export class AuthenticationStore {
     expiresAt: Date;
     previousTokenHash?: string;
   }): Promise<void> {
-    await transaction(this.pool, async (client) => {
+    const ended = await transaction(this.pool, async (client) => {
       const consumed = await client.query<{ deviceId: string }>(
         `DELETE FROM hash_talk.login_handoffs
         WHERE browser_hash=$1 AND address=$2 AND ecosystem=$3 AND expires_at > now() RETURNING device_id AS "deviceId"`,
@@ -280,7 +295,7 @@ export class AuthenticationStore {
       const row = consumed.rows[0];
       if (!row)
         throw new AccountError(401, 'Retorno inválido ou ainda não assinado.');
-      await this.insertSession(client, {
+      return this.insertSession(client, {
         ...input,
         identity: {
           address: input.address,
@@ -289,6 +304,7 @@ export class AuthenticationStore {
         },
       });
     });
+    this.sessionEnded(ended);
   }
 
   private async registerDevice(
@@ -318,12 +334,13 @@ export class AuthenticationStore {
     client: pg.PoolClient,
     accountId: string,
     previous?: string,
-  ): Promise<void> {
-    if (previous)
-      await client.query(
-        'DELETE FROM hash_talk.login_sessions WHERE token_hash = $1',
-        [previous],
-      );
+  ): Promise<{ accountId: string; csrf: string } | null> {
+    const removed = previous
+      ? await client.query<{ accountId: string; csrf: string }>(
+          'DELETE FROM hash_talk.login_sessions WHERE token_hash = $1 RETURNING account_id AS "accountId", csrf',
+          [previous],
+        )
+      : null;
     await client.query(`DELETE FROM hash_talk.login_sessions WHERE token_hash IN
       (SELECT token_hash FROM hash_talk.login_sessions WHERE expires_at <= now() ORDER BY expires_at LIMIT 64)`);
     const count = await client.query<{ total: number }>(
@@ -333,6 +350,7 @@ export class AuthenticationStore {
     );
     if ((count.rows[0]?.total ?? 8) >= 8)
       throw new AccountError(409, 'Encerre uma sessão antes de abrir outra.');
+    return removed?.rows[0] ?? null;
   }
 
   async session(tokenHash: string): Promise<AccountSession> {
@@ -354,11 +372,21 @@ export class AuthenticationStore {
     };
   }
 
+  private sessionEnded(
+    ended: { accountId: string; csrf: string } | null,
+  ): void {
+    if (ended)
+      this.changes?.committed([ended.accountId], {
+        authorization: true,
+        ended: [ended.csrf],
+      });
+  }
   async logout(tokenHash: string): Promise<void> {
-    await this.pool.query(
-      'DELETE FROM hash_talk.login_sessions WHERE token_hash = $1',
+    const removed = await this.pool.query<{ accountId: string; csrf: string }>(
+      'DELETE FROM hash_talk.login_sessions WHERE token_hash = $1 RETURNING account_id AS "accountId", csrf',
       [tokenHash],
     );
+    this.sessionEnded(removed.rows[0] ?? null);
   }
 
   async rename(tokenHash: string, name: string): Promise<void> {

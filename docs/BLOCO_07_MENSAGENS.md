@@ -22,6 +22,8 @@ Preservar as cotas já aprovadas: 300.000.000 bytes pessoais, recebidos incluíd
 
 O proprietário aceitou ocultar o chat durante toda a sincronização, aplicar exclusões antes de carregar/renderizar mensagens e manter o histórico fechado se houver erro ou sincronização incompleta. Sem fallback visual para cache antigo. Uma exclusão confirmada antes do estado sincronizado não deve aparecer nem em uma exibição intermediária; exclusões concorrentes são aplicadas quando chegam pela rede. Não prometer impedir o que já foi visto offline, apagar backups anteriores ou oferecer uma garantia absoluta em qualquer cenário.
 
+Exceção de voz aprovada no bloco 10A em 04/10/2026: áudio já iniciado continua durante sincronização, mensagem nova, edição e exclusão. O player fica separado do histórico; bloqueio/revogação verificados encerram a reprodução, assim como o fim/troca de sessão ou fechamento da página. Isso não permite iniciar novamente nem baixar conteúdo excluído ou sem autorização.
+
 Respostas antigas, mudanças de conta/aparelho e interrupções não podem reabrir o histórico. A visibilidade depende de uma sincronização completa das mensagens e exclusões, não de uma resposta parcial de paginação.
 
 ## Backup independente — decisão aprovada

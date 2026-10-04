@@ -7,6 +7,8 @@ import {
 } from '../account/index.ts';
 import { fingerprint } from '../devices/index.ts';
 import { integer } from '../vault/index.ts';
+import { voiceMetadata } from '../voice/index.ts';
+import type { VoiceMetadata } from '../voice/index.ts';
 export const fileLimit = 3_000_000;
 export const thumbnailLimit = 96_000;
 export const partLimit = 262_144;
@@ -22,7 +24,8 @@ export interface PrivateFile {
   encryption: string;
 }
 export interface AttachmentContent {
-  version: 1;
+  version: 1 | 2;
+  voice?: VoiceMetadata;
   name: string;
   type: string;
   caption: string;
@@ -81,9 +84,27 @@ export function attachmentContent(input: unknown): AttachmentContent {
     'image',
     'file',
     'thumbnail',
+    ...(row['version'] === 2 ? ['voice'] : []),
   ]);
-  if (row['version'] !== 1 || typeof row['image'] !== 'boolean')
+  if (
+    (row['version'] !== 1 && row['version'] !== 2) ||
+    typeof row['image'] !== 'boolean'
+  )
     throw new Error('Conteúdo de anexo inválido.');
+  const { file, thumbnail, type } = attachmentMedia(row),
+    voice = attachmentVoice(row, file, thumbnail, type);
+  return {
+    version: voice ? 2 : 1,
+    ...(voice ? { voice } : {}),
+    name: safeFilename(boundedText(row['name'], 160)),
+    type,
+    caption: caption(row['caption']),
+    image: row['image'],
+    file,
+    thumbnail,
+  };
+}
+function attachmentMedia(row: Record<string, unknown>) {
   const file = privateFile(row['file'], fileLimit),
     thumbnail =
       row['thumbnail'] === null
@@ -94,15 +115,24 @@ export function attachmentContent(input: unknown): AttachmentContent {
   const type = boundedText(row['type'], 100);
   if (row['image'] && !['image/png', 'image/jpeg', 'image/webp'].includes(type))
     throw new Error('Formato de imagem não permitido.');
-  return {
-    version: 1,
-    name: safeFilename(boundedText(row['name'], 160)),
-    type,
-    caption: caption(row['caption']),
-    image: row['image'],
-    file,
-    thumbnail,
-  };
+  return { file, thumbnail, type };
+}
+function attachmentVoice(
+  row: Record<string, unknown>,
+  file: PrivateFile,
+  thumbnail: PrivateFile | null,
+  type: string,
+): VoiceMetadata | null {
+  if (row['version'] !== 2) return null;
+  const voice = voiceMetadata(row['voice']);
+  if (
+    row['image'] ||
+    thumbnail ||
+    type !== 'audio/wav' ||
+    file.ref.bytes !== 44 + voice.samples * 2
+  )
+    throw new Error('Descritor de voz inválido.');
+  return voice;
 }
 export function contentRefs(content: AttachmentContent): AttachmentRef[] {
   return [

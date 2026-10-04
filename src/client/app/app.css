@@ -926,3 +926,21 @@ footer {
     grid-template-columns: repeat(6, minmax(0, 1fr));
   }
 }
+
+#voice-playbacks {
+  position: fixed;
+  bottom: 1rem;
+  right: 1rem;
+  z-index: 40;
+  display: grid;
+  gap: 0.5rem;
+  width: min(24rem, calc(100vw - 2rem));
+}
+.voice-player {
+  margin: 0;
+}
+.voice-player audio {
+  display: block;
+  width: 100%;
+  margin-bottom: 0.5rem;
+}

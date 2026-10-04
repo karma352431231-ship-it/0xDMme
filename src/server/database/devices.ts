@@ -24,9 +24,15 @@ export interface DeviceLink {
 export class DeviceStore {
   private readonly pool: pg.Pool;
   private readonly contentCapacity: number;
-  constructor(pool: pg.Pool, contentCapacity: number) {
+  private readonly changes: import('./changes.ts').DatabaseChanges | undefined;
+  constructor(
+    pool: pg.Pool,
+    contentCapacity: number,
+    changes?: import('./changes.ts').DatabaseChanges,
+  ) {
     this.pool = pool;
     this.contentCapacity = contentCapacity;
+    this.changes = changes;
   }
   async current(accountId: string): Promise<DirectoryRow | null> {
     const result = await this.pool.query<DirectoryRow>(
@@ -215,6 +221,10 @@ export class DeviceStore {
       }
       await assertVaultQuota(client, session.accountId);
       if (profile) await assertContentCapacity(client, this.contentCapacity);
+    });
+    this.changes?.committed([session.accountId], {
+      authorization: true,
+      revoked: event.revoked,
     });
   }
   private async consumeLink(

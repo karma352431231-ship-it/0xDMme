@@ -411,6 +411,13 @@ export class Messages {
     };
     await this.compose(view.peer, text, 'text', { id, relation });
   }
+  async playbackAllowed(peer: string): Promise<boolean> {
+    return this.access.withVault(
+      false,
+      async (a) =>
+        (await messageApi(a, 'playback-allowed', { peer }, () => {})) === true,
+    );
+  }
   async media(
     view: MessageView,
     thumbnail: boolean,
@@ -450,9 +457,14 @@ export class Messages {
         snapshot,
         guard,
       });
-      if (api) await api('confirm', { snapshot });
-      guard();
-      return bytes;
+      try {
+        if (api) await api('confirm', { snapshot });
+        guard();
+        return bytes;
+      } catch (error: unknown) {
+        bytes.fill(0);
+        throw error;
+      }
     };
     try {
       if (navigator.onLine) return await this.access.withVault(false, work);

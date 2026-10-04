@@ -7,6 +7,9 @@ export type { AttachmentStore } from './attachments.ts';
 import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import pg from 'pg';
+import { DatabaseChanges } from './changes.ts';
+export { DatabaseChanges };
+export type { CommittedChange } from './changes.ts';
 import { AuthenticationStore } from './authentication.ts';
 import { DeviceStore } from './devices.ts';
 import { VaultStore } from './vault.ts';
@@ -72,6 +75,7 @@ export interface MaintenanceSnapshot {
 export class Database {
   private readonly pool: pg.Pool;
   private failed = false;
+  readonly changes = new DatabaseChanges();
   readonly authentication: AuthenticationStore;
   readonly devices: DeviceStore;
   readonly vault: VaultStore;
@@ -99,10 +103,14 @@ export class Database {
     this.pool.on('error', () => {
       this.failed = true;
     });
-    this.authentication = new AuthenticationStore(this.pool, contentCapacity);
-    this.devices = new DeviceStore(this.pool, contentCapacity);
+    this.authentication = new AuthenticationStore(
+      this.pool,
+      contentCapacity,
+      this.changes,
+    );
+    this.devices = new DeviceStore(this.pool, contentCapacity, this.changes);
     this.vault = new VaultStore(this.pool, contentCapacity);
-    this.contacts = new ContactStore(this.pool);
+    this.contacts = new ContactStore(this.pool, this.changes);
     this.daily = new DailyStore(this.pool, this.contacts, contentCapacity);
     this.messageRecovery = new MessageRecoveryStore(
       this.contacts,

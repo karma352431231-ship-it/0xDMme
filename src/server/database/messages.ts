@@ -257,6 +257,7 @@ export class MessageStore {
       'INSERT INTO hash_talk.message_heads(account_id,revision) SELECT unnest($1::uuid[]),1 ON CONFLICT(account_id) DO UPDATE SET revision=hash_talk.message_heads.revision+1',
       [accounts.sort()],
     );
+    this.contacts.changed(client, accounts);
   }
   async remove(
     authority: ContactAuthority,
@@ -323,6 +324,8 @@ export class MessageStore {
       );
       if (!updated.rowCount) return;
       await this.retireRevoked(client, row);
+      if (accountId === row.recipient)
+        this.contacts.changed(client, [row.sender]);
     });
   }
   private async retireRevoked(

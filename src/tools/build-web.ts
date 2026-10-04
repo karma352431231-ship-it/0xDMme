@@ -68,7 +68,7 @@ async function pruneGeneratedAssets(): Promise<void> {
   if (entries.length > 128) throw new Error('Diretório de build excedido.');
   for (const entry of entries) {
     if (
-      !/^(?:(?:app|phantom-probe|recovery-return|attachment-worker)-[a-f0-9]{16}\.(?:js|css)|emoji-[a-f0-9]{16}\.json\.gz|source-[a-f0-9]{16}\.tar\.gz|matrix-crypto-18\.9\.0-source-[a-f0-9]{16}-\d{2}\.bin|libsodium-\d+\.\d+\.\d+-sources-[a-f0-9]{16}\.tar\.xz)$/u.test(
+      !/^(?:(?:app|phantom-probe|recovery-return|attachment-worker|voice-worklet)-[a-f0-9]{16}\.(?:js|css)|emoji-[a-f0-9]{16}\.json\.gz|source-[a-f0-9]{16}\.tar\.gz|matrix-crypto-18\.9\.0-source-[a-f0-9]{16}-\d{2}\.bin|libsodium-\d+\.\d+\.\d+-sources-[a-f0-9]{16}\.tar\.xz)$/u.test(
         entry.name,
       ) ||
       files.has(entry.name)
@@ -90,6 +90,13 @@ const script = hashedAsset(
   'app',
   'js',
   await bundle('src/client/app/index.ts', {
+    VOICE_WORKLET_URL: JSON.stringify(
+      hashedAsset(
+        'voice-worklet',
+        'js',
+        await bundle('src/client/voice-recording/worklet.ts'),
+      ),
+    ),
     ATTACHMENT_WORKER_URL: JSON.stringify(attachmentWorker),
     EMOJI_ASSET_URL: JSON.stringify(`/${emojiAsset}`),
     EMOJI_CATALOG: JSON.stringify(emojis.catalog),

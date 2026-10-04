@@ -12,6 +12,7 @@ import type { VaultService } from '../vault/index.ts';
 import type { MessageService } from '../messages/index.ts';
 import type { ContactService } from '../contacts/index.ts';
 import type { NotificationService } from '../notifications/index.ts';
+import type { MessageLive } from '../message-live/index.ts';
 import { blockLimit } from '../../shared/vault/index.ts';
 import { createApprovalEntry } from './approval-http.ts';
 import { RecoveryReturn } from '../recovery-return/index.ts';
@@ -105,6 +106,7 @@ export function createAccountHandler(options: {
   contacts?: ContactService;
   messages?: MessageService;
   notifications?: NotificationService;
+  live?: MessageLive;
 }) {
   const secure = new URL(options.origin).protocol === 'https:';
   const sessionName = secure ? '__Host-hash-talk-session' : 'hash-talk-session';
@@ -355,6 +357,10 @@ export function createAccountHandler(options: {
     input: unknown,
   ): Promise<boolean> {
     if (request.url?.startsWith('/api/account/messages/') && options.messages) {
+      if (request.url === '/api/account/messages/live' && options.live) {
+        await livePost(response, sessionToken, input);
+        return true;
+      }
       send(
         response,
         200,
@@ -367,6 +373,32 @@ export function createAccountHandler(options: {
       return true;
     }
     return false;
+  }
+  async function livePost(
+    response: ServerResponse,
+    token: string,
+    input: unknown,
+  ): Promise<void> {
+    const session = await options.service.session(token);
+    const head = await options.messages?.operate('live', session, input);
+    if (typeof head !== 'string')
+      throw new AccountError(503, 'Canal indisponível.');
+    const validate = async () => {
+      const [current, authorized] = await Promise.all([
+        options.service.session(token),
+        options.messages?.liveCurrent(session, head),
+      ]);
+      return (
+        current.accountId === session.accountId &&
+        current.deviceId === session.deviceId &&
+        current.csrf === session.csrf &&
+        authorized === true
+      );
+    };
+    if (!(await validate()))
+      throw new AccountError(403, 'Canal sem autorização atual.');
+    if (!response.destroyed)
+      options.live?.open({ session, response, validate });
   }
   async function authenticatedPost(
     request: IncomingMessage,
@@ -540,6 +572,7 @@ export function createAccountHandler(options: {
   return {
     handle,
     close: () => {
+      options.live?.close();
       limit.close();
       recovery.close();
     },

@@ -1,12 +1,21 @@
 import { attachmentContent } from '../../shared/attachments/index.ts';
+import { VoicePlayback } from '../voice-playback/index.ts';
+import { voiceDuration } from '../../shared/voice/index.ts';
 import { prepareAttachment } from '../attachments/index.ts';
 import type { AttachmentSelection } from '../attachments/index.ts';
 import { decodeDailyText } from '../../shared/daily/index.ts';
 interface MediaView {
   id: string;
   text: string;
+  peer: string;
 }
 export class AttachmentUi {
+  private readonly playback: VoicePlayback;
+  private readonly changed: () => void;
+  constructor(playback: VoicePlayback, changed: () => void) {
+    this.playback = playback;
+    this.changed = changed;
+  }
   private selection: AttachmentSelection | null = null;
   private previewUrl: string | null = null;
   private readonly urls: string[] = [];
@@ -17,6 +26,16 @@ export class AttachmentUi {
   private host: HTMLElement | null = null;
   get selected(): AttachmentSelection | null {
     return this.selection;
+  }
+  selectVoice(selection: AttachmentSelection, peer: string): void {
+    this.clearSelection();
+    this.selection = selection;
+    this.changed();
+    if (this.host?.isConnected) this.preview(this.host, selection, peer);
+  }
+  pausePreview(): void {
+    if (this.previewUrl) URL.revokeObjectURL(this.previewUrl);
+    this.previewUrl = null;
   }
   clearSelection(): void {
     this.selectionGeneration++;
@@ -30,6 +49,7 @@ export class AttachmentUi {
       '[data-attachment-file]',
     );
     if (input) input.value = '';
+    this.changed();
   }
   clearMedia(): void {
     this.generation++;
@@ -39,8 +59,11 @@ export class AttachmentUi {
     host: HTMLElement,
     run: (work: () => Promise<void>) => Promise<void>,
   ): void {
-    this.clearSelection();
+    if (!this.selection?.voice) this.clearSelection();
+    this.pausePreview();
     this.host = host;
+    if (this.selection)
+      this.preview(host, this.selection, host.dataset['voicePeer'] ?? '');
     const input = host.querySelector<HTMLInputElement>(
       '[data-attachment-file]',
     );
@@ -67,10 +90,30 @@ export class AttachmentUi {
       .querySelector('[data-attachment-clear]')
       ?.addEventListener('click', () => this.clearSelection());
   }
-  private preview(host: HTMLElement, value: AttachmentSelection): void {
+  private preview(
+    host: HTMLElement,
+    value: AttachmentSelection,
+    peer = host.dataset['voicePeer'] ?? '',
+  ): void {
     const area = host.querySelector('[data-attachment-preview]');
     if (!area) return;
     const label = document.createElement('p');
+    if (value.voice) {
+      label.textContent = `Prévia de voz · ${voiceDuration(value.voice)} · ${(value.bytes.length / 1_000_000).toFixed(2)} MB. Ainda não enviada; fica somente na memória até Enviar. Fechar/recarregar a página perde esta prévia.`;
+      const listen = document.createElement('button');
+      listen.type = 'button';
+      listen.textContent = 'Ouvir prévia';
+      listen.addEventListener('click', () =>
+        this.playback.show({
+          bytes: value.bytes,
+          voice: value.voice!,
+          id: 'voice-preview:' + this.selectionGeneration,
+          peer,
+        }),
+      );
+      area.replaceChildren(label, listen);
+      return;
+    }
     label.textContent = `${value.name} · ${(value.bytes.length / 1_000_000).toFixed(2)} MB. ${value.image ? 'Foto otimizada: pode perder detalhes; metadados privados removidos.' : 'Original: bytes preservados; pode conter GPS/EXIF ou outros metadados.'} Clique em Enviar para compartilhar.`;
     area.replaceChildren(label);
     if (value.image) {
@@ -95,11 +138,13 @@ export class AttachmentUi {
       preview = document.createElement('div'),
       button = document.createElement('button');
     const caption = decodeDailyText(content.caption).text;
-    info.textContent = `${content.name} · ${(content.file.ref.bytes / 1_000_000).toFixed(2)} MB${caption ? ` · ${caption}` : ''}`;
+    info.textContent = `${content.voice ? 'Mensagem de voz · ' + voiceDuration(content.voice) : content.name} · ${(content.file.ref.bytes / 1_000_000).toFixed(2)} MB${caption ? ` · ${caption}` : ''}`;
     button.type = 'button';
-    button.textContent = content.image
-      ? 'Carregar foto completa'
-      : 'Baixar arquivo original';
+    button.textContent = content.voice
+      ? 'Carregar áudio para ouvir'
+      : content.image
+        ? 'Carregar foto completa'
+        : 'Baixar arquivo original';
     input.article.append(info, preview, button);
     const current = () =>
       token === this.generation && input.article.isConnected;
@@ -108,6 +153,19 @@ export class AttachmentUi {
       const bytes = await input.load(input.view, thumbnail);
       if (!current()) {
         bytes.fill(0);
+        return;
+      }
+      if (content.voice && !thumbnail) {
+        try {
+          this.playback.show({
+            bytes,
+            voice: content.voice,
+            id: input.view.id,
+            peer: input.view.peer,
+          });
+        } finally {
+          bytes.fill(0);
+        }
         return;
       }
       const type = thumbnail

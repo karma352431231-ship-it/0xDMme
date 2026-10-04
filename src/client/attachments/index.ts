@@ -21,7 +21,10 @@ import {
 import { attachmentWork } from './worker-client.ts';
 import type { SealedFile } from '../attachment-crypto/index.ts';
 import type { PreparedPhoto } from '../attachment-images/index.ts';
+import { validateVoice } from '../../shared/voice/index.ts';
+import type { VoiceMetadata } from '../../shared/voice/index.ts';
 export interface AttachmentSelection {
+  voice?: VoiceMetadata;
   name: string;
   type: string;
   image: boolean;
@@ -66,6 +69,8 @@ export async function stageAttachment(input: {
   selection: AttachmentSelection;
   caption: string;
 }): Promise<AttachmentContent> {
+  if (input.selection.voice)
+    validateVoice(input.selection.bytes, input.selection.voice);
   const main = await attachmentWork<SealedFile>({
     operation: 'seal',
     bytes: input.selection.bytes,
@@ -82,7 +87,8 @@ export async function stageAttachment(input: {
     await saveParts(input.account, input.id, thumbnail);
   }
   return attachmentContent({
-    version: 1,
+    version: input.selection.voice ? 2 : 1,
+    ...(input.selection.voice ? { voice: input.selection.voice } : {}),
     name: input.selection.name,
     type: input.selection.type,
     caption: input.caption,
@@ -245,8 +251,13 @@ export async function downloadAttachment(
     input.thumbnail,
     input.image,
   );
-  input.guard();
-  return result;
+  try {
+    input.guard();
+    return result;
+  } catch (error: unknown) {
+    result.fill(0);
+    throw error;
+  }
 }
 export async function downloadSealedAttachment(
   input: DownloadInput,

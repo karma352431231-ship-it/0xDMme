@@ -142,11 +142,14 @@ export class DailyStore {
           409,
           'Leitura exige mensagens recebidas e preservadas neste aparelho.',
         );
-      await c.query(
-        `INSERT INTO hash_talk.message_reads(account_id,message_id,share_epoch) SELECT $1,unnest($2::uuid[]),CASE WHEN dc.read_receipts THEN dc.receipt_epoch ELSE NULL END FROM (SELECT 1) root LEFT JOIN hash_talk.daily_controls dc ON dc.account_id=$1 ON CONFLICT(account_id,message_id) DO UPDATE SET share_epoch=excluded.share_epoch WHERE hash_talk.message_reads.share_epoch IS DISTINCT FROM excluded.share_epoch`,
+      const updated = await c.query<{ share_epoch: number | null }>(
+        `INSERT INTO hash_talk.message_reads(account_id,message_id,share_epoch) SELECT $1,unnest($2::uuid[]),CASE WHEN dc.read_receipts THEN dc.receipt_epoch ELSE NULL END FROM (SELECT 1) root LEFT JOIN hash_talk.daily_controls dc ON dc.account_id=$1 ON CONFLICT(account_id,message_id) DO UPDATE SET share_epoch=excluded.share_epoch WHERE hash_talk.message_reads.share_epoch IS DISTINCT FROM excluded.share_epoch RETURNING share_epoch`,
         [a.session.accountId, ids],
       );
       await this.budget(c, a.session.accountId);
+      if (updated.rowCount) this.contacts.changed(c, [a.session.accountId]);
+      if (updated.rows.some((row) => row.share_epoch !== null))
+        this.contacts.changed(c, [peer]);
     });
   }
   async receipts(a: ContactAuthority, ids: string[]): Promise<string[]> {

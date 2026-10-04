@@ -1,3 +1,8 @@
+import { MessageLive } from '../../src/server/message-live/index.ts';
+import { WakeupFrames } from '../../src/client/message-live/index.ts';
+import { voiceWav } from '../../src/client/voice-audio/index.ts';
+import { validateVoice, voiceRate } from '../../src/shared/voice/index.ts';
+import { attachmentContent } from '../../src/shared/attachments/index.ts';
 import webpush from 'web-push';
 import { NotificationService } from '../../src/server/notifications/index.ts';
 import {
@@ -610,6 +615,244 @@ await test('mensagens persistentes: Olm/Megolm, recuperação, idempotência, ex
   });
   await publish(photo);
   await t.test(
+    'SSE real exige assinatura atual, libera slots HTTP e avisa remetente/destinatário após persistência',
+    async () => {
+      const origin = 'http://127.0.0.1:45118',
+        live = new MessageLive(db.changes),
+        account = createAccountHandler({
+          origin,
+          service: accounts,
+          messages,
+          live,
+        }),
+        host = createWebServer({
+          origin,
+          assets: new Map(),
+          database: db,
+          objects: { healthy: () => Promise.resolve(true) },
+          account,
+        });
+      await new Promise<void>((resolve, reject) => {
+        host.server.once('error', reject);
+        host.server.listen(45118, '127.0.0.1', resolve);
+      });
+      const controllers: AbortController[] = [];
+      const root = origin + '/api/account/messages/';
+      function headers(user: User) {
+        return {
+          Origin: origin,
+          'Content-Type': 'application/json',
+          Cookie: `hash-talk-session=${user.sessionToken}`,
+          'X-Hash-Talk-CSRF': user.session.csrf,
+        };
+      }
+      async function stream(user: User) {
+        const controller = new AbortController();
+        controllers.push(controller);
+        const timeout = setTimeout(() => controller.abort(), 5000);
+        const response = await fetch(root + 'live', {
+          method: 'POST',
+          headers: headers(user),
+          body: JSON.stringify(await proof(user, 'live', {})),
+          signal: controller.signal,
+        });
+        clearTimeout(timeout);
+        assert.equal(response.status, 200);
+        assert.match(
+          response.headers.get('content-type') ?? '',
+          /text\/event-stream/,
+        );
+        assert.ok(response.body);
+        const reader = response.body.getReader(),
+          parser = new WakeupFrames();
+        const next = async (
+          wanted: import('../../src/client/message-live/index.ts').LiveEvent,
+        ) => {
+          const deadline = setTimeout(() => controller.abort(), 5000);
+          try {
+            for (;;) {
+              const part = await reader.read();
+              assert.equal(part.done, false);
+              assert.ok(part.value);
+              if (parser.accept(part.value).includes(wanted)) return;
+            }
+          } finally {
+            clearTimeout(deadline);
+          }
+        };
+        await next('ready');
+        return { next, timeout };
+      }
+      const streams: Awaited<ReturnType<typeof stream>>[] = [];
+      try {
+        const forged = await proof(alice, 'live', {});
+        forged.signature = 'A'.repeat(86) + '==';
+        assert.equal(
+          (
+            await fetch(root + 'live', {
+              method: 'POST',
+              headers: headers(alice),
+              body: JSON.stringify(forged),
+            })
+          ).status,
+          409,
+        );
+        streams.push(await stream(alice), await stream(bob));
+        const p = await packet('Conteúdo sintético enviado por evento');
+        const response = await fetch(root + 'publish', {
+          method: 'POST',
+          headers: headers(alice),
+          body: JSON.stringify(await proof(alice, 'publish', { packet: p })),
+        });
+        assert.equal(response.status, 200);
+        await response.json();
+        await Promise.all(streams.map((item) => item.next('changed')));
+        const snap = await op(bob, 'snapshot');
+        assert.ok(await op(bob, 'object', { id: p.id, snapshot: snap }));
+        assert.equal(
+          await op(bob, 'playback-allowed', { peer: alice.session.accountId }),
+          true,
+        );
+        await contactChange(bob, 'block', {
+          wallet: {
+            ecosystem: 'evm',
+            address: alice.wallet.address.toLowerCase(),
+          },
+          blocked: true,
+        });
+        await Promise.all(streams.map((item) => item.next('authorization')));
+        assert.equal(
+          await op(alice, 'playback-allowed', { peer: bob.session.accountId }),
+          false,
+        );
+        await contactChange(bob, 'block', {
+          wallet: {
+            ecosystem: 'evm',
+            address: alice.wallet.address.toLowerCase(),
+          },
+          blocked: false,
+        });
+        await approve(alice, bob);
+        const temporary = await create(),
+          extra = await stream(temporary);
+        streams.push(extra);
+        await accounts.logout(temporary.sessionToken);
+        await extra.next('ended');
+      } finally {
+        for (const item of streams) clearTimeout(item.timeout);
+        for (const controller of controllers) controller.abort();
+        await host.close();
+      }
+    },
+  );
+  await t.test(
+    'registro de avisos em transação descartada não publica eventos',
+    async () => {
+      const observed: unknown[] = [],
+        stop = db.changes.observe({
+          notify: (change) => observed.push(change),
+          failed: () => assert.fail('Observador não deve falhar'),
+        });
+      try {
+        const a = await authority(alice);
+        await assert.rejects(
+          db.contacts.withMessageAuthority(
+            { session: alice.session, directory: a.directory },
+            (client) => {
+              db.contacts.changed(client, [bob.session.accountId]);
+              return Promise.reject(
+                new Error('Quota recusada após registrar mudança'),
+              );
+            },
+          ),
+        );
+        assert.deepEqual(observed, []);
+      } finally {
+        stop();
+      }
+    },
+  );
+  await t.test(
+    'voz v2 via Megolm/cofre chega a outro aparelho cifrada, sob demanda e recuperável sem sessão antiga',
+    async () => {
+      const bytes = voiceWav([new Int16Array(voiceRate).fill(1234)]),
+        voice = { samples: voiceRate, sampleRate: voiceRate },
+        sealed = await sealFile(bytes),
+        content = attachmentContent({
+          version: 2,
+          voice,
+          name: 'mensagem-de-voz.wav',
+          type: 'audio/wav',
+          image: false,
+          thumbnail: null,
+          caption: '',
+          file: sealed.file,
+        });
+      const media = await sender.encrypt({
+        authority: await authority(alice),
+        peerHistory: bob.events,
+        recovery: [aliceKey, bobKey],
+        id: crypto.randomUUID(),
+        text: JSON.stringify(content),
+        kind: 'attachment',
+      });
+      await op(alice, 'attachment-reserve', {
+        message: media.id,
+        peer: bob.session.accountId,
+        refs: contentRefs(content),
+      });
+      await op(alice, 'attachment-part', {
+        id: sealed.file.ref.id,
+        index: 0,
+        ciphertext: encode(sealed.bytes),
+      });
+      await op(alice, 'attachment-finish', { id: sealed.file.ref.id });
+      await publish(media);
+      const stored = await inspector.query<{ body: MessagePacket }>(
+        'SELECT body FROM hash_talk.message_packets WHERE id=$1',
+        [media.id],
+      );
+      assert.ok(
+        !JSON.stringify(stored.rows[0]?.body).includes('mensagem-de-voz.wav'),
+      );
+      const snapshot = await op(computer, 'snapshot'),
+        key = await openRecoveryKey(bobKey, await authority(computer)),
+        decoder = await machine(computer);
+      try {
+        const packet = await indexedPacket(
+          await op(computer, 'object', { id: media.id, snapshot }),
+          { id: media.id, hash: await digest(JSON.stringify(media)) },
+        );
+        const recovered = attachmentContent(
+          JSON.parse(
+            await decoder.decrypt({
+              packet,
+              senderEvent: alice.events.at(-1)!,
+              exported: openRoomKey(key, packet.archives[1]!),
+            }),
+          ) as unknown,
+        );
+        const raw = object(
+          await op(computer, 'attachment-get', {
+            message: media.id,
+            id: recovered.file.ref.id,
+            index: 0,
+            snapshot,
+          }),
+        );
+        const opened = await openFile(
+          recovered.file,
+          Uint8Array.from(base64(raw['ciphertext'], partLimit)),
+        );
+        assert.deepEqual(opened, bytes);
+        assert.ok(recovered.voice);
+        validateVoice(opened, recovered.voice);
+      } finally {
+        key.free();
+      }
+    },
+  );
+  await t.test(
     'rota exige origem, sessão e CSRF antes do corpo; preserva publicação grande e idempotente',
     async () => {
       const origin = 'http://127.0.0.1:45118';
@@ -949,6 +1192,12 @@ await test('mensagens persistentes: Olm/Megolm, recuperação, idempotência, ex
         },
         blocked: true,
       });
+      assert.equal(
+        await op(computer, 'playback-allowed', {
+          peer: alice.session.accountId,
+        }),
+        false,
+      );
       await assert.rejects(
         op(computer, 'attachment-get', {
           message: media.id,

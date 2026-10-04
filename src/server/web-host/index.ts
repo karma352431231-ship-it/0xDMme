@@ -36,7 +36,7 @@ export async function loadWebAssets(): Promise<ReadonlyMap<string, WebAsset>> {
   const manifest: unknown = JSON.parse(
     await readFile(new URL('assets.json', root), 'utf8'),
   );
-  if (!Array.isArray(manifest) || manifest.length > 37)
+  if (!Array.isArray(manifest) || manifest.length > 38)
     throw new Error('Build inválido.');
   const assets = new Map<string, WebAsset>();
   for (const value of manifest as unknown[]) {
@@ -65,7 +65,7 @@ function securityHeaders(
   response.setHeader('Cache-Control', 'no-store');
   response.setHeader(
     'Content-Security-Policy',
-    `default-src 'none'; script-src ${scriptSources}; style-src 'self'; img-src 'self' blob:; font-src 'self'; connect-src 'self'; worker-src 'self'; manifest-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'`,
+    `default-src 'none'; script-src ${scriptSources}; style-src 'self'; img-src 'self' blob:; media-src blob:; font-src 'self'; connect-src 'self'; worker-src 'self'; manifest-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'`,
   );
   response.setHeader('X-Content-Type-Options', 'nosniff');
   response.setHeader('Referrer-Policy', 'no-referrer');
@@ -96,7 +96,7 @@ function sendPublicAsset(
   if (request.url === '/' && entry?.type.startsWith('text/html'))
     response.setHeader(
       'Permissions-Policy',
-      'camera=(self), microphone=(), geolocation=(), payment=()',
+      'camera=(self), microphone=(self), geolocation=(), payment=()',
     );
   attachmentWorkerPolicy(request, response, entry);
   sendAsset(request, response, entry);

@@ -5,6 +5,7 @@ import { startBackups } from '../backups/index.ts';
 import { startVault } from '../vault-ui/index.ts';
 import { startMessages } from '../messages/index.ts';
 import { startContacts } from '../contacts/index.ts';
+import { VoicePlayback } from '../voice-playback/index.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
 
 const pages = {
@@ -43,14 +44,14 @@ const devices = startDevices({
   },
 });
 const vault = startVault(devices);
-const backups = startBackups(devices, vault.sync);
+const playback = new VoicePlayback();
+const backups = startBackups(devices, vault.sync, playback);
 const contacts = startContacts(devices, vault.sync);
-const messages = startMessages(
-  devices,
-  vault.sync,
-  () => account.sharedProfile(),
-  () => account.privacyPreferences(),
-);
+const messages = startMessages(devices, vault.sync, {
+  playback,
+  sharedProfile: () => account.sharedProfile(),
+  preferences: () => account.privacyPreferences(),
+});
 const account = startAccount({
   privacyChanged: (preferences) => messages.applyPrivacy(preferences),
   privateKey: async (session) => {
@@ -101,6 +102,8 @@ function route(): void {
   const page = pages[key];
   element('page-title').textContent = page.title;
   element('breadcrumb').textContent = page.title.toLocaleUpperCase('pt-BR');
+  messages.leave();
+  backups.leave();
   // Templates are static authored content. No user/server input enters HTML.
   element('page-content').innerHTML = page.content;
   mountAccountPanels(key);

@@ -92,6 +92,14 @@ export class MessageService {
       ? new AttachmentService(db.attachments, db.messages, objects)
       : null;
     this.actions = {
+      live: (a, d) => {
+        keys(d, []);
+        return Promise.resolve(a.directory);
+      },
+      'playback-allowed': (a, d) => {
+        keys(d, ['peer']);
+        return db.contacts.playbackAllowed(a, uuid(d['peer']));
+      },
       'recovery-current': (a, d) => {
         keys(d, []);
         return db.messageRecovery.current(a);
@@ -268,6 +276,15 @@ export class MessageService {
     await this.db.attachments.preflight(
       { session, directory: current.head },
       uuid(id),
+    );
+  }
+  async liveCurrent(session: AccountSession, head: string): Promise<boolean> {
+    const current = await this.devices.current(session.accountId);
+    return (
+      current?.head === head &&
+      directoryEvent(current.event).devices.some(
+        (device) => device.id === session.deviceId,
+      )
     );
   }
   async operate(

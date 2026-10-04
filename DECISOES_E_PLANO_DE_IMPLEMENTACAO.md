@@ -561,6 +561,14 @@ Publicação do bloco 10 solicitada em 03/10/2026: revisão específica 017→01
 
 ### Bloco 10A — Áudio gravado após o núcleo básico
 
+**Decisão do proprietário em 03/10/2026:** manter WAV mono, PCM de 16 bits a 16 kHz, com limite de 90 segundos (até 2.880.044 bytes), em vez de avaliar compressão com perdas nesta implementação. O proprietário pediu que novas escolhas de produto ou conflitos sejam apresentados antes de implementar e autorizou continuidade após compactação até concluir o 10A. Preservar E2EE, teto de 3 MB, cofre de 300 MB e download sob demanda.
+
+**Recebimento por evento aprovado em 04/10/2026:** corrigir o recebimento em tempo real antes de concluir o áudio. Preservar envio HTTPS, persistência e confirmação por aparelho; usar SSE autenticado na própria origem para avisos após commit. O proprietário rejeitou a proposta de oito canais globais/dois por aparelho: não criar essa divisão de vagas na aplicação. Reconexão confere o estado persistido, sem tratar um aviso como entrega ou leitura. Essa decisão não aumenta nem remove limites existentes da infraestrutura de testes, não autoriza alteração da VPS e não comprova capacidade para mil usuários simultâneos.
+
+**Continuidade do áudio aprovada em 04/10/2026:** mensagem nova, edição, exclusão e conferência/sincronização não interrompem um áudio já iniciado. Bloqueio ou revogação do aparelho encerram a reprodução; encerramento/troca de sessão e fechamento da página continuam encerrando os recursos da sessão. O player permanece separado do histórico oculto durante conferências. Essa é uma exceção específica para bytes de voz já abertos: exclusão impede iniciar/baixar novamente a mensagem, mas não corta a reprodução em andamento. Novos downloads continuam sujeitos a consentimento, snapshot e autorização atuais. Offline/suspensão do navegador podem atrasar a identificação de bloqueio/revogação; não prometer corte antes de receber/verificar o evento nem execução que o sistema operacional interrompa.
+
+**Implementação local concluída em 04/10/2026:** [registro do bloco 10A](docs/BLOCO_10A_AUDIO_E_TEMPO_REAL.md). Gravação, prévia, cancelamento, envio cifrado, reprodução sob demanda, backup e sincronização implementados junto ao recebimento por evento aprovado. Player compartilhado entre chat e backup, separado da lista; diretório desatualizado exige reconferência sem presumir revogação. `npm run check` passou com 211 testes da aplicação e 71 do executor; integrações locais passaram com 26 testes de mensagens e 32 de autenticação/aparelhos/contatos. AudioWorklet e continuidade foram conferidos com tom sintético no navegador. Sem novas dependências ou migrações. Aceite físico com microfone real e entre desktop/Android/iOS permanece pendente; esta implementação não foi ativada na VPS.
+
 **Depende de:** 08–10, com chat, fotos, backup e notificações funcionando.
 
 1. Implementar permissão de microfone, gravação, prévia, envio, cancelamento e reprodução no chat.

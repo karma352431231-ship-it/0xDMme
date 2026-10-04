@@ -194,3 +194,70 @@ await test('texto válido com controles não explode por escapes JSON; mídia co
     /adulterada/u,
   );
 });
+
+await test('backup independente conserva voz v2 e mídia de 90 segundos para outro aparelho, sem rede', async () => {
+  const { voiceWav } = await import('../src/client/voice-audio/index.ts');
+  const { attachmentContent } =
+    await import('../src/shared/attachments/index.ts');
+  const { validateVoice, voiceRate, voiceSamples } =
+    await import('../src/shared/voice/index.ts');
+  const { openFile } = await import('../src/client/attachment-crypto/index.ts');
+  const a = fixture(),
+    bytes = voiceWav([new Int16Array(voiceSamples).fill(100)]),
+    sealed = await sealFile(bytes),
+    id = crypto.randomUUID();
+  const content = attachmentContent({
+    version: 2,
+    voice: { samples: voiceSamples, sampleRate: voiceRate },
+    name: 'voz.wav',
+    type: 'audio/wav',
+    caption: '',
+    image: false,
+    thumbnail: null,
+    file: sealed.file,
+  });
+  const rows: BackupRecord[] = [
+    {
+      type: 'message',
+      id,
+      hash: 'a'.repeat(64),
+      peer: crypto.randomUUID(),
+      own: false,
+      kind: 'attachment',
+      text: JSON.stringify(content),
+    },
+    {
+      type: 'media',
+      id: sealed.file.ref.id,
+      hash: sealed.file.ref.hash,
+      message: id,
+      thumbnail: false,
+      bytes: encode(sealed.bytes),
+    },
+  ];
+  const file = await archive(a, rows),
+    opened = await BackupReader.open(
+      { ...a, session: { ...a.session, deviceId: crypto.randomUUID() } },
+      file,
+      () => {},
+    );
+  try {
+    const message = await opened.read(0),
+      media = await opened.read(1);
+    assert.equal(message.type, 'message');
+    assert.equal(media.type, 'media');
+    if (message.type !== 'message' || media.type !== 'media')
+      assert.fail('Registros divergentes');
+    const descriptor = attachmentContent(JSON.parse(message.text) as unknown);
+    const { base64 } = await import('../src/shared/account/index.ts');
+    const audio = await openFile(
+      descriptor.file,
+      Uint8Array.from(base64(media.bytes, 3_000_000)),
+    );
+    assert.deepEqual(audio, bytes);
+    assert.ok(descriptor.voice);
+    validateVoice(audio, descriptor.voice);
+  } finally {
+    opened.close();
+  }
+});

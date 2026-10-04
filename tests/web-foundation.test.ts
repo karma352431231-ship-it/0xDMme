@@ -44,6 +44,11 @@ await test('fontes públicas incluem instruções/licenças do build e excluem b
     'src/client/message-search/index.ts',
     'src/client/message-status/index.ts',
     'src/client/notification-sound/index.ts',
+    'src/client/message-live/index.ts',
+    'src/client/voice-audio/index.ts',
+    'src/client/voice-recording/worklet.ts',
+    'src/client/voice-playback/index.ts',
+    'src/shared/voice/index.ts',
     'src/shared/daily/index.ts',
     'package-lock.json',
     'src/tools/build-web.ts',
@@ -426,7 +431,7 @@ await test('servidor recusa origem, mutação, traversal e dados privados; saúd
   assert.equal(page.headers['cache-control'], 'no-store');
   assert.equal(
     page.headers['permissions-policy'],
-    'camera=(self), microphone=(), geolocation=(), payment=()',
+    'camera=(self), microphone=(self), geolocation=(), payment=()',
   );
   assert.equal(
     (await get('/wallet.html')).headers['permissions-policy'],
@@ -444,6 +449,15 @@ await test('servidor recusa origem, mutação, traversal e dados privados; saúd
     String(page.headers['content-security-policy']),
     /script-src 'self' 'wasm-unsafe-eval';/u,
   );
+  assert.match(
+    String(page.headers['content-security-policy']),
+    /media-src blob:;/u,
+  );
+  const voiceWorklet = [...assets.keys()].find((path) =>
+    path.startsWith('/voice-worklet-'),
+  );
+  assert.ok(voiceWorklet);
+  assert.equal((await get(voiceWorklet)).status, 200);
   const attachmentWorker = [...assets.keys()].find((path) =>
     path.startsWith('/attachment-worker-'),
   );

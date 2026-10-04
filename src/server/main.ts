@@ -7,6 +7,7 @@ import { chmod } from 'node:fs/promises';
 import { DeviceService } from './devices/index.ts';
 import { VaultService } from './vault/index.ts';
 import { MessageService } from './messages/index.ts';
+import { MessageLive } from './message-live/index.ts';
 import { ContactService } from './contacts/index.ts';
 import {
   NotificationService,
@@ -47,6 +48,7 @@ try {
     database,
     objects,
     account: createAccountHandler({
+      live: new MessageLive(database.changes),
       notifications,
       contacts: new ContactService(database.contacts, database.devices),
       messages,

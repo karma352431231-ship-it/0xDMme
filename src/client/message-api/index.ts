@@ -8,6 +8,26 @@ export async function messageApi(
   guard: () => void,
 ): Promise<unknown> {
   guard();
+  const options = await prepareMessageRequest(authority, operation, payload);
+  guard();
+  const response = await fetch(`/api/account/messages/${operation}`, {
+    ...options,
+    signal: AbortSignal.timeout(15000),
+  });
+  const data: unknown = await response.json();
+  guard();
+  if (!response.ok)
+    throw new AccountError(
+      response.status,
+      String(object(data)['error']).slice(0, 200),
+    );
+  return data;
+}
+export async function prepareMessageRequest(
+  authority: VaultAuthority,
+  operation: string,
+  payload: Record<string, unknown>,
+): Promise<RequestInit> {
   const proof = {
     deviceId: authority.session.deviceId,
     directory: authority.directory,
@@ -21,7 +41,7 @@ export async function messageApi(
       proof,
     ),
   );
-  const response = await fetch(`/api/account/messages/${operation}`, {
+  return {
     method: 'POST',
     credentials: 'same-origin',
     cache: 'no-store',
@@ -34,14 +54,5 @@ export async function messageApi(
         : {}),
     },
     body: JSON.stringify({ ...proof, signature }),
-    signal: AbortSignal.timeout(15000),
-  });
-  const data: unknown = await response.json();
-  guard();
-  if (!response.ok)
-    throw new AccountError(
-      response.status,
-      String(object(data)['error']).slice(0, 200),
-    );
-  return data;
+  };
 }

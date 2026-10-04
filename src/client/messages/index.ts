@@ -1,4 +1,8 @@
+import type { VoicePlayback } from '../voice-playback/index.ts';
+import { VoiceRecording } from '../voice-recording/index.ts';
+import { voiceDuration, voiceRate } from '../../shared/voice/index.ts';
 import { AttachmentUi } from '../attachment-ui/index.ts';
+import { LiveMessages } from '../message-live/index.ts';
 import { Daily } from '../daily/index.ts';
 import type { PeerState } from '../daily/index.ts';
 import { dailyViews } from '../daily-text/index.ts';
@@ -25,11 +29,16 @@ import type { MessageView } from './controller.ts';
 export function startMessages(
   access: VaultAccess,
   sync: VaultSync,
-  sharedProfile: () => import('../message-profile/index.ts').ProfileCard | null,
-  preferences: () => DailyPreferences | null = () => null,
+  options: {
+    playback: VoicePlayback;
+    sharedProfile: () =>
+      import('../message-profile/index.ts').ProfileCard | null;
+    preferences: () => DailyPreferences | null;
+  },
 ) {
+  const { playback, sharedProfile, preferences } = options;
   const contacts = new Contacts(access),
-    attachments = new AttachmentUi(),
+    attachments = new AttachmentUi(playback, voiceStatus),
     daily = new Daily(access, sync);
   const sound = new NotificationSound();
   const emojiPicker = new EmojiPicker();
@@ -51,14 +60,93 @@ export function startMessages(
     lastTransferAttempt = 0;
   let settingsHost: HTMLElement | null = null;
   let message = 'Entre e autorize este aparelho para conversar.';
+  let recordingPeer: string | null = null;
+  const voice = new VoiceRecording({
+    changed: () => voiceStatus(),
+    completed: (selection) => {
+      if (!session || !recordingPeer || selected?.accountId !== recordingPeer) {
+        selection.bytes.fill(0);
+        return;
+      }
+      attachments.selectVoice(selection, recordingPeer);
+      voiceStatus();
+    },
+  });
+  function voiceStatus(): void {
+    const notice = node('[data-voice-status]');
+    if (notice)
+      notice.textContent =
+        voice.state.notice +
+        (voice.active && voice.state.samples
+          ? ` ${voiceDuration({ samples: voice.state.samples, sampleRate: voiceRate })} / 1:30`
+          : '');
+    voiceButtons();
+    voiceFiles();
+  }
+  function voiceButtons(): void {
+    const start = node<HTMLButtonElement>('[data-voice-record]');
+    if (start)
+      start.disabled =
+        busy || voice.active || attachments.selected !== null || !selected;
+    const stop = node<HTMLButtonElement>('[data-voice-stop]');
+    if (stop) {
+      stop.hidden = !voice.active;
+      stop.disabled = voice.state.phase === 'stopping';
+    }
+    const cancel = node<HTMLButtonElement>('[data-voice-cancel]');
+    if (cancel) cancel.hidden = !voice.active;
+  }
+  function voiceFiles(): void {
+    const file = node<HTMLInputElement>('[data-attachment-file]');
+    if (file)
+      file.disabled = busy || voice.active || !!attachments.selected?.voice;
+  }
   const controller = new Messages(access, sync, (value) => {
     rows = value;
     renderHistory();
   });
+  const live = new LiveMessages({
+    access,
+    changed: () => {
+      const label = node('[data-message-live]');
+      if (label) label.textContent = live.notice;
+    },
+    event: (event) => {
+      if (event === 'ready') void checkVoiceAuthority();
+      if (event === 'authorization') {
+        void checkVoiceAuthority();
+        return;
+      }
+      if (event === 'revoked' || event === 'ended') {
+        voice.cancel();
+        attachments.clearSelection();
+        playback.close();
+      }
+      if (event === 'invalidated' || event === 'revoked' || event === 'ended')
+        suspend();
+      else controller.hide();
+      requestRefresh();
+    },
+  });
+  async function checkVoiceAuthority(): Promise<void> {
+    await playback.check((peer) => controller.playbackAllowed(peer));
+    if (voice.active && recordingPeer) {
+      try {
+        if (!(await controller.playbackAllowed(recordingPeer)))
+          await voice.stop(
+            'A conversa foi bloqueada. Trecho preservado somente como prévia local.',
+          );
+      } catch {
+        /* Revocation/session termination has its own immediate lifecycle event. */
+      }
+    }
+  }
   function node<T extends HTMLElement>(selector: string): T | null {
     return mounted?.querySelector<T>(selector) ?? null;
   }
   function status(): void {
+    const immediate = node('[data-message-live]');
+    if (immediate) immediate.textContent = live.notice;
     const text = node('[data-message-status]');
     if (text) text.textContent = message;
     const dailyStatus = settingsHost?.querySelector('[data-daily-status]');
@@ -74,6 +162,7 @@ export function startMessages(
       .forEach((control) => {
         control.disabled = busy;
       });
+    voiceStatus();
   }
   function renderSoundSettings(): void {
     const toggle = settingsHost?.querySelector<HTMLButtonElement>(
@@ -166,7 +255,13 @@ export function startMessages(
   function requestRefresh(): void {
     refreshRequested = true;
     automaticAttempts = 0;
-    if (!busy && mounted?.isConnected && session && navigator.onLine)
+    if (
+      !busy &&
+      mounted?.isConnected &&
+      session &&
+      navigator.onLine &&
+      document.visibilityState === 'visible'
+    )
       void run(refresh);
   }
   function peerLabel(): string {
@@ -348,6 +443,7 @@ export function startMessages(
             name: content.name,
             type: content.type,
             image: content.image,
+            ...(content.voice ? { voice: content.voice } : {}),
             bytes,
             thumbnail,
           },
@@ -414,8 +510,16 @@ export function startMessages(
     return `${settings.pinned ? '📌 ' : ''}${peer.name || peer.address}${state?.unread ? ` · ${state.unread} não lidas` : ''}${state && state.mutedUntil > Date.now() ? ' · silenciada' : ''}${conflict}`;
   }
   async function openPeer(peer: Peer): Promise<void> {
+    if (
+      (voice.active || attachments.selected?.voice) &&
+      selected?.accountId !== peer.accountId
+    )
+      throw new Error(
+        'Envie ou remova a prévia de voz antes de trocar de destinatário.',
+      );
     clearContext();
     selected = peer;
+    if (mounted) mounted.dataset['voicePeer'] = peer.accountId;
     controller.select(peer.accountId);
     renderHistory();
     if (!navigator.onLine) {
@@ -462,8 +566,16 @@ export function startMessages(
     }
     await controller.savePins();
     await dailyTick();
+    if (
+      session &&
+      navigator.onLine &&
+      (document.visibilityState === 'visible' || playback.open)
+    )
+      live.start();
   }
   async function submit(): Promise<void> {
+    if (voice.active)
+      throw new Error('Pare a gravação e confira a prévia antes de enviar.');
     const text = node<HTMLTextAreaElement>('[data-message-text]');
     if (!selected || !text || (!text.value.trim() && !attachments.selected))
       throw new Error(
@@ -473,6 +585,7 @@ export function startMessages(
     text.value = '';
     clearContext();
     attachments.clearSelection();
+    recordingPeer = null;
     if (navigator.onLine) {
       await controller.sendPending();
       await controller.synchronize();
@@ -590,17 +703,32 @@ export function startMessages(
     message = `Enviando anexo: parte ${progress.done} de ${progress.total}. Fechar o app pausa a transferência; o rascunho cifrado permanece.`;
     status();
   });
+  window.addEventListener('beforeunload', (event) => {
+    if (!voice.active && !attachments.selected?.voice) return;
+    event.preventDefault();
+    event.returnValue = '';
+  });
   window.addEventListener('offline', () => {
+    live.stop();
     suspend();
     message =
       'Sem conexão. Os envios ficam cifrados neste aparelho. Abra deliberadamente a cópia local para consultar o que já recebeu.';
     status();
   });
   window.addEventListener('online', () => {
+    if (session && (document.visibilityState === 'visible' || playback.open))
+      live.start();
     suspend();
     requestRefresh();
   });
   document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') {
+      if (!playback.open) live.stop();
+      if (voice.active)
+        void voice.stop(
+          'O navegador interrompeu a gravação. Confira o trecho preservado ao voltar.',
+        );
+    } else if (session) live.start();
     suspend();
     void daily.heartbeat(document.visibilityState === 'visible').catch(() => {
       message =
@@ -628,7 +756,10 @@ export function startMessages(
     typeof BroadcastChannel === 'undefined'
       ? null
       : new BroadcastChannel('0xdmme-device-changes');
-  devicesChannel?.addEventListener('message', suspend);
+  devicesChannel?.addEventListener('message', () => {
+    suspend();
+    void checkVoiceAuthority();
+  });
 
   const timer = setInterval(() => {
     if (
@@ -642,7 +773,7 @@ export function startMessages(
       await dailyTick();
       if (!mounted?.isConnected || !selected) return;
       await resumePending();
-      if (await controller.probe()) {
+      if (!live.connected && (await controller.probe())) {
         await controller.synchronize();
         await controller.savePins();
       }
@@ -652,7 +783,15 @@ export function startMessages(
     if (!busy && session && navigator.onLine) void run(dailyTick);
   });
   window.addEventListener('pagehide', (event) => {
+    live.stop();
+    if (voice.active)
+      void voice.stop(
+        'O navegador interrompeu a gravação. Confira o trecho preservado ao voltar.',
+      );
     if (!event.persisted) {
+      voice.cancel();
+      playback.close();
+      attachments.clearSelection();
       clearInterval(timer);
       channel?.close();
       devicesChannel?.close();
@@ -666,6 +805,7 @@ export function startMessages(
   });
   window.addEventListener('pageshow', (event) => {
     if (event.persisted) {
+      if (session && navigator.onLine) live.start();
       suspend();
       if (mounted?.isConnected && session && navigator.onLine)
         void run(refresh);
@@ -724,8 +864,24 @@ export function startMessages(
       });
     });
   }
+  function bindVoiceControls(): void {
+    bind('[data-voice-record]', () => {
+      if (busy || voice.active || attachments.selected || !selected || !session)
+        return;
+      recordingPeer = selected.accountId;
+      void voice.start();
+    });
+    bind('[data-voice-stop]', () => {
+      void voice.stop();
+    });
+    bind('[data-voice-cancel]', () => {
+      voice.cancel();
+      recordingPeer = null;
+    });
+  }
   function bindMessageControls(): void {
     bind('[data-message-refresh]', () => {
+      if (session && navigator.onLine) live.retry();
       void run(refresh);
     });
     bind('[data-message-resend]', () => {
@@ -773,6 +929,10 @@ export function startMessages(
         return;
       }
       generation++;
+      voice.cancel();
+      playback.close();
+      recordingPeer = null;
+      live.stop();
       emojiPicker.reset();
       refreshRequested = false;
       automaticAttempts = 0;
@@ -794,6 +954,8 @@ export function startMessages(
       status();
     },
     ready(): void {
+      if (session && navigator.onLine && document.visibilityState === 'visible')
+        live.start();
       if (!busy && session && navigator.onLine)
         void run(
           mounted?.isConnected
@@ -804,7 +966,15 @@ export function startMessages(
               },
         );
     },
-    canActivate: () => !busy,
+    canActivate: () => !busy && !voice.active && !attachments.selected?.voice,
+    leave(): void {
+      if (voice.active)
+        void voice.stop(
+          'Navegação interrompeu a gravação; trecho preservado para conferir ao voltar à conversa.',
+        );
+      attachments.clearMedia();
+      attachments.pausePreview();
+    },
     mountSettings(container: HTMLElement): void {
       settingsHost = container;
       container.innerHTML = `<article class="card notifications-card"><h2>Notificações</h2><p>Alertas exibem apenas “0xDMme” e atividade genérica. O serviço push do navegador recebe endereço de inscrição e horários, sem texto, wallet ou nome de contato.</p><p>No iPhone/iPad, adicione o app à tela inicial e abra pelo ícone antes de ativar. A permissão depende de um toque seu e pode ser alterada nas configurações do sistema.</p><p data-daily-status role="status"></p><button data-push-enable type="button">Ativar push neste aparelho</button><button data-push-disable type="button">Desativar push neste aparelho</button><button data-sound-toggle type="button" aria-pressed="true">Desativar sons</button><p data-sound-status role="status"></p><p>Sons ligados por padrão. Sua escolha é salva neste navegador e continua ao trocar de conta ou reabrir o app. O navegador pode aguardar um toque para liberar áudio; volume e som de push seguem o sistema. Conversas silenciadas ou arquivadas continuam sem alertas. Offline ou sem sessão válida, não há alerta remoto novo.</p></article>`;
@@ -828,8 +998,10 @@ export function startMessages(
     },
     mount(container: HTMLElement): void {
       mounted = container;
-      container.innerHTML = `<article class="card chat-panel"><h2>Conversas</h2><p data-message-status role="status"></p><button data-message-refresh type="button">Sincronizar</button><button data-message-resend type="button">Reenviar pendentes</button><button data-message-local type="button">Abrir cópia local offline</button><div class="chat-layout"><aside><h3>Contatos aprovados</h3><button data-archived-list type="button">Alternar arquivadas</button><div data-message-contacts class="chat-contacts"></div><button data-message-more-contacts type="button" hidden>Mais contatos</button></aside><section><h3 data-message-peer></h3><p data-peer-presence></p><label>Silenciar<select data-mute-duration><option value="0">Retomar alertas</option><option value="3600000">1 hora</option><option value="28800000">8 horas</option><option value="86400000">24 horas</option><option value="604800000">7 dias</option><option value="9007199254740991">Até reativar</option></select></label><button data-mute type="button">Aplicar mute</button><button data-archive type="button">Arquivar/desarquivar</button><p>Arquivar silencia até reativar. Depois de desarquivar, use Retomar alertas para voltar a receber notificações.</p><button data-pin type="button">Fixar/desfixar</button><p data-message-gate></p><div data-message-history class="chat-history" hidden></div><button data-message-older type="button">Mensagens anteriores</button><form data-message-form><p data-compose-context></p><button data-compose-cancel type="button">Cancelar resposta/edição</button><label>Mensagem<textarea data-message-text rows="3"></textarea></label><button data-message-emoji type="button">Escolher emoji</button><label>Enviar como<select data-attachment-mode><option value="photo">Foto otimizada</option><option value="file">Arquivo original (até 3 MB)</option></select></label><label>Foto ou arquivo<input data-attachment-file type="file"></label><p>Foto: prévia e remoção de metadados no aparelho. Original: pode compartilhar GPS/EXIF. Vídeos ainda não são aceitos.</p><div data-attachment-preview></div><button data-attachment-clear type="button">Remover seleção</button><button class="primary" type="submit">Enviar</button></form><label>Busca local<input data-message-search maxlength="128" type="search"></label><button data-search type="button">Buscar neste aparelho</button><button data-search-more type="button" hidden>Continuar busca</button><ul data-search-results></ul><h3>Envios deste aparelho</h3><ul data-message-pending></ul></section></div></article>`;
+      container.innerHTML = `<article class="card chat-panel"><h2>Conversas</h2><p data-message-status role="status"></p><p data-message-live role="status"></p><button data-message-refresh type="button">Sincronizar</button><button data-message-resend type="button">Reenviar pendentes</button><button data-message-local type="button">Abrir cópia local offline</button><div class="chat-layout"><aside><h3>Contatos aprovados</h3><button data-archived-list type="button">Alternar arquivadas</button><div data-message-contacts class="chat-contacts"></div><button data-message-more-contacts type="button" hidden>Mais contatos</button></aside><section><h3 data-message-peer></h3><p data-peer-presence></p><label>Silenciar<select data-mute-duration><option value="0">Retomar alertas</option><option value="3600000">1 hora</option><option value="28800000">8 horas</option><option value="86400000">24 horas</option><option value="604800000">7 dias</option><option value="9007199254740991">Até reativar</option></select></label><button data-mute type="button">Aplicar mute</button><button data-archive type="button">Arquivar/desarquivar</button><p>Arquivar silencia até reativar. Depois de desarquivar, use Retomar alertas para voltar a receber notificações.</p><button data-pin type="button">Fixar/desfixar</button><p data-message-gate></p><div data-message-history class="chat-history" hidden></div><button data-message-older type="button">Mensagens anteriores</button><form data-message-form><p data-compose-context></p><button data-compose-cancel type="button">Cancelar resposta/edição</button><label>Mensagem<textarea data-message-text rows="3"></textarea></label><button data-message-emoji type="button">Escolher emoji</button><label>Enviar como<select data-attachment-mode><option value="photo">Foto otimizada</option><option value="file">Arquivo original (até 3 MB)</option></select></label><button data-voice-record type="button">Gravar voz</button><button data-voice-stop type="button" hidden>Parar e conferir</button><button data-voice-cancel type="button" hidden>Cancelar gravação</button><p data-voice-status role="status"></p><p>Voz: até 90 segundos. Ouça a prévia e toque em Enviar. Se o sistema interromper o microfone, o trecho capturado será preservado enquanto esta página continuar aberta.</p><label>Foto ou arquivo<input data-attachment-file type="file"></label><p>Foto: prévia e remoção de metadados no aparelho. Original: pode compartilhar GPS/EXIF. Vídeos ainda não são aceitos.</p><div data-attachment-preview></div><button data-attachment-clear type="button">Remover seleção</button><button class="primary" type="submit">Enviar</button></form><label>Busca local<input data-message-search maxlength="128" type="search"></label><button data-search type="button">Buscar neste aparelho</button><button data-search-more type="button" hidden>Continuar busca</button><ul data-search-results></ul><h3>Envios deste aparelho</h3><ul data-message-pending></ul></section></div></article>`;
+      if (selected) container.dataset['voicePeer'] = selected.accountId;
       attachments.mount(container, run);
+      bindVoiceControls();
       bindDailyControls();
       bindMessageControls();
       renderHistory();

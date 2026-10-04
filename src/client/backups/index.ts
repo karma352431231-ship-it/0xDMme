@@ -1,3 +1,4 @@
+import type { VoicePlayback } from '../voice-playback/index.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
 import { base64 } from '../../shared/account/index.ts';
 import { attachmentContent } from '../../shared/attachments/index.ts';
@@ -8,7 +9,11 @@ import { profileCard } from '../message-profile/index.ts';
 import { decodeDailyText } from '../../shared/daily/index.ts';
 import { Backups } from './controller.ts';
 import type { BackupRecord } from '../backup-records/index.ts';
-export function startBackups(access: VaultAccess, sync: VaultSync) {
+export function startBackups(
+  access: VaultAccess,
+  sync: VaultSync,
+  playback: VoicePlayback,
+) {
   const controller = new Backups(access, sync);
   let mounted: HTMLElement | null = null,
     busy = false,
@@ -188,6 +193,37 @@ export function startBackups(access: VaultAccess, sync: VaultSync) {
       ).text;
     return `Perfil: ${profileCard(JSON.parse(row.text) as unknown).name}`;
   }
+  async function openBackupMedia(
+    row: Extract<BackupRecord, { type: 'media' }>,
+  ) {
+    const reader = controller.opened;
+    if (!reader) throw new Error('Backup fechado.');
+    const guard = controller.guard();
+    const index = reader.report.records.findIndex(
+        (r) => r.type === 'message' && r.id === row.message,
+      ),
+      message = await reader.read(index);
+    guard();
+    if (message.type !== 'message' || message.kind !== 'attachment')
+      throw new Error('Descritor da mídia ausente.');
+    const content = attachmentContent(JSON.parse(message.text) as unknown),
+      file = row.thumbnail ? content.thumbnail : content.file;
+    if (!file || file.ref.id !== row.id || file.ref.hash !== row.hash)
+      throw new Error('Mídia divergente.');
+    const bytes = await openStoredAttachment(
+      file,
+      Uint8Array.from(base64(row.bytes, 3_000_000)),
+      row.thumbnail,
+      row.thumbnail || content.image,
+    );
+    try {
+      guard();
+      return { content, bytes };
+    } catch (error: unknown) {
+      bytes.fill(0);
+      throw error;
+    }
+  }
   function mediaButton(
     article: HTMLElement,
     row: Extract<BackupRecord, { type: 'media' }>,
@@ -197,24 +233,20 @@ export function startBackups(access: VaultAccess, sync: VaultSync) {
     button.textContent = 'Salvar mídia deste backup';
     button.addEventListener('click', () => {
       void run(async () => {
-        const reader = controller.opened;
-        if (!reader) throw new Error('Backup fechado.');
-        const index = reader.report.records.findIndex(
-            (r) => r.type === 'message' && r.id === row.message,
-          ),
-          message = await reader.read(index);
-        if (message.type !== 'message' || message.kind !== 'attachment')
-          throw new Error('Descritor da mídia ausente.');
-        const content = attachmentContent(JSON.parse(message.text) as unknown),
-          file = row.thumbnail ? content.thumbnail : content.file;
-        if (!file || file.ref.id !== row.id || file.ref.hash !== row.hash)
-          throw new Error('Mídia divergente.');
-        const bytes = await openStoredAttachment(
-          file,
-          Uint8Array.from(base64(row.bytes, 3_000_000)),
-          row.thumbnail,
-          row.thumbnail || content.image,
-        );
+        const { content, bytes } = await openBackupMedia(row);
+        if (content.voice && !row.thumbnail) {
+          try {
+            playback.show({
+              bytes,
+              voice: content.voice,
+              id: row.message,
+              peer: null,
+            });
+          } catch (error: unknown) {
+            bytes.fill(0);
+            throw error;
+          }
+        }
         const url = URL.createObjectURL(
           new Blob([bytes], { type: 'application/octet-stream' }),
         );
@@ -324,6 +356,7 @@ export function startBackups(access: VaultAccess, sync: VaultSync) {
     clearView();
   });
   return {
+    leave: () => clearView(),
     canActivate: () => !busy,
     setSession(session: AccountSession | null): void {
       const changed =
@@ -335,13 +368,14 @@ export function startBackups(access: VaultAccess, sync: VaultSync) {
       if (!changed) return;
       selected.clear();
       armed = false;
+      playback.close();
       clearView();
       clearDownload();
       render();
     },
     mount(container: HTMLElement): void {
       mounted = container;
-      container.innerHTML = `<article class="card"><span class="eyebrow">BACKUP INDEPENDENTE</span><h2>Guarde uma cópia com você.</h2><p>Arquivo cifrado criado neste aparelho. Para abrir em outro navegador, entre com a wallet original e autorize ou recupere as chaves. A importação abre uma consulta histórica local; não altera aparelhos, bloqueios ou mensagens atuais.</p><p>Para guardar as versões de uma mensagem, selecione também suas edições e reações. Limpar a mensagem original do seu cofre oculta essas alterações nesta conta.</p><p data-backup-status role="status"></p><button data-backup-more type="button">Carregar / continuar seleção</button><p data-backup-page></p><div data-backup-list class="backup-list"></div><button data-backup-next type="button">Próxima página de seleção</button><button data-backup-all type="button">Selecionar itens carregados</button><button data-backup-none type="button">Limpar seleção</button><label><input data-backup-media type="checkbox" checked> Incluir fotos, arquivos e miniaturas disponíveis</label><p data-backup-estimate></p><button data-backup-generate class="primary" type="button">Gerar backup cifrado</button><button data-backup-cancel type="button">Cancelar / fechar backup</button><p><a data-backup-download hidden>Salvar arquivo de backup</a></p><h3>Abrir ou conferir o arquivo salvo</h3><label>Arquivo de backup<input data-backup-file type="file" accept=".0xdm,application/octet-stream"></label><button data-backup-validate type="button">Validar e abrir localmente</button><p>Salvar o arquivo não apaga nada. Confira e guarde sua cópia: perder o arquivo depois de limpar pode tornar o conteúdo irrecuperável para você. Mídias originais baixadas podem conter GPS/EXIF.</p><button data-backup-clean type="button" disabled>Limpar itens preservados no backup</button><label><input data-backup-remind type="checkbox"> Lembrar de exportar após sete dias, ao abrir o cofre</label><button data-backup-register type="button">Registrar hash validado e preferência de lembrete</button><div data-backup-view class="backup-history"></div></article>`;
+      container.innerHTML = `<article class="card"><span class="eyebrow">BACKUP INDEPENDENTE</span><h2>Guarde uma cópia com você.</h2><p>Arquivo cifrado criado neste aparelho. Para abrir em outro navegador, entre com a wallet original e autorize ou recupere as chaves. A importação abre uma consulta histórica local; não altera aparelhos, bloqueios ou mensagens atuais.</p><p>Para guardar as versões de uma mensagem, selecione também suas edições e reações. Limpar a mensagem original do seu cofre oculta essas alterações nesta conta.</p><p data-backup-status role="status"></p><button data-backup-more type="button">Carregar / continuar seleção</button><p data-backup-page></p><div data-backup-list class="backup-list"></div><button data-backup-next type="button">Próxima página de seleção</button><button data-backup-all type="button">Selecionar itens carregados</button><button data-backup-none type="button">Limpar seleção</button><label><input data-backup-media type="checkbox" checked> Incluir áudios, fotos, arquivos e miniaturas disponíveis</label><p data-backup-estimate></p><button data-backup-generate class="primary" type="button">Gerar backup cifrado</button><button data-backup-cancel type="button">Cancelar / fechar backup</button><p><a data-backup-download hidden>Salvar arquivo de backup</a></p><h3>Abrir ou conferir o arquivo salvo</h3><label>Arquivo de backup<input data-backup-file type="file" accept=".0xdm,application/octet-stream"></label><button data-backup-validate type="button">Validar e abrir localmente</button><p>Salvar o arquivo não apaga nada. Confira e guarde sua cópia: perder o arquivo depois de limpar pode tornar o conteúdo irrecuperável para você. Mídias originais baixadas podem conter GPS/EXIF.</p><button data-backup-clean type="button" disabled>Limpar itens preservados no backup</button><label><input data-backup-remind type="checkbox"> Lembrar de exportar após sete dias, ao abrir o cofre</label><button data-backup-register type="button">Registrar hash validado e preferência de lembrete</button><div data-backup-view class="backup-history"></div></article>`;
       bind();
       render();
     },

@@ -43,14 +43,33 @@ function unavailable(): never {
 }
 export class ContactStore {
   private readonly pool: pg.Pool;
-  constructor(pool: pg.Pool) {
+  private readonly changes: import('./changes.ts').DatabaseChanges | undefined;
+  private readonly pendingChanges = new WeakMap<
+    pg.PoolClient,
+    { accounts: Set<string>; authorization: boolean }
+  >();
+  constructor(pool: pg.Pool, changes?: import('./changes.ts').DatabaseChanges) {
     this.pool = pool;
+    this.changes = changes;
+  }
+  /** Coordinated schema operations register hints; only a successful COMMIT publishes them. */
+  changed(
+    client: pg.PoolClient,
+    accounts: readonly string[],
+    authorization = false,
+  ): void {
+    const pending = this.pendingChanges.get(client);
+    if (!pending) throw new Error('Alteração exige transação coordenada.');
+    for (const account of accounts) pending.accounts.add(account);
+    pending.authorization ||= authorization;
   }
   private async transaction<T>(
     authority: ContactAuthority,
     work: (client: pg.PoolClient) => Promise<T>,
   ): Promise<T> {
     const client = await this.pool.connect();
+    const pending = { accounts: new Set<string>(), authorization: false };
+    this.pendingChanges.set(client, pending);
     try {
       await client.query('BEGIN');
       // All contact admissions share one bounded, short transaction. Device
@@ -65,11 +84,16 @@ export class ContactStore {
       await this.authorize(client, authority);
       const result = await work(client);
       await client.query('COMMIT');
+      this.pendingChanges.delete(client);
+      this.changes?.committed(pending.accounts, {
+        authorization: pending.authorization,
+      });
       return result;
     } catch (error: unknown) {
       await client.query('ROLLBACK');
       throw error;
     } finally {
+      this.pendingChanges.delete(client);
       client.release();
     }
   }
@@ -125,6 +149,7 @@ export class ContactStore {
       'INSERT INTO hash_talk.contact_controls(account_id,revision) SELECT unnest($1::uuid[]),1 ON CONFLICT(account_id) DO UPDATE SET revision=hash_talk.contact_controls.revision+1',
       [ids],
     );
+    this.changed(client, ids);
   }
   private async account(client: pg.PoolClient, id: string): Promise<Peer> {
     const result = await client.query<Peer>(
@@ -461,6 +486,8 @@ export class ContactStore {
         client,
         relationRemoved && targetId ? [id, targetId] : [id],
       );
+      if (input.blocked)
+        this.changed(client, [id, ...target.rows.map((row) => row.id)], true);
     });
   }
   async unblock(
@@ -490,6 +517,21 @@ export class ContactStore {
       );
       if (result.rowCount) await this.bump(client, [id, input.target]);
     });
+  }
+  /** Only for an already-open voice: deletion/withdrawn consent never grants a new download. */
+  async playbackAllowed(
+    authority: ContactAuthority,
+    targetId: string,
+  ): Promise<boolean> {
+    return this.transaction(
+      authority,
+      async (client) =>
+        !(await this.blocked(
+          client,
+          await this.account(client, authority.session.accountId),
+          await this.account(client, targetId),
+        )),
+    );
   }
   /** Read-only consent check; message admission must check in its transaction. */
   async approved(

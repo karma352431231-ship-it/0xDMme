@@ -111,6 +111,7 @@ export class BackupStore {
       ],
     );
     if (item.kind === 'message') await this.collectMessage(c, item.id);
+    this.contacts.changed(c, [account]);
     return true;
   }
   private async cleanVault(
