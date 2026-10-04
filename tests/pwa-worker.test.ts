@@ -17,6 +17,7 @@ async function worker(
     networkAvailable?: boolean;
     failWriteAt?: number;
     unreadLimit?: number;
+    networkDelayMs?: number;
     pushAllowed?: boolean;
     pushCheckFails?: boolean;
     pushSound?: string;
@@ -40,6 +41,11 @@ async function worker(
   let networkRequests = 0;
   let unreadResponses = 0;
   let peakUnread = 0;
+  let elapsed = 0;
+  const deadlines = new WeakMap<
+    AbortSignal,
+    { at: number; controller: AbortController }
+  >();
   const notifications: { title: string; options: NotificationOptions }[] = [];
   const opened: string[] = [];
   const origin = 'https://hash-talk.example';
@@ -57,7 +63,16 @@ async function worker(
       return Promise.resolve();
     },
     Request,
-    AbortSignal,
+    AbortSignal: {
+      timeout(milliseconds: number) {
+        const controller = new AbortController();
+        deadlines.set(controller.signal, {
+          at: elapsed + milliseconds,
+          controller,
+        });
+        return controller.signal;
+      },
+    },
     URL,
     JSON,
     registration: {
@@ -100,6 +115,11 @@ async function worker(
     fetch: (_path: string, request: RequestInit) => {
       assert.ok(request.signal instanceof AbortSignal);
       networkRequests++;
+      elapsed += options.networkDelayMs ?? 0;
+      const deadline = deadlines.get(request.signal);
+      if (deadline && elapsed > deadline.at)
+        deadline.controller.abort(new Error('synthetic-installation-timeout'));
+      request.signal.throwIfAborted();
       if (_path === '/api/account/push-check') {
         assert.equal(request.credentials, 'same-origin');
         assert.equal(request.cache, 'no-store');
@@ -277,4 +297,20 @@ await test('instalação consome corpos antes de novos fetches sob orçamento pe
   for (const response of scope.cache.values()) {
     assert.equal(await response.clone().text(), 'public-shell');
   }
+});
+
+await test('downloads lentos instalam além de oito segundos; instalação acima do prazo preserva versão anterior', async () => {
+  const slow = await worker({ networkDelayMs: 3_000 });
+  await slow.dispatch('install');
+  assert.ok(slow.cache.size >= 7);
+  assert.equal(slow.activations(), 0);
+  const stalled = await worker({ networkDelayMs: 10_000 });
+  await assert.rejects(
+    stalled.dispatch('install'),
+    /synthetic-installation-timeout/,
+  );
+  assert.equal(stalled.cache.size, 0);
+  assert.equal(stalled.deleted.length, 1);
+  assert.equal(stalled.stores.has('hash-talk-shell-old'), true);
+  assert.equal(stalled.stores.has('unrelated-project-cache'), true);
 });

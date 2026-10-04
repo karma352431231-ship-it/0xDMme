@@ -57,7 +57,8 @@ const assets: readonly string[] = JSON.parse('{{ASSETS}}') as string[];
 const cacheName = 'hash-talk-shell-{{VERSION}}';
 
 scope.addEventListener('install', (event) => {
-  const signal = AbortSignal.timeout(8_000);
+  // WASM and emoji assets must fit the same bounded installation on mobile.
+  const signal = AbortSignal.timeout(60_000);
   event.waitUntil(
     caches
       .open(cacheName)

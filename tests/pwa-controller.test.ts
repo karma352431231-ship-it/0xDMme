@@ -38,7 +38,7 @@ class Registration extends EventTarget {
   }
 }
 
-function browser() {
+function browser(locationValues: { search?: string; hash?: string } = {}) {
   const elements = new Map(
     ['pwa-state', 'update', 'apply-update', 'update-result'].map((id) => [
       id,
@@ -59,6 +59,7 @@ function browser() {
   const timers = new Map<number, () => void>();
   let timerId = 0;
   let reloads = 0;
+  const replacements: string[] = [];
   let calls = 0;
   let result: Promise<Registration>;
   const registration = new Registration();
@@ -74,8 +75,14 @@ function browser() {
     window,
     navigator: { serviceWorker },
     location: {
+      search: '',
+      hash: '',
+      ...locationValues,
       reload() {
         reloads++;
+      },
+      replace(url: string) {
+        replacements.push(url);
       },
     },
   }) as { startPwa: typeof startPwa };
@@ -96,6 +103,7 @@ function browser() {
     },
     calls: () => calls,
     reloads: () => reloads,
+    replacements: () => replacements,
     timers: () => timers.size,
   };
 }
@@ -118,6 +126,20 @@ await test('registro resolvido não afirma offline antes de ativação e instala
   assert.match(scope.status(), /Reabra/);
 });
 
+await test('entrada online volta ao endereço offline após ativação explícita, preservando a tela escolhida', async () => {
+  const scope = browser({ search: '?atualizar=1', hash: '#contatos' });
+  scope.registration.installing = null;
+  scope.registration.active = new Worker();
+  scope.registration.waiting = new Worker();
+  scope.start();
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  assert.deepEqual(scope.replacements(), []);
+  scope.elements.get('apply-update')?.dispatchEvent(new Event('click'));
+  scope.serviceWorker.dispatchEvent(new Event('controllerchange'));
+  assert.deepEqual(scope.replacements(), ['/#contatos']);
+  assert.equal(scope.reloads(), 0);
+});
+
 await test('registro pendente tem prazo visual sem acumular promessas e página encerrada ignora conclusão tardia', async () => {
   const scope = browser();
   let complete: ((value: Registration) => void) | undefined;
@@ -128,15 +150,16 @@ await test('registro pendente tem prazo visual sem acumular promessas e página 
   );
   const pwa = scope.start();
   scope.expire();
-  assert.match(scope.status(), /não concluiu/);
+  assert.match(scope.status(), /preparo offline continua/);
   await pwa.check();
   assert.equal(scope.calls(), 1);
+  assert.match(scope.status(), /Atualização em andamento/);
   scope.window.dispatchEvent(new Event('pagehide'));
   complete?.(scope.registration);
   await new Promise<void>((resolve) => setImmediate(resolve));
   scope.registration.dispatchEvent(new Event('updatefound'));
   assert.equal(scope.timers(), 0);
-  assert.match(scope.status(), /não concluiu/);
+  assert.match(scope.status(), /Atualização em andamento/);
 });
 
 await test('atualização exige escolha explícita, evita duplicação e recupera timeout de ativação', async () => {
@@ -183,7 +206,7 @@ await test('consulta de atualização pendente não inicia concorrentes depois d
   scope.expire();
   await pwa.check();
   assert.equal(scope.registration.updates, 1);
-  assert.match(scope.status(), /não concluiu/);
+  assert.match(scope.status(), /Atualização em andamento/);
   scope.window.dispatchEvent(new Event('pagehide'));
   assert.equal(scope.timers(), 0);
 });
