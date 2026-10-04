@@ -105,6 +105,13 @@ scope.addEventListener('activate', (event) => {
 
 scope.addEventListener('fetch', (event) => {
   if (!cacheableRequest(event.request, scope.location.origin, assets)) return;
+  if (
+    event.request.mode === 'navigate' &&
+    new URL(event.request.url).pathname === '/'
+  ) {
+    event.respondWith(appDocument(event.request));
+    return;
+  }
   event.respondWith(
     caches.open(cacheName).then(async (cache) => {
       const cached = await cache.match(event.request.url);
@@ -113,6 +120,19 @@ scope.addEventListener('fetch', (event) => {
     }),
   );
 });
+
+async function appDocument(request: Request): Promise<Response> {
+  try {
+    // Online entry always uses the published HTML, independently of offline prep.
+    return await fetch(request, { cache: 'no-store', redirect: 'error' });
+  } catch (error) {
+    const cache = await caches.open(cacheName);
+    const cached = await cache.match(request.url);
+    // Keep the offline document paired with its fully installed release assets.
+    if (cached) return cached;
+    throw error;
+  }
+}
 
 scope.addEventListener('message', (event) => {
   const data = event.data;
