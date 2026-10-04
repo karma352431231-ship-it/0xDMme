@@ -1,6 +1,7 @@
 """Release guards/rollback in temporary directories; no SSH or real restart."""
 
 import io
+import hashlib
 import json
 import os
 import shutil
@@ -18,6 +19,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'infra/staging'))
 import deploy
 import deploy_remote as remote
 import deploy_blocks45 as backups
+import deploy_runtime as runtime
 
 
 def manifest():
@@ -537,7 +539,11 @@ class AttachmentDeploymentTests(unittest.TestCase):
                 verify(candidate, before)
             with patch.object(backups, 'database_snapshot') as snapshot:
                 getattr(remote,self.snapshot_name)()
-                if self.count == 17:
+                if self.count == 18:
+                    snapshot.assert_called_once_with(remote.DAILY_TABLES,
+                        omit_columns={'message_packets':('relation','deletion_account')})
+                    self.assertEqual(len(remote.DAILY_TABLES),24)
+                elif self.count == 17:
                     snapshot.assert_called_once_with(remote.BACKUP_TABLES,
                         omit_columns={'message_packets':('personal_collected',)})
                     self.assertEqual(len(remote.BACKUP_TABLES),23)
@@ -619,6 +625,82 @@ class BackupDeploymentTests(AttachmentDeploymentTests):
         code = query.call_args.args[0]
         self.assertIn('to_jsonb(t)-$1::text[]',code)
         self.assertIn('"message_packets": ["personal_collected"]',code)
+
+
+class DailyDeploymentTests(AttachmentDeploymentTests):
+    count = 18
+    before_key = 'DAILY_BEFORE'
+    reviewed_key = 'DAILY_REVIEWED'
+    review_name = 'daily_review'
+    snapshot_name = 'daily_snapshot'
+    verify_name = 'verify_daily_migration'
+    activate_name = 'activate_daily'
+    table_name = 'daily_controls'
+
+    def test_only_exact_reviewed_sources_and_predecessor_allow_migration(self):
+        incoming_lock = json.loads((deploy.ROOT / 'package-lock.json').read_bytes())
+        old_lock = json.loads(json.dumps(incoming_lock))
+        old_lock['packages']['']['dependencies'].pop('web-push')
+        old_lock['packages']['']['devDependencies'].pop('@types/web-push')
+        added = set(runtime.PACKAGES) - {'debug','inherits','minimist','ms','safe-buffer'}
+        for name in added | {'@types/web-push'}:
+            old_lock['packages'].pop('node_modules/' + name)
+        for name in set(runtime.PACKAGES) - added:
+            entry = old_lock['packages']['node_modules/' + name]
+            restored = {}
+            for field, value in entry.items():
+                restored[field] = value
+                if field == 'integrity': restored['dev'] = True
+            old_lock['packages']['node_modules/' + name] = restored
+        old_bytes = (json.dumps(old_lock, indent=2, ensure_ascii=False) + '\n').encode()
+        self.assertEqual(hashlib.sha256(old_bytes).hexdigest(), runtime.BEFORE_LOCK)
+        with tempfile.TemporaryDirectory() as directory:
+            old, new = Path(directory) / 'old', Path(directory) / 'new'
+            self.migrations(new)
+            package = json.loads((deploy.ROOT / 'package.json').read_bytes())
+            old_package = json.loads(json.dumps(package))
+            old_package['dependencies'].pop('web-push')
+            old_package['devDependencies'].pop('@types/web-push')
+            previous = {'src/main.ts':b'old', 'package.json':json.dumps(old_package).encode(),
+                        'package-lock.json':old_bytes, '.nvmrc':b'24.14.0'}
+            incoming = dict(previous, **{'src/main.ts':b'reviewed',
+                'package.json':json.dumps(package).encode(),
+                'package-lock.json':(deploy.ROOT / 'package-lock.json').read_bytes()})
+            for path in (new / 'src/server/database/migrations').iterdir():
+                name = str(path.relative_to(new)); incoming[name] = path.read_bytes()
+                if not path.name.startswith('018'): previous[name] = path.read_bytes()
+            for root, files in [(old,previous),(new,incoming)]:
+                for name, blob in files.items():
+                    path = root / name; path.parent.mkdir(parents=True,exist_ok=True);path.write_bytes(blob)
+            exports = {remote.DAILY_BEFORE:previous,remote.DAILY_REVIEWED:incoming}
+            with patch.object(backups,'git_export',side_effect=lambda r:exports[r]), patch.object(remote,'run',return_value=b'v24.14.0'):
+                remote.compatibility(new,old)
+                for root, name in [(old,'src/main.ts'),(new,'src/main.ts'),
+                                   (new,'src/server/database/migrations/001.sql'),
+                                   (new,'package-lock.json'),(new,'.nvmrc'),(new,'package.json')]:
+                    path = root/name; blob = path.read_bytes();path.write_bytes(b'unreviewed')
+                    with self.assertRaises((RuntimeError,json.JSONDecodeError)):
+                        remote.compatibility(new,old)
+                    path.write_bytes(blob)
+
+    def test_snapshot_keeps_all_existing_fields_and_initial_tables_are_empty(self):
+        with patch.object(backups,'database_snapshot') as snapshot:
+            remote.daily_snapshot()
+            snapshot.assert_called_once_with(remote.DAILY_TABLES,
+                omit_columns={'message_packets':('relation','deletion_account')})
+        self.assertEqual(len(remote.DAILY_TABLES),24)
+        with tempfile.TemporaryDirectory() as directory:
+            candidate=Path(directory);self.migrations(candidate)
+            versions=remote.attachment_versions(candidate)
+            before={'versions':versions[:-1],'tables':{'existing':'preserved'}}
+            with patch.object(remote,'daily_snapshot',return_value=dict(before,versions=versions)), patch.object(backups,'pg',return_value=b't') as pg:
+                remote.verify_daily_migration(candidate,before)
+            sql=pg.call_args.args[0][-1]
+            for table in remote.DAILY_NEW_TABLES:
+                self.assertIn('NOT EXISTS(SELECT 1 FROM hash_talk.'+table+')',sql)
+                self.assertIn('sum(charge) FROM hash_talk.'+table,sql)
+            self.assertIn('relation IS NOT NULL OR deletion_account IS NOT NULL',sql)
+
 
 
 class HistoricalBackupRetentionTests(unittest.TestCase):

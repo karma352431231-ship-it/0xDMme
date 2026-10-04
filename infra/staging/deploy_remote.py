@@ -15,6 +15,7 @@ import tarfile
 import time
 
 import deploy_sources as public_sources
+import deploy_runtime as runtime
 
 DATA = Path('/var/lib/0xdmme/data')
 UNIT = '0xdmme-test.service'
@@ -41,6 +42,12 @@ ATTACHMENT_TABLES = ('accounts', 'content_usage', 'device_directories', 'device_
 BACKUP_BEFORE = '8acc99d0de9526f46ee78e6d49261b1b36b192e4'
 BACKUP_REVIEWED = '343d334f50a154b17a0d14348772f7de1397ec8d'
 BACKUP_TABLES = ATTACHMENT_TABLES + ('message_attachments',)
+# Owner requested block 10 publication (03/10/2026). Exact 017→018 and push lock.
+DAILY_BEFORE = '62781eb11d2d8fd4c36bd10c6cd8c6d0d1be4953'
+DAILY_REVIEWED = '1f4d33cdb4b83f571607c79a7366ad1eab1d73ee'
+DAILY_TABLES = BACKUP_TABLES + ('personal_removals',)
+DAILY_NEW_TABLES = ('daily_controls', 'conversation_controls', 'device_presence',
+                    'push_subscriptions', 'message_reads')
 
 
 def run(args, timeout=30):
@@ -193,6 +200,9 @@ def database_files(root):
 
 
 def compatibility(candidate, live):
+    daily = digest(live / 'package-lock.json') == runtime.BEFORE_LOCK and digest(candidate / 'package-lock.json') == runtime.REVIEWED_LOCK
+    if daily:
+        daily_review(candidate, live)
     # Startup calls migrate(); guard both SQL and the code that executes it.
     for name in ['src/server/database', 'package-lock.json', '.nvmrc']:
         before, after = live / name, candidate / name
@@ -206,12 +216,12 @@ def compatibility(candidate, live):
         elif not before.is_file() or not after.is_file():
             raise RuntimeError('Runtime dependency/Node change requires separate review.')
         elif digest(before) != digest(after):
-            if name != 'package-lock.json' or not reviewed_lockfile_change(before, after):
+            if name != 'package-lock.json' or not (daily or reviewed_lockfile_change(before, after)):
                 raise RuntimeError('Runtime dependency/Node change requires separate review.')
     previous = json.loads((live / 'package.json').read_text())
     incoming = json.loads((candidate / 'package.json').read_text())
     for key in ['dependencies', 'overrides', 'engines', 'type']:
-        if previous.get(key) != incoming.get(key):
+        if previous.get(key) != incoming.get(key) and not (daily and key == 'dependencies'):
             raise RuntimeError('Runtime contract changed; separate review required.')
     constraint = incoming.get('engines', {}).get('node', '')
     approved = re.fullmatch(r'>=(\d+)\.(\d+)\.(\d+) <(\d+)', constraint)
@@ -235,7 +245,9 @@ def reviewed_database(candidate, live, approval):
     approved = backups.git_export(approval['reviewed'])
     if not backups.matches_export(live, previous) or not backups.matches_export(candidate, approved):
         raise RuntimeError('Database transition differs from the exact reviewed sources.')
-    if any(previous[name] != approved[name] for name in ['package-lock.json', '.nvmrc']):
+    if approval.get('runtime'):
+        runtime.review_contract(candidate, live)
+    elif any(previous[name] != approved[name] for name in ['package-lock.json', '.nvmrc']):
         raise RuntimeError('Migration approval does not include dependency/Node changes.')
     for path in paths[:count - 1]:
         name = 'src/server/database/migrations/' + path.name
@@ -255,11 +267,41 @@ def backup_review(candidate, live):
 
 def database_review(candidate, live):
     count = len(list((candidate / 'src/server/database/migrations').glob('*.sql')))
+    if count == 18:
+        return daily_review(candidate, live)
     if count == 17:
         return backup_review(candidate, live)
     if count == 16:
         return attachment_review(candidate, live)
     raise RuntimeError('Database change requires a separately pinned review.')
+
+
+def daily_review(candidate, live):
+    reviewed_database(candidate, live, {'before':DAILY_BEFORE,
+        'reviewed':DAILY_REVIEWED, 'versions':18, 'runtime':True})
+
+
+def daily_snapshot():
+    import deploy_blocks45 as backups
+    return backups.database_snapshot(DAILY_TABLES,
+        omit_columns={'message_packets':('relation', 'deletion_account')})
+
+
+def verify_daily_migration(candidate, before):
+    import deploy_blocks45 as backups
+    after, versions = daily_snapshot(), attachment_versions(candidate)
+    if before['versions'] != versions[:17] or after['versions'] != versions or after['tables'] != before['tables']:
+        raise RuntimeError('Block 10 migration/data preservation failed.')
+    total = content_total() + ' + coalesce((SELECT sum(charge) FROM hash_talk.personal_removals),0)'
+    for table in DAILY_NEW_TABLES:
+        total += ' + coalesce((SELECT sum(charge) FROM hash_talk.' + table + '),0)'
+    empty = ' AND '.join('NOT EXISTS(SELECT 1 FROM hash_talk.' + t + ')' for t in DAILY_NEW_TABLES)
+    actual = backups.pg(['psql', '--no-psqlrc', '--set=ON_ERROR_STOP=1', '--tuples-only', '--no-align', '-c',
+        'SELECT used_bytes=(' + total + ') AND ' + empty +
+        ' AND NOT EXISTS(SELECT 1 FROM hash_talk.message_packets WHERE relation IS NOT NULL OR deletion_account IS NOT NULL) '
+        'FROM hash_talk.content_usage WHERE singleton'])
+    if actual.strip() != b't':
+        raise RuntimeError('Block 10 initial operational state/actual-use ledger inconsistent.')
 
 
 def attachment_snapshot():
@@ -360,6 +402,14 @@ def prepare(config, work):
         if count > 4096 or size > MAX_RELEASE:
             raise RuntimeError('Runtime dependency budget exceeded.')
     shutil.copytree(dependencies, candidate / 'node_modules', symlinks=True)
+    runtime.install(candidate)
+    if (candidate / 'dist/runtime').exists():
+        run(['/usr/bin/node', '-e',
+             "const p=require(process.argv[1]); if(typeof p.sendNotification!=='function') process.exit(1);",
+             str(candidate / 'node_modules/web-push')])
+    if (sum(p.stat().st_size for p in candidate.rglob('*') if p.is_file()) > MAX_RELEASE
+            or sum(1 for _ in (candidate / 'node_modules').rglob('*')) > 4096):
+        raise RuntimeError('Combined runtime release budget exceeded.')
     for path in [candidate, *candidate.rglob('*')]:
         if path.is_symlink():
             os.lchown(path, 0, 0)
@@ -419,6 +469,13 @@ def activate_backups(config, work, candidate, before_state):
     return activate_database(config, work, candidate, {'before_state':before_state,
         'review':backup_review, 'snapshot':backup_snapshot, 'versions':16,
         'verify':verify_backup_migration})
+
+
+def activate_daily(config, work, candidate, before_state):
+    """Reviewed 017→018 and original npm packages, same maintenance contract."""
+    return activate_database(config, work, candidate, {'before_state':before_state,
+        'review':daily_review, 'snapshot':daily_snapshot, 'versions':17,
+        'verify':verify_daily_migration})
 
 
 def activate_database(config, work, candidate, transition):
@@ -503,6 +560,8 @@ def activate(config, work):
         raise RuntimeError('Own configuration/database service changed.')
     if database_files(candidate) != database_files(DATA / 'release'):
         # Any unreviewed database change was rejected by prepare()/compatibility().
+        if len(list((candidate / 'src/server/database/migrations').glob('*.sql'))) == 18:
+            return activate_daily(config, work, candidate, before)
         if len(list((candidate / 'src/server/database/migrations').glob('*.sql'))) == 17:
             return activate_backups(config, work, candidate, before)
         return activate_attachments(config, work, candidate, before)

@@ -18,6 +18,7 @@ import urllib.request
 
 from deploy_remote import digest, validate
 import deploy_sources as public_sources
+import deploy_runtime as runtime
 
 ROOT = Path(__file__).resolve().parents[2]
 OWNER = 'karma352431231-ship-it'
@@ -138,6 +139,7 @@ def prepare(revision, branch):
         shutil.copytree(ROOT / 'node_modules', source / 'node_modules',
                         copy_function=os.link, symlinks=True)
         run(['node', 'src/tools/build-web.ts'], cwd=source, timeout=60)
+        runtime.stage(source, Path.home() / '.npm/_cacache')
         public_source = next((source / 'dist/web').glob('source-*.tar.gz'))
         with tarfile.open(public_source) as archive:
             if not any(n.startswith('node_modules/@scure/base/') for n in archive.getnames()):
@@ -185,7 +187,7 @@ def private_inputs():
 
 def remote(action, config, target):
     modules = []
-    for name in ['deploy_sources', 'deploy_remote', 'deploy_blocks45']:
+    for name in ['deploy_sources', 'deploy_runtime', 'deploy_remote', 'deploy_blocks45']:
         path = ROOT / 'infra/staging' / (name + '.py')
         if digest(path) != config['files'].get('infra/staging/' + name + '.py'):
             raise RuntimeError('Deployment executor changed after the reviewed commit.')

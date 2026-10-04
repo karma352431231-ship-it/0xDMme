@@ -318,3 +318,15 @@ Cada asset público tem ETag calculada por SHA-256 dos bytes carregados pelo app
 A limpeza automática remove somente workspaces de código concluídos e reconhecidos; backups privados de transições de banco são preservados e tentativas interrompidas continuam exigindo leitura do recibo. O orçamento de três workspaces não foi aumentado.
 
 **Ponto importante:** o comando é executado no Mac, publica código/build na release própria e verifica saúde/retorno. `git pull` ou envio dos fontes sozinho continua sem ativar o app. CI ainda precisa passar, mas preparar/verificar/ativar o mesmo commit não refaz o build nem precisa retransmitir os 50 MB de assets na conferência pública.
+
+## Publicação revisada do bloco 10 em 03/10/2026
+
+O proprietário pediu enviar o bloco 10 à VPS. Reutilizar `npm run deploy:staging`: predecessor ativo `62781eb`, fontes de aplicação revisadas em `1f4d33c`, sequência 001–017 intacta e somente a nova migração 018. O commit final inclui a revisão do executor e exige CI exata aprovada.
+
+A revisão de runtime autoriza somente `web-push@3.6.7` e `@types/web-push@3.6.4`, com os locks SHA-256 `e569391aa19daf28a27c30a8567ce4d55324119d7d1bb2d6c3f36609640152d4` → `a94082f173b3d553c15ea1c8b0db29452b7b79c41615c30478f0a924a12937db`. São 17 pacotes adicionais de runtime, incluindo cinco antes exclusivos do desenvolvimento, sem mudança de versões das dependências existentes. Pacotes originais do cache npm do Mac: 148.973 bytes comprimidos, 509.772 bytes extraídos. Integridade SHA-512 npm e versões são conferidas nas duas pontas. O helper `deploy_runtime.py` apenas prepara/verifica/extrai esses pacotes no candidato do executor existente; não é outro comando de deploy. Não executar npm, scripts de instalação ou compilação na VPS. Arquivos nativos, links, traversal, pacotes alheios e restrições de plataforma são recusados. Dois arquivos originais com alias `./` idênticos são deduplicados somente após comparação dos bytes. Pacotes/licenças originais permanecem no artefato privado da release, sem incorporação ao frontend.
+
+A transição 017→018 reaproveita backup e ensaio transacional de restauração. Com somente o escritor próprio parado, compara hashes das 24 tabelas anteriores, omitindo apenas `relation` e `deletion_account`, ambas inicialmente nulas. Exige as cinco tabelas novas vazias, checksums 001–018 e cobrança global correta. Antes da abertura pode devolver esquema antigo verificado; depois da abertura conserva escritas novas e para somente o app em caso de falha, sem restauração automática. Backup e release anterior ficam preservados.
+
+Limites de 16 MiB de transferência, 128 MiB de release, recursos dos serviços, Node, Nginx e isolamento de rede permanecem. Nenhum VAPID é instalado. Push externo continua pendente devido ao isolamento aprovado; publicação do código não libera saída de rede. Conferir saúde, os 37 assets/fontes públicos e fingerprints/processos/respostas do outro projeto antes/depois. Evidências, acesso e inventários exclusivamente em `.local/`.
+
+Publicação ainda não executada; revisar o resultado antes de registrar sucesso.
