@@ -501,6 +501,7 @@ class DeploymentTests(unittest.TestCase):
 
 class AttachmentDeploymentTests(unittest.TestCase):
     count = 16
+    previous_count = None
     before_key = 'ATTACHMENT_BEFORE'
     reviewed_key = 'ATTACHMENT_REVIEWED'
     review_name = 'attachment_review'
@@ -525,7 +526,7 @@ class AttachmentDeploymentTests(unittest.TestCase):
             for path in (new / 'src/server/database/migrations').iterdir():
                 name = str(path.relative_to(new))
                 incoming[name] = path.read_bytes()
-                if not path.name.startswith('%03d' % self.count): previous[name] = path.read_bytes()
+                if int(path.name[:3]) <= (self.previous_count or self.count - 1): previous[name] = path.read_bytes()
             for root, files in [(old, previous), (new, incoming)]:
                 for name, data in files.items():
                     path = root / name; path.parent.mkdir(parents=True, exist_ok=True); path.write_bytes(data)
@@ -536,6 +537,7 @@ class AttachmentDeploymentTests(unittest.TestCase):
                 remote.database_review(new, old)
                 for root, name in [(old, 'src/main.ts'), (new, 'src/main.ts'),
                                    (new, 'src/server/database/migrations/001.sql'),
+                                   (new, 'src/server/database/migrations/%03d.sql' % self.count),
                                    (new, 'package-lock.json')]:
                     path = root / name; value = path.read_bytes(); path.write_bytes(b'unreviewed')
                     with self.assertRaises(RuntimeError): review(new, old)
@@ -583,7 +585,7 @@ class AttachmentDeploymentTests(unittest.TestCase):
             work = root / 'deployment'; work.mkdir(); candidate = work / 'candidate'; candidate.mkdir()
             (candidate / 'version').write_text('new'); (work / 'objects-backup').mkdir()
             config = {'commit':'a'*40, 'baseline':{}, 'files':{}}
-            before = {'tables':{'message_packets':'preserved'}, 'versions':[{'version':n} for n in range(1,self.count)]}
+            before = {'tables':{'message_packets':'preserved'}, 'versions':[{'version':n} for n in range(1,(self.previous_count or self.count - 1) + 1)]}
             state = {'value':before}
             def migrate(_):
                 state['value'] = dict(before, versions=[{'version':self.count}])
@@ -760,6 +762,45 @@ class LinkedDeploymentTests(AttachmentDeploymentTests):
                 omit_columns={'login_sessions':('wallet_confirmed',)})
         self.assertEqual(len(remote.LINKED_TABLES),29)
         self.assertTrue(set(remote.DAILY_NEW_TABLES).issubset(remote.LINKED_TABLES))
+
+
+class GroupsDeploymentTests(AttachmentDeploymentTests):
+    count = 24
+    previous_count = 19
+    before_key = 'GROUPS_BEFORE'
+    reviewed_key = 'GROUPS_REVIEWED'
+    review_name = 'groups_review'
+    snapshot_name = 'groups_snapshot'
+    verify_name = 'verify_groups_migration'
+    activate_name = 'activate_groups'
+
+    def test_migration_checksums_existing_data_and_ledger_are_preserved(self):
+        with tempfile.TemporaryDirectory() as directory:
+            candidate = Path(directory); self.migrations(candidate)
+            versions = remote.attachment_versions(candidate)
+            before = {'versions':versions[:19], 'tables':{'login_sessions':'preserved',
+                      'message_packets':'preserved', 'content_usage':'preserved'}}
+            after = dict(before, versions=versions)
+            with patch.object(remote,'groups_snapshot',return_value=after), patch.object(backups,'pg',return_value=b't') as pg:
+                remote.verify_groups_migration(candidate,before)
+            sql = pg.call_args.args[0][-1]
+            for table in remote.GROUPS_NEW_TABLES:
+                self.assertIn('NOT EXISTS(SELECT 1 FROM hash_talk.'+table+')',sql)
+                self.assertIn('sum(charge) FROM hash_talk.'+table,sql)
+            for invalid in [dict(after,tables={}), dict(after,versions=versions[:-1])]:
+                with patch.object(remote,'groups_snapshot',return_value=invalid), patch.object(backups,'pg') as pg, self.assertRaises(RuntimeError):
+                    remote.verify_groups_migration(candidate,before)
+                pg.assert_not_called()
+            with patch.object(remote,'groups_snapshot',return_value=after), patch.object(backups,'pg',return_value=b'f'), self.assertRaises(RuntimeError):
+                remote.verify_groups_migration(candidate,before)
+            with patch.object(remote,'groups_snapshot',return_value=after), patch.object(backups,'pg') as pg, self.assertRaises(RuntimeError):
+                remote.verify_groups_migration(candidate,dict(before,versions=versions[:23]))
+            pg.assert_not_called()
+        with patch.object(backups,'database_snapshot') as snapshot:
+            remote.groups_snapshot()
+            snapshot.assert_called_once_with(remote.LINKED_TABLES)
+        self.assertEqual(len(remote.GROUPS_TABLES),29)
+        self.assertEqual(len(set(remote.GROUPS_NEW_TABLES)),16)
 
 
 class HistoricalBackupRetentionTests(unittest.TestCase):

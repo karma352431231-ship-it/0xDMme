@@ -1,5 +1,38 @@
 # 0xDMme — Git e envio à VPS
 
+## Transição do bloco 11 — autorizada em 04/10/2026
+
+Após a entrega local e a CI de `aab78ef`, o proprietário pediu enviar e ativar
+as mudanças na VPS. Reutilizar `npm run deploy:staging`, com revisão restrita ao
+predecessor ativo `f7b48bb`, às fontes de aplicação de `aab78ef`, às migrações
+001–019 intactas e às novas 020–024. Não alterar runtime, dependências, Node,
+Nginx, rede ou serviços compartilhados. A consulta inicial confirmou o
+predecessor, as 19 migrações e a preservação; evidências permanecem em `.local/`.
+
+As novas migrações acrescentam 16 tabelas de grupos/status, índices, constraints
+e contabilidade. Alterações de colunas alcançam somente as tabelas novas. Não
+alteram mensagens, contas, sessões, confirmações de wallet ou chaves existentes.
+Conferir checksums 001–024, digests integrais das 29 tabelas preexistentes,
+tabelas novas vazias e contabilidade de bytes efetivos antes de reabrir.
+
+Com somente o writer próprio parado, reutilizar backup privado de banco e
+objetos, cada um limitado a 64 MiB, parsing integral e ensaio de restauração em
+transação revertida. Preservar o contrato de retorno: antes de abrir, verificar
+restauração do schema/release próprios; após abrir, conservar novas gravações e
+parar somente o app em caso de falha, sem restaurar automaticamente dados antigos.
+Conservar recursos, orçamento de disco/transferência, backups e release anterior.
+O executor continua limitado a 240 segundos e reinicia somente o serviço próprio.
+
+As alterações locais de AGENTS.md e do roteiro de simplificação são anteriores
+a esta publicação e ficam preservadas fora do commit. Executar o comando numa
+cópia limpa do commit enviado e aprovado pela CI, com acesso/baseline/artifacts
+privados em `.local/`; não liberar a verificação de árvore limpa no executor.
+
+**Ponto importante:** a autorização permite a transição de banco do Bloco 11
+no ambiente de testes. O token ainda não existe; criação e aceite de propriedade
+públicos continuam indisponíveis, sem ativar elegibilidade sintética na VPS.
+Ensaios físicos e aceite para conversas reais continuam pendentes.
+
 ## Transição da experiência simplificada — autorizada em 04/10/2026
 
 Após informar a migração 019 pendente, o proprietário autorizou concluir a

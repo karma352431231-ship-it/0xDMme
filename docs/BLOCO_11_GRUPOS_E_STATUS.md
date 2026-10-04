@@ -70,4 +70,6 @@ A automação do navegador abriu/descriptografou o anexo e preparou o backup, ma
 
 Antes da ativação na VPS, revisar explicitamente as migrações 020–024, preservação de dados, retorno e recursos no executor já existente, com CI do commit exato aprovada. A autorização de atualização rotineira de código não autoriza esta nova transição de banco. O token ainda não existe: criação e aceite de propriedade públicos permanecem indisponíveis; testes locais usam somente a elegibilidade sintética aprovada.
 
+Após a entrega local, o proprietário autorizou enviar e ativar o Bloco 11 em 04/10/2026. A revisão específica vincula a transição 019→024 ao predecessor `f7b48bb` e às fontes de aplicação de `aab78ef`, preservando as migrações anteriores, as 29 tabelas existentes, runtime e dependências. Usar o mesmo executor e exigir CI exata, backup/ensaio de restauração e conferências antes de abrir, conforme [registro do deploy](GIT_E_DEPLOY.md). A autorização não habilita token sintético público nem substitui o aceite físico.
+
 **Ponto importante:** o Bloco 11 está implementado localmente; isso não estabelece prontidão para dados reais nem aprovação dos ensaios físicos/publicação. Nenhuma regra material nova foi escolhida arbitrariamente. Cache, paginação, orçamento de I/O, retomadas e apresentação seguem os contratos já aprovados.

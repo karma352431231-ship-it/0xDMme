@@ -53,6 +53,16 @@ DAILY_NEW_TABLES = ('daily_controls', 'conversation_controls', 'device_presence'
 LINKED_BEFORE = '9ed5988f91dc45bf18bf339e5d7ca6c2d58643cb'
 LINKED_REVIEWED = '3520812502c7731cea7e58e91c990b9528d7c05e'
 LINKED_TABLES = DAILY_TABLES + DAILY_NEW_TABLES
+# Owner requested block 11 activation on 04/10/2026. Exact 019→024 only,
+# preserving the live runtime and all prior account/chat data.
+GROUPS_BEFORE = 'f7b48bb7fd942d5a1987ca3fb9055b9c4c5dc129'
+GROUPS_REVIEWED = 'aab78effb21a8523a79ab87728aeef9cded49ab1'
+GROUPS_TABLES = LINKED_TABLES
+GROUPS_NEW_TABLES = ('groups', 'group_events', 'group_members', 'group_consents',
+                    'group_creation_window', 'group_key_sets', 'group_packets',
+                    'group_matrix_envelopes', 'group_media', 'group_cleanups',
+                    'status_posts', 'status_recipients', 'status_pages',
+                    'status_media', 'group_controls', 'group_reads')
 
 
 def run(args, timeout=30):
@@ -261,7 +271,12 @@ def reviewed_database(candidate, live, approval):
         runtime.review_contract(candidate, live)
     elif any(previous[name] != approved[name] for name in ['package-lock.json', '.nvmrc']):
         raise RuntimeError('Migration approval does not include dependency/Node changes.')
-    for path in paths[:count - 1]:
+    previous_count = approval.get('previous_versions', count - 1)
+    previous_migrations = {name for name in previous if name.startswith('src/server/database/migrations/')}
+    expected_previous = {'src/server/database/migrations/' + path.name for path in paths[:previous_count]}
+    if not 0 < previous_count < count or previous_migrations != expected_previous:
+        raise RuntimeError('Reviewed predecessor migration sequence differs.')
+    for path in paths[:previous_count]:
         name = 'src/server/database/migrations/' + path.name
         if previous.get(name) != approved.get(name):
             raise RuntimeError('Reviewed transition changes a previously applied migration.')
@@ -279,6 +294,8 @@ def backup_review(candidate, live):
 
 def database_review(candidate, live):
     count = len(list((candidate / 'src/server/database/migrations').glob('*.sql')))
+    if count == 24:
+        return groups_review(candidate, live)
     if count == 19:
         return linked_review(candidate, live)
     if count == 18:
@@ -298,6 +315,33 @@ def daily_review(candidate, live):
 def linked_review(candidate, live):
     reviewed_database(candidate, live, {'before':LINKED_BEFORE,
         'reviewed':LINKED_REVIEWED, 'versions':19})
+
+
+def groups_review(candidate, live):
+    reviewed_database(candidate, live, {'before':GROUPS_BEFORE,
+        'reviewed':GROUPS_REVIEWED, 'versions':24, 'previous_versions':19})
+
+
+def groups_snapshot():
+    import deploy_blocks45 as backups
+    # No projection: wallet confirmation and every prior chat field are preserved.
+    return backups.database_snapshot(GROUPS_TABLES)
+
+
+def verify_groups_migration(candidate, before):
+    import deploy_blocks45 as backups
+    after, versions = groups_snapshot(), attachment_versions(candidate)
+    if before['versions'] != versions[:19] or after['versions'] != versions or after['tables'] != before['tables']:
+        raise RuntimeError('Block 11 migration/data preservation failed.')
+    total = content_total()
+    for table in ('personal_removals',) + DAILY_NEW_TABLES + GROUPS_NEW_TABLES:
+        total += ' + coalesce((SELECT sum(charge) FROM hash_talk.' + table + '),0)'
+    empty = ' AND '.join('NOT EXISTS(SELECT 1 FROM hash_talk.' + table + ')' for table in GROUPS_NEW_TABLES)
+    actual = backups.pg(['psql', '--no-psqlrc', '--set=ON_ERROR_STOP=1', '--tuples-only', '--no-align', '-c',
+        'SELECT used_bytes=(' + total + ') AND ' + empty +
+        ' FROM hash_talk.content_usage WHERE singleton'])
+    if actual.strip() != b't':
+        raise RuntimeError('Block 11 initial tables/actual-use ledger inconsistent.')
 
 
 def linked_snapshot():
@@ -523,6 +567,13 @@ def activate_linked(config, work, candidate, before_state):
         'verify':verify_linked_migration})
 
 
+def activate_groups(config, work, candidate, before_state):
+    """Reviewed 019→024, unchanged dependencies and existing backup/return contract."""
+    return activate_database(config, work, candidate, {'before_state':before_state,
+        'review':groups_review, 'snapshot':groups_snapshot, 'versions':19,
+        'verify':verify_groups_migration})
+
+
 def activate_database(config, work, candidate, transition):
     import deploy_blocks45 as backups
     snapshot, before_state = transition['snapshot'], transition['before_state']
@@ -605,6 +656,8 @@ def activate(config, work):
         raise RuntimeError('Own configuration/database service changed.')
     if database_files(candidate) != database_files(DATA / 'release'):
         # Any unreviewed database change was rejected by prepare()/compatibility().
+        if len(list((candidate / 'src/server/database/migrations').glob('*.sql'))) == 24:
+            return activate_groups(config, work, candidate, before)
         if len(list((candidate / 'src/server/database/migrations').glob('*.sql'))) == 19:
             return activate_linked(config, work, candidate, before)
         if len(list((candidate / 'src/server/database/migrations').glob('*.sql'))) == 18:
