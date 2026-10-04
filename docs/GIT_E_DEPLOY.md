@@ -5,7 +5,7 @@
 Após informar a migração 019 pendente, o proprietário autorizou concluir a
 validação, commitar e atualizar o site. Usar `npm run deploy:staging`, com
 exceção no executor existente restrita ao predecessor ativo `9ed5988`, às
-fontes revisadas em `6daeeb6`, às migrações 001–018 intactas e à nova
+fontes revisadas em `3520812`, às migrações 001–018 intactas e à nova
 `019-linked-sessions.sql`. Runtime, dependências, Node, Nginx e serviços
 compartilhados não mudam. A correção publicada da URL padrão está integrada.
 

@@ -51,7 +51,7 @@ DAILY_NEW_TABLES = ('daily_controls', 'conversation_controls', 'device_presence'
 # Owner approved the simplified experience and its pending migration on 04/10/2026.
 # Keep the existing executor, exact live predecessor and reviewed app sources.
 LINKED_BEFORE = '9ed5988f91dc45bf18bf339e5d7ca6c2d58643cb'
-LINKED_REVIEWED = '6daeeb69ba083e97e36b7872bc8838926c468570'
+LINKED_REVIEWED = '3520812502c7731cea7e58e91c990b9528d7c05e'
 LINKED_TABLES = DAILY_TABLES + DAILY_NEW_TABLES
 
 
