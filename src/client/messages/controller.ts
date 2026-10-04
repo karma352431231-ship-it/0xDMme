@@ -1,4 +1,7 @@
 import { RemovalIndex } from '../personal-removals/index.ts';
+import { indexSearch, searchMessages } from '../message-search/index.ts';
+import type { DeliveryState } from '../message-status/index.ts';
+import type { MessageRelation } from '../../shared/daily/index.ts';
 import { personalRemoval, verifyRemoval } from '../../shared/backups/index.ts';
 import { attachmentContent } from '../../shared/attachments/index.ts';
 import {
@@ -55,6 +58,7 @@ import {
 import { messageApi } from '../message-api/index.ts';
 import { MessageIndex } from './index-sync.ts';
 import { OfflineIndex } from './offline-index.ts';
+import type { CachedText } from './offline-index.ts';
 import { notifyMessageControls } from '../message-controls/index.ts';
 import {
   messageItems,
@@ -62,9 +66,14 @@ import {
   pinFor,
   verifyDeletion,
   indexedPacket,
+  assertRemovalIdentity,
 } from './history.ts';
 import type { MessageItem, PeerPin } from './history.ts';
 export interface MessageView {
+  delivery?: DeliveryState;
+  relation?: MessageRelation;
+  sequence?: number;
+  author?: string;
   kind: MessagePacket['kind'];
   id: string;
   peer: string;
@@ -74,6 +83,7 @@ export interface MessageView {
   hash: string;
 }
 interface Outbox {
+  relation?: MessageRelation;
   id: string;
   peer: string;
   draft: LocalCipher[];
@@ -322,14 +332,25 @@ export class Messages {
     peer: string,
     text: string,
     kind: MessagePacket['kind'] = 'text',
-    providedId?: string,
+    provided?: string | { id: string; relation: MessageRelation },
   ): Promise<void> {
     const generation = this.generation;
     await this.access.withVault(!navigator.onLine, async (a) => {
       this.guard(generation);
-      const id = providedId ?? crypto.randomUUID(),
+      const id =
+          (typeof provided === 'object' ? provided.id : provided) ??
+          crypto.randomUUID(),
         draft = await this.sealDraft(a, id, text, kind),
-        outbox: Outbox = { id, peer, draft, kind, packet: null };
+        outbox: Outbox = {
+          id,
+          peer,
+          draft,
+          kind,
+          packet: null,
+          ...(typeof provided === 'object'
+            ? { relation: provided.relation }
+            : {}),
+        };
       await localPut(
         a.session.accountId,
         `outbox:${id}`,
@@ -373,6 +394,22 @@ export class Messages {
         throw error;
       }
     });
+  }
+  async composeAction(
+    view: MessageView,
+    type: MessageRelation['type'],
+    text: string,
+  ): Promise<void> {
+    const id = crypto.randomUUID();
+    const session = this.session;
+    if (!session) throw new Error('Sessão encerrada.');
+    const relation = {
+      id: view.id,
+      hash: view.hash,
+      author: view.author ?? (view.own ? session.accountId : view.peer),
+      type,
+    };
+    await this.compose(view.peer, text, 'text', { id, relation });
   }
   async media(
     view: MessageView,
@@ -558,6 +595,7 @@ export class Messages {
           await Promise.all(value.draft.map((chunk) => openLocal(a, chunk)))
         ).join(''),
         kind: value.kind,
+        ...(value.relation ? { relation: value.relation } : {}),
       });
       await localPut(
         a.session.accountId,
@@ -656,11 +694,18 @@ export class Messages {
           snapshot,
           selected,
         });
+        const related = messageItems(
+          await api('relations', {
+            ids: items.filter((i) => i.kind !== 'profile').map((i) => i.id),
+            snapshot,
+          }),
+          48,
+        ).items;
         const machine = await this.machine(a, generation);
         try {
           await machine.prepare(a);
           await this.receive(a, machine, generation);
-          const window = items,
+          const window = [...items, ...related],
             views: MessageView[] = [];
           const context = {
             a,
@@ -677,6 +722,7 @@ export class Messages {
           };
           for (const item of window)
             views.push(await this.readOne(context, item));
+          await indexSearch(a, views);
           return { views, snapshot, items };
         } finally {
           machine.close();
@@ -696,7 +742,8 @@ export class Messages {
         snapshot: JSON.stringify(staged.snapshot),
         views: staged.views,
       };
-      this.visibility.stage(token, staged.views);
+      await this.refreshDelivery(staged.snapshot, generation);
+      this.visibility.stage(token, this.confirmed.views);
       this.visibility.complete(token);
       this.index.reset();
     } catch (error: unknown) {
@@ -723,13 +770,17 @@ export class Messages {
     item: MessageItem,
   ): Promise<void> {
     if (item.deleted) {
+      assertRemovalIdentity(
+        item,
+        await localGet<CachedText>(c.a.session.accountId, `cache:${item.id}`),
+      );
       if (item.removal) {
         await verifyRemoval(
           c.a.session.accountId,
           personalRemoval({
             kind: 'message',
-            id: item.id,
-            hash: item.hash,
+            id: item.removal_id ?? item.id,
+            hash: item.removal_hash ?? item.hash,
             sequence: item.removal_sequence,
             proof: item.removal,
           }),
@@ -739,12 +790,13 @@ export class Messages {
         const history = await this.history(
           c.a,
           c.generation,
-          item.sender,
+          item.deletion_account ?? item.sender,
           Number(item.deletion?.payload['revision']),
         );
         await verifyDeletion(item, history);
       }
       await localDelete(c.a.session.accountId, `cache:${item.id}`);
+      await localDelete(c.a.session.accountId, `search:${item.id}`);
       await localDelete(c.a.session.accountId, `profile:${item.id}`);
       await localDelete(c.a.session.accountId, `outbox:${item.id}`);
       await forgetAttachment(c.a.session.accountId, item.id);
@@ -770,6 +822,9 @@ export class Messages {
       if (!(error instanceof AccountError) || error.status !== 423) throw error;
       return {
         kind: 'text',
+        ...(item.relation ? { relation: item.relation } : {}),
+        author: item.sender,
+        sequence: item.sequence,
         id: item.id,
         peer: this.selected ?? '',
         own: item.sender === c.a.session.accountId,
@@ -845,6 +900,9 @@ export class Messages {
     await api('acknowledge', { id: packet.id, hash: item.hash });
     return {
       kind: packet.kind,
+      ...(packet.relation ? { relation: packet.relation } : {}),
+      sequence: item.sequence,
+      author: packet.sender,
       id: packet.id,
       peer,
       own,
@@ -931,6 +989,7 @@ export class Messages {
         peer,
         own,
         kind: packet.kind,
+        ...(packet.relation ? { relation: packet.relation } : {}),
         sequence: item.sequence,
         hash: item.hash,
       },
@@ -1095,26 +1154,43 @@ export class Messages {
   ): Promise<void> {
     const confirmed = this.confirmed;
     if (!confirmed) return;
-    const raw = await this.access.withVault(false, (a) =>
-      messageApi(
-        a,
-        'delivery',
-        {
-          snapshot,
-          ids: confirmed.views.map((view) => view.id),
-        },
-        () => this.guard(generation),
-      ),
-    );
+    const raw = await this.access.withVault(false, async (a) => {
+      const result: unknown[] = [];
+      for (let offset = 0; offset < confirmed.views.length; offset += 18) {
+        const batch = await messageApi(
+          a,
+          'delivery',
+          {
+            snapshot,
+            ids: confirmed.views
+              .slice(offset, offset + 18)
+              .map((view) => view.id),
+          },
+          () => this.guard(generation),
+        );
+        if (!Array.isArray(batch))
+          throw new Error('Estado de entrega inválido.');
+        const values: unknown[] = batch;
+        result.push(...values);
+      }
+      return result;
+    });
     if (!Array.isArray(raw)) throw new Error('Estado de entrega inválido.');
     const states = new Map(
       raw.map((value) => {
         const row = object(value);
-        if (typeof row['queue_active'] !== 'boolean')
+        if (
+          typeof row['queue_active'] !== 'boolean' ||
+          typeof row['recipient_received'] !== 'boolean'
+        )
           throw new Error('Estado de entrega inválido.');
         return [
           String(row['id']),
-          { hash: String(row['hash']), pending: row['queue_active'] },
+          {
+            hash: String(row['hash']),
+            pending: row['queue_active'],
+            received: row['recipient_received'],
+          },
         ] as const;
       }),
     );
@@ -1124,6 +1200,13 @@ export class Messages {
         throw new Error('Estado de entrega divergente.');
       return {
         ...view,
+        ...(view.state === 'Suspensa'
+          ? {}
+          : {
+              delivery: state.received
+                ? ('received' as const)
+                : ('accepted' as const),
+            }),
         state:
           view.state === 'Suspensa'
             ? view.state
@@ -1156,6 +1239,9 @@ export class Messages {
           this.guard(generation);
           views.push({
             kind: value.kind ?? 'text',
+            ...(value.relation ? { relation: value.relation } : {}),
+            sequence: value.sequence,
+            author: value.own ? a.session.accountId : value.peer,
             id: value.id,
             peer: value.peer,
             own: value.own,
@@ -1220,6 +1306,29 @@ export class Messages {
       ),
     );
     notifyMessageControls();
+  }
+  async search(query: string, after: string | null) {
+    const generation = this.generation,
+      confirmed = this.confirmed;
+    if (navigator.onLine && !confirmed)
+      throw new Error('Sincronize antes de buscar; o histórico está oculto.');
+    const guard = () => this.guard(generation);
+    return this.access.withVault(!navigator.onLine, async (a) => {
+      const check = async () => {
+        guard();
+        if (!a.offline)
+          await messageApi(
+            a,
+            'confirm',
+            { snapshot: JSON.parse(confirmed!.snapshot) as unknown },
+            guard,
+          );
+      };
+      await check();
+      const result = await searchMessages({ a, query, after, guard });
+      await check();
+      return result;
+    });
   }
   async discard(id: string): Promise<void> {
     this.close();

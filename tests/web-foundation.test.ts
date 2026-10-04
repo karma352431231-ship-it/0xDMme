@@ -31,6 +31,20 @@ await test('fontes públicas incluem instruções/licenças do build e excluem b
   );
   const paths = stdout.trim().split('\n');
   for (const required of [
+    'src/client/daily/index.ts',
+    'src/client/emoji/index.ts',
+    'src/client/emoji/catalog.ts',
+    'src/client/emoji/artwork.ts',
+    'src/tools/frontend-emoji.ts',
+    'vendor/emoji/README.md',
+    'vendor/emoji/LICENSE-GRAPHICS.txt',
+    'vendor/emoji/LICENSE-UNICODE.txt',
+    'src/client/daily-text/index.ts',
+    'src/client/message-actions/index.ts',
+    'src/client/message-search/index.ts',
+    'src/client/message-status/index.ts',
+    'src/client/notification-sound/index.ts',
+    'src/shared/daily/index.ts',
     'package-lock.json',
     'src/tools/build-web.ts',
     'src/tools/frontend-source.ts',
@@ -72,6 +86,7 @@ await test('fontes públicas incluem instruções/licenças do build e excluem b
     );
   const worker = Buffer.from(assets.get('/sw.js')?.content ?? []).toString();
   assert.ok(!worker.includes(sourcePath));
+  verifyEmojiSources(assets, worker);
   const preferredPath = [...assets.keys()].find((path) =>
     path.endsWith('.tar.xz'),
   );
@@ -82,6 +97,23 @@ await test('fontes públicas incluem instruções/licenças do build e excluem b
   assert.ok(!worker.includes(preferredPath));
   verifyMatrixSources(assets, worker);
 });
+function verifyEmojiSources(
+  assets: ReadonlyMap<string, { content: Uint8Array }>,
+  worker: string,
+): void {
+  const emojiPath = '/emoji-d7a2c1166a29ac85.json.gz';
+  const emoji = assets.get(emojiPath);
+  assert.ok(emoji && emoji.content.length <= 2 * 1024 * 1024);
+  assert.equal(
+    createHash('sha256').update(emoji.content).digest('hex'),
+    'd7a2c1166a29ac85606f146f0ebf025606cc1ba0e597c6ef38cf0c691968b80a',
+  );
+  assert.ok(worker.includes(emojiPath));
+  assert.match(
+    Buffer.from(assets.get('/')?.content ?? []).toString(),
+    /Desenhos e licenças dos emojis/u,
+  );
+}
 function verifyMatrixSources(
   assets: ReadonlyMap<string, { content: Uint8Array }>,
   worker: string,

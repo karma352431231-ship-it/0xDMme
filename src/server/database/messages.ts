@@ -10,6 +10,7 @@ import type {
 } from '../../shared/messages/index.ts';
 import type { ContactAuthority, ContactStore } from './contacts.ts';
 import { assertContentCapacity, assertVaultQuota } from './vault-quota.ts';
+import { enqueuePush } from './daily.ts';
 interface StoredMessage {
   id: string;
   sender: string;
@@ -66,8 +67,8 @@ export class MessageStore {
       )
         throw new AccountError(409, 'Identificador de mensagem já utilizado.');
       const removed = await client.query(
-        "SELECT 1 FROM hash_talk.personal_removals WHERE account_id=$1 AND kind='message' AND id=$2",
-        [authority.session.accountId, id],
+        "SELECT 1 FROM hash_talk.personal_removals WHERE account_id=$1 AND kind='message' AND id IN ($2,$3)",
+        [authority.session.accountId, id, originalId(existing, id)],
       );
       if (removed.rowCount)
         throw new AccountError(410, 'Mensagem removida do cofre pessoal.');
@@ -103,21 +104,26 @@ export class MessageStore {
             );
           return { status: 'accepted', hash };
         }
+        await this.assertRelation(client, packet);
         const events = await this.currentDirectories(client, packet);
         await this.assertRecoverable(client, packet, events);
         await this.attachments.admit(client, packet);
+        const removedFor = await removedAudience(client, packet);
         const serialized = JSON.stringify(packet);
-        const personal = packet.archives.map(
-          (archive) =>
-            Buffer.byteLength(
-              JSON.stringify({ ...packet, archives: [archive] }),
-            ) + 512,
+        const personal = packet.archives.map((archive) =>
+          removedFor.has(archive.accountId)
+            ? 0
+            : Buffer.byteLength(
+                JSON.stringify({ ...packet, archives: [archive] }),
+              ) + 512,
         );
         const references = events.flatMap((e) =>
-          e.devices.map((d) => ({ account: e.accountId, device: d.id })),
+          removedFor.has(e.accountId)
+            ? []
+            : e.devices.map((d) => ({ account: e.accountId, device: d.id })),
         );
         await client.query(
-          'INSERT INTO hash_talk.message_packets(id,sender,recipient,hash,body,charge,sender_charge,recipient_charge,sender_revision,recipient_revision,kind) VALUES($1,$2,$3,$4,$5::jsonb,$6,$7,$8,$9,$10,$11)',
+          'INSERT INTO hash_talk.message_packets(id,sender,recipient,hash,body,charge,sender_charge,recipient_charge,sender_revision,recipient_revision,kind,relation) VALUES($1,$2,$3,$4,$5::jsonb,$6,$7,$8,$9,$10,$11,$12::jsonb)',
           [
             packet.id,
             packet.sender,
@@ -130,6 +136,7 @@ export class MessageStore {
             packet.senderRevision,
             packet.recipientRevision,
             packet.kind,
+            packet.relation ? JSON.stringify(packet.relation) : null,
           ],
         );
         await client.query(
@@ -140,9 +147,37 @@ export class MessageStore {
         await assertVaultQuota(client, packet.recipient);
         await assertContentCapacity(client, this.capacity);
         await this.bump(client, [packet.sender, packet.recipient]);
+        await admitNotification(client, packet);
         return { status: 'accepted', hash };
       },
     );
+  }
+  private async assertRelation(
+    c: pg.PoolClient,
+    packet: MessagePacket,
+  ): Promise<void> {
+    const relation = packet.relation;
+    if (!relation) return;
+    const target = await this.record(c, relation.id);
+    assertRelationTarget(packet, target);
+    const removed = await c.query(
+      "SELECT 1 FROM hash_talk.personal_removals WHERE account_id=$1 AND kind='message' AND id=$2",
+      [packet.sender, relation.id],
+    );
+    if (removed.rowCount)
+      throw new AccountError(
+        410,
+        'Mensagem original removida do cofre pessoal.',
+      );
+    const count = await c.query<{ count: number }>(
+      "SELECT count(*)::integer AS count FROM hash_talk.message_packets WHERE relation->>'id'=$1",
+      [relation.id],
+    );
+    if ((count.rows[0]?.count ?? 0) >= 64)
+      throw new AccountError(
+        413,
+        'Esta mensagem atingiu 64 alterações; envie uma nova mensagem.',
+      );
   }
   private async currentDirectories(
     client: pg.PoolClient,
@@ -236,18 +271,23 @@ export class MessageStore {
       if (row.hash !== hash)
         throw new AccountError(409, 'Conteúdo da exclusão divergente.');
       if (!row.body) return;
-      // One bounded message, all automatic copies gone in the same durable transaction.
+      // One original and at most 64 related actions; all automatic copies leave together.
       await client.query(
-        'UPDATE hash_talk.message_packets SET body=NULL,deletion=$2::jsonb,queue_active=false,sender_charge=$3,recipient_charge=$3,charge=$3,deletion_revision=$4 WHERE id=$1',
+        "UPDATE hash_talk.message_packets SET body=NULL,deletion=$2::jsonb,queue_active=false,sender_charge=$3,recipient_charge=$3,charge=$3,deletion_revision=$4,deletion_account=$5 WHERE (id=$1 OR relation->>'id'=$1::text) AND body IS NOT NULL",
         [
           id,
           JSON.stringify(proof),
           Buffer.byteLength(JSON.stringify(proof)) + 512,
           proof.payload['revision'],
+          row.sender,
         ],
       );
       await client.query(
-        'DELETE FROM hash_talk.message_references WHERE message_id=$1',
+        "DELETE FROM hash_talk.message_references WHERE message_id IN (SELECT id FROM hash_talk.message_packets WHERE id=$1 OR relation->>'id'=$1::text)",
+        [id],
+      );
+      await client.query(
+        "DELETE FROM hash_talk.message_reads WHERE message_id IN (SELECT id FROM hash_talk.message_packets WHERE id=$1 OR relation->>'id'=$1::text)",
         [id],
       );
       await client.query(
@@ -271,8 +311,8 @@ export class MessageStore {
           'Mensagem apagada ou confirmação divergente.',
         );
       const removed = await client.query(
-        "SELECT 1 FROM hash_talk.personal_removals WHERE account_id=$1 AND kind='message' AND id=$2",
-        [authority.session.accountId, id],
+        "SELECT 1 FROM hash_talk.personal_removals WHERE account_id=$1 AND kind='message' AND id IN ($2,$3)",
+        [authority.session.accountId, id, originalId(row, id)],
       );
       if (removed.rowCount)
         throw new AccountError(410, 'Mensagem removida do cofre pessoal.');
@@ -348,7 +388,7 @@ export class MessageStore {
         queue_active: boolean;
         status: string | null;
       }>(
-        `SELECT m.id,m.kind,m.sender,m.recipient,m.sequence::text,m.hash,(m.body IS NULL OR pr.id IS NOT NULL) AS deleted,m.deletion,pr.proof AS removal,pr.sequence::text AS removal_sequence,m.sender_revision,m.recipient_revision,m.queue_active,r.status FROM hash_talk.message_packets m LEFT JOIN hash_talk.personal_removals pr ON pr.account_id=$1 AND pr.kind='message' AND pr.id=m.id LEFT JOIN hash_talk.message_references r ON r.message_id=m.id AND r.account_id=$1 AND r.device_id=$2 WHERE (m.sender=$1 OR m.recipient=$1) AND m.sequence>$3 ORDER BY m.sequence LIMIT $4`,
+        `SELECT m.id,m.kind,m.sender,m.recipient,m.sequence::text,m.hash,m.relation,m.deletion_account,(m.body IS NULL OR pr.id IS NOT NULL) AS deleted,m.deletion,pr.id AS removal_id,pr.hash AS removal_hash,pr.proof AS removal,pr.sequence::text AS removal_sequence,m.sender_revision,m.recipient_revision,m.queue_active,r.status FROM hash_talk.message_packets m LEFT JOIN LATERAL (SELECT * FROM hash_talk.personal_removals pr WHERE pr.account_id=$1 AND pr.kind='message' AND pr.id IN (m.id,(m.relation->>'id')::uuid) ORDER BY (pr.id=m.id) DESC LIMIT 1) pr ON true LEFT JOIN hash_talk.message_references r ON r.message_id=m.id AND r.account_id=$1 AND r.device_id=$2 WHERE (m.sender=$1 OR m.recipient=$1) AND m.sequence>$3 ORDER BY m.sequence LIMIT $4`,
         [
           authority.session.accountId,
           authority.session.deviceId,
@@ -358,13 +398,30 @@ export class MessageStore {
       );
       const items = result.rows
         .slice(0, messagePageSize)
-        .map((r) => ({ ...r, sequence: Number(r.sequence) }));
+        .map((r) => ({ ...r, sequence: Number(r['sequence']) }));
       return {
         items,
         next:
           result.rows.length > messagePageSize
             ? Number(items.at(-1)?.sequence)
             : null,
+      };
+    });
+  }
+  async relations(
+    a: ContactAuthority,
+    ids: string[],
+    snapshot: MessageSnapshot,
+  ): Promise<{ items: unknown[]; next: null }> {
+    return this.contacts.withMessageAuthority(a, async (c) => {
+      await this.expect(c, a, snapshot);
+      const r = await c.query<Record<string, unknown>>(
+        `SELECT * FROM (SELECT DISTINCT ON (m.relation->>'id',m.relation->>'type',m.sender) m.id,m.kind,m.sender,m.recipient,m.sequence::text,m.hash,m.relation,m.sender_revision,m.recipient_revision,m.queue_active,false AS deleted,NULL AS deletion,r.status FROM hash_talk.message_packets m LEFT JOIN hash_talk.message_references r ON r.message_id=m.id AND r.account_id=$1 AND r.device_id=$2 WHERE (m.sender=$1 OR m.recipient=$1) AND m.relation->>'id'=ANY($3::text[]) AND m.body IS NOT NULL AND NOT EXISTS(SELECT 1 FROM hash_talk.personal_removals pr WHERE pr.account_id=$1 AND pr.kind='message' AND pr.id IN (m.id,(m.relation->>'id')::uuid)) ORDER BY m.relation->>'id',m.relation->>'type',m.sender,m.sequence DESC) current ORDER BY sequence::bigint`,
+        [a.session.accountId, a.session.deviceId, ids],
+      );
+      return {
+        items: r.rows.map((r) => ({ ...r, sequence: Number(r['sequence']) })),
+        next: null,
       };
     });
   }
@@ -383,7 +440,7 @@ export class MessageStore {
     return this.contacts.withMessageAuthority(authority, async (client) => {
       await this.expect(client, authority, input.snapshot);
       const rows = await client.query(
-        'SELECT id,hash,queue_active FROM hash_talk.message_packets WHERE id=ANY($1::uuid[]) AND (sender=$2 OR recipient=$2) AND body IS NOT NULL',
+        "SELECT m.id,m.hash,m.queue_active,EXISTS(SELECT 1 FROM hash_talk.message_references r WHERE r.message_id=m.id AND r.account_id=m.recipient AND r.status='received') AS recipient_received FROM hash_talk.message_packets m WHERE m.id=ANY($1::uuid[]) AND (m.sender=$2 OR m.recipient=$2) AND m.body IS NOT NULL",
         [input.ids, authority.session.accountId],
       );
       return rows.rows as unknown[];
@@ -403,7 +460,7 @@ export class MessageStore {
         ))
       ) {
         const result = await client.query<{ revision: number | null }>(
-          `SELECT max(greatest(sender_revision,coalesce(deletion_revision,0))) AS revision FROM hash_talk.message_packets WHERE sender=$1 AND recipient=$2`,
+          `SELECT max(greatest(sender_revision,coalesce(deletion_revision,0))) AS revision FROM hash_talk.message_packets WHERE (sender=$1 AND recipient=$2) OR (deletion_account=$1 AND (sender=$2 OR recipient=$2))`,
           [input.accountId, authority.session.accountId],
         );
         if (input.through > (result.rows[0]?.revision ?? 0))
@@ -429,8 +486,8 @@ export class MessageStore {
       const row = await this.record(client, id);
       this.assertParticipant(authority, row);
       const removed = await client.query(
-        "SELECT 1 FROM hash_talk.personal_removals WHERE account_id=$1 AND kind='message' AND id=$2",
-        [authority.session.accountId, id],
+        "SELECT 1 FROM hash_talk.personal_removals WHERE account_id=$1 AND kind='message' AND id IN ($2,$3)",
+        [authority.session.accountId, id, originalId(row, id)],
       );
       if (!row.body || removed.rowCount)
         throw new AccountError(
@@ -465,4 +522,61 @@ export class MessageStore {
       return row.body;
     });
   }
+}
+
+function originalId(row: StoredMessage, id: string): string {
+  return row.body?.relation?.id ?? id;
+}
+async function removedAudience(
+  c: pg.PoolClient,
+  packet: MessagePacket,
+): Promise<Set<string>> {
+  if (!packet.relation) return new Set();
+  const rows = await c.query<{ account_id: string }>(
+    "SELECT account_id FROM hash_talk.personal_removals WHERE account_id=ANY($1::uuid[]) AND kind='message' AND id=$2",
+    [[packet.sender, packet.recipient], packet.relation.id],
+  );
+  return new Set(rows.rows.map((row) => row.account_id));
+}
+async function admitNotification(
+  c: pg.PoolClient,
+  packet: MessagePacket,
+): Promise<void> {
+  if (packet.kind !== 'profile' && !packet.relation)
+    await enqueuePush(c, packet.recipient, packet.sender);
+}
+function assertRelationTarget(
+  packet: MessagePacket,
+  target: StoredMessage | null,
+): void {
+  const relation = packet.relation!;
+  if (!target || !target.body)
+    throw new AccountError(409, 'Mensagem original indisponível.');
+  if (
+    target.body.relation ||
+    target.hash !== relation.hash ||
+    target.sender !== relation.author ||
+    !sameParticipants(target, packet)
+  )
+    throw new AccountError(409, 'Mensagem original divergente.');
+  assertActionOwner(packet, target.body);
+}
+function sameParticipants(
+  target: StoredMessage,
+  packet: MessagePacket,
+): boolean {
+  const ids = [target.sender, target.recipient];
+  return ids.includes(packet.sender) && ids.includes(packet.recipient);
+}
+function assertActionOwner(
+  packet: MessagePacket,
+  original: MessagePacket,
+): void {
+  if (packet.kind !== 'text' || original.kind === 'profile')
+    throw new AccountError(403, 'Alteração não permitida.');
+  if (
+    packet.relation?.type === 'edit' &&
+    (original.sender !== packet.sender || original.kind !== 'text')
+  )
+    throw new AccountError(403, 'Somente o autor pode editar texto.');
 }

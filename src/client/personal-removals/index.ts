@@ -124,7 +124,7 @@ async function purgeRemoved(account: string, row: BackupTarget): Promise<void> {
     await forgetCachedBlock(account, row.id);
     return;
   }
-  for (const prefix of ['cache', 'profile', 'outbox'])
+  for (const prefix of ['cache', 'profile', 'outbox', 'search'])
     await localDelete(account, `${prefix}:${row.id}`);
   await forgetAttachment(account, row.id);
 }

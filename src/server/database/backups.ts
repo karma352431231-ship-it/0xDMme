@@ -154,16 +154,20 @@ export class BackupStore {
     )
       throw new AccountError(409, 'Mensagem ausente ou divergente.');
     await c.query(
-      'UPDATE hash_talk.message_packets SET sender_charge=CASE WHEN sender=$2 THEN 0 ELSE sender_charge END,recipient_charge=CASE WHEN recipient=$2 THEN 0 ELSE recipient_charge END WHERE id=$1',
-      [item.id, account],
-    );
-    const refs = await c.query(
-      'DELETE FROM hash_talk.message_references WHERE message_id=$1 AND account_id=$2',
+      `UPDATE hash_talk.message_packets SET sender_charge=CASE WHEN sender=$2 THEN 0 ELSE sender_charge END,recipient_charge=CASE WHEN recipient=$2 THEN 0 ELSE recipient_charge END WHERE id=$1 OR relation->>'id'=$1::text`,
       [item.id, account],
     );
     await c.query(
-      "UPDATE hash_talk.message_packets SET charge=charge-$2,queue_active=EXISTS(SELECT 1 FROM hash_talk.message_references WHERE message_id=$1 AND status='pending') WHERE id=$1",
-      [item.id, (refs.rowCount ?? 0) * 256],
+      `WITH removed AS (DELETE FROM hash_talk.message_references WHERE account_id=$2 AND message_id IN (SELECT id FROM hash_talk.message_packets WHERE id=$1 OR relation->>'id'=$1::text) RETURNING message_id), counts AS (SELECT message_id,count(*)::integer AS n FROM removed GROUP BY message_id) UPDATE hash_talk.message_packets m SET charge=m.charge-counts.n*256 FROM counts WHERE m.id=counts.message_id`,
+      [item.id, account],
+    );
+    await c.query(
+      `DELETE FROM hash_talk.message_reads WHERE account_id=$2 AND message_id IN (SELECT id FROM hash_talk.message_packets WHERE id=$1 OR relation->>'id'=$1::text)`,
+      [item.id, account],
+    );
+    await c.query(
+      `UPDATE hash_talk.message_packets m SET queue_active=false WHERE (id=$1 OR relation->>'id'=$1::text) AND queue_active AND NOT EXISTS(SELECT 1 FROM hash_talk.message_references r WHERE r.message_id=m.id AND r.status='pending')`,
+      [item.id],
     );
     return 0;
   }
@@ -172,6 +176,11 @@ export class BackupStore {
       "UPDATE hash_talk.message_packets m SET body=NULL,personal_collected=true,queue_active=false,charge=4096 WHERE id=$1 AND body IS NOT NULL AND (SELECT count(*) FROM hash_talk.personal_removals r WHERE r.kind='message' AND r.id=m.id AND r.account_id IN (m.sender,m.recipient))=2",
       [id],
     );
+    if (result.rowCount)
+      await c.query(
+        `UPDATE hash_talk.message_packets SET body=NULL,personal_collected=true,queue_active=false,charge=4096 WHERE relation->>'id'=$1::text AND body IS NOT NULL`,
+        [id],
+      );
     if (result.rowCount)
       await c.query(
         "UPDATE hash_talk.message_attachments SET status='deleting' WHERE message_id=$1 AND status='accepted'",

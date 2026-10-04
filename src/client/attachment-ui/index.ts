@@ -1,6 +1,7 @@
 import { attachmentContent } from '../../shared/attachments/index.ts';
 import { prepareAttachment } from '../attachments/index.ts';
 import type { AttachmentSelection } from '../attachments/index.ts';
+import { decodeDailyText } from '../../shared/daily/index.ts';
 interface MediaView {
   id: string;
   text: string;
@@ -93,7 +94,8 @@ export class AttachmentUi {
       info = document.createElement('p'),
       preview = document.createElement('div'),
       button = document.createElement('button');
-    info.textContent = `${content.name} · ${(content.file.ref.bytes / 1_000_000).toFixed(2)} MB${content.caption ? ` · ${content.caption}` : ''}`;
+    const caption = decodeDailyText(content.caption).text;
+    info.textContent = `${content.name} · ${(content.file.ref.bytes / 1_000_000).toFixed(2)} MB${caption ? ` · ${caption}` : ''}`;
     button.type = 'button';
     button.textContent = content.image
       ? 'Carregar foto completa'

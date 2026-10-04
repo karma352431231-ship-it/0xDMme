@@ -69,7 +69,7 @@ const template = `<article class="card account-card"><span class="eyebrow">CONTA
 <form data-name-form><label>Nome mostrado nas solicitações de contato<input name="display-name" maxlength="80" autocomplete="nickname"></label><button class="primary" type="submit">Salvar nome</button></form>
 <div data-private-profile hidden><h3>Foto e preferências privadas</h3><p>Guardadas de forma cifrada. A foto será compartilhada pelo canal cifrado de mensagens, somente com contatos aprovados.</p>
 <img data-photo-preview hidden alt="Sua foto de perfil" width="80" height="80"><label>Foto PNG, JPEG ou WebP · até 3 MB<input data-photo type="file" accept="image/png,image/jpeg,image/webp"></label><button data-remove-photo type="button">Remover foto</button>
-<form data-preferences><p>Controle quem pode encontrar sua wallet e solicitar conversa em <a href="#contatos">Contatos → Visibilidade</a>.</p><label><input type="checkbox" name="online"> Exibir online para contatos aprovados</label><label><input type="checkbox" name="lastSeen"> Exibir último acesso para contatos aprovados</label><label><input type="checkbox" name="readReceipts"> Enviar confirmação de leitura</label><p class="detail">Presença e leitura começam desligadas e serão integradas com as mensagens. A visibilidade para solicitações é aplicada separadamente em Contatos.</p><button class="primary" type="submit">Salvar foto e preferências</button></form></div>
+<form data-preferences><p>Controle quem pode encontrar sua wallet e solicitar conversa em <a href="#contatos">Contatos → Visibilidade</a>.</p><label><input type="checkbox" name="online"> Exibir online para contatos aprovados</label><label><input type="checkbox" name="lastSeen"> Exibir último acesso para contatos aprovados</label><label><input type="checkbox" name="readReceipts"> Enviar confirmação de leitura</label><p class="detail">Controles independentes, desligados por padrão. Ao salvar, apenas os sinais habilitados são compartilhados com contatos aprovados. Recebimento técnico não equivale a leitura.</p><button class="primary" type="submit">Salvar foto e preferências</button></form></div>
 <p data-profile-status role="status"></p><button data-logout type="button">Encerrar sessão</button></div></article>`;
 
 async function api(
@@ -114,6 +114,7 @@ function deviceId(): string {
 
 export function startAccount(options: {
   changed: (session: AccountSession | null) => void;
+  privacyChanged?: (preferences: ProfilePreferences) => Promise<void>;
   privateKey?: (session: AccountSession) => Promise<CryptoKey | null>;
   saveProfile?: (
     session: AccountSession,
@@ -623,6 +624,7 @@ export function startAccount(options: {
     }
     key = localKey;
     privateProfile = opened;
+    window.dispatchEvent(new Event('0xdmme-profile-preferences'));
     profileStatus =
       'Perfil privado disponível neste navegador. Confira a lista de aparelhos autorizados.';
   }
@@ -849,8 +851,10 @@ export function startAccount(options: {
       else await api('profile', { input: envelope, csrf: current.csrf });
       if (session?.accountId === current.accountId)
         setSession({ ...current, profileRevision: revision });
+      await options.privacyChanged?.(profile.preferences);
       status = 'Foto e preferências salvas de forma cifrada.';
       dirtyProfile = false;
+      window.dispatchEvent(new Event('0xdmme-profile-preferences'));
     });
   }
   async function selectPhoto(): Promise<void> {
@@ -1002,6 +1006,14 @@ export function startAccount(options: {
     });
   }
   return {
+    privacyPreferences: () =>
+      privateProfile && !dirtyProfile
+        ? {
+            online: privateProfile.preferences.online,
+            lastSeen: privateProfile.preferences.lastSeen,
+            readReceipts: privateProfile.preferences.readReceipts,
+          }
+        : null,
     sharedProfile: () =>
       session && privateProfile
         ? {

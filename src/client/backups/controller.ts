@@ -139,7 +139,7 @@ export class Backups {
       id: item.id,
       hash: item.hash,
       item,
-      label: `${names[item.kind]} · #${item.sequence} · ${item.sender === account ? 'enviada' : 'recebida'}`,
+      label: `${item.relation ? (item.relation.type === 'edit' ? 'Edição' : 'Reação') : names[item.kind]} · #${item.sequence} · ${item.sender === account ? 'enviada' : 'recebida'}`,
       bytes: item.kind === 'profile' ? 4_100_000 : 16_384,
     };
   }
@@ -219,6 +219,7 @@ export class Backups {
       peer: view.peer,
       own: view.own,
       kind: view.kind,
+      ...(view.relation ? { relation: view.relation } : {}),
       text: view.text,
     };
   }

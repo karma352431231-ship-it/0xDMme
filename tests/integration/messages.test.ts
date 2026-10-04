@@ -1,3 +1,10 @@
+import webpush from 'web-push';
+import { NotificationService } from '../../src/server/notifications/index.ts';
+import {
+  verifyDeletion,
+  messageItems,
+} from '../../src/client/messages/history.ts';
+import { encodeDailyText } from '../../src/shared/daily/index.ts';
 import { mkdtemp, realpath, rm, readdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -80,7 +87,18 @@ await test('mensagens persistentes: Olm/Megolm, recuperação, idempotência, ex
     ),
     objects = new ObjectStore(attachmentDirectory);
   await objects.initialize();
-  let messages = new MessageService(db, db.devices, objects);
+  const vapid = webpush.generateVAPIDKeys();
+  const delivered: string[] = [];
+  let notifications = new NotificationService({
+    store: db.daily,
+    devices: db.devices,
+    config: { ...vapid, subject: 'https://0xdmme.app' },
+    send: (subscription) => {
+      delivered.push(subscription.endpoint);
+      return Promise.resolve();
+    },
+  });
+  let messages = new MessageService(db, db.devices, objects, notifications);
   const ids: string[] = [],
     machines: MessageCrypto[] = [];
   t.after(async () => {
@@ -343,6 +361,12 @@ await test('mensagens persistentes: Olm/Megolm, recuperação, idempotência, ex
         [accepted.id],
       );
       assert.equal(refs.rows.filter((r) => r.status === 'pending').length, 3);
+      const delivery = await op(alice, 'delivery', {
+        snapshot: await op(alice, 'snapshot'),
+        ids: [accepted.id],
+      });
+      assert.ok(Array.isArray(delivery));
+      assert.equal(object(delivery[0])['recipient_received'], false);
     },
   );
   await t.test(
@@ -412,6 +436,17 @@ await test('mensagens persistentes: Olm/Megolm, recuperação, idempotência, ex
         recovered.free();
       }
       await op(bob, 'acknowledge', { id: accepted.id, hash });
+      const delivery = await op(alice, 'delivery', {
+        snapshot: await op(alice, 'snapshot'),
+        ids: [accepted.id],
+      });
+      assert.ok(Array.isArray(delivery));
+      assert.equal(object(delivery[0])['recipient_received'], true);
+      assert.equal(object(delivery[0])['queue_active'], true);
+      assert.deepEqual(
+        await op(alice, 'daily-receipts', { ids: [accepted.id] }),
+        [],
+      );
       const refs = await inspector.query<Record<string, unknown>>(
         'SELECT account_id,device_id,status FROM hash_talk.message_references WHERE message_id=$1',
         [accepted.id],
@@ -582,6 +617,7 @@ await test('mensagens persistentes: Olm/Megolm, recuperação, idempotência, ex
         origin,
         service: accounts,
         messages,
+        notifications,
       });
       const host = createWebServer({
         origin,
@@ -1059,7 +1095,16 @@ await test('mensagens persistentes: Olm/Megolm, recuperação, idempotência, ex
       await db.close();
       db = new Database(config.databaseUrl);
       await db.migrate();
-      messages = new MessageService(db, db.devices, objects);
+      notifications = new NotificationService({
+        store: db.daily,
+        devices: db.devices,
+        config: { ...vapid, subject: 'https://0xdmme.app' },
+        send: (subscription) => {
+          delivered.push(subscription.endpoint);
+          return Promise.resolve();
+        },
+      });
+      messages = new MessageService(db, db.devices, objects, notifications);
       contacts = new ContactService(db.contacts, db.devices);
       devices = new DeviceService(db.devices);
       accounts = new AccountService({
@@ -1355,6 +1400,437 @@ await test('mensagens persistentes: Olm/Megolm, recuperação, idempotência, ex
           )
         ).rows[0]?.body,
         null,
+      );
+    },
+  );
+  await t.test(
+    'bloco 10: privacidade independente, contadores, push, relações e revogação',
+    async (dailyTest) => {
+      const dana = await create(),
+        eve = await create();
+      await approve(dana, eve);
+      const dk = await recovery(dana),
+        ek = await recovery(eve),
+        dm = await machine(dana),
+        em = await machine(eve);
+      await em.prepare(await authority(eve));
+      async function make(text: string, relation?: MessagePacket['relation']) {
+        return dm.encrypt({
+          authority: await authority(dana),
+          peerHistory: eve.events,
+          recovery: [dk, ek],
+          id: crypto.randomUUID(),
+          text,
+          ...(relation ? { relation } : {}),
+        });
+      }
+      async function send(p: MessagePacket) {
+        return op(dana, 'publish', { packet: p });
+      }
+      async function configure(preferences: {
+        online: boolean;
+        lastSeen: boolean;
+        readReceipts: boolean;
+      }) {
+        const row = await inspector.query<{ profile_revision: number }>(
+          'SELECT profile_revision FROM hash_talk.accounts WHERE id=$1',
+          [eve.session.accountId],
+        );
+        await op(eve, 'daily-configure', {
+          revision: row.rows[0]!.profile_revision,
+          preferences,
+        });
+      }
+      const p = await make('Mensagem diária privada'),
+        ph = await digest(JSON.stringify(p));
+      const subscription = {
+        endpoint:
+          'https://fcm.googleapis.com/fcm/send/synthetic-' +
+          crypto.randomUUID(),
+        keys: { p256dh: vapid.publicKey, auth: 'a'.repeat(22) },
+      };
+      await dailyTest.test(
+        'push coalescido não confirma entrega; mute e bloqueio impedem novos alertas',
+        async () => {
+          await op(eve, 'daily-subscribe', { subscription });
+          await assert.rejects(
+            op(outsider, 'daily-subscribe', { subscription }),
+            { status: 409 },
+          );
+          await send(p);
+          await send(p);
+          const before = delivered.length;
+          await notifications.flush();
+          assert.equal(delivered.length, before + 1);
+          assert.equal(await notifications.allowPush(eve.session), true);
+          const refs = await inspector.query<{ status: string }>(
+            'SELECT status FROM hash_talk.message_references WHERE message_id=$1',
+            [p.id],
+          );
+          assert.ok(refs.rows.every((r) => r.status === 'pending'));
+          const state = object(
+            await op(eve, 'daily-state', { peer: dana.session.accountId }),
+          );
+          await op(eve, 'daily-mute', {
+            peer: dana.session.accountId,
+            revision: state['revision'],
+            mutedUntil: Number.MAX_SAFE_INTEGER,
+          });
+          assert.equal(await notifications.allowPush(eve.session), false);
+          await assert.rejects(
+            op(eve, 'daily-mute', {
+              peer: dana.session.accountId,
+              revision: state['revision'],
+              mutedUntil: 0,
+            }),
+            { status: 409 },
+          );
+          await send(await make('Silenciada'));
+          const scheduled = await inspector.query<{
+            pending: boolean;
+            generation: string;
+          }>(
+            'SELECT pending,generation::text FROM hash_talk.push_subscriptions WHERE account_id=$1 AND device_id=$2',
+            [eve.session.accountId, eve.session.deviceId],
+          );
+          assert.equal(scheduled.rows[0]?.pending, false);
+          assert.equal(scheduled.rows[0]?.generation, '1');
+          await notifications.flush();
+          assert.equal(delivered.length, before + 1);
+          const muted = object(
+            await op(eve, 'daily-state', { peer: dana.session.accountId }),
+          );
+          await op(eve, 'daily-mute', {
+            peer: dana.session.accountId,
+            revision: muted['revision'],
+            mutedUntil: Date.now() - 1,
+          });
+          assert.equal(await notifications.allowPush(eve.session), true);
+          await contactChange(eve, 'block', {
+            wallet: { ecosystem: 'evm', address: dana.wallet.address },
+            blocked: true,
+          });
+          assert.equal(await notifications.allowPush(eve.session), false);
+          await assert.rejects(
+            op(dana, 'daily-state', { peer: eve.session.accountId }),
+            { status: 404 },
+          );
+          await contactChange(eve, 'block', {
+            wallet: { ecosystem: 'evm', address: dana.wallet.address },
+            blocked: false,
+          });
+          await approve(dana, eve);
+        },
+      );
+      await dailyTest.test(
+        'online, último acesso e leitura são desligados por padrão e independentes; ACK não é leitura',
+        async () => {
+          let state = object(
+            await op(dana, 'daily-state', { peer: eve.session.accountId }),
+          );
+          assert.equal(state['online'], false);
+          assert.equal(state['lastSeen'], null);
+          await configure({
+            online: true,
+            lastSeen: false,
+            readReceipts: false,
+          });
+          await op(eve, 'daily-heartbeat', { active: true });
+          state = object(
+            await op(dana, 'daily-state', { peer: eve.session.accountId }),
+          );
+          assert.equal(state['online'], true);
+          assert.equal(state['lastSeen'], null);
+          await configure({
+            online: false,
+            lastSeen: true,
+            readReceipts: false,
+          });
+          await op(eve, 'daily-heartbeat', { active: true });
+          state = object(
+            await op(dana, 'daily-state', { peer: eve.session.accountId }),
+          );
+          assert.equal(state['online'], false);
+          assert.ok(state['lastSeen']);
+          await assert.rejects(
+            op(eve, 'daily-read', {
+              peer: dana.session.accountId,
+              ids: [p.id],
+            }),
+            { status: 409 },
+          );
+          await op(eve, 'acknowledge', { id: p.id, hash: ph });
+          assert.deepEqual(
+            await op(dana, 'daily-receipts', { ids: [p.id] }),
+            [],
+          );
+          const before = object(
+            await op(eve, 'daily-state', { peer: dana.session.accountId }),
+          );
+          await op(eve, 'daily-read', {
+            peer: dana.session.accountId,
+            ids: [p.id],
+          });
+          const after = object(
+            await op(eve, 'daily-state', { peer: dana.session.accountId }),
+          );
+          assert.equal(Number(after['unread']), Number(before['unread']) - 1);
+          assert.deepEqual(
+            await op(dana, 'daily-receipts', { ids: [p.id] }),
+            [],
+          );
+          await configure({
+            online: false,
+            lastSeen: false,
+            readReceipts: true,
+          });
+          await op(eve, 'daily-read', {
+            peer: dana.session.accountId,
+            ids: [p.id],
+          });
+          assert.deepEqual(await op(dana, 'daily-receipts', { ids: [p.id] }), [
+            p.id,
+          ]);
+          await configure({
+            online: false,
+            lastSeen: false,
+            readReceipts: false,
+          });
+          assert.deepEqual(
+            await op(dana, 'daily-receipts', { ids: [p.id] }),
+            [],
+          );
+          await configure({
+            online: false,
+            lastSeen: false,
+            readReceipts: true,
+          });
+          assert.deepEqual(
+            await op(dana, 'daily-receipts', { ids: [p.id] }),
+            [],
+          );
+          await assert.rejects(
+            op(outsider, 'daily-read', {
+              peer: dana.session.accountId,
+              ids: [p.id],
+            }),
+            { status: 404 },
+          );
+          const unauthorized = await op(outsider, 'daily-states', {
+            peers: [eve.session.accountId],
+          });
+          assert.deepEqual(unauthorized, []);
+        },
+      );
+      await dailyTest.test(
+        'edição exige autor/identidade originais e exclusão remove as cópias automáticas relacionadas',
+        async () => {
+          const relation = {
+            id: p.id,
+            hash: ph,
+            author: dana.session.accountId,
+            type: 'edit' as const,
+          };
+          const edited = await make(
+            encodeDailyText({
+              text: 'Texto editado privado',
+              reply: null,
+              forwarded: false,
+            }),
+            relation,
+          );
+          const forged = await em.encrypt({
+            authority: await authority(eve),
+            peerHistory: dana.events,
+            recovery: [ek, dk],
+            id: crypto.randomUUID(),
+            text: 'Tentativa de editar outro autor',
+            relation,
+          });
+          await assert.rejects(op(eve, 'publish', { packet: forged }), {
+            status: 403,
+          });
+          await assert.rejects(
+            send(
+              await make('Hash divergente', {
+                ...relation,
+                hash: 'b'.repeat(64),
+              }),
+            ),
+            { status: 409 },
+          );
+          await send(edited);
+          const reaction = await em.encrypt({
+            authority: await authority(eve),
+            peerHistory: dana.events,
+            recovery: [ek, dk],
+            id: crypto.randomUUID(),
+            text: encodeDailyText({
+              text: '👍',
+              reply: null,
+              forwarded: false,
+            }),
+            relation: { ...relation, type: 'reaction' },
+          });
+          await op(eve, 'publish', { packet: reaction });
+          const page = messageItems(
+            await op(eve, 'relations', {
+              ids: [p.id],
+              snapshot: await op(eve, 'snapshot'),
+            }),
+            48,
+          );
+          assert.equal(page.items.length, 2);
+          const storage = await inspector.query<{ body: unknown }>(
+            'SELECT body FROM hash_talk.message_packets WHERE id=$1',
+            [edited.id],
+          );
+          assert.equal(
+            JSON.stringify(storage.rows).includes('Texto editado privado'),
+            false,
+          );
+          await op(dana, 'delete', {
+            id: p.id,
+            hash: ph,
+            revision: dana.events.length,
+          });
+          await assert.rejects(
+            op(eve, 'object', {
+              id: edited.id,
+              snapshot: await op(eve, 'snapshot'),
+            }),
+            { status: 410 },
+          );
+          const index = messageItems(
+            await op(eve, 'page', {
+              after: 0,
+              snapshot: await op(eve, 'snapshot'),
+            }),
+          );
+          for (const item of index.items.filter((i) => i.relation)) {
+            assert.equal(item.deleted, true);
+            await verifyDeletion(item, dana.events);
+          }
+          const refs = await inspector.query(
+            'SELECT 1 FROM hash_talk.message_references WHERE message_id=ANY($1::uuid[])',
+            [[p.id, edited.id, reaction.id]],
+          );
+          assert.equal(refs.rowCount, 0);
+          const reads = await inspector.query(
+            'SELECT 1 FROM hash_talk.message_reads WHERE message_id=$1',
+            [p.id],
+          );
+          assert.equal(reads.rowCount, 0);
+        },
+      );
+      await dailyTest.test(
+        'limpeza pessoal oculta alterações apenas da própria conta; dois recibos retiram também suas cifras',
+        async () => {
+          const original = await make('Original para backup'),
+            hash = await digest(JSON.stringify(original));
+          await send(original);
+          const edit = await make('Versão posterior para backup', {
+            id: original.id,
+            hash,
+            author: dana.session.accountId,
+            type: 'edit',
+          });
+          await send(edit);
+          const selection = {
+            items: [{ kind: 'message', id: original.id, hash }],
+            backup: 'a'.repeat(64),
+            revision: eve.events.length,
+          };
+          const before = await inspector.query<{ charge: number }>(
+            'SELECT charge FROM hash_talk.message_packets WHERE id=$1',
+            [edit.id],
+          );
+          await op(eve, 'personal-clean', selection);
+          const cleaned = await inspector.query<{
+            charge: number;
+            recipient_charge: number;
+          }>(
+            'SELECT charge,recipient_charge FROM hash_talk.message_packets WHERE id=$1',
+            [edit.id],
+          );
+          assert.equal(cleaned.rows[0]?.charge, before.rows[0]!.charge - 256);
+          assert.equal(cleaned.rows[0]?.recipient_charge, 0);
+          const later = await make('Versão posterior à limpeza', {
+            id: original.id,
+            hash,
+            author: dana.session.accountId,
+            type: 'edit',
+          });
+          await send(later);
+          const late = await inspector.query<{ recipient_charge: number }>(
+            'SELECT recipient_charge FROM hash_talk.message_packets WHERE id=$1',
+            [later.id],
+          );
+          assert.equal(late.rows[0]?.recipient_charge, 0);
+          await assert.rejects(
+            op(eve, 'object', {
+              id: edit.id,
+              snapshot: await op(eve, 'snapshot'),
+            }),
+            { status: 410 },
+          );
+          assert.equal(
+            messagePacket(
+              await op(dana, 'object', {
+                id: edit.id,
+                snapshot: await op(dana, 'snapshot'),
+              }),
+            ).id,
+            edit.id,
+          );
+          await op(dana, 'personal-clean', {
+            ...selection,
+            revision: dana.events.length,
+          });
+          const row = await inspector.query<{ body: unknown }>(
+            'SELECT body FROM hash_talk.message_packets WHERE id=$1',
+            [edit.id],
+          );
+          assert.equal(row.rows[0]?.body, null);
+        },
+      );
+      await dailyTest.test(
+        'aparelho revogado não consulta sinais nem recebe push, mesmo com inscrição antiga',
+        async () => {
+          const other = await link(eve);
+          await op(other, 'daily-subscribe', {
+            subscription: {
+              ...subscription,
+              endpoint: subscription.endpoint + '-other',
+            },
+          });
+          const previous = eve.events.at(-1)!;
+          eve.ring = freshKeyring(eve.session.accountId, eve.ring);
+          const event = await prepareEvent({
+            accountId: eve.session.accountId,
+            previous,
+            kind: 'revoke',
+            signer: eve.session.deviceId,
+            signing: eve.identity.signing,
+            root: previous.root,
+            identities: [eve.identity.public],
+            ring: eve.ring,
+            profile: null,
+          });
+          await devices.commit(eve.session, { event, profile: null });
+          eve.events.push(event);
+          await assert.rejects(
+            op(other, 'daily-state', { peer: dana.session.accountId }),
+            { status: 403 },
+          );
+          await assert.rejects(notifications.allowPush(other.session));
+          await notifications.flush();
+          const rows = await inspector.query(
+            'SELECT 1 FROM hash_talk.push_subscriptions WHERE account_id=$1 AND device_id=$2',
+            [eve.session.accountId, other.session.deviceId],
+          );
+          assert.equal(rows.rowCount, 0);
+        },
       );
     },
   );

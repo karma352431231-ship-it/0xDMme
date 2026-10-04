@@ -4,6 +4,7 @@ import { build } from 'esbuild';
 import { fileURLToPath } from 'node:url';
 import { frontendMatrixSources } from './frontend-matrix-source.ts';
 import { frontendSource } from './frontend-source.ts';
+import { emojiAsset, frontendEmoji } from './frontend-emoji.ts';
 import {
   frontendVendorSource,
   vendorSourceAsset,
@@ -67,7 +68,7 @@ async function pruneGeneratedAssets(): Promise<void> {
   if (entries.length > 128) throw new Error('Diretório de build excedido.');
   for (const entry of entries) {
     if (
-      !/^(?:(?:app|phantom-probe|recovery-return|attachment-worker)-[a-f0-9]{16}\.(?:js|css)|source-[a-f0-9]{16}\.tar\.gz|matrix-crypto-18\.9\.0-source-[a-f0-9]{16}-\d{2}\.bin|libsodium-\d+\.\d+\.\d+-sources-[a-f0-9]{16}\.tar\.xz)$/u.test(
+      !/^(?:(?:app|phantom-probe|recovery-return|attachment-worker)-[a-f0-9]{16}\.(?:js|css)|emoji-[a-f0-9]{16}\.json\.gz|source-[a-f0-9]{16}\.tar\.gz|matrix-crypto-18\.9\.0-source-[a-f0-9]{16}-\d{2}\.bin|libsodium-\d+\.\d+\.\d+-sources-[a-f0-9]{16}\.tar\.xz)$/u.test(
         entry.name,
       ) ||
       files.has(entry.name)
@@ -78,6 +79,8 @@ async function pruneGeneratedAssets(): Promise<void> {
   }
 }
 
+const emojis = await frontendEmoji(fileURLToPath(root));
+asset(emojiAsset, emojis.content);
 const attachmentWorker = hashedAsset(
   'attachment-worker',
   'js',
@@ -88,6 +91,8 @@ const script = hashedAsset(
   'js',
   await bundle('src/client/app/index.ts', {
     ATTACHMENT_WORKER_URL: JSON.stringify(attachmentWorker),
+    EMOJI_ASSET_URL: JSON.stringify(`/${emojiAsset}`),
+    EMOJI_CATALOG: JSON.stringify(emojis.catalog),
   }),
 );
 const style = hashedAsset(
@@ -127,6 +132,7 @@ const html = (
 )
   .replace('{{SCRIPT}}', script)
   .replace('{{SOURCES}}', sources)
+  .replace('{{EMOJI_SOURCES}}', `/${emojiAsset}`)
   .replace('{{STYLE}}', style);
 asset('index.html', Buffer.from(html));
 asset(

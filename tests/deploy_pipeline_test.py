@@ -129,6 +129,24 @@ class DeploymentTests(unittest.TestCase):
         # against any other unreviewed change. This does not approve QR deploys.
         current_lock['packages']['']['dependencies'].pop('qr')
         current_lock['packages'].pop('node_modules/qr')
+        # Block 10 is also outside this historical authorization. Remove only
+        # its known additions; exact historical hashes below still reject any
+        # hidden change. No deployment guard or approved lock hash is changed.
+        current_lock['packages']['']['dependencies'].pop('web-push')
+        current_lock['packages']['']['devDependencies'].pop('@types/web-push')
+        for name in ['@types/web-push', 'web-push', 'agent-base', 'asn1.js',
+                     'bn.js', 'buffer-equal-constant-time', 'ecdsa-sig-formatter',
+                     'http_ece', 'https-proxy-agent', 'jwa', 'jws',
+                     'minimalistic-assert', 'safer-buffer']:
+            current_lock['packages'].pop('node_modules/' + name)
+        for name in ['debug', 'inherits', 'minimist', 'ms', 'safe-buffer']:
+            entry = current_lock['packages']['node_modules/' + name]
+            restored = {}
+            for field, value in entry.items():
+                restored[field] = value
+                if field == 'integrity':
+                    restored['dev'] = True
+            current_lock['packages']['node_modules/' + name] = restored
         current = (json.dumps(current_lock, indent=2, ensure_ascii=False) + '\n').encode()
         previous = json.loads(current)
         previous['packages']['']['devDependencies'].pop('libsodium-wrappers')
@@ -310,6 +328,22 @@ class DeploymentTests(unittest.TestCase):
                     remote.compatibility(new, old)
             command.assert_not_called()
 
+    def test_web_push_lock_is_outside_historical_probe_authorization(self):
+        _, reviewed = self.reviewed_probe_locks()
+        candidate = json.loads((deploy.ROOT / 'package-lock.json').read_bytes())
+        candidate['packages']['']['dependencies'].pop('qr')
+        candidate['packages'].pop('node_modules/qr')
+        with tempfile.TemporaryDirectory() as directory:
+            old, new = Path(directory) / 'old', Path(directory) / 'new'
+            self.runtime(old)
+            self.runtime(new)
+            (old / 'package-lock.json').write_bytes(reviewed)
+            (new / 'package-lock.json').write_text(json.dumps(candidate))
+            with patch.object(remote, 'run') as command:
+                with self.assertRaises(RuntimeError):
+                    remote.compatibility(new, old)
+            command.assert_not_called()
+
     def test_real_git_build_preserves_sources_and_reuses_verified_cache(self):
         # Build a clean synthetic Git snapshot of the candidate sources. Never
         # commit the user's checkout or bypass prepare's exact-lock protection.
@@ -353,7 +387,13 @@ class DeploymentTests(unittest.TestCase):
                         self.assertTrue(any(n.startswith('node_modules/@scure/base/') for n in entries))
                         self.assertTrue(any(n.startswith('node_modules/@wallet-standard/app/') for n in entries))
                         self.assertTrue(any(n.startswith('node_modules/@matrix-org/matrix-sdk-crypto-wasm/') for n in entries))
+                        self.assertIn('src/client/emoji/index.ts', entries)
+                        self.assertIn('src/tools/frontend-emoji.ts', entries)
+                        self.assertIn('vendor/emoji/LICENSE-GRAPHICS.txt', entries)
                         self.assertFalse(any(n.startswith(('.local/', 'src/server/', '.git/')) for n in entries))
+                    emoji = 'dist/web/emoji-d7a2c1166a29ac85.json.gz'
+                    self.assertIn(emoji, names)
+                    self.assertLessEqual(archive.getmember(emoji).size, 2 * 1024 * 1024)
                     self.assertEqual(len([n for n in names if '/matrix-crypto-18.9.0-source-' in n and n.endswith('.bin')]), 0)
 
                 original_archive=archive_path.read_bytes()

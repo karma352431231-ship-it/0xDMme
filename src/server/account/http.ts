@@ -11,6 +11,7 @@ import type { DeviceService } from '../devices/index.ts';
 import type { VaultService } from '../vault/index.ts';
 import type { MessageService } from '../messages/index.ts';
 import type { ContactService } from '../contacts/index.ts';
+import type { NotificationService } from '../notifications/index.ts';
 import { blockLimit } from '../../shared/vault/index.ts';
 import { createApprovalEntry } from './approval-http.ts';
 import { RecoveryReturn } from '../recovery-return/index.ts';
@@ -103,6 +104,7 @@ export function createAccountHandler(options: {
   vault?: VaultService;
   contacts?: ContactService;
   messages?: MessageService;
+  notifications?: NotificationService;
 }) {
   const secure = new URL(options.origin).protocol === 'https:';
   const sessionName = secure ? '__Host-hash-talk-session' : 'hash-talk-session';
@@ -468,6 +470,7 @@ export function createAccountHandler(options: {
       return;
     }
     const sessionToken = readCookie(request, sessionName);
+    if (await notificationsGet(request, response, sessionToken)) return;
     if (request.url === '/api/account/session') {
       send(response, 200, await options.service.session(sessionToken));
       return;
@@ -477,6 +480,21 @@ export function createAccountHandler(options: {
       return;
     }
     throw new AccountError(404, 'Operação não encontrada.');
+  }
+  async function notificationsGet(
+    request: IncomingMessage,
+    response: ServerResponse,
+    token: string,
+  ): Promise<boolean> {
+    if (request.url === '/api/account/push-check' && options.notifications) {
+      send(response, 200, {
+        allowed: await options.notifications.allowPush(
+          await options.service.session(token),
+        ),
+      });
+      return true;
+    }
+    return false;
   }
   async function approvalGet(
     request: IncomingMessage,

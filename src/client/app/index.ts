@@ -22,7 +22,7 @@ const pages = {
   },
   configuracoes: {
     title: 'Configurações',
-    content: `<div class="cards"><article class="card"><span class="eyebrow">PRIVACIDADE</span><h2>Você escolhe o que compartilhar.</h2><p>Salve suas escolhas no perfil cifrado acima. A distribuição de presença e leitura será integrada com os contatos e as mensagens.</p><div class="privacy-list"><div class="privacy-row"><span>Exibir online</span><span>Escolha no perfil</span></div><div class="privacy-row"><span>Exibir último acesso</span><span>Escolha no perfil</span></div><div class="privacy-row"><span>Enviar confirmação de leitura</span><span>Escolha no perfil</span></div></div></article><article class="card"><span class="eyebrow">APLICATIVO</span><h2>Seu espaço, também na tela inicial.</h2><p>Use a opção de instalação do navegador quando disponível. Offline, abra a cópia local do cofre para consultar blocos já carregados neste aparelho.</p><p id="pwa-state" role="status">Verificando disponibilidade offline…</p><button class="primary" id="check-updates" type="button">Verificar atualização</button></article></div>`,
+    content: `<div data-daily-settings></div><div class="cards"><article class="card"><span class="eyebrow">PRIVACIDADE</span><h2>Você escolhe o que compartilhar.</h2><p>Salve suas escolhas no perfil cifrado acima. Online, último acesso e leitura começam desligados, com escolhas independentes. Somente contatos aprovados podem consultar os sinais habilitados.</p><div class="privacy-list"><div class="privacy-row"><span>Exibir online</span><span>Escolha no perfil</span></div><div class="privacy-row"><span>Exibir último acesso</span><span>Escolha no perfil</span></div><div class="privacy-row"><span>Enviar confirmação de leitura</span><span>Escolha no perfil</span></div></div></article><article class="card"><span class="eyebrow">APLICATIVO</span><h2>Seu espaço, também na tela inicial.</h2><p>Use a opção de instalação do navegador quando disponível. Offline, abra a cópia local do cofre para consultar blocos já carregados neste aparelho.</p><p id="pwa-state" role="status">Verificando disponibilidade offline…</p><button class="primary" id="check-updates" type="button">Verificar atualização</button></article></div>`,
   },
 };
 
@@ -45,10 +45,14 @@ const devices = startDevices({
 const vault = startVault(devices);
 const backups = startBackups(devices, vault.sync);
 const contacts = startContacts(devices, vault.sync);
-const messages = startMessages(devices, vault.sync, () =>
-  account.sharedProfile(),
+const messages = startMessages(
+  devices,
+  vault.sync,
+  () => account.sharedProfile(),
+  () => account.privacyPreferences(),
 );
 const account = startAccount({
+  privacyChanged: (preferences) => messages.applyPrivacy(preferences),
   privateKey: async (session) => {
     const key = await devices.privateKey(session);
     connection();
@@ -115,6 +119,10 @@ function route(): void {
 }
 function mountFeature(key: keyof typeof pages): void {
   const content = element('page-content');
+  const dailyContainer = content.querySelector<HTMLElement>(
+    '[data-daily-settings]',
+  );
+  if (dailyContainer) messages.mountSettings(dailyContainer);
   const messageContainer = content.querySelector<HTMLElement>(
     '[data-messages-container]',
   );

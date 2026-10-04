@@ -15,6 +15,8 @@ import {
   fileLimit,
 } from '../../shared/attachments/index.ts';
 import { profileCard } from '../message-profile/index.ts';
+import { optionalRelation, relationKeys } from '../../shared/daily/index.ts';
+import type { MessageRelation } from '../../shared/daily/index.ts';
 import { backupRecordLimit } from '../../shared/backups/index.ts';
 import type { BackupTarget } from '../../shared/backups/index.ts';
 export type BackupRecord =
@@ -27,6 +29,7 @@ export type BackupRecord =
     }
   | {
       type: 'message';
+      relation?: MessageRelation;
       id: string;
       hash: string;
       peer: string;
@@ -55,7 +58,16 @@ export function backupRecord(input: unknown): BackupRecord {
     return { type, id, hash, change: vaultChange(d['change']), value };
   }
   if (type === 'message') {
-    keys(d, ['type', 'id', 'hash', 'peer', 'own', 'kind', 'text']);
+    keys(d, [
+      'type',
+      'id',
+      'hash',
+      'peer',
+      'own',
+      'kind',
+      'text',
+      ...relationKeys(d),
+    ]);
     const kind = d['kind'];
     if (
       typeof d['own'] !== 'boolean' ||
@@ -71,6 +83,7 @@ export function backupRecord(input: unknown): BackupRecord {
       peer: uuid(d['peer']),
       own: d['own'],
       kind: kind as 'text' | 'profile' | 'attachment',
+      ...optionalRelation(d['relation']),
       text,
     };
   }

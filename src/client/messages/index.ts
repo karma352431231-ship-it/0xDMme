@@ -1,4 +1,19 @@
 import { AttachmentUi } from '../attachment-ui/index.ts';
+import { Daily } from '../daily/index.ts';
+import type { PeerState } from '../daily/index.ts';
+import { dailyViews } from '../daily-text/index.ts';
+import type { DailyView } from '../daily-text/index.ts';
+import { messageActions } from '../message-actions/index.ts';
+import { messageChecks } from '../message-status/index.ts';
+import { EmojiPicker, emojiIntoComposer, emojiText } from '../emoji/index.ts';
+import {
+  NotificationSound,
+  soundPreferenceKey,
+  savePushSoundPreference,
+} from '../notification-sound/index.ts';
+import { encodeDailyText, decodeDailyText } from '../../shared/daily/index.ts';
+import type { DailyPreferences } from '../../shared/daily/index.ts';
+import { attachmentContent } from '../../shared/attachments/index.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
 import type { Peer } from '../../shared/contacts/index.ts';
 import type { VaultAccess } from '../vault-authority/index.ts';
@@ -11,9 +26,20 @@ export function startMessages(
   access: VaultAccess,
   sync: VaultSync,
   sharedProfile: () => import('../message-profile/index.ts').ProfileCard | null,
+  preferences: () => DailyPreferences | null = () => null,
 ) {
   const contacts = new Contacts(access),
-    attachments = new AttachmentUi();
+    attachments = new AttachmentUi(),
+    daily = new Daily(access, sync);
+  const sound = new NotificationSound();
+  const emojiPicker = new EmojiPicker();
+  let peers: Peer[] = [],
+    states = new Map<string, PeerState>(),
+    showArchived = false;
+  let composing: { mode: 'reply' | 'edit'; view: MessageView } | null = null;
+  let readIds = new Set<string>();
+  let searchAfter: string | null = null,
+    searchQuery = '';
   let mounted: HTMLElement | null = null,
     busy = false,
     selected: Peer | null = null,
@@ -23,6 +49,7 @@ export function startMessages(
     refreshRequested = false,
     automaticAttempts = 0,
     lastTransferAttempt = 0;
+  let settingsHost: HTMLElement | null = null;
   let message = 'Entre e autorize este aparelho para conversar.';
   const controller = new Messages(access, sync, (value) => {
     rows = value;
@@ -34,6 +61,9 @@ export function startMessages(
   function status(): void {
     const text = node('[data-message-status]');
     if (text) text.textContent = message;
+    const dailyStatus = settingsHost?.querySelector('[data-daily-status]');
+    if (dailyStatus) dailyStatus.textContent = message;
+    renderSoundSettings();
     mounted
       ?.querySelectorAll<
         | HTMLButtonElement
@@ -45,6 +75,41 @@ export function startMessages(
         control.disabled = busy;
       });
   }
+  function renderSoundSettings(): void {
+    const toggle = settingsHost?.querySelector<HTMLButtonElement>(
+      '[data-sound-toggle]',
+    );
+    if (toggle) {
+      toggle.textContent = sound.enabled ? 'Desativar sons' : 'Ativar sons';
+      toggle.setAttribute('aria-pressed', String(sound.enabled));
+    }
+    const notice = settingsHost?.querySelector('[data-sound-status]');
+    if (notice)
+      notice.textContent =
+        sound.notice ||
+        (sound.enabled
+          ? 'Sons ativados neste navegador.'
+          : 'Sons desativados neste navegador.');
+  }
+  sound.observe(renderSoundSettings);
+  sound.prepare();
+  const soundEvents = new AbortController();
+  document.addEventListener('pointerdown', () => sound.unlock(), {
+    capture: true,
+    signal: soundEvents.signal,
+  });
+  document.addEventListener('keydown', () => sound.unlock(), {
+    capture: true,
+    signal: soundEvents.signal,
+  });
+  window.addEventListener(
+    'storage',
+    (event) => {
+      if (event.key === soundPreferenceKey || event.key === null)
+        sound.reload();
+    },
+    { signal: soundEvents.signal },
+  );
   function action(label: string, work: () => Promise<void>): HTMLButtonElement {
     const button = document.createElement('button');
     button.type = 'button';
@@ -125,28 +190,92 @@ export function startMessages(
     }
     const title = node('[data-message-peer]');
     if (title) title.textContent = peerLabel();
-    for (const view of rows ?? []) {
-      const article = document.createElement('article');
-      article.className = view.own ? 'chat-message own' : 'chat-message';
-      const text = document.createElement('p');
-      renderContent(article, text, view);
-      const detail = document.createElement('small');
-      detail.textContent = view.state;
-      article.append(text, detail);
-      if (view.own)
-        article.append(
-          action('Apagar para ambos', async () => {
-            await controller.remove(view);
-            await controller.synchronize();
-          }),
-        );
-      history.append(article);
+    for (const view of dailyViews(rows ?? []))
+      history.append(renderMessage(view));
+  }
+  function messageState(view: DailyView<MessageView>): HTMLElement {
+    const detail = document.createElement('small');
+    const checks = messageChecks({ ...view, read: readIds.has(view.id) });
+    if (checks) {
+      const icon = document.createElement('span');
+      icon.className = `message-checks ${checks.color}`;
+      icon.textContent = checks.text;
+      icon.setAttribute('role', 'img');
+      icon.setAttribute('aria-label', checks.label);
+      icon.title = `${checks.label}. ${view.state}`;
+      detail.append(icon);
+    } else detail.textContent = view.state;
+    if (view.edited) detail.append(' · Editada');
+    return detail;
+  }
+  function renderAnnotations(
+    view: DailyView<MessageView>,
+    article: HTMLElement,
+  ): void {
+    if (view.content.reply) {
+      const reply = document.createElement('small');
+      const original = dailyViews(rows ?? []).find(
+        (row) => row.id === view.content.reply,
+      );
+      reply.textContent = original
+        ? `Em resposta: ${original.content.text.slice(0, 120)}`
+        : 'Resposta: mensagem original fora desta página ou indisponível.';
+      article.append(reply);
     }
+    if (view.content.forwarded) {
+      const forwarded = document.createElement('small');
+      forwarded.textContent = 'Encaminhada';
+      article.append(forwarded);
+    }
+    if (view.reactions.length) {
+      const reactions = document.createElement('p');
+      emojiText(reactions, view.reactions.join(' '));
+      article.append(reactions);
+    }
+  }
+  function renderMessage(view: DailyView<MessageView>): HTMLElement {
+    const article = document.createElement('article');
+    article.className = view.own ? 'chat-message own' : 'chat-message';
+    const text = document.createElement('p');
+    renderContent(article, text, view);
+    const detail = messageState(view);
+    renderAnnotations(view, article);
+    article.append(text, detail);
+    article.append(
+      messageActions({
+        view,
+        peers,
+        action,
+        picker: emojiPicker,
+        choose,
+        react: async (v, reaction) => {
+          await controller.composeAction(
+            v,
+            'reaction',
+            encodeDailyText({
+              text: reaction,
+              reply: null,
+              forwarded: false,
+            }),
+          );
+          await transmit();
+        },
+        forward,
+      }),
+    );
+    if (view.own)
+      article.append(
+        action('Apagar para ambos', async () => {
+          await controller.remove(view);
+          await controller.synchronize();
+        }),
+      );
+    return article;
   }
   function renderContent(
     article: HTMLElement,
     text: HTMLElement,
-    view: MessageView,
+    view: DailyView<MessageView>,
   ): void {
     if (view.kind === 'attachment') {
       attachments.render({
@@ -170,7 +299,70 @@ export function startMessages(
         img.height = 96;
         article.append(img);
       }
-    } else text.textContent = view.text;
+    } else emojiText(text, view.content.text);
+  }
+  function choose(mode: 'reply' | 'edit', view: MessageView): void {
+    composing = { mode, view };
+    const label = node('[data-compose-context]');
+    if (label)
+      label.textContent = `${mode === 'edit' ? 'Editando' : 'Respondendo à'} mensagem ${view.id.slice(0, 8)}`;
+    const text = node<HTMLTextAreaElement>('[data-message-text]');
+    if (mode === 'edit' && text)
+      text.value =
+        dailyViews(rows ?? []).find((v) => v.id === view.id)?.content.text ??
+        decodeDailyText(view.text).text;
+    text?.focus();
+  }
+  function clearContext(): void {
+    composing = null;
+    const label = node('[data-compose-context]');
+    if (label) label.textContent = '';
+  }
+  async function transmit(): Promise<void> {
+    if (navigator.onLine) {
+      await controller.sendPending();
+      await controller.synchronize();
+      await controller.savePins();
+    }
+  }
+  async function forward(
+    view: DailyView<MessageView>,
+    peer: string,
+  ): Promise<void> {
+    if (!peers.some((p) => p.accountId === peer))
+      throw new Error('Selecione um contato aprovado para encaminhar.');
+    if (view.kind === 'text')
+      await controller.compose(
+        peer,
+        encodeDailyText({ ...view.content, reply: null, forwarded: true }),
+      );
+    else if (view.kind === 'attachment') {
+      const content = attachmentContent(JSON.parse(view.text) as unknown),
+        bytes = await controller.media(view, false);
+      let thumbnail: Uint8Array<ArrayBuffer> | null = null;
+      try {
+        if (content.thumbnail) thumbnail = await controller.media(view, true);
+        await controller.composeAttachment(
+          peer,
+          {
+            name: content.name,
+            type: content.type,
+            image: content.image,
+            bytes,
+            thumbnail,
+          },
+          encodeDailyText({
+            text: view.content.text,
+            reply: null,
+            forwarded: true,
+          }),
+        );
+      } finally {
+        bytes.fill(0);
+        thumbnail?.fill(0);
+      }
+    }
+    await transmit();
   }
   function sameSession(value: AccountSession | null): boolean {
     return (
@@ -202,28 +394,56 @@ export function startMessages(
     const list = node('[data-message-contacts]');
     if (!list) return;
     list.replaceChildren();
-    for (const peer of peers) {
-      list.append(
-        action(peer.name || peer.address, async () => {
-          selected = peer;
-          controller.select(peer.accountId);
-          renderHistory();
-          if (!navigator.onLine) {
-            await controller.openOffline(peer.accountId);
-            return;
-          }
-          await controller.loadPins();
-          const card = sharedProfile();
-          if (card) await controller.shareProfile(peer.accountId, card);
-          await controller.synchronize();
-          await controller.savePins();
-        }),
+    const sorted = [...peers]
+      .filter((p) => daily.conversation(p.accountId).archived === showArchived)
+      .sort(
+        (a, b) =>
+          Number(daily.conversation(b.accountId).pinned) -
+          Number(daily.conversation(a.accountId).pinned),
       );
+    for (const peer of sorted)
+      list.append(action(contactLabel(peer), () => openPeer(peer)));
+    renderPresence();
+  }
+  function contactLabel(peer: Peer): string {
+    const state = states.get(peer.accountId),
+      settings = daily.conversation(peer.accountId);
+    const conflict = daily.organizationConflict(peer.accountId)
+      ? ' · organização em conflito: escolha no Cofre'
+      : '';
+    return `${settings.pinned ? '📌 ' : ''}${peer.name || peer.address}${state?.unread ? ` · ${state.unread} não lidas` : ''}${state && state.mutedUntil > Date.now() ? ' · silenciada' : ''}${conflict}`;
+  }
+  async function openPeer(peer: Peer): Promise<void> {
+    clearContext();
+    selected = peer;
+    controller.select(peer.accountId);
+    renderHistory();
+    if (!navigator.onLine) {
+      await controller.openOffline(peer.accountId);
+      return;
     }
+    await controller.loadPins();
+    const card = sharedProfile();
+    if (card) await controller.shareProfile(peer.accountId, card);
+    await controller.synchronize();
+    await controller.savePins();
+    await dailyTick();
+  }
+  function renderPresence(): void {
+    const presence = node('[data-peer-presence]'),
+      state = selected ? states.get(selected.accountId) : null;
+    if (presence)
+      presence.textContent = state?.online
+        ? 'Online'
+        : state?.lastSeen
+          ? `Último acesso: ${new Date(state.lastSeen).toLocaleString('pt-BR')}`
+          : 'Presença não compartilhada';
   }
   async function refreshContacts(more = false): Promise<void> {
     const page = await contacts.list('approved', more);
-    renderContacts(page.items);
+    peers = page.items;
+    await daily.loadSettings(peers.map((peer) => peer.accountId));
+    renderContacts(peers);
     const moreButton = node('[data-message-more-contacts]');
     if (moreButton) moreButton.hidden = page.next === null;
   }
@@ -241,6 +461,7 @@ export function startMessages(
       await controller.synchronize();
     }
     await controller.savePins();
+    await dailyTick();
   }
   async function submit(): Promise<void> {
     const text = node<HTMLTextAreaElement>('[data-message-text]');
@@ -248,24 +469,118 @@ export function startMessages(
       throw new Error(
         'Selecione um contato e escreva a mensagem ou escolha um anexo.',
       );
-    if (attachments.selected)
-      await controller.composeAttachment(
-        selected.accountId,
-        attachments.selected,
-        text.value,
-      );
-    else await controller.compose(selected.accountId, text.value);
+    await saveComposition(selected.accountId, text.value);
     text.value = '';
+    clearContext();
     attachments.clearSelection();
     if (navigator.onLine) {
       await controller.sendPending();
       await controller.synchronize();
       await controller.savePins();
     }
+    await dailyTick();
+  }
+  async function saveComposition(peer: string, text: string): Promise<void> {
+    if (composing?.mode === 'edit') {
+      if (attachments.selected)
+        throw new Error(
+          'Edição altera somente texto; remova o anexo selecionado.',
+        );
+      await controller.composeAction(
+        composing.view,
+        'edit',
+        encodeDailyText({
+          text: text,
+          reply: decodeDailyText(composing.view.text).reply,
+          forwarded: decodeDailyText(composing.view.text).forwarded,
+        }),
+      );
+    } else if (attachments.selected)
+      await controller.composeAttachment(
+        peer,
+        attachments.selected,
+        encodeDailyText({
+          text: text,
+          reply: composing?.view.id ?? null,
+          forwarded: false,
+        }),
+      );
+    else
+      await controller.compose(
+        peer,
+        encodeDailyText({
+          text: text,
+          reply: composing?.view.id ?? null,
+          forwarded: false,
+        }),
+      );
+  }
+  async function dailyTick(): Promise<void> {
+    if (!session || !navigator.onLine) return;
+    await daily.configure(preferences());
+    await daily.heartbeat(document.visibilityState === 'visible');
+    if (!mounted?.isConnected) return;
+    const old = states;
+    states = await daily.states(peers.map((p) => p.accountId));
+    alertUnread(old);
+    renderContacts(peers);
+    renderHistory();
+    await markVisibleRead();
+  }
+  function alertUnread(old: Map<string, PeerState>): void {
+    for (const [id, state] of states)
+      if (
+        old.has(id) &&
+        state.unread > (old.get(id)?.unread ?? 0) &&
+        state.mutedUntil <= Date.now()
+      )
+        sound.beep();
+  }
+  async function markVisibleRead(): Promise<void> {
+    if (!selected || rows === null || document.visibilityState !== 'visible')
+      return;
+    const incoming = rows
+      .filter(
+        (r) =>
+          !r.own &&
+          !r.relation &&
+          r.kind !== 'profile' &&
+          r.state !== 'Suspensa',
+      )
+      .map((r) => r.id);
+    if (incoming.length) await daily.read(selected.accountId, incoming);
+    readIds = await daily.receipts(
+      rows
+        .filter((r) => r.own && !r.relation && r.kind !== 'profile')
+        .map((r) => r.id),
+    );
+    renderHistory();
+  }
+  async function search(more = false): Promise<void> {
+    const query = node<HTMLInputElement>('[data-message-search]')?.value ?? '';
+    if (!more || query !== searchQuery) {
+      searchAfter = null;
+      node('[data-search-results]')?.replaceChildren();
+    }
+    searchQuery = query;
+    const result = await controller.search(query, searchAfter);
+    searchAfter = result.next;
+    const list = node('[data-search-results]');
+    for (const item of result.items) {
+      const row = document.createElement('li');
+      row.textContent = `#${item.sequence} · ${item.excerpt}`;
+      list?.append(row);
+    }
+    const next = node('[data-search-more]');
+    if (next) next.hidden = searchAfter === null;
+    message =
+      'Busca somente nas mensagens já sincronizadas neste aparelho; nenhum termo é enviado ao servidor.';
   }
   function suspend(): void {
+    emojiPicker.close();
     controller.close();
     rows = null;
+    node('[data-search-results]')?.replaceChildren();
     renderHistory();
   }
   window.addEventListener('0xdmme-attachment-progress', (event) => {
@@ -287,6 +602,11 @@ export function startMessages(
   });
   document.addEventListener('visibilitychange', () => {
     suspend();
+    void daily.heartbeat(document.visibilityState === 'visible').catch(() => {
+      message =
+        'Não foi possível atualizar a presença. Ela deixará de indicar online pelo prazo de atividade.';
+      status();
+    });
     if (
       document.visibilityState === 'visible' &&
       mounted?.isConnected &&
@@ -314,25 +634,33 @@ export function startMessages(
     if (
       busy ||
       !session ||
-      !mounted?.isConnected ||
-      !selected ||
       !navigator.onLine ||
       document.visibilityState !== 'visible'
     )
       return;
     void run(async () => {
+      await dailyTick();
+      if (!mounted?.isConnected || !selected) return;
       await resumePending();
       if (await controller.probe()) {
         await controller.synchronize();
         await controller.savePins();
       }
     });
-  }, 15000);
+  }, 30000);
+  window.addEventListener('0xdmme-profile-preferences', () => {
+    if (!busy && session && navigator.onLine) void run(dailyTick);
+  });
   window.addEventListener('pagehide', (event) => {
     if (!event.persisted) {
       clearInterval(timer);
       channel?.close();
       devicesChannel?.close();
+      soundEvents.abort();
+      void sound.dispose().catch(() => {
+        message = 'Não foi possível encerrar o áudio deste navegador.';
+        status();
+      });
     }
     suspend();
   });
@@ -343,19 +671,120 @@ export function startMessages(
         void run(refresh);
     }
   });
+  function bind(selector: string, handler: () => void): void {
+    node(selector)?.addEventListener('click', handler);
+  }
+  function bindDailyControls(): void {
+    bind('[data-message-emoji]', () => {
+      const input = node<HTMLTextAreaElement>('[data-message-text]'),
+        anchor = node('[data-message-emoji]');
+      if (!input || !anchor) return;
+      void emojiIntoComposer(emojiPicker, anchor, input).catch(() => {
+        message = 'Não foi possível abrir o painel de emojis.';
+        status();
+      });
+    });
+    bind('[data-compose-cancel]', clearContext);
+    bind('[data-search]', () => {
+      void run(() => search());
+    });
+    bind('[data-search-more]', () => {
+      void run(() => search(true));
+    });
+    bind('[data-archived-list]', () => {
+      showArchived = !showArchived;
+      renderContacts(peers);
+    });
+    bind('[data-mute]', () => {
+      void run(async () => {
+        if (!selected) return;
+        await daily.mute(
+          selected.accountId,
+          Number(node<HTMLSelectElement>('[data-mute-duration]')?.value ?? 0),
+        );
+        await dailyTick();
+      });
+    });
+    bind('[data-archive]', () => {
+      void run(async () => {
+        if (!selected) return;
+        await daily.organize(selected.accountId, {
+          archived: !daily.conversation(selected.accountId).archived,
+        });
+        await dailyTick();
+      });
+    });
+    bind('[data-pin]', () => {
+      void run(async () => {
+        if (!selected) return;
+        await daily.organize(selected.accountId, {
+          pinned: !daily.conversation(selected.accountId).pinned,
+        });
+        renderContacts(peers);
+      });
+    });
+  }
+  function bindMessageControls(): void {
+    bind('[data-message-refresh]', () => {
+      void run(refresh);
+    });
+    bind('[data-message-resend]', () => {
+      void run(async () => {
+        await controller.loadPins();
+        await controller.sendPending();
+        await controller.synchronize();
+        await controller.savePins();
+      });
+    });
+    bind('[data-message-local]', () => {
+      void run(async () => {
+        await controller.openOffline(selected?.accountId ?? null);
+        message =
+          'Cópia local offline: alterações remotas serão aplicadas antes da próxima abertura online.';
+      });
+    });
+    bind('[data-message-more-contacts]', () => {
+      void run(() => refreshContacts(true));
+    });
+    bind('[data-message-older]', () => {
+      void run(async () => {
+        if (!selected) return;
+        controller.select(selected.accountId, true);
+        if (navigator.onLine) await controller.synchronize();
+        else await controller.openOffline(selected.accountId);
+        await controller.savePins();
+      });
+    });
+    node<HTMLFormElement>('[data-message-form]')?.addEventListener(
+      'submit',
+      (event) => {
+        event.preventDefault();
+        void run(submit);
+      },
+    );
+  }
   return {
+    applyPrivacy: (preferences: DailyPreferences) =>
+      daily.configure(preferences),
     setSession(value: AccountSession | null): void {
       if (sameSession(value)) {
         session = value;
+        daily.setSession(value);
         return;
       }
       generation++;
+      emojiPicker.reset();
       refreshRequested = false;
       automaticAttempts = 0;
       session = value;
       contacts.setSession(value);
+      daily.setSession(value);
       controller.setSession(value);
       selected = null;
+      peers = [];
+      states.clear();
+      readIds.clear();
+      clearContext();
       attachments.clearSelection();
 
       message = value
@@ -367,51 +796,42 @@ export function startMessages(
     ready(): void {
       if (!busy && session && navigator.onLine)
         void run(
-          mounted?.isConnected ? refresh : () => controller.initialize(),
+          mounted?.isConnected
+            ? refresh
+            : async () => {
+                await controller.initialize();
+                await dailyTick();
+              },
         );
     },
     canActivate: () => !busy,
+    mountSettings(container: HTMLElement): void {
+      settingsHost = container;
+      container.innerHTML = `<article class="card notifications-card"><h2>Notificações</h2><p>Alertas exibem apenas “0xDMme” e atividade genérica. O serviço push do navegador recebe endereço de inscrição e horários, sem texto, wallet ou nome de contato.</p><p>No iPhone/iPad, adicione o app à tela inicial e abra pelo ícone antes de ativar. A permissão depende de um toque seu e pode ser alterada nas configurações do sistema.</p><p data-daily-status role="status"></p><button data-push-enable type="button">Ativar push neste aparelho</button><button data-push-disable type="button">Desativar push neste aparelho</button><button data-sound-toggle type="button" aria-pressed="true">Desativar sons</button><p data-sound-status role="status"></p><p>Sons ligados por padrão. Sua escolha é salva neste navegador e continua ao trocar de conta ou reabrir o app. O navegador pode aguardar um toque para liberar áudio; volume e som de push seguem o sistema. Conversas silenciadas ou arquivadas continuam sem alertas. Offline ou sem sessão válida, não há alerta remoto novo.</p></article>`;
+      const on = (selector: string, work: () => Promise<void>) =>
+        container.querySelector(selector)?.addEventListener('click', () => {
+          void run(work);
+        });
+      on('[data-push-enable]', () => daily.enablePush());
+      on('[data-push-disable]', () => daily.disablePush());
+      on('[data-sound-toggle]', async () => {
+        await sound.setEnabled(!sound.enabled);
+        try {
+          await savePushSoundPreference(sound.enabled);
+        } catch {
+          throw new Error(
+            'Som alterado na interface, mas a preferência para push não foi salva. Não é possível garantir silêncio das notificações do sistema.',
+          );
+        }
+      });
+      status();
+    },
     mount(container: HTMLElement): void {
       mounted = container;
-      container.innerHTML = `<article class="card chat-panel"><h2>Conversas</h2><p data-message-status role="status"></p><button data-message-refresh type="button">Sincronizar</button><button data-message-resend type="button">Reenviar pendentes</button><button data-message-local type="button">Abrir cópia local offline</button><div class="chat-layout"><aside><h3>Contatos aprovados</h3><div data-message-contacts class="chat-contacts"></div><button data-message-more-contacts type="button" hidden>Mais contatos</button></aside><section><h3 data-message-peer></h3><p data-message-gate></p><div data-message-history class="chat-history" hidden></div><button data-message-older type="button">Mensagens anteriores</button><form data-message-form><label>Mensagem<textarea data-message-text rows="3"></textarea></label><label>Enviar como<select data-attachment-mode><option value="photo">Foto otimizada</option><option value="file">Arquivo original (até 3 MB)</option></select></label><label>Foto ou arquivo<input data-attachment-file type="file"></label><p>Foto: prévia e remoção de metadados no aparelho. Original: pode compartilhar GPS/EXIF. Vídeos ainda não são aceitos.</p><div data-attachment-preview></div><button data-attachment-clear type="button">Remover seleção</button><button class="primary" type="submit">Enviar</button></form><h3>Envios deste aparelho</h3><ul data-message-pending></ul></section></div></article>`;
+      container.innerHTML = `<article class="card chat-panel"><h2>Conversas</h2><p data-message-status role="status"></p><button data-message-refresh type="button">Sincronizar</button><button data-message-resend type="button">Reenviar pendentes</button><button data-message-local type="button">Abrir cópia local offline</button><div class="chat-layout"><aside><h3>Contatos aprovados</h3><button data-archived-list type="button">Alternar arquivadas</button><div data-message-contacts class="chat-contacts"></div><button data-message-more-contacts type="button" hidden>Mais contatos</button></aside><section><h3 data-message-peer></h3><p data-peer-presence></p><label>Silenciar<select data-mute-duration><option value="0">Retomar alertas</option><option value="3600000">1 hora</option><option value="28800000">8 horas</option><option value="86400000">24 horas</option><option value="604800000">7 dias</option><option value="9007199254740991">Até reativar</option></select></label><button data-mute type="button">Aplicar mute</button><button data-archive type="button">Arquivar/desarquivar</button><p>Arquivar silencia até reativar. Depois de desarquivar, use Retomar alertas para voltar a receber notificações.</p><button data-pin type="button">Fixar/desfixar</button><p data-message-gate></p><div data-message-history class="chat-history" hidden></div><button data-message-older type="button">Mensagens anteriores</button><form data-message-form><p data-compose-context></p><button data-compose-cancel type="button">Cancelar resposta/edição</button><label>Mensagem<textarea data-message-text rows="3"></textarea></label><button data-message-emoji type="button">Escolher emoji</button><label>Enviar como<select data-attachment-mode><option value="photo">Foto otimizada</option><option value="file">Arquivo original (até 3 MB)</option></select></label><label>Foto ou arquivo<input data-attachment-file type="file"></label><p>Foto: prévia e remoção de metadados no aparelho. Original: pode compartilhar GPS/EXIF. Vídeos ainda não são aceitos.</p><div data-attachment-preview></div><button data-attachment-clear type="button">Remover seleção</button><button class="primary" type="submit">Enviar</button></form><label>Busca local<input data-message-search maxlength="128" type="search"></label><button data-search type="button">Buscar neste aparelho</button><button data-search-more type="button" hidden>Continuar busca</button><ul data-search-results></ul><h3>Envios deste aparelho</h3><ul data-message-pending></ul></section></div></article>`;
       attachments.mount(container, run);
-      node('[data-message-refresh]')?.addEventListener('click', () => {
-        void run(refresh);
-      });
-      node('[data-message-resend]')?.addEventListener('click', () => {
-        void run(async () => {
-          await controller.loadPins();
-          await controller.sendPending();
-          await controller.synchronize();
-          await controller.savePins();
-        });
-      });
-      node('[data-message-local]')?.addEventListener('click', () => {
-        void run(async () => {
-          await controller.openOffline(selected?.accountId ?? null);
-          message =
-            'Cópia local offline: alterações remotas serão aplicadas antes da próxima abertura online.';
-        });
-      });
-      node('[data-message-more-contacts]')?.addEventListener('click', () => {
-        void run(() => refreshContacts(true));
-      });
-      node('[data-message-older]')?.addEventListener('click', () => {
-        void run(async () => {
-          if (!selected) return;
-          controller.select(selected.accountId, true);
-          if (navigator.onLine) await controller.synchronize();
-          else await controller.openOffline(selected.accountId);
-          await controller.savePins();
-        });
-      });
-      node<HTMLFormElement>('[data-message-form]')?.addEventListener(
-        'submit',
-        (event) => {
-          event.preventDefault();
-          void run(submit);
-        },
-      );
+      bindDailyControls();
+      bindMessageControls();
       renderHistory();
       status();
       if (session && navigator.onLine) void run(refresh);

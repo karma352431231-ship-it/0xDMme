@@ -57,6 +57,9 @@ for (const [path, entry] of Object.entries(lock.packages)) {
   const approved =
     license !== undefined &&
     (permissive.has(license) ||
+      (license === 'MPL-2.0' &&
+        name === 'web-push' &&
+        entry.version === '3.6.7') ||
       (license === 'GPL-3.0' && reviewedGpl.has(`${name}@${entry.version}`)));
   if (!approved)
     throw new Error(

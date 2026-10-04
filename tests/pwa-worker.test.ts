@@ -4,6 +4,7 @@ import { readFile } from 'node:fs/promises';
 import { runInNewContext } from 'node:vm';
 
 interface WorkerEvent {
+  notification?: { close(): void };
   request?: Request;
   data?: unknown;
   source?: { url: string };
@@ -16,6 +17,9 @@ async function worker(
     networkAvailable?: boolean;
     failWriteAt?: number;
     unreadLimit?: number;
+    pushAllowed?: boolean;
+    pushCheckFails?: boolean;
+    pushSound?: string;
   } = {},
 ) {
   let networkAvailable = options.networkAvailable ?? true;
@@ -36,7 +40,14 @@ async function worker(
   let networkRequests = 0;
   let unreadResponses = 0;
   let peakUnread = 0;
+  const notifications: { title: string; options: NotificationOptions }[] = [];
+  const opened: string[] = [];
   const origin = 'https://hash-talk.example';
+  if (options.pushSound !== undefined)
+    cache.set(
+      origin + '/.0xdmme/sound-preference',
+      new Response(options.pushSound),
+    );
   runInNewContext(source, {
     location: { origin },
     addEventListener: (type: string, callback: (event: WorkerEvent) => void) =>
@@ -49,6 +60,19 @@ async function worker(
     AbortSignal,
     URL,
     JSON,
+    registration: {
+      showNotification: (title: string, options: NotificationOptions) => {
+        notifications.push({ title, options });
+        return Promise.resolve();
+      },
+    },
+    clients: {
+      matchAll: () => Promise.resolve([]),
+      openWindow: (url: string) => {
+        opened.push(url);
+        return Promise.resolve();
+      },
+    },
     caches: {
       open: (name: string) => {
         stores.set(name, cache);
@@ -76,6 +100,17 @@ async function worker(
     fetch: (_path: string, request: RequestInit) => {
       assert.ok(request.signal instanceof AbortSignal);
       networkRequests++;
+      if (_path === '/api/account/push-check') {
+        assert.equal(request.credentials, 'same-origin');
+        assert.equal(request.cache, 'no-store');
+        if (options.pushCheckFails)
+          return Promise.reject(new Error('synthetic-unavailable'));
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({ allowed: options.pushAllowed ?? false }),
+          ),
+        );
+      }
       if (!networkAvailable)
         return Promise.reject(new Error('synthetic-offline'));
       if (unreadResponses >= (options.unreadLimit ?? 16))
@@ -113,6 +148,8 @@ async function worker(
       networkAvailable = false;
     },
     origin,
+    notifications,
+    opened,
   };
 }
 
@@ -160,6 +197,45 @@ await test('worker real instala só shell público e atende offline sem intercep
     ).length,
     2,
   );
+});
+await test('push revalida mute/sessão, ignora conteúdo recebido e abre somente o app', async () => {
+  const scope = await worker({ pushAllowed: true });
+  await scope.dispatch('push', {
+    data: { title: 'Texto legível malicioso', url: 'https://evil.test' },
+  });
+  assert.equal(scope.notifications.length, 1);
+  assert.equal(scope.notifications[0]?.options.silent, false);
+  assert.equal(scope.notifications[0]?.title, '0xDMme');
+  assert.equal(
+    scope.notifications[0]?.options.body,
+    'Há nova atividade. Abra o app para sincronizar.',
+  );
+  assert.equal(
+    JSON.stringify(scope.notifications).includes('malicioso'),
+    false,
+  );
+  let closed = false;
+  await scope.dispatch('notificationclick', {
+    notification: {
+      close() {
+        closed = true;
+      },
+    },
+  });
+  assert.equal(closed, true);
+  assert.deepEqual(scope.opened, [scope.origin + '/#conversas']);
+  for (const options of [
+    { pushAllowed: false },
+    { pushAllowed: true, pushCheckFails: true },
+    { pushAllowed: true, pushSound: 'invalid' },
+  ]) {
+    const denied = await worker(options);
+    await denied.dispatch('push');
+    assert.equal(denied.notifications.length, 0);
+  }
+  const silent = await worker({ pushAllowed: true, pushSound: 'false' });
+  await silent.dispatch('push');
+  assert.equal(silent.notifications[0]?.options.silent, true);
 });
 
 await test('worker rejeita instalação incompleta e ativação por mensagem inválida', async () => {

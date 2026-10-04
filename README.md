@@ -6,7 +6,9 @@ O objetivo é oferecer autenticação por wallet e criptografia ponta a ponta, p
 
 ## Estado atual
 
-O [bloco 08](docs/BLOCO_08_FOTOS_E_ARQUIVOS.md) está implementado e ativo no ambiente de testes da VPS: foto otimizada com prévia e remoção verificada de metadados, arquivo original de até 3 MB, miniaturas cifradas, download sob demanda, retomada de uploads, recuperação e exclusão bilateral. Migração 016, saúde e arquivos públicos verificados; backups privados conservados. Testes físicos mobile e aceite final de segurança permanecem posteriores. Próximo bloco: backup exportável e recuperação completa (09).
+O [bloco 10](docs/BLOCO_10_NOTIFICACOES_E_EXPERIENCIA.md) está implementado localmente: push genérico com consentimento, mute, som, contadores, resposta/reação/edição/encaminhamento, busca local cifrada, arquivar/fixar e presença/leitura independentes. Aceite físico e ativação do push pendentes; a rede isolada da VPS exige revisão própria antes do envio externo. O [bloco 09](docs/BLOCO_09_BACKUP_E_RECUPERACAO.md) está ativo no ambiente de testes, com backup independente e limpeza pessoal; seus aceites físicos continuam pendentes. Próximo bloco de implementação: áudio gravado (10A).
+
+O [bloco 08](docs/BLOCO_08_FOTOS_E_ARQUIVOS.md) está implementado e ativo no ambiente de testes da VPS: foto otimizada com prévia e remoção verificada de metadados, arquivo original de até 3 MB, miniaturas cifradas, download sob demanda, retomada de uploads, recuperação e exclusão bilateral. Migração 016, saúde e arquivos públicos verificados; backups privados conservados. Testes físicos mobile e aceite final de segurança permanecem posteriores.
 
 O [bloco 07](docs/BLOCO_07_MENSAGENS.md) integra texto/perfil pelo SDK Matrix, fila sem expiração, confirmação por aparelho e recuperação desde a aceitação. O [bloco 06](docs/BLOCO_06_CONTATOS.md) oferece agenda por wallet com apelidos cifrados, convite revogável por link/QR, descoberta escolhida pelo dono do perfil, solicitações paginadas sem tetos de quantidade/frequência, consentimento bilateral e bloqueio no servidor. A referência de identidade fica no cofre.
 
@@ -55,6 +57,8 @@ Para iPhone na mesma rede privada do Mac, o perfil opcional `npm run probe:mobil
 - [Cofre do bloco 05](docs/BLOCO_05_COFRE.md): versões cifradas, uso efetivo, cópia local, conflitos e roteiro de teste.
 - [Mensagens do bloco 07](docs/BLOCO_07_MENSAGENS.md): fila por aparelho, SDK, recuperação, consentimento e exclusão bilateral.
 - [Fotos e arquivos do bloco 08](docs/BLOCO_08_FOTOS_E_ARQUIVOS.md): limites, processamento privado, transferência, cache e validação.
+- [Experiência diária do bloco 10](docs/BLOCO_10_NOTIFICACOES_E_EXPERIENCIA.md): push, mute, ações, busca e privacidade.
+- [Backup do bloco 09](docs/BLOCO_09_BACKUP_E_RECUPERACAO.md): exportação, consulta e limpeza pessoal.
 - [Domínio e ambiente de testes](docs/DOMINIO_E_AMBIENTE_TESTE.md): DNS Namecheap, HTTPS, isolamento da VPS e pendências de ativação.
 - [Git e envio à VPS](docs/GIT_E_DEPLOY.md): commits por escopo, sincronização do código por Git e limites da ativação de versões.
 - [Licenças](LICENSES.md): distribuição do frontend e fontes correspondentes.

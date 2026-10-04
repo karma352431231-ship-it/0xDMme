@@ -1,4 +1,6 @@
 import { BackupStore } from './backups.ts';
+import { DailyStore } from './daily.ts';
+export type { DailyStore, PushJob } from './daily.ts';
 export type { BackupStore } from './backups.ts';
 import { AttachmentStore } from './attachments.ts';
 export type { AttachmentStore } from './attachments.ts';
@@ -43,6 +45,7 @@ const migrations = [
   '015-message-kinds.sql',
   '016-attachments.sql',
   '017-personal-backup-cleanup.sql',
+  '018-daily.sql',
 ];
 
 export interface MaintenanceSnapshot {
@@ -78,6 +81,7 @@ export class Database {
   readonly matrix: MatrixStore;
   readonly attachments: AttachmentStore;
   readonly backups: BackupStore;
+  readonly daily: DailyStore;
 
   constructor(connectionString: string, contentCapacity = 3_000_000_000) {
     this.pool = new pg.Pool({
@@ -99,6 +103,7 @@ export class Database {
     this.devices = new DeviceStore(this.pool, contentCapacity);
     this.vault = new VaultStore(this.pool, contentCapacity);
     this.contacts = new ContactStore(this.pool);
+    this.daily = new DailyStore(this.pool, this.contacts, contentCapacity);
     this.messageRecovery = new MessageRecoveryStore(
       this.contacts,
       contentCapacity,

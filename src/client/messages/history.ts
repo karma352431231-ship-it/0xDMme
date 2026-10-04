@@ -20,7 +20,13 @@ import type {
   MessagePacket,
 } from '../../shared/messages/index.ts';
 import { integer } from '../../shared/vault/index.ts';
+import { messageRelation } from '../../shared/daily/index.ts';
+import type { MessageRelation } from '../../shared/daily/index.ts';
 export interface MessageItem {
+  relation?: MessageRelation;
+  deletion_account?: string;
+  removal_id?: string;
+  removal_hash?: string;
   kind: 'text' | 'profile' | 'attachment';
   id: string;
   sender: string;
@@ -40,6 +46,19 @@ export interface PeerPin {
   fingerprint: string;
   directory: string;
   revision: number;
+}
+/** A root deletion cannot graft its valid proof onto an unrelated cached packet. */
+export function assertRemovalIdentity(
+  item: Pick<MessageItem, 'id' | 'hash' | 'relation'>,
+  cached: { id: string; hash: string; relation?: MessageRelation } | null,
+): void {
+  if (!cached) return;
+  if (
+    cached.id !== item.id ||
+    cached.hash !== item.hash ||
+    canonical(cached.relation ?? null) !== canonical(item.relation ?? null)
+  )
+    throw new Error('Exclusão divergente da mensagem já autenticada.');
 }
 /** JSON object order is not preserved by the transport/database. Normalize
  * through the shared packet contract before binding it to the signed index. */
@@ -143,13 +162,16 @@ export async function pinFor(history: DirectoryEvent[]): Promise<PeerPin> {
     revision: last.revision,
   };
 }
-export function messageItems(input: unknown): {
+export function messageItems(
+  input: unknown,
+  maximum = messagePageSize,
+): {
   items: MessageItem[];
   next: number | null;
 } {
   const data = object(input),
     raw = data['items'];
-  if (!Array.isArray(raw) || raw.length > messagePageSize)
+  if (!Array.isArray(raw) || raw.length > maximum)
     throw new Error('Índice de mensagens inválido.');
   const items = raw.map((value) => {
     const row = object(value);
@@ -162,6 +184,18 @@ export function messageItems(input: unknown): {
     )
       throw new Error('Estado de mensagem inválido.');
     return {
+      ...(row['relation'] == null
+        ? {}
+        : { relation: messageRelation(row['relation']) }),
+      ...(row['deletion_account'] == null
+        ? {}
+        : { deletion_account: uuid(row['deletion_account']) }),
+      ...(row['removal_id'] == null
+        ? {}
+        : {
+            removal_id: uuid(row['removal_id']),
+            removal_hash: fingerprint(row['removal_hash']),
+          }),
       kind: messageKind(row['kind']),
       id: uuid(row['id']),
       sender: uuid(row['sender']),
@@ -201,15 +235,25 @@ export async function verifyDeletion(
     !proof ||
     !event ||
     !device ||
-    event.accountId !== item.sender ||
+    event.accountId !== (item.deletion_account ?? item.sender) ||
     (await eventHash(event)) !== proof.directory ||
-    proof.payload['id'] !== item.id ||
-    proof.payload['hash'] !== item.hash
+    !validDeletionTarget(item, proof)
   )
     throw new Error('Exclusão não autenticada.');
   await verify(
     device.signing,
     proof.signature,
-    messageBody(item.sender, proof.deviceId, 'delete', proof),
+    messageBody(event.accountId, proof.deviceId, 'delete', proof),
+  );
+}
+function validDeletionTarget(item: MessageItem, proof: MessageProof): boolean {
+  if (proof.payload['id'] === item.id)
+    return proof.payload['hash'] === item.hash;
+  const relation = item.relation;
+  if (!relation) return false;
+  return (
+    relation.id === proof.payload['id'] &&
+    relation.hash === proof.payload['hash'] &&
+    relation.author === item.deletion_account
   );
 }

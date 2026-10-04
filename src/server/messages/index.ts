@@ -1,4 +1,5 @@
 import { AttachmentService } from '../attachments/index.ts';
+import type { NotificationService } from '../notifications/index.ts';
 import type { ObjectStore } from '../object-store/index.ts';
 import {
   AccountError,
@@ -68,6 +69,7 @@ export class MessageService {
   private readonly actions: Record<string, Action>;
   private readonly attachments: AttachmentService | null;
   private readonly objects: ObjectStore | null;
+  private readonly notifications: NotificationService | null;
   constructor(
     db: Pick<
       Database,
@@ -80,8 +82,10 @@ export class MessageService {
     >,
     devices: DeviceStore,
     objects?: ObjectStore,
+    notifications?: NotificationService,
   ) {
     this.db = db;
+    this.notifications = notifications ?? null;
     this.objects = objects ?? null;
     this.devices = devices;
     this.attachments = objects
@@ -130,6 +134,16 @@ export class MessageService {
           snapshot: snapshot(d['snapshot']),
           after: sequence(d['after']),
         });
+      },
+      relations: (a, d) => {
+        keys(d, ['ids', 'snapshot']);
+        if (!Array.isArray(d['ids']) || d['ids'].length > 16)
+          throw new AccountError(400, 'Lote inválido.');
+        return db.messages.relations(
+          a,
+          d['ids'].map(uuid),
+          snapshot(d['snapshot']),
+        );
       },
       object: (a, d) => {
         keys(d, ['id', 'snapshot']);
@@ -200,6 +214,22 @@ export class MessageService {
         return db.matrix.received(a, values.map(sequence));
       },
     };
+    for (const operation of [
+      'daily-config',
+      'daily-state',
+      'daily-states',
+      'daily-configure',
+      'daily-mute',
+      'daily-heartbeat',
+      'daily-read',
+      'daily-receipts',
+      'daily-subscribe',
+    ])
+      this.actions[operation] = (a, d) => {
+        if (!this.notifications)
+          throw new AccountError(503, 'Notificações indisponíveis.');
+        return this.notifications.operate(a, operation, d);
+      };
     for (const operation of [
       'attachment-reserve',
       'attachment-part',

@@ -1,3 +1,4 @@
+import { optionalRelation } from '../../shared/daily/index.ts';
 import {
   attachmentContent,
   contentRefs,
@@ -300,6 +301,7 @@ export class MessageCrypto {
     id: string;
     text: string;
     kind?: MessagePacket['kind'];
+    relation?: MessagePacket['relation'];
   }): Promise<MessagePacket> {
     this.assertOpen();
     const { authority, peerHistory, id, text } = input,
@@ -368,6 +370,7 @@ export class MessageCrypto {
     const packet: MessagePacket = messagePacket({
       version: 1,
       kind: input.kind ?? 'text',
+      ...optionalRelation(input.relation),
       ...attachmentMetadata(input.kind, text),
       id,
       sender: authority.session.accountId,

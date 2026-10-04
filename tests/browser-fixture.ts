@@ -15,6 +15,9 @@ import { VaultService } from '../src/server/vault/index.ts';
 import { ObjectStore } from '../src/server/object-store/index.ts';
 import { MessageService } from '../src/server/messages/index.ts';
 import { ContactService } from '../src/server/contacts/index.ts';
+import { NotificationService } from '../src/server/notifications/index.ts';
+import { frontendEmoji, emojiAsset } from '../src/tools/frontend-emoji.ts';
+import type { WebAsset } from '../src/server/web-host/index.ts';
 
 // Explicit manual-browser fixture, excluded from production build/entry point.
 // Isolated test database and fixed loopback origin; never accepts real wallet keys.
@@ -44,6 +47,8 @@ await database.migrate();
 const objects = new ObjectStore(config.objectDirectory);
 await objects.initialize();
 const assets = new Map(await loadWebAssets());
+if (process.env['HASH_TALK_FIXTURE_EMOJI_CONTROLS'] === '1')
+  await emojiFixture(assets);
 const root = assets.get('/');
 if (!root) throw new Error('Build ausente.');
 const html = new TextDecoder().decode(root.content);
@@ -100,6 +105,11 @@ for (const path of ['/', '/wallet.html', '/recovery.html']) {
     ),
   });
 }
+const notifications = new NotificationService({
+  store: database.daily,
+  devices: database.devices,
+  config: null,
+});
 const host = createWebServer({
   origin,
   assets,
@@ -107,7 +117,13 @@ const host = createWebServer({
   objects,
   account: createAccountHandler({
     contacts: new ContactService(database.contacts, database.devices),
-    messages: new MessageService(database, database.devices, objects),
+    messages: new MessageService(
+      database,
+      database.devices,
+      objects,
+      notifications,
+    ),
+    notifications,
     devices: new DeviceService(database.devices, origin),
     ...fixtureDocuments(),
     vault: new VaultService({
@@ -131,6 +147,36 @@ function fixtureDocuments(): {
   if (!approvalDocument || !recoveryDocument)
     throw new Error('Documentos de teste ausentes.');
   return { approvalDocument, recoveryDocument };
+}
+async function emojiFixture(assets: Map<string, WebAsset>): Promise<void> {
+  const data = await frontendEmoji(process.cwd());
+  const result = await build({
+    entryPoints: ['tests/fixtures/emoji-browser.ts'],
+    bundle: true,
+    platform: 'browser',
+    format: 'esm',
+    write: false,
+    define: {
+      EMOJI_CATALOG: JSON.stringify(data.catalog),
+      EMOJI_ASSET_URL: JSON.stringify(`/${emojiAsset}`),
+    },
+  });
+  const script = result.outputFiles[0]?.contents;
+  if (!script) throw new Error('Fixture de emojis ausente.');
+  const style = [...assets.keys()].find((path) =>
+    /^\/app-[a-f0-9]+\.css$/u.test(path),
+  );
+  if (!style) throw new Error('Estilo de teste ausente.');
+  assets.set('/emoji-test.js', {
+    content: script,
+    type: 'text/javascript; charset=utf-8',
+  });
+  assets.set('/emoji-test.html', {
+    content: new TextEncoder().encode(
+      `<html lang="pt-BR"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="${style}"><script type="module" src="/emoji-test.js"></script><title>Emojis — teste sintético</title><main></main></html>`,
+    ),
+    type: 'text/html; charset=utf-8',
+  });
 }
 await new Promise<void>((resolve, reject) => {
   host.server.once('error', reject);

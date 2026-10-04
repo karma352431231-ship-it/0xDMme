@@ -8,6 +8,10 @@ import { DeviceService } from './devices/index.ts';
 import { VaultService } from './vault/index.ts';
 import { MessageService } from './messages/index.ts';
 import { ContactService } from './contacts/index.ts';
+import {
+  NotificationService,
+  readPushConfiguration,
+} from './notifications/index.ts';
 
 let database: Database | undefined;
 
@@ -24,7 +28,17 @@ try {
   await objects.initialize();
   await database.vault.resumeInterrupted();
   await database.attachments.resumeInterrupted();
-  const messages = new MessageService(database, database.devices, objects);
+  const notifications = new NotificationService({
+    store: database.daily,
+    devices: database.devices,
+    config: readPushConfiguration(process.env),
+  });
+  const messages = new MessageService(
+    database,
+    database.devices,
+    objects,
+    notifications,
+  );
   await messages.cleanAttachments();
   if (!(await database.healthy())) throw new Error('Banco indisponível.');
   const host = createWebServer({
@@ -33,6 +47,7 @@ try {
     database,
     objects,
     account: createAccountHandler({
+      notifications,
       contacts: new ContactService(database.contacts, database.devices),
       messages,
       devices: new DeviceService(database.devices, config.origin),
@@ -70,6 +85,7 @@ try {
     shutdown();
   });
   let closing = false;
+  notifications.start();
   const shutdown = () => {
     if (closing) return;
     closing = true;
@@ -77,6 +93,7 @@ try {
     deadline.unref();
     void host
       .close()
+      .then(() => notifications.close())
       .then(() => database?.close())
       .then(() => {
         clearTimeout(deadline);

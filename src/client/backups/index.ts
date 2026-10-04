@@ -5,6 +5,7 @@ import type { VaultAccess } from '../vault-authority/index.ts';
 import type { VaultSync } from '../vault-sync/index.ts';
 import { openStoredAttachment } from '../attachments/index.ts';
 import { profileCard } from '../message-profile/index.ts';
+import { decodeDailyText } from '../../shared/daily/index.ts';
 import { Backups } from './controller.ts';
 import type { BackupRecord } from '../backup-records/index.ts';
 export function startBackups(access: VaultAccess, sync: VaultSync) {
@@ -180,9 +181,11 @@ export function startBackups(access: VaultAccess, sync: VaultSync) {
     if (row.type === 'vault') return row.value;
     if (row.type === 'media')
       return 'Conteúdo cifrado disponível neste arquivo.';
-    if (row.kind === 'text') return row.text;
+    if (row.kind === 'text') return decodeDailyText(row.text).text;
     if (row.kind === 'attachment')
-      return attachmentContent(JSON.parse(row.text) as unknown).caption;
+      return decodeDailyText(
+        attachmentContent(JSON.parse(row.text) as unknown).caption,
+      ).text;
     return `Perfil: ${profileCard(JSON.parse(row.text) as unknown).name}`;
   }
   function mediaButton(
@@ -338,7 +341,7 @@ export function startBackups(access: VaultAccess, sync: VaultSync) {
     },
     mount(container: HTMLElement): void {
       mounted = container;
-      container.innerHTML = `<article class="card"><span class="eyebrow">BACKUP INDEPENDENTE</span><h2>Guarde uma cópia com você.</h2><p>Arquivo cifrado criado neste aparelho. Para abrir em outro navegador, entre com a wallet original e autorize ou recupere as chaves. A importação abre uma consulta histórica local; não altera aparelhos, bloqueios ou mensagens atuais.</p><p data-backup-status role="status"></p><button data-backup-more type="button">Carregar / continuar seleção</button><p data-backup-page></p><div data-backup-list class="backup-list"></div><button data-backup-next type="button">Próxima página de seleção</button><button data-backup-all type="button">Selecionar itens carregados</button><button data-backup-none type="button">Limpar seleção</button><label><input data-backup-media type="checkbox" checked> Incluir fotos, arquivos e miniaturas disponíveis</label><p data-backup-estimate></p><button data-backup-generate class="primary" type="button">Gerar backup cifrado</button><button data-backup-cancel type="button">Cancelar / fechar backup</button><p><a data-backup-download hidden>Salvar arquivo de backup</a></p><h3>Abrir ou conferir o arquivo salvo</h3><label>Arquivo de backup<input data-backup-file type="file" accept=".0xdm,application/octet-stream"></label><button data-backup-validate type="button">Validar e abrir localmente</button><p>Salvar o arquivo não apaga nada. Confira e guarde sua cópia: perder o arquivo depois de limpar pode tornar o conteúdo irrecuperável para você. Mídias originais baixadas podem conter GPS/EXIF.</p><button data-backup-clean type="button" disabled>Limpar itens preservados no backup</button><label><input data-backup-remind type="checkbox"> Lembrar de exportar após sete dias, ao abrir o cofre</label><button data-backup-register type="button">Registrar hash validado e preferência de lembrete</button><div data-backup-view class="backup-history"></div></article>`;
+      container.innerHTML = `<article class="card"><span class="eyebrow">BACKUP INDEPENDENTE</span><h2>Guarde uma cópia com você.</h2><p>Arquivo cifrado criado neste aparelho. Para abrir em outro navegador, entre com a wallet original e autorize ou recupere as chaves. A importação abre uma consulta histórica local; não altera aparelhos, bloqueios ou mensagens atuais.</p><p>Para guardar as versões de uma mensagem, selecione também suas edições e reações. Limpar a mensagem original do seu cofre oculta essas alterações nesta conta.</p><p data-backup-status role="status"></p><button data-backup-more type="button">Carregar / continuar seleção</button><p data-backup-page></p><div data-backup-list class="backup-list"></div><button data-backup-next type="button">Próxima página de seleção</button><button data-backup-all type="button">Selecionar itens carregados</button><button data-backup-none type="button">Limpar seleção</button><label><input data-backup-media type="checkbox" checked> Incluir fotos, arquivos e miniaturas disponíveis</label><p data-backup-estimate></p><button data-backup-generate class="primary" type="button">Gerar backup cifrado</button><button data-backup-cancel type="button">Cancelar / fechar backup</button><p><a data-backup-download hidden>Salvar arquivo de backup</a></p><h3>Abrir ou conferir o arquivo salvo</h3><label>Arquivo de backup<input data-backup-file type="file" accept=".0xdm,application/octet-stream"></label><button data-backup-validate type="button">Validar e abrir localmente</button><p>Salvar o arquivo não apaga nada. Confira e guarde sua cópia: perder o arquivo depois de limpar pode tornar o conteúdo irrecuperável para você. Mídias originais baixadas podem conter GPS/EXIF.</p><button data-backup-clean type="button" disabled>Limpar itens preservados no backup</button><label><input data-backup-remind type="checkbox"> Lembrar de exportar após sete dias, ao abrir o cofre</label><button data-backup-register type="button">Registrar hash validado e preferência de lembrete</button><div data-backup-view class="backup-history"></div></article>`;
       bind();
       render();
     },

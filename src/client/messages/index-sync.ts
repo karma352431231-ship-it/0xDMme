@@ -70,7 +70,11 @@ export class MessageIndex {
       scan.profiles.set(item.sender, item);
       return;
     }
-    if (item.deleted || (c.before !== null && item.sequence >= c.before))
+    if (
+      item.relation ||
+      item.deleted ||
+      (c.before !== null && item.sequence >= c.before)
+    )
       return;
     // A page retried after an interrupted deletion is idempotent.
     if (scan.items.some((old) => old.id === item.id)) return;

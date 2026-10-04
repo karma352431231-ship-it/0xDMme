@@ -641,6 +641,11 @@ await test('cofre persistente: reservas, isolamento, concorrência, falhas, quot
             +coalesce((SELECT sum(charge) FROM hash_talk.matrix_devices),0)
             +coalesce((SELECT sum(charge) FROM hash_talk.matrix_one_time_keys),0)
             +coalesce((SELECT sum(charge) FROM hash_talk.matrix_envelopes),0)
+            +coalesce((SELECT sum(charge) FROM hash_talk.daily_controls),0)
+            +coalesce((SELECT sum(charge) FROM hash_talk.message_reads),0)
+            +coalesce((SELECT sum(charge) FROM hash_talk.conversation_controls),0)
+            +coalesce((SELECT sum(charge) FROM hash_talk.device_presence),0)
+            +coalesce((SELECT sum(charge) FROM hash_talk.push_subscriptions),0)
           )::text AS actual FROM hash_talk.content_usage WHERE singleton`,
         );
         assert.equal(calculated.rows[0]?.used, calculated.rows[0]?.actual);

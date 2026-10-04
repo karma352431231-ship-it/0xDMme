@@ -6,6 +6,19 @@ import { promisify } from 'node:util';
 
 const execute = promisify(execFile);
 const authored = [
+  'src/client/emoji',
+  'src/tools/frontend-emoji.ts',
+  'vendor/emoji/README.md',
+  'vendor/emoji/LICENSE-GRAPHICS.txt',
+  'vendor/emoji/LICENSE-UNICODE.txt',
+  'vendor/emoji/LICENSE-CLDR.txt',
+  'src/client/daily',
+  'src/client/daily-text',
+  'src/client/message-actions',
+  'src/client/message-search',
+  'src/client/message-status',
+  'src/client/notification-sound',
+  'src/shared/daily',
   'src/client/backups',
   'src/client/backup-archive',
   'src/client/backup-records',
@@ -110,6 +123,13 @@ async function dependencySources(
     ];
   else if (/\/@noble\/(?:curves|hashes)$/u.test(path))
     preferred = ['src', 'LICENSE', 'README.md', 'package.json'];
+  else if (path === 'node_modules/qr')
+    preferred = ['src', 'LICENSE', 'LICENSE-MIT', 'README.md', 'package.json'];
+  else if (
+    path === 'node_modules/libsodium' ||
+    path === 'node_modules/libsodium-wrappers'
+  )
+    preferred = ['dist/modules-esm', 'LICENSE', 'README.md', 'package.json'];
   else return collect(root, path);
   // Preserve preferred sources, metadata/licenses and exact incorporated JS;
   // omit duplicate distribution builds without increasing the resource caps.
@@ -149,7 +169,9 @@ export async function frontendSource(
   );
   const archive = gzipSync(stdout, { level: 9 });
   if (archive.length > 2 * 1024 * 1024)
-    throw new Error('Fontes comprimidas excedem o teto de 2 MiB.');
+    throw new Error(
+      `Fontes comprimidas (${archive.length} bytes) excedem o teto de 2 MiB.`,
+    );
   return archive;
 }
 function verifyInputs(

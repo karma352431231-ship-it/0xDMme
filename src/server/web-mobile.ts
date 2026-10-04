@@ -8,6 +8,10 @@ import { ObjectStore } from './object-store/index.ts';
 import { MessageService } from './messages/index.ts';
 import { ContactService } from './contacts/index.ts';
 import {
+  NotificationService,
+  readPushConfiguration,
+} from './notifications/index.ts';
+import {
   readMobileWebConfiguration,
   recordMobileWebEntry,
 } from './web-mobile/index.ts';
@@ -28,6 +32,11 @@ try {
   await database.migrate();
   const objects = new ObjectStore(config.objectDirectory);
   await objects.initialize();
+  const notifications = new NotificationService({
+    store: database.daily,
+    devices: database.devices,
+    config: readPushConfiguration(process.env),
+  });
   const host = createWebServer({
     ...mobile,
     database,
@@ -35,7 +44,13 @@ try {
     objects,
     account: createAccountHandler({
       contacts: new ContactService(database.contacts, database.devices),
-      messages: new MessageService(database, database.devices),
+      messages: new MessageService(
+        database,
+        database.devices,
+        objects,
+        notifications,
+      ),
+      notifications,
       devices: new DeviceService(database.devices, mobile.origin),
       vault: new VaultService({
         store: database.vault,
@@ -53,6 +68,7 @@ try {
   });
   shutdown = async () => {
     await host.close();
+    await notifications.close();
     await database?.close();
   };
   let closing = false;
@@ -64,6 +80,7 @@ try {
     clearTimeout(lifetime);
     void host
       .close()
+      .then(() => notifications.close())
       .then(() => database?.close())
       .then(() => clearTimeout(deadline))
       .catch(() => {
@@ -82,6 +99,7 @@ try {
   });
   process.once('SIGINT', close);
   process.once('SIGTERM', close);
+  notifications.start();
   await recordMobileWebEntry(mobile.origin);
   process.stdout.write(
     'Base mobile temporária iniciada; acesso em .local/WEB_MOBILE_ACESSO.md.\n',

@@ -1,4 +1,6 @@
 import { attachmentRefs } from '../attachments/index.ts';
+import { optionalRelation, relationKeys } from '../daily/index.ts';
+import type { MessageRelation } from '../daily/index.ts';
 import type { AttachmentRef } from '../attachments/index.ts';
 import { AccountError, base64, keys, object, uuid } from '../account/index.ts';
 import { canonical, eventHash, fingerprint, verify } from '../devices/index.ts';
@@ -43,6 +45,7 @@ export interface RoomKeyArchive {
   mac: string;
 }
 export interface MessagePacket {
+  relation?: MessageRelation;
   kind: 'text' | 'profile' | 'attachment';
   attachments?: AttachmentRef[];
   version: 1;
@@ -101,6 +104,7 @@ export function messageBody(
 export function messagePacket(input: unknown): MessagePacket {
   const data = object(input);
   keys(data, [
+    ...relationKeys(data),
     ...(Object.hasOwn(data, 'attachments') ? ['attachments'] : []),
     'version',
     'kind',
@@ -139,6 +143,7 @@ export function messagePacket(input: unknown): MessagePacket {
     throw new AccountError(400, 'Assinatura de pacote inválida.');
   return {
     version: 1,
+    ...optionalRelation(data['relation']),
     ...(refs ? { attachments: refs } : {}),
     kind: messageKind(data['kind']),
     id: uuid(data['id']),

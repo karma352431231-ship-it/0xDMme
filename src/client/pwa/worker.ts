@@ -1,7 +1,33 @@
 import { cacheableRequest } from '../../shared/pwa-policy/index.ts';
+import { genericNotification } from '../../shared/daily/index.ts';
+import { pushSoundEnabled } from '../notification-sound/index.ts';
 
 // Narrow structural interfaces keep DOM client and worker contexts independent.
 interface WorkerScope {
+  registration: {
+    showNotification(
+      title: string,
+      options: NotificationOptions & { renotify?: boolean },
+    ): Promise<void>;
+  };
+  clients: {
+    matchAll(options: {
+      type: 'window';
+      includeUncontrolled: boolean;
+    }): Promise<{ url: string; focus(): Promise<unknown> }[]>;
+    openWindow(url: string): Promise<unknown>;
+  };
+  addEventListener(
+    type: 'push',
+    listener: (event: { waitUntil(promise: Promise<unknown>): void }) => void,
+  ): void;
+  addEventListener(
+    type: 'notificationclick',
+    listener: (event: {
+      notification: { close(): void };
+      waitUntil(promise: Promise<unknown>): void;
+    }) => void,
+  ): void;
   location: Location;
   skipWaiting(): Promise<void>;
   addEventListener(
@@ -99,4 +125,54 @@ scope.addEventListener('message', (event) => {
     return;
   if (new URL(event.source.url).origin !== scope.location.origin) return;
   event.waitUntil(scope.skipWaiting());
+});
+async function notify(): Promise<void> {
+  try {
+    const response = await fetch('/api/account/push-check', {
+      credentials: 'same-origin',
+      cache: 'no-store',
+      redirect: 'error',
+      signal: AbortSignal.timeout(5000),
+    });
+    const data: unknown = await response.json();
+    if (
+      !response.ok ||
+      typeof data !== 'object' ||
+      data === null ||
+      !('allowed' in data) ||
+      data.allowed !== true
+    )
+      return;
+    const sound = await pushSoundEnabled();
+    await scope.registration.showNotification(genericNotification.title, {
+      body: genericNotification.body,
+      tag: '0xdmme-activity',
+      icon: '/icon-192.png',
+      badge: '/icon-192.png',
+      silent: !sound,
+      renotify: sound,
+    });
+  } catch {
+    /* Unverified authorization/mute never falls back to an alert. The message remains durable. */
+  }
+}
+scope.addEventListener('push', (event) => {
+  event.waitUntil(notify());
+});
+scope.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  event.waitUntil(
+    (async () => {
+      const url = new URL('/#conversas', scope.location.origin).href;
+      const windows = await scope.clients.matchAll({
+        type: 'window',
+        includeUncontrolled: true,
+      });
+      const existing = windows.find(
+        (client) => new URL(client.url).origin === scope.location.origin,
+      );
+      if (existing) await existing.focus();
+      else await scope.clients.openWindow(url);
+    })(),
+  );
 });
