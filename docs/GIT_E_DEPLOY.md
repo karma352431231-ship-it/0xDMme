@@ -28,6 +28,15 @@ a esta publicação e ficam preservadas fora do commit. Executar o comando numa
 cópia limpa do commit enviado e aprovado pela CI, com acesso/baseline/artifacts
 privados em `.local/`; não liberar a verificação de árvore limpa no executor.
 
+A primeira CI de publicação passou em `npm run check`, mas excedeu os dez minutos
+durante a integração completa. A CI executa os checks primeiro e distribui o
+mesmo glob de testes de integração em três shards nativos do Node, cada um com
+PostgreSQL próprio, execução serial interna e dez minutos de limite. Todos os
+shards precisam passar; a ativação continua exigindo sucesso integral do
+workflow do commit exato. Não excluir testes nem elevar limites do executor.
+O repositório é público e conserva runners Ubuntu padrão, cujo uso é gratuito
+conforme a [documentação do GitHub](https://docs.github.com/en/billing/concepts/product-billing/github-actions).
+
 **Ponto importante:** a autorização permite a transição de banco do Bloco 11
 no ambiente de testes. O token ainda não existe; criação e aceite de propriedade
 públicos continuam indisponíveis, sem ativar elegibilidade sintética na VPS.
