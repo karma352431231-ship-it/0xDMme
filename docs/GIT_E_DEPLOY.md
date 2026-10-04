@@ -32,6 +32,18 @@ isolamento e ausência de push externo permanecem.
 Backup e release anterior ficam privados para retorno. Testes físicos do novo
 fluxo continuam no [roteiro de simplificação](TESTES_MANUAIS_SIMPLIFICACAO.md).
 
+**Resultado:** release `f7b48bb` publicada em 04/10/2026 pelo comando existente,
+com [CI do commit exato aprovada](https://github.com/karma352431231-ship-it/0xDMme/actions/runs/37191016205),
+migração 019, backup/ensaio de restauração e preservação verificados. Os 38
+arquivos públicos passaram na conferência; pacote de 8.325.168 bytes, dentro
+de 16 MiB. Nenhum serviço compartilhado foi reiniciado. Backup, release
+anterior e evidências operacionais permanecem privados em `.local/` e no
+armazenamento próprio da VPS. A rodada duplicada da branch de publicação
+encerrou sem aprovação; a ativação exigiu e confirmou a CI integral bem-sucedida
+da mesma release na branch de implementação, sem dispensar nenhuma verificação.
+Testes físicos de câmera, wallet, salvamento/reabertura e suspensão continuam
+pendentes; a interface mobile foi conferida no navegador com dados sintéticos.
+
 Em 01/10/2026, o proprietário autorizou separar os arquivos por escopo em commits,
 enviar a branch ao GitHub e usar Git para transferir código à VPS. O remoto
 permanece no repositório existente da conta Karma; isso não autoriza trocar a
