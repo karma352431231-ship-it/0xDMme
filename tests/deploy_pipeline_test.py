@@ -729,6 +729,39 @@ class DailyDeploymentTests(AttachmentDeploymentTests):
 
 
 
+class LinkedDeploymentTests(AttachmentDeploymentTests):
+    count = 19
+    before_key = 'LINKED_BEFORE'
+    reviewed_key = 'LINKED_REVIEWED'
+    review_name = 'linked_review'
+    snapshot_name = 'linked_snapshot'
+    verify_name = 'verify_linked_migration'
+    activate_name = 'activate_linked'
+
+    def test_migration_checksums_existing_data_and_ledger_are_preserved(self):
+        with tempfile.TemporaryDirectory() as directory:
+            candidate = Path(directory); self.migrations(candidate)
+            versions = remote.attachment_versions(candidate)
+            before = {'versions':versions[:-1], 'tables':{'login_sessions':'preserved',
+                      'accounts':'preserved', 'content_usage':'preserved'}}
+            after = dict(before, versions=versions)
+            with patch.object(remote,'linked_snapshot',return_value=after), patch.object(backups,'pg',return_value=b't') as pg:
+                remote.verify_linked_migration(candidate,before)
+            self.assertIn('login_sessions WHERE NOT wallet_confirmed',pg.call_args.args[0][-1])
+            for invalid in [dict(after,tables={}), dict(after,versions=versions[:-1])]:
+                with patch.object(remote,'linked_snapshot',return_value=invalid), patch.object(backups,'pg') as pg, self.assertRaises(RuntimeError):
+                    remote.verify_linked_migration(candidate,before)
+                pg.assert_not_called()
+            with patch.object(remote,'linked_snapshot',return_value=after), patch.object(backups,'pg',return_value=b'f'), self.assertRaises(RuntimeError):
+                remote.verify_linked_migration(candidate,before)
+        with patch.object(backups,'database_snapshot') as snapshot:
+            remote.linked_snapshot()
+            snapshot.assert_called_once_with(remote.LINKED_TABLES,
+                omit_columns={'login_sessions':('wallet_confirmed',)})
+        self.assertEqual(len(remote.LINKED_TABLES),29)
+        self.assertTrue(set(remote.DAILY_NEW_TABLES).issubset(remote.LINKED_TABLES))
+
+
 class HistoricalBackupRetentionTests(unittest.TestCase):
     def completed(self, root, commit, timestamp):
         work = root / ('deployment-' + commit)

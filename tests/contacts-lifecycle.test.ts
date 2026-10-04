@@ -41,12 +41,18 @@ await test('sessão aberta durante carga local retoma contatos e libera os contr
   };
   const sync = new VaultSync(access);
   sync.complete = true;
-  const loading = Promise.withResolvers<void>();
-  const loaded = Promise.withResolvers<void>();
-  t.mock.method(sync, 'openLocal', () => loading.promise);
+  let release: () => void = () => undefined;
+  const loading = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  let opened: () => void = () => undefined;
+  const loaded = new Promise<void>((resolve) => {
+    opened = resolve;
+  });
+  t.mock.method(sync, 'openLocal', () => loading);
   t.mock.method(sync, 'refresh', () => Promise.resolve());
   t.mock.method(Contacts.prototype, 'snapshot', () => {
-    loaded.resolve();
+    opened();
     return Promise.resolve();
   });
   const button = Object.assign(new EventTarget(), { disabled: false });
@@ -72,11 +78,13 @@ await test('sessão aberta durante carga local retoma contatos e libera os contr
     profileRevision: 0,
     expiresAt: new Date(Date.now() + 60_000).toISOString(),
     walletConfirmed: true,
+    deviceState: 'pending',
+    historyAuthorized: false,
   };
   contacts.setSession(session);
   contacts.ready();
-  loading.resolve();
-  await loaded.promise;
+  release();
+  await loaded;
   await new Promise<void>((resolve) => setImmediate(resolve));
   assert.equal(button.disabled, false);
   assert.match(status.textContent, /Agenda e permissões atuais conferidas/u);

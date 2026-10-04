@@ -1,5 +1,37 @@
 # 0xDMme — Git e envio à VPS
 
+## Transição da experiência simplificada — autorizada em 04/10/2026
+
+Após informar a migração 019 pendente, o proprietário autorizou concluir a
+validação, commitar e atualizar o site. Usar `npm run deploy:staging`, com
+exceção no executor existente restrita ao predecessor ativo `9ed5988`, às
+fontes revisadas em `6daeeb6`, às migrações 001–018 intactas e à nova
+`019-linked-sessions.sql`. Runtime, dependências, Node, Nginx e serviços
+compartilhados não mudam. A correção publicada da URL padrão está integrada.
+
+A migração acrescenta a confirmação de wallet por sessão. Sessões anteriores
+foram emitidas somente depois de assinatura verificada e permanecem confirmadas;
+sessões novas de QR/código começam sem essa capacidade. Com o writer próprio
+parado, reutilizar backup privado de banco/objetos de até 64 MiB cada, parsing e
+ensaio de restauração em transação revertida. Conferir checksums 001–019 e
+digests das 29 tabelas existentes, omitindo somente a coluna nova da comparação
+e verificando separadamente que as sessões anteriores ficaram confirmadas.
+Conta, perfil, histórico, permissões e contabilidade permanecem preservados.
+
+Antes da reabertura, uma falha admite retorno verificado do schema/release
+próprios. Após reabrir, preservar novas gravações e parar somente o app se
+falhar, sem restaurar automaticamente dados antigos. Publicar apenas o commit
+exato com CI aprovada e verificar saúde, os assets/fontes públicos e as
+impressões de configuração, processos e respostas antes/depois. A leitura
+autenticada passa a ter orçamento separado de 240 pedidos/minuto, com os
+limites existentes de quatro pedidos simultâneos; mutações e desafios mantêm
+seus limites. Recursos do serviço/executor, tamanho de release/transferência,
+isolamento e ausência de push externo permanecem.
+
+**Ponto importante:** o deploy não executa reset de Cofre nem exclusão de dados.
+Backup e release anterior ficam privados para retorno. Testes físicos do novo
+fluxo continuam no [roteiro de simplificação](TESTES_MANUAIS_SIMPLIFICACAO.md).
+
 Em 01/10/2026, o proprietário autorizou separar os arquivos por escopo em commits,
 enviar a branch ao GitHub e usar Git para transferir código à VPS. O remoto
 permanece no repositório existente da conta Karma; isso não autoriza trocar a

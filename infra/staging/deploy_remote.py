@@ -48,6 +48,11 @@ DAILY_REVIEWED = '1f4d33cdb4b83f571607c79a7366ad1eab1d73ee'
 DAILY_TABLES = BACKUP_TABLES + ('personal_removals',)
 DAILY_NEW_TABLES = ('daily_controls', 'conversation_controls', 'device_presence',
                     'push_subscriptions', 'message_reads')
+# Owner approved the simplified experience and its pending migration on 04/10/2026.
+# Keep the existing executor, exact live predecessor and reviewed app sources.
+LINKED_BEFORE = '9ed5988f91dc45bf18bf339e5d7ca6c2d58643cb'
+LINKED_REVIEWED = '6daeeb69ba083e97e36b7872bc8838926c468570'
+LINKED_TABLES = DAILY_TABLES + DAILY_NEW_TABLES
 
 
 def run(args, timeout=30):
@@ -274,6 +279,8 @@ def backup_review(candidate, live):
 
 def database_review(candidate, live):
     count = len(list((candidate / 'src/server/database/migrations').glob('*.sql')))
+    if count == 19:
+        return linked_review(candidate, live)
     if count == 18:
         return daily_review(candidate, live)
     if count == 17:
@@ -286,6 +293,30 @@ def database_review(candidate, live):
 def daily_review(candidate, live):
     reviewed_database(candidate, live, {'before':DAILY_BEFORE,
         'reviewed':DAILY_REVIEWED, 'versions':18, 'runtime':True})
+
+
+def linked_review(candidate, live):
+    reviewed_database(candidate, live, {'before':LINKED_BEFORE,
+        'reviewed':LINKED_REVIEWED, 'versions':19})
+
+
+def linked_snapshot():
+    import deploy_blocks45 as backups
+    return backups.database_snapshot(LINKED_TABLES,
+        omit_columns={'login_sessions':('wallet_confirmed',)})
+
+
+def verify_linked_migration(candidate, before):
+    import deploy_blocks45 as backups
+    after, versions = linked_snapshot(), attachment_versions(candidate)
+    if before['versions'] != versions[:18] or after['versions'] != versions or after['tables'] != before['tables']:
+        raise RuntimeError('Linked-session migration/data preservation failed.')
+    # The prior release could only issue sessions after verifying the wallet.
+    # All other row fields and the quota ledger are covered by the full snapshot.
+    actual = backups.pg(['psql', '--no-psqlrc', '--set=ON_ERROR_STOP=1', '--tuples-only', '--no-align', '-c',
+        'SELECT NOT EXISTS(SELECT 1 FROM hash_talk.login_sessions WHERE NOT wallet_confirmed)'])
+    if actual.strip() != b't':
+        raise RuntimeError('Existing wallet sessions were not preserved as confirmed.')
 
 
 def daily_snapshot():
@@ -485,6 +516,13 @@ def activate_daily(config, work, candidate, before_state):
         'verify':verify_daily_migration})
 
 
+def activate_linked(config, work, candidate, before_state):
+    """Reviewed 018→019; preserve all existing data and the maintenance contract."""
+    return activate_database(config, work, candidate, {'before_state':before_state,
+        'review':linked_review, 'snapshot':linked_snapshot, 'versions':18,
+        'verify':verify_linked_migration})
+
+
 def activate_database(config, work, candidate, transition):
     import deploy_blocks45 as backups
     snapshot, before_state = transition['snapshot'], transition['before_state']
@@ -567,6 +605,8 @@ def activate(config, work):
         raise RuntimeError('Own configuration/database service changed.')
     if database_files(candidate) != database_files(DATA / 'release'):
         # Any unreviewed database change was rejected by prepare()/compatibility().
+        if len(list((candidate / 'src/server/database/migrations').glob('*.sql'))) == 19:
+            return activate_linked(config, work, candidate, before)
         if len(list((candidate / 'src/server/database/migrations').glob('*.sql'))) == 18:
             return activate_daily(config, work, candidate, before)
         if len(list((candidate / 'src/server/database/migrations').glob('*.sql'))) == 17:
