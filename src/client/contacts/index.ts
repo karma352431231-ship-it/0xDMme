@@ -62,8 +62,10 @@ export function startContacts(access: VaultAccess, sync: VaultSync) {
     render();
     try {
       await work();
-      const retry = node('[data-contact-action="refresh"]');
-      if (retry) retry.hidden = true;
+      if (current === generation) {
+        const retry = node('[data-contact-action="refresh"]');
+        if (retry) retry.hidden = true;
+      }
     } catch (error: unknown) {
       const retry = node('[data-contact-action="refresh"]');
       if (retry) retry.hidden = false;
@@ -74,7 +76,8 @@ export function startContacts(access: VaultAccess, sync: VaultSync) {
             : 'Operação indisponível. Confira o estado antes de repetir.';
     } finally {
       busy = false;
-      if (current === generation) render();
+      render();
+      if (current !== generation) ready();
     }
   }
   function render(): void {
@@ -485,7 +488,7 @@ export function startContacts(access: VaultAccess, sync: VaultSync) {
       qr?.replaceChildren();
       if (qr) delete qr.dataset['qrPayload'];
     }
-    status = 'Reabra a agenda para conferir a autorização.';
+    status = 'Consultando contatos da conta…';
   }
   function sessionChanged(session: AccountSession | null): boolean {
     return (
@@ -543,10 +546,12 @@ export function startContacts(access: VaultAccess, sync: VaultSync) {
     received = null;
     render();
   });
+  function ready(): void {
+    if (mounted?.isConnected && contacts.session && navigator.onLine)
+      void run(refresh);
+  }
   return {
-    ready(): void {
-      if (mounted && contacts.session && navigator.onLine) void run(refresh);
-    },
+    ready,
     setSession(session: AccountSession | null): void {
       const firstConnection = !contacts.session && session !== null;
       if (sessionChanged(session)) clear();

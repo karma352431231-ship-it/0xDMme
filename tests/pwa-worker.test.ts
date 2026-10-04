@@ -380,7 +380,11 @@ await test('instalação consome corpos antes de novos fetches sob orçamento pe
 });
 
 await test('downloads lentos instalam além de oito segundos; instalação acima do prazo preserva versão anterior', async () => {
-  const slow = await worker({ networkDelayMs: 3_000 });
+  const available = await worker();
+  await available.dispatch('install');
+  const slow = await worker({
+    networkDelayMs: Math.ceil(16_000 / available.networkRequests()),
+  });
   await slow.dispatch('install');
   assert.ok(slow.cache.size >= 7);
   assert.equal(slow.activations(), 0);

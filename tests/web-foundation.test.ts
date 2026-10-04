@@ -332,7 +332,7 @@ await test('servidor recusa origem, mutação, traversal e dados privados; saúd
   );
   assert.equal(
     fresh.headers['permissions-policy'],
-    'camera=(self), microphone=(), geolocation=(), payment=()',
+    'camera=(self), microphone=(self), geolocation=(), payment=()',
   );
   assert.equal(
     (await get('/?atualizar=1', navigationHeaders, 'POST')).status,
