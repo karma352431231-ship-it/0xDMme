@@ -40,7 +40,7 @@ A leitura assinada `peer-directory`, necessária à autenticação das chamadas,
 
 Coleta de ICE por até 10 s; se um candidato relay já existe após 2 s, envia a fotografia limitada dos candidatos em vez de esperar uma interface indisponível indefinidamente. Sinalização não usa trickle, somente relay. Fingerprint, contas, aparelhos, diretórios, ID da chamada e sequência são assinados dentro do envelope cifrado. Confere candidatos locais/remotos selecionados via `getStats()` antes de indicar conectado.
 
-Templates de [TURN e firewall](../infra/turn/README.md) preparados para revisão separada. Não ativados na VPS.
+Templates de [TURN e firewall](../infra/turn/README.md) preparados para revisão separada. A revisão e ativação autorizadas em 05/10/2026 estão registradas abaixo.
 
 ## Verificação local em 05/10/2026
 
@@ -66,4 +66,4 @@ Logs, capturas e dados operacionais dos ensaios ficam exclusivamente em `.local/
 6. Iniciar gravação de mensagem de voz e tentar ligar/atender: exigir parar/cancelar; conferir prévia em RAM preservada. Durante reprodução, confirmar pausa ao iniciar/atender. Negar microfone, cancelar a permissão, bloquear autoplay e navegar pela interface; verificar limpeza, botão de ouvir e continuidade da chamada durante navegação interna.
 7. Medir banda/CPU/RAM e compatibilidade com o outro projeto antes do piloto. Reiniciar apenas nosso serviço em ensaio autorizado; nenhuma chamada deve sobreviver em banco/cofre/backup/logs. Reavaliar capacidade após a medição.
 
-**Ponto importante:** código local não equivale a serviço publicado ou aceite de privacidade/compatibilidade em aparelhos físicos. TURN, emissor push e migrações novos exigem revisão operacional separada. A implementação de push foi antecipada pelo proprietário; ativação e aceite em provedores/aparelhos reais continuam pendentes. Ver [preparação do emissor](../infra/push/README.md).
+**Ponto importante:** a release `44af35f` foi ativada em 05/10/2026 após revisão operacional autorizada, backup/ensaio de restauração e migrações 026–027. TURN e emissor próprios estão ativos, com preservação do outro projeto. Chrome transmitiu áudio sintético por UDP/TCP/TLS, exclusivamente por relay, sem perda registrada; isolamento, certificado e socket foram conferidos. Isso não comprova qualidade acústica, suspensão, redes distintas/restritas ou entrega real de push em celulares. Ver [resultado do deploy](GIT_E_DEPLOY.md#ativação-de-chamadas-push-e-grupos--05102026) e [emissor](../infra/push/README.md).
