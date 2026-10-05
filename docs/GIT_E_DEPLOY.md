@@ -1,5 +1,29 @@
 # 0xDMme — Git e envio à VPS
 
+## Ativação de filtros e menus por contato — autorizada em 05/10/2026
+
+Após a entrega local, o proprietário pediu explicitamente ativar `e0cb062` na
+VPS. Reutilizar `npm run deploy:staging` na cópia limpa e enviada, com
+[CI integral do commit exato aprovada](https://github.com/karma352431231-ship-it/0xDMme/actions/runs/37279726940).
+Preparar o build no Mac, conferir preservação e assets públicos, reiniciar
+somente `0xdmme-test.service` e reter a release anterior para retorno.
+Banco, migrações, dependências, Node, Nginx e infraestrutura não mudam.
+As alterações anteriores do proprietário permanecem fora dos commits.
+Acesso, baselines e evidências operacionais ficam exclusivamente em `.local/`.
+
+**Ponto importante:** esta autorização publica os filtros, menus e agenda
+simplificada no ambiente de testes. Remover contato preserva mensagens e
+consentimento; o aceite do toque prolongado em aparelhos físicos permanece
+pendente.
+
+**Resultado:** release `e0cb062` publicada pelo executor existente, com CI
+exata aprovada. Manifesto ativo, 38 assets públicos e HTML público dos filtros
+conferidos; HTTPS confirmou prontidão. A verificação independente confirmou
+25 migrações, 48 tabelas, checksums e contabilidade consistentes, configurações
+e serviço de banco preservados, backups e release anterior retidos.
+Nenhum serviço compartilhado foi reiniciado. Pacote de 8.344.195 bytes,
+dentro de 16 MiB. Acesso e evidências permanecem exclusivamente em `.local/`.
+
 ## Ativação da interface de chat responsiva — autorizada em 05/10/2026
 
 Após a entrega local, o proprietário pediu ativar a interface de `685b9d1`.

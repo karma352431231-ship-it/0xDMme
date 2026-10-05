@@ -2,7 +2,7 @@
 
 Revisão solicitada pelo proprietário: lista de contatos/grupos na coluna esquerda do desktop, perfil fixo no rodapé, Configurações pelos três pontos; no celular, cabeçalho compacto com marca/lupa e navegação inferior. Decisão em [5.7 do plano](../DECISOES_E_PLANO_DE_IMPLEMENTACAO.md#57-navegação-de-chat-aprovada-em-05102026).
 
-## Revisão de filtros e contatos — implementação local
+## Revisão de filtros e contatos — publicada
 
 Decisões em [5.8 do plano](../DECISOES_E_PLANO_DE_IMPLEMENTACAO.md#58-filtros-e-menu-por-contato--aprovados-em-05102026). “Organizar conversas” dá lugar aos filtros Todos, Não lidas, Favoritos, Grupos e Arquivadas. A lista conserva rolagem própria; opções de criação/convites ficam no filtro Grupos. Menus por linha usam seta no desktop, toque prolongado no mobile e teclado. Um deslocamento de mais de 10 px ou cancelamento interrompe o gesto; segurar não abre o chat nem marca leitura.
 
@@ -14,7 +14,9 @@ Quando uma wallet arquivada obtém aprovação, a conferência dos estados aplic
 
 Validação: a verificação integral local passou com 260 testes de aplicação e 86 do executor. Após os ajustes de menu e silêncio, lint, TypeScript, build e testes direcionados foram repetidos nas camadas afetadas. A conferência em navegador com wallet fictícia confirmou inclusão imediata, favoritar/desfavoritar, fixar, arquivar/desarquivar, remoção sem bloqueio e restauração ao salvar novamente. Em 390 × 844, a lista não transborda horizontalmente, a seta fica oculta e o menu aparece na base da tela. O gesto de 500 ms e seu cancelamento foram verificados em teste; toque físico em Android/iOS continua pendente. Evidências visuais e fixture permanecem em `.local/`.
 
-**Ponto importante:** Remover contato grava um marcador versionado; preserva histórico, versões antigas e consentimento. Bloquear continua sendo a ação que impede novos envios. Nenhuma dependência, migração ou mudança de infraestrutura faz parte desta revisão. A release pública `685b9d1` permanece com o visual anterior até uma nova ativação autorizada.
+**Ponto importante:** Remover contato grava um marcador versionado; preserva histórico, versões antigas e consentimento. Bloquear continua sendo a ação que impede novos envios. Nenhuma dependência, migração ou mudança de infraestrutura faz parte desta revisão. Em 05/10/2026, o proprietário autorizou ativar `e0cb062` pelo executor existente, com CI exata e preservação. O aceite de toque em aparelhos físicos permanece pendente.
+
+Publicação concluída em 05/10/2026: release `e0cb062`, com [CI integral aprovada](https://github.com/karma352431231-ship-it/0xDMme/actions/runs/37279726940). Manifesto ativo e 38 assets públicos verificados; HTTPS confirmou prontidão e HTML exato dos novos filtros. A conferência independente confirmou 25 migrações, 48 tabelas, checksums e contabilidade consistentes, configurações e processo do banco preservados, backups e release anterior retidos. Nenhum serviço compartilhado foi reiniciado. Pacote de 8.344.195 bytes, dentro de 16 MiB. Acesso e evidências ficam exclusivamente em `.local/`.
 
 ## Entrega anterior publicada
 

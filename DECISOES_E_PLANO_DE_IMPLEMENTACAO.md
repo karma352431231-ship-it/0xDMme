@@ -246,7 +246,9 @@ O proprietário pediu substituir “Organizar conversas” por filtros no topo, 
 - Remover contato grava o marcador existente da agenda cifrada, retira a linha da lista e permite salvar novamente. Não bloqueia, revoga consentimento, apaga mensagens ou elimina versões anteriores/backups. Bloquear continua retirando a aprovação nos dois sentidos. Os requisitos existentes de arquivamento/silêncio permanecem; wallets sem aprovação e cópias locais não têm alertas remotos para silenciar.
 - Favoritos ficam no cofre cifrado com registro próprio de preferências, preservando o formato legado de fixação/arquivamento. A chave do favorito individual acompanha a wallet; a do grupo acompanha o grupo. Não criar tabela, dependência ou armazenamento legível no backend. Paginar a abertura da agenda e limpar os dados carregados ao trocar de conta.
 
-**Ponto importante:** remover da agenda não interrompe uma conversa aprovada. Para impedir novos envios, usar Bloquear. A revisão passou nas verificações locais e no navegador com dados fictícios; toque físico permanece pendente. A ativação na VPS exige nova autorização explícita. Evidências e limites em [interface de chat responsiva](docs/INTERFACE_CHAT_RESPONSIVA.md).
+Após a entrega local e a CI integral de `e0cb062`, o proprietário autorizou explicitamente a ativação na VPS em 05/10/2026 pelo executor existente. A release foi publicada com manifesto, assets, HTTPS e preservação conferidos, backups e versão anterior retidos. Nenhuma dependência, migração ou infraestrutura foi alterada.
+
+**Ponto importante:** remover da agenda não interrompe uma conversa aprovada. Para impedir novos envios, usar Bloquear. A revisão passou nas verificações locais e no navegador com dados fictícios; toque físico permanece pendente. Evidências e limites em [interface de chat responsiva](docs/INTERFACE_CHAT_RESPONSIVA.md).
 
 ## 6. Escopo funcional
 
