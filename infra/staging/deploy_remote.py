@@ -70,6 +70,12 @@ REPRESENTATIVES_REVIEWED = 'c70eeed8b09b21c10ee03175e0032339f0632f5d'
 REPRESENTATIVES_TABLES = GROUPS_TABLES + GROUPS_NEW_TABLES
 REPRESENTATIVES_NEW_TABLES = ('organizations', 'representative_credentials',
                              'organization_domains')
+# Owner approved calls/push activation and their isolated infrastructure on
+# 05/10/2026. Exact 025→027, without runtime/dependency changes or data rewrites.
+CALLS_BEFORE = '793bf21f9f0b66cc58fee21fe6a65eccdeb84e98'
+CALLS_REVIEWED = '537240c02377a7217196a678051758b62ff0fece'
+CALLS_TABLES = REPRESENTATIVES_TABLES + REPRESENTATIVES_NEW_TABLES
+CALLS_NEW_TABLES = ('call_controls', 'push_controls')
 
 
 def run(args, timeout=30):
@@ -301,6 +307,8 @@ def backup_review(candidate, live):
 
 def database_review(candidate, live):
     count = len(list((candidate / 'src/server/database/migrations').glob('*.sql')))
+    if count == 27:
+        return calls_review(candidate, live)
     if count == 25:
         return representatives_review(candidate, live)
     if count == 24:
@@ -345,6 +353,32 @@ def representatives_review(candidate, live):
 def representatives_snapshot():
     import deploy_blocks45 as backups
     return backups.database_snapshot(REPRESENTATIVES_TABLES)
+
+
+def calls_review(candidate, live):
+    reviewed_database(candidate, live, {'before':CALLS_BEFORE,
+        'reviewed':CALLS_REVIEWED, 'versions':27, 'previous_versions':25})
+
+
+def calls_snapshot():
+    import deploy_blocks45 as backups
+    return backups.database_snapshot(CALLS_TABLES)
+
+
+def verify_calls_migration(candidate, before):
+    import deploy_blocks45 as backups
+    after, versions = calls_snapshot(), attachment_versions(candidate)
+    if before['versions'] != versions[:25] or after['versions'] != versions or after['tables'] != before['tables']:
+        raise RuntimeError('Calls/push migration/data preservation failed.')
+    total = content_total()
+    for table in ('personal_removals',) + DAILY_NEW_TABLES + GROUPS_NEW_TABLES + REPRESENTATIVES_NEW_TABLES + CALLS_NEW_TABLES:
+        total += ' + coalesce((SELECT sum(charge) FROM hash_talk.' + table + '),0)'
+    empty = ' AND '.join('NOT EXISTS(SELECT 1 FROM hash_talk.' + table + ')' for table in CALLS_NEW_TABLES)
+    actual = backups.pg(['psql', '--no-psqlrc', '--set=ON_ERROR_STOP=1', '--tuples-only', '--no-align', '-c',
+        'SELECT used_bytes=(' + total + ') AND ' + empty +
+        ' FROM hash_talk.content_usage WHERE singleton'])
+    if actual.strip() != b't':
+        raise RuntimeError('Calls/push initial tables/actual-use ledger inconsistent.')
 
 
 def verify_representatives_migration(candidate, before):
@@ -616,6 +650,13 @@ def activate_representatives(config, work, candidate, before_state):
         'verify':verify_representatives_migration})
 
 
+def activate_calls(config, work, candidate, before_state):
+    """Reviewed 025→027; preserve existing rows, objects and restore contract."""
+    return activate_database(config, work, candidate, {'before_state':before_state,
+        'review':calls_review, 'snapshot':calls_snapshot, 'versions':25,
+        'verify':verify_calls_migration})
+
+
 def activate_database(config, work, candidate, transition):
     import deploy_blocks45 as backups
     snapshot, before_state = transition['snapshot'], transition['before_state']
@@ -698,6 +739,8 @@ def activate(config, work):
         raise RuntimeError('Own configuration/database service changed.')
     if database_files(candidate) != database_files(DATA / 'release'):
         # Any unreviewed database change was rejected by prepare()/compatibility().
+        if len(list((candidate / 'src/server/database/migrations').glob('*.sql'))) == 27:
+            return activate_calls(config, work, candidate, before)
         if len(list((candidate / 'src/server/database/migrations').glob('*.sql'))) == 25:
             return activate_representatives(config, work, candidate, before)
         if len(list((candidate / 'src/server/database/migrations').glob('*.sql'))) == 24:

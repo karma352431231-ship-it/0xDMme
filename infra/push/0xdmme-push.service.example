@@ -2,6 +2,8 @@
 Description=0xDMme restricted Web Push sender
 After=network-online.target
 Wants=network-online.target
+Requires=0xdmme-egress.service
+After=0xdmme-egress.service
 StartLimitIntervalSec=300
 StartLimitBurst=3
 

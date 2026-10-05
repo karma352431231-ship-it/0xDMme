@@ -2,6 +2,8 @@
 
 Escolha aprovada em 05/10/2026. Preparação local, sem instalação/ativação na VPS. O serviço web mantém `PrivateNetwork=yes` e `IPAddressDeny=any`, sem saída externa. Só comunica com `0xdmme-push.service` por Unix socket. O emissor não tem banco, objetos, conteúdo E2EE, IDs de conta/contato/chamada ou fila em disco. O pacote já existente `web-push@3.6.7` monta VAPID e cifra um payload fixo genérico; o Worker consulta a mesma origem para decidir qual aviso exibir. Não criar outro executor de deploy.
 
+**Revisão operacional autorizada em 05/10/2026:** após o inventário, o proprietário aprovou serviços próprios de chamadas/push, filtros por usuários exclusivos e migrações 026–027 com backup/ensaio de restauração. A unidade `0xdmme-egress.service` instala somente as duas tabelas próprias e precede os serviços dependentes; falha do filtro impede iniciá-los. Preparar credenciais e conjuntos DNS privados, conferir isolamento real e preservar fingerprints dos serviços existentes. A autorização cobre as adições revisadas; não libera saída externa do web nem atualizações de pacotes/serviços compartilhados. O código continua sendo ativado pelo executor existente.
+
 ## Contrato e credenciais
 
 - Web: `HASH_TALK_PUSH_PUBLIC_KEY`, `HASH_TALK_PUSH_SOCKET=/run/0xdmme-push/sender.sock`, `HASH_TALK_PUSH_TOKEN`. VAPID privada no processo web é erro de configuração; não há fallback HTTPS direto.
