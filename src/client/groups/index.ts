@@ -30,7 +30,11 @@ export function startGroups(
   sync: VaultSync,
   options: GroupOptions,
 ) {
-  const controller = new GroupController(access, sync),
+  const controller = new GroupController(
+      access,
+      sync,
+      () => !!host?.getClientRects().length,
+    ),
     emoji = new EmojiPicker(),
     attachments = new AttachmentUi(options.playback, voiceStatus);
   let session: AccountSession | null = null,
@@ -715,6 +719,18 @@ export function startGroups(
     attachments.pausePreview();
     emoji.close();
   }
+  function clearSessionPanels(): void {
+    for (const container of [host, aside]) {
+      container?.querySelectorAll('form').forEach((form) => form.reset());
+      container
+        ?.querySelectorAll(
+          'ul, [data-group-incoming], [data-group-history], [data-attachment-preview]',
+        )
+        .forEach((list) => list.replaceChildren());
+    }
+    creating = false;
+    notice = 'Abra um grupo para conversar.';
+  }
   window.addEventListener('beforeunload', (event) => {
     if (!voice.active && !attachments.selected?.voice) return;
     event.preventDefault();
@@ -740,6 +756,8 @@ export function startGroups(
       return voice.active || !!attachments.selected?.voice;
     },
     listLabel,
+    search: (query: string, after: string | null) =>
+      controller.search(query, after),
     refresh,
     resumePending,
     open,
@@ -760,6 +778,7 @@ export function startGroups(
       attachments.clearSelection();
       attachments.clearMedia();
       emoji.reset();
+      clearSessionPanels();
       states.clear();
       vault = null;
       render();

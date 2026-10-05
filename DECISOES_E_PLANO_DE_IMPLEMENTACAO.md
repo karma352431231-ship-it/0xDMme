@@ -223,6 +223,17 @@ Detalhes da implementação: vinculação requer a origem aberta/visível para a
 
 **Ponto importante:** simplicidade de interface não autoriza remover criptografia, consentimento, revogação, validação de backup ou limites operacionais. Não executar exclusão de dados como parte da limpeza de interface.
 
+### 5.7 Navegação de chat aprovada em 05/10/2026
+
+O proprietário solicitou reorganizar a interface com as referências visuais fornecidas. Esta revisão substitui a posição de navegação descrita nos blocos anteriores; mantém as regras de consentimento, criptografia, histórico e perfil.
+
+- Desktop: a coluna esquerda abriga contatos aprovados, conversas do histórico local e grupos adicionados, numa lista com rolagem independente. Perfil, nome e wallet permanecem fixos no rodapé dessa coluna. Os três pontos ao lado do nome abrem Configurações. Status e Cofre saem da navegação principal por enquanto; suas rotas e operações existentes são preservadas.
+- Mobile: logo e nome 0xDMme no topo, lupa à direita e barra inferior com Conversas, Contatos, Configurações e Perfil. Não colocar três pontos no cabeçalho. A lista dá lugar ao chat selecionado, com retorno para Conversas.
+- A lupa pesquisa nomes/wallets dos chats carregados e palavras nas mensagens sincronizadas/importadas neste aparelho. A busca é local, com paginação e conferências de sessão; nenhum termo privado segue para o servidor. Não prometer pesquisa em mensagens que este aparelho ainda não possui. Arquivadas continuam encontráveis pela lupa.
+- Adicionar contato continua acessível pela lista e pela aba mobile; aprovação continua necessária para enviar mensagens. Criar grupo e tratar convites seguem recolhidos junto à lista, conservando os requisitos de elegibilidade.
+
+**Ponto importante:** esconder itens da navegação não apaga dados nem altera permissões. Esta mudança local de interface não autoriza uma nova publicação na VPS. Implementação e validação em [interface de chat responsiva](docs/INTERFACE_CHAT_RESPONSIVA.md).
+
 ## 6. Escopo funcional
 
 ### 6.1 Mensageiro e conta

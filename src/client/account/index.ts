@@ -66,7 +66,7 @@ const template = `<article class="card account-card"><span class="eyebrow">CONTA
 <p class="detail" data-wallet-manual hidden>Para voltar ao navegador original, use a tela de apps recentes do celular. O pedido só terá assinatura confirmada quando esta página informar isso.</p>
 <p data-account-status role="status">Verificando sessão…</p>
 <details data-wallet-diagnostics hidden open><summary>Diagnóstico do login</summary><p class="detail" data-wallet-diagnostic></p><p class="detail">Se falhar, envie esta linha. Ela não contém ticket, endereço ou assinatura.</p></details>
-<div data-profile hidden>
+<div data-profile hidden><div class="profile-identity"><button class="profile-avatar" data-profile-avatar type="button" aria-label="Alterar foto de perfil">#</button><div><strong data-profile-name></strong><p data-account-address class="account-address"></p><button data-profile-copy type="button">Copiar wallet</button></div></div>
 <form data-name-form><label>Nome mostrado nas solicitações de contato<input name="display-name" maxlength="80" autocomplete="nickname"></label><button class="primary" type="submit">Salvar nome</button></form>
 <div data-private-profile hidden><h3>Privacidade</h3>
 <form data-preferences><label><input type="checkbox" name="online"> Exibir online para contatos aprovados</label><label><input type="checkbox" name="lastSeen"> Exibir último acesso para contatos aprovados</label><label><input type="checkbox" name="readReceipts"> Enviar confirmação de leitura</label><label><input type="checkbox" name="backupReminder"> Lembrar de salvar um backup a cada sete dias</label><button class="primary" type="submit">Salvar preferências</button></form></div>
@@ -547,16 +547,21 @@ export function startAccount(options: {
           }),
         )
       : undefined;
-    const avatar = document.getElementById('account-avatar');
-    if (!avatar) return;
-    avatar.replaceChildren();
-    if (photoUrl) {
-      const image = document.createElement('img');
-      image.src = photoUrl;
-      image.alt = 'Sua foto de perfil';
-      avatar.append(image);
-    } else avatar.textContent = session?.name.slice(0, 1) || '#';
+    for (const avatar of [
+      document.getElementById('account-avatar'),
+      node('[data-profile-avatar]'),
+    ]) {
+      if (!avatar) continue;
+      avatar.replaceChildren();
+      if (photoUrl) {
+        const image = document.createElement('img');
+        image.src = photoUrl;
+        image.alt = 'Sua foto de perfil';
+        avatar.append(image);
+      } else avatar.textContent = session?.name.slice(0, 1) || '#';
+    }
   }
+
   function render(): void {
     renderSidebar();
     if (disposed || !mounted) return;
@@ -594,13 +599,11 @@ export function startAccount(options: {
     if (address) address.textContent = '';
     const identity = node('[data-account-id]');
     if (identity) identity.textContent = '';
+    const name = node('[data-profile-name]');
+    if (name) name.textContent = '';
   }
   function renderProfileForm(current: AccountSession): void {
-    const address = node('[data-account-address]');
-    if (address)
-      address.textContent = `Wallet ${current.ecosystem === 'evm' ? 'EVM' : 'Solana'}: ${current.address}`;
-    const identity = node('[data-account-id]');
-    if (identity) identity.textContent = `Conta: ${current.accountId}`;
+    renderProfileIdentity(current);
     const name = node<HTMLInputElement>('input[name="display-name"]');
     if (name && document.activeElement !== name)
       name.value = draftName ?? current.name;
@@ -612,6 +615,15 @@ export function startAccount(options: {
         if (checkbox) checkbox.checked = privateProfile.preferences[name];
       }
     renderPhoto();
+  }
+  function renderProfileIdentity(current: AccountSession): void {
+    const label = node('[data-profile-name]');
+    if (label) label.textContent = current.name || 'Minha conta';
+    const address = node('[data-account-address]');
+    if (address)
+      address.textContent = `Wallet ${current.ecosystem === 'evm' ? 'EVM' : 'Solana'}: ${current.address}`;
+    const identity = node('[data-account-id]');
+    if (identity) identity.textContent = `Conta: ${current.accountId}`;
   }
   function updateProfileRevision(
     stored: unknown,
@@ -1086,19 +1098,22 @@ export function startAccount(options: {
     document.getElementById('account-photo')?.addEventListener('change', () => {
       void selectPhoto();
     });
-    document.getElementById('copy-wallet')?.addEventListener('click', () => {
-      if (!session) return;
-      void navigator.clipboard
-        .writeText(session.address)
-        .then(() => {
-          status = 'Wallet copiada.';
-          renderSidebar();
-        })
-        .catch(() => {
-          status = 'Não foi possível copiar a wallet.';
-          renderSidebar();
-        });
-    });
+    document
+      .getElementById('copy-wallet')
+      ?.addEventListener('click', copyWallet);
+  }
+  function copyWallet(): void {
+    if (!session) return;
+    void navigator.clipboard
+      .writeText(session.address)
+      .then(() => {
+        status = profileStatus = 'Wallet copiada.';
+        render();
+      })
+      .catch(() => {
+        status = profileStatus = 'Não foi possível copiar a wallet.';
+        render();
+      });
   }
   bindSidebar();
   async function signStatement(message: string): Promise<string> {
@@ -1202,6 +1217,10 @@ export function startAccount(options: {
         void operation(logout);
       });
       bindProfileControls();
+      node('[data-profile-avatar]')?.addEventListener('click', () => {
+        document.getElementById('account-avatar')?.click();
+      });
+      node('[data-profile-copy]')?.addEventListener('click', copyWallet);
       render();
     },
   };

@@ -13,8 +13,9 @@ import type { AccountSession } from '../../shared/account/index.ts';
 const pages = {
   conversas: {
     title: 'Conversas',
-    content: `<div data-messages-container></div>`,
+    content: '',
   },
+  perfil: { title: 'Perfil', content: '' },
   status: {
     title: 'Status',
     content: `<div class="cards" data-status-container></div>`,
@@ -40,6 +41,18 @@ function element<T extends HTMLElement>(id: string): T {
 }
 
 let connectedAccount: AccountSession | null = null;
+const conversationContent = document.createElement('div');
+conversationContent.className = 'conversation-content';
+let currentPage = '';
+let currentHash = '';
+function openConversation(): void {
+  if (location.hash !== '#conversas') {
+    location.hash = '#conversas';
+    route();
+  }
+  element('app-shell').dataset['chatOpen'] = 'true';
+  element('workspace').scrollTop = 0;
+}
 const devices = startDevices({
   changed: async () => {
     await account.refreshPrivate();
@@ -62,6 +75,11 @@ const representatives = startRepresentatives(devices, vault.sync, (message) =>
 );
 const messages = startMessages(devices, vault.sync, {
   playback,
+  openConversation,
+  directoryChanged: (available) => {
+    const shell = document.getElementById('app-shell');
+    if (shell) shell.dataset['history'] = available ? 'available' : 'empty';
+  },
   representatives,
   liveEvent: (event) => statuses.event(event),
   liveState: (connected) => statuses.liveConnection(connected),
@@ -79,6 +97,11 @@ const account = startAccount({
     devices.saveProfile(session, profile, key),
   changed: (session) => {
     connectedAccount = session;
+    const shell = document.getElementById('app-shell');
+    if (shell) {
+      shell.dataset['account'] = session ? 'connected' : 'guest';
+      if (!session) shell.dataset['chatOpen'] = 'false';
+    }
     devices.setSession(session);
     vault.setSession(session);
     backups.setSession(session);
@@ -119,6 +142,10 @@ function route(): void {
   const key = Object.hasOwn(pages, selected)
     ? (selected as keyof typeof pages)
     : 'conversas';
+  if (currentPage === key && currentHash === location.hash) return;
+  currentPage = key;
+  currentHash = location.hash;
+  element('app-shell').dataset['page'] = key;
   const page = pages[key];
   element('page-title').textContent = page.title;
   element('breadcrumb').textContent = page.title.toLocaleUpperCase('pt-BR');
@@ -129,6 +156,7 @@ function route(): void {
   vault.leave();
   // Templates are static authored content. No user/server input enters HTML.
   element('page-content').innerHTML = page.content;
+  if (key === 'conversas') element('page-content').append(conversationContent);
   mountAccountPanels(key);
   mountFeature(key);
   document.querySelectorAll<HTMLAnchorElement>('nav a').forEach((link) => {
@@ -158,10 +186,7 @@ function mountFeature(key: keyof typeof pages): void {
     '[data-contact-settings-container]',
   );
   if (contactSettings) contacts.mount(contactSettings, 'settings');
-  const messageContainer = content.querySelector<HTMLElement>(
-    '[data-messages-container]',
-  );
-  if (key === 'conversas' && messageContainer) messages.mount(messageContainer);
+  if (key === 'conversas') messages.ready();
   mountStatusFeature(key, content);
   const contactContainer = content.querySelector<HTMLElement>(
     '[data-contacts-container]',
@@ -191,6 +216,7 @@ function mountStatusFeature(
 
 function mountAccountPanels(key: keyof typeof pages): void {
   if (
+    key === 'perfil' ||
     key === 'configuracoes' ||
     key === 'conversas' ||
     key === 'cofre' ||
@@ -200,7 +226,10 @@ function mountAccountPanels(key: keyof typeof pages): void {
     const container = document.createElement('div');
     container.className = 'account-section';
     element('page-content').prepend(container);
-    account.mount(container, key === 'configuracoes' ? 'settings' : 'login');
+    account.mount(
+      container,
+      key === 'configuracoes' || key === 'perfil' ? 'settings' : 'login',
+    );
   }
   if (key === 'configuracoes') {
     const container = document.createElement('div');
@@ -235,6 +264,21 @@ function connection(): void {
     : 'Sem conexão · histórico salvo disponível neste aparelho';
 }
 
+if (!account.approvalPage) {
+  conversationContent.dataset['messagesContainer'] = '';
+  messages.mount(conversationContent, element('chat-directory'));
+}
+document
+  .getElementById('open-search')
+  ?.addEventListener('click', () => messages.openSearch());
+document.getElementById('back-to-chats')?.addEventListener('click', () => {
+  element('app-shell').dataset['chatOpen'] = 'false';
+});
+document
+  .querySelector('[data-route=conversas]')
+  ?.addEventListener('click', () => {
+    element('app-shell').dataset['chatOpen'] = 'false';
+  });
 window.addEventListener('hashchange', route);
 window.addEventListener('online', connection);
 window.addEventListener('offline', connection);

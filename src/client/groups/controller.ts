@@ -38,6 +38,7 @@ import { groupAttachmentApi } from './media.ts';
 import { GroupCatalog } from './catalog.ts';
 import { stageCurrentProfile } from './profile.ts';
 import { GroupRetry } from './retry.ts';
+import { searchGroupCopies } from './search.ts';
 import {
   importGroupCatalog,
   localGroupViews,
@@ -56,6 +57,7 @@ interface GroupContext {
 export class GroupController {
   private readonly retry = new GroupRetry();
   private readonly access: VaultAccess;
+  private readonly visible: () => boolean;
   private readonly identities: PeerIdentity;
   private session: AccountSession | null = null;
   private generation = 0;
@@ -72,8 +74,9 @@ export class GroupController {
   selected: GroupSummary | null = null;
   views: GroupView[] = [];
   before: number | null = null;
-  constructor(access: VaultAccess, sync: VaultSync) {
+  constructor(access: VaultAccess, sync: VaultSync, visible: () => boolean) {
     this.access = access;
+    this.visible = visible;
     this.identities = new PeerIdentity(sync);
   }
   setSession(session: AccountSession | null): void {
@@ -157,6 +160,18 @@ export class GroupController {
       this.guard(generation);
       return result;
     });
+  }
+  async search(query: string, after: string | null) {
+    const generation = this.generation;
+    return this.withLocalAuthority((authority) =>
+      searchGroupCopies({
+        query,
+        after,
+        groups: this.entries.map((group) => group.state.groupId),
+        read: (group, before) => localGroupViews(authority, group, before),
+        guard: () => this.guard(generation),
+      }),
+    );
   }
   async refresh(more = false): Promise<void> {
     if (!navigator.onLine) return this.refreshLocal(more);
@@ -411,7 +426,7 @@ export class GroupController {
     const ids = this.views
       .filter((v) => !v.own && !v.unavailableMedia.length && !v.localOnly)
       .map((v) => v.id);
-    if (ids.length && document.visibilityState === 'visible')
+    if (ids.length && document.visibilityState === 'visible' && this.visible())
       await this.recordReads(api, group, ids);
     const own = this.views
       .filter((v) => v.own && !v.localOnly)

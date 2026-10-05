@@ -17,35 +17,66 @@
   </head>
   <body>
     <a class="skip" href="#workspace">Ir para o conteúdo</a>
-    <div class="app">
-      <aside class="sidebar">
-        <a class="brand" href="#conversas"
-          ><span class="brand-mark" aria-hidden="true">#</span
-          ><span>0xDMme<small>SEU ESPAÇO PRIVADO</small></span></a
-        >
-        <p class="section-label">SEU ESPAÇO</p>
-        <nav aria-label="Navegação principal">
-          <a href="#conversas" data-route="conversas"
-            ><span aria-hidden="true">◌</span>Conversas</a
+    <div class="app" id="app-shell" data-account="guest" data-chat-open="false">
+      <aside class="sidebar" aria-label="Conversas e perfil">
+        <div class="brand-bar">
+          <a class="brand" href="#conversas"
+            ><img class="brand-mark" src="/icon.svg" alt="" /><span
+              >0xDMme</span
+            ></a
           >
-          <a href="#status" data-route="status"
-            ><span aria-hidden="true">◉</span>Status</a
+          <button
+            id="open-search"
+            class="icon-button"
+            type="button"
+            aria-label="Pesquisar chats, contatos e mensagens"
           >
-          <a href="#contatos" data-route="contatos"
-            ><span aria-hidden="true">◎</span>Contatos</a
-          >
-          <a href="#cofre" data-route="cofre"
-            ><span aria-hidden="true">▣</span>Cofre</a
-          >
-          <a href="#configuracoes" data-route="configuracoes"
-            ><span aria-hidden="true">⚙</span>Configurações</a
-          >
-        </nav>
-        <div class="sidebar-note">
-          <span class="status-dot" aria-hidden="true"></span>Ambiente de
-          desenvolvimento
-          <p>A base está em construção. Use somente dados fictícios.</p>
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <circle cx="10.5" cy="10.5" r="6.5" />
+              <path d="m16 16 5 5" />
+            </svg>
+          </button>
         </div>
+        <section
+          id="chat-directory"
+          class="chat-directory"
+          aria-label="Contatos e grupos"
+        >
+          <div class="directory-heading">
+            <h2>Conversas</h2>
+            <a
+              href="#contatos"
+              class="icon-button"
+              aria-label="Adicionar contato"
+              >+</a
+            >
+          </div>
+          <p class="directory-notice">
+            Chat em teste · use somente dados fictícios.
+          </p>
+          <div
+            class="directory-scroll"
+            tabindex="0"
+            aria-label="Lista de conversas"
+          >
+            <div data-message-contacts class="chat-contacts"></div>
+            <button
+              data-message-more-contacts
+              class="directory-more"
+              type="button"
+              hidden
+            >
+              Mais conversas
+            </button>
+            <details class="directory-tools">
+              <summary>Organizar conversas</summary>
+              <button data-archived-list type="button">
+                Alternar arquivadas
+              </button>
+              <div data-group-sidebar></div>
+            </details>
+          </div>
+        </section>
         <div class="account">
           <button
             class="avatar"
@@ -61,9 +92,20 @@
             accept="image/png,image/jpeg,image/webp"
             hidden
           />
-          <div>
-            <span id="account-label">Conta não conectada</span
-            ><small id="account-wallet">Entrar na conta</small
+          <div class="account-copy">
+            <div class="account-heading">
+              <a href="#perfil" id="account-label">Conta não conectada</a
+              ><a
+                class="icon-button account-settings"
+                href="#configuracoes"
+                aria-label="Abrir configurações"
+                ><svg viewBox="0 0 24 24" aria-hidden="true">
+                  <circle cx="12" cy="5" r="1" />
+                  <circle cx="12" cy="12" r="1" />
+                  <circle cx="12" cy="19" r="1" /></svg
+              ></a>
+            </div>
+            <small id="account-wallet">Entrar na conta</small
             ><button
               id="copy-wallet"
               type="button"
@@ -76,7 +118,10 @@
         </div>
       </aside>
       <main id="workspace" tabindex="-1">
-        <header>
+        <button id="back-to-chats" class="chat-back" type="button">
+          ← Conversas
+        </button>
+        <header class="page-heading">
           <div>
             <p class="section-label">
               0xDMme / <span id="breadcrumb">CONVERSAS</span>
@@ -101,6 +146,32 @@
           ><span>Conteúdo e segredos pertencem aos seus dispositivos.</span>
         </footer>
       </main>
+      <nav class="mobile-nav" aria-label="Navegação principal">
+        <a href="#conversas" data-route="conversas"
+          ><svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M4 4h16v12H8l-4 4z" /></svg
+          ><span>Conversas</span></a
+        >
+        <a href="#contatos" data-route="contatos"
+          ><svg viewBox="0 0 24 24" aria-hidden="true">
+            <circle cx="12" cy="8" r="4" />
+            <path d="M4 21v-2a8 8 0 0 1 16 0v2" /></svg
+          ><span>Contatos</span></a
+        >
+        <a href="#configuracoes" data-route="configuracoes"
+          ><svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="m9 3-1 3-3 1-2 5 2 5 3 1 1 3h6l1-3 3-1 2-5-2-5-3-1-1-3z" />
+            <circle cx="12" cy="12" r="3" /></svg
+          ><span>Configurações</span></a
+        >
+        <a href="#perfil" data-route="perfil"
+          ><svg viewBox="0 0 24 24" aria-hidden="true">
+            <circle cx="12" cy="12" r="10" />
+            <circle cx="12" cy="9" r="3" />
+            <path d="M5 19a7 7 0 0 1 14 0" /></svg
+          ><span>Perfil</span></a
+        >
+      </nav>
     </div>
     <div id="update" class="update" hidden role="status">
       <span>Uma nova versão está pronta.</span

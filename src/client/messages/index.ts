@@ -1,3 +1,7 @@
+import { ConversationSearch } from './search.ts';
+import type { SearchPage } from './search.ts';
+import { renderDirectory } from './directory.ts';
+import type { ConversationEntry } from './directory.ts';
 import { startGroups } from '../groups/index.ts';
 import type { startRepresentatives } from '../representatives/index.ts';
 import type { VoicePlayback } from '../voice-playback/index.ts';
@@ -35,6 +39,8 @@ export function startMessages(
   sync: VaultSync,
   options: {
     playback: VoicePlayback;
+    openConversation: () => void;
+    directoryChanged: (available: boolean) => void;
     representatives?: ReturnType<typeof startRepresentatives>;
     liveEvent?: (event: LiveEvent) => void;
     liveState?: (connected: boolean) => void;
@@ -54,8 +60,8 @@ export function startMessages(
     showArchived = false;
   let composing: { mode: 'reply' | 'edit'; view: MessageView } | null = null;
   let readIds = new Set<string>();
-  let searchAfter: string | null = null,
-    searchQuery = '';
+  let directory: HTMLElement | null = null;
+  const searchPanel = new ConversationSearch(searchPage);
   let mounted: HTMLElement | null = null,
     busy = false,
     selected: ConversationPeer | null = null,
@@ -132,6 +138,7 @@ export function startMessages(
         'Envie ou remova a prévia de voz antes de trocar de conversa.',
       );
     selected = null;
+    options.openConversation();
     clearContext();
     attachments.clearSelection();
     controller.select(null);
@@ -183,7 +190,14 @@ export function startMessages(
     }
   }
   function node<T extends HTMLElement>(selector: string): T | null {
-    return mounted?.querySelector<T>(selector) ?? null;
+    return (
+      mounted?.querySelector<T>(selector) ??
+      directory?.querySelector<T>(selector) ??
+      null
+    );
+  }
+  function connected(): boolean {
+    return !!directory?.isConnected;
   }
   function status(): void {
     const immediate = node('[data-message-live]');
@@ -195,16 +209,17 @@ export function startMessages(
     const dailyStatus = settingsHost?.querySelector('[data-daily-status]');
     if (dailyStatus) dailyStatus.textContent = message;
     renderSoundSettings();
-    mounted
-      ?.querySelectorAll<
-        | HTMLButtonElement
-        | HTMLInputElement
-        | HTMLSelectElement
-        | HTMLTextAreaElement
-      >('button,input,select,textarea')
-      .forEach((control) => {
-        control.disabled = busy;
-      });
+    for (const host of [mounted, directory])
+      host
+        ?.querySelectorAll<
+          | HTMLButtonElement
+          | HTMLInputElement
+          | HTMLSelectElement
+          | HTMLTextAreaElement
+        >('button,input,select,textarea')
+        .forEach((control) => {
+          control.disabled = busy;
+        });
     voiceStatus();
     groups.status();
   }
@@ -286,7 +301,7 @@ export function startMessages(
     }
   }
   function runQueuedRefresh(): void {
-    if (refreshRequested && mounted?.isConnected && session && navigator.onLine)
+    if (refreshRequested && connected() && session && navigator.onLine)
       queueMicrotask(() => {
         void run(refresh);
       });
@@ -304,7 +319,7 @@ export function startMessages(
     automaticAttempts = 0;
     if (
       !busy &&
-      mounted?.isConnected &&
+      connected() &&
       session &&
       navigator.onLine &&
       document.visibilityState === 'visible'
@@ -472,6 +487,12 @@ export function startMessages(
     const label = node('[data-compose-context]');
     if (label) label.textContent = '';
   }
+  function clearSessionPanels(): void {
+    mounted?.querySelectorAll('form').forEach((form) => form.reset());
+    node('[data-representative-chat]')?.replaceChildren();
+    node('[data-message-pending]')?.replaceChildren();
+    if (mounted) delete mounted.dataset['voicePeer'];
+  }
   async function transmit(): Promise<void> {
     if (navigator.onLine) {
       await controller.sendPending();
@@ -548,28 +569,42 @@ export function startMessages(
   function renderContacts(peers: Peer[]): void {
     const list = node('[data-message-contacts]');
     if (!list) return;
-    list.replaceChildren();
-    const conversations = [
+    const panel = node('.chat-panel');
+    if (panel) panel.dataset['empty'] = String(!selected && !groups.selected);
+    const entries: ConversationEntry[] = [
       ...peers.map((peer) => ({
         id: peer.accountId,
-        label: contactLabel(peer),
-        open: () => openPeer(peer),
+        title: peer.name || peer.address,
+        detail: contactLabel(peer),
+        kind: 'contact' as const,
+        searchText: `${peer.name} ${peer.address}`,
+        selected: selected?.accountId === peer.accountId,
+        open: () => {
+          void run(() => openPeer(peer));
+        },
       })),
       ...groups.entries.map((group) => ({
         id: group.state.groupId,
-        label: groups.listLabel(group),
-        open: () => groups.open(group),
+        title: group.title,
+        detail: groups.listLabel(group).replace(group.title + ' · ', ''),
+        kind: 'group' as const,
+        searchText: group.title,
+        selected: groups.selected?.state.groupId === group.state.groupId,
+        open: () => {
+          void run(() => groups.open(group));
+        },
       })),
     ];
-    const sorted = conversations
+    const sorted = entries
       .filter((p) => daily.conversation(p.id).archived === showArchived)
       .sort(
         (a, b) =>
           Number(daily.conversation(b.id).pinned) -
           Number(daily.conversation(a.id).pinned),
       );
-    for (const conversation of sorted)
-      list.append(action(conversation.label, conversation.open));
+    renderDirectory(list, sorted);
+    options.directoryChanged(entries.length > 0);
+    searchPanel.update(entries);
     renderPresence();
   }
   function contactLabel(peer: Peer): string {
@@ -578,7 +613,8 @@ export function startMessages(
     const conflict = daily.organizationConflict(peer.accountId)
       ? ' · organização em conflito'
       : '';
-    return `${settings.pinned ? '📌 ' : ''}${peer.name || peer.address}${state?.unread ? ` · ${state.unread} não lidas` : ''}${state && state.mutedUntil > Date.now() ? ' · silenciada' : ''}${conflict}`;
+    const address = `${peer.address.slice(0, 6)}…${peer.address.slice(-4)}`;
+    return `${settings.pinned ? '📌 ' : ''}${address}${state?.unread ? ` · ${state.unread} não lidas` : ''}${state && state.mutedUntil > Date.now() ? ' · silenciada' : ''}${conflict}`;
   }
   async function openPeer(peer: ConversationPeer): Promise<void> {
     if (
@@ -589,8 +625,10 @@ export function startMessages(
         'Envie ou remova a prévia de voz antes de trocar de destinatário.',
       );
     showDirectConversation();
+    options.openConversation();
     clearContext();
     selected = peer;
+    renderContacts(peers);
     mountRepresentativeChat(peer);
     if (mounted) mounted.dataset['voicePeer'] = peer.accountId;
     controller.select(peer.accountId);
@@ -663,7 +701,7 @@ export function startMessages(
       if (!combined.has(peer.accountId))
         combined.set(peer.accountId, { ...peer, localOnly: true });
     peers = [...combined.values()];
-    await groups.refresh(more);
+    if (session) await groups.refresh(more);
     renderContacts(peers);
     contactsMore();
     if (selected) await controller.openOffline(selected.accountId);
@@ -794,7 +832,7 @@ export function startMessages(
     if (!session || !navigator.onLine) return;
     await daily.configure(preferences());
     await daily.heartbeat(document.visibilityState === 'visible');
-    if (!mounted?.isConnected) return;
+    if (!connected()) return;
     const old = states;
     states = await daily.states(peers.map((p) => p.accountId));
     alertUnread(old);
@@ -816,7 +854,8 @@ export function startMessages(
       !selected ||
       selected.localOnly ||
       rows === null ||
-      document.visibilityState !== 'visible'
+      document.visibilityState !== 'visible' ||
+      !node('[data-message-history]')?.getClientRects().length
     )
       return;
     const incoming = rows
@@ -839,32 +878,44 @@ export function startMessages(
     );
     renderHistory();
   }
-  async function search(more = false): Promise<void> {
-    const query = node<HTMLInputElement>('[data-message-search]')?.value ?? '';
-    if (!more || query !== searchQuery) {
-      searchAfter = null;
-      node('[data-search-results]')?.replaceChildren();
-    }
-    searchQuery = query;
-    const result = await controller.search(query, searchAfter);
-    searchAfter = result.next;
-    const list = node('[data-search-results]');
-    for (const item of result.items) {
-      const row = document.createElement('li');
-      row.textContent = `#${item.sequence} · ${item.excerpt}`;
-      list?.append(row);
-    }
-    const next = node('[data-search-more]');
-    if (next) next.hidden = searchAfter === null;
-    message =
-      'Busca somente nas mensagens já sincronizadas neste aparelho; nenhum termo é enviado ao servidor.';
+  async function searchPage(
+    query: string,
+    after: string | null,
+  ): Promise<SearchPage> {
+    if (busy)
+      throw new Error('Aguarde a atualização das conversas e tente novamente.');
+    let result: SearchPage | null = null;
+    await run(async () => {
+      if (after?.startsWith('groups:')) {
+        const page = await groups.search(
+          query,
+          after.slice('groups:'.length) || null,
+        );
+        result = {
+          ...page,
+          next: page.next === null ? null : 'groups:' + page.next,
+        };
+        return;
+      }
+      if (navigator.onLine) {
+        await controller.initialize();
+        await controller.synchronize();
+      }
+      const page = await controller.search(query, after);
+      result = {
+        ...page,
+        next: page.next ?? (groups.entries.length ? 'groups:' : null),
+      };
+    });
+    if (!result) throw new Error(message);
+    return result;
   }
   function suspend(): void {
     emojiPicker.close();
     controller.close();
     groups.suspend();
     rows = null;
-    node('[data-search-results]')?.replaceChildren();
+    searchPanel.close();
     renderHistory();
   }
   window.addEventListener('0xdmme-attachment-progress', (event) => {
@@ -1009,12 +1060,6 @@ export function startMessages(
       });
     });
     bind('[data-compose-cancel]', clearContext);
-    bind('[data-search]', () => {
-      void run(() => search());
-    });
-    bind('[data-search-more]', () => {
-      void run(() => search(true));
-    });
     bind('[data-archived-list]', () => {
       showArchived = !showArchived;
       renderContacts(peers);
@@ -1096,12 +1141,13 @@ export function startMessages(
     const panel = container.querySelector<HTMLElement>(
         '[data-group-conversation]',
       ),
-      sidebar = container.querySelector<HTMLElement>('[data-group-sidebar]');
+      sidebar = node('[data-group-sidebar]');
     if (panel && sidebar) groups.mount(panel, sidebar);
     const direct = node('[data-direct-conversation]');
     if (direct) direct.hidden = !!groups.selected;
   }
   return {
+    openSearch: () => searchPanel.open(),
     applyPrivacy: (preferences: DailyPreferences) =>
       daily.configure(preferences),
     setSession(value: AccountSession | null): void {
@@ -1112,6 +1158,7 @@ export function startMessages(
         return;
       }
       generation++;
+      searchPanel.close();
       voice.cancel();
       playback.close();
       recordingPeer = null;
@@ -1130,19 +1177,22 @@ export function startMessages(
       readIds.clear();
       clearContext();
       attachments.clearSelection();
+      clearSessionPanels();
 
       message = value
         ? 'Abra os contatos e sincronize para conversar.'
         : 'Entre e autorize este aparelho para conversar.';
+      renderContacts(peers);
       renderHistory();
       status();
     },
     ready(): void {
+      if (selected) mountRepresentativeChat(selected);
       if (session && navigator.onLine && document.visibilityState === 'visible')
         live.start();
       if (!busy && session && navigator.onLine)
         void run(
-          mounted?.isConnected
+          connected()
             ? refresh
             : async () => {
                 await controller.initialize();
@@ -1206,19 +1256,21 @@ export function startMessages(
       });
       status();
     },
-    mount(container: HTMLElement): void {
+    mount(container: HTMLElement, directoryHost: HTMLElement): void {
       mounted = container;
-      container.innerHTML = `<article class="card chat-panel"><h2>Conversas</h2><p data-message-status role="status"></p><p data-message-live role="status"></p><button data-message-refresh type="button" hidden>Tentar novamente</button><div class="chat-layout"><aside><h3>Conversas</h3><div data-group-sidebar></div><button data-archived-list type="button">Alternar arquivadas</button><div data-message-contacts class="chat-contacts"></div><button data-message-more-contacts type="button" hidden>Mais conversas</button></aside><section data-direct-conversation><h3 data-message-peer></h3><p data-peer-presence></p><button data-archive type="button">Arquivar/desarquivar</button><p>Arquivar silencia até reativar. Depois de desarquivar, vá a Configurações → Retomar alertas para voltar a receber notificações.</p><button data-pin type="button">Fixar/desfixar</button><details><summary>Autorizações de representantes</summary><div data-representative-chat></div></details><p data-message-gate></p><div data-message-history class="chat-history" hidden></div><button data-message-older type="button">Mensagens anteriores</button><form data-message-form><p data-compose-context></p><button data-compose-cancel type="button">Cancelar resposta/edição</button><label>Mensagem<textarea data-message-text rows="3"></textarea></label><button data-message-emoji type="button">Escolher emoji</button><label>Enviar como<select data-attachment-mode><option value="photo">Foto otimizada</option><option value="file">Arquivo original (até 3 MB)</option></select></label><button data-voice-record type="button">Gravar voz</button><button data-voice-stop type="button" hidden>Parar e conferir</button><button data-voice-cancel type="button" hidden>Cancelar gravação</button><p data-voice-status role="status"></p><p>Voz: até 90 segundos. Ouça a prévia e toque em Enviar. Se o sistema interromper o microfone, o trecho capturado será preservado enquanto esta página continuar aberta.</p><label>Foto ou arquivo<input data-attachment-file type="file"></label><p>Foto: prévia e remoção de metadados no aparelho. Original: pode compartilhar GPS/EXIF. Vídeos ainda não são aceitos.</p><div data-attachment-preview></div><button data-attachment-clear type="button">Remover seleção</button><button class="primary" type="submit">Enviar</button></form><label>Busca local<input data-message-search maxlength="128" type="search"></label><button data-search type="button">Buscar neste aparelho</button><button data-search-more type="button" hidden>Continuar busca</button><ul data-search-results></ul><h3>Envios deste aparelho</h3><ul data-message-pending></ul></section><section data-group-conversation hidden></section></div></article>`;
+      directory = directoryHost;
+      container.innerHTML = `<article class="card chat-panel"><div class="chat-welcome"><div class="empty-symbol" aria-hidden="true">#</div><h2>Seu espaço privado</h2><p>Escolha um contato ou grupo à esquerda para conversar.</p></div><p data-message-status role="status"></p><p data-message-live role="status"></p><button data-message-refresh type="button" hidden>Tentar novamente</button><div class="chat-layout"><section data-direct-conversation><h3 data-message-peer></h3><p data-peer-presence></p><button data-archive type="button">Arquivar/desarquivar</button><p>Arquivar silencia até reativar. Depois de desarquivar, vá a Configurações → Retomar alertas para voltar a receber notificações.</p><button data-pin type="button">Fixar/desfixar</button><details><summary>Autorizações de representantes</summary><div data-representative-chat></div></details><p data-message-gate></p><div data-message-history class="chat-history" hidden></div><button data-message-older type="button">Mensagens anteriores</button><form data-message-form><p data-compose-context></p><button data-compose-cancel type="button">Cancelar resposta/edição</button><label>Mensagem<textarea data-message-text rows="3"></textarea></label><button data-message-emoji type="button">Escolher emoji</button><label>Enviar como<select data-attachment-mode><option value="photo">Foto otimizada</option><option value="file">Arquivo original (até 3 MB)</option></select></label><button data-voice-record type="button">Gravar voz</button><button data-voice-stop type="button" hidden>Parar e conferir</button><button data-voice-cancel type="button" hidden>Cancelar gravação</button><p data-voice-status role="status"></p><p>Voz: até 90 segundos. Ouça a prévia e toque em Enviar. Se o sistema interromper o microfone, o trecho capturado será preservado enquanto esta página continuar aberta.</p><label>Foto ou arquivo<input data-attachment-file type="file"></label><p>Foto: prévia e remoção de metadados no aparelho. Original: pode compartilhar GPS/EXIF. Vídeos ainda não são aceitos.</p><div data-attachment-preview></div><button data-attachment-clear type="button">Remover seleção</button><button class="primary" type="submit">Enviar</button></form><h3>Envios deste aparelho</h3><ul data-message-pending></ul></section><section data-group-conversation hidden></section></div></article>`;
       if (selected) container.dataset['voicePeer'] = selected.accountId;
       attachments.mount(container, run);
       mountGroups(container);
       bindVoiceControls();
       bindDailyControls();
       bindMessageControls();
+      renderContacts(peers);
       renderHistory();
       status();
       if (session && navigator.onLine) void run(refresh);
-      else void run(refreshLocalContacts);
+      else if (!navigator.onLine) void run(refreshLocalContacts);
     },
   };
 }
