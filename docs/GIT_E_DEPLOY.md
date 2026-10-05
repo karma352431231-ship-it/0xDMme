@@ -44,6 +44,23 @@ no ambiente de testes. O token ainda não existe; criação e aceite de propried
 públicos continuam indisponíveis, sem ativar elegibilidade sintética na VPS.
 Ensaios físicos e aceite para conversas reais continuam pendentes.
 
+**Resultado:** release `2772aba` enviada e ativada em 04/10/2026 pelo comando
+existente, após [CI integral do commit exato aprovada](https://github.com/karma352431231-ship-it/0xDMme/actions/runs/37248117062).
+Migrações 020–024 aplicadas com checksums 001–024, preservação integral das
+29 tabelas anteriores, estado inicial das 16 novas tabelas e contabilidade
+verificados. Backup privado e ensaio de restauração passaram antes da abertura;
+backup e release anterior ficaram retidos. A conferência posterior confirmou
+manifesto ativo, 45 tabelas, 38 assets públicos e saúde HTTPS pronta. Pacote de
+8.304.411 bytes, dentro de 16 MiB. Os 81 testes do executor passaram.
+
+A primeira tentativa parou na preparação local porque a cópia limpa selecionou
+Python 3.9; a execução com Node 24 e Python 3.14 já instalados no Mac concluiu.
+Nenhuma instalação ou alteração de runtime foi feita na VPS. Somente o serviço
+próprio foi parado/iniciado; configurações, PostgreSQL e serviços compartilhados
+permaneceram iguais nas conferências. Acesso, baselines, backups e provas ficam
+privados em `.local/` e no armazenamento próprio da VPS. Elegibilidade sintética
+permanece desligada; criação e aceite de propriedade públicos aguardam o token.
+
 ## Transição da experiência simplificada — autorizada em 04/10/2026
 
 Após informar a migração 019 pendente, o proprietário autorizou concluir a

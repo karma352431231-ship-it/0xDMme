@@ -1,6 +1,6 @@
 # Bloco 11 — Grupos e status
 
-Implementação local concluída em 04/10/2026, com regras aprovadas e validação descritas abaixo. A ativação das migrações na VPS e os ensaios físicos continuam separados desta entrega.
+Implementação concluída e publicada na VPS de testes em 04/10/2026, com regras aprovadas e validação descritas abaixo. Ensaios físicos e aceite para dados reais continuam pendentes.
 
 ## Organização aprovada
 
@@ -52,7 +52,7 @@ Mídias usam namespace separado e upload cifrado em partes, com reserva concreta
 
 O backup completo inclui metadados assinados, mensagens e mídias autorizadas dos grupos, além das cópias independentes conservadas no aparelho. A importação integra esse histórico à lista de Conversas sem conceder participação ou acesso remoto. Exportar não libera cota compartilhada. Resetar o cofre pessoal não apaga grupos nem status; itens indisponíveis deixam o backup incompleto e bloqueiam o reset. Os limites e formato cifrado do bloco 07 foram preservados.
 
-Migrações **020–024** aplicadas exclusivamente ao banco local de testes e mantidas imutáveis. Nenhuma migração ou ativação do Bloco 11 na VPS foi executada. Nenhuma dependência, licença, serviço pago ou relay externo foi acrescentado. O build remove somente espaços supérfluos do JavaScript, conserva avisos legais e fontes preferidas e permanece dentro dos mesmos limites por arquivo e de distribuição.
+Migrações **020–024** validadas no banco local de testes e mantidas imutáveis; posteriormente aplicadas na VPS na publicação específica revisada, conforme registro abaixo. Nenhuma dependência, licença, serviço pago ou relay externo foi acrescentado. O build remove somente espaços supérfluos do JavaScript, conserva avisos legais e fontes preferidas e permanece dentro dos mesmos limites por arquivo e de distribuição.
 
 ## Validação
 
@@ -72,4 +72,6 @@ Antes da ativação na VPS, revisar explicitamente as migrações 020–024, pre
 
 Após a entrega local, o proprietário autorizou enviar e ativar o Bloco 11 em 04/10/2026. A revisão específica vincula a transição 019→024 ao predecessor `f7b48bb` e às fontes de aplicação de `aab78ef`, preservando as migrações anteriores, as 29 tabelas existentes, runtime e dependências. Usar o mesmo executor e exigir CI exata, backup/ensaio de restauração e conferências antes de abrir, conforme [registro do deploy](GIT_E_DEPLOY.md). A autorização não habilita token sintético público nem substitui o aceite físico.
 
-**Ponto importante:** o Bloco 11 está implementado localmente; isso não estabelece prontidão para dados reais nem aprovação dos ensaios físicos/publicação. Nenhuma regra material nova foi escolhida arbitrariamente. Cache, paginação, orçamento de I/O, retomadas e apresentação seguem os contratos já aprovados.
+**Publicação verificada:** release `2772aba` enviada e ativada pelo executor existente em 04/10/2026, com [CI integral aprovada](https://github.com/karma352431231-ship-it/0xDMme/actions/runs/37248117062). Backup/ensaio de restauração e preservação passaram; a conferência posterior confirmou 24 migrações, 45 tabelas, manifesto ativo, 38 assets públicos e saúde pronta. Configurações e serviços compartilhados permaneceram iguais; backup e release anterior ficaram retidos. Elegibilidade sintética continua desligada na VPS.
+
+**Ponto importante:** o Bloco 11 está publicado no ambiente de testes; isso não estabelece prontidão para dados reais nem aprovação dos ensaios físicos. Criação e aceite de propriedade públicos aguardam o token. Nenhuma regra material nova foi escolhida arbitrariamente. Cache, paginação, orçamento de I/O, retomadas e apresentação seguem os contratos já aprovados.

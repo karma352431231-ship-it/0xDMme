@@ -627,6 +627,8 @@ Publicação do bloco 10 solicitada em 03/10/2026: revisão específica 017→01
 
 **Publicação autorizada em 04/10/2026:** após a entrega local, o proprietário pediu enviar e ativar as mudanças na VPS de testes. Transição específica 019→024 revisada contra o predecessor `f7b48bb` e as fontes `aab78ef`, com CI do commit exato, backup/ensaio de restauração, preservação das tabelas preexistentes e retorno no executor já aprovado. Sem mudança de dependências, Node, rede ou serviços compartilhados; token sintético permanece exclusivo dos testes locais. Ver [Git e deploy](docs/GIT_E_DEPLOY.md).
 
+**Publicação verificada em 04/10/2026:** release `2772aba` ativa na VPS de testes, com CI integral aprovada, migrações 020–024, backup/ensaio de restauração e preservação verificados. Conferência posterior confirmou 24 migrações, 45 tabelas, 38 assets públicos e saúde pronta, sem reiniciar serviços compartilhados. Backup e release anterior ficaram retidos. Criação e aceite de propriedade públicos aguardam o token; ensaios físicos continuam pendentes. Resultado no [registro do deploy](docs/GIT_E_DEPLOY.md).
+
 **Aceite:** membro removido não obtém novos segredos; novo membro só acessa histórico autorizado; usuário fora da audiência não abre status; expiração não é anunciada como impedimento de screenshots.
 
 ### Bloco 12 — ZK: base de autorização privada de grupos
