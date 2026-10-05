@@ -1,5 +1,28 @@
 # 0xDMme — Git e envio à VPS
 
+## Ativação da interface de chat responsiva — autorizada em 05/10/2026
+
+Após a entrega local, o proprietário pediu ativar a interface de `685b9d1`.
+Usar `npm run deploy:staging` numa cópia limpa e enviada, com
+[CI integral do commit exato aprovada](https://github.com/karma352431231-ship-it/0xDMme/actions/runs/37269326144).
+Build no Mac; banco, dependências, Node, Nginx e infraestrutura permanecem
+inalterados. Conferir manifesto, assets públicos e preservação antes/depois,
+reiniciando somente o serviço web próprio e retendo a release anterior.
+As alterações anteriores do proprietário permanecem fora do commit; acesso e
+evidências operacionais ficam exclusivamente em `.local/`.
+
+**Ponto importante:** esta autorização cobre a publicação do novo visual no
+ambiente de testes. Não substitui o aceite da interface em aparelhos físicos.
+
+**Resultado:** release `685b9d1` publicada pelo executor existente. Manifesto
+ativo e 38 assets públicos verificados; HTTPS público confirmou prontidão e
+HTML do commit exato. Banco permaneceu com 25 migrações e 48 tabelas, checksums
+e contabilidade consistentes. Configurações, processos e respostas passaram
+nas comparações de preservação; nenhum serviço compartilhado foi reiniciado.
+Release anterior e backups históricos ficaram retidos e conferidos. Pacote de
+8.333.792 bytes, dentro de 16 MiB. Acesso e evidências permanecem em `.local/`.
+O resultado detalhado consta em [interface de chat responsiva](INTERFACE_CHAT_RESPONSIVA.md).
+
 ## Preparação do bloco 12A — 05/10/2026
 
 O proprietário pediu enviar o corte local de organizações/representantes à VPS.

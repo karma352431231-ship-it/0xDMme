@@ -232,7 +232,9 @@ O proprietário solicitou reorganizar a interface com as referências visuais fo
 - A lupa pesquisa nomes/wallets dos chats carregados e palavras nas mensagens sincronizadas/importadas neste aparelho. A busca é local, com paginação e conferências de sessão; nenhum termo privado segue para o servidor. Não prometer pesquisa em mensagens que este aparelho ainda não possui. Arquivadas continuam encontráveis pela lupa.
 - Adicionar contato continua acessível pela lista e pela aba mobile; aprovação continua necessária para enviar mensagens. Criar grupo e tratar convites seguem recolhidos junto à lista, conservando os requisitos de elegibilidade.
 
-**Ponto importante:** esconder itens da navegação não apaga dados nem altera permissões. Esta mudança local de interface não autoriza uma nova publicação na VPS. Implementação e validação em [interface de chat responsiva](docs/INTERFACE_CHAT_RESPONSIVA.md).
+Após a entrega local, o proprietário autorizou explicitamente ativar a nova interface na VPS em 05/10/2026. A release `685b9d1` foi publicada pelo executor existente, com CI do commit exato, checkout limpo e conferências de preservação; sem novas dependências, migrações ou alterações de infraestrutura.
+
+**Ponto importante:** esconder itens da navegação não apaga dados nem altera permissões. A ativação permanece restrita ao ambiente de testes e não substitui o aceite em aparelhos físicos. Implementação e validação em [interface de chat responsiva](docs/INTERFACE_CHAT_RESPONSIVA.md).
 
 ## 6. Escopo funcional
 
