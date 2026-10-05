@@ -33,7 +33,9 @@ durante a integração completa. A CI executa os checks primeiro e distribui o
 mesmo glob de testes de integração em três shards nativos do Node, cada um com
 PostgreSQL próprio, execução serial interna e dez minutos de limite. Todos os
 shards precisam passar; a ativação continua exigindo sucesso integral do
-workflow do commit exato. Não excluir testes nem elevar limites do executor.
+workflow do commit exato. Cada job gera seu próprio build para o teste que inicia
+o servidor completo, pois os arquivos do job de checks não são compartilhados.
+Não excluir testes nem elevar limites do executor.
 O repositório é público e conserva runners Ubuntu padrão, cujo uso é gratuito
 conforme a [documentação do GitHub](https://docs.github.com/en/billing/concepts/product-billing/github-actions).
 
