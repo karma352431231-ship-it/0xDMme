@@ -1,4 +1,6 @@
 import { AttachmentService } from '../attachments/index.ts';
+import { representativeOperations } from '../representatives/index.ts';
+import type { RepresentativeService } from '../representatives/index.ts';
 import type { NotificationService } from '../notifications/index.ts';
 import { GroupService, groupOperations } from '../groups/index.ts';
 import type { GroupEligibilityVerifier } from '../groups/index.ts';
@@ -86,6 +88,7 @@ export class MessageService {
   private readonly notifications: NotificationService | null;
   private readonly groupMedia: GroupMediaService | null;
   private readonly statuses: StatusService | null;
+  private readonly representatives: RepresentativeService | null;
   private maintenanceTimer: ReturnType<typeof setInterval> | null = null;
   private maintenanceRunning: Promise<void> | null = null;
   constructor(
@@ -110,9 +113,11 @@ export class MessageService {
     services: {
       notifications?: NotificationService;
       groupEligibility?: GroupEligibilityVerifier | null;
+      representatives?: RepresentativeService;
     } = {},
   ) {
     this.db = db;
+    this.representatives = services.representatives ?? null;
     this.notifications = services.notifications ?? null;
     this.objects = objects ?? null;
     this.devices = devices;
@@ -336,6 +341,12 @@ export class MessageService {
     };
     this.installGroupOperations(services.groupEligibility ?? null);
     this.installStatusOperations();
+    for (const operation of representativeOperations)
+      this.actions[operation] = (a, d) => {
+        if (!this.representatives)
+          throw new AccountError(503, 'Autorizações indisponíveis.');
+        return this.representatives.operate(a, operation, d);
+      };
     for (const operation of [
       'daily-config',
       'daily-state',
@@ -452,6 +463,7 @@ export class MessageService {
     await this.groupMedia?.clean();
     await this.db.groupDaily.clean();
     await this.statuses?.clean();
+    await this.representatives?.maintain();
   }
   async preflightAttachment(
     session: AccountSession,

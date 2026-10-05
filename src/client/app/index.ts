@@ -5,6 +5,7 @@ import { startBackups } from '../backups/index.ts';
 import { startVault } from '../vault-ui/index.ts';
 import { startMessages } from '../messages/index.ts';
 import { startStatus } from '../status/index.ts';
+import { startRepresentatives } from '../representatives/index.ts';
 import { startContacts } from '../contacts/index.ts';
 import { VoicePlayback } from '../voice-playback/index.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
@@ -28,7 +29,7 @@ const pages = {
   },
   configuracoes: {
     title: 'Configurações',
-    content: `<div data-contact-settings-container></div><div data-daily-settings></div><article class="card"><h2>Aplicativo</h2><p id="pwa-state" role="status">Verificando atualização…</p><button id="check-updates" type="button">Verificar atualização</button></article>`,
+    content: `<div data-contact-settings-container></div><div data-daily-settings></div><div data-representatives-settings></div><article class="card"><h2>Aplicativo</h2><p id="pwa-state" role="status">Verificando atualização…</p><button id="check-updates" type="button">Verificar atualização</button></article>`,
   },
 };
 
@@ -56,8 +57,12 @@ const backups = startBackups(devices, vault.sync, playback, {
 });
 const contacts = startContacts(devices, vault.sync);
 const statuses = startStatus(devices, vault.sync);
+const representatives = startRepresentatives(devices, vault.sync, (message) =>
+  account.signStatement(message),
+);
 const messages = startMessages(devices, vault.sync, {
   playback,
+  representatives,
   liveEvent: (event) => statuses.event(event),
   liveState: (connected) => statuses.liveConnection(connected),
   sharedProfile: () => account.sharedProfile(),
@@ -80,6 +85,7 @@ const account = startAccount({
     contacts.setSession(session);
     messages.setSession(session);
     statuses.setSession(session);
+    representatives.setSession(session);
     connection();
     const label = document.getElementById('account-label');
     if (label)
@@ -99,7 +105,8 @@ const pwa = account.approvalPage
         backups.canActivate() &&
         contacts.canActivate() &&
         messages.canActivate() &&
-        statuses.canActivate(),
+        statuses.canActivate() &&
+        representatives.canActivate(),
     });
 
 function route(): void {
@@ -117,6 +124,7 @@ function route(): void {
   element('breadcrumb').textContent = page.title.toLocaleUpperCase('pt-BR');
   messages.leave();
   statuses.leave();
+  representatives.leave();
   backups.leave();
   vault.leave();
   // Templates are static authored content. No user/server input enters HTML.
@@ -141,6 +149,11 @@ function mountFeature(key: keyof typeof pages): void {
     '[data-daily-settings]',
   );
   if (dailyContainer) messages.mountSettings(dailyContainer);
+  const representativeContainer = content.querySelector<HTMLElement>(
+    '[data-representatives-settings]',
+  );
+  if (representativeContainer)
+    representatives.mountSettings(representativeContainer);
   const contactSettings = content.querySelector<HTMLElement>(
     '[data-contact-settings-container]',
   );

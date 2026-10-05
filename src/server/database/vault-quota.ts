@@ -8,6 +8,9 @@ export async function vaultUsage(
   const result = await client.query<{ bytes: string }>(
     `SELECT (
     coalesce((SELECT sum(charge) FROM hash_talk.vault_operations WHERE account_id=$1),0)
+    + coalesce((SELECT sum(charge) FROM hash_talk.organizations WHERE account_id=$1),0)
+    + coalesce((SELECT sum(charge) FROM hash_talk.representative_credentials WHERE account_id=$1),0)
+    + coalesce((SELECT sum(charge) FROM hash_talk.organization_domains WHERE account_id=$1),0)
     + coalesce((SELECT sum(charge) FROM hash_talk.daily_controls WHERE account_id=$1),0)
     + coalesce((SELECT sum(charge) FROM hash_talk.message_reads WHERE account_id=$1),0)
     + coalesce((SELECT sum(charge) FROM hash_talk.conversation_controls WHERE account_id=$1),0)

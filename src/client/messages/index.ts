@@ -1,4 +1,5 @@
 import { startGroups } from '../groups/index.ts';
+import type { startRepresentatives } from '../representatives/index.ts';
 import type { VoicePlayback } from '../voice-playback/index.ts';
 import { VoiceRecording } from '../voice-recording/index.ts';
 import { voiceDuration, voiceRate } from '../../shared/voice/index.ts';
@@ -34,6 +35,7 @@ export function startMessages(
   sync: VaultSync,
   options: {
     playback: VoicePlayback;
+    representatives?: ReturnType<typeof startRepresentatives>;
     liveEvent?: (event: LiveEvent) => void;
     liveState?: (connected: boolean) => void;
     sharedProfile: () =>
@@ -442,7 +444,16 @@ export function startMessages(
         img.height = 96;
         article.append(img);
       }
-    } else emojiText(text, view.content.text);
+    } else if (
+      !options.representatives?.renderCard(
+        article,
+        view.content.text,
+        view.own
+          ? session
+          : (peers.find((p) => p.accountId === view.peer) ?? null),
+      )
+    )
+      emojiText(text, view.content.text);
   }
   function choose(mode: 'reply' | 'edit', view: MessageView): void {
     composing = { mode, view };
@@ -580,6 +591,7 @@ export function startMessages(
     showDirectConversation();
     clearContext();
     selected = peer;
+    mountRepresentativeChat(peer);
     if (mounted) mounted.dataset['voicePeer'] = peer.accountId;
     controller.select(peer.accountId);
     renderHistory();
@@ -597,6 +609,21 @@ export function startMessages(
     await controller.synchronize();
     await controller.savePins();
     await dailyTick();
+  }
+  function mountRepresentativeChat(peer: ConversationPeer): void {
+    const representativePanel = node('[data-representative-chat]');
+    representativePanel?.replaceChildren();
+    if (representativePanel && !peer.localOnly)
+      options.representatives?.mountChat(
+        representativePanel,
+        peer,
+        async (text) => {
+          if (selected?.accountId !== peer.accountId)
+            throw new Error('Conversa alterada.');
+          await controller.compose(peer.accountId, text);
+          await transmit();
+        },
+      );
   }
   function showDirectConversation(): void {
     groups.deselect();
@@ -1181,7 +1208,7 @@ export function startMessages(
     },
     mount(container: HTMLElement): void {
       mounted = container;
-      container.innerHTML = `<article class="card chat-panel"><h2>Conversas</h2><p data-message-status role="status"></p><p data-message-live role="status"></p><button data-message-refresh type="button" hidden>Tentar novamente</button><div class="chat-layout"><aside><h3>Conversas</h3><div data-group-sidebar></div><button data-archived-list type="button">Alternar arquivadas</button><div data-message-contacts class="chat-contacts"></div><button data-message-more-contacts type="button" hidden>Mais conversas</button></aside><section data-direct-conversation><h3 data-message-peer></h3><p data-peer-presence></p><button data-archive type="button">Arquivar/desarquivar</button><p>Arquivar silencia até reativar. Depois de desarquivar, vá a Configurações → Retomar alertas para voltar a receber notificações.</p><button data-pin type="button">Fixar/desfixar</button><p data-message-gate></p><div data-message-history class="chat-history" hidden></div><button data-message-older type="button">Mensagens anteriores</button><form data-message-form><p data-compose-context></p><button data-compose-cancel type="button">Cancelar resposta/edição</button><label>Mensagem<textarea data-message-text rows="3"></textarea></label><button data-message-emoji type="button">Escolher emoji</button><label>Enviar como<select data-attachment-mode><option value="photo">Foto otimizada</option><option value="file">Arquivo original (até 3 MB)</option></select></label><button data-voice-record type="button">Gravar voz</button><button data-voice-stop type="button" hidden>Parar e conferir</button><button data-voice-cancel type="button" hidden>Cancelar gravação</button><p data-voice-status role="status"></p><p>Voz: até 90 segundos. Ouça a prévia e toque em Enviar. Se o sistema interromper o microfone, o trecho capturado será preservado enquanto esta página continuar aberta.</p><label>Foto ou arquivo<input data-attachment-file type="file"></label><p>Foto: prévia e remoção de metadados no aparelho. Original: pode compartilhar GPS/EXIF. Vídeos ainda não são aceitos.</p><div data-attachment-preview></div><button data-attachment-clear type="button">Remover seleção</button><button class="primary" type="submit">Enviar</button></form><label>Busca local<input data-message-search maxlength="128" type="search"></label><button data-search type="button">Buscar neste aparelho</button><button data-search-more type="button" hidden>Continuar busca</button><ul data-search-results></ul><h3>Envios deste aparelho</h3><ul data-message-pending></ul></section><section data-group-conversation hidden></section></div></article>`;
+      container.innerHTML = `<article class="card chat-panel"><h2>Conversas</h2><p data-message-status role="status"></p><p data-message-live role="status"></p><button data-message-refresh type="button" hidden>Tentar novamente</button><div class="chat-layout"><aside><h3>Conversas</h3><div data-group-sidebar></div><button data-archived-list type="button">Alternar arquivadas</button><div data-message-contacts class="chat-contacts"></div><button data-message-more-contacts type="button" hidden>Mais conversas</button></aside><section data-direct-conversation><h3 data-message-peer></h3><p data-peer-presence></p><button data-archive type="button">Arquivar/desarquivar</button><p>Arquivar silencia até reativar. Depois de desarquivar, vá a Configurações → Retomar alertas para voltar a receber notificações.</p><button data-pin type="button">Fixar/desfixar</button><details><summary>Autorizações de representantes</summary><div data-representative-chat></div></details><p data-message-gate></p><div data-message-history class="chat-history" hidden></div><button data-message-older type="button">Mensagens anteriores</button><form data-message-form><p data-compose-context></p><button data-compose-cancel type="button">Cancelar resposta/edição</button><label>Mensagem<textarea data-message-text rows="3"></textarea></label><button data-message-emoji type="button">Escolher emoji</button><label>Enviar como<select data-attachment-mode><option value="photo">Foto otimizada</option><option value="file">Arquivo original (até 3 MB)</option></select></label><button data-voice-record type="button">Gravar voz</button><button data-voice-stop type="button" hidden>Parar e conferir</button><button data-voice-cancel type="button" hidden>Cancelar gravação</button><p data-voice-status role="status"></p><p>Voz: até 90 segundos. Ouça a prévia e toque em Enviar. Se o sistema interromper o microfone, o trecho capturado será preservado enquanto esta página continuar aberta.</p><label>Foto ou arquivo<input data-attachment-file type="file"></label><p>Foto: prévia e remoção de metadados no aparelho. Original: pode compartilhar GPS/EXIF. Vídeos ainda não são aceitos.</p><div data-attachment-preview></div><button data-attachment-clear type="button">Remover seleção</button><button class="primary" type="submit">Enviar</button></form><label>Busca local<input data-message-search maxlength="128" type="search"></label><button data-search type="button">Buscar neste aparelho</button><button data-search-more type="button" hidden>Continuar busca</button><ul data-search-results></ul><h3>Envios deste aparelho</h3><ul data-message-pending></ul></section><section data-group-conversation hidden></section></div></article>`;
       if (selected) container.dataset['voicePeer'] = selected.accountId;
       attachments.mount(container, run);
       mountGroups(container);

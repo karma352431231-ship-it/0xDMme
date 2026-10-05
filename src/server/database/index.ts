@@ -2,6 +2,12 @@ import { GroupDailyStore } from './group-daily.ts';
 export type { GroupDailyStore } from './group-daily.ts';
 import { BackupStore } from './backups.ts';
 import { DailyStore } from './daily.ts';
+import { RepresentativeStore } from './representatives.ts';
+export type {
+  RepresentativeStore,
+  CredentialReceipt,
+  DomainRow,
+} from './representatives.ts';
 export type { DailyStore, PushJob } from './daily.ts';
 export type { BackupStore } from './backups.ts';
 import { AttachmentStore } from './attachments.ts';
@@ -69,6 +75,7 @@ const migrations = [
   '022-group-media.sql',
   '023-status.sql',
   '024-group-interface.sql',
+  '025-representatives.sql',
 ];
 
 export interface MaintenanceSnapshot {
@@ -113,6 +120,7 @@ export class Database {
   readonly groupRetention: GroupRetentionStore;
   readonly statuses: StatusStore;
   readonly statusMedia: StatusMediaStore;
+  readonly representatives: RepresentativeStore;
 
   constructor(connectionString: string, contentCapacity = 3_000_000_000) {
     this.pool = new pg.Pool({
@@ -138,6 +146,11 @@ export class Database {
     this.devices = new DeviceStore(this.pool, contentCapacity, this.changes);
     this.vault = new VaultStore(this.pool, contentCapacity);
     this.contacts = new ContactStore(this.pool, this.changes);
+    this.representatives = new RepresentativeStore(
+      this.pool,
+      this.contacts,
+      contentCapacity,
+    );
     this.daily = new DailyStore(this.pool, this.contacts, contentCapacity);
     this.messageRecovery = new MessageRecoveryStore(
       this.contacts,

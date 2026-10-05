@@ -6,6 +6,9 @@ import { promisify } from 'node:util';
 
 const execute = promisify(execFile);
 const authored = [
+  'src/client/wallet-statements',
+  'src/client/representatives',
+  'src/shared/representatives',
   'src/client/emoji',
   'src/tools/frontend-emoji.ts',
   'vendor/emoji/README.md',

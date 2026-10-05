@@ -10,6 +10,10 @@ import { MessageLive } from './message-live/index.ts';
 import { ContactService } from './contacts/index.ts';
 import { localGroupEligibility } from './groups/index.ts';
 import {
+  RepresentativeService,
+  DnsDomainResolver,
+} from './representatives/index.ts';
+import {
   NotificationService,
   readPushConfiguration,
 } from './notifications/index.ts';
@@ -43,6 +47,11 @@ try {
   });
   const messages = new MessageService(database, database.devices, objects, {
     notifications,
+    representatives: new RepresentativeService(
+      database.representatives,
+      new DnsDomainResolver(),
+      mobile.origin,
+    ),
     groupEligibility: localGroupEligibility(config, true),
   });
   await messages.cleanAttachments();

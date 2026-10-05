@@ -647,6 +647,12 @@ Publicação do bloco 10 solicitada em 03/10/2026: revisão específica 017→01
 
 ### Bloco 12A — Representantes e permissões verificáveis: V1
 
+**Início autorizado em 04/10/2026:** organizações e autorizações funcionam dentro do 0xDMme, sem exigir site. O emissor é identificado pela conta/wallet que assina; nomes iguais não comprovam vínculo com uma marca externa. Vincular domínio é opcional: desafio aleatório, com prazo e vínculo à organização/wallet, publicado em TXT no DNS e conferido pelo servidor, além da assinatura da wallet. A indicação significa **controle do domínio verificado**, não titularidade legal, reputação ou selo geral de legitimidade. Quem recebe o cartão verifica a autorização no chat, sem visitar o site nem comparar endereços manualmente. Não conceder cargos de grupo, acesso ao histórico ou poderes financeiros automaticamente. [Registro técnico e limites do bloco 12A](docs/BLOCO_12A_REPRESENTANTES.md).
+
+**Corte local escolhido em 04/10/2026:** concluir organizações/autorizações com assinatura no navegador da wallet ou por extensão. O retorno dessas novas assinaturas ao Chrome/Safari do celular fica pendente enquanto se avalia uma interação que preserve a privacidade. O protótipo que colocava a chave do pedido em links codificados para o serviço de abertura da wallet foi removido; não aprovar exposição adicional de nome/escopo à infraestrutura desse serviço. Login e recuperação existentes permanecem nos fluxos já aprovados. Esta entrega local não encerra a compatibilidade móvel da V1 nem autoriza ativar a migração 025 na VPS.
+
+**Corte local implementado em 05/10/2026:** organização assinada, emissão para contato aprovado, aceite, apresentação/verificação no chat individual, expiração/revogação e vínculo DNS opcional. Dados privados ficam no cofre/mensagens E2EE; recibos operacionais entram nas cotas. Verificações locais e limites de aceitação registrados no [documento do bloco 12A](docs/BLOCO_12A_REPRESENTANTES.md#validação-e-entrega). Pendentes: retorno móvel, aceitação com wallets/aparelhos físicos, fluxo completo entre pessoas e TXT real; não houve ativação remota.
+
 **Depende de:** identidade/dispositivos, contatos e grupos implementados; executar depois do núcleo básico e antes da chamada individual.
 
 1. Definir uma identidade verificável de organização/emissor e o fluxo para o usuário reconhecer sua autenticidade. Um cadastro ou nome semelhante não comprova que se trata de um projeto legítimo.

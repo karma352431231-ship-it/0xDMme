@@ -15,6 +15,7 @@ import { VaultService } from '../src/server/vault/index.ts';
 import { ObjectStore } from '../src/server/object-store/index.ts';
 import { MessageService } from '../src/server/messages/index.ts';
 import { MessageLive } from '../src/server/message-live/index.ts';
+import { RepresentativeService } from '../src/server/representatives/index.ts';
 import { localGroupEligibility } from '../src/server/groups/index.ts';
 import { ContactService } from '../src/server/contacts/index.ts';
 import { NotificationService } from '../src/server/notifications/index.ts';
@@ -117,6 +118,11 @@ const notifications = new NotificationService({
 });
 const live = new MessageLive(database.changes);
 const messages = new MessageService(database, database.devices, objects, {
+  representatives: new RepresentativeService(
+    database.representatives,
+    { matches: () => Promise.resolve(false) },
+    origin,
+  ),
   notifications,
   groupEligibility: localGroupEligibility(config, true),
 });

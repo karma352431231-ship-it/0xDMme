@@ -12,6 +12,7 @@ import type {
 } from '../../shared/account/index.ts';
 import { discoverWallets, SolanaConnectionError } from '../wallet/index.ts';
 import type { WalletConnection, WalletName } from '../wallet/index.ts';
+import { signWalletStatement } from '../wallet-statements/index.ts';
 import { createApprovalDiagnostics } from './approval-diagnostics.ts';
 import type { ApprovalStage } from './approval-diagnostics.ts';
 import { createPendingApproval } from './pending-approval.ts';
@@ -1100,7 +1101,41 @@ export function startAccount(options: {
     });
   }
   bindSidebar();
+  async function signStatement(message: string): Promise<string> {
+    const active = session;
+    if (!active || busy)
+      throw new Error('Entre na conta e aguarde a operação atual.');
+    const current = () => {
+      if (session?.csrf !== active.csrf)
+        throw new Error('Sessão alterada durante a assinatura.');
+    };
+    busy = true;
+    try {
+      const preferred = localStorage.getItem('0xdmme:login-wallet') ?? '';
+      const wallet =
+        wallets.get(
+          active.ecosystem === 'solana' ? `${preferred}:solana` : preferred,
+        ) ?? wallets.list().find((w) => w.ecosystem === active.ecosystem);
+      if (!wallet)
+        throw new Error(
+          'Para assinar organizações e autorizações, abra o 0xDMme no navegador da wallet ou use uma extensão. O retorno dessas assinaturas ao Chrome/Safari ainda está pendente.',
+        );
+      return await signWalletStatement({
+        wallet,
+        identity: {
+          accountId: active.accountId,
+          ecosystem: active.ecosystem,
+          address: active.address,
+        },
+        message,
+        current,
+      });
+    } finally {
+      busy = false;
+    }
+  }
   return {
+    signStatement,
     backupProfile: () =>
       privateProfile ? encodePrivateProfile(privateProfile) : null,
     backupReminder: () => privateProfile?.preferences.backupReminder ?? false,
