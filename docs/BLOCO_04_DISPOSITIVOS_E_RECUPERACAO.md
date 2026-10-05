@@ -24,7 +24,9 @@ A atualização informa quando há abertura ou vinculação pendente e onde conc
 
 Validação: regressões de restauração/login, autorização existente, pedido expirado e guarda de atualização passaram; PostgreSQL/HTTP confirmou documento recusado após consumo, sem novo cookie e mantendo recusa na API. Login fictício no navegador integrado configurou chaves automaticamente e a recarga conservou autorização/perfil, sem erros de console. [Checks completos da correção](BLOCO_02_BASE_WEB.md#correção-de-carregamento-mobile-em-05102026). Limites de complexidade/dependências passaram sem novas exceções; a mudança não adiciona tabela, dependência, relay ou telemetria.
 
-**Ponto importante:** esta correção não trata login público como chave de conteúdo e não apaga armazenamento do navegador. A reprodução física na MetaMask/Chrome ainda depende do reteste; publicação é uma etapa distinta.
+Publicação autorizada e verificada em 05/10/2026: release `793bf21` ativa na VPS de testes após CI integral aprovada e deploy de rotina. Manifesto, assets públicos, preservação, prontidão e retenção da release anterior conferidos; banco, dependências e serviços compartilhados preservados. [Registro do deploy](GIT_E_DEPLOY.md#ativação-da-correção-mobile--autorizada-em-05102026).
+
+**Ponto importante:** esta correção não trata login público como chave de conteúdo e não apaga armazenamento do navegador. A reprodução física na MetaMask/Chrome ainda depende do reteste; publicação não substitui esse aceite.
 
 ## Entrega
 

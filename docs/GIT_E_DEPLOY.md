@@ -1,5 +1,29 @@
 # 0xDMme — Git e envio à VPS
 
+## Ativação da correção mobile — autorizada em 05/10/2026
+
+Após a entrega local, o proprietário pediu explicitamente ativar `793bf21` na
+VPS. Executado `npm run deploy:staging` na cópia limpa e enviada, com
+[CI integral do commit exato aprovada](https://github.com/karma352431231-ship-it/0xDMme/actions/runs/37287239483).
+Build preparado no Mac; somente `0xdmme-test.service` reiniciado. Banco,
+migrações, dependências, Node, Nginx e infraestrutura permanecem iguais.
+As alterações anteriores do proprietário foram preservadas fora do commit.
+
+**Resultado:** release `793bf21` publicada sobre `e0cb062`. Manifesto ativo,
+38 assets públicos, preservação e retenção da release anterior verificados.
+A conferência independente confirmou 25 migrações, 48 tabelas, checksums,
+contabilidade e saúde consistentes; configurações próprias, processo do banco
+e backups históricos preservados. Nenhum serviço compartilhado foi reiniciado.
+HTTPS confirmou prontidão e hashes exatos do HTML normal, entrada de atualização,
+JavaScript e Worker. Pacote de 8.293.054 bytes, dentro de 16 MiB. Acesso,
+baselines e evidências operacionais permanecem exclusivamente em `.local/`.
+
+**Ponto importante:** a correção está publicada no ambiente de testes; o
+reteste físico MetaMask/Chrome continua pendente. Preserva as chaves locais e
+protege operações válidas. Navegadores precisam receber o novo código e ativar
+explicitamente o Worker; um Worker antigo pode exigir a entrada fixa
+`/?atualizar=1`, sem apagar o armazenamento.
+
 ## Ativação de filtros e menus por contato — autorizada em 05/10/2026
 
 Após a entrega local, o proprietário pediu explicitamente ativar `e0cb062` na
