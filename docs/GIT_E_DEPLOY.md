@@ -30,10 +30,16 @@ predecessor ou migrações divergentes, preservação/contabilidade, retenção 
 backup e falhas antes/depois da abertura. Nenhuma ativação real foi executada
 por esses testes.
 
-**Ponto importante:** envio de fontes não ativa a release. A ativação com a nova
-migração aguarda a aprovação específica do proprietário. A preparação não
-autoriza executar a transição automaticamente. Retorno móvel das novas
-assinaturas e aceitação física/DNS real continuam pendentes.
+Após o envio das fontes `0891b4b`, sua CI integral e o pré-flight aprovados, o
+proprietário autorizou explicitamente aplicar a migração 025 e ativar o corte
+em 05/10/2026. Registrar a aprovação antes de executar `npm run deploy:staging`
+em checkout limpo, com CI do commit exato e a revisão restrita acima. Essa
+aprovação não amplia a transição para outras migrações ou infraestrutura.
+
+**Ponto importante:** envio de fontes não ativa a release. A transição 024→025
+está autorizada somente no ambiente de testes, com backup, preservação e retorno
+verificados. Retorno móvel das novas assinaturas e aceitação física/DNS real
+continuam pendentes.
 
 ## Transição do bloco 11 — autorizada em 04/10/2026
 

@@ -653,6 +653,8 @@ Publicação do bloco 10 solicitada em 03/10/2026: revisão específica 017→01
 
 **Corte local implementado em 05/10/2026:** organização assinada, emissão para contato aprovado, aceite, apresentação/verificação no chat individual, expiração/revogação e vínculo DNS opcional. Dados privados ficam no cofre/mensagens E2EE; recibos operacionais entram nas cotas. Verificações locais e limites de aceitação registrados no [documento do bloco 12A](docs/BLOCO_12A_REPRESENTANTES.md#validação-e-entrega). Pendentes: retorno móvel, aceitação com wallets/aparelhos físicos, fluxo completo entre pessoas e TXT real; não houve ativação remota.
 
+**Ativação autorizada em 05/10/2026:** após envio das fontes `0891b4b`, CI integral e pré-flight aprovados, o proprietário autorizou aplicar a migração 025 e ativar o corte na VPS de testes. Transição restrita ao predecessor ativo `2772aba` e às fontes de aplicação revisadas em `c70eeed`, preservando 001–024, as 45 tabelas anteriores e runtime/dependências. Reutilizar o executor, backup/teste de restauração e parada/reinício somente do serviço próprio, conforme [revisão do deploy](docs/GIT_E_DEPLOY.md#preparação-do-bloco-12a--05102026). A autorização não encerra a aceitação física/móvel nem permite outras migrações ou mudanças compartilhadas.
+
 **Depende de:** identidade/dispositivos, contatos e grupos implementados; executar depois do núcleo básico e antes da chamada individual.
 
 1. Definir uma identidade verificável de organização/emissor e o fluxo para o usuário reconhecer sua autenticidade. Um cadastro ou nome semelhante não comprova que se trata de um projeto legítimo.
