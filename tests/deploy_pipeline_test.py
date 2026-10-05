@@ -803,6 +803,46 @@ class GroupsDeploymentTests(AttachmentDeploymentTests):
         self.assertEqual(len(set(remote.GROUPS_NEW_TABLES)),16)
 
 
+class RepresentativesDeploymentTests(AttachmentDeploymentTests):
+    count = 25
+    previous_count = 24
+    before_key = 'REPRESENTATIVES_BEFORE'
+    reviewed_key = 'REPRESENTATIVES_REVIEWED'
+    review_name = 'representatives_review'
+    snapshot_name = 'representatives_snapshot'
+    verify_name = 'verify_representatives_migration'
+    activate_name = 'activate_representatives'
+
+    def test_migration_checksums_existing_data_and_ledger_are_preserved(self):
+        with tempfile.TemporaryDirectory() as directory:
+            candidate = Path(directory); self.migrations(candidate)
+            versions = remote.attachment_versions(candidate)
+            before = {'versions':versions[:24], 'tables':{'login_sessions':'preserved',
+                      'group_packets':'preserved', 'status_posts':'preserved', 'content_usage':'preserved'}}
+            after = dict(before, versions=versions)
+            with patch.object(remote,'representatives_snapshot',return_value=after), patch.object(backups,'pg',return_value=b't') as pg:
+                remote.verify_representatives_migration(candidate,before)
+            sql = pg.call_args.args[0][-1]
+            for table in remote.REPRESENTATIVES_NEW_TABLES:
+                self.assertIn('NOT EXISTS(SELECT 1 FROM hash_talk.'+table+')',sql)
+            for table in remote.DAILY_NEW_TABLES+remote.GROUPS_NEW_TABLES+remote.REPRESENTATIVES_NEW_TABLES:
+                self.assertIn('sum(charge) FROM hash_talk.'+table,sql)
+            for invalid in [dict(after,tables={}), dict(after,versions=versions[:-1])]:
+                with patch.object(remote,'representatives_snapshot',return_value=invalid), patch.object(backups,'pg') as pg, self.assertRaises(RuntimeError):
+                    remote.verify_representatives_migration(candidate,before)
+                pg.assert_not_called()
+            with patch.object(remote,'representatives_snapshot',return_value=after), patch.object(backups,'pg',return_value=b'f'), self.assertRaises(RuntimeError):
+                remote.verify_representatives_migration(candidate,before)
+            with patch.object(remote,'representatives_snapshot',return_value=after), patch.object(backups,'pg') as pg, self.assertRaises(RuntimeError):
+                remote.verify_representatives_migration(candidate,dict(before,versions=versions[:23]))
+            pg.assert_not_called()
+        with patch.object(backups,'database_snapshot') as snapshot:
+            remote.representatives_snapshot()
+            snapshot.assert_called_once_with(remote.REPRESENTATIVES_TABLES)
+        self.assertEqual(len(set(remote.REPRESENTATIVES_TABLES)),45)
+        self.assertEqual(len(set(remote.REPRESENTATIVES_NEW_TABLES)),3)
+
+
 class HistoricalBackupRetentionTests(unittest.TestCase):
     def completed(self, root, commit, timestamp):
         work = root / ('deployment-' + commit)

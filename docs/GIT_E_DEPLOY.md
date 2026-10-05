@@ -1,5 +1,40 @@
 # 0xDMme — Git e envio à VPS
 
+## Preparação do bloco 12A — 05/10/2026
+
+O proprietário pediu enviar o corte local de organizações/representantes à VPS.
+As fontes de aplicação revisadas estão em `c70eeed`; a auditoria somente leitura
+confirmou o predecessor ativo `2772aba`, 24 migrações e 45 tabelas existentes,
+saúde própria e preservação. Acesso, digests e recibos permanecem em `.local/`.
+As alterações anteriores do proprietário em AGENTS.md e no roteiro de
+simplificação ficam fora dos commits e são preservadas no checkout original.
+
+Proposta pronta no executor existente `npm run deploy:staging`: transição exata
+024→025, fontes de aplicação idênticas às revisadas, lockfile/Node/runtime
+inalterados e somente três tabelas novas (`organizations`,
+`representative_credentials`, `organization_domains`), índices/constraints e
+contabilidade. Não alterar 001–024 nem projetar/excluir campos dos digests das
+45 tabelas anteriores. Conferir 001–025, tabelas novas vazias e soma integral de
+bytes antes de abrir. O fluxo continua sujeito à CI integral do commit exato,
+árvore limpa, limites e comparações de preservação.
+
+Reutilizar backup privado de banco/objetos de até 64 MiB cada e ensaio de
+restauração em transação revertida, parando somente o escritor próprio. Antes
+da abertura, falha permite retorno verificado; após abrir, preservar novas
+gravações e parar somente o app, sem restaurar automaticamente dados antigos.
+Não alterar dependências, runtime, Nginx, rede ou serviços compartilhados.
+Conservar teto de 240 segundos, recursos, backup e release anterior.
+
+Os 86 testes locais do executor passaram, incluindo recusa de fontes,
+predecessor ou migrações divergentes, preservação/contabilidade, retenção de
+backup e falhas antes/depois da abertura. Nenhuma ativação real foi executada
+por esses testes.
+
+**Ponto importante:** envio de fontes não ativa a release. A ativação com a nova
+migração aguarda a aprovação específica do proprietário. A preparação não
+autoriza executar a transição automaticamente. Retorno móvel das novas
+assinaturas e aceitação física/DNS real continuam pendentes.
+
 ## Transição do bloco 11 — autorizada em 04/10/2026
 
 Após a entrega local e a CI de `aab78ef`, o proprietário pediu enviar e ativar
