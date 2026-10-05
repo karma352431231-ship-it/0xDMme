@@ -41,6 +41,19 @@ está autorizada somente no ambiente de testes, com backup, preservação e reto
 verificados. Retorno móvel das novas assinaturas e aceitação física/DNS real
 continuam pendentes.
 
+**Resultado:** release `ed82a54` publicada em 05/10/2026 pelo executor existente,
+com [CI integral do commit exato aprovada](https://github.com/karma352431231-ship-it/0xDMme/actions/runs/37262394128).
+Migração 025 aplicada com checksums 001–025, preservação das 45 tabelas anteriores,
+três tabelas novas inicialmente vazias e contabilidade verificados antes da
+abertura. Backup privado, ensaio de restauração e release anterior ficaram
+retidos. A conferência posterior confirmou manifesto ativo, 25 migrações,
+48 tabelas, contabilidade consistente, 38 assets públicos e saúde HTTPS pronta.
+Pacote de 8.323.314 bytes, dentro de 16 MiB. Configurações, processos e respostas
+passaram nas comparações de preservação; nenhum serviço compartilhado foi
+reiniciado. Elegibilidade sintética de grupos permanece desligada. Acesso,
+backups e evidências operacionais ficam exclusivamente em `.local/` e na área
+privada própria da VPS. A publicação não substitui os testes físicos pendentes.
+
 ## Transição do bloco 11 — autorizada em 04/10/2026
 
 Após a entrega local e a CI de `aab78ef`, o proprietário pediu enviar e ativar

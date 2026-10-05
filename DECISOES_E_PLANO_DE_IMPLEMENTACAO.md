@@ -655,6 +655,8 @@ Publicação do bloco 10 solicitada em 03/10/2026: revisão específica 017→01
 
 **Ativação autorizada em 05/10/2026:** após envio das fontes `0891b4b`, CI integral e pré-flight aprovados, o proprietário autorizou aplicar a migração 025 e ativar o corte na VPS de testes. Transição restrita ao predecessor ativo `2772aba` e às fontes de aplicação revisadas em `c70eeed`, preservando 001–024, as 45 tabelas anteriores e runtime/dependências. Reutilizar o executor, backup/teste de restauração e parada/reinício somente do serviço próprio, conforme [revisão do deploy](docs/GIT_E_DEPLOY.md#preparação-do-bloco-12a--05102026). A autorização não encerra a aceitação física/móvel nem permite outras migrações ou mudanças compartilhadas.
 
+**Publicação verificada em 05/10/2026:** release `ed82a54` ativada após CI integral aprovada, com migração 025, backup/ensaio de restauração, preservação e contabilidade verificados. Conferência posterior confirmou manifesto ativo, 25 migrações, 48 tabelas, 38 assets públicos e saúde pronta, sem reinício de serviços compartilhados. Backup e release anterior ficaram retidos; evidências operacionais privadas e [resultado do deploy](docs/GIT_E_DEPLOY.md#preparação-do-bloco-12a--05102026). As pendências físicas/móveis e DNS real permanecem.
+
 **Depende de:** identidade/dispositivos, contatos e grupos implementados; executar depois do núcleo básico e antes da chamada individual.
 
 1. Definir uma identidade verificável de organização/emissor e o fluxo para o usuário reconhecer sua autenticidade. Um cadastro ou nome semelhante não comprova que se trata de um projeto legítimo.
