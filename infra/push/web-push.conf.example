@@ -1,0 +1,8 @@
+# Drop-in for 0xdmme-test.service only. Does not modify PrivateNetwork/IPAddressDeny.
+[Unit]
+Wants=0xdmme-push.service
+After=0xdmme-push.service
+
+[Service]
+SupplementaryGroups=xdmme-push
+BindReadOnlyPaths=/run/0xdmme-push

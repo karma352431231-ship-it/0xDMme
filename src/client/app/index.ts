@@ -8,6 +8,7 @@ import { startStatus } from '../status/index.ts';
 import { startRepresentatives } from '../representatives/index.ts';
 import { startContacts } from '../contacts/index.ts';
 import { VoicePlayback } from '../voice-playback/index.ts';
+import { startCalls } from '../calls/index.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
 import type { AddressBookEntry } from '../../shared/contacts/index.ts';
 
@@ -31,7 +32,7 @@ const pages = {
   },
   configuracoes: {
     title: 'Configurações',
-    content: `<div data-contact-settings-container></div><div data-daily-settings></div><div data-representatives-settings></div><article class="card"><h2>Aplicativo</h2><p id="pwa-state" role="status">Verificando atualização…</p><button id="check-updates" type="button">Verificar atualização</button></article>`,
+    content: `<div data-contact-settings-container></div><div data-daily-settings></div><div data-call-settings></div><div data-representatives-settings></div><article class="card"><h2>Aplicativo</h2><p id="pwa-state" role="status">Verificando atualização…</p><button id="check-updates" type="button">Verificar atualização</button></article>`,
   },
 };
 
@@ -64,6 +65,13 @@ const devices = startDevices({
 });
 const vault = startVault(devices);
 const playback = new VoicePlayback();
+const calls = startCalls({
+  access: devices,
+  sync: vault.sync,
+  playback,
+  before: () => messages.prepareCall(),
+  label: (peer) => messages.callLabel(peer),
+});
 const backups = startBackups(devices, vault.sync, playback, {
   reminder: () => account.backupReminder(),
   confirmWallet: () => account.confirmWallet(),
@@ -77,6 +85,7 @@ const representatives = startRepresentatives(devices, vault.sync, (message) =>
   account.signStatement(message),
 );
 const messages = startMessages(devices, vault.sync, {
+  calls,
   playback,
   openConversation,
   openContact: (contact: AddressBookEntry) => {
@@ -89,7 +98,10 @@ const messages = startMessages(devices, vault.sync, {
     if (shell) shell.dataset['history'] = available ? 'available' : 'empty';
   },
   representatives,
-  liveEvent: (event) => statuses.event(event),
+  liveEvent: (event) => {
+    statuses.event(event);
+    calls.event(event);
+  },
   liveState: (connected) => statuses.liveConnection(connected),
   sharedProfile: () => account.sharedProfile(),
   preferences: () => account.privacyPreferences(),
@@ -115,6 +127,7 @@ const account = startAccount({
     backups.setSession(session);
     contacts.setSession(session);
     messages.setSession(session);
+    calls.setSession(session);
     statuses.setSession(session);
     representatives.setSession(session);
     connection();
@@ -137,6 +150,7 @@ const pwa = account.approvalPage
         backups.canActivate() &&
         contacts.canActivate() &&
         messages.canActivate() &&
+        !calls.active() &&
         statuses.canActivate() &&
         representatives.canActivate(),
     });
@@ -186,6 +200,10 @@ function mountFeature(key: keyof typeof pages): void {
     '[data-daily-settings]',
   );
   if (dailyContainer) messages.mountSettings(dailyContainer);
+  const callSettings = content.querySelector<HTMLElement>(
+    '[data-call-settings]',
+  );
+  if (callSettings) calls.mountSettings(callSettings);
   const representativeContainer = content.querySelector<HTMLElement>(
     '[data-representatives-settings]',
   );
@@ -260,6 +278,7 @@ function renderApprovalPage(): void {
 function connection(): void {
   if (connectedAccount && devices.authorized()) {
     messages.ready();
+    calls.ready();
     contacts.ready();
     statuses.ready();
     void vault.ready();

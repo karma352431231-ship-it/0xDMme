@@ -1,3 +1,4 @@
+import { groupQuota } from '../../shared/group-quota/index.ts';
 import { object, uuid, encode } from '../../shared/account/index.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
 import { integer } from '../../shared/vault/index.ts';
@@ -284,7 +285,7 @@ async function writeMedia(
           : groupAttachmentApi(group, c.api),
         snapshot: null,
         guard: c.guard,
-        budget: 1_000_000_000,
+        budget: groupQuota,
       };
       await retainAttachment(input.account, id, input.budget);
       bytes = await downloadSealedAttachment(input);

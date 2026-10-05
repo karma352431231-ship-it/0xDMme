@@ -1,17 +1,13 @@
 import { AccountError } from '../account/index.ts';
 
-export const groupQuota = 1_000_000_000;
-export const groupMediaQuota = 750_000_000;
-export const groupTextQuota = 250_000_000;
+// Decimal bytes. Preserve the approved 75% media / 25% text/control split.
+export const groupQuota = 2_000_000_000;
+export const groupMediaQuota = (groupQuota * 75) / 100;
+export const groupTextQuota = groupQuota - groupMediaQuota;
 export const groupControlMargin = 1_000_000;
 export const groupContentQuota = groupTextQuota - groupControlMargin;
 export const groupMediaWarning = (groupMediaQuota * 90) / 100;
 export const groupMediaTarget = (groupMediaQuota * 70) / 100;
-interface GroupTierInput {
-  balance: bigint;
-  decimals: number;
-  existingGroups: number;
-}
 export const groupCreationMinute = 60_000;
 export const groupCreationHour = 3_600_000;
 export const groupCreationsPerHour = 10;
@@ -44,43 +40,6 @@ export function groupCreationRetryAt(input: {
       ? (recent[0] ?? 0) + groupCreationHour
       : input.now;
   return Math.max(input.now, minute, hour);
-}
-
-function assertTierInput(input: GroupTierInput): void {
-  if (
-    typeof input.balance !== 'bigint' ||
-    input.balance < 0n ||
-    !Number.isInteger(input.decimals) ||
-    input.decimals < 0 ||
-    input.decimals > 255 ||
-    !Number.isSafeInteger(input.existingGroups) ||
-    input.existingGroups < 0
-  )
-    throw new AccountError(
-      400,
-      'Saldo, decimais ou contagem de grupos inválidos.',
-    );
-}
-
-/** Approved tier only. RPC proof, ownership, concurrency and capacity are separate contracts. */
-export function groupCreationTier(input: GroupTierInput): {
-  limit: number | null;
-  available: number | null;
-  canCreate: boolean;
-} {
-  assertTierInput(input);
-  const unit = 10n ** BigInt(input.decimals);
-  const limit =
-    input.balance >= 100_000n * unit
-      ? null
-      : input.balance >= 50_000n * unit
-        ? 10
-        : input.balance >= 10_000n * unit
-          ? 2
-          : 0;
-  const available =
-    limit === null ? null : Math.max(0, limit - input.existingGroups);
-  return { limit, available, canCreate: available === null || available > 0 };
 }
 
 /** Exact bytes only; no rounding or empty-group preallocation. */

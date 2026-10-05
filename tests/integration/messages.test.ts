@@ -1,3 +1,4 @@
+import { vaultQuota } from '../../src/shared/vault/index.ts';
 import { MessageLive } from '../../src/server/message-live/index.ts';
 import { WakeupFrames } from '../../src/client/message-live/index.ts';
 import { voiceWav } from '../../src/client/voice-audio/index.ts';
@@ -1299,8 +1300,8 @@ await test('mensagens persistentes: Olm/Megolm, recuperação, idempotência, ex
           [pending.id],
         );
         await inspector.query(
-          `UPDATE hash_talk.message_packets SET ${column}=300000000 WHERE id=$1`,
-          [pending.id],
+          `UPDATE hash_talk.message_packets SET ${column}=$2 WHERE id=$1`,
+          [pending.id, vaultQuota],
         );
         try {
           await assert.rejects(op(alice, 'attachment-reserve', reserve), {
@@ -1574,8 +1575,8 @@ await test('mensagens persistentes: Olm/Megolm, recuperação, idempotência, ex
         [pending.id],
       );
       await inspector.query(
-        'UPDATE hash_talk.message_packets SET recipient_charge=300000000 WHERE id=$1',
-        [pending.id],
+        'UPDATE hash_talk.message_packets SET recipient_charge=$2 WHERE id=$1',
+        [pending.id, vaultQuota],
       );
       try {
         await assert.rejects(publish(quotaPacket), { status: 413 });

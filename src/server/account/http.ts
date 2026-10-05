@@ -13,6 +13,7 @@ import type { MessageService } from '../messages/index.ts';
 import type { ContactService } from '../contacts/index.ts';
 import type { NotificationService } from '../notifications/index.ts';
 import type { MessageLive } from '../message-live/index.ts';
+import type { CallService } from '../calls/index.ts';
 import { blockLimit } from '../../shared/vault/index.ts';
 import { createApprovalEntry } from './approval-http.ts';
 import { RecoveryReturn } from '../recovery-return/index.ts';
@@ -32,6 +33,8 @@ const readRoutes = new Set(
     'object',
     'confirm',
     'history',
+    'peer-directory',
+    'daily-push-state',
     'recovery-key',
     'personal-page',
     'attachment-get',
@@ -73,6 +76,13 @@ const readRoutes = new Set(
       '/api/account/vault/object',
     ]),
 );
+const challengeRoutes = new Set([
+  '/api/account/challenge',
+  '/api/account/handoff-start',
+  '/api/account/handoff-challenge',
+  '/api/account/recovery-start',
+  '/api/account/enrollment-join',
+]);
 function readCookie(request: IncomingMessage, name: string): string {
   const matches = (request.headers.cookie ?? '')
     .split(';')
@@ -114,6 +124,8 @@ function messageBodyLimit(url: string): number {
   return messageBodyBudgets.get(url.slice(url.lastIndexOf('/') + 1)) ?? 4096;
 }
 function bodyLimit(url: string | undefined): number {
+  if (url?.startsWith('/api/account/calls/'))
+    return url.endsWith('/offer') ? 365_000 : 16_000;
   if (url?.startsWith('/api/account/messages/')) return messageBodyLimit(url);
   return url === '/api/account/vault/upload'
     ? Math.ceil(blockLimit / 3) * 4 + 10000
@@ -171,6 +183,7 @@ export function createAccountHandler(options: {
   messages?: MessageService;
   notifications?: NotificationService;
   live?: MessageLive;
+  calls?: CallService;
 }) {
   const secure = new URL(options.origin).protocol === 'https:';
   const sessionName = secure ? '__Host-hash-talk-session' : 'hash-talk-session';
@@ -178,6 +191,11 @@ export function createAccountHandler(options: {
     ? '__Host-hash-talk-challenge'
     : 'hash-talk-challenge';
   const limit = new AccountRateLimit();
+  // Calls have their own bounded pre-auth IP budget and authenticated session
+  // budget. Unix-socket deployments share one transport address; 32 endpoints
+  // at five-second intervals must not consume the chat's existing quota.
+  const callAdmission = new AccountRateLimit({ requests: 900 });
+  const callSessions = new AccountRateLimit();
   const recovery = new RecoveryReturn(options.origin);
   const enrollments = options.devices
     ? new EnrollmentLinks(options.devices)
@@ -532,6 +550,7 @@ export function createAccountHandler(options: {
     sessionToken: string,
     input: unknown,
   ): Promise<void> {
+    if (await callPost(request, response, sessionToken, input)) return;
     if (await contactPost(request, response, sessionToken, input)) return;
     if (request.url?.startsWith('/api/account/recovery-')) {
       await privateRecoveryPost(request, response, sessionToken, input);
@@ -555,17 +574,47 @@ export function createAccountHandler(options: {
     }
     throw new AccountError(404, 'Operação não encontrada.');
   }
+  async function callPost(
+    request: IncomingMessage,
+    response: ServerResponse,
+    token: string,
+    input: unknown,
+  ): Promise<boolean> {
+    if (!request.url?.startsWith('/api/account/calls/') || !options.calls)
+      return false;
+    const session = await options.service.session(token);
+    callSessions.admit(
+      session.csrf,
+      false,
+      request.url.endsWith('/sync') || request.url.endsWith('/end'),
+    );
+    send(
+      response,
+      200,
+      await options.calls.operate(
+        request.url.slice('/api/account/calls/'.length),
+        session,
+        input,
+      ),
+    );
+    return true;
+  }
 
   function admit(request: IncomingMessage): void {
+    if (request.url?.startsWith('/api/account/calls/')) {
+      callAdmission.admit(request.socket.remoteAddress ?? 'unknown', false);
+      return;
+    }
     limit.admit(
       request.socket.remoteAddress ?? 'unknown',
-      request.url === '/api/account/challenge' ||
-        request.url === '/api/account/handoff-start' ||
-        request.url === '/api/account/handoff-challenge' ||
-        request.url === '/api/account/recovery-start' ||
-        request.url === '/api/account/enrollment-join' ||
-        approvalEntryUrl(request.url),
-      request.method === 'POST' && readRoutes.has(request.url ?? ''),
+      challengeRoutes.has(request.url ?? '') || approvalEntryUrl(request.url),
+      readAdmission(request),
+    );
+  }
+  function readAdmission(request: IncomingMessage): boolean {
+    return (
+      (request.method === 'POST' && readRoutes.has(request.url ?? '')) ||
+      (request.method === 'GET' && request.url === '/api/account/push-check')
     );
   }
   async function handle(
@@ -638,11 +687,13 @@ export function createAccountHandler(options: {
     token: string,
   ): Promise<boolean> {
     if (request.url === '/api/account/push-check' && options.notifications) {
-      send(response, 200, {
-        allowed: await options.notifications.allowPush(
+      send(
+        response,
+        200,
+        await options.notifications.inspectPush(
           await options.service.session(token),
         ),
-      });
+      );
       return true;
     }
     return false;
@@ -704,7 +755,10 @@ export function createAccountHandler(options: {
     handle,
     close: () => {
       options.live?.close();
+      options.calls?.close();
       limit.close();
+      callAdmission.close();
+      callSessions.close();
       recovery.close();
       enrollments?.close();
     },

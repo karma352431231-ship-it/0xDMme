@@ -21,6 +21,8 @@ async function worker(
     pushAllowed?: boolean;
     pushCheckFails?: boolean;
     pushSound?: string;
+    pushCall?: boolean;
+    showCall?: boolean;
     networkStatus?: number;
     previousAssets?: Record<string, Uint8Array>;
   } = {},
@@ -53,6 +55,11 @@ async function worker(
   const notifications: { title: string; options: NotificationOptions }[] = [];
   const opened: string[] = [];
   const origin = 'https://hash-talk.example';
+  const pushResult = {
+    allowed: options.pushAllowed ?? false,
+    call: options.pushCall ?? false,
+    showCall: options.showCall ?? true,
+  };
   const networkResponses = new WeakSet<Response>();
   for (const [path, bytes] of Object.entries(options.previousAssets ?? {})) {
     const response = new Response(bytes as BodyInit);
@@ -163,11 +170,7 @@ async function worker(
         assert.equal(request.cache, 'no-store');
         if (options.pushCheckFails)
           return Promise.reject(new Error('synthetic-unavailable'));
-        return Promise.resolve(
-          new Response(
-            JSON.stringify({ allowed: options.pushAllowed ?? false }),
-          ),
-        );
+        return Promise.resolve(new Response(JSON.stringify(pushResult)));
       }
       if (!networkAvailable)
         return Promise.reject(new Error('synthetic-offline'));
@@ -253,6 +256,30 @@ await test('URL padrão abre o HTML atual online e conserva a versão completa p
       }),
       false,
     );
+});
+
+await test('aviso de chamada mostra tipo por padrão, opção de privacidade fica genérica e convite inválido não aparece', async () => {
+  const visible = await worker({ pushAllowed: true, pushCall: true });
+  await visible.dispatch('push');
+  assert.equal(
+    visible.notifications[0]?.options.body,
+    'Chamada de voz recebida. Abra o app para atender.',
+  );
+  assert.equal(visible.notifications[0]?.options.tag, '0xdmme-call');
+  const hidden = await worker({
+    pushAllowed: true,
+    pushCall: true,
+    showCall: false,
+  });
+  await hidden.dispatch('push');
+  assert.equal(
+    hidden.notifications[0]?.options.body,
+    'Há nova atividade. Abra o app para sincronizar.',
+  );
+  assert.equal(hidden.notifications[0]?.options.tag, '0xdmme-call');
+  const stale = await worker({ pushAllowed: false, pushCall: true });
+  await stale.dispatch('push');
+  assert.equal(stale.notifications.length, 0);
 });
 
 await test('navegação sem rede nem cache falha e erro HTTP do servidor não é mascarado pelo cache', async () => {

@@ -1,0 +1,19 @@
+# REVIEW TEMPLATE ONLY: numeric UID/address placeholders are intentionally invalid.
+# Separate table; never flush or replace an existing shared-host ruleset.
+# Snapshot firewall fingerprints/health in .local and obtain scoped activation approval.
+table inet xdmme_turn {
+  chain output {
+    type filter hook output priority 0; policy accept;
+    meta skuid REVIEWED_DEDICATED_TURN_UID jump relay_only
+  }
+  chain relay_only {
+    # Replies to connections/allocations that arrived at our TURN service.
+    ct state established,related accept
+    # NEW peer traffic is restricted to our own isolated UDP relay range.
+    ip daddr REVIEWED_OWN_PUBLIC_IPV4 udp dport 49160-49223 accept
+    # Include only when the reviewed IPv6 relay is actually configured.
+    ip6 daddr REVIEWED_OWN_PUBLIC_IPV6 udp dport 49160-49223 accept
+    # No logs and no general host/network access.
+    reject
+  }
+}

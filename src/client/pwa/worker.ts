@@ -199,8 +199,7 @@ async function notify(): Promise<void> {
       return;
     const sound = await pushSoundEnabled();
     await scope.registration.showNotification(genericNotification.title, {
-      body: genericNotification.body,
-      tag: '0xdmme-activity',
+      ...notificationAppearance(data),
       icon: '/icon-192.png',
       badge: '/icon-192.png',
       silent: !sound,
@@ -209,6 +208,16 @@ async function notify(): Promise<void> {
   } catch {
     /* Unverified authorization/mute never falls back to an alert. The message remains durable. */
   }
+}
+function notificationAppearance(data: object): { body: string; tag: string } {
+  const call = 'call' in data && data.call === true;
+  const showCall = call && 'showCall' in data && data.showCall === true;
+  return {
+    body: showCall
+      ? 'Chamada de voz recebida. Abra o app para atender.'
+      : genericNotification.body,
+    tag: call ? '0xdmme-call' : '0xdmme-activity',
+  };
 }
 scope.addEventListener('push', (event) => {
   event.waitUntil(notify());

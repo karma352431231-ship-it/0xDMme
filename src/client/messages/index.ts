@@ -1,3 +1,4 @@
+import { mountPushSettings } from '../push-settings/index.ts';
 import { ConversationSearch } from './search.ts';
 import type { SearchPage } from './search.ts';
 import { renderDirectory, filteredConversations } from './directory.ts';
@@ -46,6 +47,7 @@ export function startMessages(
   access: VaultAccess,
   sync: VaultSync,
   options: {
+    calls?: { start: (peer: string) => Promise<void>; active: () => boolean };
     playback: VoicePlayback;
     openConversation: () => void;
     openContact: (contact: AddressBookEntry) => void;
@@ -87,6 +89,7 @@ export function startMessages(
     archivedMore = true;
   let failed = false;
   let settingsHost: HTMLElement | null = null;
+  let pushSettings: ReturnType<typeof mountPushSettings> | null = null;
   let message = 'Entre e autorize este aparelho para conversar.';
   let recordingPeer: string | null = null;
   const voice = new VoiceRecording({
@@ -115,7 +118,11 @@ export function startMessages(
     const start = node<HTMLButtonElement>('[data-voice-record]');
     if (start)
       start.disabled =
-        busy || voice.active || attachments.selected !== null || !selected;
+        busy ||
+        voice.active ||
+        attachments.selected !== null ||
+        !selected ||
+        !!options.calls?.active();
     const stop = node<HTMLButtonElement>('[data-voice-stop]');
     if (stop) {
       stop.hidden = !voice.active;
@@ -1011,6 +1018,7 @@ export function startMessages(
   }
   async function dailyTick(): Promise<void> {
     if (!session || !navigator.onLine) return;
+    await pushSettings?.refresh();
     await daily.configure(preferences());
     await daily.heartbeat(document.visibilityState === 'visible');
     if (!connected()) return;
@@ -1271,8 +1279,19 @@ export function startMessages(
     bind('[data-compose-cancel]', clearContext);
   }
   function bindVoiceControls(): void {
+    bind('[data-call-start]', () => {
+      if (!selected || selected.localOnly || !options.calls) return;
+      void options.calls.start(selected.accountId);
+    });
     bind('[data-voice-record]', () => {
-      if (busy || voice.active || attachments.selected || !selected || !session)
+      if (
+        busy ||
+        voice.active ||
+        attachments.selected ||
+        !selected ||
+        !session ||
+        options.calls?.active()
+      )
         return;
       recordingPeer = selected.accountId;
       void voice.start();
@@ -1335,6 +1354,16 @@ export function startMessages(
       await agenda.saved(contact);
       renderContacts(peers);
     },
+    prepareCall(): void {
+      if (voice.active)
+        throw new Error(
+          'Pare ou cancele a gravação de voz antes de iniciar ou atender uma chamada. A prévia continuará disponível.',
+        );
+    },
+    callLabel: (peer: string) =>
+      peers.find((p) => p.accountId === peer)?.name ||
+      peers.find((p) => p.accountId === peer)?.address ||
+      `Contato aprovado ${peer.slice(0, 8)}`,
     openSearch: () => searchPanel.open(),
     applyPrivacy: (preferences: DailyPreferences) =>
       daily.configure(preferences),
@@ -1360,6 +1389,7 @@ export function startMessages(
       session = value;
       contacts.setSession(value);
       daily.setSession(value);
+      pushSettings?.reset();
       controller.setSession(value);
       groups.setSession(value);
       selected = null;
@@ -1407,7 +1437,7 @@ export function startMessages(
     },
     mountSettings(container: HTMLElement): void {
       settingsHost = container;
-      container.innerHTML = `<article class="card notifications-card"><h2>Notificações</h2><p>Alertas exibem apenas “0xDMme” e atividade genérica. O serviço push do navegador recebe endereço de inscrição e horários, sem texto, wallet ou nome de contato.</p><p>No iPhone/iPad, adicione o app à tela inicial e abra pelo ícone antes de ativar. A permissão depende de um toque seu e pode ser alterada nas configurações do sistema.</p><p data-daily-status role="status"></p><p>Silêncio da conversa selecionada: <span data-mute-peer></span></p><label>Silenciar<select data-mute-duration><option value="0">Retomar alertas</option><option value="3600000">1 hora</option><option value="28800000">8 horas</option><option value="86400000">24 horas</option><option value="604800000">7 dias</option><option value="9007199254740991">Até reativar</option></select></label><button data-mute type="button">Salvar silêncio</button><button data-push-enable type="button">Ativar push neste aparelho</button><button data-push-disable type="button">Desativar push neste aparelho</button><button data-sound-toggle type="button" aria-pressed="true">Desativar sons</button><p data-sound-status role="status"></p><p>Sons ligados por padrão. Sua escolha é salva neste navegador e continua ao trocar de conta ou reabrir o app. O navegador pode aguardar um toque para liberar áudio; volume e som de push seguem o sistema. Conversas silenciadas ou arquivadas continuam sem alertas. Offline ou sem sessão válida, não há alerta remoto novo.</p></article>`;
+      container.innerHTML = `<article class="card notifications-card"><h2>Notificações</h2><p>Mensagens exibem atividade genérica; chamadas podem exibir “Chamada de voz recebida”, conforme sua escolha abaixo. O serviço push do navegador recebe endereço de inscrição e horários, sem texto, wallet ou nome de contato.</p><p>No iPhone/iPad, adicione o app à tela inicial e abra pelo ícone antes de ativar. A permissão depende de um toque seu e pode ser alterada nas configurações do sistema.</p><p data-daily-status role="status"></p><p>Silêncio da conversa selecionada: <span data-mute-peer></span></p><label>Silenciar<select data-mute-duration><option value="0">Retomar alertas</option><option value="3600000">1 hora</option><option value="28800000">8 horas</option><option value="86400000">24 horas</option><option value="604800000">7 dias</option><option value="9007199254740991">Até reativar</option></select></label><button data-mute type="button">Salvar silêncio</button><button data-push-enable type="button">Ativar push neste aparelho</button><button data-push-disable type="button">Desativar push neste aparelho</button><button data-sound-toggle type="button" aria-pressed="true">Desativar sons</button><p data-sound-status role="status"></p><p>Sons ligados por padrão. Sua escolha é salva neste navegador e continua ao trocar de conta ou reabrir o app. O navegador pode aguardar um toque para liberar áudio; volume e som de push seguem o sistema. Conversas silenciadas ou arquivadas continuam sem alertas. Offline ou sem sessão válida, não há alerta remoto novo.</p></article>`;
       const on = (selector: string, work: () => Promise<void>) =>
         container.querySelector(selector)?.addEventListener('click', () => {
           void run(work);
@@ -1434,6 +1464,10 @@ export function startMessages(
           { settingsId: selectedOrganizationId(target) },
         );
       });
+      pushSettings = mountPushSettings(
+        container.querySelector<HTMLElement>('.notifications-card')!,
+        daily,
+      );
       on('[data-push-enable]', () => daily.enablePush());
       on('[data-push-disable]', () => daily.disablePush());
       on('[data-sound-toggle]', async () => {
@@ -1451,7 +1485,7 @@ export function startMessages(
     mount(container: HTMLElement, directoryHost: HTMLElement): void {
       mounted = container;
       directory = directoryHost;
-      container.innerHTML = `<article class="card chat-panel"><div class="chat-welcome"><div class="empty-symbol" aria-hidden="true">#</div><h2>Seu espaço privado</h2><p>Escolha um contato ou grupo à esquerda para conversar.</p></div><p data-message-status role="status"></p><p data-message-live role="status"></p><button data-message-refresh type="button" hidden>Tentar novamente</button><div class="chat-layout"><section data-direct-conversation><h3 data-message-peer></h3><p data-peer-presence></p><details><summary>Autorizações de representantes</summary><div data-representative-chat></div></details><p data-message-gate></p><div data-message-history class="chat-history" hidden></div><button data-message-older type="button">Mensagens anteriores</button><form data-message-form><p data-compose-context></p><button data-compose-cancel type="button">Cancelar resposta/edição</button><label>Mensagem<textarea data-message-text rows="3"></textarea></label><button data-message-emoji type="button">Escolher emoji</button><label>Enviar como<select data-attachment-mode><option value="photo">Foto otimizada</option><option value="file">Arquivo original (até 3 MB)</option></select></label><button data-voice-record type="button">Gravar voz</button><button data-voice-stop type="button" hidden>Parar e conferir</button><button data-voice-cancel type="button" hidden>Cancelar gravação</button><p data-voice-status role="status"></p><p>Voz: até 90 segundos. Ouça a prévia e toque em Enviar. Se o sistema interromper o microfone, o trecho capturado será preservado enquanto esta página continuar aberta.</p><label>Foto ou arquivo<input data-attachment-file type="file"></label><p>Foto: prévia e remoção de metadados no aparelho. Original: pode compartilhar GPS/EXIF. Vídeos ainda não são aceitos.</p><div data-attachment-preview></div><button data-attachment-clear type="button">Remover seleção</button><button class="primary" type="submit">Enviar</button></form><h3>Envios deste aparelho</h3><ul data-message-pending></ul></section><section data-group-conversation hidden></section></div></article>`;
+      container.innerHTML = `<article class="card chat-panel"><div class="chat-welcome"><div class="empty-symbol" aria-hidden="true">#</div><h2>Seu espaço privado</h2><p>Escolha um contato ou grupo à esquerda para conversar.</p></div><p data-message-status role="status"></p><p data-message-live role="status"></p><button data-message-refresh type="button" hidden>Tentar novamente</button><div class="chat-layout"><section data-direct-conversation><h3 data-message-peer></h3><button data-call-start type="button">Ligar por voz</button><p data-peer-presence></p><details><summary>Autorizações de representantes</summary><div data-representative-chat></div></details><p data-message-gate></p><div data-message-history class="chat-history" hidden></div><button data-message-older type="button">Mensagens anteriores</button><form data-message-form><p data-compose-context></p><button data-compose-cancel type="button">Cancelar resposta/edição</button><label>Mensagem<textarea data-message-text rows="3"></textarea></label><button data-message-emoji type="button">Escolher emoji</button><label>Enviar como<select data-attachment-mode><option value="photo">Foto otimizada</option><option value="file">Arquivo original (até 3 MB)</option></select></label><button data-voice-record type="button">Gravar voz</button><button data-voice-stop type="button" hidden>Parar e conferir</button><button data-voice-cancel type="button" hidden>Cancelar gravação</button><p data-voice-status role="status"></p><p>Voz: até 90 segundos. Ouça a prévia e toque em Enviar. Se o sistema interromper o microfone, o trecho capturado será preservado enquanto esta página continuar aberta.</p><label>Foto ou arquivo<input data-attachment-file type="file"></label><p>Foto: prévia e remoção de metadados no aparelho. Original: pode compartilhar GPS/EXIF. Vídeos ainda não são aceitos.</p><div data-attachment-preview></div><button data-attachment-clear type="button">Remover seleção</button><button class="primary" type="submit">Enviar</button></form><h3>Envios deste aparelho</h3><ul data-message-pending></ul></section><section data-group-conversation hidden></section></div></article>`;
       if (selected) container.dataset['voicePeer'] = selected.accountId;
       attachments.mount(container, run);
       mountGroups(container);

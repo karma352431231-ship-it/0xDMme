@@ -1,0 +1,57 @@
+[Unit]
+Description=0xDMme restricted Web Push sender
+After=network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=300
+StartLimitBurst=3
+
+[Service]
+Type=simple
+# Dedicated user and group, created only after the infrastructure review.
+User=xdmme-push
+Group=xdmme-push
+Slice=xdmme-test.slice
+RuntimeDirectory=0xdmme-push
+RuntimeDirectoryMode=0750
+RuntimeDirectoryPreserve=yes
+EnvironmentFile=/etc/0xdmme/push.env
+Environment=NODE_OPTIONS=--max-old-space-size=64
+WorkingDirectory=/opt/0xdmme/release
+ExecStart=/usr/bin/node src/server/push-sender/main.ts
+Restart=on-failure
+RestartSec=10
+TimeoutStopSec=10
+CPUQuota=10%
+MemoryMax=96M
+MemorySwapMax=0
+LimitCORE=0
+TasksMax=16
+UMask=0007
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+PrivateTmp=yes
+PrivateDevices=yes
+# This dedicated process needs reviewed outbound connectivity. Web stays PrivateNetwork=yes.
+PrivateNetwork=no
+ProtectProc=invisible
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+RestrictRealtime=yes
+LockPersonality=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+TemporaryFileSystem=/opt:ro /srv:ro /var:ro /etc:ro /run:ro
+TemporaryFileSystem=/tmp:rw,nosuid,nodev,noexec,size=8M
+BindReadOnlyPaths=/var/lib/0xdmme/data/release:/opt/0xdmme/release /etc/passwd /etc/group /etc/localtime /etc/resolv.conf /etc/hosts /etc/nsswitch.conf
+BindPaths=/run/0xdmme-push
+ReadWritePaths=/run/0xdmme-push
+InaccessiblePaths=-/usr/local -/usr/src -/mnt -/media
+StandardOutput=null
+StandardError=null
+
+[Install]
+WantedBy=multi-user.target

@@ -26,6 +26,7 @@ import {
 import type { DirectoryEvent, LinkCode } from '../../shared/devices/index.ts';
 import {
   aesKey,
+  openFrom,
   createRecovery,
   deviceSecrets,
   newSecret,
@@ -387,6 +388,7 @@ export class DeviceController {
         );
       const ring = this.ring;
       const signing = this.identity.signing;
+      const wrapping = this.identity.wrapping;
       const authority: VaultAuthority = {
         session,
         offline,
@@ -402,6 +404,12 @@ export class DeviceController {
         sign: async (proof) => {
           this.assertSession(session);
           return sign(signing, proof);
+        },
+        openSecret: async (envelope, context) => {
+          this.assertSession(session);
+          const value = await openFrom(wrapping, envelope, context);
+          this.assertSession(session);
+          return value;
         },
       };
       const result = await work(authority);

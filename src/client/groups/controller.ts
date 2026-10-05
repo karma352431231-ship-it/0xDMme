@@ -1,3 +1,8 @@
+import {
+  groupQuota,
+  groupTextQuota,
+  groupMediaQuota,
+} from '../../shared/group-quota/index.ts';
 import { AccountError, object, uuid } from '../../shared/account/index.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
 import { integer } from '../../shared/vault/index.ts';
@@ -65,7 +70,7 @@ export class GroupController {
   incoming: GroupConsent[] = [];
   next: string | null = null;
   incomingNext: string | null = null;
-  mode: 'fixture' | 'configured' | 'unavailable' = 'unavailable';
+  mode: 'configured' | 'unavailable' = 'unavailable';
   warning = '';
   creationPending = false;
   private localNext: string | null = null;
@@ -179,8 +184,7 @@ export class GroupController {
     await this.identities.load();
     const data = await this.withAuthority(async (c) => {
       const mode = object(await c.api('group-mode', {}))['mode'];
-      if (mode !== 'fixture' && mode !== 'configured' && mode !== 'unavailable')
-        throw new Error('Modo de grupos inválido.');
+      if (mode !== 'configured') throw new Error('Modo de grupos inválido.');
       this.mode = mode;
       const page = object(
         await c.api('group-list', { after: more ? this.remoteNext : null }),
@@ -715,7 +719,7 @@ export class GroupController {
         api: groupAttachmentApi(group, c.api),
         snapshot: null,
         guard: () => this.guard(generation),
-        budget: 1_000_000_000,
+        budget: groupQuota,
       });
       try {
         await this.confirm(c.api, group);
@@ -755,7 +759,7 @@ export class GroupController {
         Promise.reject(new Error('Mídia não conservada nesta cópia local.')),
       snapshot: null,
       guard: () => this.guard(generation),
-      budget: 1_000_000_000,
+      budget: groupQuota,
     });
   }
   private async confirm(api: AttachmentApi, group: GroupState): Promise<void> {
@@ -803,12 +807,12 @@ export class GroupController {
       if (!Array.isArray(cleanup['items']))
         throw new Error('Aviso de limpeza inválido.');
       return {
-        textBytes: integer(text['textBytes'], 250_000_000),
-        mediaBytes: integer(media['mediaBytes'], 750_000_000),
+        textBytes: integer(text['textBytes'], groupTextQuota),
+        mediaBytes: integer(media['mediaBytes'], groupMediaQuota),
         notice: notice
           ? {
               dueAt: integer(notice['dueAt'], Number.MAX_SAFE_INTEGER),
-              bytes: integer(notice['bytes'], 750_000_000),
+              bytes: integer(notice['bytes'], groupMediaQuota),
             }
           : null,
         items: cleanup['items'].map((input) => {

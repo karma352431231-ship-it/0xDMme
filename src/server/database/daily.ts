@@ -3,7 +3,9 @@ import { AccountError } from '../../shared/account/index.ts';
 import type {
   DailyPreferences,
   PushRegistration,
+  PushPreferences,
 } from '../../shared/daily/index.ts';
+import { defaultPushPreferences } from '../../shared/daily/index.ts';
 import type { ContactAuthority, ContactStore } from './contacts.ts';
 import { assertContentCapacity, assertVaultQuota } from './vault-quota.ts';
 
@@ -21,7 +23,9 @@ const individualEligible = `EXISTS(SELECT 1 FROM hash_talk.message_packets m
   AND NOT EXISTS(SELECT 1 FROM hash_talk.personal_removals pr WHERE pr.account_id=s.account_id AND pr.kind='message' AND pr.id=m.id)
   AND EXISTS(SELECT 1 FROM hash_talk.contact_relations cr WHERE cr.lo=least(m.sender,m.recipient) AND cr.hi=greatest(m.sender,m.recipient) AND cr.state='approved'))`;
 const groupEligible = `EXISTS(SELECT 1 FROM hash_talk.groups g JOIN hash_talk.group_members member ON member.group_id=g.id AND member.account_id=s.account_id LEFT JOIN hash_talk.group_controls cc ON cc.account_id=s.account_id AND cc.group_id=g.id WHERE NOT g.deleted AND coalesce(cc.muted_until,0)<=(extract(epoch FROM now())*1000)::bigint AND (EXISTS(SELECT 1 FROM hash_talk.group_packets m WHERE m.group_id=g.id AND m.epoch>=member.joined AND m.sender<>s.account_id AND m.body IS NOT NULL AND m.kind<>'profile' AND NOT EXISTS(SELECT 1 FROM hash_talk.group_reads r WHERE r.account_id=s.account_id AND r.message_id=m.id)) OR EXISTS(SELECT 1 FROM hash_talk.group_cleanups cleanup WHERE cleanup.group_id=g.id AND cleanup.due_at>now())))`;
-const eligible = `(${individualEligible} OR ${groupEligible})`;
+const messagesEnabled = `NOT EXISTS(SELECT 1 FROM hash_talk.push_controls pc WHERE pc.account_id=s.account_id AND pc.device_id=s.device_id AND NOT pc.messages)`;
+const callsEnabled = `NOT EXISTS(SELECT 1 FROM hash_talk.push_controls pc WHERE pc.account_id=s.account_id AND pc.device_id=s.device_id AND NOT pc.calls)`;
+const eligible = `(${messagesEnabled} AND (${individualEligible} OR ${groupEligible}))`;
 const authorizedDevice = `EXISTS(SELECT 1 FROM hash_talk.device_directories d,jsonb_array_elements(d.event->'devices') member WHERE d.account_id=s.account_id AND member->>'id'=s.device_id::text)`;
 export class DailyStore {
   private readonly pool: pg.Pool;
@@ -207,12 +211,89 @@ export class DailyStore {
       return Boolean(r.rowCount);
     });
   }
+  async pushPreferences(a: ContactAuthority): Promise<PushPreferences> {
+    return this.contacts.withMessageAuthority(a, async (c) => {
+      const row = await c.query<PushPreferences>(
+        'SELECT messages,calls,show_calls AS "showCalls" FROM hash_talk.push_controls WHERE account_id=$1 AND device_id=$2',
+        [a.session.accountId, a.session.deviceId],
+      );
+      return row.rows[0] ?? { ...defaultPushPreferences };
+    });
+  }
+  async configurePush(
+    a: ContactAuthority,
+    prefs: PushPreferences,
+  ): Promise<void> {
+    return this.contacts.withMessageAuthority(a, async (c) => {
+      await c.query(
+        `INSERT INTO hash_talk.push_controls(account_id,device_id,messages,calls,show_calls) VALUES($1,$2,$3,$4,$5) ON CONFLICT(account_id,device_id) DO UPDATE SET messages=$3,calls=$4,show_calls=$5 WHERE (hash_talk.push_controls.messages,hash_talk.push_controls.calls,hash_talk.push_controls.show_calls) IS DISTINCT FROM ($3,$4,$5)`,
+        [
+          a.session.accountId,
+          a.session.deviceId,
+          prefs.messages,
+          prefs.calls,
+          prefs.showCalls,
+        ],
+      );
+      await this.budget(c, a.session.accountId);
+    });
+  }
+  /** Coordinator supplies the same short authorization transaction used for call admission. */
+  async callDevices(c: pg.PoolClient, account: string): Promise<string[]> {
+    const rows = await c.query<{ device_id: string }>(
+      `SELECT s.device_id FROM hash_talk.push_subscriptions s WHERE s.account_id=$1 AND ${authorizedDevice} AND ${callsEnabled} LIMIT 32`,
+      [account],
+    );
+    return rows.rows.map((row) => row.device_id);
+  }
+  async callJobs(account: string, devices: string[]): Promise<PushJob[]> {
+    return (
+      await this.pool.query<PushJob>(
+        `SELECT s.account_id,s.device_id,s.generation::text,s.subscription,s.attempts FROM hash_talk.push_subscriptions s WHERE s.account_id=$1 AND s.device_id=ANY($2::uuid[]) AND ${authorizedDevice} AND ${callsEnabled} LIMIT 32`,
+        [account, devices],
+      )
+    ).rows;
+  }
+  async callEligible(job: PushJob): Promise<boolean> {
+    return Boolean(
+      (
+        await this.pool.query(
+          `SELECT 1 FROM hash_talk.push_subscriptions s WHERE s.account_id=$1 AND s.device_id=$2 AND s.subscription=$3::jsonb AND ${authorizedDevice} AND ${callsEnabled}`,
+          [job.account_id, job.device_id, JSON.stringify(job.subscription)],
+        )
+      ).rowCount,
+    );
+  }
+  async retireCallSubscription(job: PushJob): Promise<void> {
+    await this.pool.query(
+      'DELETE FROM hash_talk.push_subscriptions WHERE account_id=$1 AND device_id=$2 AND subscription=$3::jsonb',
+      [job.account_id, job.device_id, JSON.stringify(job.subscription)],
+    );
+  }
+  async pushState(
+    a: ContactAuthority,
+  ): Promise<{ registered: boolean; showCalls: boolean; calls: boolean }> {
+    return this.contacts.withMessageAuthority(a, async (c) => {
+      const rows = await c.query<{ showCalls: boolean; calls: boolean }>(
+        `SELECT coalesce(pc.show_calls,true) AS "showCalls",coalesce(pc.calls,true) AS calls FROM hash_talk.push_subscriptions s LEFT JOIN hash_talk.push_controls pc USING(account_id,device_id) WHERE s.account_id=$1 AND s.device_id=$2 AND ${authorizedDevice}`,
+        [a.session.accountId, a.session.deviceId],
+      );
+      return {
+        registered: !!rows.rows[0],
+        showCalls: rows.rows[0]?.showCalls ?? true,
+        calls: rows.rows[0]?.calls ?? true,
+      };
+    });
+  }
   async jobs(): Promise<PushJob[]> {
     await this.pool.query(
       `DELETE FROM hash_talk.device_presence WHERE (account_id,device_id) IN (SELECT account_id,device_id FROM hash_talk.device_presence WHERE expires_at<now() LIMIT 16)`,
     );
     await this.pool.query(
       `DELETE FROM hash_talk.push_subscriptions s WHERE (s.account_id,s.device_id) IN (SELECT s.account_id,s.device_id FROM hash_talk.push_subscriptions s WHERE NOT ${authorizedDevice} LIMIT 16)`,
+    );
+    await this.pool.query(
+      `DELETE FROM hash_talk.push_controls pc WHERE (pc.account_id,pc.device_id) IN (SELECT s.account_id,s.device_id FROM hash_talk.push_controls s WHERE NOT ${authorizedDevice} LIMIT 16)`,
     );
     return (
       await this.pool.query<PushJob>(

@@ -9,15 +9,16 @@ import { VaultService } from './vault/index.ts';
 import { MessageService } from './messages/index.ts';
 import { MessageLive } from './message-live/index.ts';
 import { ContactService } from './contacts/index.ts';
-import { localGroupEligibility } from './groups/index.ts';
+import { CallService, readTurnConfiguration } from './calls/index.ts';
 import {
   RepresentativeService,
   DnsDomainResolver,
 } from './representatives/index.ts';
+import { NotificationService } from './notifications/index.ts';
 import {
-  NotificationService,
-  readPushConfiguration,
-} from './notifications/index.ts';
+  readPushClientConfiguration,
+  dispatchPush,
+} from './push-sender/index.ts';
 
 let database: Database | undefined;
 
@@ -36,10 +37,17 @@ try {
   await database.attachments.resumeInterrupted();
   await database.groupMedia.resumeInterrupted();
   await database.statusMedia.resumeInterrupted();
+  const push = readPushClientConfiguration(process.env);
   const notifications = new NotificationService({
     store: database.daily,
     devices: database.devices,
-    config: readPushConfiguration(process.env),
+    config: push,
+    ...(push
+      ? {
+          send: (subscription, _config, delivery) =>
+            dispatchPush(push, subscription, delivery),
+        }
+      : {}),
   });
   const messages = new MessageService(database, database.devices, objects, {
     notifications,
@@ -48,19 +56,26 @@ try {
       new DnsDomainResolver(),
       config.origin,
     ),
-    groupEligibility: localGroupEligibility(
-      config,
-      process.env['HASH_TALK_GROUP_FIXTURES'] === '1',
-    ),
   });
   await messages.cleanAttachments();
   if (!(await database.healthy())) throw new Error('Banco indisponível.');
+  const calls = new CallService({
+    store: database.calls,
+    messages,
+    changes: database.changes,
+    config: readTurnConfiguration(process.env),
+    ...(push ? { wake: (invitation) => notifications.wake(invitation) } : {}),
+  });
+  notifications.bindCalls((session, directory) =>
+    calls.incoming(session, directory),
+  );
   const host = createWebServer({
     origin: config.origin,
     assets,
     database,
     objects,
     account: createAccountHandler({
+      calls,
       live: new MessageLive(database.changes),
       notifications,
       contacts: new ContactService(database.contacts, database.devices),

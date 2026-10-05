@@ -15,7 +15,8 @@ import {
 } from '../devices/index.ts';
 import type { DirectoryEvent } from '../devices/index.ts';
 
-export const vaultQuota = 300_000_000;
+// Decimal bytes; shared by admission, local storage, backups and UI.
+export const vaultQuota = 1_000_000_000;
 export const blockLimit = 3_000_000 + 28;
 export const operationOverhead = 4096;
 export const pageSize = 16;

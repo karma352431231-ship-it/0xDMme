@@ -13,6 +13,9 @@ export class VoicePlayback {
   get open(): boolean {
     return this.player !== null;
   }
+  pause(): void {
+    this.player?.pause();
+  }
   get peer(): string | null {
     return this.identity?.peer ?? null;
   }

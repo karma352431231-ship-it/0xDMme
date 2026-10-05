@@ -407,11 +407,15 @@ await test('cofre persistente: reservas, isolamento, concorrência, falhas, quot
         previous: last,
         value: 'x'.repeat(3_000_000),
       });
-      // Synthetic occupied ledger in this account only. No 300 MB fixture files or schema changes.
+      // Synthetic occupied ledger follows the quota without allocating equivalent files.
+      const current = (await vault.operate('read', a.session, {
+        after: 0,
+      })) as { used: number };
+      const records = Math.floor((vaultQuota - current.used - 1) / 3_010_000);
       await inspector.query(
         `INSERT INTO hash_talk.vault_operations(account_id,id,hash,object_hash,commit,charge,state,sequence)
-      SELECT $1::uuid,gen_random_uuid(),repeat(md5($1::uuid::text||'quota-fixture'||i),2),repeat(md5($1::uuid::text||'quota-object'||i),2),'{}',3010000,'accepted',50000+i FROM generate_series(1,99) i`,
-        [a.session.accountId],
+      SELECT $1::uuid,gen_random_uuid(),repeat(md5($1::uuid::text||'quota-fixture'||i),2),repeat(md5($1::uuid::text||'quota-object'||i),2),'{}',3010000,'accepted',50000+i FROM generate_series(1,$2::integer) i`,
+        [a.session.accountId, records],
       );
       try {
         const before = (await vault.operate('read', a.session, {
@@ -646,6 +650,8 @@ await test('cofre persistente: reservas, isolamento, concorrência, falhas, quot
             +coalesce((SELECT sum(charge) FROM hash_talk.conversation_controls),0)
             +coalesce((SELECT sum(charge) FROM hash_talk.device_presence),0)
             +coalesce((SELECT sum(charge) FROM hash_talk.push_subscriptions),0)
+            +coalesce((SELECT sum(charge) FROM hash_talk.push_controls),0)
+            +coalesce((SELECT sum(charge) FROM hash_talk.call_controls),0)
             +coalesce((SELECT sum(charge) FROM hash_talk.groups),0)
             +coalesce((SELECT sum(charge) FROM hash_talk.group_events),0)
             +coalesce((SELECT sum(charge) FROM hash_talk.group_members),0)

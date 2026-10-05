@@ -28,7 +28,7 @@ A migração `016-attachments.sql` acrescenta reservas e referências de objetos
 
 A retomada sob lease exclusivo limpa temporários de escrita interrompida do próprio namespace, inclusive recentes, preservando partes finais e outros anexos. Isso impede acumular cópias temporárias ao repetir uploads depois de um reinício. O armazenamento compartilhado do cofre conserva sua política anterior; somente o namespace exclusivo do anexo recebe essa limpeza imediata.
 
-Reserva exige sessão/aparelho atuais, prova assinada e consentimento bilateral. Cada upload reserva previamente seus bytes mais 4.096 bytes de metadados na cota de **ambos** os participantes, sem multiplicar a cobrança por aparelho. A capacidade física global contabiliza a cópia armazenada uma vez; pacote, recuperação e referências mantêm sua própria cobrança. Cota pessoal de 300.000.000 bytes e capacidade global existentes permanecem. Falta de capacidade desfaz a reserva antes de receber partes.
+Reserva exige sessão/aparelho atuais, prova assinada e consentimento bilateral. Cada upload reserva previamente seus bytes mais 4.096 bytes de metadados na cota de **ambos** os participantes, sem multiplicar a cobrança por aparelho. A capacidade física global contabiliza a cópia armazenada uma vez; pacote, recuperação e referências mantêm sua própria cobrança. Cota pessoal de 1.000.000.000 bytes e capacidade global existentes permanecem. Falta de capacidade desfaz a reserva antes de receber partes.
 
 São permitidos no máximo quatro objetos incompletos por remetente e 256 globais; uma foto com miniatura ocupa dois. O serviço processa até quatro operações de transferência simultâneas. As partes têm até 262.144 bytes, no máximo 12 por arquivo. A rota de upload limita o corpo a 360.000 bytes e verifica origem, sessão, CSRF e propriedade de uma reserva antes de consumir esse corpo; a prova assinada é verificada antes de gravar.
 
@@ -41,7 +41,7 @@ Bloqueio suspende downloads sem apagar conteúdo. Desbloqueio exige novo consent
 - Foto de origem: até 20.000.000 bytes, 24 milhões de pixels e lado de até 16.384 pixels, conferidos antes da decodificação. Saída com lado máximo de 2.048 pixels, reduzida adicionalmente se necessário para caber em 3 MB.
 - Miniatura PNG: lado máximo de 240 pixels, reduzido para 144 se necessário, até 96.000 bytes; cifra independente.
 - Jobs de Worker: fila serial de até quatro operações e prazo de 30 segundos por execução. A interface limita a fila de mídias a 18 jobs, compatível com a janela de 16 mensagens e ações manuais.
-- Cache: até 16 entradas de mídia recente, com expulsão apenas de cifras locais baixadas. Envios pendentes são protegidos. O orçamento existente de 300 MB do armazenamento de mensagens continua bloqueante; não se apagam objetos remotos aceitos para liberar cache.
+- Cache: até 16 entradas de mídia recente, com expulsão apenas de cifras locais baixadas. Envios pendentes são protegidos. O orçamento existente de 1 GB do armazenamento de mensagens continua bloqueante; não se apagam objetos remotos aceitos para liberar cache.
 - Buffers da seleção e URLs Blob são liberados ao remover a seleção/fechar a visão. Nenhum conteúdo ou segredo é enviado a logs, telemetria ou serviços de análise.
 
 ## Verificação e limites de aceite
@@ -66,3 +66,5 @@ Ensaio no navegador do Mac com dados sintéticos exercitou os módulos reais de 
 - `src/server/attachments`, `database/attachments.ts`, `database/migrations/016-attachments.sql` e `object-store`: reservas, autorização, persistência durável e limpeza.
 - Build, host e [fontes correspondentes](FONTES_FRONTEND.md): Worker na origem própria, WASM existente e distribuição completa sem nova dependência.
 - `tests/attachments.test.ts` e integrações de mensagens/cofre: contratos de integridade, persistência, cotas e autorização.
+
+Atualização de 05/10/2026: cota pessoal de 1 GB decimal e grupo de 2 GB, com valores compartilhados pela aplicação; sem alteração automática do orçamento global nem ativação na VPS.

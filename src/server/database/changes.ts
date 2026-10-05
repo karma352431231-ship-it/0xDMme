@@ -10,6 +10,13 @@ interface Observer {
 }
 /** Advisory, in-process events for the single web service. No content or durable queue. */
 export class DatabaseChanges {
+  private readonly listeners = new Set<Observer>();
+  subscribe(observer: Observer): () => void {
+    this.listeners.add(observer);
+    return () => {
+      this.listeners.delete(observer);
+    };
+  }
   private observer: Observer | null = null;
   observe(observer: Observer): () => void {
     if (this.observer) throw new Error('Observador de alterações já ativo.');
@@ -26,16 +33,20 @@ export class DatabaseChanges {
       ended?: readonly string[];
     } = {},
   ): void {
-    const unique = [...new Set(accounts)],
-      observer = this.observer;
-    if (!unique.length || !observer) return;
+    const unique = [...new Set(accounts)];
+    if (!unique.length) return;
+    const change = {
+      accounts: unique,
+      authorization: details.authorization ?? false,
+      revoked: details.revoked ?? [],
+      ended: details.ended ?? [],
+    };
+    for (const listener of this.listeners) this.deliver(listener, change);
+    if (this.observer) this.deliver(this.observer, change);
+  }
+  private deliver(observer: Observer, change: CommittedChange): void {
     try {
-      observer.notify({
-        accounts: unique,
-        authorization: details.authorization ?? false,
-        revoked: details.revoked ?? [],
-        ended: details.ended ?? [],
-      });
+      observer.notify(change);
     } catch {
       // Never report a durable COMMIT as failed because an advisory event failed.
       // Closing channels forces a fresh snapshot instead of leaving a blind stream.

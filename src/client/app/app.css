@@ -13,6 +13,26 @@
 * {
   box-sizing: border-box;
 }
+.push-preferences {
+  min-width: 0;
+  display: grid;
+  gap: 12px;
+  margin-top: 20px;
+  border: 1px solid #d8e4e7;
+  border-radius: 12px;
+  padding: 16px;
+}
+.push-preferences label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+}
+.push-preferences input[type='checkbox'] {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+}
 body {
   margin: 0;
 }
@@ -835,7 +855,9 @@ footer {
 .backup-card button,
 .notifications-card button,
 .chat-panel button,
-.status-card button {
+.status-card button,
+.call-dock button,
+.call-settings button {
   max-width: 100%;
   margin: 5px 8px 5px 0;
   padding: 10px 12px;
@@ -849,7 +871,8 @@ footer {
 .vault-card button.primary,
 .backup-card button.primary,
 .chat-panel button.primary,
-.status-card button.primary {
+.status-card button.primary,
+.call-dock button.primary {
   border-color: var(--accent);
   background: var(--accent);
   color: white;
@@ -858,7 +881,9 @@ footer {
 .backup-card button:disabled,
 .notifications-card button:disabled,
 .chat-panel button:disabled,
-.status-card button:disabled {
+.status-card button:disabled,
+.call-dock button:disabled,
+.call-settings button:disabled {
   cursor: default;
   opacity: 0.6;
 }
@@ -1504,4 +1529,28 @@ footer {
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+
+.call-dock {
+  position: fixed;
+  z-index: 100;
+  bottom: max(1rem, env(safe-area-inset-bottom));
+  right: 1rem;
+  width: min(25rem, calc(100vw - 2rem));
+  border: 1px solid var(--accent, #45dda6);
+  box-shadow: 0 0.5rem 2rem #0008;
+  overflow-wrap: anywhere;
+  max-height: calc(100dvh - 2rem);
+  overflow-y: auto;
+}
+.call-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.call-actions button {
+  min-height: 44px;
+}
+.call-dock[hidden] {
+  display: none;
 }

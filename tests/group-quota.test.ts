@@ -4,67 +4,13 @@ import { AccountError } from '../src/shared/account/index.ts';
 import {
   assertGroupQuota,
   groupCreationRetryAt,
-  groupCreationTier,
   groupMediaQuota,
   groupTextQuota,
+  groupQuota,
+  groupContentQuota,
+  groupControlMargin,
 } from '../src/shared/group-quota/index.ts';
-
-await test('tiers usam unidades inteiras nos limites e conservam o excesso de grupos após queda do saldo', () => {
-  for (const decimals of [0, 6, 9, 18]) {
-    const unit = 10n ** BigInt(decimals);
-    for (const [tokens, limit] of [
-      [0n, 0],
-      [10_000n, 2],
-      [50_000n, 10],
-      [100_000n, null],
-    ] as const) {
-      const exact = groupCreationTier({
-        balance: tokens * unit,
-        decimals,
-        existingGroups: 0,
-      });
-      assert.equal(exact.limit, limit);
-      assert.equal(exact.canCreate, tokens > 0n);
-    }
-    for (const [tokens, limit] of [
-      [10_000n, 0],
-      [50_000n, 2],
-      [100_000n, 10],
-    ] as const)
-      assert.equal(
-        groupCreationTier({
-          balance: tokens * unit - 1n,
-          decimals,
-          existingGroups: 0,
-        }).limit,
-        limit,
-      );
-    assert.deepEqual(
-      groupCreationTier({
-        balance: 20_000n * unit,
-        decimals,
-        existingGroups: 10,
-      }),
-      { limit: 2, available: 0, canCreate: false },
-    );
-    assert.deepEqual(
-      groupCreationTier({
-        balance: 100_000n * unit,
-        decimals,
-        existingGroups: 100,
-      }),
-      { limit: null, available: null, canCreate: true },
-    );
-    assert.equal(
-      groupCreationTier({
-        balance: 10_000n * unit,
-        decimals,
-        existingGroups: 2,
-      }).canCreate,
-      false,
-    );
-  }
-});
+import { vaultQuota } from '../src/shared/vault/index.ts';
 
 await test('frequência respeita as duas janelas, inclusive as bordas exatas', () => {
   const now = 4_000_000;
@@ -94,19 +40,13 @@ await test('frequência respeita as duas janelas, inclusive as bordas exatas', (
     assert.throws(() => groupCreationRetryAt(input), AccountError);
 });
 
-await test('evidência incompleta/inválida nunca concede tier; cotas não deslocam mídia para espaço de texto', () => {
-  const valid = { balance: 100_000n, decimals: 0, existingGroups: 0 };
-  for (const input of [
-    { ...valid, balance: -1n },
-    { ...valid, decimals: 256 },
-    { ...valid, decimals: -1 },
-    { ...valid, decimals: 1.5 },
-    { ...valid, decimals: NaN },
-    { ...valid, existingGroups: -1 },
-    { ...valid, existingGroups: 0.5 },
-    { ...valid, existingGroups: Number.MAX_SAFE_INTEGER + 1 },
-  ])
-    assert.throws(() => groupCreationTier(input), AccountError);
+await test('cotas não deslocam mídia para espaço de texto e recusam o primeiro byte excedente', () => {
+  assert.equal(vaultQuota, 1_000_000_000);
+  assert.equal(groupQuota, 2_000_000_000);
+  assert.equal(groupMediaQuota, 1_500_000_000);
+  assert.equal(groupTextQuota, 500_000_000);
+  assert.equal(groupControlMargin, 1_000_000);
+  assert.equal(groupContentQuota, 499_000_000);
   assert.doesNotThrow(() => assertGroupQuota({ mediaBytes: 0, textBytes: 0 }));
   assert.doesNotThrow(() =>
     assertGroupQuota({

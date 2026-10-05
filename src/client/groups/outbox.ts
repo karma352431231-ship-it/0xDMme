@@ -1,3 +1,4 @@
+import { groupQuota } from '../../shared/group-quota/index.ts';
 import { object, uuid } from '../../shared/account/index.ts';
 import { canonical, digest } from '../../shared/devices/index.ts';
 import { attachmentContent } from '../../shared/attachments/index.ts';
@@ -60,7 +61,7 @@ export async function composeGroup(input: {
       id,
       selection: input.selection,
       caption: text,
-      budget: 1_000_000_000,
+      budget: groupQuota,
     });
     text = JSON.stringify(content);
     kind = 'attachment';
@@ -183,7 +184,7 @@ async function uploadGroupDraft(
       account,
       message: value.id,
       content,
-      budget: 1_000_000_000,
+      budget: groupQuota,
     });
     value.text = JSON.stringify(content);
     value.packet = null;

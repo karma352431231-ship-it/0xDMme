@@ -1,0 +1,37 @@
+[Unit]
+Description=0xDMme isolated TURN relay (review before activation)
+After=network-online.target
+
+[Service]
+Type=simple
+User=xdmme-turn
+Group=xdmme-turn
+ExecStart=/usr/bin/turnserver -c /etc/0xdmme-turn/turnserver.conf
+RuntimeDirectory=0xdmme-turn
+RuntimeDirectoryMode=0700
+UMask=0077
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+CapabilityBoundingSet=
+AmbientCapabilities=
+LimitCORE=0
+LimitNOFILE=512
+TasksMax=48
+MemoryMax=128M
+CPUQuota=20%
+StandardOutput=null
+StandardError=null
+ReadOnlyPaths=/etc/0xdmme-turn
+ReadWritePaths=/run/0xdmme-turn
+
+[Install]
+WantedBy=multi-user.target

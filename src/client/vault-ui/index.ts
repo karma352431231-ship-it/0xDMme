@@ -19,7 +19,7 @@ export function startVault(access: VaultAccess) {
     const quota = mounted?.querySelector('[data-vault-quota]');
     if (quota)
       quota.textContent = known
-        ? `${(sync.state.used / 1_000_000).toFixed(2)} MB usados · ${(Math.max(0, vaultQuota - sync.state.used) / 1_000_000).toFixed(2)} MB disponíveis de 300 MB`
+        ? `${(sync.state.used / 1_000_000).toFixed(2)} MB usados · ${(Math.max(0, vaultQuota - sync.state.used) / 1_000_000).toFixed(2)} MB disponíveis de ${vaultQuota / 1_000_000} MB`
         : 'Consultando uso da conta…';
     const retry =
       mounted?.querySelector<HTMLButtonElement>('[data-vault-retry]');
@@ -97,7 +97,7 @@ export function startVault(access: VaultAccess) {
     },
     mount(container: HTMLElement): void {
       mounted = container;
-      container.innerHTML = `<article class="card vault-card"><h2>Armazenamento da conta</h2><progress data-vault-usage max="300000000" value="0" aria-label="Uso do armazenamento"></progress><p data-vault-quota></p><p data-vault-status role="status"></p><button data-vault-retry type="button" hidden>Tentar novamente</button></article>`;
+      container.innerHTML = `<article class="card vault-card"><h2>Armazenamento da conta</h2><progress data-vault-usage max="${vaultQuota}" value="0" aria-label="Uso do armazenamento"></progress><p data-vault-quota></p><p data-vault-status role="status"></p><button data-vault-retry type="button" hidden>Tentar novamente</button></article>`;
       container
         .querySelector('[data-vault-retry]')
         ?.addEventListener('click', () => {

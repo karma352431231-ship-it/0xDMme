@@ -3,7 +3,6 @@ import { representativeOperations } from '../representatives/index.ts';
 import type { RepresentativeService } from '../representatives/index.ts';
 import type { NotificationService } from '../notifications/index.ts';
 import { GroupService, groupOperations } from '../groups/index.ts';
-import type { GroupEligibilityVerifier } from '../groups/index.ts';
 import { GroupMediaService, groupMediaOperations } from '../groups/index.ts';
 import { StatusService, statusOperations } from '../status/index.ts';
 import type { ObjectStore } from '../object-store/index.ts';
@@ -112,7 +111,6 @@ export class MessageService {
     objects?: ObjectStore,
     services: {
       notifications?: NotificationService;
-      groupEligibility?: GroupEligibilityVerifier | null;
       representatives?: RepresentativeService;
     } = {},
   ) {
@@ -339,7 +337,7 @@ export class MessageService {
         return db.matrix.groupReceived(a, values.map(sequence));
       },
     };
-    this.installGroupOperations(services.groupEligibility ?? null);
+    this.installGroupOperations();
     this.installStatusOperations();
     for (const operation of representativeOperations)
       this.actions[operation] = (a, d) => {
@@ -349,6 +347,8 @@ export class MessageService {
       };
     for (const operation of [
       'daily-config',
+      'daily-push-state',
+      'daily-push-configure',
       'daily-state',
       'daily-states',
       'daily-configure',
@@ -433,13 +433,10 @@ export class MessageService {
       ? new StatusService(this.db.statuses, this.db.statusMedia, objects)
       : null;
   }
-  private installGroupOperations(
-    eligibility: GroupEligibilityVerifier | null,
-  ): void {
+  private installGroupOperations(): void {
     const groups = new GroupService(
       this.db.groups,
       this.db.groupMessages,
-      eligibility,
       this.db.groupDaily,
     );
     for (const operation of groupOperations)
@@ -495,6 +492,25 @@ export class MessageService {
       : undefined;
     if (!action)
       throw new AccountError(404, 'Operação de mensagem indisponível.');
+    const { proof, current } = await this.authenticate(
+      operation,
+      session,
+      input,
+    );
+    this.checkDeletionRevision(operation, proof, current.revision);
+    const result = await action(
+      { session, directory: proof.directory },
+      proof.payload,
+      proof,
+    );
+    return result === undefined ? { status: 'saved' } : result;
+  }
+  /** Shared device signature boundary; callers still enforce their own operation ACL. */
+  async authenticate(
+    operation: string,
+    session: AccountSession,
+    input: unknown,
+  ) {
     const proof = messageProof(input),
       current = await this.devices.current(session.accountId);
     const signer =
@@ -513,13 +529,9 @@ export class MessageService {
       proof.signature,
       messageBody(session.accountId, session.deviceId, operation, proof),
     );
-    this.checkDeletionRevision(operation, proof, current.revision);
-    const result = await action(
-      { session, directory: proof.directory },
-      proof.payload,
-      proof,
-    );
-    return result === undefined ? { status: 'saved' } : result;
+    if (!current)
+      throw new AccountError(403, 'Aparelho sem autorização atual.');
+    return { proof, current };
   }
   private checkDeletionRevision(
     operation: string,

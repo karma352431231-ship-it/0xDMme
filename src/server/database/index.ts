@@ -2,6 +2,8 @@ import { GroupDailyStore } from './group-daily.ts';
 export type { GroupDailyStore } from './group-daily.ts';
 import { BackupStore } from './backups.ts';
 import { DailyStore } from './daily.ts';
+import { CallStore } from './calls.ts';
+export type { CallStore, CallGate } from './calls.ts';
 import { RepresentativeStore } from './representatives.ts';
 export type {
   RepresentativeStore,
@@ -36,7 +38,7 @@ export type { StatusMediaStore } from './status-media.ts';
 export type { GroupMediaStore, GroupScope } from './group-media.ts';
 export type { GroupRetentionStore } from './group-retention.ts';
 export type { GroupMessageStore } from './group-messages.ts';
-export type { GroupStore, GroupEligibility } from './groups.ts';
+export type { GroupStore } from './groups.ts';
 export type { MatrixStore, MatrixUpload } from './matrix.ts';
 export type { MessageStore, MessageSnapshot } from './messages.ts';
 export type { MessageRecoveryStore } from './message-recovery.ts';
@@ -76,6 +78,8 @@ const migrations = [
   '023-status.sql',
   '024-group-interface.sql',
   '025-representatives.sql',
+  '026-call-preference.sql',
+  '027-push-controls.sql',
 ];
 
 export interface MaintenanceSnapshot {
@@ -100,6 +104,7 @@ export interface MaintenanceSnapshot {
 
 /** Owns its schema. Other modules must use operations rather than its tables. */
 export class Database {
+  readonly calls: CallStore;
   private readonly pool: pg.Pool;
   private failed = false;
   readonly changes = new DatabaseChanges();
@@ -156,6 +161,7 @@ export class Database {
       this.contacts,
       contentCapacity,
     );
+    this.calls = new CallStore(this.contacts, contentCapacity, this.daily);
     this.attachments = new AttachmentStore(
       this.pool,
       this.contacts,

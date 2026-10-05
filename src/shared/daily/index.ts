@@ -132,6 +132,32 @@ export const genericNotification = {
   body: 'Há nova atividade. Abra o app para sincronizar.',
 } as const;
 
+export interface PushPreferences {
+  messages: boolean;
+  calls: boolean;
+  showCalls: boolean;
+}
+export const defaultPushPreferences: PushPreferences = {
+  messages: true,
+  calls: true,
+  showCalls: true,
+};
+export function pushPreferences(input: unknown): PushPreferences {
+  const d = object(input);
+  keys(d, ['messages', 'calls', 'showCalls']);
+  if (
+    typeof d['messages'] !== 'boolean' ||
+    typeof d['calls'] !== 'boolean' ||
+    typeof d['showCalls'] !== 'boolean'
+  )
+    throw new AccountError(400, 'Preferências push inválidas.');
+  return {
+    messages: d['messages'],
+    calls: d['calls'],
+    showCalls: d['showCalls'],
+  };
+}
+
 export interface DailyText {
   text: string;
   reply: string | null;

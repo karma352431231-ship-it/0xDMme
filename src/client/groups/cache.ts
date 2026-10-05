@@ -1,3 +1,4 @@
+import { groupQuota } from '../../shared/group-quota/index.ts';
 import { object } from '../../shared/account/index.ts';
 import { groupEvent } from '../../shared/groups/index.ts';
 import type { GroupEvent } from '../../shared/groups/index.ts';
@@ -39,7 +40,7 @@ export class GroupCache {
       name,
       value: row,
       size: row.bytes.length + 512,
-      maximum: 1_000_000_000,
+      maximum: groupQuota,
     });
   }
   private async open(name: string, row: LocalCipher): Promise<unknown> {

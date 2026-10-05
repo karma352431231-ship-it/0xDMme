@@ -1,152 +1,65 @@
-import webpush from 'web-push';
-import { Agent } from 'node:https';
-import { lookup } from 'node:dns';
-import { BlockList, isIP } from 'node:net';
 import {
   AccountError,
   keys,
   object,
   uuid,
 } from '../../shared/account/index.ts';
+import type { AccountSession } from '../../shared/account/index.ts';
 import {
   dailyPreferences,
   pushRegistration,
-  genericNotification,
+  pushPreferences,
 } from '../../shared/daily/index.ts';
 import { integer } from '../../shared/vault/index.ts';
-import type { AccountSession } from '../../shared/account/index.ts';
 import type {
   ContactAuthority,
   DailyStore,
   DeviceStore,
   PushJob,
 } from '../database/index.ts';
-
-export interface PushConfiguration {
-  publicKey: string;
-  privateKey: string;
-  subject: string;
-}
-export function readPushConfiguration(
-  env: Readonly<Record<string, string | undefined>>,
-): PushConfiguration | null {
-  const publicKey = env['HASH_TALK_PUSH_PUBLIC_KEY'],
-    privateKey = env['HASH_TALK_PUSH_PRIVATE_KEY'];
-  if (!publicKey && !privateKey) return null;
-  if (
-    !publicKey ||
-    !/^[A-Za-z0-9_-]{87}$/u.test(publicKey) ||
-    !privateKey ||
-    !/^[A-Za-z0-9_-]{43}$/u.test(privateKey)
-  )
-    throw new Error('Chaves VAPID inválidas.');
-  const subject = 'https://0xdmme.app';
-  webpush.getVapidHeaders(
-    'https://web.push.apple.com',
-    subject,
-    publicKey,
-    privateKey,
-    'aes128gcm',
-  );
-  return { publicKey, privateKey, subject };
-}
-const privateNetworks = new BlockList();
-const privateIPv6 = new BlockList();
-for (const [address, prefix] of [
-  ['0.0.0.0', 8],
-  ['10.0.0.0', 8],
-  ['100.64.0.0', 10],
-  ['127.0.0.0', 8],
-  ['169.254.0.0', 16],
-  ['172.16.0.0', 12],
-  ['192.0.0.0', 24],
-  ['192.168.0.0', 16],
-  ['198.18.0.0', 15],
-  ['224.0.0.0', 4],
-  ['240.0.0.0', 4],
-] as const)
-  privateNetworks.addSubnet(address, prefix, 'ipv4');
-for (const [address, prefix] of [
-  ['::', 96],
-  ['::ffff:0:0', 96],
-  ['fc00::', 7],
-  ['fe80::', 10],
-  ['ff00::', 8],
-  ['2001:db8::', 32],
-] as const)
-  privateIPv6.addSubnet(address, prefix, 'ipv6');
-export function publicPushAddress(address: string): boolean {
-  const family = isIP(address);
-  return (
-    family !== 0 &&
-    !(family === 4 ? privateNetworks : privateIPv6).check(
-      address,
-      family === 4 ? 'ipv4' : 'ipv6',
-    )
-  );
-}
-export async function sendPush(
+import type { PushDelivery, PushConfiguration } from '../push-sender/index.ts';
+export {
+  readPushConfiguration,
+  publicPushAddress,
+} from '../push-sender/index.ts';
+export type { PushConfiguration } from '../push-sender/index.ts';
+export type PushSend = (
   subscription: import('../../shared/daily/index.ts').PushRegistration,
-  config: PushConfiguration,
-): Promise<void> {
-  pushRegistration(subscription);
-  const agent = new Agent({
-    keepAlive: false,
-    lookup(host, options, callback) {
-      lookup(host, options, (error, address, family) => {
-        if (error) {
-          callback(error, address, family);
-          return;
-        }
-        const valid = Array.isArray(address)
-          ? address.every((a) => publicPushAddress(a.address))
-          : publicPushAddress(address);
-        if (!valid) {
-          callback(new Error('Destino push indisponível.'), '', 4);
-          return;
-        }
-        callback(null, address, family);
-      });
-    },
-  });
-  const timer = setTimeout(() => agent.destroy(), 8000);
-  try {
-    await webpush.sendNotification(
-      subscription,
-      JSON.stringify(genericNotification),
-      {
-        vapidDetails: config,
-        contentEncoding: 'aes128gcm',
-        TTL: 60,
-        urgency: 'normal',
-        topic: '0xdmme-activity',
-        timeout: 5000,
-        agent,
-      },
-    );
-  } finally {
-    clearTimeout(timer);
-    agent.destroy();
-  }
-}
+  config: Pick<PushConfiguration, 'publicKey'>,
+  delivery?: PushDelivery,
+) => Promise<void>;
+import { CallPushQueue } from './call-push.ts';
+import type { CallInvitation } from './call-push.ts';
+
 export class NotificationService {
   private readonly store: DailyStore;
   private readonly devices: DeviceStore;
-  private readonly config: PushConfiguration | null;
-  private readonly send: typeof sendPush;
+  private readonly config: Pick<PushConfiguration, 'publicKey'> | null;
+  private readonly send: PushSend;
   private running: Promise<void> | null = null;
   private timer: ReturnType<typeof setInterval> | null = null;
   private stopped = false;
+  private readonly calls: CallPushQueue;
+  private incoming: (
+    session: AccountSession,
+    directory: string,
+  ) => Promise<boolean> = () => Promise.resolve(false);
   constructor(options: {
     store: DailyStore;
     devices: DeviceStore;
-    config: PushConfiguration | null;
-    send?: typeof sendPush;
+    config: Pick<PushConfiguration, 'publicKey'> | PushConfiguration | null;
+    send?: PushSend;
   }) {
     this.store = options.store;
     this.devices = options.devices;
     this.config = options.config;
-    this.send = options.send ?? sendPush;
+    this.send =
+      options.send ??
+      (() => Promise.reject(new Error('Emissor push indisponível.')));
+    this.calls = new CallPushQueue(this.store, (subscription, delivery) => {
+      if (!this.config) return Promise.reject(new Error('Push indisponível.'));
+      return this.send(subscription, this.config, delivery);
+    });
   }
   async operate(
     a: ContactAuthority,
@@ -157,6 +70,17 @@ export class NotificationService {
       'daily-config': () => {
         keys(input, []);
         return Promise.resolve({ publicKey: this.config?.publicKey ?? null });
+      },
+      'daily-push-state': () => {
+        keys(input, []);
+        return this.store.pushPreferences(a);
+      },
+      'daily-push-configure': () => {
+        keys(input, ['preferences']);
+        return this.store.configurePush(
+          a,
+          pushPreferences(input['preferences']),
+        );
       },
       'daily-state': () => {
         keys(input, ['peer']);
@@ -223,9 +147,35 @@ export class NotificationService {
     return action();
   }
   async allowPush(session: AccountSession): Promise<boolean> {
+    return (await this.inspectPush(session)).allowed;
+  }
+  bindCalls(
+    incoming: (session: AccountSession, directory: string) => Promise<boolean>,
+  ): void {
+    this.incoming = incoming;
+  }
+  async wake(invitation: CallInvitation): Promise<void> {
+    if (this.config && !this.stopped) await this.calls.enqueue(invitation);
+  }
+  async flushCalls(): Promise<void> {
+    await this.calls.flush();
+  }
+  async inspectPush(
+    session: AccountSession,
+  ): Promise<{ allowed: boolean; call: boolean; showCall: boolean }> {
     const current = await this.devices.current(session.accountId);
-    if (!current) return false;
-    return this.store.check({ session, directory: current.head });
+    if (!current) return { allowed: false, call: false, showCall: false };
+    const authority = { session, directory: current.head };
+    const state = await this.store.pushState(authority);
+    const call =
+      state.registered &&
+      state.calls &&
+      (await this.incoming(session, current.head));
+    return {
+      allowed: call || (await this.store.check(authority)),
+      call,
+      showCall: call && state.showCalls,
+    };
   }
   start(): void {
     if (this.timer) return;
@@ -273,6 +223,7 @@ export class NotificationService {
     this.stopped = true;
     if (this.timer) clearInterval(this.timer);
     await this.running;
+    await this.calls.close();
   }
 }
 function objectErrorStatus(error: unknown): number {

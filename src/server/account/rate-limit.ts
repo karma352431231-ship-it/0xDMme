@@ -3,6 +3,13 @@ import { AccountError } from '../../shared/account/index.ts';
 
 /** No raw IP storage/logging or fingerprint. One minute, 256 entries maximum. */
 export class AccountRateLimit {
+  private readonly budgets: { requests: number; reads: number };
+  constructor(budgets: { requests?: number; reads?: number } = {}) {
+    this.budgets = {
+      requests: budgets.requests ?? 60,
+      reads: budgets.reads ?? 240,
+    };
+  }
   private readonly secret = randomBytes(32);
   private readonly entries = new Map<
     string,
@@ -23,7 +30,11 @@ export class AccountRateLimit {
     if (read) entry.reads++;
     else entry.requests++;
     if (challenge) entry.challenges++;
-    if (read ? entry.reads > 240 : entry.requests > 60 || entry.challenges > 6)
+    if (
+      read
+        ? entry.reads > this.budgets.reads
+        : entry.requests > this.budgets.requests || entry.challenges > 6
+    )
       throw new AccountError(429, 'Muitos pedidos. Aguarde.');
   }
   private expire(now: number): void {

@@ -8,7 +8,6 @@ import { ObjectStore } from './object-store/index.ts';
 import { MessageService } from './messages/index.ts';
 import { MessageLive } from './message-live/index.ts';
 import { ContactService } from './contacts/index.ts';
-import { localGroupEligibility } from './groups/index.ts';
 import {
   RepresentativeService,
   DnsDomainResolver,
@@ -52,7 +51,6 @@ try {
       new DnsDomainResolver(),
       mobile.origin,
     ),
-    groupEligibility: localGroupEligibility(config, true),
   });
   await messages.cleanAttachments();
   const host = createWebServer({

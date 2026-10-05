@@ -34,8 +34,11 @@ await test('limpeza começa em 90%, seleciona mídia antiga até 70% e não ante
     items: objects,
   });
   assert.equal(first.selected.length, 64);
-  assert.equal(first.remainingBytes, 33_000_000);
-  const next = Array.from({ length: 16 }, (_, index) => ({
+  assert.equal(
+    first.remainingBytes,
+    groupMediaQuota - groupMediaTarget - 64 * 3_000_000,
+  );
+  const next = Array.from({ length: 64 }, (_, index) => ({
     id: crypto.randomUUID(),
     sequence: index + 65,
     bytes: 3_000_000,
@@ -45,8 +48,19 @@ await test('limpeza começa em 90%, seleciona mídia antiga até 70% e não ante
     after: first.after,
     items: next,
   });
-  assert.equal(second.selected.length, 11);
-  assert.equal(second.remainingBytes, 0);
+  assert.equal(second.selected.length, 64);
+  assert.equal(second.remainingBytes, 66_000_000);
+  const third = selectMediaCleanupBatch({
+    remainingBytes: second.remainingBytes,
+    after: second.after,
+    items: Array.from({ length: 32 }, (_, index) => ({
+      id: crypto.randomUUID(),
+      sequence: index + 129,
+      bytes: 3_000_000,
+    })),
+  });
+  assert.equal(third.selected.length, 22);
+  assert.equal(third.remainingBytes, 0);
   const dueAt = mediaCleanupDueAt(10_000);
   assert.equal(dueAt, 10_000 + groupCleanupNotice);
   assert.equal(mediaCleanupDue({ dueAt, now: dueAt - 1 }), false);

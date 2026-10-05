@@ -6,6 +6,8 @@ import { promisify } from 'node:util';
 
 const execute = promisify(execFile);
 const authored = [
+  'src/client/calls',
+  'src/shared/calls',
   'src/client/wallet-statements',
   'src/client/representatives',
   'src/shared/representatives',
@@ -21,6 +23,7 @@ const authored = [
   'src/client/message-search',
   'src/client/message-status',
   'src/client/notification-sound',
+  'src/client/push-settings',
   'src/client/message-live',
   'src/client/voice-audio',
   'src/client/voice-recording',

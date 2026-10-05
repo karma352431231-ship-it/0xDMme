@@ -16,8 +16,11 @@ import { ObjectStore } from '../src/server/object-store/index.ts';
 import { MessageService } from '../src/server/messages/index.ts';
 import { MessageLive } from '../src/server/message-live/index.ts';
 import { RepresentativeService } from '../src/server/representatives/index.ts';
-import { localGroupEligibility } from '../src/server/groups/index.ts';
 import { ContactService } from '../src/server/contacts/index.ts';
+import {
+  CallService,
+  readTurnConfiguration,
+} from '../src/server/calls/index.ts';
 import { NotificationService } from '../src/server/notifications/index.ts';
 import { frontendEmoji, emojiAsset } from '../src/tools/frontend-emoji.ts';
 import type { WebAsset } from '../src/server/web-host/index.ts';
@@ -124,7 +127,12 @@ const messages = new MessageService(database, database.devices, objects, {
     origin,
   ),
   notifications,
-  groupEligibility: localGroupEligibility(config, true),
+});
+const calls = new CallService({
+  store: database.calls,
+  messages,
+  changes: database.changes,
+  config: readTurnConfiguration(process.env),
 });
 function fixtureServer(
   testOrigin: string,
@@ -136,6 +144,7 @@ function fixtureServer(
     database,
     objects,
     account: createAccountHandler({
+      calls,
       live,
       contacts: new ContactService(database.contacts, database.devices),
       messages,

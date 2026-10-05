@@ -10,7 +10,6 @@ import { fingerprint } from '../../shared/devices/index.ts';
 import { groupConsent, groupEvent } from '../../shared/groups/index.ts';
 import type {
   ContactAuthority,
-  GroupEligibility,
   GroupStore,
   GroupMessageStore,
   GroupDailyStore,
@@ -21,10 +20,6 @@ function cursor(value: unknown): string | null {
   return value === null ? null : uuid(value);
 }
 
-export interface GroupEligibilityVerifier {
-  mode: 'fixture' | 'configured';
-  verify(authority: ContactAuthority): Promise<GroupEligibility>;
-}
 export const groupOperations = [
   'group-mode',
   'group-list',
@@ -39,36 +34,9 @@ export const groupOperations = [
   ...groupDailyOperations,
 ] as const;
 
-/** Explicit local fixtures cannot be enabled against a staging profile or database. */
-export function localGroupEligibility(
-  config: { profile: 'development' | 'staging'; databaseUrl: string },
-  enabled: boolean,
-): GroupEligibilityVerifier | null {
-  if (!enabled) return null;
-  if (
-    config.profile !== 'development' ||
-    !/^\/hash_talk_test(?:_[a-z0-9_]+)?$/u.test(
-      new URL(config.databaseUrl).pathname,
-    )
-  )
-    throw new Error(
-      'Elegibilidade sintética exige ambiente e banco exclusivos de teste.',
-    );
-  return {
-    mode: 'fixture',
-    verify: (authority) =>
-      Promise.resolve({
-        accountId: authority.session.accountId,
-        balance: 10_000n,
-        decimals: 0,
-        expiresAt: Date.now() + 30_000,
-      }),
-  };
-}
 /** Group operations are called only after the signed device proof has been verified by the message service. */
 export class GroupService {
   private readonly store: GroupStore;
-  private readonly eligibility: GroupEligibilityVerifier | null;
   private readonly actions: Record<
     string,
     (authority: ContactAuthority, data: Record<string, unknown>) => unknown
@@ -76,15 +44,14 @@ export class GroupService {
   constructor(
     store: GroupStore,
     messages: GroupMessageStore,
-    eligibility: GroupEligibilityVerifier | null = null,
     daily: GroupDailyStore | null = null,
   ) {
     this.store = store;
-    this.eligibility = eligibility;
     this.actions = {
       'group-mode': (_a, d) => {
         keys(d, []);
-        return { mode: this.mode() };
+        // Preserve the existing mode contract for installed clients; groups now require no token.
+        return { mode: 'configured' };
       },
       'group-list': (a, d) => {
         keys(d, ['after']);
@@ -120,9 +87,6 @@ export class GroupService {
       ...groupDeliveryActions(messages),
       ...groupDailyActions(daily),
     };
-  }
-  private mode(): 'fixture' | 'configured' | 'unavailable' {
-    return this.eligibility?.mode ?? 'unavailable';
   }
   async operate(
     authority: ContactAuthority,
@@ -162,24 +126,12 @@ export class GroupService {
       accounts,
     });
   }
-  private async commit(
+  private commit(
     authority: ContactAuthority,
     data: Record<string, unknown>,
   ): Promise<unknown> {
     keys(data, ['event']);
     const event = groupEvent(object(data['event']));
-    if (event.kind !== 'create' && event.kind !== 'transfer')
-      return this.store.commit(authority, { event });
-    if (await this.store.preflight(authority, event))
-      return this.store.commit(authority, { event });
-    if (!this.eligibility)
-      throw new AccountError(
-        503,
-        'O token do projeto ainda não foi configurado para criação ou transferência de grupos.',
-      );
-    // RPC/provider verification happens outside the SQL transaction. The store
-    // rechecks freshness, tier/count, frequency and capacity atomically afterwards.
-    const eligibility = await this.eligibility.verify(authority);
-    return this.store.commit(authority, { event, eligibility });
+    return this.store.commit(authority, { event });
   }
 }

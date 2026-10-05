@@ -1,3 +1,8 @@
+import {
+  groupMediaQuota,
+  groupMediaWarning,
+  groupMediaTarget,
+} from '../../src/shared/group-quota/index.ts';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import pg from 'pg';
@@ -20,7 +25,6 @@ import { DeviceService } from '../../src/server/devices/index.ts';
 import { ContactService } from '../../src/server/contacts/index.ts';
 import { MessageService } from '../../src/server/messages/index.ts';
 import { NotificationService } from '../../src/server/notifications/index.ts';
-import { localGroupEligibility } from '../../src/server/groups/index.ts';
 import { messageBody } from '../../src/shared/messages/index.ts';
 import { MessageCrypto } from '../../src/client/message-crypto/index.ts';
 import {
@@ -71,13 +75,13 @@ await test('governança persistente: criação atômica, convites, transferênci
     config: null,
   });
   const messages = new MessageService(db, db.devices, objects, {
-    groupEligibility: localGroupEligibility(config, true),
     notifications,
   });
   const publicMessages = new MessageService(db, db.devices);
   t.after(async () => {
     for (const machine of machines) machine.close();
     await messages.close();
+    await publicMessages.close();
     await notifications.close();
     await rm(mediaDirectory, { recursive: true, force: true });
     await inspector.query('BEGIN');
@@ -177,12 +181,6 @@ await test('governança persistente: criação atômica, convites, transferênci
     directory: u.head,
     authorityRevision: 1,
   });
-  const evidence = (u: User, balance = 10_000n) => ({
-    accountId: u.accountId,
-    balance,
-    decimals: 0,
-    expiresAt: Date.now() + 60_000,
-  });
   async function contact(
     u: User,
     op: string,
@@ -280,15 +278,11 @@ await test('governança persistente: criação atômica, convites, transferênci
   });
   const first = await event(owner, null);
   assert.deepEqual(await message(messages, owner, 'group-mode'), {
-    mode: 'fixture',
+    mode: 'configured',
   });
   assert.deepEqual(await message(publicMessages, owner, 'group-mode'), {
-    mode: 'unavailable',
+    mode: 'configured',
   });
-  await assert.rejects(
-    message(publicMessages, owner, 'group-commit', { event: first }),
-    /token do projeto/u,
-  );
   await assert.rejects(
     message(messages, owner, 'group-commit', {
       event: first,
@@ -728,20 +722,23 @@ await test('governança persistente: criação atômica, convites, transferênci
   await t.test(
     'limpeza avisa por 24h, congela os mais antigos, mantém texto e não inventa entrega',
     async () => {
-      // Synthetic quota rows avoid allocating 675 MB; the real encrypted upload above owns the I/O contract.
-      const synthetic = Array.from({ length: 225 }, () => ({
-        id: crypto.randomUUID(),
-        message_id: crypto.randomUUID(),
-        descriptor: attachmentRef({
+      // Synthetic rows cover the current threshold without allocating the media quota on disk.
+      const synthetic = Array.from(
+        { length: Math.ceil(groupMediaWarning / 3_000_000) },
+        () => ({
           id: crypto.randomUUID(),
-          hash: 'f'.repeat(64),
-          bytes: 3_000_000,
-          parts: Array.from({ length: 12 }, (_, i) => ({
+          message_id: crypto.randomUUID(),
+          descriptor: attachmentRef({
+            id: crypto.randomUUID(),
             hash: 'f'.repeat(64),
-            bytes: Math.min(partLimit, 3_000_000 - i * partLimit),
-          })),
+            bytes: 3_000_000,
+            parts: Array.from({ length: 12 }, (_, i) => ({
+              hash: 'f'.repeat(64),
+              bytes: Math.min(partLimit, 3_000_000 - i * partLimit),
+            })),
+          }),
         }),
-      }));
+      );
       await inspector.query(
         "INSERT INTO hash_talk.group_media(id,group_id,epoch,message_id,sender,descriptor,bytes,text_charge,charge,status,accepted_at) SELECT r.id,$1,$2,r.message_id,$3,r.descriptor,3000000,4096,3004096,'accepted',clock_timestamp() FROM jsonb_to_recordset($4::jsonb) AS r(id uuid,message_id uuid,descriptor jsonb)",
         [
@@ -751,11 +748,16 @@ await test('governança persistente: criação atômica, convites, transferênci
           JSON.stringify(synthetic),
         ],
       );
-      const nearFull = synthetic.slice(0, 24).map((r) => ({
-        ...r,
-        id: crypto.randomUUID(),
-        message_id: crypto.randomUUID(),
-      }));
+      const nearFull = synthetic
+        .slice(
+          0,
+          Math.floor((groupMediaQuota - groupMediaWarning) / 3_000_000) - 1,
+        )
+        .map((r) => ({
+          ...r,
+          id: crypto.randomUUID(),
+          message_id: crypto.randomUUID(),
+        }));
       await inspector.query(
         "INSERT INTO hash_talk.group_media(id,group_id,epoch,message_id,sender,descriptor,bytes,text_charge,charge,status,accepted_at) SELECT r.id,$1,$2,r.message_id,$3,r.descriptor,3000000,4096,3004096,'accepted',clock_timestamp() FROM jsonb_to_recordset($4::jsonb) AS r(id uuid,message_id uuid,descriptor jsonb)",
         [
@@ -790,7 +792,8 @@ await test('governança persistente: criação atômica, convites, transferênci
         'DELETE FROM hash_talk.group_media WHERE id=ANY($1::uuid[])',
         [nearFull.map((r) => r.id)],
       );
-      await db.groupRetention.tick();
+      // Selection remains batched at 64; the larger quota needs multiple bounded ticks.
+      for (let i = 0; i < 4; i++) await db.groupRetention.tick();
       const notice = object(
         await message(messages, member, 'group-cleanup-notice', {
           ...mediaScope,
@@ -808,14 +811,18 @@ await test('governança persistente: criação atômica, convites, transferênci
         'SELECT array_agg(id ORDER BY sequence) AS ids,sum(bytes)::integer AS bytes FROM hash_talk.group_media WHERE group_id=$1 AND cleanup=$2',
         [joined.groupId, warning['id']],
       );
-      assert.ok((selected.rows[0]?.bytes ?? 0) >= 150_000_000);
-      assert.ok((selected.rows[0]?.bytes ?? 0) < 153_000_100);
+      const selection = selected.rows[0];
+      assert.ok(selection);
+      assert.ok(selection.bytes >= groupMediaWarning - groupMediaTarget);
+      assert.ok(
+        selection.bytes < groupMediaWarning - groupMediaTarget + 3_000_100,
+      );
       await db.groupRetention.tick();
       const frozen = await inspector.query<{ ids: string[] }>(
         'SELECT array_agg(id ORDER BY sequence) AS ids FROM hash_talk.group_media WHERE group_id=$1 AND cleanup=$2',
         [joined.groupId, warning['id']],
       );
-      assert.deepEqual(frozen.rows[0]?.ids, selected.rows[0]?.ids);
+      assert.deepEqual(frozen.rows[0]?.ids, selection.ids);
       await inspector.query(
         "UPDATE hash_talk.group_cleanups SET due_at=clock_timestamp()-interval '1 second' WHERE group_id=$1",
         [joined.groupId],
@@ -864,6 +871,25 @@ await test('governança persistente: criação atômica, convites, transferênci
   );
   assert.equal((directory['directories'] as unknown[]).length, 2);
   assert.equal((directory['recovery'] as unknown[]).length, 2);
+  await t.test(
+    'criação gratuita supera o antigo teto e transferência não exige saldo ou vagas',
+    async () => {
+      for (let i = 0; i < 3; i++) {
+        // Simulate elapsed time only for this synthetic account; preserve the real frequency checks.
+        await inspector.query(
+          "UPDATE hash_talk.group_creation_window SET created_at=clock_timestamp()-interval '2 minutes' WHERE account_id=$1",
+          [member.accountId],
+        );
+        await message(publicMessages, member, 'group-commit', {
+          event: await event(member, null),
+        });
+      }
+      assert.equal(
+        (await db.groups.list(authority(member), null)).items.length,
+        4,
+      );
+    },
+  );
   const transfer = await proposal(owner, joined, member, 'transfer');
   const transferred = await event(member, joined, {
     kind: 'transfer',
@@ -875,16 +901,7 @@ await test('governança persistente: criação atômica, convites, transferênci
       role: m.accountId === member.accountId ? 'owner' : 'member',
     })),
   });
-  await assert.rejects(
-    db.groups.commit(authority(member), {
-      event: transferred,
-      eligibility: evidence(member, 9_999n),
-    }),
-  );
-  await db.groups.commit(authority(member), {
-    event: transferred,
-    eligibility: evidence(member),
-  });
+  await message(publicMessages, member, 'group-commit', { event: transferred });
   assert.equal(
     (await db.groups.current(authority(member), first.groupId)).owner,
     member.accountId,
@@ -983,12 +1000,11 @@ await test('governança persistente: criação atômica, convites, transferênci
     ).rows[0],
     { clearing: false, media_scope_retired: true },
   );
-  assert.equal((await db.groups.list(authority(member), null)).items.length, 0);
+  assert.equal((await db.groups.list(authority(member), null)).items.length, 3);
   const second = await event(owner, null);
   await assert.rejects(
     db.groups.commit(authority(owner), {
       event: second,
-      eligibility: evidence(owner),
     }),
     /Limite de criação/u,
   );

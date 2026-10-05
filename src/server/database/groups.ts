@@ -1,10 +1,7 @@
 import type pg from 'pg';
 import { AccountError } from '../../shared/account/index.ts';
 import { canonical, eventHash } from '../../shared/devices/index.ts';
-import {
-  groupCreationRetryAt,
-  groupCreationTier,
-} from '../../shared/group-quota/index.ts';
+import { groupCreationRetryAt } from '../../shared/group-quota/index.ts';
 import {
   groupConsent,
   groupEvent,
@@ -21,13 +18,6 @@ import type { MessageRecoveryStore } from './message-recovery.ts';
 import { assertContentCapacity } from './vault-quota.ts';
 import { assertGroupTextQuota } from './group-quota.ts';
 
-/** Produced by server-side eligibility verification, never parsed from a browser payload. */
-export interface GroupEligibility {
-  accountId: string;
-  balance: bigint;
-  decimals: number;
-  expiresAt: number;
-}
 interface GroupRow {
   id: string;
   head: string;
@@ -162,7 +152,7 @@ export class GroupStore {
   }
   async commit(
     authority: ContactAuthority,
-    input: { event: GroupEvent; eligibility?: GroupEligibility },
+    input: { event: GroupEvent },
   ): Promise<{ head: string; status: 'saved' }> {
     const event = groupEvent(input.event),
       hash = await groupEventHash(event);
@@ -175,11 +165,7 @@ export class GroupStore {
     return this.contacts.withMessageAuthority(authority, async (client) => {
       const previous = await this.prepareCommit(client, event, hash);
       if (previous === 'accepted') return { head: hash, status: 'saved' };
-      if (event.kind === 'create' || event.kind === 'transfer')
-        await this.admitOwner(client, {
-          event,
-          eligibility: input.eligibility,
-        });
+      if (event.kind === 'create') await this.recordCreation(client, event);
       await this.saveEvent(client, event, hash);
       await assertGroupTextQuota(client, event.groupId);
       await assertContentCapacity(client, this.capacity);
@@ -235,27 +221,6 @@ export class GroupStore {
       ...(targetDirectory ? { targetDirectory } : {}),
     });
   }
-  /** Validates local permissions and frequency before any provider call; commit rechecks afterwards. */
-  async preflight(
-    authority: ContactAuthority,
-    input: GroupEvent,
-  ): Promise<boolean> {
-    const event = groupEvent(input),
-      hash = await groupEventHash(event);
-    if (
-      event.actor !== authority.session.accountId ||
-      event.deviceId !== authority.session.deviceId ||
-      event.directory !== authority.directory
-    )
-      unavailable();
-    return this.contacts.withMessageAuthority(authority, async (client) => {
-      if ((await this.prepareCommit(client, event, hash)) === 'accepted')
-        return true;
-      if (event.kind === 'create')
-        await this.checkCreationFrequency(client, event.owner);
-      return false;
-    });
-  }
   private async checkCreationFrequency(
     client: pg.PoolClient,
     owner: string,
@@ -309,49 +274,19 @@ export class GroupStore {
     )
       unavailable();
   }
-  private async admitOwner(
+  /** No token or count gate. Frequency and persisted bytes are admitted atomically. */
+  private async recordCreation(
     client: pg.PoolClient,
-    input: {
-      event: GroupEvent;
-      eligibility: GroupEligibility | undefined;
-    },
+    event: GroupEvent,
   ): Promise<void> {
-    const now = Date.now(),
-      evidence = input.eligibility;
-    if (
-      !evidence ||
-      evidence.accountId !== input.event.owner ||
-      !Number.isSafeInteger(evidence.expiresAt) ||
-      evidence.expiresAt <= now
-    )
-      throw new AccountError(
-        503,
-        'Elegibilidade do token ainda não verificada.',
-      );
-    const count = await client.query<{ count: number }>(
-      'SELECT count(*)::integer AS count FROM hash_talk.groups WHERE owner=$1 AND (NOT deleted OR clearing)',
-      [input.event.owner],
-    );
-    if (
-      !groupCreationTier({
-        balance: evidence.balance,
-        decimals: evidence.decimals,
-        existingGroups: count.rows[0]?.count ?? 0,
-      }).canCreate
-    )
-      throw new AccountError(
-        403,
-        'Saldo ou vagas insuficientes para assumir este grupo.',
-      );
-    if (input.event.kind !== 'create') return;
-    await this.checkCreationFrequency(client, input.event.owner);
+    await this.checkCreationFrequency(client, event.owner);
     await client.query(
       "DELETE FROM hash_talk.group_creation_window WHERE account_id=$1 AND created_at<=clock_timestamp()-interval '1 hour'",
-      [input.event.owner],
+      [event.owner],
     );
     await client.query(
       'INSERT INTO hash_talk.group_creation_window(account_id,group_id) VALUES($1,$2)',
-      [input.event.owner, input.event.groupId],
+      [event.owner, event.groupId],
     );
   }
   private async saveEvent(

@@ -1,0 +1,39 @@
+# Coturn 4.18.0, separate service. Prepare private config before activation.
+# Replace placeholders in .local/on-host root-readable configuration only.
+listening-port=3478
+tls-listening-port=5349
+listening-ip=REVIEWED_OWN_PUBLIC_IP
+relay-ip=REVIEWED_OWN_PUBLIC_IP
+realm=0xdmme.app
+use-auth-secret
+static-auth-secret=PRIVATE_RANDOM_SECRET_AT_LEAST_32_BYTES
+cert=/etc/0xdmme-turn/tls/fullchain.pem
+pkey=/etc/0xdmme-turn/tls/privkey.pem
+min-port=49160
+max-port=49223
+user-quota=4
+total-quota=64
+# Bytes/s per direction, not bits/s. Initial limits require capacity measurement.
+max-bps=64000
+bps-capacity=2048000
+max-allocate-lifetime=600
+stale-nonce=600
+no-tcp-relay
+no-stun
+no-multicast-peers
+no-auth-pings
+# Bound the workers independently of the shared host's visible CPU count.
+cpus=2
+relay-threads=2
+no-stdout-log
+log-file=/dev/null
+simple-log
+pidfile=/run/0xdmme-turn/turnserver.pid
+# Management CLI, metrics and verbose logging remain disabled by default.
+# Deny all destinations, allowing only our own reviewed public relay address.
+# Whitelist wins over deny ranges in Coturn. Never use an external public relay.
+allowed-peer-ip=REVIEWED_OWN_PUBLIC_IP
+denied-peer-ip=0.0.0.0-255.255.255.255
+denied-peer-ip=::-ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff
+# A scoped egress firewall must further restrict NEW outbound traffic to our
+# relay port range. IP-only ACL cannot protect other services on that same IP.

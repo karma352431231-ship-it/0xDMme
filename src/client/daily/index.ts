@@ -1,13 +1,16 @@
+import { groupMediaQuota } from '../../shared/group-quota/index.ts';
 import { object, base64, keys } from '../../shared/account/index.ts';
 import {
   conversationSettings,
   mergeConversationSettings,
   pushRegistration,
   genericNotification,
+  pushPreferences,
 } from '../../shared/daily/index.ts';
 import type {
   DailyPreferences,
   ConversationSettings,
+  PushPreferences,
 } from '../../shared/daily/index.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
 import { integer } from '../../shared/vault/index.ts';
@@ -181,9 +184,7 @@ export class Daily {
       mutedUntil,
     });
     const registration = await navigator.serviceWorker?.getRegistration('/');
-    for (const notification of (await registration?.getNotifications({
-      tag: '0xdmme-activity',
-    })) ?? [])
+    for (const notification of (await registration?.getNotifications()) ?? [])
       notification.close();
   }
   async read(peer: string, ids: string[]): Promise<void> {
@@ -394,6 +395,15 @@ export class Daily {
     const value = pushRegistration({ endpoint: raw.endpoint, keys: raw.keys });
     await this.api('daily-subscribe', { subscription: value });
   }
+  async pushPreferences(): Promise<PushPreferences> {
+    return pushPreferences(await this.api('daily-push-state'));
+  }
+  async configurePush(preferences: PushPreferences): Promise<void> {
+    await this.api('daily-push-configure', { preferences });
+    const registration = await navigator.serviceWorker?.getRegistration('/');
+    for (const notification of (await registration?.getNotifications()) ?? [])
+      notification.close();
+  }
   async disablePush(): Promise<void> {
     await this.api('daily-subscribe', { subscription: null });
     const registration = await navigator.serviceWorker.getRegistration('/');
@@ -429,7 +439,7 @@ function cleanupState(d: Record<string, unknown>): Pick<PeerState, 'cleanup'> {
   return {
     cleanup: {
       dueAt: integer(Number(d['cleanupDueAt']), Number.MAX_SAFE_INTEGER),
-      bytes: integer(d['cleanupBytes'], 750_000_000),
+      bytes: integer(d['cleanupBytes'], groupMediaQuota),
     },
   };
 }
