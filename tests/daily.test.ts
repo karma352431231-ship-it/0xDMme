@@ -423,8 +423,98 @@ await test('organização conserva silêncio concorrente e uma nova escolha reso
     pinned: true,
   });
 });
-function archiveFixture() {
-  const entry = settingsEntry(original.peer, 1);
+await test('favoritos cifrados resolvem seus próprios ramos, preservam preferências legadas e não retornam após mudança de sessão', async () => {
+  const id = original.peer,
+    preference = settingsEntry(id, 1),
+    first = settingsEntry(id, 2),
+    sibling = settingsEntry(id, 3);
+  first.change.label = sibling.change.label = 'Conversa favorita';
+  const heads = new Map([[id, [preference, first, sibling]]]);
+  const content = new Map([
+    [
+      preference.commit.id,
+      JSON.stringify({ mutedUntil: 0, archived: true, pinned: false }),
+    ],
+    [first.commit.id, JSON.stringify({ favorite: true })],
+    [sibling.commit.id, JSON.stringify({ favorite: false })],
+  ]);
+  let written: string[] = [],
+    release: () => void = () => {
+      throw new Error('Leitura não preparada.');
+    };
+  const daily = new Daily(
+    {
+      withVault: () =>
+        Promise.reject(new Error('Favoritar não consulta permissões.')),
+      withLocalVault: () =>
+        Promise.reject(new Error('Favoritar não consulta permissões.')),
+    },
+    {
+      complete: true,
+      currentHeads: () => heads,
+      isRemoved: () => false,
+      refresh: () => Promise.resolve(),
+      open: (id) => Promise.resolve(content.get(id)!),
+      save: (input) => {
+        written = input.change.parents;
+        const entry = settingsEntry(id, 4);
+        entry.change = input.change;
+        content.set(entry.commit.id, input.value);
+        heads.set(id, [preference, entry]);
+        return Promise.resolve();
+      },
+    },
+  );
+  await daily.loadSettings([id]);
+  assert.equal(daily.favorite(id), true);
+  await daily.setFavorite(id, false);
+  assert.deepEqual(written, [first.commit.id, sibling.commit.id]);
+  await daily.loadSettings([id]);
+  assert.equal(daily.favorite(id), false);
+  assert.equal(daily.conversation(id).archived, true);
+  const pendingEntry = settingsEntry(id, 5);
+  pendingEntry.change.label = 'Conversa favorita';
+  heads.set(id, [pendingEntry]);
+  const pending = new Promise<string>((resolve) => {
+    release = () => resolve(JSON.stringify({ favorite: true }));
+  });
+  // Replace only the read boundary; exercise the actual generation guard.
+  const blocked = new Daily(
+    {
+      withVault: () => Promise.reject(new Error('Sem API')),
+      withLocalVault: () => Promise.reject(new Error('Sem API')),
+    },
+    {
+      complete: true,
+      currentHeads: () => heads,
+      isRemoved: () => false,
+      refresh: () => Promise.resolve(),
+      open: () => pending,
+      save: () => Promise.resolve(),
+    },
+  );
+  const loading = blocked.loadSettings([id]);
+  blocked.setSession({
+    accountId: crypto.randomUUID(),
+    deviceId: crypto.randomUUID(),
+    ecosystem: 'evm',
+    address: '0x' + 'a'.repeat(40),
+    name: '',
+    csrf: 'c'.repeat(64),
+    profileRevision: 0,
+    expiresAt: new Date(Date.now() + 60_000).toISOString(),
+    walletConfirmed: true,
+    deviceState: 'pending',
+    historyAuthorized: false,
+  });
+  release();
+  await assert.rejects(loading, /Sessão alterada/);
+  assert.equal(blocked.favorite(id), false);
+  content.set(pendingEntry.commit.id, JSON.stringify({ favorite: 'sim' }));
+  await assert.rejects(daily.loadSettings([id]), /Favorito inválido/);
+});
+function archiveFixture(settingsId = original.peer) {
+  const entry = settingsEntry(settingsId, 1);
   const state = {
     saved: JSON.stringify({ mutedUntil: 0, archived: false, pinned: false }),
     mutedUntil: 0,
@@ -445,7 +535,7 @@ function archiveFixture() {
     },
     {
       complete: true,
-      currentHeads: () => new Map([[original.peer, [entry]]]),
+      currentHeads: () => new Map([[settingsId, [entry]]]),
       isRemoved: () => false,
       refresh: () => Promise.resolve(),
       open: () => Promise.resolve(state.saved),
@@ -468,6 +558,7 @@ function archiveFixture() {
         lastSeen: null,
       });
     assert.equal(operation, 'daily-mute');
+    assert.equal(payload['peer'], original.peer);
     if (state.failMute) return Promise.reject(new Error('Mute indisponível.'));
     assert.equal(typeof payload['mutedUntil'], 'number');
     state.mutedUntil = Number(payload['mutedUntil']);
@@ -490,6 +581,31 @@ await test('arquivar silencia sem prazo; retomar exige desarquivar; mute de 24 h
   assert.ok(state.mutedUntil >= before + 86400000);
   assert.ok(state.mutedUntil <= Date.now() + 86400000);
   await daily.mute(original.peer, 0);
+  assert.equal(state.mutedUntil, 0);
+});
+await test('wallet arquivada passa a silenciar ao ser aprovada e impede retomar alertas até desarquivar', async () => {
+  const settingsId = crypto.randomUUID(),
+    { daily, state } = archiveFixture(settingsId);
+  await daily.organize(settingsId, { archived: true }, { mutePeer: null });
+  assert.equal(state.mutedUntil, 0);
+  const approved = await daily.keepArchivedSilent(
+    original.peer,
+    settingsId,
+    await daily.state(original.peer),
+  );
+  assert.equal(approved.mutedUntil, Number.MAX_SAFE_INTEGER);
+  await assert.rejects(
+    daily.mute(original.peer, 0, { settingsId }),
+    /Desarquive/,
+  );
+  assert.equal(state.mutedUntil, Number.MAX_SAFE_INTEGER);
+  await daily.organize(
+    settingsId,
+    { archived: false },
+    { mutePeer: original.peer },
+  );
+  assert.equal(state.mutedUntil, Number.MAX_SAFE_INTEGER);
+  await daily.mute(original.peer, 0, { settingsId });
   assert.equal(state.mutedUntil, 0);
 });
 await test('falha de mute impede arquivamento; falha de salvar não religa alertas nem simula arquivamento', async () => {

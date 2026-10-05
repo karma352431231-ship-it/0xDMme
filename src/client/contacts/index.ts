@@ -16,11 +16,17 @@ import { digest } from '../../shared/devices/index.ts';
 import type { VaultAccess } from '../vault-authority/index.ts';
 import type { VaultSync } from '../vault-sync/index.ts';
 import { QrCamera, renderQr } from '../device-qr/index.ts';
-import { AddressBook, incomingInvitation } from './agenda.ts';
+import { AddressBook, incomingInvitation, walletKey } from './agenda.ts';
 import type { BookVersion } from './agenda.ts';
 import { Contacts } from './controller.ts';
 import { template, settingsTemplate } from './template.ts';
-export function startContacts(access: VaultAccess, sync: VaultSync) {
+export function startContacts(
+  access: VaultAccess,
+  sync: VaultSync,
+  options: {
+    saved?: (contact: AddressBookEntry) => Promise<void>;
+  } = {},
+) {
   const contacts = new Contacts(access),
     book = new AddressBook(sync);
   let mounted: HTMLElement | null = null,
@@ -34,6 +40,7 @@ export function startContacts(access: VaultAccess, sync: VaultSync) {
     received: Invitation | null = null,
     invitePeer: Peer | null = null;
   let ownLink: string | null = null;
+  let prepared: AddressBookEntry | null = null;
   let camera: QrCamera | null = null;
   function node<T extends HTMLElement>(selector: string): T | null {
     return mounted?.querySelector<T>(selector) ?? null;
@@ -115,6 +122,7 @@ export function startContacts(access: VaultAccess, sync: VaultSync) {
     editing = null;
     parents = undefined;
     found = null;
+    prepared = null;
     node<HTMLFormElement>('[data-book-form]')?.reset();
     text('[data-book-title]', 'Salvar wallet na agenda');
     text('[data-contact-discovery]', '');
@@ -145,7 +153,7 @@ export function startContacts(access: VaultAccess, sync: VaultSync) {
     const entries = book.versions(value('[data-book-search]'));
     text(
       '[data-book-state]',
-      `${entries.length} contatos na agenda · busca particular neste aparelho`,
+      `${entries.length} versões na agenda · busca particular neste aparelho`,
     );
     const list = node('[data-book-list]');
     if (!list) return;
@@ -199,24 +207,39 @@ export function startContacts(access: VaultAccess, sync: VaultSync) {
       ? 'Salvar preservará as versões anteriores e resolverá os ramos escolhidos.'
       : 'Contato aberto apenas neste aparelho.';
   }
+  function referenceContact(
+    wallet: AddressBookEntry | ReturnType<typeof walletContact>,
+  ): AddressBookEntry | null {
+    if (editing) return editing.contact;
+    return prepared && walletKey(prepared) === walletKey(wallet)
+      ? prepared
+      : null;
+  }
   function draft(): AddressBookEntry {
     const wallet = walletContact({
       ecosystem: value('[data-book-network]'),
       address: value('[data-book-address]').trim(),
     });
+    const reference = referenceContact(wallet);
     return addressBookEntry({
       version: 1,
       ...wallet,
       alias: value('[data-book-alias]'),
-      accountId: editing?.contact.accountId ?? null,
-      identity: editing?.contact.identity ?? null,
-      directory: editing?.contact.directory ?? null,
-      identityRevision: editing?.contact.identityRevision ?? 0,
+      accountId: reference?.accountId ?? null,
+      identity: reference?.identity ?? null,
+      directory: reference?.directory ?? null,
+      identityRevision: reference?.identityRevision ?? 0,
       removed: false,
     });
   }
   async function save(): Promise<void> {
-    await book.save(draft(), editing, parents);
+    const contact = draft();
+    const expected = generation;
+    await book.save(contact, editing, parents, () => {
+      if (expected !== generation) throw new Error('Sessão alterada.');
+    });
+    if (expected !== generation) throw new Error('Sessão alterada.');
+    await options.saved?.(contact);
     status = sync.pending
       ? 'Contato salvo neste aparelho. Será enviado quando a conexão voltar.'
       : 'Contato particular confirmado no cofre. Isso não aprovou conversa.';
@@ -291,11 +314,6 @@ export function startContacts(access: VaultAccess, sync: VaultSync) {
       );
     li.append(
       button('Salvar na minha agenda', async () => selectPeer(contact)),
-      button('Bloquear', async () => {
-        await contacts.block(contact, true);
-        await refresh();
-        status = 'Wallet bloqueada; aprovação retirada nos dois sentidos.';
-      }),
     );
     if (kind === 'outgoing')
       li.append(
@@ -425,10 +443,6 @@ export function startContacts(access: VaultAccess, sync: VaultSync) {
   }
   const actions: Record<string, () => Promise<void>> = {
     refresh,
-    new: async () => {
-      resetEditor();
-      await Promise.resolve();
-    },
     discover: requestWallet,
     rotate,
     revoke: async () => {
@@ -441,17 +455,6 @@ export function startContacts(access: VaultAccess, sync: VaultSync) {
       if (!ownLink) throw new Error('Crie um convite primeiro.');
       await navigator.clipboard.writeText(ownLink);
       status = 'Link copiado. Compartilhe manualmente com o destinatário.';
-    },
-    'block-wallet': async () => {
-      await contacts.block(
-        walletContact({
-          ecosystem: value('[data-book-network]'),
-          address: value('[data-book-address]').trim(),
-        }),
-        true,
-      );
-      await refresh();
-      status = 'Wallet bloqueada, mesmo se ainda não estiver cadastrada.';
     },
     'book-more': async () => {
       offset =
@@ -475,6 +478,7 @@ export function startContacts(access: VaultAccess, sync: VaultSync) {
     contacts.clear();
     ownLink = null;
     editing = null;
+    prepared = null;
     parents = undefined;
     found = null;
     invitePeer = null;
@@ -552,6 +556,24 @@ export function startContacts(access: VaultAccess, sync: VaultSync) {
   }
   return {
     ready,
+    showContact(contact: AddressBookEntry): void {
+      resetEditor();
+      prepared = contact;
+      for (const [selector, value] of [
+        ['[data-book-network]', contact.ecosystem],
+        ['[data-book-address]', contact.address],
+        ['[data-book-alias]', contact.alias],
+      ]) {
+        const input = node<HTMLInputElement | HTMLSelectElement>(
+          selector ?? '',
+        );
+        if (input) input.value = value ?? '';
+      }
+      status =
+        'Salvar guarda o contato; pedir conversa continua sujeito ao aceite.';
+      render();
+      node('[data-book-form]')?.scrollIntoView({ block: 'start' });
+    },
     setSession(session: AccountSession | null): void {
       const firstConnection = !contacts.session && session !== null;
       if (sessionChanged(session)) clear();
@@ -627,5 +649,5 @@ export function startContacts(access: VaultAccess, sync: VaultSync) {
 }
 
 export { Contacts, checkPinnedIdentity } from './controller.ts';
-export { AddressBook, walletEntity } from './agenda.ts';
+export { AddressBook, walletEntity, walletKey } from './agenda.ts';
 export type { BookVersion } from './agenda.ts';

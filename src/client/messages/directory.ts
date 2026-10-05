@@ -1,3 +1,18 @@
+export interface DirectoryMenu {
+  update: (entries: readonly ConversationEntry[]) => void;
+  bind: (
+    row: HTMLElement,
+    entry: ConversationEntry,
+    trigger: HTMLButtonElement,
+  ) => void;
+}
+export type ConversationFilter =
+  'all' | 'unread' | 'favorites' | 'groups' | 'archived';
+export interface ConversationAction {
+  id: string;
+  label: string;
+  perform: () => void;
+}
 export interface ConversationEntry {
   id: string;
   title: string;
@@ -6,6 +21,27 @@ export interface ConversationEntry {
   searchText: string;
   selected: boolean;
   open: () => void;
+  archived?: boolean;
+  pinned?: boolean;
+  favorite?: boolean;
+  unread?: number;
+  hidden?: boolean;
+  actions?: readonly ConversationAction[];
+  menuNote?: string;
+}
+export function filteredConversations(
+  entries: readonly ConversationEntry[],
+  filter: ConversationFilter,
+): ConversationEntry[] {
+  return entries
+    .filter((entry) => {
+      if (entry.hidden || !!entry.archived !== (filter === 'archived'))
+        return false;
+      if (filter === 'unread') return (entry.unread ?? 0) > 0;
+      if (filter === 'favorites') return !!entry.favorite;
+      return filter !== 'groups' || entry.kind === 'group';
+    })
+    .sort((a, b) => Number(!!b.pinned) - Number(!!a.pinned));
 }
 
 export function matchingConversations(
@@ -51,13 +87,34 @@ export function conversationButton(
 export function renderDirectory(
   host: HTMLElement,
   entries: readonly ConversationEntry[],
+  options: { menu?: DirectoryMenu; empty?: string } = {},
 ): void {
+  options.menu?.update(entries);
   host.replaceChildren();
-  for (const entry of entries) host.append(conversationButton(entry));
+  for (const entry of entries) {
+    const button = conversationButton(entry);
+    if (!entry.actions?.length || !options.menu) {
+      host.append(button);
+      continue;
+    }
+    const row = document.createElement('div');
+    row.className = 'conversation-item';
+    button.setAttribute('aria-haspopup', 'dialog');
+    const trigger = document.createElement('button');
+    trigger.type = 'button';
+    trigger.className = 'conversation-menu-trigger';
+    trigger.textContent = '⌄';
+    trigger.setAttribute('aria-label', `Opções de ${entry.title}`);
+    trigger.setAttribute('aria-haspopup', 'dialog');
+    row.append(button, trigger);
+    options.menu.bind(row, entry, trigger);
+    host.append(row);
+  }
   if (entries.length) return;
   const empty = document.createElement('p');
   empty.className = 'directory-empty';
   empty.textContent =
+    options.empty ??
     'Suas conversas aparecem aqui depois de adicionar um contato ou entrar em um grupo.';
   host.append(empty);
 }

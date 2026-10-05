@@ -51,9 +51,51 @@
               >+</a
             >
           </div>
+          <div class="directory-filters" aria-label="Filtrar conversas">
+            <button
+              type="button"
+              data-conversation-filter="all"
+              aria-pressed="true"
+            >
+              Todos
+            </button>
+            <button
+              type="button"
+              data-conversation-filter="unread"
+              aria-pressed="false"
+            >
+              Não lidas
+            </button>
+            <button
+              type="button"
+              data-conversation-filter="favorites"
+              aria-pressed="false"
+            >
+              Favoritos
+            </button>
+            <button
+              type="button"
+              data-conversation-filter="groups"
+              aria-pressed="false"
+            >
+              Grupos
+            </button>
+            <button
+              type="button"
+              data-conversation-filter="archived"
+              aria-pressed="false"
+            >
+              Arquivadas
+            </button>
+          </div>
+          <details class="directory-tools" data-group-tools hidden>
+            <summary>Opções de grupos</summary>
+            <div data-group-sidebar></div>
+          </details>
           <p class="directory-notice">
             Chat em teste · use somente dados fictícios.
           </p>
+          <p data-directory-status class="directory-status" role="status"></p>
           <div
             class="directory-scroll"
             tabindex="0"
@@ -68,13 +110,6 @@
             >
               Mais conversas
             </button>
-            <details class="directory-tools">
-              <summary>Organizar conversas</summary>
-              <button data-archived-list type="button">
-                Alternar arquivadas
-              </button>
-              <div data-group-sidebar></div>
-            </details>
           </div>
         </section>
         <div class="account">

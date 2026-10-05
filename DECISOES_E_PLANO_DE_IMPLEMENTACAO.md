@@ -230,11 +230,23 @@ O proprietário solicitou reorganizar a interface com as referências visuais fo
 - Desktop: a coluna esquerda abriga contatos aprovados, conversas do histórico local e grupos adicionados, numa lista com rolagem independente. Perfil, nome e wallet permanecem fixos no rodapé dessa coluna. Os três pontos ao lado do nome abrem Configurações. Status e Cofre saem da navegação principal por enquanto; suas rotas e operações existentes são preservadas.
 - Mobile: logo e nome 0xDMme no topo, lupa à direita e barra inferior com Conversas, Contatos, Configurações e Perfil. Não colocar três pontos no cabeçalho. A lista dá lugar ao chat selecionado, com retorno para Conversas.
 - A lupa pesquisa nomes/wallets dos chats carregados e palavras nas mensagens sincronizadas/importadas neste aparelho. A busca é local, com paginação e conferências de sessão; nenhum termo privado segue para o servidor. Não prometer pesquisa em mensagens que este aparelho ainda não possui. Arquivadas continuam encontráveis pela lupa.
-- Adicionar contato continua acessível pela lista e pela aba mobile; aprovação continua necessária para enviar mensagens. Criar grupo e tratar convites seguem recolhidos junto à lista, conservando os requisitos de elegibilidade.
+- Adicionar contato continua acessível pela lista e pela aba mobile; aprovação continua necessária para enviar mensagens. Criar grupo e tratar convites ficam nas opções do filtro Grupos, conservando os requisitos de elegibilidade.
 
 Após a entrega local, o proprietário autorizou explicitamente ativar a nova interface na VPS em 05/10/2026. A release `685b9d1` foi publicada pelo executor existente, com CI do commit exato, checkout limpo e conferências de preservação; sem novas dependências, migrações ou alterações de infraestrutura.
 
 **Ponto importante:** esconder itens da navegação não apaga dados nem altera permissões. A ativação permanece restrita ao ambiente de testes e não substitui o aceite em aparelhos físicos. Implementação e validação em [interface de chat responsiva](docs/INTERFACE_CHAT_RESPONSIVA.md).
+
+### 5.8 Filtros e menu por contato — aprovados em 05/10/2026
+
+O proprietário pediu substituir “Organizar conversas” por filtros no topo, simplificar o formulário e colocar as ações junto a cada contato, com toque prolongado no celular.
+
+- Filtros Todos, Não lidas, Favoritos, Grupos e Arquivadas compartilham a mesma lista no desktop e mobile. Fixadas aparecem primeiro; Não lidas usa os estados já conferidos, sem inventar contadores ou marcar leitura ao abrir o menu.
+- Salvar uma wallet na agenda a inclui imediatamente na lista, com apelido particular, mesmo sem cadastro ou aprovação. Abrir uma wallet sem conversa aprovada leva ao formulário contextual para pedir conversa. Não fazer descoberta, solicitação ou aprovação automática ao salvar.
+- Remover os botões “Novo contato” e “Bloquear esta wallet” do formulário. O menu da linha oferece bloquear, arquivar/desarquivar, fixar/desfixar, adicionar/remover favorito e remover contato. Desktop usa a seta ao passar o mouse ou focar; mobile usa toque de 500 ms, cancelado quando houver rolagem. Teclado também pode abrir o menu.
+- Remover contato grava o marcador existente da agenda cifrada, retira a linha da lista e permite salvar novamente. Não bloqueia, revoga consentimento, apaga mensagens ou elimina versões anteriores/backups. Bloquear continua retirando a aprovação nos dois sentidos. Os requisitos existentes de arquivamento/silêncio permanecem; wallets sem aprovação e cópias locais não têm alertas remotos para silenciar.
+- Favoritos ficam no cofre cifrado com registro próprio de preferências, preservando o formato legado de fixação/arquivamento. A chave do favorito individual acompanha a wallet; a do grupo acompanha o grupo. Não criar tabela, dependência ou armazenamento legível no backend. Paginar a abertura da agenda e limpar os dados carregados ao trocar de conta.
+
+**Ponto importante:** remover da agenda não interrompe uma conversa aprovada. Para impedir novos envios, usar Bloquear. A revisão passou nas verificações locais e no navegador com dados fictícios; toque físico permanece pendente. A ativação na VPS exige nova autorização explícita. Evidências e limites em [interface de chat responsiva](docs/INTERFACE_CHAT_RESPONSIVA.md).
 
 ## 6. Escopo funcional
 

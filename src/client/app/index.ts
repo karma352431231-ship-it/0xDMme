@@ -9,6 +9,7 @@ import { startRepresentatives } from '../representatives/index.ts';
 import { startContacts } from '../contacts/index.ts';
 import { VoicePlayback } from '../voice-playback/index.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
+import type { AddressBookEntry } from '../../shared/contacts/index.ts';
 
 const pages = {
   conversas: {
@@ -68,7 +69,9 @@ const backups = startBackups(devices, vault.sync, playback, {
   confirmWallet: () => account.confirmWallet(),
   profile: () => account.backupProfile(),
 });
-const contacts = startContacts(devices, vault.sync);
+const contacts = startContacts(devices, vault.sync, {
+  saved: (contact) => messages.contactSaved(contact),
+});
 const statuses = startStatus(devices, vault.sync);
 const representatives = startRepresentatives(devices, vault.sync, (message) =>
   account.signStatement(message),
@@ -76,6 +79,11 @@ const representatives = startRepresentatives(devices, vault.sync, (message) =>
 const messages = startMessages(devices, vault.sync, {
   playback,
   openConversation,
+  openContact: (contact: AddressBookEntry) => {
+    location.hash = '#contatos';
+    route();
+    contacts.showContact(contact);
+  },
   directoryChanged: (available) => {
     const shell = document.getElementById('app-shell');
     if (shell) shell.dataset['history'] = available ? 'available' : 'empty';

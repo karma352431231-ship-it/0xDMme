@@ -1,4 +1,4 @@
-import { object, base64 } from '../../shared/account/index.ts';
+import { object, base64, keys } from '../../shared/account/index.ts';
 import {
   conversationSettings,
   mergeConversationSettings,
@@ -36,12 +36,16 @@ export class Daily {
   private settings = new Map<string, ConversationSettings>();
   private conflicts = new Set<string>();
   private groups = new Map<string, string>();
+  private favorites = new Map<string, boolean>();
   setGroups(groups: { id: string; head: string }[]): void {
     this.groups = new Map(groups.map((g) => [g.id, g.head]));
   }
   constructor(access: VaultAccess, sync: OrganizationSync) {
     this.access = access;
     this.sync = sync;
+  }
+  private assertGeneration(generation: number): void {
+    if (generation !== this.generation) throw new Error('Sessão alterada.');
   }
   setSession(session: AccountSession | null): void {
     if (
@@ -54,6 +58,7 @@ export class Daily {
       this.groups.clear();
       this.settings.clear();
       this.conflicts.clear();
+      this.favorites.clear();
     }
     this.session = session;
   }
@@ -130,16 +135,36 @@ export class Daily {
     }
     return states;
   }
-  async mute(peer: string, duration: number): Promise<void> {
-    await this.refreshOrganization(peer);
+  async mute(
+    peer: string,
+    duration: number,
+    options: { settingsId?: string } = {},
+  ): Promise<void> {
+    const generation = this.generation,
+      settingsId = options.settingsId ?? peer;
+    await this.refreshOrganization(settingsId);
+    this.assertGeneration(generation);
     if (
-      this.conversation(peer).archived &&
+      this.conversation(settingsId).archived &&
       duration !== Number.MAX_SAFE_INTEGER
     )
       throw new Error(
         'Desarquive a conversa antes de alterar ou retomar os alertas.',
       );
     await this.applyMute(peer, duration);
+  }
+  async keepArchivedSilent(
+    peer: string,
+    settingsId: string,
+    state: PeerState,
+  ): Promise<PeerState> {
+    if (
+      !this.conversation(settingsId).archived ||
+      state.mutedUntil === Number.MAX_SAFE_INTEGER
+    )
+      return state;
+    await this.mute(peer, Number.MAX_SAFE_INTEGER, { settingsId });
+    return this.state(peer);
   }
   private async applyMute(peer: string, duration: number): Promise<void> {
     const state = await this.state(peer);
@@ -175,8 +200,10 @@ export class Daily {
       throw new Error(
         'Sincronize o cofre antes de abrir preferências de conversa.',
       );
-    this.settings.clear();
-    this.conflicts.clear();
+    const generation = this.generation;
+    const settings = new Map<string, ConversationSettings>(),
+      conflicts = new Set<string>(),
+      favorites = new Map<string, boolean>();
     for (const group of this.sync.currentHeads().values()) {
       const entries = group.filter(
         (e) =>
@@ -185,9 +212,25 @@ export class Daily {
           peers.includes(e.change.entity) &&
           !this.sync.isRemoved(e.commit.id),
       );
+      const favoriteHeads = group.filter(
+        (e) =>
+          e.change.kind === 'settings' &&
+          e.change.label === 'Conversa favorita' &&
+          peers.includes(e.change.entity) &&
+          !this.sync.isRemoved(e.commit.id),
+      );
+      if (favoriteHeads.length > 16 || entries.length > 16)
+        throw new Error(
+          'Muitas versões de preferências. Resolva os conflitos antes de continuar.',
+        );
+      if (favoriteHeads[0])
+        favorites.set(
+          favoriteHeads[0].change.entity,
+          await this.readFavorites(favoriteHeads),
+        );
       const e = entries[0];
       if (!e) continue;
-      if (entries.length > 1) this.conflicts.add(e.change.entity);
+      if (entries.length > 1) conflicts.add(e.change.entity);
       const values = [];
       for (const entry of entries)
         values.push(
@@ -195,8 +238,59 @@ export class Daily {
             JSON.parse(await this.sync.open(entry.commit.id)) as unknown,
           ),
         );
-      this.settings.set(e.change.entity, mergeConversationSettings(values));
+      settings.set(e.change.entity, mergeConversationSettings(values));
     }
+    this.assertGeneration(generation);
+    this.settings = settings;
+    this.conflicts = conflicts;
+    this.favorites = favorites;
+  }
+  private async readFavorites(
+    heads: readonly import('../vault-sync/index.ts').VaultEntry[],
+  ): Promise<boolean> {
+    let favorite = false;
+    for (const head of heads) {
+      const value = favoriteValue(
+        JSON.parse(await this.sync.open(head.commit.id)) as unknown,
+      );
+      favorite = value || favorite;
+    }
+    return favorite;
+  }
+  favorite(id: string): boolean {
+    return this.favorites.get(id) ?? false;
+  }
+  hasOrganization(id: string): boolean {
+    return this.settings.has(id);
+  }
+  async setFavorite(id: string, favorite: boolean): Promise<void> {
+    const generation = this.generation;
+    await this.refreshOrganization(id);
+    const parents = [...this.sync.currentHeads().values()]
+      .flat()
+      .filter(
+        (e) =>
+          e.change.kind === 'settings' &&
+          e.change.entity === id &&
+          e.change.label === 'Conversa favorita' &&
+          !this.sync.isRemoved(e.commit.id),
+      )
+      .map((e) => e.commit.id);
+    if (parents.length > 16)
+      throw new Error('Resolva as versões deste favorito antes de continuar.');
+    this.assertGeneration(generation);
+    await this.sync.save({
+      change: {
+        version: 1,
+        entity: id,
+        kind: 'settings',
+        parents,
+        label: 'Conversa favorita',
+      },
+      value: JSON.stringify({ favorite }),
+    });
+    this.assertGeneration(generation);
+    this.favorites.set(id, favorite);
   }
   organizationConflict(peer: string): boolean {
     return this.conflicts.has(peer);
@@ -213,7 +307,9 @@ export class Daily {
   async organize(
     peer: string,
     patch: { archived?: boolean; pinned?: boolean },
+    options: { mutePeer?: string | null } = {},
   ): Promise<void> {
+    const generation = this.generation;
     await this.refreshOrganization(peer);
     const parents = [...this.sync.currentHeads().values()]
       .flat()
@@ -225,7 +321,11 @@ export class Daily {
       )
       .map((e) => e.commit.id);
     const value = { ...this.conversation(peer), ...patch };
-    if (patch.archived) await this.applyMute(peer, Number.MAX_SAFE_INTEGER);
+    const mutePeer = options.mutePeer === undefined ? peer : options.mutePeer;
+    this.assertGeneration(generation);
+    if (patch.archived && mutePeer)
+      await this.applyMute(mutePeer, Number.MAX_SAFE_INTEGER);
+    this.assertGeneration(generation);
     try {
       await this.sync.save({
         change: {
@@ -238,18 +338,21 @@ export class Daily {
         value: JSON.stringify(value),
       });
     } catch (error: unknown) {
-      if (patch.archived)
+      if (patch.archived && mutePeer)
         throw new Error(
           'Alertas silenciados, mas o arquivamento não foi salvo. Tente novamente.',
           { cause: error },
         );
       throw error;
     }
+    this.assertGeneration(generation);
     this.settings.set(peer, value);
   }
   private async refreshOrganization(peer: string): Promise<void> {
     await this.sync.refresh();
-    const visible = [...new Set([...this.settings.keys(), peer])].slice(-16);
+    const visible = [
+      ...new Set([...this.settings.keys(), ...this.favorites.keys(), peer]),
+    ];
     await this.loadSettings(visible);
     if ((this.sync.currentHeads().get(peer)?.length ?? 0) > 16)
       throw new Error(
@@ -298,6 +401,13 @@ export class Daily {
   }
 }
 export { genericNotification };
+function favoriteValue(input: unknown): boolean {
+  const value = object(input);
+  keys(value, ['favorite']);
+  if (typeof value['favorite'] !== 'boolean')
+    throw new Error('Favorito inválido.');
+  return value['favorite'];
+}
 function parseState(value: unknown): PeerState {
   const d = object(value);
   if (

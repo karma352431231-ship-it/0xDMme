@@ -24,6 +24,7 @@ interface GroupOptions {
   isBusy: () => boolean;
   alert: () => void;
   peers: () => readonly Peer[];
+  organizationPeers?: () => readonly string[];
 }
 export function startGroups(
   access: VaultAccess,
@@ -132,7 +133,8 @@ export function startGroups(
         .map((g) => ({ id: g.state.groupId, head: g.head })),
     );
     await options.daily.loadSettings([
-      ...options.peers().map((p) => p.accountId),
+      ...(options.organizationPeers?.() ??
+        options.peers().map((p) => p.accountId)),
       ...controller.entries.map((g) => g.state.groupId),
     ]);
     const previous = states;
@@ -268,8 +270,6 @@ export function startGroups(
   }
   function renderLocalControls(group: GroupSummary): void {
     for (const selector of [
-      '[data-group-archive]',
-      '[data-group-pin]',
       '[data-group-leave]',
       '[data-group-owner-note]',
       '[data-group-delete]',
@@ -573,30 +573,6 @@ export function startGroups(
     bind('[data-voice-stop]', () => void voice.stop());
     bind('[data-voice-cancel]', () => voice.cancel());
     bind(
-      '[data-group-archive]',
-      () =>
-        void run(async () => {
-          const id = controller.selected?.state.groupId;
-          if (!id) return;
-          await options.daily.organize(id, {
-            archived: !options.daily.conversation(id).archived,
-          });
-          await refresh();
-        }),
-    );
-    bind(
-      '[data-group-pin]',
-      () =>
-        void run(async () => {
-          const id = controller.selected?.state.groupId;
-          if (!id) return;
-          await options.daily.organize(id, {
-            pinned: !options.daily.conversation(id).pinned,
-          });
-          options.changed();
-        }),
-    );
-    bind(
       '[data-group-leave]',
       () =>
         void run(async () => {
@@ -756,6 +732,7 @@ export function startGroups(
       return voice.active || !!attachments.selected?.voice;
     },
     listLabel,
+    unread: (id: string) => states.get(id)?.unread ?? 0,
     search: (query: string, after: string | null) =>
       controller.search(query, after),
     refresh,
@@ -800,7 +777,7 @@ export function startGroups(
       container.hidden = !controller.selected;
       if (session) container.dataset['voicePeer'] = session.accountId;
       sidebarContainer.innerHTML = `<button data-group-new type="button">Novo grupo</button><p data-group-mode></p><form data-group-create hidden><label>Nome do grupo<input data-group-name maxlength="160" required></label><button type="submit">Criar grupo</button></form><button data-group-cancel-create type="button" hidden>Descartar pedido local de criação</button><details><summary>Convites e transferências de grupos</summary><div data-group-incoming></div><button data-group-more-incoming type="button" hidden>Mais convites</button></details>`;
-      container.innerHTML = `<h3 data-group-title></h3><p data-group-count></p><p data-group-notice role="status"></p><button data-group-archive type="button">Arquivar/desarquivar</button><button data-group-pin type="button">Fixar/desfixar</button><div data-group-history class="chat-history"></div><button data-group-older type="button">Mensagens anteriores</button><form data-group-compose><label>Mensagem<textarea data-group-text rows="3"></textarea></label><button data-group-emoji type="button">Escolher emoji</button><label>Enviar como<select data-attachment-mode><option value="photo">Foto otimizada</option><option value="file">Arquivo original (até 3 MB)</option></select></label><label>Foto ou arquivo<input data-attachment-file type="file"></label><button data-voice-record type="button">Gravar voz</button><button data-voice-stop type="button" hidden>Parar e conferir</button><button data-voice-cancel type="button" hidden>Cancelar gravação</button><p data-voice-status role="status"></p><p>Voz: até 90 segundos. Ouça a prévia e toque em Enviar.</p><div data-attachment-preview></div><button data-attachment-clear type="button">Remover seleção</button><button class="primary" type="submit">Enviar</button></form><ul data-group-pending></ul><details><summary>Participantes e administração</summary><ul data-group-members></ul><form data-group-invite><label>Convidar contato<select data-group-invite-target></select></label><button type="submit">Enviar convite</button></form><p data-group-owner-note>Para sair, ofereça a propriedade a outro membro e aguarde o aceite. Ele precisa ter saldo e vaga para assumir.</p><button data-group-leave type="button">Sair do grupo</button><button data-group-delete type="button">Excluir grupo</button></details><details data-group-vault><summary>Cofre do grupo</summary><p data-group-usage></p><p data-group-cleanup-warning role="status"></p><ul data-group-cleanup-items></ul><button data-group-cleanup-more type="button" hidden>Próximas mídias selecionadas</button><p><a href="#cofre">Salvar um backup cifrado</a> para conservar uma cópia das mídias antes da limpeza. Status não entra no backup.</p><button data-group-clear type="button">Limpar cofre remoto</button></details>`;
+      container.innerHTML = `<h3 data-group-title></h3><p data-group-count></p><p data-group-notice role="status"></p><div data-group-history class="chat-history"></div><button data-group-older type="button">Mensagens anteriores</button><form data-group-compose><label>Mensagem<textarea data-group-text rows="3"></textarea></label><button data-group-emoji type="button">Escolher emoji</button><label>Enviar como<select data-attachment-mode><option value="photo">Foto otimizada</option><option value="file">Arquivo original (até 3 MB)</option></select></label><label>Foto ou arquivo<input data-attachment-file type="file"></label><button data-voice-record type="button">Gravar voz</button><button data-voice-stop type="button" hidden>Parar e conferir</button><button data-voice-cancel type="button" hidden>Cancelar gravação</button><p data-voice-status role="status"></p><p>Voz: até 90 segundos. Ouça a prévia e toque em Enviar.</p><div data-attachment-preview></div><button data-attachment-clear type="button">Remover seleção</button><button class="primary" type="submit">Enviar</button></form><ul data-group-pending></ul><details><summary>Participantes e administração</summary><ul data-group-members></ul><form data-group-invite><label>Convidar contato<select data-group-invite-target></select></label><button type="submit">Enviar convite</button></form><p data-group-owner-note>Para sair, ofereça a propriedade a outro membro e aguarde o aceite. Ele precisa ter saldo e vaga para assumir.</p><button data-group-leave type="button">Sair do grupo</button><button data-group-delete type="button">Excluir grupo</button></details><details data-group-vault><summary>Cofre do grupo</summary><p data-group-usage></p><p data-group-cleanup-warning role="status"></p><ul data-group-cleanup-items></ul><button data-group-cleanup-more type="button" hidden>Próximas mídias selecionadas</button><p><a href="#cofre">Salvar um backup cifrado</a> para conservar uma cópia das mídias antes da limpeza. Status não entra no backup.</p><button data-group-clear type="button">Limpar cofre remoto</button></details>`;
       attachments.mount(container, run);
       bindChat();
       bindAside();
