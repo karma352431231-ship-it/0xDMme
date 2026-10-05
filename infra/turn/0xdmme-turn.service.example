@@ -9,7 +9,7 @@ Type=simple
 User=xdmme-turn
 Group=xdmme-turn
 Slice=xdmme-test.slice
-ExecStart=/var/lib/0xdmme/data/turn-runtime/bin/turnserver -c /etc/0xdmme-turn/turnserver.conf
+ExecStart=/opt/0xdmme-turn/bin/turnserver -c /etc/0xdmme-turn/turnserver.conf
 RuntimeDirectory=0xdmme-turn
 RuntimeDirectoryMode=0700
 UMask=0077
@@ -39,7 +39,7 @@ ProtectProc=invisible
 PrivateDevices=yes
 TemporaryFileSystem=/opt:ro /srv:ro /var:ro /etc:ro /run:ro
 TemporaryFileSystem=/tmp:rw,nosuid,nodev,noexec,size=8M
-BindReadOnlyPaths=/var/lib/0xdmme/data/turn-runtime /etc/0xdmme-turn /etc/passwd /etc/group /etc/localtime
+BindReadOnlyPaths=/opt/0xdmme-turn /etc/0xdmme-turn /etc/passwd /etc/group /etc/localtime
 BindPaths=/run/0xdmme-turn
 ReadWritePaths=/run/0xdmme-turn
 
