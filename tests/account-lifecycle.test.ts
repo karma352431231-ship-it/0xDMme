@@ -44,6 +44,7 @@ function scope(options: {
   approvalResponse?: Promise<Response>;
   approvalDocument?: string;
   approvalRejection?: string;
+  privateKey?: Parameters<typeof startAccount>[0]['privateKey'];
 }) {
   const address = `0x${'1'.repeat(40)}`;
   const listeners = new Map<string, () => void>();
@@ -263,7 +264,10 @@ function scope(options: {
       return responses.get(path)?.() ?? Response.json({ status: 'signed-out' });
     },
   }) as { startAccount: typeof startAccount };
-  const account = api.startAccount({ changed: (value) => states.push(value) });
+  const account = api.startAccount({
+    changed: (value) => states.push(value),
+    ...(options.privateKey ? { privateKey: options.privateKey } : {}),
+  });
   account.mount(mounted as unknown as HTMLElement);
   return {
     account,
@@ -300,6 +304,38 @@ function scope(options: {
     dispose: () => window.dispatchEvent(new Event('pagehide')),
   };
 }
+
+await test('restaurar sessão abre somente chaves locais; novo login pode solicitar a wallet', async () => {
+  const modes: string[] = [];
+  const restored = {
+    accountId: randomUUID(),
+    deviceId: randomUUID(),
+    ecosystem: 'evm',
+    address: '0x' + '1'.repeat(40),
+    csrf: 'c'.repeat(64),
+    name: '',
+    deviceState: 'pending',
+    historyAuthorized: false,
+    walletConfirmed: true,
+    expiresAt: new Date(Date.now() + 60_000).toISOString(),
+    profileRevision: 0,
+  };
+  const browser = scope({
+    sessionResponse: Promise.resolve(Response.json(restored)),
+    privateKey: (_session, mode) => {
+      modes.push(mode);
+      return Promise.resolve(null);
+    },
+  });
+  await tick();
+  assert.deepEqual(modes, ['restore']);
+  assert.equal(browser.account.canActivate(), true);
+  assert.match(browser.status.textContent, /Sessão conectada/);
+  browser.click();
+  await tick();
+  assert.deepEqual(modes, ['restore', 'login']);
+  browser.dispose();
+});
 
 await test('prompt que resolve após prazo não cria desafio e não acumula pedidos', async () => {
   const accounts = deferred<unknown>();

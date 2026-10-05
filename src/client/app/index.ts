@@ -96,8 +96,8 @@ const messages = startMessages(devices, vault.sync, {
 });
 const account = startAccount({
   privacyChanged: (preferences) => messages.applyPrivacy(preferences),
-  privateKey: async (session) => {
-    const key = await devices.privateKey(session);
+  privateKey: async (session, walletOpening) => {
+    const key = await devices.privateKey(session, walletOpening);
     connection();
     return key;
   },
@@ -129,6 +129,7 @@ const account = startAccount({
 const pwa = account.approvalPage
   ? null
   : startPwa({
+      blockedReason: () => devices.updateBlockReason(),
       canActivate: () =>
         account.canActivate() &&
         devices.canActivate() &&
@@ -267,7 +268,7 @@ function connection(): void {
     ? connectedAccount
       ? devices.authorized()
         ? 'Conta conectada'
-        : 'Abrindo sua conta…'
+        : 'Sessão conectada · abertura da conta em Configurações → Aparelhos'
       : 'Conexão disponível · nenhuma conta conectada'
     : 'Sem conexão · histórico salvo disponível neste aparelho';
 }

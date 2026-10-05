@@ -223,6 +223,8 @@ Detalhes da implementação: vinculação requer a origem aberta/visível para a
 
 **Ponto importante:** simplicidade de interface não autoriza remover criptografia, consentimento, revogação, validação de backup ou limites operacionais. Não executar exclusão de dados como parte da limpeza de interface.
 
+Correção mobile em 05/10/2026, solicitada pelo proprietário: restaurar uma sessão consulta as chaves locais e retoma um retorno ainda válido, sem abrir a wallet novamente. Novo login continua conduzindo automaticamente à autorização privada; quando uma sessão restaurada não tem chaves autorizadas, a ação **Abrir conta** em Configurações → Aparelhos retoma esse mesmo fluxo. Pedidos expirados ou encerrados pelo servidor deixam de bloquear a atualização; pedidos válidos e operações privadas continuam protegidos. O limite de 60 segundos é o prazo máximo do preparo offline, não uma espera para abrir o app. Reuso de assets públicos exige SHA-256 igual ao build candidato; navegação de rede pendente usa o shell já instalado após oito segundos. Diagnóstico e limites de aceite em [base web](docs/BLOCO_02_BASE_WEB.md) e [aparelhos](docs/BLOCO_04_DISPOSITIVOS_E_RECUPERACAO.md). Implementação local não implica publicação ou aceite físico.
+
 ### 5.7 Navegação de chat aprovada em 05/10/2026
 
 O proprietário solicitou reorganizar a interface com as referências visuais fornecidas. Esta revisão substitui a posição de navegação descrita nos blocos anteriores; mantém as regras de consentimento, criptografia, histórico e perfil.

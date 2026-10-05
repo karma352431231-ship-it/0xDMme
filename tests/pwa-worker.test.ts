@@ -22,6 +22,7 @@ async function worker(
     pushCheckFails?: boolean;
     pushSound?: string;
     networkStatus?: number;
+    previousAssets?: Record<string, Uint8Array>;
   } = {},
 ) {
   let networkAvailable = options.networkAvailable ?? true;
@@ -52,6 +53,12 @@ async function worker(
   const notifications: { title: string; options: NotificationOptions }[] = [];
   const opened: string[] = [];
   const origin = 'https://hash-talk.example';
+  const networkResponses = new WeakSet<Response>();
+  for (const [path, bytes] of Object.entries(options.previousAssets ?? {})) {
+    const response = new Response(bytes as BodyInit);
+    Object.defineProperty(response, 'type', { value: 'basic' });
+    stores.get('hash-talk-shell-old')?.set(origin + path, response);
+  }
   if (options.pushSound !== undefined)
     cache.set(
       origin + '/.0xdmme/sound-preference',
@@ -99,6 +106,7 @@ async function worker(
     },
     URL,
     JSON,
+    crypto,
     registration: {
       showNotification: (title: string, options: NotificationOptions) => {
         notifications.push({ title, options });
@@ -114,18 +122,29 @@ async function worker(
     },
     caches: {
       open: (name: string) => {
-        stores.set(name, cache);
+        let storage = stores.get(name);
+        if (!storage) {
+          storage = cache;
+          stores.set(name, storage);
+        }
+        const records = storage;
         return Promise.resolve({
           put: async (path: string, response: Response) => {
             if (++writes === options.failWriteAt)
               return Promise.reject(new Error('synthetic-cache-full'));
             const stored = response.clone();
             await response.arrayBuffer();
-            unreadResponses--;
-            cache.set(`${origin}${path}`, stored);
+            if (networkResponses.has(response)) unreadResponses--;
+            records.set(`${origin}${path}`, stored);
             return Promise.resolve();
           },
-          match: (url: string) => Promise.resolve(cache.get(url)),
+          match: (url: string) => {
+            const original = records.get(new URL(url, origin).href);
+            const copy = original?.clone();
+            if (copy && original?.type === 'basic')
+              Object.defineProperty(copy, 'type', { value: 'basic' });
+            return Promise.resolve(copy);
+          },
         });
       },
       keys: () => Promise.resolve([...stores.keys()]),
@@ -160,6 +179,7 @@ async function worker(
         status: options.networkStatus ?? 200,
       });
       Object.defineProperty(response, 'type', { value: 'basic' });
+      networkResponses.add(response);
       return Promise.resolve(response);
     },
   });
@@ -251,6 +271,13 @@ await test('navegação sem rede nem cache falha e erro HTTP do servidor não é
     await unavailable.cache.get(`${unavailable.origin}/`)?.text(),
     'old-shell',
   );
+  const stalled = await worker({ networkDelayMs: 9000 });
+  stalled.cache.set(`${stalled.origin}/`, new Response('installed-shell'));
+  await stalled.dispatch('fetch', {
+    request: navigation(`${stalled.origin}/`),
+  });
+  assert.equal(await stalled.response()?.text(), 'installed-shell');
+  assert.equal(stalled.activations(), 0);
 });
 
 await test('worker real instala só shell público e atende offline sem interceptar API', async () => {
@@ -397,4 +424,33 @@ await test('downloads lentos instalam além de oito segundos; instalação acima
   assert.equal(stalled.deleted.length, 1);
   assert.equal(stalled.stores.has('hash-talk-shell-old'), true);
   assert.equal(stalled.stores.has('unrelated-project-cache'), true);
+});
+
+await test('atualização reaproveita WASM público somente com hash igual ao build e preserva a versão anterior', async () => {
+  const path = '/matrix-crypto-18.9.0.wasm';
+  const bytes = await readFile(
+    new URL('../dist/web/matrix-crypto-18.9.0.wasm', import.meta.url),
+  );
+  const fresh = await worker();
+  await fresh.dispatch('install');
+  const reused = await worker({ previousAssets: { [path]: bytes } });
+  await reused.dispatch('install');
+  assert.equal(reused.networkRequests(), fresh.networkRequests() - 1);
+  assert.deepEqual(
+    new Uint8Array(await reused.cache.get(reused.origin + path)!.arrayBuffer()),
+    new Uint8Array(bytes),
+  );
+  assert.ok(
+    reused.stores.get('hash-talk-shell-old')?.has(reused.origin + path),
+  );
+  const altered = await worker({
+    previousAssets: { [path]: new TextEncoder().encode('wrong-version') },
+  });
+  await altered.dispatch('install');
+  assert.equal(altered.networkRequests(), fresh.networkRequests());
+  assert.equal(
+    await altered.cache.get(altered.origin + path)?.text(),
+    'public-shell',
+  );
+  assert.ok(altered.stores.has('unrelated-project-cache'));
 });

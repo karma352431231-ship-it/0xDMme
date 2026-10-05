@@ -54,7 +54,27 @@ interface WorkerScope {
 const scope = globalThis as unknown as WorkerScope;
 // Replaced by build; every release gets its own allowlist and cache identifier.
 const assets: readonly string[] = JSON.parse('{{ASSETS}}') as string[];
+const hashes = JSON.parse('{{ASSET_HASHES}}') as Record<string, string>;
 const cacheName = 'hash-talk-shell-{{VERSION}}';
+
+async function previousAsset(
+  path: string,
+  previous: string[],
+): Promise<Response | undefined> {
+  if (path === '/') return undefined;
+  for (const name of previous) {
+    const cache = await caches.open(name);
+    const response = await cache.match(path);
+    if (!response?.ok || response.type !== 'basic') continue;
+    const bytes = await response.clone().arrayBuffer();
+    const digest = await crypto.subtle.digest('SHA-256', bytes);
+    const hash = Array.from(new Uint8Array(digest), (byte) =>
+      byte.toString(16).padStart(2, '0'),
+    ).join('');
+    if (hash === hashes[path]) return response;
+  }
+  return undefined;
+}
 
 scope.addEventListener('install', (event) => {
   // WASM and emoji assets must fit the same bounded installation on mobile.
@@ -63,15 +83,24 @@ scope.addEventListener('install', (event) => {
     caches
       .open(cacheName)
       .then(async (cache) => {
+        const previous = (await caches.keys())
+          .filter(
+            (name) => name.startsWith('hash-talk-shell-') && name !== cacheName,
+          )
+          .slice(-2);
         // Consume each body before requesting another asset. Retaining every
         // unread Response can exhaust the browser's connection/stream budget.
         for (const path of assets) {
           signal.throwIfAborted();
-          const response = await fetch(path, {
-            cache: 'no-store',
-            redirect: 'error',
-            signal,
-          });
+          const reused = await previousAsset(path, previous);
+          signal.throwIfAborted();
+          const response =
+            reused ??
+            (await fetch(path, {
+              cache: 'no-store',
+              redirect: 'error',
+              signal,
+            }));
           if (!response.ok || response.type !== 'basic')
             throw new Error('Shell incompleto.');
           await cache.put(path, response);
@@ -124,7 +153,11 @@ scope.addEventListener('fetch', (event) => {
 async function appDocument(request: Request): Promise<Response> {
   try {
     // Online entry always uses the published HTML, independently of offline prep.
-    return await fetch(request, { cache: 'no-store', redirect: 'error' });
+    return await fetch(request, {
+      cache: 'no-store',
+      redirect: 'error',
+      signal: AbortSignal.timeout(8000),
+    });
   } catch (error) {
     const cache = await caches.open(cacheName);
     const cached = await cache.match(request.url);

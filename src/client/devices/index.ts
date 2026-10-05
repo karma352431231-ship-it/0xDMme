@@ -55,7 +55,13 @@ export function startDevices(options: {
       controller.session !== null &&
         controller.session.walletConfirmed !== true,
     );
-    show('[data-device-retry]', failed);
+    show(
+      '[data-device-retry]',
+      failed ||
+        (!!controller.session &&
+          !controller.authorized &&
+          !controller.walletPending),
+    );
     show('[data-wallet-pending]', controller.walletPending !== null);
     show('[data-enrollment-code]', invitation !== null);
   }
@@ -132,10 +138,19 @@ export function startDevices(options: {
   }
   function schedule(): void {
     clearTimeout(timer);
+    expireWalletRequest();
     if (invitation || waiting || controller.walletPending)
       timer = setTimeout(() => {
         void poll();
       }, 5000);
+  }
+  function expireWalletRequest(): void {
+    if (!controller.expireWalletRecovery()) return;
+    clearTimeout(timer);
+    failed = true;
+    message =
+      'O pedido na wallet expirou. Toque em Abrir conta para tentar novamente.';
+    render();
   }
   async function poll(): Promise<void> {
     if (busy || document.visibilityState === 'hidden' || !navigator.onLine) {
@@ -209,9 +224,12 @@ export function startDevices(options: {
   ): void {
     node(selector)?.addEventListener(event, listener);
   }
-  async function openKeys(session: AccountSession): Promise<CryptoKey | null> {
+  async function openKeys(
+    session: AccountSession,
+    walletOpening: 'login' | 'restore' = 'restore',
+  ): Promise<CryptoKey | null> {
     let lease = await controller.privateKey(session);
-    if (needsWalletOpening(session)) {
+    if (walletOpening === 'login' && needsWalletOpening(session)) {
       attempted = session.csrf;
       message = 'Confirme a abertura da conta na sua wallet.';
       render();
@@ -227,11 +245,17 @@ export function startDevices(options: {
       lease = await controller.privateKey(session);
     }
     rememberLease(lease, session);
+    renderOpeningStatus();
+    return controller.authorized ? (lease?.key ?? null) : null;
+  }
+  function renderOpeningStatus(): void {
     if (controller.authorized)
       message = 'Sua conta está pronta neste aparelho.';
-    if (controller.walletPending) schedule();
+    else if (!controller.walletPending)
+      message =
+        'A sessão está conectada. Abra sua conta para autorizar as chaves neste navegador.';
+    schedule();
     render();
-    return controller.authorized ? (lease?.key ?? null) : null;
   }
   async function join(code: string): Promise<void> {
     const session = await controller.joinEnrollment(code);
@@ -257,6 +281,10 @@ export function startDevices(options: {
     invitation = null;
     waiting = false;
     controller.clearTransient();
+  });
+  window.addEventListener('pageshow', (event) => {
+    if (!event.persisted || !controller.session) return;
+    void run(options.changed);
   });
   return {
     withLocalVault: <T>(
@@ -288,12 +316,24 @@ export function startDevices(options: {
       await controller.saveProfile(session, profile, lease.epoch);
     },
     authorized: () => controller.authorized,
-    canActivate: () =>
-      !busy &&
-      !invitation &&
-      !waiting &&
-      !controller.walletPending &&
-      !camera?.active,
+    updateBlockReason(): string | null {
+      expireWalletRequest();
+      if (controller.walletPending)
+        return 'Há uma abertura de conta pendente na wallet. Em Configurações → Aparelhos, conclua ou cancele o pedido antes de atualizar.';
+      if (invitation || waiting || camera?.active)
+        return 'Conclua a vinculação ou feche a câmera em Configurações → Aparelhos antes de atualizar.';
+      return null;
+    },
+    canActivate(): boolean {
+      expireWalletRequest();
+      return (
+        !busy &&
+        !invitation &&
+        !waiting &&
+        !controller.walletPending &&
+        !camera?.active
+      );
+    },
     mount(container: HTMLElement): void {
       camera?.stop();
       mounted = container;
@@ -356,9 +396,12 @@ export function startDevices(options: {
       listen('[data-device-retry]', 'click', () => {
         attempted = null;
         void run(async () => {
+          if (controller.session) await openKeys(controller.session, 'login');
           await options.changed();
         });
       });
+      const retry = node('[data-device-retry]');
+      if (retry) retry.textContent = 'Abrir conta';
       render();
     },
   };

@@ -679,10 +679,22 @@ export function createAccountHandler(options: {
       request.headers['sec-fetch-dest'] !== 'document'
     )
       throw new AccountError(403, 'Entrada exige navegação de documento.');
-    recovery.requestPublic(entry);
-    const document = options.recoveryDocument;
+    let rejected = false;
+    try {
+      recovery.requestPublic(entry);
+    } catch (error: unknown) {
+      if (!(error instanceof AccountError) || error.status !== 409) throw error;
+      rejected = true;
+    }
+    let document = options.recoveryDocument;
     if (!document || document.length > 65_536)
       throw new AccountError(503, 'Página de recuperação indisponível.');
+    if (rejected)
+      document = Buffer.from(
+        new TextDecoder()
+          .decode(document)
+          .replace('<html ', '<html data-recovery-rejected '),
+      );
     response.setHeader('Content-Type', 'text/html; charset=utf-8');
     response.setHeader('Content-Length', document.length);
     response.writeHead(200).end(document);

@@ -115,7 +115,10 @@ function deviceId(): string {
 export function startAccount(options: {
   changed: (session: AccountSession | null) => void;
   privacyChanged?: (preferences: ProfilePreferences) => Promise<void>;
-  privateKey?: (session: AccountSession) => Promise<CryptoKey | null>;
+  privateKey?: (
+    session: AccountSession,
+    walletOpening: 'login' | 'restore',
+  ) => Promise<CryptoKey | null>;
   saveProfile?: (
     session: AccountSession,
     profile: EncryptedProfile,
@@ -181,7 +184,7 @@ export function startAccount(options: {
     authenticated: async (authenticated) => {
       setSession(authenticated);
       status = 'Abrindo sua conta…';
-      await loadPrivate(authenticated);
+      await loadPrivate(authenticated, 'login');
     },
   });
   const offWallets = wallets.onChange(() => {
@@ -635,12 +638,16 @@ export function startAccount(options: {
         setSession({ ...session, profileRevision: revision });
     }
   }
-  async function loadPrivate(current: AccountSession): Promise<void> {
+  async function loadPrivate(
+    current: AccountSession,
+    walletOpening: 'login' | 'restore' = 'restore',
+  ): Promise<void> {
     clearPrivate();
     const localKey = options.privateKey
-      ? await options.privateKey(current)
+      ? await options.privateKey(current, walletOpening)
       : await profileKey(current.accountId, current.profileRevision === 0);
     if (!localKey) {
+      status = 'Sessão conectada. Abra sua conta em Configurações → Aparelhos.';
       profileStatus =
         'Perfil bloqueado. Autorize este aparelho por vinculação ou recuperação.';
       return;
@@ -874,7 +881,7 @@ export function startAccount(options: {
     }
     setSession(authenticated);
     status = 'Abrindo sua conta…';
-    await loadPrivate(authenticated);
+    await loadPrivate(authenticated, 'login');
   }
   async function saveName(event: Event): Promise<void> {
     event.preventDefault();

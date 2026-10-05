@@ -242,8 +242,17 @@ await test('atualização espera operação de conta e alterações não salvas'
   scope.registration.active = new Worker();
   scope.registration.waiting = new Worker();
   let allowed = false;
-  scope.start({ canActivate: () => allowed });
+  let reason: string | null =
+    'Abertura pendente. Cancele em Configurações → Aparelhos.';
+  scope.start({ canActivate: () => allowed, blockedReason: () => reason });
   await new Promise<void>((resolve) => setImmediate(resolve));
+  scope.elements.get('apply-update')?.dispatchEvent(new Event('click'));
+  assert.equal(scope.registration.waiting.messages.length, 0);
+  assert.match(
+    scope.elements.get('update-result')?.textContent ?? '',
+    /Ap\S*relhos/,
+  );
+  reason = null;
   scope.elements.get('apply-update')?.dispatchEvent(new Event('click'));
   assert.equal(scope.registration.waiting.messages.length, 0);
   assert.match(scope.elements.get('update-result')?.textContent ?? '', /salve/);

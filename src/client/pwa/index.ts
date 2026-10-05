@@ -1,5 +1,10 @@
-/** Public shell only. Activation is explicit; no account/crypto operations yet. */
-export function startPwa(options: { canActivate?: () => boolean } = {}) {
+/** Explicit shell activation waits for private operations and unsaved drafts. */
+export function startPwa(
+  options: {
+    canActivate?: () => boolean;
+    blockedReason?: () => string | null;
+  } = {},
+) {
   let registration: ServiceWorkerRegistration | undefined;
   let state = 'Preparando interface offline…';
   let busy = false;
@@ -111,13 +116,19 @@ export function startPwa(options: { canActivate?: () => boolean } = {}) {
     }
   }
 
+  function activationBlock(): string | null {
+    const blocked = options.blockedReason?.();
+    if (blocked) return blocked;
+    return options.canActivate?.() === false
+      ? 'Conclua a operação ou salve suas alterações antes de atualizar.'
+      : null;
+  }
   function apply(): void {
     if (!registration?.waiting || applying || disposed) return;
-    if (options.canActivate && !options.canActivate()) {
+    const blocked = activationBlock();
+    if (blocked) {
       const result = document.getElementById('update-result');
-      if (result)
-        result.textContent =
-          'Conclua a operação ou salve suas alterações antes de atualizar.';
+      if (result) result.textContent = blocked;
       return;
     }
     applying = true;

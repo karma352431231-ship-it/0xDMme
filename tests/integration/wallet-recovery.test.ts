@@ -49,7 +49,7 @@ await test('PostgreSQL/HTTP: migração autorizada e retorno cifrado preservam d
   });
   const devices = new DeviceService(database.devices, origin);
   const document = new TextEncoder().encode(
-    '<!doctype html><title>Recuperação privada</title>',
+    '<!doctype html><html lang="pt-BR"><title>Recuperação privada</title></html>',
   );
   const host = createWebServer({
     origin,
@@ -327,6 +327,32 @@ await test('PostgreSQL/HTTP: migração autorizada e retorno cifrado preservam d
         (await post('recovery-submit', { ...entry, envelope }, pending)).status,
         409,
       );
+      const ended = await new Promise<string>((resolve, reject) => {
+        get(
+          url,
+          {
+            headers: {
+              'Sec-Fetch-Mode': 'navigate',
+              'Sec-Fetch-Dest': 'document',
+              'Sec-Fetch-Site': 'cross-site',
+            },
+          },
+          (response) => {
+            assert.equal(response.statusCode, 200);
+            assert.equal(response.headers['set-cookie'], undefined);
+            assert.equal(response.headers['cache-control'], 'no-store');
+            let body = '';
+            response.setEncoding('utf8');
+            response.on('data', (chunk: string) => {
+              body += chunk;
+            });
+            response.on('end', () => resolve(body));
+          },
+        ).on('error', reject);
+      });
+      assert.ok(ended.includes('data-recovery-rejected'));
+      assert.equal(ended.includes(entry.ticket), false);
+      assert.equal((await post('recovery-take', entry, pending)).status, 409);
     },
   );
   await t.test(

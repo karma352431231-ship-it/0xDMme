@@ -63,6 +63,7 @@ import {
   directRecovery,
   requestRecovery,
   receiveRecovery,
+  RecoveryReturnError,
   openRecoveryWallet,
   recoveryApi,
   rememberRecovery,
@@ -657,7 +658,43 @@ export class DeviceController {
     if (!this.walletPending) throw new Error('Pedido de recuperação ausente.');
     openRecoveryWallet(this.walletPending.pending);
   }
+  private forgetWalletRecovery(): void {
+    if (this.session) forgetRecovery(this.session);
+    this.walletPending = null;
+    this.legacyRecoverySecret = '';
+  }
+  expireWalletRecovery(): boolean {
+    if (!this.walletPending || this.walletPending.pending.deadline > Date.now())
+      return false;
+    this.forgetWalletRecovery();
+    return true;
+  }
+  private async walletSignatures(
+    session: AccountSession,
+    flow: RecoveryFlow,
+    identity: LocalIdentity,
+  ): Promise<string[] | null> {
+    try {
+      return await receiveRecovery({
+        session,
+        identity,
+        pending: flow.pending,
+      });
+    } catch (error: unknown) {
+      // A missing/consumed server request cannot receive another result. Network
+      // failures retain the live request so a valid signature can still return.
+      if (
+        error instanceof RecoveryReturnError &&
+        error.status === 409 &&
+        this.walletPending === flow
+      )
+        this.forgetWalletRecovery();
+      throw error;
+    }
+  }
   async finishWalletRecovery(legacy = ''): Promise<boolean> {
+    if (this.expireWalletRecovery())
+      throw new Error('O pedido na wallet expirou. Abra sua conta novamente.');
     return this.run(async (session) => {
       await this.loadIdentity(session);
       await this.restoreWalletPending(session);
@@ -675,16 +712,20 @@ export class DeviceController {
         throw new Error(
           'Informe uma última vez o código antigo para autorizar a migração.',
         );
-      const signatures = await receiveRecovery({
+      const signatures = await this.walletSignatures(
         session,
-        identity: this.identity,
-        pending: flow.pending,
-      });
+        flow,
+        this.identity,
+      );
       if (!signatures) return false;
       const token = this.generation;
       const current = () => {
         this.assertSession(session);
-        if (token !== this.generation)
+        if (
+          token !== this.generation ||
+          this.walletPending !== flow ||
+          Date.now() >= flow.pending.deadline
+        )
           throw new Error('Sessão alterada durante a recuperação.');
       };
       await this.completeWalletRecovery({

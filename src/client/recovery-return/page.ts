@@ -41,6 +41,8 @@ async function verifyDestination(
     throw new Error('Destino alterado.');
 }
 async function prepare(): Promise<void> {
+  if (document.documentElement.hasAttribute('data-recovery-rejected'))
+    throw new Error('Pedido encerrado.');
   const prepared = generation;
   const entry = recoveryEntry(location.pathname);
   if (!entry || location.search || location.hash)

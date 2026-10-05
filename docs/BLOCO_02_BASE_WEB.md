@@ -4,6 +4,18 @@ Estado: base local implementada. A aplicação navega entre conversas, contatos,
 
 Evolução em 01/10/2026: conta/perfil no [bloco 03](BLOCO_03_CONTA_E_PERFIL.md) e [staging HTTPS isolado](DOMINIO_E_AMBIENTE_TESTE.md), com fontes/licenças do build público. As descrições de loopback abaixo registram a entrega local do bloco 02; não representam o listener do staging nem publicação da V1.
 
+## Correção de carregamento mobile em 05/10/2026
+
+O prazo de 60 segundos limita a instalação completa do cache público em segundo plano; não é uma espera mínima para navegação nem a condição que mostra “Conclua a operação”. Esse aviso vinha dos guardas de operações privadas, incluindo um retorno de wallet expirado que permanecia pendente; a correção está no [bloco 04](BLOCO_04_DISPOSITIVOS_E_RECUPERACAO.md).
+
+A instalação anterior baixava novamente o WASM de 7.805.486 bytes a cada release. O Worker candidato agora pode copiar assets dos dois caches anteriores do próprio app, somente quando os bytes produzem o SHA-256 exigido pelo build candidato. Reuso não consulta caches de outros projetos, APIs, documentos de wallet, chaves ou conteúdo privado. HTML inicial continua solicitado na rede; não copiar esse documento durante instalação. Prazo total de 60 segundos, sequência limitada, limpeza do candidato incompleto, versão anterior e ativação explícita permanecem. A navegação online tem limite de oito segundos para obter resposta; se a rede não responder e houver shell completo instalado, usa esse shell, sem declarar atualização concluída. A entrada `/?atualizar=1` continua fora do cache para acesso explícito à versão publicada.
+
+O build usa minificação de sintaxe/identificadores pelo esbuild existente, preservando comentários legais e fontes preferenciais. O JavaScript principal caiu de 1.748.172 para 1.447.953 bytes, cerca de 17%. Sem dependência, runtime, migração, infraestrutura ou limite de tráfego novo. A redução de transferência não garante um tempo fixo em redes/aparelhos reais; primeira instalação ainda precisa obter os assets completos.
+
+Validação local: 53 testes dirigidos de conta/aparelhos/PWA/retorno/links, 23 testes de Worker/qualidade/fontes após o último ajuste de navegação, quatro testes PostgreSQL/HTTP e 86 testes de implantação passaram. Lint sem avisos, tipos estritos, fronteiras, licenças, formatação e build de 38 assets passaram. No navegador integrado, com wallet fictícia, ativação explícita funcionou com sessão sem autorização local e sem pedido pendente; login configurou as chaves, e recarga manteve perfil/aparelho autorizados sem erros de console. A origem pública respondeu HTTP 200 e saudável no diagnóstico sem sessão; isso não mede a rede/aparelho do proprietário. Publicação e aceite físico ainda pendentes. Evidências operacionais somente em `.local/`.
+
+**Ponto importante:** a atualização preserva chaves e operações privadas; não resolve a perda de armazenamento pelo navegador nem estabelece aceite físico mobile.
+
 ## Decisões
 
 - Frontend com HTML/CSS e módulos TypeScript nativos; esbuild já disponível gera assets locais. Nenhum CDN, fonte remota, analytics ou framework adicional. [Seleção de dependências](DEPENDENCIAS_E_SELECAO_BLOCO_01.md) registra necessidade/licenças do driver `pg`.

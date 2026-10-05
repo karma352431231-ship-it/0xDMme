@@ -48,7 +48,7 @@ async function bundle(
   const result = await build({
     entryPoints: [fileURLToPath(new URL(path, root))],
     bundle: true,
-    minifyWhitespace: true,
+    minify: true,
     define,
     write: false,
     metafile: true,
@@ -213,6 +213,18 @@ const paths = [...files.keys()]
   .map((name) => (name === 'index.html' ? '/' : `/${name}`));
 const worker = workerSource
   .replace('{{ASSETS}}', JSON.stringify(paths).replaceAll('"', '\\"'))
+  .replace(
+    '{{ASSET_HASHES}}',
+    JSON.stringify(
+      Object.fromEntries(
+        paths.map((path) => {
+          const bytes = files.get(path === '/' ? 'index.html' : path.slice(1));
+          if (!bytes) throw new Error('Asset do Worker ausente.');
+          return [path, createHash('sha256').update(bytes).digest('hex')];
+        }),
+      ),
+    ).replaceAll('"', '\\"'),
+  )
   .replace('{{VERSION}}', version.digest('hex').slice(0, 16));
 asset('sw.js', Buffer.from(worker));
 await mkdir(directory, { recursive: true });

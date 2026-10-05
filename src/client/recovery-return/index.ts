@@ -13,6 +13,16 @@ import { openFrom } from '../device-keys/index.ts';
 import { walletRecoveryKey, signRecovery } from '../wallet-recovery/index.ts';
 import { discoverWallets } from '../wallet/index.ts';
 
+export class RecoveryReturnError extends Error {
+  readonly status: number;
+  constructor(status: number) {
+    super(
+      'Retorno de recuperação indisponível, expirado ou recusado. Inicie novamente.',
+    );
+    this.status = status;
+  }
+}
+
 export async function recoveryApi(
   path: string,
   input: unknown,
@@ -31,10 +41,7 @@ export async function recoveryApi(
     signal: AbortSignal.timeout(8000),
   });
   const data: unknown = await response.json();
-  if (!response.ok)
-    throw new Error(
-      'Retorno de recuperação indisponível, expirado ou recusado. Inicie novamente.',
-    );
+  if (!response.ok) throw new RecoveryReturnError(response.status);
   return data;
 }
 export async function requestRecovery(input: {
