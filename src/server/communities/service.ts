@@ -1,3 +1,4 @@
+import type { CommunityMediaService } from '../community-media/index.ts';
 import { AccountError, uuid } from '../../shared/account/index.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
 import { directoryEvent, verify } from '../../shared/devices/index.ts';
@@ -21,17 +22,22 @@ export class CommunityService {
   private readonly store: CommunityStore;
   private readonly devices: DeviceStore;
   private readonly posts: CommunityPostStore | null;
+  private readonly media: CommunityMediaService | null;
   private readonly discovery: CommunityDiscoveryStore | null;
   constructor(
     store: CommunityStore,
     devices: DeviceStore,
     posts: CommunityPostStore | null = null,
-    discovery: CommunityDiscoveryStore | null = null,
+    options: {
+      discovery?: CommunityDiscoveryStore;
+      media?: CommunityMediaService;
+    } = {},
   ) {
     this.store = store;
     this.devices = devices;
     this.posts = posts;
-    this.discovery = discovery;
+    this.discovery = options.discovery ?? null;
+    this.media = options.media ?? null;
   }
   feed(filter: unknown, after: string | null) {
     return this.requireDiscovery().feed(feedFilter(filter), after);
@@ -73,6 +79,16 @@ export class CommunityService {
   list(after: unknown) {
     return this.store.list(communityCursor(after));
   }
+  private operationStore(operation: string) {
+    if (operation.startsWith('discovery-')) return this.requireDiscovery();
+    if (
+      operation.startsWith('post-') ||
+      operation.startsWith('tag-') ||
+      operation === 'reply-create'
+    )
+      return this.requirePosts();
+    return this.store;
+  }
   async operate(
     operation: string,
     session: AccountSession,
@@ -95,13 +111,15 @@ export class CommunityService {
         payload: proof.payload,
       }),
     );
-    const store = operation.startsWith('discovery-')
-      ? this.requireDiscovery()
-      : operation.startsWith('post-') ||
-          operation.startsWith('tag-') ||
-          operation === 'reply-create'
-        ? this.requirePosts()
-        : this.store;
+    if (operation.startsWith('media-')) {
+      if (!this.media) throw new AccountError(503, 'Mídia indisponível.');
+      return this.media.operate(
+        operation,
+        { session, directory: proof.directory },
+        proof.payload,
+      );
+    }
+    const store = this.operationStore(operation);
     return store.operate(
       operation,
       { session, directory: proof.directory },

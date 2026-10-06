@@ -99,7 +99,9 @@ export class Communities {
           'X-Hash-Talk-CSRF': authority.session.csrf,
         },
         body: JSON.stringify({ ...proof, signature }),
-        signal: AbortSignal.timeout(8000),
+        signal: AbortSignal.timeout(
+          operation.startsWith('media-') ? 15000 : 8000,
+        ),
       });
       const result = await responseData(response);
       if (generation !== this.generation)

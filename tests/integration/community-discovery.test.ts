@@ -41,7 +41,7 @@ await test('corte 6: feeds públicos, descoberta e referências privadas', async
     db.communities,
     db.devices,
     db.communityPosts,
-    db.communityDiscovery,
+    { discovery: db.communityDiscovery },
   );
   const accounts: string[] = [],
     addresses: string[] = [],
@@ -465,7 +465,7 @@ await test('corte 6: feeds públicos, descoberta e referências privadas', async
           limited.communities,
           limited.devices,
           limited.communityPosts,
-          limited.communityDiscovery,
+          { discovery: limited.communityDiscovery },
         );
         await assert.rejects(
           service.operate(

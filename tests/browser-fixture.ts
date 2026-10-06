@@ -1,5 +1,5 @@
 import { build } from 'esbuild';
-import { randomBytes } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { Database } from '../src/server/database/index.ts';
 import {
   AccountService,
@@ -20,6 +20,7 @@ import {
   createCommunityHandler,
 } from '../src/server/communities/index.ts';
 import { VaultService } from '../src/server/vault/index.ts';
+import { CommunityMediaService } from '../src/server/community-media/index.ts';
 import { ObjectStore } from '../src/server/object-store/index.ts';
 import { MessageService } from '../src/server/messages/index.ts';
 import { MessageLive } from '../src/server/message-live/index.ts';
@@ -97,7 +98,10 @@ async function walletAsset(seed: string): Promise<WebAsset> {
     content: script,
   };
 }
-assets.set('/fixture-wallet.js', await walletAsset(fixtureSeed));
+// A static URL plus immutable asset caching would reuse a previous synthetic wallet.
+const fixtureWallet = await walletAsset(fixtureSeed);
+const fixtureWalletPath = `/fixture-wallet-${createHash('sha256').update(fixtureWallet.content).digest('hex').slice(0, 16)}.js`;
+assets.set(fixtureWalletPath, fixtureWallet);
 for (const path of ['/', '/wallet.html', '/recovery.html']) {
   const entry = assets.get(path);
   if (!entry) throw new Error('Página de teste ausente.');
@@ -114,7 +118,7 @@ for (const path of ['/', '/wallet.html', '/recovery.html']) {
           '<html lang="pt-BR">',
           `<html lang="pt-BR" data-test-app="${pageScript}">`,
         )
-        .replace(`src="${pageScript}"`, 'src="/fixture-wallet.js"')
+        .replace(`src="${pageScript}"`, `src="${fixtureWalletPath}"`)
         .replace(
           'Chat em teste: use somente contas e mensagens fictícias.',
           'TESTE ISOLADO: wallet sintética, sem fundos, sem dados reais.',
@@ -142,6 +146,13 @@ const calls = new CallService({
   changes: database.changes,
   config: readTurnConfiguration(process.env),
 });
+const communityMedia = new CommunityMediaService({
+  store: database.communityMedia,
+  directory: config.objectDirectory,
+  environment: process.env,
+});
+await communityMedia.initialize();
+communityMedia.start();
 function fixtureServer(
   testOrigin: string,
   testAssets: ReadonlyMap<string, WebAsset>,
@@ -154,7 +165,7 @@ function fixtureServer(
     database.communities,
     database.devices,
     database.communityPosts,
-    database.communityDiscovery,
+    { discovery: database.communityDiscovery, media: communityMedia },
   );
   return createWebServer({
     origin: testOrigin,
@@ -255,7 +266,7 @@ if (process.env['HASH_TALK_FIXTURE_PAIR_PORT']) {
     throw new Error('Porta pareada fora do intervalo exclusivo.');
   const otherAssets = new Map(assets);
   otherAssets.set(
-    '/fixture-wallet.js',
+    fixtureWalletPath,
     await walletAsset(`0x${randomBytes(32).toString('hex')}`),
   );
   const hostname = fixtureHost === 'localhost' ? '127.0.0.1' : 'localhost';
@@ -293,6 +304,7 @@ const close = () => {
   live.close();
   void Promise.all(hosts.map((value) => value.close()))
     .then(async () => {
+      await communityMedia.close();
       await messages.close();
       await notifications.close();
       await database.close();

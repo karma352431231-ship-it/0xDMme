@@ -12,6 +12,7 @@ import { createWebServer, loadWebAssets } from './web-host/index.ts';
 import { readWebConfiguration } from './web-configuration/index.ts';
 import { DeviceService } from './devices/index.ts';
 import { VaultService } from './vault/index.ts';
+import { CommunityMediaService } from './community-media/index.ts';
 import { ObjectStore } from './object-store/index.ts';
 import { MessageService } from './messages/index.ts';
 import { MessageLive } from './message-live/index.ts';
@@ -65,11 +66,17 @@ try {
     database.publicProfiles,
     database.devices,
   );
+  const communityMedia = new CommunityMediaService({
+    store: database.communityMedia,
+    directory: config.objectDirectory,
+    environment: process.env,
+  });
+  await communityMedia.initialize();
   const communities = new CommunityService(
     database.communities,
     database.devices,
     database.communityPosts,
-    database.communityDiscovery,
+    { discovery: database.communityDiscovery, media: communityMedia },
   );
   const host = createWebServer({
     ...mobile,
@@ -113,6 +120,7 @@ try {
   });
   shutdown = async () => {
     await host.close();
+    await communityMedia.close();
     await messages.close();
     await notifications.close();
     await database?.close();
@@ -126,6 +134,7 @@ try {
     clearTimeout(lifetime);
     void host
       .close()
+      .then(() => communityMedia.close())
       .then(() => messages.close())
       .then(() => notifications.close())
       .then(() => database?.close())
@@ -147,6 +156,7 @@ try {
   process.once('SIGINT', close);
   process.once('SIGTERM', close);
   notifications.start();
+  communityMedia.start();
   messages.startMaintenance();
   await recordMobileWebEntry(mobile.origin);
   process.stdout.write(

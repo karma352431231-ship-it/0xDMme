@@ -1,3 +1,4 @@
+import { restrictedMedia } from '../community-media/index.ts';
 import { keys, object } from '../../shared/account/index.ts';
 import {
   communityCursor,
@@ -60,6 +61,17 @@ export function startCommunityPosts(controller: Communities) {
     after: string | null = null,
     tag: string | null = null,
     scope = 'public';
+  const mediaCleanup = new Set<() => void>();
+  function mediaAccess() {
+    const old = generation;
+    return {
+      community,
+      request: (operation: string, payload: Record<string, unknown>) =>
+        controller.request(operation, payload),
+      valid: () => old === generation,
+      signal: abort.signal,
+    };
+  }
   let order: FeedOrder = 'recent',
     period: DiscoveryPeriod = 'all';
   let feedback: HTMLElement | null = null,
@@ -103,6 +115,7 @@ export function startCommunityPosts(controller: Communities) {
       request: (op: string, data: Record<string, unknown>) =>
         controller.request(op, data),
       mutate,
+      media: mediaAccess(),
     };
   }
   function tagSource() {
@@ -125,11 +138,14 @@ export function startCommunityPosts(controller: Communities) {
   }
   async function mutate(
     op: string,
-    data: Record<string, unknown>,
+    data: Record<string, unknown> | (() => Promise<Record<string, unknown>>),
   ): Promise<void> {
     await run(async () => {
       const old = generation,
-        result = await controller.request(op, data);
+        result = await controller.request(
+          op,
+          typeof data === 'function' ? await data() : data,
+        );
       if (old !== generation) return;
       if (op === 'report') communityState(result);
       else postState(result);
@@ -164,6 +180,7 @@ export function startCommunityPosts(controller: Communities) {
         await load();
       },
     });
+    let disposeMedia: (() => void) | null = null;
     const options = el('div');
     node.append(options);
     button(node, 'Opções da postagem', () =>
@@ -176,8 +193,20 @@ export function startCommunityPosts(controller: Communities) {
             }),
           );
         if (old !== generation) return;
+        if (disposeMedia) {
+          disposeMedia();
+          mediaCleanup.delete(disposeMedia);
+        }
         options.replaceChildren();
         restrictedContent(options, state);
+        if (state.own && state.content?.media?.length) {
+          disposeMedia = restrictedMedia(
+            options,
+            state.content.media,
+            mediaAccess(),
+          );
+          mediaCleanup.add(disposeMedia);
+        }
         postActions(options, state, tagSource(), actions());
       }),
     );
@@ -240,7 +269,11 @@ export function startCommunityPosts(controller: Communities) {
     const form = el('details', '', 'card community-card');
     form.append(el('summary', 'Responder diretamente'));
     container.append(form);
-    const content = replyForm(form);
+    const content = replyForm(
+      form,
+      { title: '', text: '', tag: null },
+      mediaAccess(),
+    );
     let id = crypto.randomUUID();
     button(form, 'Publicar resposta', () =>
       run(async () => {
@@ -250,7 +283,7 @@ export function startCommunityPosts(controller: Communities) {
             id: community,
             post: id,
             parent: parent.id,
-            content: content(),
+            content: await content(),
           }),
         );
         if (old !== generation) return;
@@ -301,7 +334,12 @@ export function startCommunityPosts(controller: Communities) {
         ),
       );
     if (state) restrictedContent(node, state);
-    if (value.status === 'visible') node.append(postText(value.text));
+    if (value.status === 'visible')
+      node.append(
+        value.text
+          ? postText(value.text)
+          : el('p', 'Mídia aguardando liberação.'),
+      );
   }
   function rowMeta(node: HTMLElement, value: CommunityPost): void {
     if (value.author)
@@ -346,6 +384,8 @@ export function startCommunityPosts(controller: Communities) {
     );
   }
   async function load(): Promise<void> {
+    for (const cleanup of mediaCleanup) cleanup();
+    mediaCleanup.clear();
     const old = generation;
     if (selected) {
       const result = communityPost(
@@ -426,6 +466,7 @@ export function startCommunityPosts(controller: Communities) {
         form,
         { title: '', text: '', tag: null },
         tagSource(),
+        mediaAccess(),
       ),
       id = crypto.randomUUID();
     button(form, 'Publicar postagem', () =>
@@ -435,7 +476,7 @@ export function startCommunityPosts(controller: Communities) {
           await controller.request('post-create', {
             id: community,
             post: id,
-            content: content(),
+            content: await content(),
           }),
         );
         if (old !== generation) return;
@@ -531,6 +572,8 @@ export function startCommunityPosts(controller: Communities) {
     });
   }
   function leave(): void {
+    for (const cleanup of mediaCleanup) cleanup();
+    mediaCleanup.clear();
     generation++;
     abort.abort();
     mounted = null;

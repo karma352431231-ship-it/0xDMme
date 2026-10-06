@@ -1,3 +1,5 @@
+import { mediaEditor } from '../community-media/index.ts';
+import type { CommunityMediaAccess } from '../community-media/index.ts';
 import { keys, object } from '../../shared/account/index.ts';
 import {
   communityArray,
@@ -21,7 +23,11 @@ export interface PostActions {
     operation: string,
     data: Record<string, unknown>,
   ) => Promise<unknown>;
-  mutate: (operation: string, data: Record<string, unknown>) => Promise<void>;
+  mutate: (
+    operation: string,
+    data: Record<string, unknown> | (() => Promise<Record<string, unknown>>),
+  ) => Promise<void>;
+  media: CommunityMediaAccess;
 }
 export interface PostTags {
   page: TagPage;
@@ -75,12 +81,13 @@ export function postForm(
   container: HTMLElement,
   value: PostContent,
   tags: PostTags,
-): () => PostContent {
+  access: CommunityMediaAccess,
+): () => Promise<PostContent> {
   const title = field(container, 'Título (opcional)', {
       value: value.title,
       maximum: 200,
     }),
-    text = field(container, 'Texto da postagem', {
+    text = field(container, 'Texto da postagem (opcional com mídia)', {
       value: value.text,
       maximum: 4000,
       multiline: true,
@@ -90,23 +97,33 @@ export function postForm(
       { value: value.tag, label: 'Tag (opcional)', empty: 'Sem tag' },
       tags,
     );
-  return () => ({
+  const media = mediaEditor(container, value.media ?? [], access);
+  return async () => ({
     title: title.value,
     text: text.value,
     tag: select.value || null,
+    media: await media(),
   });
 }
 export function replyForm(
   container: HTMLElement,
-  value = '',
-): () => PostContent {
-  const text = field(container, 'Texto da resposta', {
-    value,
+  value: PostContent,
+  access: CommunityMediaAccess,
+): () => Promise<PostContent> {
+  const text = field(container, 'Texto da resposta (opcional com mídia)', {
+    value: value.text,
     maximum: 4000,
     multiline: true,
   });
-  return () => ({ title: '', text: text.value, tag: null });
+  const media = mediaEditor(container, value.media ?? [], access);
+  return async () => ({
+    title: '',
+    text: text.value,
+    tag: null,
+    media: await media(),
+  });
 }
+
 function command(state: PostState) {
   return {
     id: state.post.community,
@@ -125,10 +142,13 @@ export function postActions(
     form.append(el('summary', 'Editar postagem'));
     container.append(form);
     const content = state.post.parent
-      ? replyForm(form, state.content!.text)
-      : postForm(form, state.content!, tags);
+      ? replyForm(form, state.content!, actions.media)
+      : postForm(form, state.content!, tags, actions.media);
     button(form, 'Salvar postagem', () =>
-      actions.mutate('post-edit', { ...command(state), content: content() }),
+      actions.mutate('post-edit', async () => ({
+        ...command(state),
+        content: await content(),
+      })),
     );
   }
   if (state.canDelete) deleteForm(container, state, actions);
@@ -149,12 +169,12 @@ function deleteForm(
   label.append(
     confirm,
     document.createTextNode(
-      'Excluir o texto do banco ativo. Cópias externas e backups podem permanecer.',
+      'Excluir texto e mídia do banco/armazenamento ativo. Cópias externas e backups podem permanecer.',
     ),
   );
   container.append(label);
   button(container, 'Excluir minha postagem', async () => {
-    if (!confirm.checked) throw new Error('Confirme a exclusão do texto.');
+    if (!confirm.checked) throw new Error('Confirme a exclusão da postagem.');
     await actions.mutate('post-delete', command(state));
   });
 }

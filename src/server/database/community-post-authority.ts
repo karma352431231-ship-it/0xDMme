@@ -17,9 +17,10 @@ export interface PostRow {
   root_id: string | null;
   score: number;
   replies: number;
+  media_ids: string[];
 }
 export const postColumns =
-  'id,community_id,author,title,text,tag_id,created_at,edited_at,revision,deleted,active_removal,parent_id,root_id,score,replies';
+  'id,community_id,author,title,text,tag_id,created_at,edited_at,revision,deleted,active_removal,parent_id,root_id,score,replies,media_ids';
 export async function loadPost(
   context: CommunityContext,
   id: string,

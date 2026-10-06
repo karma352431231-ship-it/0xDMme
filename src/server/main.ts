@@ -1,5 +1,6 @@
 import { readWebConfiguration } from './web-configuration/index.ts';
 import { Database } from './database/index.ts';
+import { CommunityMediaService } from './community-media/index.ts';
 import { ObjectStore } from './object-store/index.ts';
 import { createWebServer, loadWebAssets } from './web-host/index.ts';
 import { AccountService, createAccountHandler } from './account/index.ts';
@@ -81,11 +82,17 @@ try {
     database.publicProfiles,
     database.devices,
   );
+  const communityMedia = new CommunityMediaService({
+    store: database.communityMedia,
+    directory: config.objectDirectory,
+    environment: process.env,
+  });
+  await communityMedia.initialize();
   const communities = new CommunityService(
     database.communities,
     database.devices,
     database.communityPosts,
-    database.communityDiscovery,
+    { discovery: database.communityDiscovery, media: communityMedia },
   );
   const host = createWebServer({
     origin: config.origin,
@@ -150,6 +157,7 @@ try {
   let closing = false;
   notifications.start();
   messages.startMaintenance();
+  communityMedia.start();
   const shutdown = () => {
     if (closing) return;
     closing = true;
@@ -157,6 +165,7 @@ try {
     deadline.unref();
     void host
       .close()
+      .then(() => communityMedia.close())
       .then(() => messages.close())
       .then(() => notifications.close())
       .then(() => database?.close())

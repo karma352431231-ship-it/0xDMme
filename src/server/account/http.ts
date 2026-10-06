@@ -96,6 +96,9 @@ const readRoutes = new Set(
       '/api/account/vault/read',
       '/api/account/vault/object',
       '/api/account/public-profile/state',
+      '/api/account/communities/media-pending',
+      '/api/account/communities/media-status',
+      '/api/account/communities/media-get',
       '/api/account/communities/state',
       '/api/account/communities/list',
       '/api/account/communities/staff',
@@ -169,6 +172,7 @@ function bodyLimit(url: string | undefined): number {
     url === '/api/account/communities/photo'
   )
     return Math.ceil(publicAvatarLimit / 3) * 4 + 4096;
+  if (url === '/api/account/communities/media-part') return 360_000;
   if (url?.startsWith('/api/account/communities/')) return 28000;
   return accountBodyLimit(url);
 }

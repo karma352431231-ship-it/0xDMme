@@ -55,9 +55,13 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts
       - run: npm run probe:zk:prepare
+      # The runtime integration uses local synthetic media only. No executable is bundled/deployed.
+      - run: sudo apt-get update && sudo apt-get install --no-install-recommends -y ffmpeg
       # Node partitions the complete file glob; each shard owns its PostgreSQL
       # service. Serial execution inside a shard preserves schema-test isolation.
       - run: npm run build
       - run: node --env-file-if-exists=.local/web-test.env --test --test-concurrency=1 --test-shard=${{ matrix.shard }}/3 tests/integration/*.test.ts
         env:
+          HASH_TALK_MEDIA_FFMPEG: /usr/bin/ffmpeg
+          HASH_TALK_MEDIA_FFPROBE: /usr/bin/ffprobe
           HASH_TALK_DATABASE_URL: postgresql://hash_talk_test:synthetic-ci-only@127.0.0.1:5432/hash_talk_test

@@ -22,6 +22,7 @@ import type {
 } from '../../shared/community-posts/index.ts';
 import type { PublicProfile } from '../../shared/public-profile/index.ts';
 import type { PublicProfileStore } from './public-profile.ts';
+import type { CommunityMediaStore } from './community-media.ts';
 import type { CommunityStore } from './communities.ts';
 import type { ContactAuthority } from './contacts.ts';
 import {
@@ -49,8 +50,23 @@ import {
   postColumns as columns,
 } from './community-post-authority.ts';
 import type { PostRow } from './community-post-authority.ts';
-function content(row: PostRow): PostContent {
-  return { title: row.title, text: row.text, tag: row.tag_id };
+function content(row: PostRow, own: boolean): PostContent | null {
+  // Reviewers keep their existing text authority; media references remain author-only until moderation is ready.
+  if (!own && !row.text) return null;
+  return {
+    title: row.title,
+    text: row.text,
+    tag: row.tag_id,
+    ...(own && row.media_ids?.length ? { media: row.media_ids } : {}),
+  };
+}
+function sameContent(row: PostRow, value: PostContent): boolean {
+  return (
+    row.title === value.title &&
+    row.text === value.text &&
+    row.tag_id === value.tag &&
+    JSON.stringify(row.media_ids ?? []) === JSON.stringify(value.media ?? [])
+  );
 }
 function editable(row: PostRow, own: boolean, canPost: boolean): boolean {
   return own && canPost && !row.deleted && !row.active_removal;
@@ -82,6 +98,10 @@ function requireCreateRetry(
     [row.text, expected.content.text],
     [row.tag_id, expected.content.tag],
     [row.parent_id, expected.parent?.id ?? null],
+    [
+      JSON.stringify(row.media_ids ?? []),
+      JSON.stringify(expected.content.media ?? []),
+    ],
   ];
   if (row.deleted || fields.some(([actual, value]) => actual !== value))
     throw new AccountError(409, 'Identificador de post já utilizado.');
@@ -114,16 +134,19 @@ export class CommunityPostStore {
   private readonly communities: CommunityStore;
   private readonly profiles: PublicProfileStore;
   private readonly capacity: number;
+  private readonly media: CommunityMediaStore;
   constructor(options: {
     pool: pg.Pool;
     communities: CommunityStore;
     profiles: PublicProfileStore;
     capacity: number;
+    media: CommunityMediaStore;
   }) {
     this.pool = options.pool;
     this.communities = options.communities;
     this.profiles = options.profiles;
     this.capacity = options.capacity;
+    this.media = options.media;
   }
   private async lookups(client: Pick<pg.PoolClient, 'query'>, rows: PostRow[]) {
     const authors = await this.profiles.identities(
@@ -287,7 +310,7 @@ export class CommunityPostStore {
         vote: votes.get(row.id) ?? { position: 0, revision: 0 },
         canEdit: editable(row, own, canPost),
         canDelete: own && !row.deleted,
-        content: restricted && !row.deleted ? content(row) : null,
+        content: restricted && !row.deleted ? content(row, own) : null,
         removal:
           restricted && row.active_removal
             ? removalView(removals.get(row.active_removal) ?? null)
@@ -352,7 +375,7 @@ export class CommunityPostStore {
     }
     await requirePostTag(context, value.tag);
     await context.client.query(
-      'INSERT INTO hash_talk.community_posts(id,community_id,author,title,text,tag_id,parent_id,root_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8)',
+      'INSERT INTO hash_talk.community_posts(id,community_id,author,title,text,tag_id,parent_id,root_id,media_ids) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)',
       [
         id,
         context.row.id,
@@ -362,8 +385,10 @@ export class CommunityPostStore {
         value.tag,
         parent?.id ?? null,
         parent ? (parent.root_id ?? parent.id) : null,
+        value.media ?? [],
       ],
     );
+    await this.media.replace(context, { post: id, ids: value.media ?? [] });
     if (parent) {
       await context.client.query(
         'UPDATE hash_talk.community_posts SET replies=replies+1 WHERE id=$1',
@@ -392,15 +417,11 @@ export class CommunityPostStore {
     if (row.parent_id && (value.title || value.tag))
       throw new AccountError(400, 'Resposta não admite título/tag.');
     await requirePostTag(context, value.tag, row.tag_id);
-    if (
-      row.title === value.title &&
-      row.text === value.text &&
-      row.tag_id === value.tag
-    )
-      return;
+    if (sameContent(row, value)) return;
+    await this.media.replace(context, { post: row.id, ids: value.media ?? [] });
     await context.client.query(
-      'UPDATE hash_talk.community_posts SET title=$2,text=$3,tag_id=$4,edited_at=clock_timestamp(),revision=revision+1 WHERE id=$1',
-      [row.id, value.title, value.text, value.tag],
+      'UPDATE hash_talk.community_posts SET title=$2,text=$3,tag_id=$4,media_ids=$5,edited_at=clock_timestamp(),revision=revision+1 WHERE id=$1',
+      [row.id, value.title, value.text, value.tag, value.media ?? []],
     );
     await assertContentCapacity(context.client, this.capacity);
   }
@@ -414,8 +435,9 @@ export class CommunityPostStore {
       throw new AccountError(403, 'Somente o autor pode excluir o post.');
     if (row.deleted) return;
     currentPost(row, data['revision']);
+    await this.media.replace(context, { post: row.id, ids: [] });
     await context.client.query(
-      "UPDATE hash_talk.community_posts SET title='',text='',tag_id=NULL,active_removal=NULL,deleted=true,revision=revision+1 WHERE id=$1",
+      "UPDATE hash_talk.community_posts SET title='',text='',tag_id=NULL,active_removal=NULL,media_ids='{}',deleted=true,revision=revision+1 WHERE id=$1",
       [row.id],
     );
   }

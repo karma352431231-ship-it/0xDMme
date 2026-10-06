@@ -6,6 +6,7 @@ import {
   communityRevision,
   communityText,
 } from '../communities/index.ts';
+import { communityMediaIds } from '../community-media/index.ts';
 import { publicProfile } from '../public-profile/index.ts';
 import type { PublicProfile } from '../public-profile/index.ts';
 
@@ -13,6 +14,7 @@ export interface PostContent {
   title: string;
   text: string;
   tag: string | null;
+  media?: string[];
 }
 export interface PostTag {
   id: string;
@@ -86,14 +88,23 @@ export function postCursor(value: unknown): string | null {
 }
 export function postContent(value: unknown): PostContent {
   const data = object(value);
-  keys(data, ['title', 'text', 'tag']);
+  keys(data, [
+    'title',
+    'text',
+    'tag',
+    ...(Object.hasOwn(data, 'media') ? ['media'] : []),
+  ]);
+  const media = Object.hasOwn(data, 'media')
+    ? communityMediaIds(data['media'])
+    : [];
   const title = communityText(data['title'], 200, true);
   if (/[\n\t]/u.test(title))
     throw new AccountError(400, 'Título deve ocupar uma linha.');
   return {
     title,
-    text: communityText(data['text'], 4000),
+    text: communityText(data['text'], 4000, media.length > 0),
     tag: communityCursor(data['tag']),
+    ...(Object.hasOwn(data, 'media') ? { media } : {}),
   };
 }
 export function postTagLabel(value: unknown): string {
@@ -136,7 +147,7 @@ export function communityPost(value: unknown): CommunityPost {
   const author = data['author'] === null ? null : publicProfile(data['author']),
     tag = data['tag'] === null ? null : postTag(data['tag']);
   const title = communityText(data['title'], 200, true),
-    text = communityText(data['text'], 4000, status !== 'visible');
+    text = communityText(data['text'], 4000, true);
   const hiddenFields = [title, text, author, tag].some(
     (field) => field !== '' && field !== null,
   );

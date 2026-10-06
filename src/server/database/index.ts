@@ -26,6 +26,8 @@ export type { PublicProfileStore } from './public-profile.ts';
 import { CommunityStore } from './communities.ts';
 export type { CommunityStore } from './communities.ts';
 import { CommunityPostStore } from './community-posts.ts';
+import { CommunityMediaStore } from './community-media.ts';
+export type { CommunityMediaStore } from './community-media.ts';
 export type { CommunityPostStore } from './community-posts.ts';
 import { CommunityDiscoveryStore } from './community-discovery.ts';
 export type { CommunityDiscoveryStore } from './community-discovery.ts';
@@ -107,6 +109,7 @@ const migrations = [
   '034-social-dm-retention.sql',
   '035-social-block-revisions.sql',
   '036-social-history-media.sql',
+  '037-community-media.sql',
 ];
 
 export interface MaintenanceSnapshot {
@@ -139,6 +142,7 @@ export class Database {
   readonly publicProfiles: PublicProfileStore;
   readonly communities: CommunityStore;
   readonly communityPosts: CommunityPostStore;
+  readonly communityMedia: CommunityMediaStore;
   readonly communityDiscovery: CommunityDiscoveryStore;
   readonly socialDm: SocialDmStore;
   readonly socialCrypto: SocialCryptoStore;
@@ -218,10 +222,16 @@ export class Database {
     );
     this.socialCrypto.setMedia(this.socialMedia);
     this.socialMatrix = new SocialMatrixStore(this.socialDm, this.socialCrypto);
+    this.communityMedia = new CommunityMediaStore(
+      this.pool,
+      this.communities,
+      contentCapacity,
+    );
     this.communityPosts = new CommunityPostStore({
       pool: this.pool,
       communities: this.communities,
       profiles: this.publicProfiles,
+      media: this.communityMedia,
       capacity: contentCapacity,
     });
     this.communityDiscovery = new CommunityDiscoveryStore({

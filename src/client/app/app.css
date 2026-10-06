@@ -1845,3 +1845,16 @@ footer {
 .call-dock[hidden] {
   display: none;
 }
+
+.community-media-preview {
+  display: block;
+  max-width: 100%;
+  max-height: 32rem;
+  object-fit: contain;
+  margin: 1rem 0;
+}
+.post-composer fieldset,
+.community-post fieldset {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
