@@ -457,8 +457,8 @@ await test('chamadas: HTTP assinado, consentimento, preferência global, silênc
   );
   const losing = answers[0]!.status === 409 ? b : sibling;
   assert.equal((await sync(losing)).call, null);
-  // Exhaust ordinary chat writes without modifying state. Call control has its
-  // own authenticated budget, so closing a call must still succeed.
+  // Ordinary writes have no minute quota; malformed input still fails and
+  // neither identity reads nor call control are affected by the write burst.
   for (let attempt = 0; attempt < 61; attempt++) {
     const response = await fetch(origin + '/api/account/name', {
       method: 'POST',
@@ -470,7 +470,7 @@ await test('chamadas: HTTP assinado, consentimento, preferência global, silênc
       },
       body: '{}',
     });
-    assert.equal(response.status, attempt < 60 ? 400 : 429);
+    assert.equal(response.status, 400);
   }
   const directoryRead = {
     deviceId: a.session.deviceId,

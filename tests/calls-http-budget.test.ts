@@ -1,15 +1,11 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { AccountRateLimit } from '../src/server/account/rate-limit.ts';
-await test('orçamento de chamadas é separado: chat mantém 60/240, sessão não interfere nas demais e Encerrar usa leitura', () => {
-  const chat = new AccountRateLimit(),
+await test('escritas normais não têm teto por minuto; chamadas preservam orçamento próprio e Encerrar usa leitura', () => {
+  const chat = new AccountRateLimit({ requests: null }),
     admission = new AccountRateLimit({ requests: 900 }),
     sessions = new AccountRateLimit();
-  for (let i = 0; i < 60; i++) chat.admit('synthetic-transport', false);
-  assert.throws(
-    () => chat.admit('synthetic-transport', false),
-    /Muitos pedidos/u,
-  );
+  for (let i = 0; i < 1000; i++) chat.admit('synthetic-transport', false);
   for (let i = 0; i < 900; i++) admission.admit('synthetic-transport', false);
   assert.throws(
     () => admission.admit('synthetic-transport', false),

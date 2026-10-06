@@ -9,6 +9,7 @@ import { createHash } from 'node:crypto';
 import pg from 'pg';
 import { AccountError, encode } from '../../src/shared/account/index.ts';
 import {
+  communityMediaLimits,
   communityMediaPartBytes,
   communityMediaState,
 } from '../../src/shared/community-media/index.ts';
@@ -202,6 +203,27 @@ await test('mídia das comunidades: cadeia real, autorização, vínculo atômic
     author.operate('media-status', { id, media }).then(communityMediaState);
   const reserve = (source: CommunityMediaSource) =>
     author.operate('media-reserve', { id, source }).then(communityMediaState);
+  async function httpOperation(
+    actor: typeof author,
+    operation: string,
+    payload: Record<string, unknown>,
+  ): Promise<unknown> {
+    const response = await fetch(
+      `${origin}/api/account/communities/${operation}`,
+      {
+        method: 'POST',
+        headers: {
+          Origin: origin,
+          'Content-Type': 'application/json',
+          'X-Hash-Talk-CSRF': actor.login.session.csrf,
+          Cookie: `hash-talk-session=${actor.login.sessionToken}`,
+        },
+        body: JSON.stringify(await actor.proof(operation, payload)),
+      },
+    );
+    assert.equal(response.status, 200, await response.clone().text());
+    return response.json();
+  }
   async function ready(source: CommunityMediaSource, data: Uint8Array) {
     await reserve(source);
     for (
@@ -243,21 +265,8 @@ await test('mídia das comunidades: cadeia real, autorização, vínculo atômic
       await reserve(input);
       await reserve(input);
       const payload = { id, media: input.id, index: 0, bytes: encode(bytes) };
-      const response = await fetch(
-        `${origin}/api/account/communities/media-part`,
-        {
-          method: 'POST',
-          headers: {
-            Origin: origin,
-            'Content-Type': 'application/json',
-            'X-Hash-Talk-CSRF': author.login.session.csrf,
-            Cookie: `hash-talk-session=${author.login.sessionToken}`,
-          },
-          body: JSON.stringify(await author.proof('media-part', payload)),
-        },
-      );
-      assert.equal(response.status, 200, await response.clone().text());
-      assert.equal(communityMediaState(await response.json()).received, 1);
+      const response = await httpOperation(author, 'media-part', payload);
+      assert.equal(communityMediaState(response).received, 1);
       await author.operate('media-part', payload);
       await assert.rejects(
         author.operate('media-part', {
@@ -291,6 +300,52 @@ await test('mídia das comunidades: cadeia real, autorização, vínculo atômic
         `${origin}/api/communities/${id}/media/${input.id}`,
       );
       assert.equal(anonymous.status, 404);
+      assert.equal(await usage(), before);
+    },
+  );
+  await t.test(
+    'HTTP transfere 100 MB em 382 partes e outro usuário no mesmo endereço sem teto de 60 pedidos',
+    async () => {
+      // Synthetic bytes exercise durable transport, without decoding a fake video.
+      const data = Buffer.alloc(communityMediaLimits.video.source, 9),
+        candidate = descriptor('video', data),
+        second = descriptor('photo', bytes),
+        parts = Math.ceil(data.length / communityMediaPartBytes);
+      await httpOperation(author, 'media-reserve', { id, source: candidate });
+      for (let index = 0; index < parts; index++) {
+        const result = await httpOperation(author, 'media-part', {
+          id,
+          media: candidate.id,
+          index,
+          bytes: encode(
+            data.subarray(
+              index * communityMediaPartBytes,
+              (index + 1) * communityMediaPartBytes,
+            ),
+          ),
+        });
+        assert.equal(communityMediaState(result).received, index + 1);
+      }
+      await httpOperation(outsider, 'media-reserve', { id, source: second });
+      const received = await httpOperation(outsider, 'media-part', {
+        id,
+        media: second.id,
+        index: 0,
+        bytes: encode(bytes),
+      });
+      assert.equal(communityMediaState(received).received, 1);
+      await httpOperation(author, 'media-cancel', { id, media: candidate.id });
+      await httpOperation(outsider, 'media-cancel', { id, media: second.id });
+      await media.clean();
+      assert.equal(
+        (
+          await inspector.query(
+            'SELECT 1 FROM hash_talk.community_media WHERE id=ANY($1::uuid[])',
+            [[candidate.id, second.id]],
+          )
+        ).rowCount,
+        0,
+      );
       assert.equal(await usage(), before);
     },
   );

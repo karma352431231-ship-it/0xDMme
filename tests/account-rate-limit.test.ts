@@ -18,3 +18,22 @@ await test('leituras limitadas não gastam os seis desafios nem ampliam o orçam
     limit.close();
   }
 });
+
+await test('escritas sem teto por minuto não esgotam leituras, desafios ou entradas de outros usuários', () => {
+  const limit = new AccountRateLimit({ requests: null });
+  try {
+    for (let i = 0; i < 1000; i++) limit.admit('shared-transport', false);
+    // Ordinary writes must not fill the bounded map for protected operations.
+    for (let i = 0; i < 300; i++) limit.admit(`transport-${i}`, false);
+    for (let i = 0; i < 240; i++) limit.admit('shared-transport', false, true);
+    assert.throws(() => limit.admit('shared-transport', false, true), {
+      status: 429,
+    });
+    for (let i = 0; i < 6; i++) limit.admit('shared-transport', true);
+    assert.throws(() => limit.admit('shared-transport', true), { status: 429 });
+    assert.doesNotThrow(() => limit.admit('shared-transport', false));
+    assert.doesNotThrow(() => limit.admit('another-user', true));
+  } finally {
+    limit.close();
+  }
+});

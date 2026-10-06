@@ -245,10 +245,12 @@ export function createAccountHandler(options: {
   const challengeName = secure
     ? '__Host-hash-talk-challenge'
     : 'hash-talk-challenge';
-  const limit = new AccountRateLimit();
+  // Upload parts and normal API writes have no per-minute transport quota.
+  // Reads and login challenges retain their independent protections.
+  const limit = new AccountRateLimit({ requests: null });
   // Calls have their own bounded pre-auth IP budget and authenticated session
   // budget. Unix-socket deployments share one transport address; 32 endpoints
-  // at five-second intervals must not consume the chat's existing quota.
+  // at five-second intervals must not consume the ordinary read budget.
   const callAdmission = new AccountRateLimit({ requests: 900 });
   const callSessions = new AccountRateLimit();
   const recovery = new RecoveryReturn(options.origin);
