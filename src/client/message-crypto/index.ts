@@ -1,3 +1,4 @@
+import { socialAttachment } from '../../shared/social-media/index.ts';
 import { optionalRelation } from '../../shared/daily/index.ts';
 import {
   assertGroupPacketPeriod,
@@ -91,19 +92,27 @@ const silentLogger = {
   warn: () => {},
   error: () => {},
 };
+function declaredMedia(media: MessagePacket['socialMedia']): {
+  socialMedia?: NonNullable<MessagePacket['socialMedia']>;
+} {
+  return media ? { socialMedia: media } : {};
+}
 function messageType(kind: MessagePacket['kind']): string {
   return kind === 'text' ? 'm.text' : `org.0xdmme.${kind}`;
 }
 function attachmentMetadata(
   kind: MessagePacket['kind'] | undefined,
   text: string,
+  media?: MessagePacket['socialMedia'],
 ): {
   attachments?: import('../../shared/attachments/index.ts').AttachmentRef[];
 } {
   return kind === 'attachment'
     ? {
         attachments: contentRefs(
-          attachmentContent(JSON.parse(text) as unknown),
+          media
+            ? socialAttachment(JSON.parse(text) as unknown, media)
+            : attachmentContent(JSON.parse(text) as unknown),
         ),
       }
     : {};
@@ -111,8 +120,13 @@ function attachmentMetadata(
 function checkAttachmentPacket(packet: MessagePacket, text: string): void {
   if (
     packet.kind === 'attachment' &&
-    canonical(contentRefs(attachmentContent(JSON.parse(text) as unknown))) !==
-      canonical(packet.attachments)
+    canonical(
+      contentRefs(
+        packet.socialMedia
+          ? socialAttachment(JSON.parse(text) as unknown, packet.socialMedia)
+          : attachmentContent(JSON.parse(text) as unknown),
+      ),
+    ) !== canonical(packet.attachments)
   )
     throw new Error('Anexos divergentes da mensagem autenticada.');
 }
@@ -340,6 +354,7 @@ export class MessageCrypto {
     }
   }
   async encrypt(input: {
+    socialMedia?: MessagePacket['socialMedia'];
     authority: VaultAuthority;
     peerHistory: DirectoryEvent[];
     recovery: RecoveryKey[];
@@ -427,9 +442,10 @@ export class MessageCrypto {
     );
     const packet: MessagePacket = messagePacket({
       version: 1,
+      ...declaredMedia(input.socialMedia),
       kind: input.kind ?? 'text',
       ...optionalRelation(input.relation),
-      ...attachmentMetadata(input.kind, text),
+      ...attachmentMetadata(input.kind, text, input.socialMedia),
       id,
       sender: authority.session.accountId,
       recipient: peer.accountId,

@@ -44,6 +44,45 @@ export class SocialDmStore {
       return work({ client, actor, authority });
     });
   }
+  async optionalProfile(authority: ContactAuthority) {
+    return this.contacts.withMessageAuthority(authority, (c) =>
+      this.profiles.identityOrNull(c, authority.session.accountId),
+    );
+  }
+  maintenance<T>(work: (client: pg.PoolClient) => Promise<T>): Promise<T> {
+    return this.contacts.withMaintenance(work);
+  }
+  async changed(context: SocialContext, profiles: string[]): Promise<void> {
+    const accounts = await Promise.all(
+      [...new Set(profiles)].map((id) =>
+        this.profiles.accountFor(context.client, id),
+      ),
+    );
+    this.contacts.changed(context.client, accounts);
+  }
+  async deliveryBatch(
+    context: SocialContext,
+    peers: string[],
+  ): Promise<Set<string>> {
+    const result = await context.client.query<{ peer: string }>(
+      `SELECT CASE WHEN r.lo=$1 THEN r.hi ELSE r.lo END AS peer FROM hash_talk.social_relations r WHERE r.state='approved' AND ((r.lo=$1 AND r.hi=ANY($2::uuid[])) OR (r.hi=$1 AND r.lo=ANY($2::uuid[]))) AND NOT EXISTS(SELECT 1 FROM hash_talk.social_blocks b WHERE b.blocked AND ((b.actor=r.lo AND b.target=r.hi) OR (b.actor=r.hi AND b.target=r.lo)))`,
+      [context.actor.id, peers],
+    );
+    return new Set(result.rows.map((row) => row.peer));
+  }
+  async withDeliveryClient(
+    client: pg.PoolClient,
+    authority: ContactAuthority,
+    peer: string,
+  ): Promise<boolean> {
+    const actor = await this.profiles.identity(
+      client,
+      authority.session.accountId,
+    );
+    return (await this.deliveryBatch({ client, actor, authority }, [peer])).has(
+      peer,
+    );
+  }
   async limits(
     context: SocialContext,
     profiles: string[] = [context.actor.id],
@@ -187,6 +226,7 @@ export class SocialDmStore {
       if (await this.blocked(context, peer))
         throw new AccountError(403, 'DM indisponível.');
       let row = await this.relation(context, peer);
+      const changing = !row || row.state === 'rejected';
       if (row?.state === 'rejected') {
         if (row.requester === context.actor.id)
           throw new AccountError(
@@ -213,6 +253,7 @@ export class SocialDmStore {
         await this.limits(context);
       }
       if (!row) throw new Error('Solicitação não confirmada.');
+      if (changing) await this.changed(context, [context.actor.id, peer]);
       return this.projection(context, row, target);
     });
   }
@@ -239,6 +280,7 @@ export class SocialDmStore {
         'UPDATE hash_talk.social_relations SET state=$3,revision=revision+1 WHERE lo=$1 AND hi=$2',
         [row.lo, row.hi, state],
       );
+      await this.changed(context, [context.actor.id, input.peer]);
       return this.projection(
         context,
         { ...row, state, revision: String(Number(row.revision) + 1) },
@@ -280,6 +322,7 @@ export class SocialDmStore {
           [context.actor.id, input.peer],
         );
       await this.limits(context);
+      await this.changed(context, [context.actor.id, input.peer]);
     });
   }
 }

@@ -296,7 +296,10 @@ export class BackupReader {
       this.groupsComplete &&
       this.targets.length ===
         this.report.records.filter(
-          (r) => r.type === 'message' || r.type === 'vault',
+          (r) =>
+            r.type === 'message' ||
+            r.type === 'vault' ||
+            r.type === 'dm-message',
         ).length
     );
   }
@@ -417,7 +420,7 @@ export class BackupReader {
     media: Set<string>,
   ): Promise<void> {
     if (
-      row.type === 'account' &&
+      (row.type === 'account' || row.type === 'dm-identity') &&
       (await bytesHash(encoder.encode(row.value))) !== row.hash
     )
       throw new Error('Perfil de backup adulterado.');
@@ -426,13 +429,15 @@ export class BackupReader {
         throw new Error('Metadados de grupo adulterados.');
       groups.add(row.state.groupId);
     }
-    if (row.type === 'media' || row.type === 'group-media') {
+    if (isMediaRecord(row)) {
       if ((await bytesHash(base64(row.bytes, 3_000_000))) !== row.hash)
         throw new Error('Mídia de backup adulterada.');
       media.add(
-        row.type === 'media'
-          ? `${row.message}:${row.id}:${row.hash}`
-          : `${row.groupId}:${row.message}:${row.id}:${row.hash}`,
+        row.type === 'dm-media'
+          ? `dm:${row.self}:${row.message}:${row.id}:${row.hash}`
+          : row.type === 'media'
+            ? `${row.message}:${row.id}:${row.hash}`
+            : `${row.groupId}:${row.message}:${row.id}:${row.hash}`,
       );
     }
   }
@@ -453,6 +458,14 @@ export class BackupReader {
     )
       this.groupsComplete = false;
   }
+}
+function isMediaRecord(
+  row: BackupRecord,
+): row is Extract<
+  BackupRecord,
+  { type: 'media' | 'group-media' | 'dm-media' }
+> {
+  return ['media', 'group-media', 'dm-media'].includes(row.type);
 }
 async function read(
   file: Blob,
@@ -591,6 +604,9 @@ function parseInfo(value: unknown): RecordInfo {
       'group',
       'group-message',
       'group-media',
+      'dm-message',
+      'dm-media',
+      'dm-identity',
     ].includes(String(r['type']))
   )
     throw new Error('Registro não suportado.');

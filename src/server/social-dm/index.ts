@@ -2,6 +2,9 @@ import { AccountError, keys, uuid } from '../../shared/account/index.ts';
 import { integer } from '../../shared/vault/index.ts';
 import { fingerprint } from '../../shared/devices/index.ts';
 import { socialRevision } from '../../shared/social-dm/index.ts';
+import { AttachmentService } from '../attachments/index.ts';
+import type { ObjectStore } from '../object-store/index.ts';
+import { object } from '../../shared/account/index.ts';
 import type { ContactAuthority, Database } from '../database/index.ts';
 import {
   matrixUpload,
@@ -12,6 +15,17 @@ import {
 
 export const socialDmOperations = [
   'dm-accepted',
+  'dm-personal-snapshot',
+  'dm-personal-page',
+  'dm-message-history',
+  'dm-received',
+  'dm-secret-get',
+  'dm-secret-save',
+  'dm-attachment-reserve',
+  'dm-attachment-part',
+  'dm-attachment-finish',
+  'dm-attachment-cancel',
+  'dm-attachment-get',
   'dm-profile',
   'dm-list',
   'dm-state',
@@ -33,8 +47,13 @@ export const socialDmOperations = [
   'dm-matrix-inbox',
   'dm-matrix-received',
 ] as const;
-type Store = Pick<Database, 'socialDm' | 'socialCrypto' | 'socialMatrix'>;
+type Store = Pick<
+  Database,
+  'socialDm' | 'socialCrypto' | 'socialMatrix' | 'socialHistory' | 'socialMedia'
+>;
 export class SocialDmService {
+  private readonly media: AttachmentService | null;
+  private readonly store: Store;
   private readonly actions: Record<
     string,
     (
@@ -42,8 +61,63 @@ export class SocialDmService {
       data: Record<string, unknown>,
     ) => Promise<unknown>
   >;
-  constructor(db: Store) {
+  constructor(db: Store, objects?: ObjectStore) {
+    this.store = db;
+    this.media = objects
+      ? new AttachmentService(db.socialMedia, null, {
+          attachment: (id) => objects.socialAttachment(id),
+          readAttachment: (id) => objects.readSocialAttachment(id),
+          discardAttachment: (id) => objects.discardSocialAttachment(id),
+        })
+      : null;
     this.actions = {
+      'dm-personal-snapshot': (a, d) => {
+        keys(d, []);
+        return db.socialHistory.snapshot(a);
+      },
+      'dm-personal-page': (a, d) => {
+        keys(d, ['snapshot', 'after']);
+        const s = object(d['snapshot']);
+        keys(s, ['anchor', 'removals', 'directory', 'profile']);
+        return db.socialHistory.page(a, {
+          after: socialRevision(d['after']),
+          snapshot: {
+            anchor: socialRevision(s['anchor']),
+            removals: socialRevision(s['removals']),
+            directory: fingerprint(s['directory']),
+            profile: uuid(s['profile']),
+          },
+        });
+      },
+      'dm-message-history': (a, d) => {
+        keys(d, ['message', 'after']);
+        return db.socialHistory.history(a, {
+          message: uuid(d['message']),
+          after: integer(d['after'], 128),
+        });
+      },
+      'dm-received': async (a, d) => {
+        keys(d, ['items']);
+        if (!Array.isArray(d['items']) || d['items'].length > 16)
+          throw new AccountError(400, 'Confirmação de DMs excedida.');
+        await db.socialHistory.received(
+          a,
+          d['items'].map((value) => {
+            const r = object(value);
+            keys(r, ['id', 'hash']);
+            return { id: uuid(r['id']), hash: fingerprint(r['hash']) };
+          }),
+        );
+        return { status: 'received' };
+      },
+      'dm-secret-get': (a, d) => {
+        keys(d, []);
+        return db.socialHistory.secret(a);
+      },
+      'dm-secret-save': (a, d) => {
+        keys(d, ['capsule']);
+        return db.socialHistory.secret(a, d['capsule']);
+      },
       'dm-accepted': (a, d) => {
         keys(d, ['id', 'hash']);
         return db.socialCrypto.accepted(
@@ -145,11 +219,22 @@ export class SocialDmService {
       },
     };
   }
+  async clean(): Promise<void> {
+    await this.media?.clean();
+  }
+  preflight(a: ContactAuthority, id: string): Promise<void> {
+    return this.store.socialMedia.preflight(a, id);
+  }
   operate(
     authority: ContactAuthority,
     operation: string,
     data: Record<string, unknown>,
   ): Promise<unknown> {
+    if (operation.startsWith('dm-attachment-')) {
+      if (!this.media)
+        throw new AccountError(503, 'Transferência de DMs indisponível.');
+      return this.media.operate(authority, operation.slice(3), data);
+    }
     const action = Object.hasOwn(this.actions, operation)
       ? this.actions[operation]
       : undefined;

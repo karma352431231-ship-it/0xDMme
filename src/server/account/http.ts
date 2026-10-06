@@ -32,6 +32,12 @@ import {
 const readRoutes = new Set(
   [
     'snapshot',
+    'dm-personal-snapshot',
+    'dm-personal-page',
+    'dm-message-history',
+    'dm-received',
+    'dm-secret-get',
+    'dm-attachment-get',
     'dm-accepted',
     'dm-profile',
     'dm-list',
@@ -130,6 +136,8 @@ function cookie(
 }
 
 const messageBodyBudgets = new Map<string, number>([
+  ['dm-attachment-part', 360000],
+  ['dm-attachment-reserve', 12000],
   ['dm-register', 75000],
   ['dm-publish', 8200000],
   ['dm-matrix-upload', 200000],
@@ -343,6 +351,11 @@ export function createAccountHandler(options: {
         token,
         request.headers['x-hash-talk-csrf'],
       );
+      if (request.url.endsWith('/dm-attachment-part'))
+        await options.messages.preflightSocialAttachment(
+          await options.service.session(token),
+          request.headers['x-0xdmme-attachment-id'],
+        );
       if (request.url.endsWith('/attachment-part'))
         await options.messages.preflightAttachment(
           await options.service.session(token),

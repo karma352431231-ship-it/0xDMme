@@ -1,4 +1,5 @@
 import { attachmentContent } from '../../shared/attachments/index.ts';
+import type { AttachmentContent } from '../../shared/attachments/index.ts';
 import { VoicePlayback } from '../voice-playback/index.ts';
 import { voiceDuration } from '../../shared/voice/index.ts';
 import { prepareAttachment } from '../attachments/index.ts';
@@ -128,12 +129,16 @@ export class AttachmentUi {
     }
   }
   render<V extends MediaView>(input: {
+    content?: AttachmentContent;
+    saveNotice?: string;
     article: HTMLElement;
     view: V;
     load: (view: V, thumbnail: boolean) => Promise<Uint8Array<ArrayBuffer>>;
     run: (work: () => Promise<void>) => Promise<void>;
   }): void {
-    const content = attachmentContent(JSON.parse(input.view.text) as unknown),
+    const content =
+        input.content ??
+        attachmentContent(JSON.parse(input.view.text) as unknown),
       token = this.generation,
       info = document.createElement('p'),
       preview = document.createElement('div'),
@@ -149,6 +154,9 @@ export class AttachmentUi {
     input.article.append(info, preview, button);
     const current = () =>
       token === this.generation && input.article.isConnected;
+    const saveNotice =
+      input.saveNotice ??
+      'A cópia salva fica fora do cofre e da exclusão bilateral. Abra arquivos somente se confiar na origem.';
     const fetchMedia = async (thumbnail: boolean) => {
       if (!current()) return;
       const bytes = await input.load(input.view, thumbnail);
@@ -191,8 +199,7 @@ export class AttachmentUi {
         save.textContent = 'Salvar no aparelho';
         input.article.append(save);
         const warning = document.createElement('small');
-        warning.textContent =
-          'A cópia salva fica fora do cofre e da exclusão bilateral. Abra arquivos somente se confiar na origem.';
+        warning.textContent = saveNotice;
         input.article.append(warning);
       }
     };

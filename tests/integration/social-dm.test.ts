@@ -1,6 +1,17 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import pg from 'pg';
+import { mkdtemp, realpath, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { ObjectStore } from '../../src/server/object-store/index.ts';
+import {
+  sealFile,
+  openFile,
+} from '../../src/client/attachment-crypto/index.ts';
+import { encode } from '../../src/shared/account/index.ts';
+import { voiceWav } from '../../src/client/voice-audio/index.ts';
+import { cleanupSelection } from '../../src/shared/backups/index.ts';
 import { initAsync } from '@matrix-org/matrix-sdk-crypto-wasm';
 import { Database } from '../../src/server/database/index.ts';
 import { AccountService } from '../../src/server/account/index.ts';
@@ -12,7 +23,17 @@ import { readWebConfiguration } from '../../src/server/web-configuration/index.t
 import { messageBody } from '../../src/shared/messages/index.ts';
 import { vaultQuota } from '../../src/shared/vault/index.ts';
 import { sign, eventHash } from '../../src/shared/devices/index.ts';
-import { createIdentity } from '../../src/client/device-keys/index.ts';
+import {
+  sealLocal,
+  openLocal,
+} from '../../src/client/message-storage/index.ts';
+import type { VaultAuthority } from '../../src/client/vault-authority/index.ts';
+import { bytesHash } from '../../src/shared/vault/index.ts';
+import {
+  createIdentity,
+  aesKey,
+  newSecret,
+} from '../../src/client/device-keys/index.ts';
 import {
   freshKeyring,
   prepareEvent,
@@ -30,12 +51,17 @@ import {
 import { createCommunityAccount } from './community-fixture.ts';
 import { groupParticipant } from '../fixtures/group-participant.ts';
 
-await test('corte 7: consentimento próprio, E2EE e isolamento de IDs/autoridade', async (t) => {
+await test('cortes 7–8: consentimento, E2EE, mídia e cofre social', async (t) => {
   const config = readWebConfiguration(process.env);
   if (!new URL(config.databaseUrl).pathname.startsWith('/hash_talk_test'))
     throw new Error('Banco exclusivo de testes necessário.');
   const db = new Database(config.databaseUrl),
     inspector = new pg.Client({ connectionString: config.databaseUrl });
+  const directory = await realpath(
+      await mkdtemp(join(tmpdir(), '0xdmme-dm8-')),
+    ),
+    objects = new ObjectStore(directory);
+  await objects.initialize();
   const account = new AccountService({
       store: db.authentication,
       origin: 'http://127.0.0.1:45127',
@@ -43,13 +69,22 @@ await test('corte 7: consentimento próprio, E2EE e isolamento de IDs/autoridade
     devices = new DeviceService(db.devices),
     profiles = new PublicProfileService(db.publicProfiles, db.devices),
     communities = new CommunityService(db.communities, db.devices),
-    messages = new MessageService(db, db.devices);
+    messages = new MessageService(db, db.devices, objects);
   const accounts: string[] = [],
     addresses: string[] = [];
   await db.migrate();
   await inspector.connect();
   await initAsync();
   t.after(async () => {
+    await messages.close();
+    await inspector.query(
+      'DELETE FROM hash_talk.social_receipts WHERE profile_id IN (SELECT id FROM hash_talk.public_profiles WHERE account_id=ANY($1::uuid[]))',
+      [accounts],
+    );
+    await inspector.query(
+      'DELETE FROM hash_talk.social_media WHERE sender IN (SELECT id FROM hash_talk.public_profiles WHERE account_id=ANY($1::uuid[])) OR recipient IN (SELECT id FROM hash_talk.public_profiles WHERE account_id=ANY($1::uuid[]))',
+      [accounts],
+    );
     await inspector.query(
       'DELETE FROM hash_talk.social_messages WHERE sender IN (SELECT id FROM hash_talk.public_profiles WHERE account_id=ANY($1::uuid[])) OR recipient IN (SELECT id FROM hash_talk.public_profiles WHERE account_id=ANY($1::uuid[]))',
       [accounts],
@@ -74,6 +109,7 @@ await test('corte 7: consentimento próprio, E2EE e isolamento de IDs/autoridade
     );
     await inspector.end();
     await db.close();
+    await rm(directory, { recursive: true, force: true });
   });
   const make = () =>
     createCommunityAccount({
@@ -196,6 +232,55 @@ await test('corte 7: consentimento próprio, E2EE e isolamento de IDs/autoridade
       });
     },
   );
+  function privateAuthority(p: Participant): VaultAuthority {
+    return {
+      session: p.login.session,
+      offline: false,
+      directory: p.directory,
+      epoch: p.ring.epoch,
+      events: [p.event],
+      key: (epoch) => aesKey(p.ring.keys[epoch - 1]!),
+      sign: (proof) => sign(p.identity.signing, proof),
+    };
+  }
+  const privateSecret = newSecret(),
+    wrappedSecret = await sealLocal(
+      privateAuthority(alice),
+      crypto.randomUUID(),
+      privateSecret,
+    ),
+    capsule = {
+      id: wrappedSecret.id,
+      epoch: wrappedSecret.epoch,
+      hash: wrappedSecret.block.hash,
+      bytes: wrappedSecret.block.bytes,
+      ciphertext: encode(wrappedSecret.bytes),
+    };
+  await t.test(
+    'cápsula de recuperação de DM é opaca, idempotente e isolada entre contas',
+    async () => {
+      assert.deepEqual(
+        await operate(alice, 'secret-save', { capsule }),
+        capsule,
+      );
+      assert.deepEqual(
+        await operate(alice, 'secret-save', { capsule }),
+        capsule,
+      );
+      assert.equal(await operate(bob, 'secret-get', {}), null);
+      assert.equal(
+        await openLocal(privateAuthority(alice), wrappedSecret),
+        privateSecret,
+      );
+      await assert.rejects(openLocal(privateAuthority(bob), wrappedSecret));
+      await assert.rejects(
+        operate(alice, 'secret-save', {
+          capsule: { ...capsule, hash: await bytesHash(new Uint8Array([1])) },
+        }),
+        { status: 400 },
+      );
+    },
+  );
   const ar = await createRecoveryKey(a.authority),
     br = await createRecoveryKey(b.authority);
   await operate(alice, 'recovery-register', { key: ar });
@@ -302,12 +387,12 @@ await test('corte 7: consentimento próprio, E2EE e isolamento de IDs/autoridade
         id: crypto.randomUUID(),
         text: 'Não aceitar com cofre cheio',
       });
-      const original = await inspector.query<{ personal_charge: number }>(
-        'SELECT personal_charge FROM hash_talk.social_messages WHERE id=$1',
+      const original = await inspector.query<{ recipient_charge: number }>(
+        'SELECT recipient_charge FROM hash_talk.social_messages WHERE id=$1',
         [packet.id],
       );
       await inspector.query(
-        'UPDATE hash_talk.social_messages SET personal_charge=$2 WHERE id=$1',
+        'UPDATE hash_talk.social_messages SET recipient_charge=$2 WHERE id=$1',
         [packet.id, vaultQuota],
       );
       try {
@@ -316,8 +401,8 @@ await test('corte 7: consentimento próprio, E2EE e isolamento de IDs/autoridade
         });
       } finally {
         await inspector.query(
-          'UPDATE hash_talk.social_messages SET personal_charge=$2 WHERE id=$1',
-          [packet.id, original.rows[0]?.personal_charge],
+          'UPDATE hash_talk.social_messages SET recipient_charge=$2 WHERE id=$1',
+          [packet.id, original.rows[0]?.recipient_charge],
         );
       }
       const rows = await inspector.query(
@@ -328,9 +413,196 @@ await test('corte 7: consentimento próprio, E2EE e isolamento de IDs/autoridade
     },
   );
   await t.test(
+    'corte 8: GIF e voz transferem por partes, retomam sem duplicar cota e entram na limpeza pessoal',
+    async () => {
+      const gif = Uint8Array.from(
+        Buffer.from(
+          'R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAkQBADs=',
+          'base64',
+        ),
+      );
+      const audio = voiceWav([new Int16Array(1600)]);
+      for (const [media, bytes, type, voice] of [
+        ['gif', gif, 'image/gif', null],
+        ['voice', audio, 'audio/wav', { sampleRate: 16000, samples: 1600 }],
+      ] as const) {
+        const sealed = await sealFile(bytes),
+          id = crypto.randomUUID();
+        const reserve = {
+          message: id,
+          peer: bp.id,
+          refs: [sealed.file.ref],
+          media,
+        };
+        await operate(alice, 'attachment-reserve', reserve);
+        await operate(alice, 'attachment-reserve', reserve);
+        await assert.rejects(
+          operate(outsider, 'attachment-part', {
+            id: sealed.file.ref.id,
+            index: 0,
+            ciphertext: encode(sealed.bytes),
+          }),
+          { status: 404 },
+        );
+        await operate(alice, 'attachment-part', {
+          id: sealed.file.ref.id,
+          index: 0,
+          ciphertext: encode(sealed.bytes),
+        });
+        await operate(alice, 'attachment-part', {
+          id: sealed.file.ref.id,
+          index: 0,
+          ciphertext: encode(sealed.bytes),
+        });
+        await operate(alice, 'attachment-finish', { id: sealed.file.ref.id });
+        const content = {
+          version: voice ? 2 : 1,
+          ...(voice ? { voice } : {}),
+          name: media === 'gif' ? 'teste.gif' : 'voz.wav',
+          type,
+          caption: '',
+          image: media === 'gif',
+          file: sealed.file,
+          thumbnail: null,
+        };
+        const mediaPacket = await am.encrypt({
+          authority: a.authority,
+          peerHistory: [b.directory],
+          recovery: [ar, br],
+          id,
+          text: JSON.stringify(content),
+          kind: 'attachment',
+          socialMedia: media,
+        });
+        await operate(alice, 'publish', { packet: mediaPacket });
+        await assert.rejects(
+          operate(outsider, 'attachment-get', {
+            message: id,
+            id: sealed.file.ref.id,
+            index: 0,
+          }),
+          { status: 410 },
+        );
+        const got = (await operate(bob, 'attachment-get', {
+          message: id,
+          id: sealed.file.ref.id,
+          index: 0,
+        })) as { ciphertext: string };
+        assert.deepEqual(
+          await openFile(
+            sealed.file,
+            Uint8Array.from(Buffer.from(got.ciphertext, 'base64')),
+          ),
+          bytes,
+        );
+        const hash = (
+          await inspector.query<{ hash: string }>(
+            'SELECT hash FROM hash_talk.social_messages WHERE id=$1',
+            [id],
+          )
+        ).rows[0]!.hash;
+        await operate(bob, 'received', { items: [{ id, hash }] });
+        const clean = async (owner: Participant) => {
+          const payload = {
+            backup: 'a'.repeat(64),
+            revision: 1,
+            items: [{ kind: 'dm-message', id, hash }],
+          };
+          const proof = {
+            deviceId: owner.login.session.deviceId,
+            directory: owner.directory,
+            payload,
+            signature: await sign(
+              owner.identity.signing,
+              messageBody(
+                owner.login.session.accountId,
+                owner.login.session.deviceId,
+                'personal-clean',
+                { directory: owner.directory, payload },
+              ),
+            ),
+          };
+          cleanupSelection(proof);
+          return messages.operate('personal-clean', owner.login.session, proof);
+        };
+        await clean(alice);
+        await clean(alice);
+        assert.deepEqual(await operate(alice, 'secret-get', {}), capsule);
+        await assert.rejects(
+          operate(alice, 'attachment-get', {
+            message: id,
+            id: sealed.file.ref.id,
+            index: 0,
+          }),
+          { status: 410 },
+        );
+        assert.deepEqual(
+          (
+            (await operate(bob, 'attachment-get', {
+              message: id,
+              id: sealed.file.ref.id,
+              index: 0,
+            })) as { ciphertext: string }
+          ).ciphertext,
+          got.ciphertext,
+        );
+        await clean(bob);
+        const cleared = await inspector.query<{ body: unknown }>(
+          'SELECT body FROM hash_talk.social_messages WHERE id=$1',
+          [id],
+        );
+        assert.equal(cleared.rows[0]?.body, null);
+        await assert.rejects(objects.readSocialAttachment(sealed.file.ref.id));
+      }
+    },
+  );
+  await t.test(
+    'snapshot não entrega corpo a aparelho sem consentimento; ACK distingue cópia já recebida',
+    async () => {
+      const snapshot = await operate(bob, 'personal-snapshot', {});
+      const page = (await operate(bob, 'personal-page', {
+        snapshot,
+        after: 0,
+      })) as { items: { id: string; packet?: unknown }[] };
+      assert.ok(page.items.some((row) => row.id === packet.id && row.packet));
+      const hash = (
+        await inspector.query<{ hash: string }>(
+          'SELECT hash FROM hash_talk.social_messages WHERE id=$1',
+          [packet.id],
+        )
+      ).rows[0]!.hash;
+      await operate(bob, 'received', { items: [{ id: packet.id, hash }] });
+    },
+  );
+  await t.test(
     'bloqueio social impede conteúdo/chaves sem mudar o contato privado',
     async () => {
       await operate(bob, 'block', { peer: ap.id, blocked: true });
+      const snapshot = await operate(bob, 'personal-snapshot', {});
+      const received = (await operate(bob, 'personal-page', {
+        snapshot,
+        after: 0,
+      })) as { items: { id: string; packet?: unknown }[] };
+      assert.ok(
+        received.items.some((row) => row.id === packet.id && row.packet),
+      );
+      const freshDevice = {
+        ...bob,
+        login: {
+          ...bob.login,
+          session: { ...bob.login.session, deviceId: crypto.randomUUID() },
+        },
+      };
+      await assert.rejects(
+        operate(freshDevice, 'personal-page', { snapshot, after: 0 }),
+        { status: 403 },
+      );
+      const senderSnapshot = await operate(alice, 'personal-snapshot', {});
+      const sent = (await operate(alice, 'personal-page', {
+        snapshot: senderSnapshot,
+        after: 0,
+      })) as { items: { id: string; packet?: unknown }[] };
+      assert.ok(sent.items.some((row) => row.id === packet.id && row.packet));
       await assert.rejects(
         operate(alice, 'page', { peer: bp.id, before: null }),
         { status: 403 },
@@ -490,6 +762,11 @@ await test('corte 7: consentimento próprio, E2EE e isolamento de IDs/autoridade
         event,
         directory: await eventHash(event),
       };
+      assert.deepEqual(await operate(recovered, 'secret-get', {}), capsule);
+      assert.equal(
+        await openLocal(privateAuthority(recovered), wrappedSecret),
+        privateSecret,
+      );
       const publicDevice = await createIdentity(
         crypto.randomUUID(),
         'Aparelho de DMs',

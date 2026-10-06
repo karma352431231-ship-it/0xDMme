@@ -16,6 +16,7 @@ import { cleanPersonal } from '../personal-removals/index.ts';
 import { notifyMessageControls } from '../message-controls/index.ts';
 import { historyPage, importHistory } from '../local-history/index.ts';
 import { localGet, localPut } from '../message-storage/index.ts';
+import { SocialBackups } from '../social-backups/index.ts';
 import { GroupBackups } from '../groups/index.ts';
 export interface BackupChoice {
   type: 'vault' | 'message';
@@ -30,6 +31,7 @@ export class Backups {
   private readonly sync: VaultSync;
   private readonly messages: Messages;
   private readonly groups: GroupBackups;
+  private readonly social: SocialBackups;
   private session: AccountSession | null = null;
   private generation = 0;
   private after: number | null = 0;
@@ -52,6 +54,7 @@ export class Backups {
     this.profile = profile;
     this.messages = new Messages(access, sync, () => {});
     this.groups = new GroupBackups(access, sync);
+    this.social = new SocialBackups(access, sync);
   }
   private sameIdentity(session: AccountSession | null): boolean {
     return (
@@ -69,8 +72,10 @@ export class Backups {
     this.session = session;
     this.messages.setSession(session);
     this.groups.setSession(session);
+    this.social.setSession(session);
   }
   cancel(): void {
+    this.social.cancel();
     this.generation++;
     this.reader?.close();
     this.reader = null;
@@ -213,6 +218,14 @@ export class Backups {
           guard,
           omitted,
         });
+      if (groups)
+        included += await this.social.export({
+          append: (row) => writer.add(row, guard),
+          known: historical,
+          guard,
+          omitted,
+          exported: this.exported,
+        });
       this.generated = await writer.finish(omitted, guard);
       guard();
       return { included, omitted };
@@ -299,6 +312,12 @@ export class Backups {
       guard();
       for (const row of page.rows) {
         const identity = `${row.type}:${row.id}`;
+        const previous = historical.get(identity);
+        if (previous === row.hash) continue;
+        if (previous !== undefined)
+          throw new Error(
+            'Cópias históricas divergentes. Preserve os arquivos originais antes de resolver.',
+          );
         historical.set(identity, row.hash);
         await writer.add(row, guard);
         included++;

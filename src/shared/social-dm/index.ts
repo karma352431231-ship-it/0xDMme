@@ -77,10 +77,14 @@ export function socialDirectory(input: unknown): DirectoryEvent {
 }
 export function socialPacket(input: unknown): MessagePacket {
   const packet = messagePacket(input);
-  if (packet.kind !== 'text' || packet.relation || packet.attachments)
+  if (
+    packet.kind === 'profile' ||
+    packet.relation ||
+    (packet.kind === 'attachment' && !packet.socialMedia)
+  )
     throw new AccountError(
       400,
-      'Esta etapa de DMs aceita somente texto e links.',
+      'DM aceita texto, fotos, GIFs e voz declarados; perfil privado e outras operações são proibidos.',
     );
   return packet;
 }

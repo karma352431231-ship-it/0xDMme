@@ -19,14 +19,19 @@ import type {
 import { socialDirectory, socialPacket } from '../../shared/social-dm/index.ts';
 import type { ContactAuthority } from './contacts.ts';
 import type { PublicProfileStore } from './public-profile.ts';
+import type { SocialMediaStore } from './social-media.ts';
 import type { SocialContext, SocialDmStore } from './social-dm.ts';
 
 export class SocialCryptoStore {
   private readonly social: SocialDmStore;
   private readonly profiles: PublicProfileStore;
+  private media: SocialMediaStore | null = null;
   constructor(social: SocialDmStore, profiles: PublicProfileStore) {
     this.social = social;
     this.profiles = profiles;
+  }
+  setMedia(media: SocialMediaStore): void {
+    this.media = media;
   }
   async current(
     client: pg.PoolClient,
@@ -282,26 +287,42 @@ export class SocialCryptoStore {
       const existing = await context.client.query<{
         hash: string;
         sender: string;
-      }>('SELECT hash,sender FROM hash_talk.social_messages WHERE id=$1', [
+        body: unknown;
+      }>('SELECT hash,sender,body FROM hash_talk.social_messages WHERE id=$1', [
         packet.id,
       ]);
       if (existing.rows[0]) {
         if (
           existing.rows[0].hash !== hash ||
-          existing.rows[0].sender !== context.actor.id
+          existing.rows[0].sender !== context.actor.id ||
+          !existing.rows[0].body
         )
           throw new AccountError(409, 'Identificador de DM já utilizado.');
         return { status: 'accepted', hash };
       }
+      await this.admitMedia(context, packet);
       const body = JSON.stringify(packet),
         charge = Buffer.byteLength(body) + 512;
       await context.client.query(
-        'INSERT INTO hash_talk.social_messages(id,sender,recipient,hash,body,charge,personal_charge) VALUES($1,$2,$3,$4,$5::jsonb,$6,$6)',
+        'INSERT INTO hash_talk.social_messages(id,sender,recipient,hash,body,charge,sender_charge,recipient_charge) VALUES($1,$2,$3,$4,$5::jsonb,$6,$6,$6)',
         [packet.id, packet.sender, packet.recipient, hash, body, charge],
       );
+      await context.client.query(
+        'INSERT INTO hash_talk.social_receipts(message_id,profile_id,device_id,received) VALUES($1,$2,$3,true) ON CONFLICT DO NOTHING',
+        [packet.id, packet.sender, authority.session.deviceId],
+      );
       await this.social.limits(context, [packet.sender, packet.recipient]);
+      await this.social.changed(context, [packet.sender, packet.recipient]);
       return { status: 'accepted', hash };
     });
+  }
+  private async admitMedia(
+    context: SocialContext,
+    packet: MessagePacket,
+  ): Promise<void> {
+    if (!this.media)
+      throw new AccountError(503, 'Preservação da mídia de DMs indisponível.');
+    await this.media.admit(context.client, packet);
   }
   async accepted(
     authority: ContactAuthority,
@@ -320,6 +341,12 @@ export class SocialCryptoStore {
           409,
           'Recibo de DM de outro remetente ou conteúdo.',
         );
+      const removed = await context.client.query(
+        "SELECT 1 FROM hash_talk.personal_removals WHERE account_id=$1 AND kind='dm-message' AND id=$2",
+        [authority.session.accountId, id],
+      );
+      if (removed.rowCount)
+        throw new AccountError(410, 'DM removida do cofre pessoal.');
       return true;
     });
   }
@@ -361,8 +388,13 @@ export class SocialCryptoStore {
         sequence: string;
         body: MessagePacket;
       }>(
-        `SELECT sequence::text,body FROM hash_talk.social_messages WHERE ((sender=$1 AND recipient=$2) OR (sender=$2 AND recipient=$1)) AND ($3::bigint IS NULL OR sequence<$3) ORDER BY sequence DESC LIMIT 17`,
-        [context.actor.id, input.peer, input.before],
+        `SELECT sequence::text,body FROM hash_talk.social_messages WHERE ((sender=$1 AND recipient=$2) OR (sender=$2 AND recipient=$1)) AND ($3::bigint IS NULL OR sequence<$3) AND body IS NOT NULL AND NOT EXISTS(SELECT 1 FROM hash_talk.personal_removals r WHERE r.account_id=$4 AND r.kind='dm-message' AND r.id=hash_talk.social_messages.id) ORDER BY sequence DESC LIMIT 17`,
+        [
+          context.actor.id,
+          input.peer,
+          input.before,
+          authority.session.accountId,
+        ],
       );
       const page = rows.rows.slice(0, 16);
       return {

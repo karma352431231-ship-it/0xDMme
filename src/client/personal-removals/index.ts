@@ -6,6 +6,7 @@ import type {
 } from '../../shared/backups/index.ts';
 import type { VaultAuthority } from '../vault-authority/index.ts';
 import { forgetCachedBlock } from '../vault-storage/index.ts';
+import { forgetDmRecord } from '../local-history/index.ts';
 import { forgetAttachment } from '../attachments/index.ts';
 import { localDelete, localPage, localPut } from '../message-storage/index.ts';
 import { messageApi } from '../message-api/index.ts';
@@ -120,6 +121,11 @@ export async function cleanPersonal(
 }
 
 async function purgeRemoved(account: string, row: BackupTarget): Promise<void> {
+  if (row.kind === 'dm-message') {
+    await forgetDmRecord(account, row.id);
+    await forgetAttachment(`dm-media:${account}`, row.id);
+    return;
+  }
   if (row.kind === 'vault') {
     await forgetCachedBlock(account, row.id);
     return;

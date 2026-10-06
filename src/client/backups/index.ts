@@ -22,7 +22,21 @@ export function startBackups(
     'O backup completo inclui conversas, áudios, imagens e arquivos.';
   let downloadUrl: string | null = null;
   let session: AccountSession | null = null;
+  function renderDownload(): void {
+    const link = mounted?.querySelector<HTMLAnchorElement>(
+      '[data-backup-download]',
+    );
+    if (!link) return;
+    link.hidden = busy || !downloadUrl;
+    if (!downloadUrl) {
+      link.removeAttribute('href');
+      return;
+    }
+    link.href = downloadUrl;
+    link.download = `0xDMme-backup-${new Date().toISOString().slice(0, 10)}.0xdm`;
+  }
   function render(): void {
+    renderDownload();
     const message = mounted?.querySelector('[data-backup-status]');
     if (message) message.textContent = status;
     mounted?.querySelectorAll<HTMLButtonElement>('button').forEach((button) => {
@@ -109,7 +123,7 @@ export function startBackups(
   window.addEventListener('0xdmme-backup-progress', (event) => {
     const detail = (event as CustomEvent<{ done: number; total: number }>)
       .detail;
-    status = `Preparando backup: ${detail.done} de ${detail.total} itens.`;
+    status = `Preparando backup: ${detail.done} itens.`;
     render();
   });
   window.addEventListener('pagehide', () => {
@@ -149,7 +163,7 @@ export function startBackups(
     },
     mount(container: HTMLElement): void {
       mounted = container;
-      container.innerHTML = `<article class="card"><h2>Backup local</h2><p>Guarde uma cópia completa cifrada. Importar um arquivo integra o histórico às conversas deste aparelho.</p><p data-backup-status role="status"></p><button data-backup-save class="primary" type="button">Salvar arquivo de backup</button><button data-backup-validate type="button">Validar arquivo</button><input data-backup-file type="file" accept=".0xdm,application/octet-stream" hidden><button data-backup-clean type="button" disabled>Resetar cofre</button><button data-backup-cancel type="button" hidden>Cancelar</button></article>`;
+      container.innerHTML = `<article class="card"><h2>Backup local</h2><p>Guarde uma cópia completa cifrada. Importar um arquivo integra o histórico às conversas deste aparelho.</p><p data-backup-status role="status"></p><button data-backup-save class="primary" type="button">Salvar arquivo de backup</button><a data-backup-download hidden>Baixar arquivo preparado</a><button data-backup-validate type="button">Validar arquivo</button><input data-backup-file type="file" accept=".0xdm,application/octet-stream" hidden><button data-backup-clean type="button" disabled>Resetar cofre</button><button data-backup-cancel type="button" hidden>Cancelar</button></article>`;
       container
         .querySelector('[data-backup-save]')
         ?.addEventListener('click', () => {

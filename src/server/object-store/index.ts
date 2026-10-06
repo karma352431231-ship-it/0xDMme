@@ -78,6 +78,20 @@ export class ObjectStore {
     await child.cleanStaging(Number.POSITIVE_INFINITY);
     return child;
   }
+  private async socialObjects(): Promise<ObjectStore> {
+    const child = new ObjectStore(resolve(this.directory, 'social-media'));
+    await child.initialize();
+    return child;
+  }
+  async socialAttachment(id: string): Promise<ObjectStore> {
+    return (await this.socialObjects()).attachment(id);
+  }
+  async readSocialAttachment(id: string): Promise<ObjectStore> {
+    return (await this.socialObjects()).readAttachment(id);
+  }
+  async discardSocialAttachment(id: string): Promise<void> {
+    return (await this.socialObjects()).discardAttachment(id);
+  }
   /** Distinct from personal media even when a caller repeats an attachment UUID. */
   async groupMedia(groupId: string): Promise<ObjectStore> {
     if (!validUuid.test(groupId)) throw new Error('Grupo de objetos inválido.');

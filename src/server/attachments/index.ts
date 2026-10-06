@@ -19,6 +19,29 @@ import type {
   MessageSnapshot,
 } from '../database/index.ts';
 import type { ObjectStore } from '../object-store/index.ts';
+import { socialMedia } from '../../shared/social-media/index.ts';
+import type { SocialMedia } from '../../shared/social-media/index.ts';
+import type { AttachmentRef } from '../../shared/attachments/index.ts';
+export interface AttachmentStorage extends Pick<
+  AttachmentStore,
+  | 'begin'
+  | 'finish'
+  | 'release'
+  | 'cancel'
+  | 'readable'
+  | 'garbage'
+  | 'collected'
+> {
+  reserve: (
+    a: ContactAuthority,
+    input: {
+      message: string;
+      peer: string;
+      refs: AttachmentRef[];
+      media?: SocialMedia;
+    },
+  ) => Promise<unknown>;
+}
 function writeRequest(
   operation: string,
   d: Record<string, unknown>,
@@ -32,15 +55,21 @@ function writeRequest(
   };
 }
 export class AttachmentService {
-  private readonly store: AttachmentStore;
-  private readonly messages: MessageStore;
-  private readonly objects: ObjectStore;
+  private readonly store: AttachmentStorage;
+  private readonly messages: Pick<MessageStore, 'confirmSnapshot'> | null;
+  private readonly objects: Pick<
+    ObjectStore,
+    'attachment' | 'readAttachment' | 'discardAttachment'
+  >;
   private active = 0;
   private cleaning: Promise<void> | null = null;
   constructor(
-    store: AttachmentStore,
-    messages: MessageStore,
-    objects: ObjectStore,
+    store: AttachmentStorage,
+    messages: Pick<MessageStore, 'confirmSnapshot'> | null,
+    objects: Pick<
+      ObjectStore,
+      'attachment' | 'readAttachment' | 'discardAttachment'
+    >,
   ) {
     this.store = store;
     this.messages = messages;
@@ -83,12 +112,18 @@ export class AttachmentService {
     snapshot?: MessageSnapshot,
   ): Promise<unknown> {
     if (operation === 'attachment-reserve') {
-      keys(d, ['message', 'peer', 'refs']);
+      keys(
+        d,
+        this.messages
+          ? ['message', 'peer', 'refs']
+          : ['message', 'peer', 'refs', 'media'],
+      );
       await this.clean();
       return this.store.reserve(a, {
         message: uuid(d['message']),
         peer: uuid(d['peer']),
         refs: attachmentRefs(d['refs']),
+        ...(this.messages ? {} : { media: socialMedia(d['media']) }),
       });
     }
     if (operation === 'attachment-cancel') {
@@ -98,7 +133,7 @@ export class AttachmentService {
       return { status: 'cancelled' };
     }
     if (operation === 'attachment-get') {
-      if (!snapshot)
+      if (this.messages && !snapshot)
         throw new AccountError(400, 'Estado de mensagens ausente.');
       return this.read(a, d, snapshot);
     }
@@ -139,15 +174,21 @@ export class AttachmentService {
   private async read(
     a: ContactAuthority,
     d: Record<string, unknown>,
-    snapshot: MessageSnapshot,
+    snapshot: MessageSnapshot | undefined,
   ): Promise<unknown> {
-    keys(d, ['message', 'id', 'index', 'snapshot']);
+    keys(
+      d,
+      this.messages
+        ? ['message', 'id', 'index', 'snapshot']
+        : ['message', 'id', 'index'],
+    );
     const input = {
       message: uuid(d['message']),
       id: uuid(d['id']),
       index: integer(d['index'], 11),
     };
-    await this.messages.confirmSnapshot(a, snapshot);
+    if (this.messages && snapshot)
+      await this.messages.confirmSnapshot(a, snapshot);
     const ref = await this.store.readable(a, input),
       part = ref.parts[input.index];
     if (!part) throw new AccountError(400, 'Parte inexistente.');
@@ -155,7 +196,8 @@ export class AttachmentService {
       await this.objects.readAttachment(input.id)
     ).read(part.hash);
     await this.store.readable(a, input);
-    await this.messages.confirmSnapshot(a, snapshot);
+    if (this.messages && snapshot)
+      await this.messages.confirmSnapshot(a, snapshot);
     return { ciphertext: encode(bytes) };
   }
 }

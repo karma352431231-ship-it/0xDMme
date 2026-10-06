@@ -85,21 +85,33 @@ function activeAliases(input: unknown): string[] {
   return input.map(uuid);
 }
 async function pinSocialDirectory(result: SocialDirectoryPage): Promise<void> {
-  const current = await verifyHistory(result.events, result.profile),
-    old = await readCheckpoint(result.profile);
+  const old = await readCheckpoint(result.profile);
+  if (old.events.length > result.events.length)
+    throw new Error('Diretório de DMs retrocedeu.');
+  await pinSocialHistory(result.profile, result.events);
+}
+/** Historical prefixes may be older than the current checkpoint, but never change its root or chain. */
+export async function pinSocialHistory(
+  profile: string,
+  events: DirectoryEvent[],
+): Promise<void> {
+  const current = await verifyHistory(events, profile),
+    old = await readCheckpoint(profile);
   if (!current) {
     if (old.events.length) throw new Error('Diretório de DMs desapareceu.');
     return;
   }
-  const trustedRoot = await digest(canonical(current.root));
+  const trustedRoot = await digest(canonical(current.root)),
+    through = Math.min(events.length, old.events.length);
   if (
     old.trustedRoot &&
     (old.trustedRoot !== trustedRoot ||
-      canonical(result.events.slice(0, old.events.length)) !==
-        canonical(old.events))
+      canonical(events.slice(0, through)) !==
+        canonical(old.events.slice(0, through)))
   )
-    throw new Error('Identidade das DMs mudou ou retrocedeu.');
-  await saveCheckpoint(result.profile, { events: result.events, trustedRoot });
+    throw new Error('Identidade histórica das DMs diverge da cópia confiável.');
+  if (events.length > old.events.length)
+    await saveCheckpoint(profile, { events, trustedRoot });
 }
 /** Reuses the established signed directory and key encapsulation, never private peer data. */
 export async function socialAuthority(input: {

@@ -7,7 +7,8 @@ export async function pendingMedia(
   const result = await client.query<{ personal: number; global: number }>(
     `WITH pending AS (SELECT sender AS account FROM hash_talk.message_attachments WHERE status IN ('reserved','writing','ready')
       UNION ALL SELECT sender FROM hash_talk.group_media WHERE status IN ('reserved','writing','ready')
-      UNION ALL SELECT author FROM hash_talk.status_media WHERE status IN ('reserved','writing','ready'))
+      UNION ALL SELECT author FROM hash_talk.status_media WHERE status IN ('reserved','writing','ready')
+      UNION ALL SELECT p.account_id FROM hash_talk.social_media m JOIN hash_talk.public_profiles p ON p.id=m.sender WHERE m.status IN ('reserved','writing','ready'))
       SELECT count(*) FILTER(WHERE account=$1)::integer AS personal,count(*)::integer AS global FROM pending`,
     [accountId],
   );

@@ -32,8 +32,11 @@ export async function vaultUsage(
       UNION ALL SELECT profile_id,charge FROM hash_talk.social_matrix_devices
       UNION ALL SELECT profile_id,charge FROM hash_talk.social_matrix_keys
       UNION ALL SELECT recipient,charge FROM hash_talk.social_matrix_envelopes
-      UNION ALL SELECT sender,personal_charge FROM hash_talk.social_messages
-      UNION ALL SELECT recipient,personal_charge FROM hash_talk.social_messages
+      UNION ALL SELECT profile_id,charge FROM hash_talk.social_personal_secrets
+      UNION ALL SELECT sender,sender_charge FROM hash_talk.social_media
+      UNION ALL SELECT recipient,recipient_charge FROM hash_talk.social_media
+      UNION ALL SELECT sender,sender_charge FROM hash_talk.social_messages
+      UNION ALL SELECT recipient,recipient_charge FROM hash_talk.social_messages
     ) s JOIN hash_talk.public_profiles p ON p.id=s.profile WHERE p.account_id=$1),0)
     + coalesce((SELECT sum(charge) FROM hash_talk.group_controls WHERE account_id=$1),0)
     + coalesce((SELECT sum(charge) FROM hash_talk.group_reads WHERE account_id=$1),0)

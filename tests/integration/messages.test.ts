@@ -63,7 +63,11 @@ import {
   verifyRemoval,
   personalRemoval,
 } from '../../src/shared/backups/index.ts';
-import { messageBody, messagePacket } from '../../src/shared/messages/index.ts';
+import {
+  messageBody,
+  messagePacket,
+  packetProof,
+} from '../../src/shared/messages/index.ts';
 import type {
   MessagePacket,
   RecoveryKey,
@@ -820,6 +824,11 @@ await test('mensagens persistentes: Olm/Megolm, recuperação, idempotência, ex
         ciphertext: encode(sealed.bytes),
       });
       await op(alice, 'attachment-finish', { id: sealed.file.ref.id });
+      const socialFormat: MessagePacket = { ...media, socialMedia: 'voice' };
+      socialFormat.signature = await (
+        await authority(alice)
+      ).sign(packetProof(socialFormat));
+      await assert.rejects(publish(socialFormat), { status: 400 });
       await publish(media);
       const stored = await inspector.query<{ body: MessagePacket }>(
         'SELECT body FROM hash_talk.message_packets WHERE id=$1',

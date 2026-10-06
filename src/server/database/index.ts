@@ -32,6 +32,10 @@ export type { CommunityDiscoveryStore } from './community-discovery.ts';
 import { SocialDmStore } from './social-dm.ts';
 import { SocialCryptoStore } from './social-crypto.ts';
 import { SocialMatrixStore } from './social-matrix.ts';
+import { SocialHistoryStore } from './social-history.ts';
+import { SocialMediaStore } from './social-media.ts';
+export type { SocialHistoryStore, SocialSnapshot } from './social-history.ts';
+export type { SocialMediaStore } from './social-media.ts';
 export type { SocialDmStore, SocialContext } from './social-dm.ts';
 export type { SocialCryptoStore } from './social-crypto.ts';
 export type { SocialMatrixStore } from './social-matrix.ts';
@@ -102,6 +106,7 @@ const migrations = [
   '033-social-dm.sql',
   '034-social-dm-retention.sql',
   '035-social-block-revisions.sql',
+  '036-social-history-media.sql',
 ];
 
 export interface MaintenanceSnapshot {
@@ -138,6 +143,8 @@ export class Database {
   readonly socialDm: SocialDmStore;
   readonly socialCrypto: SocialCryptoStore;
   readonly socialMatrix: SocialMatrixStore;
+  readonly socialHistory: SocialHistoryStore;
+  readonly socialMedia: SocialMediaStore;
   readonly devices: DeviceStore;
   readonly vault: VaultStore;
   readonly contacts: ContactStore;
@@ -200,6 +207,16 @@ export class Database {
       this.socialDm,
       this.publicProfiles,
     );
+    this.socialHistory = new SocialHistoryStore(
+      this.socialDm,
+      this.publicProfiles,
+    );
+    this.socialMedia = new SocialMediaStore(
+      this.pool,
+      this.socialDm,
+      this.socialHistory,
+    );
+    this.socialCrypto.setMedia(this.socialMedia);
     this.socialMatrix = new SocialMatrixStore(this.socialDm, this.socialCrypto);
     this.communityPosts = new CommunityPostStore({
       pool: this.pool,
@@ -234,7 +251,10 @@ export class Database {
       contentCapacity,
       this.attachments,
     );
-    this.backups = new BackupStore(this.pool, this.contacts, contentCapacity);
+    this.backups = new BackupStore(this.pool, this.contacts, contentCapacity, {
+      clean: (c, account, item) => this.socialHistory.clean(c, account, item),
+      collect: (c, id) => this.socialHistory.collect(c, id),
+    });
     this.groups = new GroupStore(
       this.contacts,
       this.devices,

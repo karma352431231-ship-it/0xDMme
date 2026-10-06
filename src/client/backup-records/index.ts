@@ -26,7 +26,36 @@ import { optionalRelation, relationKeys } from '../../shared/daily/index.ts';
 import type { MessageRelation } from '../../shared/daily/index.ts';
 import { backupRecordLimit } from '../../shared/backups/index.ts';
 import type { BackupTarget } from '../../shared/backups/index.ts';
+import {
+  socialAttachment,
+  socialMedia,
+} from '../../shared/social-media/index.ts';
+import type { SocialMedia } from '../../shared/social-media/index.ts';
+import { publicProfile } from '../../shared/public-profile/index.ts';
+import type { PublicProfile } from '../../shared/public-profile/index.ts';
 export type BackupRecord =
+  | { type: 'dm-identity'; id: string; hash: string; value: string }
+  | {
+      type: 'dm-message';
+      id: string;
+      hash: string;
+      self: string;
+      peer: PublicProfile;
+      sequence: number;
+      own: boolean;
+      kind: 'text' | 'attachment';
+      media: SocialMedia | null;
+      text: string;
+    }
+  | {
+      type: 'dm-media';
+      id: string;
+      hash: string;
+      self: string;
+      message: string;
+      thumbnail: boolean;
+      bytes: string;
+    }
   | {
       type: 'group';
       id: string;
@@ -116,8 +145,8 @@ export function backupRecord(input: unknown): BackupRecord {
     type = d['type'];
   const id = uuid(d['id']),
     hash = fingerprint(d['hash']);
-  const group = groupBackupRecord(d, id, hash);
-  if (group) return group;
+  const context = contextRecord(d, id, hash);
+  if (context) return context;
   if (type === 'account') {
     keys(d, ['type', 'id', 'hash', 'value']);
     const value = boundedText(d['value'], 4_300_000);
@@ -148,6 +177,85 @@ export function backupRecord(input: unknown): BackupRecord {
     };
   }
   throw new Error('Tipo de registro de backup não suportado.');
+}
+function contextRecord(
+  d: Record<string, unknown>,
+  id: string,
+  hash: string,
+): BackupRecord | null {
+  return dmRecord(d, id, hash) ?? groupBackupRecord(d, id, hash);
+}
+function dmRecord(
+  d: Record<string, unknown>,
+  id: string,
+  hash: string,
+): BackupRecord | null {
+  const type = d['type'];
+  if (type === 'dm-identity') {
+    keys(d, ['type', 'id', 'hash', 'value']);
+    return { type, id, hash, value: boundedText(d['value'], 4096) };
+  }
+  if (type === 'dm-message') return dmMessage(d, id, hash);
+  if (type === 'dm-media') {
+    keys(d, ['type', 'id', 'hash', 'self', 'message', 'thumbnail', 'bytes']);
+    if (typeof d['thumbnail'] !== 'boolean')
+      throw new Error('Mídia de DM histórica inválida.');
+    const bytes = base64(d['bytes'], fileLimit);
+    if (!bytes.length) throw new Error('Mídia de DM vazia.');
+    return {
+      type,
+      id,
+      hash,
+      self: uuid(d['self']),
+      message: uuid(d['message']),
+      thumbnail: d['thumbnail'],
+      bytes: encode(bytes),
+    };
+  }
+  return null;
+}
+function dmMessage(
+  d: Record<string, unknown>,
+  id: string,
+  hash: string,
+): BackupRecord {
+  const type = 'dm-message';
+  keys(d, [
+    'type',
+    'id',
+    'hash',
+    'self',
+    'peer',
+    'sequence',
+    'own',
+    'kind',
+    'media',
+    'text',
+  ]);
+  if (
+    typeof d['own'] !== 'boolean' ||
+    (d['kind'] !== 'text' && d['kind'] !== 'attachment')
+  )
+    throw new Error('Registro de DM inválido.');
+  const text = boundedText(d['text'], 3_000_000),
+    media = d['media'] === null ? null : socialMedia(d['media']);
+  if (d['kind'] === 'attachment') {
+    if (!media) throw new Error('Mídia de DM não declarada.');
+    socialAttachment(JSON.parse(text) as unknown, media);
+  } else if (media || new TextEncoder().encode(text).length > 3_000_000)
+    throw new Error('Texto de DM inválido.');
+  return {
+    type,
+    id,
+    hash,
+    self: uuid(d['self']),
+    peer: publicProfile(d['peer']),
+    sequence: integer(d['sequence'], Number.MAX_SAFE_INTEGER),
+    own: d['own'],
+    kind: d['kind'],
+    media,
+    text,
+  };
 }
 function groupBackupRecord(
   d: Record<string, unknown>,
@@ -276,6 +384,7 @@ export function cleanupTarget(
   row: BackupRecord,
   media: ReadonlySet<string>,
 ): BackupTarget | null {
+  if (row.type === 'dm-message') return dmCleanup(row, media);
   if (row.type !== 'message' && row.type !== 'vault') return null;
   if (row.type === 'message' && row.kind === 'attachment') {
     const content = attachmentContent(JSON.parse(row.text) as unknown);
@@ -293,23 +402,29 @@ export function cleanupTarget(
   };
 }
 
+function dmCleanup(
+  row: Extract<BackupRecord, { type: 'dm-message' }>,
+  media: ReadonlySet<string>,
+): BackupTarget | null {
+  if (
+    row.kind === 'attachment' &&
+    row.media &&
+    contentRefs(
+      socialAttachment(JSON.parse(row.text) as unknown, row.media),
+    ).some(
+      (ref) => !media.has(`dm:${row.self}:${row.id}:${ref.id}:${ref.hash}`),
+    )
+  )
+    return null;
+  return { kind: 'dm-message', id: row.id, hash: row.hash };
+}
 /** Base64 text avoids unbounded JSON escape expansion for valid 3 MB vault blocks. */
 export function serializeRecord(row: BackupRecord): Uint8Array<ArrayBuffer> {
-  const field =
-    row.type === 'vault' || row.type === 'account'
-      ? 'value'
-      : row.type === 'message' || row.type === 'group-message'
-        ? 'text'
-        : null;
-  const encoder = new TextEncoder();
-  if (!field) return encoder.encode(JSON.stringify(row));
-  const bytes = encoder.encode(
-    row.type === 'vault' || row.type === 'account'
-      ? row.value
-      : row.type === 'message' || row.type === 'group-message'
-        ? row.text
-        : '',
-  );
+  const encoder = new TextEncoder(),
+    payload = recordPayload(row);
+  if (!payload) return encoder.encode(JSON.stringify(row));
+  const field = payload.field,
+    bytes = encoder.encode(payload.text);
   try {
     return encoder.encode(
       JSON.stringify({
@@ -322,17 +437,29 @@ export function serializeRecord(row: BackupRecord): Uint8Array<ArrayBuffer> {
     bytes.fill(0);
   }
 }
+function recordPayload(
+  row: BackupRecord,
+): { field: string; text: string } | null {
+  if ('value' in row) return { field: 'value', text: row.value };
+  if ('text' in row) return { field: 'text', text: row.text };
+  return null;
+}
 export function deserializeRecord(bytes: Uint8Array): BackupRecord {
   const decoder = new TextDecoder('utf-8', { fatal: true });
   const raw = object(JSON.parse(decoder.decode(bytes)) as unknown);
-  if (['media', 'group', 'group-media'].includes(String(raw['type'])))
+  if (
+    ['media', 'group', 'group-media', 'dm-media'].includes(String(raw['type']))
+  )
     return backupRecord(raw);
   if (raw['encoding'] !== 'base64-utf8')
     throw new Error('Codificação do registro não suportada.');
   const { encoding: _encoding, ...value } = raw;
   void _encoding;
-  const field =
-    raw['type'] === 'vault' || raw['type'] === 'account' ? 'value' : 'text';
+  const field = ['vault', 'account', 'dm-identity'].includes(
+    String(raw['type']),
+  )
+    ? 'value'
+    : 'text';
   const decoded = base64(
     raw[field],
     raw['type'] === 'vault' ? 3_000_000 : 4_300_000,

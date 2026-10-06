@@ -273,6 +273,13 @@ function historyIndex(record: BackupRecord): {
   relation: string;
   kind: string;
 } {
+  if (record.type === 'dm-message')
+    return {
+      peer: record.peer.id,
+      sequence: record.sequence,
+      relation: '',
+      kind: record.kind,
+    };
   if (record.type === 'message')
     return {
       peer: record.peer,
@@ -288,6 +295,122 @@ function historyIndex(record: BackupRecord): {
       kind: record.kind,
     };
   return { peer: '', sequence: 0, relation: '', kind: '' };
+}
+/** DM records have their own type; they never enter private wallet peer indexes. */
+export async function dmHistoryPeers(a: VaultAuthority, after: string | null) {
+  const page = await transaction<{ rows: StoredRecord[]; next: string | null }>(
+    (tx, done) => {
+      const request = tx
+        .objectStore('records')
+        .index('conversation')
+        .openCursor(
+          IDBKeyRange.bound(
+            after
+              ? [
+                  a.session.accountId,
+                  after,
+                  Number.MAX_SAFE_INTEGER,
+                  '\uffff',
+                  '\uffff',
+                ]
+              : [
+                  a.session.accountId,
+                  '',
+                  Number.MAX_SAFE_INTEGER,
+                  '\uffff',
+                  '\uffff',
+                ],
+            [a.session.accountId, '\uffff'],
+            after !== null,
+          ),
+        );
+      const peers = new Map<string, StoredRecord>();
+      let scanned = 0,
+        last: string | null = null;
+      request.onsuccess = () => {
+        const cursor = request.result;
+        if (!cursor || peers.size === 16 || scanned >= 256) {
+          done({ rows: [...peers.values()], next: cursor ? last : null });
+          return;
+        }
+        const row = cursor.value as StoredRecord;
+        scanned++;
+        last = row.peer;
+        if (row.type !== 'dm-message' || peers.has(row.peer)) {
+          cursor.continue();
+          return;
+        }
+        queryReady(tx, [row], (ready) => {
+          if (ready[0]) peers.set(row.peer, ready[0]);
+          cursor.continue();
+        });
+      };
+    },
+  );
+  const items: Extract<BackupRecord, { type: 'dm-message' }>[] = [];
+  for (const row of page.rows) {
+    const value = await openHistoryRecord(a, row);
+    if (value.type !== 'dm-message')
+      throw new Error('Histórico público de outro contexto.');
+    items.push(value);
+  }
+  return { items, next: page.next };
+}
+export async function dmConversationHistory(
+  a: VaultAuthority,
+  peer: string,
+  before: number | null,
+  visible: (id: string, source: string) => boolean = () => true,
+): Promise<Extract<BackupRecord, { type: 'dm-message' }>[]> {
+  const rows = await transaction<StoredRecord[]>((tx, done) => {
+    const request = tx
+      .objectStore('records')
+      .index('conversation')
+      .openCursor(
+        IDBKeyRange.bound(
+          [a.session.accountId, peer, 0],
+          [
+            a.session.accountId,
+            peer,
+            before === null ? Number.MAX_SAFE_INTEGER : Math.max(0, before - 1),
+            '\uffff',
+            '\uffff',
+          ],
+        ),
+        'prev',
+      );
+    const result: StoredRecord[] = [];
+    const seen = new Set<string>();
+    request.onsuccess = () => {
+      const cursor = request.result;
+      if (!cursor || result.length === 16) {
+        done(result);
+        return;
+      }
+      const row = cursor.value as StoredRecord;
+      if (
+        row.type !== 'dm-message' ||
+        seen.has(row.id) ||
+        !visible(row.id, row.source)
+      ) {
+        cursor.continue();
+        return;
+      }
+      queryReady(tx, [row], (ready) => {
+        if (ready.length) seen.add(row.id);
+        result.push(...ready);
+        cursor.continue();
+      });
+    };
+  });
+  const result: Extract<BackupRecord, { type: 'dm-message' }>[] = [];
+  for (const row of rows) {
+    const record = await openHistoryRecord(a, row);
+    if (record.type !== 'dm-message' || record.peer.id !== peer)
+      throw new Error('Conversa histórica de outra DM.');
+    result.push(record);
+  }
+  return result.sort((x, y) => x.sequence - y.sequence);
 }
 function validateStored(row: StoredRecord, account: string): void {
   if (
@@ -306,18 +429,18 @@ function validateStored(row: StoredRecord, account: string): void {
     throw new Error('Partes históricas excedidas.');
 }
 function validateIdentity(row: StoredRecord, record: BackupRecord): void {
+  const index = {
+    peer: row.peer,
+    sequence: row.sequence,
+    relation: row.relation,
+    kind: row.kind,
+  };
   if (
     recordKey(record) !== recordKey(row) ||
     record.hash !== row.hash ||
-    (record.type === 'message' &&
-      (record.peer !== row.peer || (record.sequence ?? 0) !== row.sequence))
+    canonical(historyIndex(record)) !== canonical(index)
   )
     throw new Error('Índice histórico divergente do conteúdo cifrado.');
-  if (
-    record.type === 'group-message' &&
-    (record.groupId !== row.peer || record.sequence !== row.sequence)
-  )
-    throw new Error('Índice histórico de outro grupo.');
 }
 export async function openHistoryRecord(
   a: VaultAuthority,
@@ -443,6 +566,62 @@ export async function importHistory(
     await discard(account, source);
     throw error;
   }
+}
+export async function cacheDmRecord(
+  a: VaultAuthority,
+  record: Extract<BackupRecord, { type: 'dm-message' | 'dm-media' }>,
+): Promise<void> {
+  const previous = await stored(a, record.type, record.id);
+  if (previous) {
+    if (previous.hash !== record.hash)
+      throw new Error('Histórico de DM diverge da cópia autenticada.');
+    return;
+  }
+  const source = await bytesHash(
+    new TextEncoder().encode(`0xdmme-dm-cache:${a.session.accountId}`),
+  );
+  const row = await sealHistoryRecord(a, source, record);
+  await transaction<void>((tx, done) => {
+    tx.objectStore('imports').put({
+      account: a.session.accountId,
+      source,
+      ready: true,
+      created: Date.now(),
+    });
+    done(undefined);
+  });
+  await storeRecord(row);
+}
+/** Remove only the automatic cache, preserving independently imported backup sources. */
+export async function forgetDmRecord(
+  account: string,
+  id: string,
+): Promise<void> {
+  const source = await bytesHash(
+    new TextEncoder().encode(`0xdmme-dm-cache:${account}`),
+  );
+  await transaction<void>((tx, done) => {
+    const records = tx.objectStore('records'),
+      key = [account, 'dm-message', id, source],
+      get = records.get(key);
+    get.onsuccess = () => {
+      const row = get.result as StoredRecord | undefined;
+      if (!row) {
+        done(undefined);
+        return;
+      }
+      const usage = tx.objectStore('usage'),
+        used = usage.get(account);
+      used.onsuccess = () => {
+        records.delete(key);
+        usage.put(
+          Math.max(0, ((used.result as number | undefined) ?? 0) - row.size),
+          account,
+        );
+        done(undefined);
+      };
+    };
+  });
 }
 async function removeAbandonedImports(account: string): Promise<void> {
   const abandoned = await transaction<ImportState[]>((tx, done) => {

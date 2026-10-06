@@ -5,16 +5,31 @@ import type { BackupTarget } from '../../shared/backups/index.ts';
 import type { MessageProof } from '../../shared/messages/index.ts';
 import type { ContactAuthority, ContactStore } from './contacts.ts';
 import { vaultUsage, assertContentCapacity } from './vault-quota.ts';
+interface SocialCleanup {
+  clean: (
+    c: pg.PoolClient,
+    account: string,
+    item: BackupTarget,
+  ) => Promise<number>;
+  collect: (c: pg.PoolClient, id: string) => Promise<void>;
+}
 
 /** Owns personal removal receipts and coordinates bounded schema-owner transactions. */
 export class BackupStore {
   private readonly pool: pg.Pool;
   private readonly contacts: ContactStore;
   private readonly capacity: number;
-  constructor(pool: pg.Pool, contacts: ContactStore, capacity: number) {
+  private readonly social: SocialCleanup;
+  constructor(
+    pool: pg.Pool,
+    contacts: ContactStore,
+    capacity: number,
+    social: SocialCleanup,
+  ) {
     this.pool = pool;
     this.contacts = contacts;
     this.capacity = capacity;
+    this.social = social;
   }
   async page(a: ContactAuthority, after: number) {
     return this.contacts.withMessageAuthority(a, async (c) => {
@@ -106,7 +121,9 @@ export class BackupStore {
     const retained =
       item.kind === 'vault'
         ? await this.cleanVault(c, account, item)
-        : await this.cleanMessage(c, account, item);
+        : item.kind === 'dm-message'
+          ? await this.social.clean(c, account, item)
+          : await this.cleanMessage(c, account, item);
     await c.query(
       'INSERT INTO hash_talk.personal_removals(account_id,kind,id,hash,proof,retained_bytes,charge) VALUES($1,$2,$3,$4,$5::jsonb,$6,$7)',
       [
@@ -120,6 +137,7 @@ export class BackupStore {
       ],
     );
     if (item.kind === 'message') await this.collectMessage(c, item.id);
+    if (item.kind === 'dm-message') await this.social.collect(c, item.id);
     this.contacts.changed(c, [account]);
     return true;
   }

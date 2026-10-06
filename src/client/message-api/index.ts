@@ -49,7 +49,7 @@ export async function prepareMessageRequest(
     headers: {
       'Content-Type': 'application/json',
       'X-Hash-Talk-CSRF': authority.session.csrf,
-      ...(operation === 'attachment-part'
+      ...(['attachment-part', 'dm-attachment-part'].includes(operation)
         ? { 'X-0xdmme-Attachment-Id': String(payload['id']) }
         : {}),
     },

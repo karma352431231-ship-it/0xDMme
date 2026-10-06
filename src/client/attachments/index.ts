@@ -1,6 +1,7 @@
 import { base64, encode, object } from '../../shared/account/index.ts';
 import {
   attachmentContent,
+  animatedAttachmentContent,
   contentRefs,
   fileLimit,
   partLimit,
@@ -87,7 +88,11 @@ export async function stageAttachment(input: {
     });
     await saveParts(input.account, input.id, thumbnail, input.budget);
   }
-  return attachmentContent({
+  const content =
+    input.selection.image && input.selection.type === 'image/gif'
+      ? animatedAttachmentContent
+      : attachmentContent;
+  return content({
     version: input.selection.voice ? 2 : 1,
     ...(input.selection.voice ? { voice: input.selection.voice } : {}),
     name: input.selection.name,
@@ -234,7 +239,7 @@ async function fetchPart(
       message: input.message,
       id: input.file.ref.id,
       index,
-      snapshot: input.snapshot,
+      ...(input.snapshot === undefined ? {} : { snapshot: input.snapshot }),
     }),
   );
   const bytes = Uint8Array.from(base64(raw['ciphertext'], partLimit));

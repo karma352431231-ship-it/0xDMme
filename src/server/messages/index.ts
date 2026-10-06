@@ -81,6 +81,8 @@ export class MessageService {
     | 'socialDm'
     | 'socialCrypto'
     | 'socialMatrix'
+    | 'socialHistory'
+    | 'socialMedia'
     | 'statuses'
     | 'statusMedia'
   >;
@@ -91,6 +93,7 @@ export class MessageService {
   private readonly notifications: NotificationService | null;
   private readonly groupMedia: GroupMediaService | null;
   private readonly statuses: StatusService | null;
+  private readonly social: SocialDmService;
   private readonly representatives: RepresentativeService | null;
   private maintenanceTimer: ReturnType<typeof setInterval> | null = null;
   private maintenanceRunning: Promise<void> | null = null;
@@ -111,6 +114,8 @@ export class MessageService {
       | 'socialDm'
       | 'socialCrypto'
       | 'socialMatrix'
+      | 'socialHistory'
+      | 'socialMedia'
       | 'statuses'
       | 'statusMedia'
     >,
@@ -166,6 +171,7 @@ export class MessageService {
         const result = await db.backups.clean(a, p);
         await this.cleanPersonal();
         await this.attachments?.clean();
+        await this.social.clean();
         return result;
       },
       'personal-page': (a, d) => {
@@ -344,7 +350,8 @@ export class MessageService {
         return db.matrix.groupReceived(a, values.map(sequence));
       },
     };
-    const social = new SocialDmService(db);
+    const social = new SocialDmService(db, objects);
+    this.social = social;
     for (const operation of socialDmOperations)
       this.actions[operation] = (a, d) => social.operate(a, operation, d);
     this.installGroupOperations();
@@ -401,6 +408,7 @@ export class MessageService {
   async cleanAttachments(): Promise<void> {
     await this.cleanPersonal();
     await this.attachments?.clean();
+    await this.social.clean();
     await this.groupMedia?.clean();
     await this.db.groupDaily.clean();
     await this.statuses?.clean();
@@ -467,10 +475,19 @@ export class MessageService {
       };
   }
   private async maintainSharedContent(): Promise<void> {
+    await this.social.clean();
     await this.groupMedia?.clean();
     await this.db.groupDaily.clean();
     await this.statuses?.clean();
     await this.representatives?.maintain();
+  }
+  async preflightSocialAttachment(
+    session: AccountSession,
+    id: unknown,
+  ): Promise<void> {
+    const current = await this.devices.current(session.accountId);
+    if (!current) throw new AccountError(403, 'Aparelho não autorizado.');
+    await this.social.preflight({ session, directory: current.head }, uuid(id));
   }
   async preflightAttachment(
     session: AccountSession,
@@ -584,6 +601,8 @@ export class MessageService {
     keys(d, ['packet']);
     const packet = messagePacket(d['packet']),
       hash = await digest(JSON.stringify(packet));
+    if (packet.socialMedia)
+      throw new AccountError(400, 'Formato de DM pelo @ fora deste contexto.');
     if (await this.db.messages.accepted(a, packet.id, hash))
       return { status: 'accepted', hash };
     const current = await this.devices.current(a.session.accountId);

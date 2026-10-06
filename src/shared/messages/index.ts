@@ -45,6 +45,7 @@ export interface RoomKeyArchive {
   mac: string;
 }
 export interface MessagePacket {
+  socialMedia?: 'photo' | 'gif' | 'voice';
   relation?: MessageRelation;
   kind: 'text' | 'profile' | 'attachment';
   attachments?: AttachmentRef[];
@@ -104,6 +105,7 @@ export function messageBody(
 export function messagePacket(input: unknown): MessagePacket {
   const data = object(input);
   keys(data, [
+    ...socialMediaKeys(data),
     ...relationKeys(data),
     ...(Object.hasOwn(data, 'attachments') ? ['attachments'] : []),
     'version',
@@ -125,6 +127,7 @@ export function messagePacket(input: unknown): MessagePacket {
     data['kind'] === 'attachment'
       ? attachmentRefs(data['attachments'])
       : undefined;
+  const declaredMedia = socialMediaKind(data);
   if (data['kind'] !== 'attachment' && Object.hasOwn(data, 'attachments'))
     throw new AccountError(400, 'Referência fora de mensagem de anexo.');
   const content = megolmContent(data['content']);
@@ -143,6 +146,7 @@ export function messagePacket(input: unknown): MessagePacket {
     throw new AccountError(400, 'Assinatura de pacote inválida.');
   return {
     version: 1,
+    ...declaredMedia,
     ...optionalRelation(data['relation']),
     ...(refs ? { attachments: refs } : {}),
     kind: messageKind(data['kind']),
@@ -164,6 +168,24 @@ export function messageKind(value: unknown): MessagePacket['kind'] {
   if (value !== 'text' && value !== 'profile' && value !== 'attachment')
     throw new AccountError(400, 'Tipo de mensagem inválido.');
   return value;
+}
+function socialMediaKeys(data: Record<string, unknown>): string[] {
+  return Object.hasOwn(data, 'socialMedia') ? ['socialMedia'] : [];
+}
+function socialMediaKind(data: Record<string, unknown>): {
+  socialMedia?: NonNullable<MessagePacket['socialMedia']>;
+} {
+  if (!Object.hasOwn(data, 'socialMedia')) return {};
+  if (
+    data['kind'] !== 'attachment' ||
+    !['photo', 'gif', 'voice'].includes(String(data['socialMedia']))
+  )
+    throw new AccountError(400, 'Tipo declarado de mídia de DM inválido.');
+  return {
+    socialMedia: data['socialMedia'] as NonNullable<
+      MessagePacket['socialMedia']
+    >,
+  };
 }
 function assertDestinations(c: {
   sender: string;

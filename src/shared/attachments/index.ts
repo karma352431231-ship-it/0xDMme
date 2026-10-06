@@ -89,6 +89,20 @@ function privateFile(input: unknown, maximum: number): PrivateFile {
   return { ref: attachmentRef(row['ref'], maximum), encryption };
 }
 export function attachmentContent(input: unknown): AttachmentContent {
+  return readAttachment(input, ['image/png', 'image/jpeg', 'image/webp']);
+}
+export function animatedAttachmentContent(input: unknown): AttachmentContent {
+  return readAttachment(input, [
+    'image/png',
+    'image/jpeg',
+    'image/webp',
+    'image/gif',
+  ]);
+}
+function readAttachment(
+  input: unknown,
+  images: readonly string[],
+): AttachmentContent {
   const row = object(input);
   keys(row, [
     'version',
@@ -105,7 +119,7 @@ export function attachmentContent(input: unknown): AttachmentContent {
     typeof row['image'] !== 'boolean'
   )
     throw new Error('Conteúdo de anexo inválido.');
-  const { file, thumbnail, type } = attachmentMedia(row),
+  const { file, thumbnail, type } = attachmentMedia(row, images),
     voice = attachmentVoice(row, file, thumbnail, type);
   return {
     version: voice ? 2 : 1,
@@ -118,7 +132,10 @@ export function attachmentContent(input: unknown): AttachmentContent {
     thumbnail,
   };
 }
-function attachmentMedia(row: Record<string, unknown>) {
+function attachmentMedia(
+  row: Record<string, unknown>,
+  images: readonly string[],
+) {
   const file = privateFile(row['file'], fileLimit),
     thumbnail =
       row['thumbnail'] === null
@@ -127,7 +144,7 @@ function attachmentMedia(row: Record<string, unknown>) {
   if ((!row['image'] && thumbnail) || thumbnail?.ref.id === file.ref.id)
     throw new Error('Miniatura inválida.');
   const type = boundedText(row['type'], 100);
-  if (row['image'] && !['image/png', 'image/jpeg', 'image/webp'].includes(type))
+  if (row['image'] && !images.includes(type))
     throw new Error('Formato de imagem não permitido.');
   return { file, thumbnail, type };
 }

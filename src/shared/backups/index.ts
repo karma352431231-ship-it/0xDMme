@@ -12,16 +12,20 @@ export const backupChunk = 262144;
 export const backupRecordLimit = 6_000_000;
 export const backupItemLimit = 65536;
 export interface BackupTarget {
-  kind: 'vault' | 'message';
+  kind: 'vault' | 'message' | 'dm-message';
   id: string;
   hash: string;
 }
 export function backupTarget(value: unknown): BackupTarget {
   const d = object(value);
   keys(d, ['kind', 'id', 'hash']);
-  if (d['kind'] !== 'vault' && d['kind'] !== 'message')
+  if (!['vault', 'message', 'dm-message'].includes(String(d['kind'])))
     throw new Error('Tipo de seleção inválido.');
-  return { kind: d['kind'], id: uuid(d['id']), hash: fingerprint(d['hash']) };
+  return {
+    kind: d['kind'] as BackupTarget['kind'],
+    id: uuid(d['id']),
+    hash: fingerprint(d['hash']),
+  };
 }
 export function cleanupSelection(proof: MessageProof): {
   backup: string;

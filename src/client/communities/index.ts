@@ -42,6 +42,7 @@ export function startCommunities(access: VaultAccess, sync: VaultSync) {
     photoUrl: string | null = null;
   let view = 'feed',
     selectedDm: string | null = null,
+    localDm = false,
     selected: string | null = null,
     selectedPost: string | null = null,
     selectedTag: string | null = null,
@@ -468,7 +469,7 @@ export function startCommunities(access: VaultAccess, sync: VaultSync) {
     if (!mounted) return;
     if (view === 'dms') {
       navigation();
-      dms.mount(mounted, selectedDm);
+      dms.mount(mounted, selectedDm, localDm);
       return;
     }
     if (view === 'create') {
@@ -535,6 +536,7 @@ export function startCommunities(access: VaultAccess, sync: VaultSync) {
       sidebarCursor = null;
       try {
         selectedDm = params.has('dm') ? uuid(params.get('dm')) : null;
+        localDm = params.get('history') === 'local';
         selected = params.has('id') ? uuid(params.get('id')) : null;
         selectedPost = params.has('post') ? uuid(params.get('post')) : null;
         selectedTag = params.has('tag') ? uuid(params.get('tag')) : null;
