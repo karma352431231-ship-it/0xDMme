@@ -27,91 +27,6 @@ import {
   approvalEntryUrl,
 } from '../../shared/wallet-approval/index.ts';
 
-// Only bounded ciphertext/index reads and idempotent backup acknowledgements use this budget.
-// Each route still authenticates the session, CSRF and signed device authority.
-const readRoutes = new Set(
-  [
-    'snapshot',
-    'dm-personal-snapshot',
-    'dm-personal-page',
-    'dm-message-history',
-    'dm-received',
-    'dm-secret-get',
-    'dm-attachment-get',
-    'dm-accepted',
-    'dm-profile',
-    'dm-list',
-    'dm-state',
-    'dm-directory',
-    'dm-recovery-current',
-    'dm-recovery-peer',
-    'dm-recovery-key',
-    'dm-page',
-    'dm-matrix-query',
-    'dm-matrix-inbox',
-    'dm-matrix-received',
-    'page',
-    'object',
-    'confirm',
-    'history',
-    'peer-directory',
-    'daily-push-state',
-    'recovery-key',
-    'personal-page',
-    'attachment-get',
-    'backup-window',
-    'backup-ack',
-    'group-mode',
-    'group-list',
-    'group-current',
-    'group-history',
-    'group-incoming',
-    'group-directory',
-    'group-matrix-query',
-    'group-matrix-inbox',
-    'group-matrix-received',
-    'group-message-page',
-    'group-message-usage',
-    'group-profile',
-    'group-message-recent',
-    'group-message-accepted',
-    'group-daily-state',
-    'group-daily-states',
-    'group-daily-read',
-    'group-daily-receipts',
-    'group-message-received',
-    'group-attachment-get',
-    'group-media-usage',
-    'group-cleanup-notice',
-    'status-contacts',
-    'status-recipient-directory',
-    'status-list',
-    'status-read',
-    'status-origin',
-    'status-attachment-get',
-  ]
-    .map((name) => '/api/account/messages/' + name)
-    .concat([
-      '/api/account/devices/read',
-      '/api/account/vault/read',
-      '/api/account/vault/object',
-      '/api/account/public-profile/state',
-      '/api/account/communities/media-pending',
-      '/api/account/communities/media-status',
-      '/api/account/communities/media-get',
-      '/api/account/communities/state',
-      '/api/account/communities/list',
-      '/api/account/communities/staff',
-      '/api/account/communities/sanctions',
-      '/api/account/communities/reports',
-      '/api/account/communities/post-state',
-      '/api/account/communities/post-page',
-      '/api/account/communities/post-moderations',
-      '/api/account/communities/tag-list',
-      '/api/account/communities/discovery-feed',
-      '/api/account/communities/discovery-preference',
-    ]),
-);
 const challengeRoutes = new Set([
   '/api/account/challenge',
   '/api/account/handoff-start',
@@ -245,12 +160,11 @@ export function createAccountHandler(options: {
   const challengeName = secure
     ? '__Host-hash-talk-challenge'
     : 'hash-talk-challenge';
-  // Upload parts and normal API writes have no per-minute transport quota.
-  // Reads and login challenges retain their independent protections.
+  // Normal API reads/writes and upload parts have no per-minute transport quota.
+  // Login challenges retain their independent protection.
   const limit = new AccountRateLimit({ requests: null });
-  // Calls have their own bounded pre-auth IP budget and authenticated session
-  // budget. Unix-socket deployments share one transport address; 32 endpoints
-  // at five-second intervals must not consume the ordinary read budget.
+  // Call control keeps separate pre-auth transport and authenticated command
+  // budgets; synchronization/end have no separate per-minute read quota.
   const callAdmission = new AccountRateLimit({ requests: 900 });
   const callSessions = new AccountRateLimit();
   const recovery = new RecoveryReturn(options.origin);
@@ -716,13 +630,6 @@ export function createAccountHandler(options: {
     limit.admit(
       request.socket.remoteAddress ?? 'unknown',
       challengeRoutes.has(request.url ?? '') || approvalEntryUrl(request.url),
-      readAdmission(request),
-    );
-  }
-  function readAdmission(request: IncomingMessage): boolean {
-    return (
-      (request.method === 'POST' && readRoutes.has(request.url ?? '')) ||
-      (request.method === 'GET' && request.url === '/api/account/push-check')
     );
   }
   async function handle(

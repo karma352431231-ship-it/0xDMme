@@ -10,30 +10,33 @@ type BudgetEntry = {
 
 /** No raw IP storage/logging or fingerprint. Protected buckets live one minute. */
 export class RequestBudget {
-  private readonly budgets: { requests: number | null; reads: number };
-  /** null removes the ordinary request quota, preserving reads and challenges. */
-  constructor(budgets: { requests?: number | null; reads?: number } = {}) {
+  private readonly budgets: { requests: number | null; reads: number | null };
+  /** Reads have no default quota. null removes a quota; challenges stay bounded. */
+  constructor(
+    budgets: { requests?: number | null; reads?: number | null } = {},
+  ) {
     this.budgets = {
       requests: budgets.requests === null ? null : (budgets.requests ?? 60),
-      reads: budgets.reads ?? 240,
+      reads: budgets.reads ?? null,
     };
   }
   private readonly secret = randomBytes(32);
   private readonly entries = new Map<string, BudgetEntry>();
 
   admit(remote: string, challenge: boolean, read = false): void {
-    // Unlimited writes neither consume nor allocate a protected IP bucket.
-    if (this.budgets.requests === null && !challenge && !read) return;
+    // Unlimited requests neither consume nor allocate a protected IP bucket.
+    const maximum = read ? this.budgets.reads : this.budgets.requests;
+    if (maximum === null && !challenge) return;
     const entry = this.entry(remote);
     if (read) entry.reads++;
     else entry.requests++;
     if (challenge) entry.challenges++;
-    if (
-      read ? entry.reads > this.budgets.reads : this.writeBudgetExceeded(entry)
-    )
+    if (this.budgetExceeded(entry, read))
       throw new AccountError(429, 'Muitos pedidos. Aguarde.');
   }
-  private writeBudgetExceeded(entry: BudgetEntry): boolean {
+  private budgetExceeded(entry: BudgetEntry, read: boolean): boolean {
+    if (read)
+      return this.budgets.reads !== null && entry.reads > this.budgets.reads;
     return (
       (this.budgets.requests !== null &&
         entry.requests > this.budgets.requests) ||

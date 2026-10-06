@@ -267,6 +267,37 @@ await test('perfil público: concorrência, consentimento, sessão/aparelho, mí
     },
   );
   await t.test(
+    'mais de 240 consultas públicas e autenticadas mantêm conteúdo e isolamento entre contas',
+    async () => {
+      const expected = await publicProfiles.read(handle),
+        readers = await Promise.all(
+          [owner, other].map(async (actor) => ({
+            body: JSON.stringify(await actor.proof('state', {})),
+            state: await actor.operate('state', {}),
+            headers: {
+              Origin: origin,
+              'Content-Type': 'application/json',
+              'X-Hash-Talk-CSRF': actor.login.session.csrf,
+              Cookie: `hash-talk-session=${actor.login.sessionToken}`,
+            },
+          })),
+        );
+      for (let attempt = 0; attempt < 300; attempt++) {
+        const visible = await fetch(`${origin}/api/public-profiles/${handle}`);
+        assert.equal(visible.status, 200);
+        assert.deepEqual(await visible.json(), expected);
+        const reader = readers[attempt % readers.length]!;
+        const own = await fetch(`${origin}/api/account/public-profile/state`, {
+          method: 'POST',
+          headers: reader.headers,
+          body: reader.body,
+        });
+        assert.equal(own.status, 200);
+        assert.deepEqual(await own.json(), reader.state);
+      }
+    },
+  );
+  await t.test(
     'foto é candidata restrita, versionada e cobrada só na capacidade global',
     async () => {
       const png = new Uint8Array(

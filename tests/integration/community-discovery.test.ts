@@ -522,6 +522,17 @@ await test('corte 6: feeds públicos, descoberta e referências privadas', async
       );
       assert.equal(result.status, 200);
       feedPage(await result.json());
+      for (let attempt = 0; attempt < 300; attempt++) {
+        const read = await fetch(
+          `${origin}/api/communities/feed?community=${community}`,
+        );
+        assert.equal(
+          read.status,
+          200,
+          'feed não tem teto de 240 consultas/min',
+        );
+        feedPage(await read.json());
+      }
       for (const query of [
         'scope=saved',
         'accountId=private',

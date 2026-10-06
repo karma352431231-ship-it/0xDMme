@@ -246,6 +246,11 @@ await test('chamadas: HTTP assinado, consentimento, preferência global, silênc
       await operate(user, 'sync', { listening: true, media: 'idle', ack: 0 }),
     );
   assert.equal((await sync(b)).enabled, true);
+  for (let attempt = 0; attempt < 300; attempt++) {
+    const idle = await sync(b);
+    assert.equal(idle.enabled, true);
+    assert.equal(idle.call, null);
+  }
   await sync(a);
   const start = () => ({ peer: b.session.accountId, directory: b.directory });
   const denied = await http(a, 'start', await proof(a, 'start', start()));
