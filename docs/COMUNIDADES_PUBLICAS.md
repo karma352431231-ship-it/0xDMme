@@ -1,0 +1,169 @@
+# Comunidades públicas — direção de produto em 05/10/2026
+
+Estado: plano consolidado em 10 cortes; corte 1 implementado localmente em 05/10/2026, com Perfil e Configurações reunidos no mobile/desktop. Cortes 2–10 continuam planejados. A área Comunidades e sua navegação superior ainda não estão implementadas. Sem novo modelo, dependência, migração ou ativação na VPS nesta entrega. Moderação automática no corte final, mantendo sua validação obrigatória antes da exposição pública de mídia. Referência central: [plano, seção 6.4](../DECISOES_E_PLANO_DE_IMPLEMENTACAO.md#64-comunidades-públicas--camada-social-planejada).
+
+## Decisões do proprietário
+
+- Preservar Conversas com a tela existente, contatos e grupos privados; Comunidades é uma área separada.
+- Perfil e Configurações formam uma única tela no desktop/mobile: foto, nome, wallet e demais dados da própria conta no topo; configurações existentes logo abaixo. Não obrigar outra navegação para configurar. Informações privadas dessa tela pertencem ao dono autenticado e não compõem o perfil público por `@`.
+- Na área Comunidades, a coluna esquerda mostra comunidades seguidas, DMs pelo `@`, Feed geral e Explorar. A prévia social apresentada na conversa foi aceita como base inicial. O uso de “MVP” refere-se a essa base visual, sem reduzir os requisitos já aprovados da V1 privada.
+- Cada comunidade possui nome e foto próprios, regras próprias de moderação e espaço para posts de qualquer conta autorizada. Seguir/entrar não é condição para publicar ou interagir. Não criar modo de página em que apenas o dono publica; restrições decorrentes da moderação continuam aplicáveis.
+- Qualquer conta com perfil público pode criar gratuitamente. O criador é proprietário, pode nomear moderadores e transferir a propriedade com aceite. Não importar automaticamente limite de membros, convites ou cotas dos grupos privados.
+- Qualquer visitante pode ler na web sem conta. Participação exige conta, regras e controles de abuso; seguir serve para acompanhar e organizar a navegação.
+- Feed geral contém posts de várias comunidades, inclusive não seguidas. Explorar permite descobrir e abrir maiores/mais engajadas antes de seguir. Classificações por tamanho e atividade são distintas, com fórmula/limiares ainda pendentes.
+- Experiência centrada em memes, posts, tags, upvote/downvote em posts, comentários, respostas em árvore e votos em respostas. Filtros incluem recentes, mais votados e mais comentados. Não transformar sugestões de fórum/suporte em requisitos.
+- Moderação faz parte da primeira entrega pública, com desenvolvimento/validação automática na etapa final. Proibir pornografia/conteúdo sexual explícito real, de IA ou desenhado: genitais expostos, seios femininos expostos e atos sexuais explícitos, conforme esclarecimento do proprietário. Biquíni, roupa curta e personagem de IA nessas roupas não são pornografia por si só. Regras locais não relaxam essa política global. Análise deve ser automática na própria infraestrutura, sem enviar conteúdo a serviços externos ou exigir que uma pessoa avalie todos os posts.
+- Não reter todos os posts para aprovação humana. Somente suspeitos ficam retidos após análise automática; a checagem breve de imagens antes da exposição precisa ser validada e comunicada.
+- Aprovado o tratamento de imagens permitidas automaticamente, recusa de conteúdo explícito com forte indicação, retenção de incertos e contestação/revisão excepcional. Limiares e comprovação de precisão permanecem técnicos e pendentes.
+- GIFs podem ser enviados em posts e replies. Vídeos podem ser enviados com no máximo 60 segundos e resolução máxima de 720p; limites de bytes/processamento ainda precisam do contrato de mídia. Não adiar GIFs/vídeos por conveniência nem estender essas regras ao mensageiro privado automaticamente.
+- Comunidades não têm cota de armazenamento por comunidade. Não substituir por cobrança ao cofre privado, limite oculto de posts/seguidores ou limpeza automática não aprovada. A retirada dessa cota não amplia por si só a capacidade física/global já protegida da VPS nem autoriza compras; comportamento em falta de capacidade permanece no contrato de operação.
+- Notificações de comunidades somente para respostas: quando alguém responde ao post do usuário, ele recebe notificação. Não notificar novos posts, votos, novos seguidores ou atividade genérica. Recomenda-se aplicar a mesma regra às respostas diretas a comentários próprios, sem avisar o autor do post por toda a árvore; esse detalhamento ainda precisa ser confirmado.
+- Não revelar wallet, nome do perfil privado ou demais informações privadas pela camada pública. Manter conversas, agenda, cofre, status privado e chaves nas proteções atuais.
+- O proprietário concordou com a separação de dados públicos/privados e com os recursos complementares apresentados anteriormente. Isso inclui feed de descoberta/seguidos, controles para ocultar conteúdo, períodos de ordenação e proteção de votos, salvos, comunidades seguidas e denúncias contra divulgação pública automática. Detalhes de armazenamento, permissões e retenção precisam de contrato próprio.
+
+## Perfil público separado — aprovado
+
+Após aceitar que o serviço de autenticação conserva o vínculo interno com a wallet, o proprietário aprovou um perfil público por conta, separado da identidade privada. O `@` é único globalmente e não distingue maiúsculas/minúsculas: `@joao` e `@Joao` são a mesma identidade de nome. Inicialmente o `@` é fixo e o avatar público é editável. Não promete anonimato perante o operador.
+
+- Perfil público tem identificador próprio estável e avatar escolhido explicitamente. Não copiar nome/foto privados nem reaproveitar o identificador interno da conta em URLs públicas por conveniência.
+- Validar conjunto permitido de caracteres, nomes confundíveis/reservados e unicidade atomicamente no banco. Troca do `@` não faz parte da etapa inicial aprovada. Destino/reserva do nome ao excluir uma conta ainda precisa ser definido.
+- Um `@` global permite correlacionar posts da mesma pessoa entre comunidades. Não promete identidade distinta por comunidade ou anonimato perante o serviço de autenticação.
+- O backend atual associa a conta à wallet para login; separar apresentações públicas não remove esse vínculo interno. Respostas públicas devem ter campos permitidos explícitos e não revelar wallet, nome privado, IDs privados, provas de login ou referências de chaves/dispositivos.
+- Seguir, votar ou compartilhar uma comunidade não concede consentimento para DM, não publica agenda/presença e não autoriza conteúdo privado. Disponibilizar contato por `@` exigirá contrato que preserve essas propriedades.
+
+## DMs pelo `@` — decisão substituta aprovada
+
+Em 05/10/2026, o proprietário substituiu a direção anterior de converter contato pelo `@` no chat com perfil privado. Agora haverá DMs individuais identificadas pelo perfil público, na área Comunidades. O perfil privado só é compartilhado no caminho de contato pela wallet, preservando o consentimento já existente. Não criar conversão automática, compartilhamento de perfil privado ou fusão dos contextos porque duas contas já conversam pelo outro caminho.
+
+- DM pelo `@` é individual e privada, com E2EE; perfil público não torna mensagens legíveis ao servidor, visitantes ou moderadores da comunidade. A exceção de análise de mídia publicada não se aplica à mídia de DM.
+- Mostrar somente `@`/avatar públicos, sem wallet, nome/foto privados, cartões de perfil privado ou IDs que revelem essa associação ao participante. O operador de autenticação conserva o vínculo interno já explicado e aceito.
+- Permitidos texto, áudio, foto, GIF e links. Proibidos vídeos, chamadas, grupos, pedidos de transação e contratos/acordos entre as partes. Abrir links não autoriza transações nem transforma a DM em canal de contrato.
+- O backend valida autorização/contexto e recusa operações/tipos declarados não permitidos, além das restrições na interface. A validação dos bytes legíveis de mídia E2EE acontece no cliente antes de cifrar; não prometer inspeção pelo backend nem prova do formato real contra cliente malicioso que disfarce conteúdo em um tipo permitido. Não reimplementar criptografia; reutilizar o protocolo estabelecido mantendo autorização, identidade/contexto, persistência e recuperação próprios do fluxo.
+- Desktop: DMs pelo `@` ficam à esquerda na área Comunidades, junto das comunidades seguidas, em agrupamento identificável. O contexto de chat por wallet permanece em Conversas.
+- Seguir uma comunidade não concede consentimento para DM. A decisão não remove solicitações/aceite, bloqueio, rejeição ou autorização de dispositivo; o formato do pedido por `@` deve usar só dados públicos e não liberar anexos/mensagens livres a desconhecidos antes da autorização.
+- DMs individuais são conteúdo pessoal E2EE e seguem a regra de cofre pessoal completo/cota pessoal vigente, sem criar uma cota adicional de comunidade. Contabilização, backup, retenção e sincronização devem incluir o novo contexto explicitamente, sem duplicar cobrança por aparelho, cobrar posts públicos do cofre privado ou alterar a cota existente.
+
+| Operação                     | DM pelo `@`               | Chat por wallet existente                                                 |
+| ---------------------------- | ------------------------- | ------------------------------------------------------------------------- |
+| Identidade apresentada       | Perfil público `@`/avatar | Perfil privado, conforme consentimento                                    |
+| Área                         | Comunidades               | Conversas                                                                 |
+| Participantes                | Somente 1–1               | Individual e grupos já aprovados                                          |
+| Texto/áudio/foto/GIF/links   | Permitidos                | Conforme contratos existentes                                             |
+| Vídeo                        | Não permitido             | Continua fora da V1 privada                                               |
+| Chamada                      | Não permitida             | Voz individual já aprovada                                                |
+| Pedido de transação/contrato | Não permitido             | Conforme escopo/estado dos blocos privados; não antecipar recurso ausente |
+| Conteúdo das mensagens       | E2EE                      | E2EE                                                                      |
+
+## Perfil unificado e navegação — plano fechado
+
+- Mobile: Conversas, Contatos, Comunidades e Perfil na navegação inferior; Comunidades substitui Configurações. Dentro de Comunidades, abas superiores Feed, Explorar e Seguindo; botão de mensagens no cabeçalho abre as DMs pelo `@`, com retorno à lista ao sair do chat. Essa apresentação foi adotada no fechamento com base na alternativa visual exibida; a variante Minhas permanece apenas referência de design.
+- Desktop: preservar lista de contatos/grupos em Conversas e lista de comunidades/DMs pelo `@` em Comunidades. O acesso Perfil abre a mesma tela completa com dados da conta no topo e configurações abaixo. Entradas antigas de Configurações devem conduzir a essa tela, sem manter uma segunda cópia dos controles.
+- A tela do próprio Perfil contém dados privados da conta e gestão do perfil público em bloco identificado quando este existir. Exibir a wallet ao próprio dono não autoriza publicá-la em comunidade, DM por `@`, busca pública ou notificações.
+- Incorporar todos os controles de usuário existentes: descoberta/convites, privacidade/presença/leitura, notificações/silêncio, chamadas, conta/perfil, aparelhos/vinculação/recuperação e ajustes de aplicativo. Preservar acesso às operações existentes de cofre/backup/status e às configurações de representantes, sem alterar seus contratos ou transformar conteúdo/gestão em informação pública.
+- Não criar um botão obrigatório que apenas leve a outra tela de Configurações. Organizar os controles abaixo da identidade em seções coerentes, mantendo restrições de sessão/aparelho/wallet, confirmação de ações sensíveis, erros explícitos e ciclo de vida dos controladores.
+- Links existentes `#configuracoes` e entradas com parâmetros de confirmação/retorno precisam continuar funcionando. O [roteador atual](../src/client/app/index.ts) e os [fluxos de conta](../src/client/account/index.ts) usam essa rota; não apagar parâmetros ou reiniciar operações para fazer a fusão visual.
+- Perfil unificado foi implementado no corte 1 local; perfil público, navegação de Comunidades e DMs continuam planejados. A barra mobile tem temporariamente Conversas, Contatos e Perfil. Comunidades será adicionada quando seu fluxo existir, sem uma aba vazia ou simulação no aplicativo. A versão na VPS não foi alterada.
+
+## Evidência relevante do código existente
+
+O contrato `Peer` de [contatos compartilhados](../src/shared/contacts/index.ts) inclui `accountId`, nome, ecossistema e endereço. A [interface de contatos](../src/client/contacts/index.ts) mostra wallet/ecossistema em detalhes da solicitação. A [persistência de contatos](../src/server/database/contacts.ts) identifica a relação pelo par de contas, mas as listas devolvem nome privado/wallet. A [agenda](../src/client/messages/contact-directory.ts) também pressupõe endereço/ecossistema. O [cartão de perfil](../src/client/message-profile/index.ts) já separa nome/foto, e seu [envio](../src/client/messages/controller.ts) usa o canal de mensagens privadas. O [perfil existente](BLOCO_03_CONTA_E_PERFIL.md#perfil-privado) conserva foto cifrada; a distribuição a aprovados está descrita no [bloco 06](BLOCO_06_CONTATOS.md#decisões-da-implementação).
+
+Portanto, DM pelo `@` não pode simplesmente reutilizar a resposta de contatos privados ou o envio automático de cartão privado. A relação atual usa o par de contas; o novo contexto exige isolamento para não herdar consentimento, perfil ou funções privadas. O mensageiro privado existente não foi alterado; esconder wallet globalmente em seus fluxos seria outra mudança de comportamento e precisaria de decisão própria.
+
+## Fronteira entre público, serviço e privado
+
+| Informação                                             | Tratamento proposto                                                                                    |
+| ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------ |
+| Nome/foto/regras da comunidade                         | Públicos após aprovação aplicável.                                                                     |
+| Posts, imagens, comentários, tags, horários e placares | Públicos após aceitação; cópias externas não são revogáveis pelo app.                                  |
+| Conteúdo enviado e aguardando análise                  | Restrito à operação própria de publicação/moderação; ainda não disponível na web.                      |
+| Perfil público                                         | `@` e avatar explicitamente escolhidos; sem wallet ou dados do perfil privado.                         |
+| Identidade de quem vota                                | Sem listagem pública; validação interna de unicidade/abuso a definir.                                  |
+| Comunidades seguidas e posts salvos                    | Sem divulgação pública; sincronização/proteção perante o backend a definir.                            |
+| Denúncia e denunciante                                 | Acesso restrito conforme papel e finalidade; denúncia não aparece no post.                             |
+| Wallet, vínculo de login e sessões                     | Restritos à autenticação/operação necessária; não entregues a visitantes ou moderadores de comunidade. |
+| Agenda, conversas, cofre, chaves e status privado      | Mantêm a proteção e os consentimentos atuais.                                                          |
+| DMs pelo `@`                                           | Mensagens/mídias E2EE entre participantes autorizados; somente identidade pública na apresentação.     |
+
+“Sem divulgação pública” não significa “invisível ao operador”. A identidade pública global também não garante uma pessoa única: controlar várias wallets ainda permite criar várias contas. Não usar votos/seguidores como prova de identidade civil ou legitimidade.
+
+## Moderação automática própria — proposta técnica
+
+O proprietário escolheu o processamento automático próprio como direção. Não escolheu biblioteca, pesos, runtime, limiares ou nova infraestrutura. Não instalar/deployar um candidato apenas porque o projeto se anuncia gratuito ou disponível publicamente.
+
+Fluxo recomendado para preservar participação e impedir exposição antes da análise:
+
+1. Texto sem imagem segue os controles normais de publicação e regras, sem esperar a análise de fotos.
+2. Receber imagens destinadas à publicação em área temporária restrita, com limites de bytes, dimensões, concorrência e tempo. Não liberar URL pública, miniatura ou acesso por objeto bruto durante a análise.
+3. Analisar no backend os bytes efetivamente recebidos, não um resultado declarado pelo navegador. Se forem compatíveis com a política, liberar automaticamente; somente suspeitos ficam retidos, com resultado claro para o autor.
+4. Resolver suspeitas conforme limiares e mecanismos a validar. Alta suspeita pode recusar; casos incertos podem passar por segunda análise própria e contestação excepcional. Não usar revisão humana de todo o feed como dependência de operação, nem manter itens presos sem estado/prazo definido.
+5. Edição/substituição de mídia, avatar público e foto da comunidade precisam do mesmo controle. Arquivos animados e imagens externas exigem tratamento próprio; não liberar formatos ou caminhos que contornem a análise.
+
+Os limiares devem ser calibrados para a política explícita acima, não para toda imagem que um classificador rotule genericamente como “NSFW”. Biquíni/roupa curta não pode ser recusado automaticamente apenas por ser sugestivo ou gerado por IA. Nenhum candidato foi validado para essa separação, desenhos, montagens ou imagens médicas/artísticas; não introduzir exceções de categoria silenciosamente.
+
+Se a análise estiver indisponível, não tratar falha como aprovação. Proposta: manter somente os envios de imagem afetados em estado claro e limitado; texto e imagens já aprovadas continuam operando. Conduta exata em falha/lotação permanece pendente de decisão e teste.
+
+### Pesquisa inicial de candidatos, sem seleção
+
+- [Falconsai/nsfw_image_detection, model card do autor](https://huggingface.co/Falconsai/nsfw_image_detection/raw/main/README.md): declara Apache-2.0 e classificação binária `normal`/`nsfw`. Pode ser executado com biblioteca local, mas isso não comprova aderência a nudez explícita, licença completa de todos os artefatos nem desempenho na VPS. As métricas anunciadas pelo autor não são aceite do 0xDMme.
+- [NudeNet, código do autor](https://raw.githubusercontent.com/notAI-tech/NudeNet/v3/nudenet/nudenet.py): detecção por categorias de partes expostas/cobertas, usando ONNX Runtime. Sua [licença publicada](https://raw.githubusercontent.com/notAI-tech/NudeNet/v3/LICENSE) é AGPL-3.0; obrigações de distribuição/serviço, pesos e relação com o backend do projeto exigem revisão antes de qualquer adoção. Não houve seleção, relicenciamento ou instalação.
+
+São evidências de que existe software para inferência própria; não são recomendação de integração nem comprovação de capacidade/precisão. Fixar revisão/artefatos, avaliar manutenção/proveniência e revisar dependências antes de um ensaio aprovado. Não baixar imagens de comunidades reais, usar conteúdo privado para teste ou enviar fotos a ferramentas externas de análise.
+
+## GIFs, vídeos e recursos — ampliação aprovada
+
+- GIFs em posts/replies e vídeos de até 60 segundos/720p fazem parte do escopo público aprovado. O teto de 3 MB do mensageiro privado não é automaticamente adequado para GIFs/vídeos e não será imposto à nova mídia por conveniência. O teto de imagens estáticas sugerido anteriormente continua a referência aprovada; o contrato completo ainda precisa definir bytes, quantidade por publicação/reply, duração de GIF, frames/FPS e formatos.
+- Duração/resolução não limitam sozinhas tamanho em bytes ou trabalho de decodificação. Definir contrato de upload/normalização sem confundir limite técnico de arquivo com cota de comunidade. Não criar valor numérico ou processamento obrigatório novo sem revisar efeitos sobre experiência/capacidade.
+- Preservar orientação/proporção ao interpretar 720p; rejeição ou redução de originais maiores e formatos compatíveis com desktop/mobile ainda precisam de escolha e validação.
+- Moderação precisa avaliar conteúdo ao longo da animação/vídeo. Verificar somente capa/primeiro frame não cobre o conteúdo aprovado para publicação; estratégia e cobertura exigem ensaio próprio. Não liberar originais, miniaturas, versões ou streams que contornem a análise.
+- A [documentação do FFmpeg](https://ffmpeg.org/ffmpeg.html) e de [escala](https://ffmpeg.org/ffmpeg-filters.html) demonstra operações de duração/dimensões, sem comprovar desempenho ou definir escolha de runtime. Sua [licença depende da configuração/componentes](https://ffmpeg.org/legal.html); nenhuma instalação/integração foi escolhida.
+- O orçamento global existente continua protegendo serviço, disco, temporários, processos e o outro projeto da VPS. Sem cotas por comunidade, dimensionar admissão/capacidade total e retenção operacional; não converter recursos finitos em promessa de armazenamento ilimitado ou apagar aceitos automaticamente.
+
+## Cortes de implementação — 10 entregas revisáveis
+
+### Corte 1 — entrega local em 05/10/2026
+
+Perfil reúne identidade da própria conta, nome/foto/wallet e preferências privadas, seguidos dos controles existentes de convites/descoberta, notificações, chamadas, aparelhos, representantes e aplicativo. Acesso a cofre/backups/status fica na mesma tela. Os controles de representantes permanecem agrupados dentro do próprio painel, e campos/botões das configurações receberam estilo coerente e largura responsiva.
+
+O [catálogo de páginas](../src/client/app/pages.ts) resolve `#configuracoes` como Perfil sem modificar o fragmento; parâmetros de retorno continuam disponíveis ao módulo de conta. O [roteador](../src/client/app/index.ts) mantém a montagem da tela ao alternar esses atalhos, preservando rascunhos/operações. Ao trocar de página, inicia a área principal no topo. Documentos próprios de assinatura/recuperação mantêm seus fluxos; não houve mudança de protocolo ou autorização.
+
+Validação integral local: lint com tipos, TypeScript estrito, fronteiras/ciclos, licenças, formatação, build de 38 assets, 290 testes da aplicação e 91 do executor passaram. Testes com servidores/sockets foram executados fora do sandbox depois da recusa `EPERM`; não foi tratado como falha funcional. A conferência no navegador usou somente a fixture local com wallet sintética: nome/foto, preferências, restauração da sessão, um único painel de cada controle, rascunho preservado no atalho antigo, acesso a cofre/backups e largura de 320 px. Após ajustes visuais/rolagem, validação da camada afetada e conferência final constam no registro da interface.
+
+Sem dependência, migração, alteração de dados reais, push ou deploy nesta entrega. Aceite físico Android/iOS e retorno físico pela wallet continuam pendentes; a matriz física completa de login não foi repetida. Evidências operacionais/testes ficam em `.local/`. Próximo corte: identidade pública.
+
+O proprietário pediu concluir o planejamento e dividir a execução, evitando uma mudança única grande. A divisão abaixo segue responsabilidades e contratos; não é uma contagem/limite de linhas, não reduz o escopo aprovado e não autoriza iniciar/publicar todos os cortes por consequência.
+
+| Corte                                    | Entrega                                                                                                                                                         | Aceite principal                                                                                                                                                                                                        |
+| ---------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1 — Perfil e navegação                   | Unir Perfil/Configurações em desktop/mobile; identidade da própria conta acima dos controles; preparar navegação de áreas e preservar rotas existentes.         | Todos os controles/retornos continuam acessíveis; sessão, chaves, consentimento e dados existentes preservados; largura mobile sem cortes.                                                                              |
+| 2 — Identidade pública                   | Um perfil público por conta, `@` único/fixo sem distinção de caixa, avatar separado, IDs públicos e contratos de leitura/escrita próprios.                      | Unicidade concorrente, autorização e revogação; respostas públicas sem wallet, perfil privado ou referências que exponham o vínculo.                                                                                    |
+| 3 — Comunidades e governança             | Criar, editar nome/foto/regras, seguir/deixar de seguir, proprietário/moderadores, transferência com aceite, bloqueios/sanções e base de denúncias.             | Qualquer conta autorizada pode postar sem seguir; autoridade de gestão consistente; criação gratuita e ausência de cota por comunidade; moderação local não relaxa regra global.                                        |
+| 4 — Posts e tags                         | Publicar texto, ler sem conta, tags de comunidade, editar/excluir posts, paginação, aplicação das regras locais e ações de moderação sobre posts.               | Autorização de autor/moderador, validação de entrada, links/conteúdo seguros, privacidade do autor e efeitos de edição/exclusão.                                                                                        |
+| 5 — Replies, votos e respostas           | Replies em árvore, votos em posts/replies reversíveis/idempotentes e notificações somente para respostas próprias.                                              | Integridade da árvore e paginação; uma posição de voto por conta/alvo; duplicação/retry não duplica contagem ou aviso; votos/seguidores não notificam.                                                                  |
+| 6 — Feed e descoberta                    | Feed geral/seguidos, exploração por tamanho/engajamento, ordenação/períodos, comunidades seguidas, salvos e ocultar conteúdo; integrar telas desktop/mobile.    | Interação em comunidade não seguida; filtros consistentes/paginados; recomendação não usa DMs; sem publicar listas de follows/salvos.                                                                                   |
+| 7 — DMs pelo `@`: base                   | Solicitação/aceite/bloqueio, texto/links 1–1 E2EE, lista na área Comunidades, isolamento de identidade/permissões do chat por wallet.                           | Par de contas em dois contextos não expõe perfil privado, não herda consentimento/chaves/histórico e não habilita chamada/grupo/contrato/transação.                                                                     |
+| 8 — Mídia e histórico das DMs            | Áudio, fotos/GIFs E2EE, persistência, sincronização entre aparelhos, recuperação e backup no cofre pessoal vigente.                                             | Transferência e retomada sem vazamento, original legível só nos clientes, cotas pessoais consistentes, revogação, falhas e rejeição de vídeo/operações proibidas no contrato.                                           |
+| 9 — Mídia das comunidades                | Fotos/GIFs em posts/replies; vídeos até 60 s/720p; upload/normalização, objetos/miniaturas, reservas/limites técnicos e limpeza de temporários.                 | Duração/dimensões/formato/bytes validados; recursos limitados; nenhuma cota por comunidade ou cobrança ao cofre pessoal; mídia ainda restrita antes do corte 10.                                                        |
+| 10 — Moderação automática e aceite final | Selecionar/validar modelo próprio, política explícita, análise de imagem/GIF/vídeo, retenção/recusa/contestação de suspeitos; integração, segurança e recursos. | Distinguir explícito de biquíni/roupa curta em conteúdo real/IA/desenho; nenhum caminho público expõe mídia não aprovada; falha não aprova; testes sintéticos/físicos e revisão operacional com limitações registradas. |
+
+O corte 3 já contém governança e moderação por regras/papéis; somente a análise automática de pornografia fica no corte 10. Fotos públicas de perfil/comunidade e mídia de posts podem ser preparadas com dados fictícios/armazenamento restrito antes dessa etapa, mas não são disponibilizadas publicamente sem a proteção validada. Conteúdo E2EE das DMs não entra no classificador.
+
+Notificações de posts/replies acompanham o corte 5. Adotar respostas diretas ao conteúdo do usuário como detalhamento de implementação: resposta ao próprio post/comentário pode notificar; resposta a comentário de outra pessoa não notifica automaticamente o autor do post por toda a árvore. Não emitir avisos por novos posts, votos, follows ou atividade genérica.
+
+Cada corte tem diff/revisão e commit de escopo próprio quando implementado, verificações proporcionais e registro curto do resultado. Reutilizar módulos e testes dos contratos existentes; não criar serviços/frameworks ou protocolo criptográfico para satisfazer a divisão. `npm run check` permanece o conjunto de integração; executar testes direcionados e integrações conforme risco, com smoke/E2E para fluxos visíveis montados. Preservar validações já válidas e não repetir toda a matriz após cada ajuste.
+
+Os cortes são unidades de trabalho, não dez deploys automáticos. Migrações/dependências/runtime/infraestrutura/publicação continuam sujeitos às revisões/autorização específicas já vigentes. O aceite final exige integração real e ensaios físicos pertinentes; conclusão local ou passagem da CI não autoriza anúncio de prontidão para dados reais.
+
+## Pontos a fechar no corte responsável
+
+O plano de produto e a divisão estão fechados. Os itens abaixo são contratos/validações a resolver no corte indicado; não justificam reabrir decisões já tomadas ou escolher uma substituição incompatível silenciosamente.
+
+- **Corte 2:** conjunto de caracteres, nomes reservados/confundíveis, criação explícita do perfil público, tratamento do `@` ao excluir conta e fluxos de recuperação. Quantidade, unicidade e fixação inicial já aprovadas.
+- **Cortes 3–4:** sanções, motivos, contestação, exclusão/transferência e retenção dos registros operacionais; preservar criação gratuita e publicação aberta.
+- **Cortes 5–6:** fórmula/limiares de ranking, deduplicação, paginação, agrupamento de notificações e proteção de follows/salvos. Não usar tempo de leitura/conteúdo privado para recomendar.
+- **Cortes 7–8:** prova do isolamento com protocolo existente, bloqueio entre contextos, persistência e cofre pessoal/backup. Se o protocolo não suportar a privacidade requerida, pausar esse recurso e apresentar evidência antes de substituir criptografia ou revelar dados.
+- **Corte 9:** bytes/quantidade/FPS/duração de GIF, formatos, normalização/rejeição de originais maiores e comportamento em falta de capacidade global. Sem cota por comunidade. Apresentar limites quantitativos e políticas que alterem o que o usuário pode enviar antes de adotá-los; o teto privado de 3 MB não é resposta automática para vídeo público.
+- **Corte 10:** licenças exatas de código/pesos/runtime, precisão/cobertura e CPU/RAM/latência, falha/lotação e dados de teste autorizados. Modelo não selecionado. Nenhuma imagem privada ou de usuários reais será enviada a ferramenta externa ou usada para ensaio por conveniência.
+- **Antes de ativação:** dimensionamento global, retenção de temporários/recusados/denúncias/backups e preservação do outro projeto da VPS, sem compras nem mudanças compartilhadas implícitas.
+
+**Ponto importante:** o corte 1 reuniu Perfil/Configurações localmente, sem publicar informações privadas ou antecipar Comunidades/DMs pelo `@`. Os cortes restantes mantêm mídia pública separada de E2EE e análise automática no corte final. A barra mobile só recebe a aba Comunidades quando o fluxo estiver funcional. Não houve instalação, mudança de licença, migração ou deploy.

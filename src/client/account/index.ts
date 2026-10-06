@@ -43,7 +43,7 @@ import type {
 } from '../account-profile/index.ts';
 
 const template = `<article class="card account-card"><span class="eyebrow">CONTA POR WALLET</span><h2 data-account-title>Seu perfil no 0xDMme</h2>
-<p data-account-intro>Entre com sua wallet ou vincule este aparelho em Configurações. Assinaturas de acesso não movimentam fundos.</p>
+<p data-account-intro>Entre com sua wallet ou vincule este aparelho em Perfil → Aparelhos. Assinaturas de acesso não movimentam fundos.</p>
 <button class="primary" type="button" data-wallet-approve hidden>Confirmar assinatura</button>
 <button class="primary" type="button" data-wallet-picker-toggle aria-expanded="false" aria-controls="wallet-picker">Conectar wallet</button>
 <section id="wallet-picker" class="wallet-picker" data-wallet-picker hidden aria-label="Escolher wallet">
@@ -647,7 +647,7 @@ export function startAccount(options: {
       ? await options.privateKey(current, walletOpening)
       : await profileKey(current.accountId, current.profileRevision === 0);
     if (!localKey) {
-      status = 'Sessão conectada. Abra sua conta em Configurações → Aparelhos.';
+      status = 'Sessão conectada. Abra sua conta em Perfil → Aparelhos.';
       profileStatus =
         'Perfil bloqueado. Autorize este aparelho por vinculação ou recuperação.';
       return;

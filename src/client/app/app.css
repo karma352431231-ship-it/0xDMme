@@ -642,6 +642,60 @@ footer {
 .account-section {
   margin-bottom: 22px;
 }
+.profile-settings {
+  display: grid;
+  gap: 22px;
+  min-width: 0;
+}
+.profile-settings > h2 {
+  margin: 0;
+  font-size: 22px;
+}
+.profile-settings .card {
+  margin-bottom: 0;
+}
+.profile-settings button {
+  padding: 10px 14px;
+  border: 1px solid #cbdad7;
+  border-radius: 7px;
+  background: #f3f8f6;
+  color: #274b47;
+  font: inherit;
+  margin: 6px 6px 6px 0;
+}
+.profile-settings button:disabled {
+  opacity: 0.55;
+}
+.profile-settings label {
+  display: grid;
+  gap: 8px;
+  margin: 14px 0;
+}
+.profile-settings label:has(input[type='checkbox']) {
+  display: flex;
+  align-items: center;
+}
+.profile-settings :is(input:not([type='checkbox']), select, textarea) {
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #bfcfcd;
+  border-radius: 7px;
+  background: white;
+  color: inherit;
+  font: inherit;
+}
+.profile-content-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 20px;
+}
+.profile-content-links a {
+  color: var(--accent);
+  text-decoration: underline;
+  padding: 10px 0;
+}
 .wallet-picker {
   margin-top: 16px;
   padding: 18px;

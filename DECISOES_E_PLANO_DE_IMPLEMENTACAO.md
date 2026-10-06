@@ -11,6 +11,8 @@ Os nomes históricos da pasta/repositório e os identificadores técnicos `hash-
 
 Construir um mensageiro privado acessível pela web, no computador e no celular, com perfil próprio, autenticação por wallet, experiência familiar de chat e interações úteis com blockchain.
 
+Em 05/10/2026, o proprietário aprovou a direção de uma camada social de comunidades públicas, separada do mensageiro privado, com leitura aberta na web, posts de qualquer conta autorizada e descoberta por feed/diretório de comunidades. A interface conceitual foi aceita como base inicial dessa camada. A execução foi organizada em dez cortes com aceites próprios; somente o corte 1, Perfil e Configurações reunidos, está implementado localmente. A área social continua planejada. Ver [comunidades públicas](docs/COMUNIDADES_PUBLICAS.md).
+
 O aplicativo será uma PWA: um site responsivo que também pode ser adicionado à tela inicial. Não dependerá de publicação em lojas de aplicativos.
 
 O requisito central é que o backend não receba o conteúdo legível das conversas nem as chaves que permitem descriptografá-las. A criptografia acontece nos dispositivos. Provas de conhecimento zero serão usadas para reduzir as informações reveladas na autorização de determinadas operações.
@@ -21,44 +23,47 @@ Este documento registra o escopo, a arquitetura pretendida e a sequência de exe
 
 ## 2. Decisões consolidadas
 
-| Tema                          | Decisão                                                                                                                                                                                                                                              |
-| ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Plataforma                    | Aplicação inteiramente web, responsiva e instalável como PWA.                                                                                                                                                                                        |
-| Identidade                    | Perfil próprio e identificador estável dentro do app; wallet como forma de autenticação.                                                                                                                                                             |
-| Ecossistema inicial           | Login EVM e Solana na V1, conforme capacidades da wallet. Criação e transferência de grupos não exigem token nem wallet auxiliar.                                                                                                                    |
-| Troca/recuperação de wallet   | Fora do escopo inicial. Isso não cancela recuperação do histórico/cofre com a wallet original e sua assinatura exclusiva, ou aparelho autorizado; contas legadas usam o código até migrar.                                                           |
-| Perfil                        | Nome e foto editáveis; controles de visibilidade.                                                                                                                                                                                                    |
-| Contatos                      | Adicionar por wallet, atribuir apelido particular e manter agenda criptografada.                                                                                                                                                                     |
-| Cadastro prévio               | Permitir salvar uma wallet ainda não cadastrada; oferecer convite quando ela não estiver habilitada para mensagens.                                                                                                                                  |
-| Criptografia                  | Ponta a ponta por padrão, incluindo mensagens, arquivos e conteúdo privado dos status.                                                                                                                                                               |
-| Histórico                     | Cofre pessoal completo dentro de cota e cofre próprio para cada grupo. Preservação criptografada; armazenamento local para desempenho e uso offline.                                                                                                 |
-| Dispositivos                  | Chaves e autorização próprias por dispositivo; sincronização entre aparelhos autorizados.                                                                                                                                                            |
-| Vinculação                    | Aprovação por aparelho existente via QR code/código, ou recuperação por assinatura exclusiva da wallet original.                                                                                                                                     |
-| Recuperação                   | Login com wallet recupera acesso à conta; conteúdo exige aparelho autorizado ou assinatura exclusiva de recuperação. Código antigo só em contas ainda não migradas.                                                                                  |
-| Backup                        | Exportação e importação local de arquivo criptografado; inclusão de mídias selecionável.                                                                                                                                                             |
-| Hash de backup                | Verificação auxiliar e registro opcional de versões; nunca única prova de legitimidade ou única condição de restauração.                                                                                                                             |
-| Entrega offline               | Fila criptografada sem expiração automática para mensagens aceitas, com exceção explícita das mídias de grupo sujeitas à retenção rotativa, inclusive pendentes.                                                                                     |
-| Capacidade                    | Cota vigente de 1 GB decimal por conta, revisável por decisão futura, com controle de admissão. Não prometer armazenamento ou tráfego ilimitados.                                                                                                    |
-| Cofre cheio                   | Aviso antecipado, exportação/exclusão pelo usuário e bloqueio de novas aceitações que não possam ser preservadas. Nunca descartar silenciosamente mensagens já aceitas. Grupos têm cota própria e retenção aprovadas nas seções 14–16 e no bloco 11. |
-| Contabilização                | Conteúdo pessoal consome a cota de 1 GB da conta; conteúdo compartilhado de grupo usa o cofre próprio do grupo. Download em outro aparelho não duplica a cobrança lógica. Status libera espaço ao expirar.                                           |
-| Cofre de grupo                | Decidido em 05/10/2026: 2 GB por grupo, compartilhados e criptografados, independentes de 1 GB pessoal. Divisão: 1.500 MB mídia/500 MB texto e controle. Mídias podem expirar automaticamente, inclusive pendentes.                                  |
-| Token e criação de grupos     | Criação e transferência de propriedade gratuitas, sem token e sem teto de quantidade por conta, aprovadas em 05/10/2026. Preservar frequência de uma criação por minuto/dez por hora, consentimento e capacidade global.                             |
-| Exclusão                      | Separar apagar do aparelho, apagar do próprio cofre e solicitar exclusão para todos; não prometer eliminar cópias externas.                                                                                                                          |
-| Organizações                  | Emissor explícito e vínculo verificável com o projeto; assinatura de wallet desconhecida não concede selo de oficial.                                                                                                                                |
-| Limite de grupos              | Começar com limite conservador, cujo número será definido após testes de sincronização/capacidade.                                                                                                                                                   |
-| Anexos iniciais               | Máximo fixo inicial de 3 MB por arquivo. Sem suporte inicial a upload/armazenamento de vídeos.                                                                                                                                                       |
-| Histórico de grupos           | Novos membros recebem mensagens posteriores à entrada; não têm acesso automático ao histórico anterior.                                                                                                                                              |
-| Primeira versão pública       | Núcleo básico proposto, mais áudio gravado, grupos, status, ZK e presença/leitura configuráveis. Áudio, grupos, status e ZK são implementados depois do núcleo básico.                                                                               |
-| Presença e leitura            | Online, visto por último e confirmação de leitura obrigatórios na V1, com controles individuais de privacidade.                                                                                                                                      |
-| Descoberta/visibilidade       | Endereço exato ou link/QR, sem diretório público; modo só por convite; solicitações antes do chat; foto para contatos aprovados e agenda particular.                                                                                                 |
-| Chamadas                      | Voz individual priorizada em 05/10/2026, antes dos acordos e dos itens ZK adiados. Ponta a ponta, TURN obrigatório, sem gravação ou histórico persistente da chamada. Voz em grupo e videochamadas continuam fora da V1.                             |
-| Notificações                  | Web Push, som quando permitido, mute por conversa/grupo e bloqueio.                                                                                                                                                                                  |
-| Infraestrutura                | Operação própria, com possibilidade de usar a VPS existente informada pelo proprietário; componentes gratuitos e nenhuma contratação/expansão paga automática. Medir disco, banda e recursos reais.                                                  |
-| Banco de dados                | PostgreSQL como banco principal; mídias criptografadas em armazenamento de objetos/arquivos separado. Autovacuum precoce nas tabelas de alta rotatividade, com orçamento de recursos e monitoramento desde o início; ver seção 19.                   |
-| Proteção de lançamento        | Proteção DDoS mínima comprovada antes de publicação aberta, incluindo mitigação upstream e defesa da aplicação. Provedor/proxy e cobertura serão verificados na VPS; nenhuma contratação automática.                                                 |
-| Blockchain                    | Recursos opcionais; mensagens comuns e login não exigem transações nem gas.                                                                                                                                                                          |
-| Diferenciais blockchain da V1 | Representantes/permissões verificáveis e acordos assinados dentro da conversa, inicialmente com assinaturas fora da blockchain. Demais propostas ficam no roadmap.                                                                                   |
-| ZK                            | Manter a base de privacidade/autorização de grupos já planejada. Votações privadas, elegibilidade por ativos e credenciais/cotas avançadas ficam após a V1. Assinatura digital comum não deve ser anunciada como prova ZK.                           |
+| Tema                          | Decisão                                                                                                                                                                                                                                                |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Plataforma                    | Aplicação inteiramente web, responsiva e instalável como PWA.                                                                                                                                                                                          |
+| Identidade                    | Perfil próprio e identificador estável dentro do app; wallet como forma de autenticação.                                                                                                                                                               |
+| Ecossistema inicial           | Login EVM e Solana na V1, conforme capacidades da wallet. Criação e transferência de grupos não exigem token nem wallet auxiliar.                                                                                                                      |
+| Troca/recuperação de wallet   | Fora do escopo inicial. Isso não cancela recuperação do histórico/cofre com a wallet original e sua assinatura exclusiva, ou aparelho autorizado; contas legadas usam o código até migrar.                                                             |
+| Perfil                        | Nome e foto editáveis; controles de visibilidade.                                                                                                                                                                                                      |
+| Contatos                      | Adicionar por wallet, atribuir apelido particular e manter agenda criptografada.                                                                                                                                                                       |
+| Cadastro prévio               | Permitir salvar uma wallet ainda não cadastrada; oferecer convite quando ela não estiver habilitada para mensagens.                                                                                                                                    |
+| Criptografia                  | Conteúdo privado ponta a ponta, incluindo mensagens, arquivos e status privado. Conteúdo submetido para publicação em comunidades tem contrato explícito separado na seção 6.4, sem acesso às chaves privadas.                                         |
+| Histórico                     | Cofre pessoal completo dentro de cota e cofre próprio para cada grupo. Preservação criptografada; armazenamento local para desempenho e uso offline.                                                                                                   |
+| Dispositivos                  | Chaves e autorização próprias por dispositivo; sincronização entre aparelhos autorizados.                                                                                                                                                              |
+| Vinculação                    | Aprovação por aparelho existente via QR code/código, ou recuperação por assinatura exclusiva da wallet original.                                                                                                                                       |
+| Recuperação                   | Login com wallet recupera acesso à conta; conteúdo exige aparelho autorizado ou assinatura exclusiva de recuperação. Código antigo só em contas ainda não migradas.                                                                                    |
+| Backup                        | Exportação e importação local de arquivo criptografado; inclusão de mídias selecionável.                                                                                                                                                               |
+| Hash de backup                | Verificação auxiliar e registro opcional de versões; nunca única prova de legitimidade ou única condição de restauração.                                                                                                                               |
+| Entrega offline               | Fila criptografada sem expiração automática para mensagens aceitas, com exceção explícita das mídias de grupo sujeitas à retenção rotativa, inclusive pendentes.                                                                                       |
+| Capacidade                    | Cota vigente de 1 GB decimal por conta, revisável por decisão futura, com controle de admissão. Não prometer armazenamento ou tráfego ilimitados.                                                                                                      |
+| Cofre cheio                   | Aviso antecipado, exportação/exclusão pelo usuário e bloqueio de novas aceitações que não possam ser preservadas. Nunca descartar silenciosamente mensagens já aceitas. Grupos têm cota própria e retenção aprovadas nas seções 14–16 e no bloco 11.   |
+| Contabilização                | Conteúdo pessoal consome a cota de 1 GB da conta; conteúdo compartilhado de grupo usa o cofre próprio do grupo. Download em outro aparelho não duplica a cobrança lógica. Status libera espaço ao expirar.                                             |
+| Cofre de grupo                | Decidido em 05/10/2026: 2 GB por grupo, compartilhados e criptografados, independentes de 1 GB pessoal. Divisão: 1.500 MB mídia/500 MB texto e controle. Mídias podem expirar automaticamente, inclusive pendentes.                                    |
+| Token e criação de grupos     | Criação e transferência de propriedade gratuitas, sem token e sem teto de quantidade por conta, aprovadas em 05/10/2026. Preservar frequência de uma criação por minuto/dez por hora, consentimento e capacidade global.                               |
+| Exclusão                      | Separar apagar do aparelho, apagar do próprio cofre e solicitar exclusão para todos; não prometer eliminar cópias externas.                                                                                                                            |
+| Organizações                  | Emissor explícito e vínculo verificável com o projeto; assinatura de wallet desconhecida não concede selo de oficial.                                                                                                                                  |
+| Limite de grupos              | Começar com limite conservador, cujo número será definido após testes de sincronização/capacidade.                                                                                                                                                     |
+| Anexos iniciais               | Mensageiro privado: máximo fixo de 3 MB por arquivo, sem vídeo inicial. Comunidades: GIFs em posts/replies e vídeos até 60 s/720p aprovados; contrato de bytes/formatos e validação próprios pendentes.                                                |
+| Histórico de grupos           | Novos membros recebem mensagens posteriores à entrada; não têm acesso automático ao histórico anterior.                                                                                                                                                |
+| Primeira versão pública       | Núcleo básico proposto, mais áudio gravado, grupos, status, ZK e presença/leitura configuráveis. Áudio, grupos, status e ZK são implementados depois do núcleo básico.                                                                                 |
+| Presença e leitura            | Online, visto por último e confirmação de leitura obrigatórios na V1, com controles individuais de privacidade.                                                                                                                                        |
+| Descoberta/visibilidade       | Mensageiro privado: endereço exato ou link/QR, sem diretório público de pessoas; solicitações antes do chat, foto para aprovados e agenda particular. Descoberta de comunidades públicas separada na seção 6.4.                                        |
+| Comunidades públicas          | Nome/foto próprios, feed, exploração e posts de qualquer conta autorizada sem exigir seguir. Criação gratuita, proprietário/moderadores e transferência com aceite; sem cotas por comunidade. Preservar capacidade global, sem alterar cotas privadas. |
+| Identidade nas comunidades    | Um perfil público por conta, `@` global único sem distinguir maiúsculas/minúsculas, inicialmente fixo; avatar editável. DMs pelo `@` usam só essa identidade, sem revelar perfil privado/wallet; vínculo interno de autenticação aceito.               |
+| Mídia pública e moderação     | GIFs em posts/replies, vídeos até 60 s/720p. Moderação automática própria para pornografia real/IA/desenhada; biquíni/roupa curta não bastam para recusa. Moderação na etapa final, validada antes de exposição pública; sem revisão humana de todos.  |
+| Chamadas                      | Voz individual priorizada em 05/10/2026, antes dos acordos e dos itens ZK adiados. Ponta a ponta, TURN obrigatório, sem gravação ou histórico persistente da chamada. Voz em grupo e videochamadas continuam fora da V1.                               |
+| Notificações                  | Mensageiro privado: Web Push, som quando permitido, mute por conversa/grupo e bloqueio. Comunidades: somente respostas ao conteúdo do usuário; não avisar votos, seguidores, novos posts ou atividade genérica.                                        |
+| Infraestrutura                | Operação própria, com possibilidade de usar a VPS existente informada pelo proprietário; componentes gratuitos e nenhuma contratação/expansão paga automática. Medir disco, banda e recursos reais.                                                    |
+| Banco de dados                | PostgreSQL como banco principal; mídias criptografadas em armazenamento de objetos/arquivos separado. Autovacuum precoce nas tabelas de alta rotatividade, com orçamento de recursos e monitoramento desde o início; ver seção 19.                     |
+| Proteção de lançamento        | Proteção DDoS mínima comprovada antes de publicação aberta, incluindo mitigação upstream e defesa da aplicação. Provedor/proxy e cobertura serão verificados na VPS; nenhuma contratação automática.                                                   |
+| Blockchain                    | Recursos opcionais; mensagens comuns e login não exigem transações nem gas.                                                                                                                                                                            |
+| Diferenciais blockchain da V1 | Representantes/permissões verificáveis e acordos assinados dentro da conversa, inicialmente com assinaturas fora da blockchain. Demais propostas ficam no roadmap.                                                                                     |
+| ZK                            | Manter a base de privacidade/autorização de grupos já planejada. Votações privadas, elegibilidade por ativos e credenciais/cotas avançadas ficam após a V1. Assinatura digital comum não deve ser anunciada como prova ZK.                             |
 
 As bibliotecas criptográficas foram selecionadas no bloco 01; integração do protocolo e compatibilidade de wallets/redes ainda precisam dos aceites dos blocos responsáveis. Cota vigente de 1 GB, teto de 3 MB e política de cofre completo estão decididos; não alterá-los silenciosamente por conveniência técnica. As regras de contabilização e admissão precisam ser implementadas de modo consistente; ver seção 12.
 
@@ -81,19 +86,19 @@ As bibliotecas criptográficas foram selecionadas no bloco 01; integração do p
 
 ### 4.0 Privacy first: critérios obrigatórios e transversais
 
-- Proteger conteúdo no cliente antes do envio, usando protocolos e implementações estabelecidos. Banco, backend, objetos, logs e serviços intermediários não recebem conteúdo legível nem segredos de descriptografia.
+- Proteger conteúdo privado no cliente antes do envio, usando protocolos e implementações estabelecidos. Banco, backend, objetos, logs e serviços intermediários não recebem conteúdo privado legível nem segredos de descriptografia. A direção aprovada em 05/10/2026 permite que o backend acesse somente conteúdo explicitamente submetido para publicação na camada de comunidades, inclusive imagens aguardando análise; não autoriza abrir conversas, agenda, cofre, status privado ou chaves. A exceção ainda não foi implementada e exige contratos/aceites próprios, conforme [comunidades públicas](docs/COMUNIDADES_PUBLICAS.md).
 - Autenticar identidades e alterações de dispositivos/chaves; criptografia sem verificação do destinatário não atende ao objetivo.
 - Minimizar metadados, identificadores expostos e retenção. Uma prova ZK não justifica ignorar IP, sessões, logs ou padrões de acesso.
 - Respeitar visibilidade, consentimento, bloqueios e preferência de leitura no protocolo e nos eventos distribuídos, não apenas na interface.
 - Falhar de forma segura: indisponibilidade não autoriza fallback para comunicação sem a proteção prometida.
-- Proteger também o frontend distribuído, atualizações, dependências, notificações, backups e recuperação. Não introduzir chave mestra administrativa ou scripts de análise que capturem conteúdo.
+- Proteger também o frontend distribuído, atualizações, dependências, notificações, backups e recuperação. Não introduzir chave mestra administrativa ou scripts de análise que capturem conteúdo privado.
 - Verificar o comportamento com tráfego, armazenamento e logs de teste, usando dados sintéticos; não coletar conversas reais para depuração.
 - A aprovação de um recurso exige evidência das propriedades prometidas. Se a proteção não puder ser demonstrada, o recurso não está pronto para disponibilização pública.
 - Nas chamadas individuais, esconder o IP entre participantes é obrigatório; o retransmissor ainda observa IPs de origem. Não descrever essa arquitetura como anonimato perante a infraestrutura.
 
 ### 4.1 O que a arquitetura deve proteger
 
-- Conteúdo contra leitura pelo banco, pelo backend de armazenamento e por quem obtiver apenas seus arquivos.
+- Conteúdo privado contra leitura pelo banco, pelo backend de armazenamento e por quem obtiver apenas seus arquivos. Conteúdo submetido para publicação em comunidades tem a visibilidade explícita e o tratamento próprio descritos na seção 6.4; envio para análise não equivale a aprovação ou disponibilidade pública.
 - Chaves privadas dos dispositivos e chaves do cofre contra envio acidental ao servidor, logs ou ferramentas de análise.
 - Integridade e autenticidade das mensagens, anexos, backups e alterações de configuração.
 - Inclusão de novos dispositivos contra autorização unilateral do servidor.
@@ -129,6 +134,8 @@ O servidor contém diretório de identidades/dispositivos, autenticação, fila,
 
 O app criptografa e descriptografa. O backend roteia e persiste. Adaptar dados de mensagens para o formato do cofre é responsabilidade dos clientes: o servidor não pode descriptografar uma mensagem para criar seu backup.
 
+Esse fluxo descreve o mensageiro privado. A camada pública planejada tem contrato distinto: conteúdo submetido para publicação pode ser lido pelo backend para servir posts e executar moderação automática própria. Não compartilhar chaves nem converter conteúdo privado em público automaticamente.
+
 ### 5.1 Distribuição dos dados
 
 | Dado                                             | Tratamento                                                                                              |
@@ -145,6 +152,7 @@ O app criptografa e descriptografa. O backend roteia e persiste. Adaptar dados d
 | Preferências e apelidos                          | Sincronização criptografada, com resolução de conflitos.                                                |
 | Push                                             | Endpoints e material necessário ao envio no servidor; conteúdo genérico por padrão.                     |
 | Logs                                             | Sem conteúdo ou segredos; dados operacionais mínimos e política explícita de retenção.                  |
+| Conteúdo de comunidades públicas planejadas      | Legível somente no contrato explícito de publicação/moderação; nenhum acesso novo ao conteúdo privado.  |
 
 ### 5.2 Cofre, sessões e chaves
 
@@ -212,7 +220,7 @@ Apagar a fila não apaga o histórico do cofre. A interface e a política de dad
 O proprietário autorizou implementar esta revisão após discussão dos fluxos. Estas decisões substituem os controles de laboratório e os passos manuais anteriores dos blocos 04–10; não exigem compatibilidade de produto com usuários legados, pois ainda não há usuários ativos.
 
 - Cofre mostra somente uso/disponibilidade de 1 GB, salvar backup completo, validar/importar arquivo e resetar o conteúdo pessoal do backend com confirmação. Sincronização, paginação, integridade e retomada são automáticas; falhas apresentam uma ação contextual.
-- Preferências, lembrete de backup, descoberta por wallet/convite, aparelhos e vinculação por QR/código ficam em Configurações. Avatar é alterado pelo perfil na navegação, com nome, wallet abreviada e cópia do endereço completo.
+- Preferências, lembrete de backup, descoberta por wallet/convite, aparelhos e vinculação por QR/código ficam nos controles de Configurações, reunidos na tela Perfil na entrega local da seção 5.10. Avatar, nome, wallet e cópia do endereço ficam no topo dessa tela. A VPS conserva a organização publicada até uma ativação autorizada.
 - Login com wallet reutiliza sempre a conta existente do mesmo ecossistema/endereço e conduz automaticamente à abertura das chaves e à autorização do aparelho. Assinatura pública de login não é chave de conteúdo; a prova privada de recuperação continua necessária, sem editor técnico ou escolha de revogações durante login.
 - Vinculação por QR/código autoriza o aparelho na mesma conta sem exigir wallet no destino. Uso comum e leitura local com chaves válidas dispensam wallet. Reset remoto, autorizar outro aparelho e revogar exigem sessão comprovada pela wallet; uma confirmação vale para as demais operações sensíveis nessa sessão. Logout, expiração, troca de conta ou revogação invalidam essa capacidade; o backend a impõe em cada operação.
 - Histórico importado permanece cifrado no aparelho, consultado em páginas e integrado ao histórico novo, sem republicação automática. Arquivos independentes continuam recuperáveis fora do armazenamento do navegador; web/PWA permanece sujeita às quotas e limpeza local. Aplicativo nativo não foi incluído nesta implementação.
@@ -230,6 +238,8 @@ Correção mobile em 05/10/2026, solicitada pelo proprietário: restaurar uma se
 ### 5.7 Navegação de chat aprovada em 05/10/2026
 
 O proprietário solicitou reorganizar a interface com as referências visuais fornecidas. Esta revisão substitui a posição de navegação descrita nos blocos anteriores; mantém as regras de consentimento, criptografia, histórico e perfil.
+
+A disposição abaixo registra a interface já publicada. A reunião de Perfil/Configurações foi implementada localmente na seção 5.10; a navegação de Comunidades da seção 5.9 continua planejada. A VPS não foi alterada pelo corte 1.
 
 - Desktop: a coluna esquerda abriga contatos aprovados, conversas do histórico local e grupos adicionados, numa lista com rolagem independente. Perfil, nome e wallet permanecem fixos no rodapé dessa coluna. Os três pontos ao lado do nome abrem Configurações. Status e Cofre saem da navegação principal por enquanto; suas rotas e operações existentes são preservadas.
 - Mobile: logo e nome 0xDMme no topo, lupa à direita e barra inferior com Conversas, Contatos, Configurações e Perfil. Não colocar três pontos no cabeçalho. A lista dá lugar ao chat selecionado, com retorno para Conversas.
@@ -254,6 +264,32 @@ Após a entrega local e a CI integral de `e0cb062`, o proprietário autorizou ex
 
 **Ponto importante:** remover da agenda não interrompe uma conversa aprovada. Para impedir novos envios, usar Bloquear. A revisão passou nas verificações locais e no navegador com dados fictícios; toque físico permanece pendente. Evidências e limites em [interface de chat responsiva](docs/INTERFACE_CHAT_RESPONSIVA.md).
 
+### 5.9 Camada social de comunidades — direção aprovada em 05/10/2026
+
+- Separar Conversas de Comunidades. Conversas preserva a tela, contatos e grupos privados existentes. Comunidades usa a coluna esquerda para as comunidades seguidas, com acessos a Feed geral e Explorar.
+- Feed geral mistura posts de várias comunidades, com apresentação social inspirada em X/Reddit. Seguir uma comunidade não é condição para publicar, votar, comentar ou responder; permanecem autenticação, regras de moderação e restrições aplicáveis ao participante.
+- Explorar permite abrir comunidades antes de seguir, com classificações de maiores e mais engajadas. Nome, foto e regras pertencem à própria comunidade. A interface conceitual apresentada na conversa foi aceita como base inicial; dados fictícios e interações locais não representam implementação.
+- O proprietário rejeitou orientar essa camada como site de fórum/suporte: memes, posts, comentários, respostas em árvore, tags e votos são o centro da experiência. Não tornar guias, respostas aceitas ou categorias de perguntas requisitos desta entrega por terem sido sugeridos anteriormente.
+- Não expor wallet, nome privado ou dados privados a visitantes/moderadores da comunidade. Aprovado um perfil público por conta, `@` único global sem distinguir maiúsculas/minúsculas, inicialmente fixo e avatar editável. O vínculo interno de autenticação com a wallet foi aceito; isso não equivale a identidade distinta por comunidade ou anonimato perante o operador.
+- Aprovadas criação gratuita por conta com perfil público, proprietário que nomeia moderadores e transferência com aceite. Comunidades permanecem abertas à publicação de qualquer conta autorizada, sem cotas por comunidade; não modificar a capacidade global da VPS ou as cotas privadas por consequência.
+- GIFs em posts/replies e vídeos de até 60 segundos/720p aprovados. Notificações somente para respostas, sem alertas de votos, seguidores ou novos posts. O contrato completo de mídia e o alcance das notificações de replies aninhadas permanecem a detalhar.
+- Decisão substituta do proprietário: DMs pelo `@` usam apenas identidade pública e ficam à esquerda da área Comunidades, junto das comunidades seguidas. Somente 1–1, com texto, áudio, foto, GIF e links; sem vídeos, chamadas, grupos, pedidos de transação ou contratos/acordos. Não compartilhar perfil privado, wallet ou fundir contextos automaticamente. Contato pela wallet preserva o perfil privado e as regras existentes.
+- Mobile: substituir Configurações por Comunidades na navegação inferior, preservando Conversas, Contatos e Perfil. No fechamento do plano, adotar Feed, Explorar e Seguindo no topo da área Comunidades e DMs pelo botão de mensagens no cabeçalho, usando a alternativa visual exibida. Perfil reúne informações da própria conta e todos os controles de Configurações na mesma tela, conforme seção 5.10.
+
+**Ponto importante:** a direção e a base visual não reduzem a V1 privada nem autorizam contratação/deploy/migrações. DMs pelo `@` permanecem E2EE e não revelam a identidade privada; a moderação própria na etapa final aplica-se ao conteúdo submetido à publicação em comunidades, validada antes da exposição pública. Não foi selecionado modelo/runtime. Decisões e pendências em [comunidades públicas](docs/COMUNIDADES_PUBLICAS.md).
+
+### 5.10 Perfil e Configurações reunidos — plano fechado em 05/10/2026
+
+O proprietário definiu uma única tela Perfil em mobile e desktop: foto, nome, wallet e demais dados da própria conta no topo, com todas as configurações de usuário logo abaixo. Não substituir essa reunião por um botão que obrigue abrir outra tela de Configurações, não manter controles duplicados e não remover funções/permissões existentes. Entradas antigas de Configurações devem levar à tela reunida, preservando parâmetros e operações de confirmação/retorno em andamento.
+
+Perfil nessa navegação é a área privada do próprio dono. A futura gestão do perfil público `@` fica em bloco identificado; ver sua wallet nessa área não publica a wallet, a foto ou o nome privados. Preservar controles de privacidade/descoberta, notificações, chamadas, conta, aparelhos/vinculação/recuperação, aplicativo e representantes, bem como acesso a cofre/backup/status e proteções de ações sensíveis.
+
+Dividir a implementação em **10 cortes**: (1) Perfil e navegação; (2) identidade pública; (3) comunidades/governança; (4) posts/tags; (5) replies/votos/notificações de respostas; (6) feed/exploração; (7) DMs pelo `@` com texto/links; (8) mídia/histórico E2EE das DMs; (9) mídia pública; (10) moderação automática/aceite integrado. Responsabilidades, validações e contratos a fechar estão no [plano de cortes](docs/COMUNIDADES_PUBLICAS.md#cortes-de-implementação--10-entregas-revisáveis).
+
+**Entrega local do corte 1 em 05/10/2026:** Perfil/Configurações reunidos, atalhos antigos compatíveis sem modificar fragmentos, rascunhos preservados ao alternar aliases e retorno ao topo nas trocas de página. Controles e links de cofre/backups/status integrados; instruções passam a apontar para Perfil → Aparelhos. Validação integral, regressões de navegação e conferência com conta fictícia registradas em [interface responsiva](docs/INTERFACE_CHAT_RESPONSIVA.md). A barra mobile tem temporariamente Conversas, Contatos e Perfil; Comunidades só será acrescentada com seu fluxo funcional. Cortes 2–10 continuam planejados.
+
+**Ponto importante:** cortes são unidades revisáveis de trabalho, não dez deploys automáticos. O corte 1 não publica wallet/perfil privado nem antecipa Comunidades/DMs. Sem nova dependência, migração ou alteração da VPS. Mídia pública continua sujeita à validação de proteção no corte final; DMs permanecem E2EE e fora da análise de conteúdo pelo backend.
+
 ## 6. Escopo funcional
 
 ### 6.1 Mensageiro e conta
@@ -262,7 +298,7 @@ Após a entrega local e a CI integral de `e0cb062`, o proprietário autorizou ex
 - Convites, pedidos de conversa, aceitar/rejeitar, bloquear/desbloquear.
 - Apelidos privados, busca local de contatos e conversas.
 - Texto, respostas, reações, edição, encaminhamento e exclusão com semântica definida.
-- Fotos, arquivos, áudio gravado e figurinhas, conforme seleção de escopo. Vídeos reproduzíveis ficam fora da versão inicial.
+- Fotos, arquivos, áudio gravado e figurinhas, conforme seleção de escopo. Vídeos reproduzíveis ficam fora da versão inicial do mensageiro privado; a aprovação de vídeos na camada pública está na seção 6.4.
 - GIFs por arquivo; integração com catálogo externo somente após avaliar privacidade e custos.
 - Grupos, administradores, convites, saída/remoção e controle de participação.
 - Status de texto e foto para contatos aprovados, com exclusões por perfil e duração de 24 horas; fora dos backups. Vídeo somente em etapa posterior.
@@ -310,6 +346,20 @@ Uma prova de existência não armazena o conteúdo e não comprova concordância
 | Posterior                 | Acesso ao cofre com menor vínculo à wallet | Separar emissão e apresentação de credenciais; analisar correlação por sessão, objeto, IP e horário.               |
 
 Provas podem ser verificadas no backend sem transação on-chain. Medir custo de geração em celulares reais. Bibliotecas e circuitos auditados são candidatos; a integração do aplicativo ainda exige revisão própria.
+
+### 6.4 Comunidades públicas — camada social planejada
+
+Leitura sem conta, comunidades com nome/foto próprios, feed geral, exploração por tamanho/engajamento, posts de contas autorizadas sem exigir seguir, tags, votos em posts, respostas em árvore e votos em respostas. Criação gratuita por conta com perfil público; proprietário nomeia moderadores e pode transferir com aceite. As comunidades podem definir suas regras de moderação; isso não permite relaxar a proibição global de pornografia/conteúdo sexual explícito.
+
+GIFs podem ser publicados em posts/replies e vídeos de até 60 segundos/720p estão aprovados. Limites de bytes, formatos e normalização precisam de contrato próprio; não importar automaticamente o teto de 3 MB para vídeo/GIF nem adiar esses formatos por conveniência. Sem cotas por comunidade, preservando capacidade global finita e limites técnicos de upload/processamento ainda a definir. Notificações somente para respostas ao conteúdo do usuário, não votos/seguidores/novos posts.
+
+Moderação automática própria deve analisar mídia antes da exposição. A regra definida pelo proprietário proíbe genitais expostos, seios femininos expostos e atos sexuais explícitos, reais, de IA ou desenhados; biquíni/roupa curta não são pornografia por si só. Permitidos são aprovados automaticamente, forte indicação de explícito é recusada, incertos ficam retidos com contestação/revisão excepcional. Não exigir aprovação humana de todos os posts; só suspeitos ficam retidos após análise. Precisão, limiares, frames de GIF/vídeo, recursos e falhas precisam de validação.
+
+Um perfil público por conta, `@` único global sem distinguir maiúsculas/minúsculas, inicialmente fixo e avatar editável, foi aprovado. O vínculo interno de autenticação com a wallet foi aceito, sem revelar wallet/nome privado na camada pública. A decisão atual inclui DMs pelo `@` com E2EE e identidade pública, à esquerda da área Comunidades: somente 1–1, texto, áudio, foto, GIF e links; sem vídeo, chamada, grupo, pedido de transação ou contrato/acordo. Não converter essas DMs no chat com perfil privado, herdar consentimento entre contextos ou compartilhar wallet/cartão privado automaticamente. O contato por wallet permanece na área Conversas, conforme regras existentes.
+
+A camada não herda silenciosamente histórico, chaves, cotas ou regras de descoberta dos grupos privados. Diretório de comunidades não é diretório de wallets/pessoas privadas. Comunidades com elegibilidade por ZK e identidades distintas por comunidade da seção 6.2 continuam propostas posteriores independentes. A execução foi dividida nos 10 cortes da seção 5.10, antecipando identidade/comunidades/interação/DMs/navegação e deixando a análise automática no corte final, sem expor uploads públicos antes do aceite nem analisar conteúdo E2EE das DMs. A relação com a data de lançamento da V1 não foi definida.
+
+Ver [plano consolidado e contratos por corte](docs/COMUNIDADES_PUBLICAS.md).
 
 ## 7. Operação de implementação
 
@@ -918,6 +968,8 @@ Padrões aprovados para V1, com presença/leitura obrigatórias e configuráveis
 - Status usa contatos aprovados por padrão, com exclusões por perfil e audiência congelada por publicação; participação num grupo não aprova automaticamente todos como contatos particulares.
 
 Decisão da implementação do bloco 06, reafirmada em 03/10/2026: o dono do perfil escolhe somente convite ou também descoberta por wallet exata, com apenas contatos aprovados como opção adicional e um único controle efetivo. Somente convite é o padrão inicial até uma escolha explícita; agenda/apelidos particulares no cofre e permissões atuais no servidor. Perfil/foto para aprovados integrado pelo canal Olm/Megolm autenticado do bloco 07, sem URL pública e sem compartilhar a chave do perfil particular. O nome escolhido já aparece nas solicitações; a foto própria continua cifrada. Bloqueio impede novas distribuições, preservando a limitação de cópias anteriores. Ver [decisões do bloco 06](docs/BLOCO_06_CONTATOS.md).
+
+Essas regras continuam válidas para o mensageiro privado. A descoberta pública planejada na seção 6.4 aplica-se a comunidades e conteúdo explicitamente publicado, sem habilitar descoberta de wallets ou tornar o perfil privado público. DMs pelo `@` têm identidade pública e contexto separado; exigem contrato próprio porque o fluxo atual de solicitações/lista de contatos inclui nome privado e wallet em detalhes. Não reutilizar essa resposta, compartilhar cartão privado ou converter para chat por wallet silenciosamente.
 
 ### 12.3 Ordem de esforço para comparar recursos
 

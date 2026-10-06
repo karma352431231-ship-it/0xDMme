@@ -64,13 +64,13 @@ export function startRepresentatives(
     p.textContent = text;
     return p;
   }
-  function field(label: string, type = 'text'): HTMLInputElement {
+  function field(parent: HTMLElement, label: string): HTMLInputElement {
     const wrapper = document.createElement('label');
     wrapper.textContent = label;
     const input = document.createElement('input');
-    input.type = type;
+    input.type = 'text';
     wrapper.append(input);
-    host?.append(wrapper);
+    parent.append(wrapper);
     return input;
   }
   async function refresh(): Promise<void> {
@@ -292,14 +292,16 @@ export function startRepresentatives(
     host = container;
     container.innerHTML =
       '<article class="card"><h2>Organizações e representantes</h2><p>Crie uma organização e emita autorizações assinadas. Site é opcional; nomes iguais não comprovam uma marca externa.</p><p data-representative-notice role="status"></p><button type="button" data-representative-load>Abrir organizações e autorizações</button><div data-representative-list></div></article>';
+    const card = container.querySelector<HTMLElement>('.card');
+    if (!card) throw new Error('Painel de representantes indisponível.');
     container
       .querySelector('[data-representative-load]')
       ?.addEventListener('click', () => {
         void run(refresh);
       });
-    const name = field('Nome da organização');
+    const name = field(card, 'Nome da organização');
     name.maxLength = 80;
-    container.append(
+    card.append(
       button('Criar e assinar organização', async () => {
         await controller.create(name.value);
         name.value = '';
@@ -339,7 +341,7 @@ export function startRepresentatives(
     if (!list.children.length)
       list.append(
         paragraph(
-          'Nenhuma autorização disponível nesta página. Crie e emita em Configurações → Organizações e representantes.',
+          'Nenhuma autorização disponível nesta página. Crie e emita em Perfil → Organizações e representantes.',
         ),
       );
     if (controller.hasMore)

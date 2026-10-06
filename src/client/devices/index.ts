@@ -319,9 +319,9 @@ export function startDevices(options: {
     updateBlockReason(): string | null {
       expireWalletRequest();
       if (controller.walletPending)
-        return 'Há uma abertura de conta pendente na wallet. Em Configurações → Aparelhos, conclua ou cancele o pedido antes de atualizar.';
+        return 'Há uma abertura de conta pendente na wallet. Em Perfil → Aparelhos, conclua ou cancele o pedido antes de atualizar.';
       if (invitation || waiting || camera?.active)
-        return 'Conclua a vinculação ou feche a câmera em Configurações → Aparelhos antes de atualizar.';
+        return 'Conclua a vinculação ou feche a câmera em Perfil → Aparelhos antes de atualizar.';
       return null;
     },
     canActivate(): boolean {

@@ -2,6 +2,22 @@
 
 Revisão solicitada pelo proprietário: lista de contatos/grupos na coluna esquerda do desktop, perfil fixo no rodapé, Configurações pelos três pontos; no celular, cabeçalho compacto com marca/lupa e navegação inferior. Decisão em [5.7 do plano](../DECISOES_E_PLANO_DE_IMPLEMENTACAO.md#57-navegação-de-chat-aprovada-em-05102026).
 
+## Perfil unificado — corte 1 implementado localmente
+
+Em 05/10/2026, o proprietário definiu reunir Perfil e Configurações na mesma tela em desktop/mobile. Foto, nome, wallet e demais dados da própria conta ficam no topo; todos os controles existentes ficam abaixo, sem obrigar a abrir outra página de Configurações. Preservar permissões, confirmações, estados de operações, links e parâmetros de retorno da rota atual.
+
+No desktop, o acesso Perfil da coluna esquerda abre essa tela completa; entradas antigas de Configurações passam a conduzir a ela. No mobile, a barra inferior será Conversas, Contatos, Comunidades e Perfil. Comunidades terá Feed, Explorar e Seguindo no topo e botão de DMs no cabeçalho, conforme alternativa visual adotada no fechamento. DMs pelo `@` ficam na área Comunidades e usam somente perfil público; o fluxo por wallet permanece na área Conversas.
+
+Perfil/Configurações foi implementado localmente em 05/10/2026. O nome/foto/wallet da própria conta e preferências privadas aparecem antes dos painéis de configuração existentes, incluindo aparelhos e acesso a cofre/backups/status. Links `#configuracoes` abrem essa mesma tela sem reescrever o fragmento ou consumir parâmetros de assinatura/retorno. Alternar entre atalhos de Perfil conserva a montagem, rascunhos e operações; mudança real de página volta ao topo.
+
+Comunidades/DMs/perfil público ainda não existem no aplicativo. Neste corte, a barra mobile tem Conversas, Contatos e Perfil, sem entrada duplicada de Configurações; a aba Comunidades será adicionada com seu fluxo funcional. A disposição das releases publicadas abaixo é histórica e continua na VPS até uma ativação autorizada. Ver [seção 5.10](../DECISOES_E_PLANO_DE_IMPLEMENTACAO.md#510-perfil-e-configurações-reunidos--plano-fechado-em-05102026) e [plano de cortes](COMUNIDADES_PUBLICAS.md#cortes-de-implementação--10-entregas-revisáveis).
+
+Validação integral: lint, TypeScript, fronteiras/ciclos, licenças, formatação, build de 38 assets e 290 testes da aplicação/91 do executor passaram. Servidores/sockets de teste exigiram execução fora do sandbox depois de `EPERM`. Conferência em navegador com conta e imagem fictícias verificou edição de nome/foto, preferências, restauração da sessão, rascunho no atalho antigo, painéis sem duplicação e links de conteúdo. Após os ajustes visuais/rolagem, passaram lint, TypeScript, build e 37 testes direcionados. A revisão final corrigiu a montagem de representantes para preservar seu painel durante a restauração da sessão; lint, TypeScript, build e testes desse módulo passaram depois da correção.
+
+Conferência final em 1280 × 720, 390 × 844 e 320 × 850 confirmou painel de representantes após restauração, campo de organização dentro do cartão, um painel de cada configuração, rascunho preservado entre `#perfil` e `#configuracoes`, e retorno do Cofre ao Perfil com rolagem no topo. A largura da área principal coincide com a largura do conteúdo nos três tamanhos. Fotos/preferências salvas foram restauradas; screenshots ficam em `.local/`. Não foi repetida a matriz física de wallets.
+
+**Ponto importante:** a tela Perfil mostra dados privados somente ao próprio usuário autenticado. Reunir os controles não publica wallet/nome/foto, não remove funções nem altera protocolos, banco ou dependências. Corte 1 é entrega local, sem push/deploy; toque físico Android/iOS e retorno físico pela wallet permanecem pendentes.
+
 ## Revisão de filtros e contatos — publicada
 
 Decisões em [5.8 do plano](../DECISOES_E_PLANO_DE_IMPLEMENTACAO.md#58-filtros-e-menu-por-contato--aprovados-em-05102026). “Organizar conversas” dá lugar aos filtros Todos, Não lidas, Favoritos, Grupos e Arquivadas. A lista conserva rolagem própria; opções de criação/convites ficam no filtro Grupos. Menus por linha usam seta no desktop, toque prolongado no mobile e teclado. Um deslocamento de mais de 10 px ou cancelamento interrompe o gesto; segurar não abre o chat nem marca leitura.

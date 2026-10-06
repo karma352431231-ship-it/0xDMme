@@ -11,30 +11,8 @@ import { VoicePlayback } from '../voice-playback/index.ts';
 import { startCalls } from '../calls/index.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
 import type { AddressBookEntry } from '../../shared/contacts/index.ts';
-
-const pages = {
-  conversas: {
-    title: 'Conversas',
-    content: '',
-  },
-  perfil: { title: 'Perfil', content: '' },
-  status: {
-    title: 'Status',
-    content: `<div class="cards" data-status-container></div>`,
-  },
-  contatos: {
-    title: 'Contatos',
-    content: `<div class="cards" data-contacts-container></div>`,
-  },
-  cofre: {
-    title: 'Cofre',
-    content: `<div class="cards" data-vault-container></div>`,
-  },
-  configuracoes: {
-    title: 'Configurações',
-    content: `<div data-contact-settings-container></div><div data-daily-settings></div><div data-call-settings></div><div data-representatives-settings></div><article class="card"><h2>Aplicativo</h2><p id="pwa-state" role="status">Verificando atualização…</p><button id="check-updates" type="button">Verificar atualização</button></article>`,
-  },
-};
+import { pages, pageKey } from './pages.ts';
+import type { PageKey } from './pages.ts';
 
 function element<T extends HTMLElement>(id: string): T {
   const result = document.getElementById(id);
@@ -160,12 +138,16 @@ function route(): void {
     renderApprovalPage();
     return;
   }
-  const selected = location.hash.slice(1).split('?')[0] ?? '';
-  if (selected === 'workspace') return;
-  const key = Object.hasOwn(pages, selected)
-    ? (selected as keyof typeof pages)
-    : 'conversas';
-  if (currentPage === key && currentHash === location.hash) return;
+  const key = pageKey(location.hash);
+  if (key === null) return;
+  if (
+    currentPage === key &&
+    (currentHash === location.hash || key === 'perfil')
+  ) {
+    // Account handles wallet-return fragments; keep profile drafts/camera mounted.
+    currentHash = location.hash;
+    return;
+  }
   currentPage = key;
   currentHash = location.hash;
   element('app-shell').dataset['page'] = key;
@@ -182,6 +164,7 @@ function route(): void {
   if (key === 'conversas') element('page-content').append(conversationContent);
   mountAccountPanels(key);
   mountFeature(key);
+  element('workspace').scrollTop = 0;
   document.querySelectorAll<HTMLAnchorElement>('nav a').forEach((link) => {
     if (link.dataset['route'] === key)
       link.setAttribute('aria-current', 'page');
@@ -194,8 +177,7 @@ function route(): void {
   });
   pwa?.render();
 }
-function mountFeature(key: keyof typeof pages): void {
-  const content = element('page-content');
+function mountProfileSettings(content: HTMLElement): void {
   const dailyContainer = content.querySelector<HTMLElement>(
     '[data-daily-settings]',
   );
@@ -213,6 +195,15 @@ function mountFeature(key: keyof typeof pages): void {
     '[data-contact-settings-container]',
   );
   if (contactSettings) contacts.mount(contactSettings, 'settings');
+  const deviceSettings = content.querySelector<HTMLElement>(
+    '[data-device-settings]',
+  );
+  if (deviceSettings) devices.mount(deviceSettings);
+}
+
+function mountFeature(key: PageKey): void {
+  const content = element('page-content');
+  mountProfileSettings(content);
   if (key === 'conversas') messages.ready();
   mountStatusFeature(key, content);
   const contactContainer = content.querySelector<HTMLElement>(
@@ -231,39 +222,18 @@ function mountFeature(key: keyof typeof pages): void {
   }
 }
 
-function mountStatusFeature(
-  key: keyof typeof pages,
-  content: HTMLElement,
-): void {
+function mountStatusFeature(key: PageKey, content: HTMLElement): void {
   const container = content.querySelector<HTMLElement>(
     '[data-status-container]',
   );
   if (key === 'status' && container) statuses.mount(container);
 }
 
-function mountAccountPanels(key: keyof typeof pages): void {
-  if (
-    key === 'perfil' ||
-    key === 'configuracoes' ||
-    key === 'conversas' ||
-    key === 'cofre' ||
-    key === 'contatos' ||
-    key === 'status'
-  ) {
-    const container = document.createElement('div');
-    container.className = 'account-section';
-    element('page-content').prepend(container);
-    account.mount(
-      container,
-      key === 'configuracoes' || key === 'perfil' ? 'settings' : 'login',
-    );
-  }
-  if (key === 'configuracoes') {
-    const container = document.createElement('div');
-    container.className = 'account-section';
-    element('page-content').append(container);
-    devices.mount(container);
-  }
+function mountAccountPanels(key: PageKey): void {
+  const container = document.createElement('div');
+  container.className = 'account-section';
+  element('page-content').prepend(container);
+  account.mount(container, key === 'perfil' ? 'settings' : 'login');
 }
 
 function renderApprovalPage(): void {
@@ -287,7 +257,7 @@ function connection(): void {
     ? connectedAccount
       ? devices.authorized()
         ? 'Conta conectada'
-        : 'Sessão conectada · abertura da conta em Configurações → Aparelhos'
+        : 'Sessão conectada · abertura da conta em Perfil → Aparelhos'
       : 'Conexão disponível · nenhuma conta conectada'
     : 'Sem conexão · histórico salvo disponível neste aparelho';
 }
