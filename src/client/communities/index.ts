@@ -11,7 +11,7 @@ import type {
 } from '../../shared/communities/index.ts';
 import type { VaultAccess } from '../vault-authority/index.ts';
 import { preparePhoto } from '../attachment-images/index.ts';
-import { Communities, readCommunities, readCommunity } from './controller.ts';
+import { Communities, readCommunity } from './controller.ts';
 import {
   communityButton,
   communityCard,
@@ -22,10 +22,12 @@ import {
 import { mountCommunityGovernance } from './governance.ts';
 import { startCommunityPosts } from './posts.ts';
 import { replyNotificationPage } from '../../shared/community-posts/index.ts';
+import { startCommunityDiscovery } from './discovery.ts';
 
 export function startCommunities(access: VaultAccess) {
   const controller = new Communities(access);
   const posts = startCommunityPosts(controller);
+  const discovery = startCommunityDiscovery(controller);
   let mounted: HTMLElement | null = null,
     sidebar: HTMLElement | null = null,
     session: AccountSession | null = null;
@@ -35,7 +37,7 @@ export function startCommunities(access: VaultAccess) {
     busy = false;
   let abort = new AbortController(),
     photoUrl: string | null = null;
-  let view = 'explore',
+  let view = 'feed',
     selected: string | null = null,
     selectedPost: string | null = null,
     selectedTag: string | null = null,
@@ -78,14 +80,17 @@ export function startCommunities(access: VaultAccess) {
     const nav = communityElement('nav', '', 'community-tabs');
     nav.setAttribute('aria-label', 'Comunidades');
     for (const [key, title] of [
+      ['feed', 'Feed'],
       ['explore', 'Explorar'],
       ['following', 'Seguindo'],
+      ['saved', 'Salvos'],
+      ['hidden', 'Ocultos'],
       ['replies', 'Respostas'],
       ['managed', 'Gerenciar'],
       ['invitations', 'Transferências'],
       ['create', 'Criar comunidade'],
     ] as const) {
-      if (!session && key !== 'explore') continue;
+      if (!session && key !== 'explore' && key !== 'feed') continue;
       communityLink(nav, title, `#comunidades?view=${key}`);
     }
     mounted.append(nav);
@@ -111,7 +116,8 @@ export function startCommunities(access: VaultAccess) {
   async function directory(): Promise<void> {
     if (!sidebar) return;
     sidebar.replaceChildren();
-    communityLink(sidebar, 'Explorar comunidades', '#comunidades');
+    communityLink(sidebar, 'Feed geral', '#comunidades?view=feed');
+    communityLink(sidebar, 'Explorar comunidades', '#comunidades?view=explore');
     sidebar.append(communityElement('h2', 'Suas comunidades'));
     if (!session) {
       sidebar.append(
@@ -124,6 +130,8 @@ export function startCommunities(access: VaultAccess) {
       'Respostas ao seu conteúdo',
       '#comunidades?view=replies',
     );
+    communityLink(sidebar, 'Feed de seguidos', '#comunidades?view=following');
+    communityLink(sidebar, 'Salvos', '#comunidades?view=saved');
     const old = generation;
     try {
       const page = await controller.list('following', sidebarCursor);
@@ -202,18 +210,13 @@ export function startCommunities(access: VaultAccess) {
   }
   async function listing(): Promise<void> {
     const old = generation;
-    const page =
-      view === 'explore'
-        ? await readCommunities(cursor, signal())
-        : await controller.list(
-            view === 'invitations' ? 'invitations' : view,
-            cursor,
-          );
+    const page = await controller.list(
+      view === 'communities' ? 'following' : view,
+      cursor,
+    );
     if (old !== generation || !mounted) return;
     navigation();
-    const card = communityCard(
-      view === 'explore' ? 'Descubra comunidades' : 'Suas comunidades',
-    );
+    const card = communityCard('Suas comunidades');
     mounted.append(card);
     rows(card, page);
     cursor = page.next;
@@ -460,6 +463,11 @@ export function startCommunities(access: VaultAccess) {
       return;
     }
     if (!selected) {
+      if (['feed', 'explore', 'following', 'saved', 'hidden'].includes(view)) {
+        navigation();
+        discovery.mount(mounted, { view, signedIn: session !== null });
+        return;
+      }
       if (view === 'replies') {
         await notifications();
         return;
@@ -490,6 +498,7 @@ export function startCommunities(access: VaultAccess) {
   }
   function leave(): void {
     posts.leave();
+    discovery.leave();
     generation++;
     abort.abort();
     mounted = null;
@@ -507,7 +516,7 @@ export function startCommunities(access: VaultAccess) {
       mounted = container;
       sidebar = directoryNode;
       abort = new AbortController();
-      view = params.get('view') ?? 'explore';
+      view = params.get('view') ?? 'feed';
       cursor = null;
       sidebarCursor = null;
       try {
@@ -523,6 +532,10 @@ export function startCommunities(access: VaultAccess) {
       if (
         ![
           'explore',
+          'feed',
+          'saved',
+          'hidden',
+          'communities',
           'following',
           'managed',
           'invitations',
@@ -530,18 +543,19 @@ export function startCommunities(access: VaultAccess) {
           'replies',
         ].includes(view)
       )
-        view = 'explore';
+        view = 'feed';
       navigation();
       ready();
     },
     leave,
     ready,
-    canActivate: () => !busy && posts.canActivate(),
+    canActivate: () => !busy && posts.canActivate() && discovery.canActivate(),
     setSession(value: AccountSession | null): void {
       session = value;
       if (!controller.setSession(value)) return;
       generation++;
       posts.leave();
+      discovery.leave();
       state = null;
       current = null;
       sidebarCursor = null;

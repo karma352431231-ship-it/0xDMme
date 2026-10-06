@@ -34,24 +34,6 @@ export async function communityRead(
     }),
   );
 }
-export async function readCommunities(
-  after: string | null,
-  signal: AbortSignal,
-): Promise<CommunityPage> {
-  const url = after
-    ? `/api/communities?after=${encodeURIComponent(after)}`
-    : '/api/communities';
-  return communityPage(
-    await responseData(
-      await fetch(url, {
-        credentials: 'omit',
-        cache: 'no-store',
-        redirect: 'error',
-        signal,
-      }),
-    ),
-  );
-}
 export async function readCommunity(id: string, signal: AbortSignal) {
   return community(
     await responseData(

@@ -749,6 +749,27 @@ footer {
 .app[data-page='comunidades'] .community-directory {
   display: block;
 }
+.community-directory > a {
+  display: block;
+  padding: 8px 0;
+}
+.community-feed {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+.community-feed .community-card {
+  margin: 0;
+}
+.community-feed .community-card > a {
+  display: block;
+  width: fit-content;
+  margin: 8px 0;
+}
+.community-feed .post-toolbar {
+  display: inline-flex;
+  margin: 8px 12px 0 0;
+}
 .app[data-page='comunidades'] .chat-directory {
   display: none;
 }

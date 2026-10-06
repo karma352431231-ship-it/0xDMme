@@ -106,6 +106,19 @@ export class CommunityStore {
     const result = await this.visible(this.pool, found.rows);
     return result[0]!;
   }
+  /** Discovery projects at most one page without private governance columns. */
+  async readMany(
+    client: Pick<pg.PoolClient, 'query'>,
+    ids: string[],
+  ): Promise<Community[]> {
+    if (ids.length > communityPageSize)
+      throw new AccountError(400, 'Página muito grande.');
+    const found = await client.query<CommunityRecord>(
+      `SELECT ${columns} FROM hash_talk.communities c WHERE c.id=ANY($1::uuid[])`,
+      [ids],
+    );
+    return this.visible(client, found.rows);
+  }
   async list(after: string | null): Promise<CommunityPage> {
     const found = await this.pool.query<CommunityRecord>(
       `SELECT ${columns} FROM hash_talk.communities c WHERE ($1::uuid IS NULL OR c.id>$1) ORDER BY c.id LIMIT $2`,
@@ -350,6 +363,23 @@ export class CommunityStore {
     });
   }
   /** Account-scoped social reads share device/session revocation serialization. */
+  async withReader<T>(
+    authority: ContactAuthority,
+    work: (context: {
+      client: pg.PoolClient;
+      actor: PublicProfile | null;
+    }) => Promise<T>,
+  ): Promise<T> {
+    return this.authority.withMessageAuthority(authority, async (client) =>
+      work({
+        client,
+        actor: await this.profiles.identityOrNull(
+          client,
+          authority.session.accountId,
+        ),
+      }),
+    );
+  }
   async withActor<T>(
     authority: ContactAuthority,
     work: (context: {

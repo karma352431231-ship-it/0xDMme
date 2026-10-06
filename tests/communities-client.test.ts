@@ -84,7 +84,11 @@ await test('troca de sessão durante assinatura de comunidade impede envio com a
   const fetch = t.mock.method(globalThis, 'fetch', () =>
     Promise.resolve(Response.json(result())),
   );
-  const pending = controller.state(crypto.randomUUID());
+  const pending = controller.request('discovery-preference-set', {
+    id: crypto.randomUUID(),
+    post: crypto.randomUUID(),
+    preference: { saved: true, hidden: false, revision: 0 },
+  });
   await signing;
   controller.setSession(session());
   finish('assinatura-sintetica');

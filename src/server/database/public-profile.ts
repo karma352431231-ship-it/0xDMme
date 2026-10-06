@@ -58,17 +58,24 @@ export class PublicProfileStore {
     client: pg.PoolClient,
     account: string,
   ): Promise<PublicProfile> {
-    const result = await client.query<ProfileRow>(
-      `SELECT ${publicColumns} FROM hash_talk.public_profiles WHERE account_id=$1`,
-      [account],
-    );
-    const row = result.rows[0];
-    if (!row)
+    const profile = await this.identityOrNull(client, account);
+    if (!profile)
       throw new AccountError(
         403,
         'Crie seu perfil público em Perfil antes de participar.',
       );
-    return visible(row);
+    return profile;
+  }
+  /** Authenticated public readers need not create a social identity. */
+  async identityOrNull(
+    client: pg.PoolClient,
+    account: string,
+  ): Promise<PublicProfile | null> {
+    const result = await client.query<ProfileRow>(
+      `SELECT ${publicColumns} FROM hash_talk.public_profiles WHERE account_id=$1`,
+      [account],
+    );
+    return result.rows[0] ? visible(result.rows[0]) : null;
   }
   async identities(
     client: Pick<pg.PoolClient, 'query'>,

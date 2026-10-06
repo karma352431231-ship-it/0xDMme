@@ -170,6 +170,20 @@ export class CommunityPostStore {
     if (!found.rows[0]) throw new AccountError(404, 'Post indisponível.');
     return this.view(found.rows[0], await this.lookups(this.pool, found.rows));
   }
+  /** Bounded projection for discovery; markers retain the same privacy rules. */
+  async readMany(
+    client: Pick<pg.PoolClient, 'query'>,
+    ids: string[],
+  ): Promise<CommunityPost[]> {
+    if (ids.length > communityPageSize)
+      throw new AccountError(400, 'Página muito grande.');
+    const found = await client.query<PostRow>(
+      `SELECT ${columns} FROM hash_talk.community_posts WHERE id=ANY($1::uuid[])`,
+      [ids],
+    );
+    const lookup = await this.lookups(client, found.rows);
+    return found.rows.map((row) => this.view(row, lookup));
+  }
   async tags(community: string, after: string | null) {
     return communityTagPage(this.pool, { community, after, all: false });
   }

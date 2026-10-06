@@ -85,6 +85,7 @@ try {
     database.communities,
     database.devices,
     database.communityPosts,
+    database.communityDiscovery,
   );
   const host = createWebServer({
     origin: config.origin,
@@ -97,6 +98,8 @@ try {
     communities: createCommunityHandler({
       read: (id) => communities.read(id),
       list: (after) => communities.list(after),
+      feed: (filter, after) => communities.feed(filter, after),
+      explore: (filter, after) => communities.explore(filter, after),
       post: (id, post) => communities.post(id, post),
       postPage: (id, after, tag) => communities.postPage(id, after, tag),
       replies: (id, parent, after) => communities.replies(id, parent, after),

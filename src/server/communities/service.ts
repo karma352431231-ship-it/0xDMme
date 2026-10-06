@@ -7,7 +7,12 @@ import {
   communityProof,
 } from '../../shared/communities/index.ts';
 import { postCursor } from '../../shared/community-posts/index.ts';
+import {
+  feedFilter,
+  exploreFilter,
+} from '../../shared/community-discovery/index.ts';
 import type {
+  CommunityDiscoveryStore,
   CommunityPostStore,
   CommunityStore,
   DeviceStore,
@@ -16,14 +21,27 @@ export class CommunityService {
   private readonly store: CommunityStore;
   private readonly devices: DeviceStore;
   private readonly posts: CommunityPostStore | null;
+  private readonly discovery: CommunityDiscoveryStore | null;
   constructor(
     store: CommunityStore,
     devices: DeviceStore,
     posts: CommunityPostStore | null = null,
+    discovery: CommunityDiscoveryStore | null = null,
   ) {
     this.store = store;
     this.devices = devices;
     this.posts = posts;
+    this.discovery = discovery;
+  }
+  feed(filter: unknown, after: string | null) {
+    return this.requireDiscovery().feed(feedFilter(filter), after);
+  }
+  explore(filter: unknown, after: string | null) {
+    return this.requireDiscovery().explore(exploreFilter(filter), after);
+  }
+  private requireDiscovery(): CommunityDiscoveryStore {
+    if (!this.discovery) throw new AccountError(404, 'Feed indisponível.');
+    return this.discovery;
   }
   post(community: unknown, id: unknown) {
     return this.requirePosts().read(uuid(community), uuid(id));
@@ -77,10 +95,11 @@ export class CommunityService {
         payload: proof.payload,
       }),
     );
-    const store =
-      operation.startsWith('post-') ||
-      operation.startsWith('tag-') ||
-      operation === 'reply-create'
+    const store = operation.startsWith('discovery-')
+      ? this.requireDiscovery()
+      : operation.startsWith('post-') ||
+          operation.startsWith('tag-') ||
+          operation === 'reply-create'
         ? this.requirePosts()
         : this.store;
     return store.operate(

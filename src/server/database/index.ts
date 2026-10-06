@@ -27,6 +27,8 @@ import { CommunityStore } from './communities.ts';
 export type { CommunityStore } from './communities.ts';
 import { CommunityPostStore } from './community-posts.ts';
 export type { CommunityPostStore } from './community-posts.ts';
+import { CommunityDiscoveryStore } from './community-discovery.ts';
+export type { CommunityDiscoveryStore } from './community-discovery.ts';
 import { DeviceStore } from './devices.ts';
 import { VaultStore } from './vault.ts';
 import { ContactStore } from './contacts.ts';
@@ -90,6 +92,7 @@ const migrations = [
   '029-communities.sql',
   '030-community-posts.sql',
   '031-community-interactions.sql',
+  '032-community-discovery.sql',
 ];
 
 export interface MaintenanceSnapshot {
@@ -122,6 +125,7 @@ export class Database {
   readonly publicProfiles: PublicProfileStore;
   readonly communities: CommunityStore;
   readonly communityPosts: CommunityPostStore;
+  readonly communityDiscovery: CommunityDiscoveryStore;
   readonly devices: DeviceStore;
   readonly vault: VaultStore;
   readonly contacts: ContactStore;
@@ -179,6 +183,12 @@ export class Database {
       pool: this.pool,
       communities: this.communities,
       profiles: this.publicProfiles,
+      capacity: contentCapacity,
+    });
+    this.communityDiscovery = new CommunityDiscoveryStore({
+      pool: this.pool,
+      communities: this.communities,
+      posts: (client, ids) => this.communityPosts.readMany(client, ids),
       capacity: contentCapacity,
     });
     this.representatives = new RepresentativeStore(

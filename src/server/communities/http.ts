@@ -11,6 +11,18 @@ import type {
 } from '../../shared/communities/index.ts';
 import { RequestBudget } from '../request-budget/index.ts';
 import {
+  feedPage,
+  explorePage,
+  feedFilter,
+  exploreFilter,
+} from '../../shared/community-discovery/index.ts';
+import type {
+  FeedFilter,
+  ExploreFilter,
+  FeedPage,
+  ExplorePage,
+} from '../../shared/community-discovery/index.ts';
+import {
   communityPost,
   postPage,
   postCursor,
@@ -25,6 +37,11 @@ import type {
 export function createCommunityHandler(read: {
   read: (id: string) => Promise<Community>;
   list: (after: string | null) => Promise<CommunityPage>;
+  feed?: (filter: FeedFilter, after: string | null) => Promise<FeedPage>;
+  explore?: (
+    filter: ExploreFilter,
+    after: string | null,
+  ) => Promise<ExplorePage>;
   post?: (community: string, id: string) => Promise<CommunityPost>;
   postPage?: (
     community: string,
@@ -54,6 +71,12 @@ export function createCommunityHandler(read: {
       throw new AccountError(405, 'Método inválido.');
     budget.admit(request.socket.remoteAddress ?? 'unknown', false, true);
     const address = new URL(request.url ?? '', 'http://local.invalid');
+    if (
+      ['/api/communities/feed', '/api/communities/explore'].includes(
+        address.pathname,
+      )
+    )
+      return discoveryLookup(address);
     if (
       /^\/api\/communities\/[a-f0-9-]{36}\/(?:posts|tags)(?:\/|$)/u.test(
         address.pathname,
@@ -114,6 +137,37 @@ export function createCommunityHandler(read: {
       )
     )
       throw new AccountError(400, 'Filtros inválidos.');
+  }
+  async function discoveryLookup(address: URL): Promise<unknown> {
+    const query = address.searchParams;
+    if (address.pathname.endsWith('/feed') && read.feed) {
+      params(address, ['order', 'period', 'community', 'tag', 'after']);
+      return feedPage(
+        await read.feed(
+          feedFilter({
+            scope: 'all',
+            order: query.get('order') ?? 'recent',
+            period: query.get('period') ?? 'all',
+            community: query.get('community'),
+            tag: query.get('tag'),
+          }),
+          query.get('after'),
+        ),
+      );
+    }
+    if (address.pathname.endsWith('/explore') && read.explore) {
+      params(address, ['order', 'period', 'after']);
+      return explorePage(
+        await read.explore(
+          exploreFilter({
+            order: query.get('order') ?? 'size',
+            period: query.get('period') ?? 'week',
+          }),
+          query.get('after'),
+        ),
+      );
+    }
+    throw new AccountError(404, 'Descoberta indisponível.');
   }
   async function postLookup(address: URL): Promise<unknown> {
     const parts = address.pathname.split('/'),

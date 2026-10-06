@@ -87,6 +87,8 @@ const readRoutes = new Set(
       '/api/account/communities/post-page',
       '/api/account/communities/post-moderations',
       '/api/account/communities/tag-list',
+      '/api/account/communities/discovery-feed',
+      '/api/account/communities/discovery-preference',
     ]),
 );
 const challengeRoutes = new Set([

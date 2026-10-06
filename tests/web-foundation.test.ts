@@ -34,6 +34,7 @@ await test('fontes públicas incluem instruções/licenças do build e excluem b
     'src/client/communities/controller.ts',
     'src/shared/communities/index.ts',
     'src/shared/community-posts/index.ts',
+    'src/shared/community-discovery/index.ts',
     'src/client/public-profile/controller.ts',
     'src/shared/public-profile/index.ts',
     'src/shared/public-avatar/index.ts',

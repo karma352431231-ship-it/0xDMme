@@ -32,6 +32,21 @@ import {
   replyForm,
 } from './post-forms.ts';
 import { postText } from './post-text.ts';
+import {
+  preferenceControls,
+  postVoting,
+  discoverySelect,
+  feedOrders,
+  discoveryPeriods,
+} from './discovery-controls.ts';
+import {
+  feedPage,
+  feedFilter,
+} from '../../shared/community-discovery/index.ts';
+import type {
+  FeedOrder,
+  DiscoveryPeriod,
+} from '../../shared/community-discovery/index.ts';
 export function startCommunityPosts(controller: Communities) {
   let mounted: HTMLElement | null = null,
     management: HTMLElement | null = null,
@@ -45,6 +60,8 @@ export function startCommunityPosts(controller: Communities) {
     after: string | null = null,
     tag: string | null = null,
     scope = 'public';
+  let order: FeedOrder = 'recent',
+    period: DiscoveryPeriod = 'all';
   let feedback: HTMLElement | null = null,
     list: HTMLElement | null = null,
     controls: HTMLElement | null = null;
@@ -137,6 +154,16 @@ export function startCommunityPosts(controller: Communities) {
     voting(node, value);
     branch(node, value, depth);
     if (!own) return;
+    const old = generation;
+    preferenceControls(node, value, {
+      controller,
+      run,
+      valid: () => old === generation,
+      changed: async () => {
+        after = null;
+        await load();
+      },
+    });
     const options = el('div');
     node.append(options);
     button(node, 'Opções da postagem', () =>
@@ -196,48 +223,17 @@ export function startCommunityPosts(controller: Communities) {
       el('p', `Placar: ${value.score} · ${value.replies} respostas diretas`),
     );
     if (!own?.canPost || value.status !== 'visible') return;
-    const controls = el('div', '', 'post-toolbar');
-    node.append(controls);
-    button(controls, 'Votar', () =>
-      run(async () => {
-        const old = generation,
-          state = postState(
-            await controller.request('post-state', {
-              id: community,
-              post: value.id,
-            }),
-          );
-        if (old !== generation) return;
-        controls.replaceChildren(
-          el(
-            'small',
-            state.vote.position === 0
-              ? 'Sem voto'
-              : state.vote.position === 1
-                ? 'Seu voto: +1'
-                : 'Seu voto: −1',
-          ),
-        );
-        for (const [position, label] of [
-          [1, 'Upvote'],
-          [-1, 'Downvote'],
-          [0, 'Retirar voto'],
-        ] as const) {
-          const btn = button(controls, label, () =>
-            mutate('post-vote', {
-              id: community,
-              post: value.id,
-              position,
-              voteRevision: state.vote.revision,
-            }),
-          );
-          btn.setAttribute(
-            'aria-pressed',
-            String(state.vote.position === position),
-          );
-        }
-      }),
-    );
+    const old = generation;
+    postVoting(node, value, {
+      controller,
+      run,
+      valid: () => old === generation,
+      changed: async () => {
+        after = null;
+        await load();
+        if (feedback) feedback.textContent = 'Alteração salva.';
+      },
+    });
   }
   function replyComposer(container: HTMLElement, parent: CommunityPost): void {
     if (!own?.canPost || parent.status !== 'visible') return;
@@ -388,18 +384,21 @@ export function startCommunityPosts(controller: Communities) {
   }
   async function loadPublic(): Promise<void> {
     const old = generation;
-    const query = new URLSearchParams();
+    const query = new URLSearchParams({ order, period, community });
     if (after) query.set('after', after);
     if (tag) query.set('tag', tag);
-    const page = postPage(
-      await communityRead(
-        `/api/communities/${community}/posts${query.size ? '?' + query.toString() : ''}`,
-        signal(),
-      ),
+    const filter = { scope: 'all', order, period, community, tag };
+    const page = feedPage(
+      own
+        ? await controller.request('discovery-feed', { filter, after })
+        : await communityRead(
+            `/api/communities/feed?${query.toString()}`,
+            signal(),
+          ),
     );
     if (old !== generation || !list) return;
     list.replaceChildren();
-    for (const value of page.items) row(value);
+    for (const value of page.items) row(value.post);
     after = page.next;
   }
   function paging(): void {
@@ -448,6 +447,38 @@ export function startCommunityPosts(controller: Communities) {
     if (!mounted) return;
     const toolbar = el('div', '', 'post-toolbar');
     mounted.append(toolbar);
+    discoverySelect(
+      toolbar,
+      'Ordenar postagens',
+      { value: order, options: feedOrders },
+      (value) => {
+        order = feedFilter({
+          scope: 'all',
+          order: value,
+          period,
+          community,
+          tag,
+        }).order;
+        after = null;
+        void run(load);
+      },
+    );
+    discoverySelect(
+      toolbar,
+      'Publicadas no período',
+      { value: period, options: discoveryPeriods },
+      (value) => {
+        period = feedFilter({
+          scope: 'all',
+          order,
+          period: value,
+          community,
+          tag,
+        }).period;
+        after = null;
+        void run(load);
+      },
+    );
     const select = postTagSelect(
       toolbar,
       { value: tag, label: 'Filtrar por tag', empty: 'Todas as tags' },
@@ -602,6 +633,8 @@ export function startCommunityPosts(controller: Communities) {
       own = options.state;
       selected = options.post;
       scope = 'public';
+      order = 'recent';
+      period = 'all';
       after = null;
       tag = options.tag;
       tags = { items: [], next: null };
