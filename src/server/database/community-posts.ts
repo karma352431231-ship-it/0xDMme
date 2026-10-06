@@ -1,4 +1,11 @@
 import type pg from 'pg';
+import {
+  postVotes,
+  setPostVote,
+  requireReplyTarget,
+  admitReplyNotification,
+  replyNotifications,
+} from './community-interactions.ts';
 import { AccountError, keys, uuid } from '../../shared/account/index.ts';
 import {
   communityCursor,
@@ -59,6 +66,38 @@ function visibleFields(
     tag: row.tag_id ? (lookup.tags.get(row.tag_id) ?? null) : null,
   };
 }
+function requireCreateRetry(
+  row: PostRow,
+  expected: {
+    community: string;
+    actor: string;
+    content: PostContent;
+    parent: PostRow | null;
+  },
+): void {
+  const fields = [
+    [row.community_id, expected.community],
+    [row.author, expected.actor],
+    [row.title, expected.content.title],
+    [row.text, expected.content.text],
+    [row.tag_id, expected.content.tag],
+    [row.parent_id, expected.parent?.id ?? null],
+  ];
+  if (row.deleted || fields.some(([actual, value]) => actual !== value))
+    throw new AccountError(409, 'Identificador de post já utilizado.');
+}
+async function createParent(
+  context: CommunityContext,
+  data: Record<string, unknown>,
+  value: PostContent,
+): Promise<PostRow | null> {
+  if (!Object.hasOwn(data, 'parent')) return null;
+  const parent = await loadPost(context, uuid(data['parent']));
+  await requireReplyTarget(context, parent);
+  if (value.title || value.tag)
+    throw new AccountError(400, 'Resposta não admite título/tag.');
+  return parent;
+}
 function page(rows: PostRow[]) {
   const items = rows.slice(0, communityPageSize),
     last = items.at(-1);
@@ -117,6 +156,10 @@ export class CommunityPostStore {
       editedAt: row.edited_at?.toISOString() ?? null,
       revision: row.revision,
       status,
+      parent: row.parent_id,
+      root: row.root_id,
+      score: row.score,
+      replies: row.replies,
     };
   }
   async read(community: string, id: string): Promise<CommunityPost> {
@@ -134,6 +177,7 @@ export class CommunityPostStore {
     client: Pick<pg.PoolClient, 'query'>,
     options: {
       community: string;
+      parent?: string | null;
       after: string | null;
       tag: string | null;
       author: string | null;
@@ -142,9 +186,9 @@ export class CommunityPostStore {
   ): Promise<PostRow[]> {
     const [time, id] = (options.after ?? '').split('/');
     const found = await client.query<PostRow>(
-      `SELECT ${columns} FROM hash_talk.community_posts WHERE community_id=$1 AND NOT deleted
+      `SELECT ${columns} FROM hash_talk.community_posts WHERE community_id=$1 AND ($9 OR parent_id=$8::uuid OR ($8::uuid IS NULL AND parent_id IS NULL)) AND (parent_id IS NOT NULL OR NOT deleted)
       AND ($2::timestamptz IS NULL OR (created_at,id)<($2,$3::uuid)) AND ($4::uuid IS NULL OR tag_id=$4)
-      AND ($5::uuid IS NULL OR author=$5) AND ($5::uuid IS NOT NULL OR (active_removal IS NOT NULL)=$6)
+      AND ($5::uuid IS NULL OR author=$5) AND ($8::uuid IS NOT NULL OR $5::uuid IS NOT NULL OR (active_removal IS NOT NULL)=$6)
       ORDER BY created_at DESC,id DESC LIMIT $7`,
       [
         options.community,
@@ -154,6 +198,8 @@ export class CommunityPostStore {
         options.author,
         options.removed,
         communityPageSize + 1,
+        options.parent ?? null,
+        options.author !== null || options.removed,
       ],
     );
     return found.rows;
@@ -178,6 +224,29 @@ export class CommunityPostStore {
       items: result.items.map((row) => this.view(row, lookup)),
     };
   }
+  async replies(
+    community: string,
+    parent: string,
+    after: string | null,
+  ): Promise<PostPage> {
+    // Read the parent marker as well; no hidden/deleted content is needed to navigate its children.
+    await this.read(community, parent);
+    const result = page(
+      await this.rows(this.pool, {
+        community,
+        parent,
+        after,
+        tag: null,
+        author: null,
+        removed: false,
+      }),
+    );
+    const lookup = await this.lookups(this.pool, result.items);
+    return {
+      ...result,
+      items: result.items.map((row) => this.view(row, lookup)),
+    };
+  }
   private async states(
     context: CommunityContext,
     rows: PostRow[],
@@ -189,6 +258,11 @@ export class CommunityPostStore {
         context.client,
         rows.flatMap((row) => (row.active_removal ? [row.active_removal] : [])),
       );
+    const votes = await postVotes(
+      context.client,
+      context.actor.id,
+      rows.map((row) => row.id),
+    );
     return rows.map((row) => {
       const own = row.author === context.actor.id,
         restricted = own || manager;
@@ -196,6 +270,7 @@ export class CommunityPostStore {
         post: this.view(row, lookup),
         own,
         manager,
+        vote: votes.get(row.id) ?? { position: 0, revision: 0 },
         canEdit: editable(row, own, canPost),
         canDelete: own && !row.deleted,
         content: restricted && !row.deleted ? content(row) : null,
@@ -236,30 +311,34 @@ export class CommunityPostStore {
     context: CommunityContext,
     data: Record<string, unknown>,
   ): Promise<void> {
-    keys(data, ['id', 'post', 'content']);
+    const replying = Object.hasOwn(data, 'parent');
+    keys(
+      data,
+      replying
+        ? ['id', 'post', 'content', 'parent']
+        : ['id', 'post', 'content'],
+    );
     await requireCommunityParticipation(context);
     const id = uuid(data['post']),
-      value = postContent(data['content']);
+      value = postContent(data['content']),
+      parent = await createParent(context, data, value);
     const previous = await context.client.query<PostRow>(
       `SELECT ${columns} FROM hash_talk.community_posts WHERE id=$1`,
       [id],
     );
     const old = previous.rows[0];
     if (old) {
-      if (
-        old.community_id !== context.row.id ||
-        old.author !== context.actor.id ||
-        old.deleted ||
-        old.title !== value.title ||
-        old.text !== value.text ||
-        old.tag_id !== value.tag
-      )
-        throw new AccountError(409, 'Identificador de post já utilizado.');
+      requireCreateRetry(old, {
+        community: context.row.id,
+        actor: context.actor.id,
+        content: value,
+        parent,
+      });
       return;
     }
     await requirePostTag(context, value.tag);
     await context.client.query(
-      'INSERT INTO hash_talk.community_posts(id,community_id,author,title,text,tag_id) VALUES($1,$2,$3,$4,$5,$6)',
+      'INSERT INTO hash_talk.community_posts(id,community_id,author,title,text,tag_id,parent_id,root_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8)',
       [
         id,
         context.row.id,
@@ -267,8 +346,17 @@ export class CommunityPostStore {
         value.title,
         value.text,
         value.tag,
+        parent?.id ?? null,
+        parent ? (parent.root_id ?? parent.id) : null,
       ],
     );
+    if (parent) {
+      await context.client.query(
+        'UPDATE hash_talk.community_posts SET replies=replies+1 WHERE id=$1',
+        [parent.id],
+      );
+      await admitReplyNotification(context, parent, id);
+    }
     await assertContentCapacity(context.client, this.capacity);
   }
   private async edit(
@@ -287,6 +375,8 @@ export class CommunityPostStore {
         'Post excluído ou oculto não pode ser editado.',
       );
     currentPost(row, data['revision']);
+    if (row.parent_id && (value.title || value.tag))
+      throw new AccountError(400, 'Resposta não admite título/tag.');
     await requirePostTag(context, value.tag, row.tag_id);
     if (
       row.title === value.title &&
@@ -315,11 +405,58 @@ export class CommunityPostStore {
       [row.id],
     );
   }
+  private async apply(
+    context: CommunityContext,
+    operation: string,
+    data: Record<string, unknown>,
+  ): Promise<unknown> {
+    switch (operation) {
+      case 'post-state':
+        keys(data, ['id', 'post']);
+        break;
+      case 'post-vote':
+        await setPostVote(context, data, this.capacity);
+        break;
+      case 'reply-create':
+        if (!Object.hasOwn(data, 'parent'))
+          throw new AccountError(400, 'Resposta exige pai.');
+        await this.create(context, data);
+        break;
+      case 'post-create':
+        if (Object.hasOwn(data, 'parent'))
+          throw new AccountError(400, 'Post não admite pai.');
+        await this.create(context, data);
+        break;
+      case 'post-edit':
+        await this.edit(context, data);
+        break;
+      case 'post-delete':
+        await this.remove(context, data);
+        break;
+      default: {
+        const result = await postModeration(
+          context,
+          operation,
+          data,
+          this.capacity,
+        );
+        if (result !== undefined) return result;
+      }
+    }
+    return undefined;
+  }
   async operate(
     operation: string,
     authority: ContactAuthority,
     data: Record<string, unknown>,
   ): Promise<unknown> {
+    if (
+      operation === 'post-notifications' ||
+      operation === 'post-notifications-read'
+    )
+      return this.communities.withActor(authority, (context) =>
+        replyNotifications(context, operation, data),
+      );
     return this.communities.withContext(
       authority,
       uuid(data['id']),
@@ -335,29 +472,8 @@ export class CommunityPostStore {
         }
         if (operation === 'post-page') return this.ownPage(context, data);
         const id = uuid(data['post']);
-        switch (operation) {
-          case 'post-state':
-            keys(data, ['id', 'post']);
-            break;
-          case 'post-create':
-            await this.create(context, data);
-            break;
-          case 'post-edit':
-            await this.edit(context, data);
-            break;
-          case 'post-delete':
-            await this.remove(context, data);
-            break;
-          default: {
-            const result = await postModeration(
-              context,
-              operation,
-              data,
-              this.capacity,
-            );
-            if (result !== undefined) return result;
-          }
-        }
+        const result = await this.apply(context, operation, data);
+        if (result !== undefined) return result;
         return this.state(context, id);
       },
     );

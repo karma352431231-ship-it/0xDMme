@@ -89,6 +89,7 @@ const migrations = [
   '028-public-profiles.sql',
   '029-communities.sql',
   '030-community-posts.sql',
+  '031-community-interactions.sql',
 ];
 
 export interface MaintenanceSnapshot {

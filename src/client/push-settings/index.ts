@@ -4,7 +4,7 @@ import type { Daily } from '../daily/index.ts';
 export function mountPushSettings(host: HTMLElement, daily: Daily) {
   const fieldset = document.createElement('fieldset');
   fieldset.className = 'push-preferences';
-  fieldset.innerHTML = `<legend>Push neste aparelho</legend><label><input type="checkbox" data-push-messages checked> Avisos de mensagens</label><label><input type="checkbox" data-push-calls checked> Avisos de chamadas</label><label><input type="checkbox" data-push-show-calls checked> Mostrar “Chamada de voz recebida” na notificação</label><p>Desmarque a última opção para mostrar apenas atividade genérica. O nome do contato nunca aparece. A tela bloqueada e o som seguem as configurações do sistema.</p><button type="button">Salvar preferências de push</button>`;
+  fieldset.innerHTML = `<legend>Push neste aparelho</legend><label><input type="checkbox" data-push-messages checked> Avisos de mensagens e respostas</label><label><input type="checkbox" data-push-calls checked> Avisos de chamadas</label><label><input type="checkbox" data-push-show-calls checked> Mostrar “Chamada de voz recebida” na notificação</label><p>Desmarque a última opção para mostrar apenas atividade genérica. O nome do contato nunca aparece. A tela bloqueada e o som seguem as configurações do sistema.</p><button type="button">Salvar preferências de push</button>`;
   host.append(fieldset);
   const messages = fieldset.querySelector<HTMLInputElement>(
       '[data-push-messages]',

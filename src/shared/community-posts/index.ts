@@ -31,6 +31,10 @@ export interface CommunityPost {
   editedAt: string | null;
   revision: number;
   status: 'visible' | 'removed' | 'deleted';
+  parent: string | null;
+  root: string | null;
+  score: number;
+  replies: number;
 }
 export interface PostRemoval {
   id: string;
@@ -48,6 +52,7 @@ export interface PostState {
   canDelete: boolean;
   content: PostContent | null;
   removal: PostRemoval | null;
+  vote: PostVote;
 }
 export interface PostPage {
   items: CommunityPost[];
@@ -120,6 +125,10 @@ export function communityPost(value: unknown): CommunityPost {
     'editedAt',
     'revision',
     'status',
+    'parent',
+    'root',
+    'score',
+    'replies',
   ]);
   const status = data['status'];
   if (status !== 'visible' && status !== 'removed' && status !== 'deleted')
@@ -144,6 +153,9 @@ export function communityPost(value: unknown): CommunityPost {
     editedAt: data['editedAt'] === null ? null : postTime(data['editedAt']),
     revision: communityRevision(data['revision']),
     status,
+    ...postTree(data),
+    score: postCount(data['score'], true),
+    replies: postCount(data['replies']),
   };
 }
 export function postPage(value: unknown): PostPage {
@@ -195,6 +207,7 @@ export function postState(value: unknown): PostState {
     'canDelete',
     'content',
     'removal',
+    'vote',
   ]);
   const own = communityBoolean(data['own']),
     manager = communityBoolean(data['manager']);
@@ -211,6 +224,7 @@ export function postState(value: unknown): PostState {
     canDelete: communityBoolean(data['canDelete']),
     content,
     removal,
+    vote: postVote(data['vote']),
   };
 }
 /** Links never load previews or embed external media. Only explicit HTTP(S) navigation. */
@@ -228,4 +242,73 @@ export function postLink(value: string): string | null {
   } catch {
     return null;
   }
+}
+
+export interface PostVote {
+  position: -1 | 0 | 1;
+  revision: number;
+}
+export function votePosition(value: unknown): -1 | 0 | 1 {
+  if (value !== -1 && value !== 0 && value !== 1)
+    throw new AccountError(400, 'Voto inválido.');
+  return value;
+}
+export function postCount(value: unknown, signed = false): number {
+  if (
+    typeof value !== 'number' ||
+    !Number.isSafeInteger(value) ||
+    (!signed && value < 0)
+  )
+    throw new AccountError(400, 'Contagem inválida.');
+  return value;
+}
+export function postVote(value: unknown): PostVote {
+  const data = object(value);
+  keys(data, ['position', 'revision']);
+  return {
+    position: votePosition(data['position']),
+    revision: postCount(data['revision']),
+  };
+}
+function postTree(data: Record<string, unknown>) {
+  const parent = communityCursor(data['parent']),
+    root = communityCursor(data['root']);
+  if (
+    (parent === null) !== (root === null) ||
+    parent === data['id'] ||
+    root === data['id']
+  )
+    throw new AccountError(400, 'Árvore inválida.');
+  if (parent && (data['title'] !== '' || data['tag'] !== null))
+    throw new AccountError(400, 'Resposta não admite título/tag.');
+  return { parent, root };
+}
+export interface ReplyNotification {
+  reply: string;
+  post: string;
+  community: string;
+  createdAt: string;
+  read: boolean;
+}
+export interface ReplyNotificationPage {
+  items: ReplyNotification[];
+  next: string | null;
+}
+export function replyNotificationPage(value: unknown): ReplyNotificationPage {
+  const data = object(value);
+  keys(data, ['items', 'next']);
+  return {
+    items: communityArray(data['items']).map((value) => {
+      const row = object(value);
+      keys(row, ['reply', 'post', 'community', 'createdAt', 'read']);
+      return {
+        reply: uuid(row['reply']),
+        post: uuid(row['post']),
+        community: uuid(row['community']),
+        createdAt: postTime(row['createdAt']),
+        read: communityBoolean(row['read']),
+      };
+    }),
+    next: postCursor(data['next']),
+  };
 }

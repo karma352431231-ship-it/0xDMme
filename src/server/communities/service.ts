@@ -35,6 +35,13 @@ export class CommunityService {
       communityCursor(tag),
     );
   }
+  replies(community: unknown, parent: unknown, after: unknown) {
+    return this.requirePosts().replies(
+      uuid(community),
+      uuid(parent),
+      postCursor(after),
+    );
+  }
   tags(community: unknown, after: unknown) {
     return this.requirePosts().tags(uuid(community), communityCursor(after));
   }
@@ -71,7 +78,9 @@ export class CommunityService {
       }),
     );
     const store =
-      operation.startsWith('post-') || operation.startsWith('tag-')
+      operation.startsWith('post-') ||
+      operation.startsWith('tag-') ||
+      operation === 'reply-create'
         ? this.requirePosts()
         : this.store;
     return store.operate(

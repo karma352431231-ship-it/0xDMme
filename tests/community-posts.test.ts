@@ -22,6 +22,10 @@ const post = () => ({
   editedAt: null,
   revision: 1,
   status: 'visible',
+  parent: null,
+  root: null,
+  score: 0,
+  replies: 0,
 });
 await test('posts validam texto, título opcional, UUID de tag e orçamento de entrada', () => {
   assert.deepEqual(
@@ -100,4 +104,49 @@ await test('links são navegação HTTP(S) explícita; esquemas executáveis, cr
     'https://example.com/' + 'x'.repeat(2048),
   ])
     assert.equal(postLink(link), null);
+});
+await test('árvore, votos privados e avisos recusam referências incoerentes ou dados fora do contrato', async () => {
+  const { postVote, replyNotificationPage } =
+    await import('../src/shared/community-posts/index.ts');
+  const value = post();
+  for (const patch of [
+    { parent: value.id, root: id() },
+    { parent: id(), root: null },
+    { score: NaN },
+    { replies: -1 },
+    {
+      parent: id(),
+      root: id(),
+      tag: { id: id(), label: 'tag', active: true, revision: 1 },
+    },
+  ])
+    assert.throws(() => communityPost({ ...value, ...patch }), AccountError);
+  assert.deepEqual(postVote({ position: -1, revision: 2 }), {
+    position: -1,
+    revision: 2,
+  });
+  for (const input of [
+    { position: 2, revision: 0 },
+    { position: 1, revision: -1 },
+    { position: 1, revision: 1, profile: id() },
+  ])
+    assert.throws(() => postVote(input), AccountError);
+  const item = {
+    reply: id(),
+    post: id(),
+    community: id(),
+    createdAt: time,
+    read: false,
+  };
+  assert.deepEqual(replyNotificationPage({ items: [item], next: null }).items, [
+    item,
+  ]);
+  assert.throws(
+    () =>
+      replyNotificationPage({
+        items: [{ ...item, wallet: 'privada' }],
+        next: null,
+      }),
+    AccountError,
+  );
 });

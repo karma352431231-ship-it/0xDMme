@@ -1,4 +1,5 @@
 import type pg from 'pg';
+import type { PublicProfile } from '../../shared/public-profile/index.ts';
 import {
   AccountError,
   encode,
@@ -347,6 +348,24 @@ export class CommunityStore {
       }
       return this.state(context);
     });
+  }
+  /** Account-scoped social reads share device/session revocation serialization. */
+  async withActor<T>(
+    authority: ContactAuthority,
+    work: (context: {
+      client: pg.PoolClient;
+      actor: PublicProfile;
+    }) => Promise<T>,
+  ): Promise<T> {
+    return this.authority.withMessageAuthority(authority, async (client) =>
+      work({
+        client,
+        actor: await this.profiles.identity(
+          client,
+          authority.session.accountId,
+        ),
+      }),
+    );
   }
   /** Future posts/replies use this contract instead of checking a cached UI state. */
   async withParticipation<T>(

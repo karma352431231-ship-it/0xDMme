@@ -848,6 +848,10 @@ footer {
 .community-post {
   overflow-wrap: anywhere;
 }
+.community-reply-branch .community-card {
+  padding: 0.75rem;
+  border-left: 2px solid var(--border, #d5dde2);
+}
 .community-post small {
   display: block;
   margin: 12px 0;

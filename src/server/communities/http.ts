@@ -31,6 +31,11 @@ export function createCommunityHandler(read: {
     after: string | null,
     tag: string | null,
   ) => Promise<PostPage>;
+  replies?: (
+    community: string,
+    parent: string,
+    after: string | null,
+  ) => Promise<PostPage>;
   tags?: (community: string, after: string | null) => Promise<TagPage>;
 }) {
   const budget = new RequestBudget();
@@ -113,6 +118,21 @@ export function createCommunityHandler(read: {
   async function postLookup(address: URL): Promise<unknown> {
     const parts = address.pathname.split('/'),
       id = uuid(parts[3]);
+    if (
+      parts.length === 7 &&
+      parts[4] === 'posts' &&
+      parts[6] === 'replies' &&
+      read.replies
+    ) {
+      params(address, ['after']);
+      return postPage(
+        await read.replies(
+          id,
+          uuid(parts[5]),
+          postCursor(address.searchParams.get('after')),
+        ),
+      );
+    }
     if (parts.length === 5) return postList(address, id, parts[4]);
     if (
       parts[4] === 'posts' &&

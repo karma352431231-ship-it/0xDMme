@@ -25,7 +25,12 @@ import {
   communityField as field,
   communityLink as link,
 } from './elements.ts';
-import { postActions, postForm, postTagSelect } from './post-forms.ts';
+import {
+  postActions,
+  postForm,
+  postTagSelect,
+  replyForm,
+} from './post-forms.ts';
 import { postText } from './post-text.ts';
 export function startCommunityPosts(controller: Communities) {
   let mounted: HTMLElement | null = null,
@@ -119,13 +124,18 @@ export function startCommunityPosts(controller: Communities) {
   function row(
     value: CommunityPost,
     privateState: PostState | null = null,
+    container: HTMLElement | null = list,
+    depth = 0,
   ): void {
-    if (!list) return;
-    const node = card(value.title || 'Postagem');
+    if (!container) return;
+    const node = card(value.parent ? 'Resposta' : value.title || 'Postagem');
+    node.dataset['postId'] = value.id;
     node.classList.add('community-post');
-    list.append(node);
+    container.append(node);
     rowContent(node, value, privateState);
     rowMeta(node, value);
+    voting(node, value);
+    branch(node, value, depth);
     if (!own) return;
     const options = el('div');
     node.append(options);
@@ -144,6 +154,133 @@ export function startCommunityPosts(controller: Communities) {
         postActions(options, state, tagSource(), actions());
       }),
     );
+  }
+  function branch(
+    container: HTMLElement,
+    parent: CommunityPost,
+    depth: number,
+  ): void {
+    // Bound inline rendering; deeper content is available through the subtree link.
+    if (!selected || parent.id === selected || !parent.replies || depth >= 3)
+      return;
+    const children = el('section', '', 'community-reply-branch');
+    container.append(children);
+    let cursor: string | null = null;
+    button(container, `Ver respostas (${parent.replies})`, () =>
+      run(async () => {
+        const old = generation,
+          page = postPage(
+            await communityRead(
+              `/api/communities/${community}/posts/${parent.id}/replies${cursor ? '?after=' + encodeURIComponent(cursor) : ''}`,
+              signal(),
+            ),
+          );
+        if (old !== generation) return;
+        children.replaceChildren(
+          el('h3', 'Respostas diretas a este comentário'),
+        );
+        for (const reply of page.items) row(reply, null, children, depth + 1);
+        cursor = page.next;
+        if (page.next)
+          children.append(
+            el(
+              'p',
+              'Há mais respostas. Use o botão novamente para a próxima página.',
+            ),
+          );
+      }),
+    );
+  }
+  function voting(node: HTMLElement, value: CommunityPost): void {
+    node.append(
+      el('p', `Placar: ${value.score} · ${value.replies} respostas diretas`),
+    );
+    if (!own?.canPost || value.status !== 'visible') return;
+    const controls = el('div', '', 'post-toolbar');
+    node.append(controls);
+    button(controls, 'Votar', () =>
+      run(async () => {
+        const old = generation,
+          state = postState(
+            await controller.request('post-state', {
+              id: community,
+              post: value.id,
+            }),
+          );
+        if (old !== generation) return;
+        controls.replaceChildren(
+          el(
+            'small',
+            state.vote.position === 0
+              ? 'Sem voto'
+              : state.vote.position === 1
+                ? 'Seu voto: +1'
+                : 'Seu voto: −1',
+          ),
+        );
+        for (const [position, label] of [
+          [1, 'Upvote'],
+          [-1, 'Downvote'],
+          [0, 'Retirar voto'],
+        ] as const) {
+          const btn = button(controls, label, () =>
+            mutate('post-vote', {
+              id: community,
+              post: value.id,
+              position,
+              voteRevision: state.vote.revision,
+            }),
+          );
+          btn.setAttribute(
+            'aria-pressed',
+            String(state.vote.position === position),
+          );
+        }
+      }),
+    );
+  }
+  function replyComposer(container: HTMLElement, parent: CommunityPost): void {
+    if (!own?.canPost || parent.status !== 'visible') return;
+    const form = el('details', '', 'card community-card');
+    form.append(el('summary', 'Responder diretamente'));
+    container.append(form);
+    const content = replyForm(form);
+    let id = crypto.randomUUID();
+    button(form, 'Publicar resposta', () =>
+      run(async () => {
+        const old = generation;
+        postState(
+          await controller.request('reply-create', {
+            id: community,
+            post: id,
+            parent: parent.id,
+            content: content(),
+          }),
+        );
+        if (old !== generation) return;
+        id = crypto.randomUUID();
+        after = null;
+        await load();
+        if (feedback) feedback.textContent = 'Resposta publicada.';
+      }),
+    );
+  }
+  async function thread(value: CommunityPost): Promise<void> {
+    const old = generation;
+    const page = postPage(
+      await communityRead(
+        `/api/communities/${community}/posts/${value.id}/replies${after ? '?after=' + encodeURIComponent(after) : ''}`,
+        signal(),
+      ),
+    );
+    if (old !== generation || !list) return;
+    list.append(el('h3', 'Respostas diretas'));
+    if (!page.items.length)
+      list.append(el('p', 'Ainda não há respostas diretas.'));
+    for (const reply of page.items) row(reply);
+    after = page.next;
+    replyComposer(list, value);
+    paging();
   }
   function restrictedContent(node: HTMLElement, state: PostState): void {
     if (state.content && state.post.status === 'removed')
@@ -191,9 +328,24 @@ export function startCommunityPosts(controller: Communities) {
         `${new Date(value.createdAt).toLocaleString('pt-BR')}${value.editedAt ? ' · Editado' : ''}`,
       ),
     );
+    const nav = el('nav', '', 'post-toolbar');
+    nav.setAttribute('aria-label', 'Navegação da resposta ou postagem');
+    node.append(nav);
+    if (value.parent) {
+      link(
+        nav,
+        'Resposta anterior',
+        `#comunidades?id=${community}&post=${value.parent}`,
+      );
+      link(
+        nav,
+        'Postagem original',
+        `#comunidades?id=${community}&post=${value.root}`,
+      );
+    }
     link(
-      node,
-      'Abrir postagem',
+      nav,
+      value.parent ? 'Abrir resposta e sua árvore' : 'Abrir postagem',
       `#comunidades?id=${community}&post=${value.id}`,
     );
   }
@@ -209,6 +361,7 @@ export function startCommunityPosts(controller: Communities) {
       if (old !== generation || !list) return;
       list.replaceChildren();
       row(result);
+      await thread(result);
       return;
     }
     if (scope !== 'public') await loadPrivate();
@@ -252,7 +405,12 @@ export function startCommunityPosts(controller: Communities) {
   function paging(): void {
     if (!controls) return;
     controls.replaceChildren();
-    if (after) button(controls, 'Posts anteriores', () => run(load));
+    if (after)
+      button(
+        controls,
+        selected ? 'Respostas anteriores' : 'Posts anteriores',
+        () => run(load),
+      );
     button(controls, 'Recarregar postagens', () =>
       run(async () => {
         after = null;
@@ -303,8 +461,8 @@ export function startCommunityPosts(controller: Communities) {
     if (!own) return;
     for (const [value, title] of [
       ['public', 'Posts públicos'],
-      ['own', 'Meus posts'],
-      ['removed', 'Posts ocultos'],
+      ['own', 'Meus posts e respostas'],
+      ['removed', 'Posts e respostas ocultos'],
     ] as const) {
       if (value === 'removed' && own.role === 'participant') continue;
       button(toolbar, title, () =>

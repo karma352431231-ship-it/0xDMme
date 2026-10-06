@@ -21,6 +21,7 @@ import {
 } from './elements.ts';
 import { mountCommunityGovernance } from './governance.ts';
 import { startCommunityPosts } from './posts.ts';
+import { replyNotificationPage } from '../../shared/community-posts/index.ts';
 
 export function startCommunities(access: VaultAccess) {
   const controller = new Communities(access);
@@ -79,6 +80,7 @@ export function startCommunities(access: VaultAccess) {
     for (const [key, title] of [
       ['explore', 'Explorar'],
       ['following', 'Seguindo'],
+      ['replies', 'Respostas'],
       ['managed', 'Gerenciar'],
       ['invitations', 'Transferências'],
       ['create', 'Criar comunidade'],
@@ -117,6 +119,11 @@ export function startCommunities(access: VaultAccess) {
       );
       return;
     }
+    communityLink(
+      sidebar,
+      'Respostas ao seu conteúdo',
+      '#comunidades?view=replies',
+    );
     const old = generation;
     try {
       const page = await controller.list('following', sidebarCursor);
@@ -134,6 +141,64 @@ export function startCommunities(access: VaultAccess) {
           ),
         );
     }
+  }
+  async function notifications(): Promise<void> {
+    const old = generation,
+      currentCursor = cursor,
+      page = replyNotificationPage(
+        await controller.request('post-notifications', { after: cursor }),
+      );
+    if (old !== generation || !mounted) return;
+    navigation();
+    const card = communityCard('Respostas ao seu conteúdo');
+    mounted.append(card);
+    card.append(
+      communityElement(
+        'p',
+        'Somente respostas diretas a posts ou comentários seus.',
+      ),
+    );
+    for (const item of page.items) {
+      const row = communityElement('div', '', 'community-row');
+      card.append(row);
+      communityLink(
+        row,
+        item.read ? 'Resposta lida' : 'Nova resposta',
+        `#comunidades?id=${item.community}&post=${item.reply}`,
+      );
+      row.append(
+        communityElement(
+          'small',
+          new Date(item.createdAt).toLocaleString('pt-BR'),
+        ),
+      );
+    }
+    if (!page.items.length)
+      card.append(communityElement('p', 'Nenhuma resposta nesta página.'));
+    const unread = page.items
+      .filter((item) => !item.read)
+      .map((item) => item.reply);
+    if (unread.length)
+      communityButton(card, 'Marcar esta página como lida', () =>
+        run(async () => {
+          await controller.request('post-notifications-read', {
+            replies: unread,
+          });
+          if (old === generation) {
+            cursor = currentCursor;
+            await notifications();
+          }
+        }),
+      );
+    cursor = page.next;
+    if (page.next)
+      communityButton(card, 'Respostas anteriores', () => run(notifications));
+    communityButton(card, 'Recarregar respostas', () =>
+      run(async () => {
+        cursor = null;
+        await notifications();
+      }),
+    );
   }
   async function listing(): Promise<void> {
     const old = generation;
@@ -395,6 +460,10 @@ export function startCommunities(access: VaultAccess) {
       return;
     }
     if (!selected) {
+      if (view === 'replies') {
+        await notifications();
+        return;
+      }
       await listing();
       return;
     }
@@ -452,9 +521,14 @@ export function startCommunities(access: VaultAccess) {
         return;
       }
       if (
-        !['explore', 'following', 'managed', 'invitations', 'create'].includes(
-          view,
-        )
+        ![
+          'explore',
+          'following',
+          'managed',
+          'invitations',
+          'create',
+          'replies',
+        ].includes(view)
       )
         view = 'explore';
       navigation();

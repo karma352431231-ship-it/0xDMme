@@ -96,6 +96,17 @@ export function postForm(
     tag: select.value || null,
   });
 }
+export function replyForm(
+  container: HTMLElement,
+  value = '',
+): () => PostContent {
+  const text = field(container, 'Texto da resposta', {
+    value,
+    maximum: 4000,
+    multiline: true,
+  });
+  return () => ({ title: '', text: text.value, tag: null });
+}
 function command(state: PostState) {
   return {
     id: state.post.community,
@@ -113,7 +124,9 @@ export function postActions(
     const form = el('details');
     form.append(el('summary', 'Editar postagem'));
     container.append(form);
-    const content = postForm(form, state.content!, tags);
+    const content = state.post.parent
+      ? replyForm(form, state.content!.text)
+      : postForm(form, state.content!, tags);
     button(form, 'Salvar postagem', () =>
       actions.mutate('post-edit', { ...command(state), content: content() }),
     );

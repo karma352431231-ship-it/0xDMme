@@ -13,9 +13,13 @@ export interface PostRow {
   revision: number;
   deleted: boolean;
   active_removal: string | null;
+  parent_id: string | null;
+  root_id: string | null;
+  score: number;
+  replies: number;
 }
 export const postColumns =
-  'id,community_id,author,title,text,tag_id,created_at,edited_at,revision,deleted,active_removal';
+  'id,community_id,author,title,text,tag_id,created_at,edited_at,revision,deleted,active_removal,parent_id,root_id,score,replies';
 export async function loadPost(
   context: CommunityContext,
   id: string,

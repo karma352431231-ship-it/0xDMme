@@ -53,6 +53,7 @@ await test('posts: publicação aberta, tags locais, privacidade, revisão, excl
       list: (after) => communities.list(after),
       post: (id, post) => communities.post(id, post),
       postPage: (id, after, tag) => communities.postPage(id, after, tag),
+      replies: (id, parent, after) => communities.replies(id, parent, after),
       tags: (id, after) => communities.tags(id, after),
     }),
     account: createAccountHandler({ origin, service: account, communities }),
