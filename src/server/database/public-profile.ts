@@ -53,6 +53,33 @@ export class PublicProfileStore {
     );
     return result.rows[0] ? visible(result.rows[0]) : null;
   }
+  /** Public identity contract for coordinated social admissions; no private fields. */
+  async identity(
+    client: pg.PoolClient,
+    account: string,
+  ): Promise<PublicProfile> {
+    const result = await client.query<ProfileRow>(
+      `SELECT ${publicColumns} FROM hash_talk.public_profiles WHERE account_id=$1`,
+      [account],
+    );
+    const row = result.rows[0];
+    if (!row)
+      throw new AccountError(
+        403,
+        'Crie seu perfil público em Perfil antes de participar.',
+      );
+    return visible(row);
+  }
+  async identities(
+    client: Pick<pg.PoolClient, 'query'>,
+    ids: string[],
+  ): Promise<Map<string, PublicProfile>> {
+    const result = await client.query<ProfileRow>(
+      `SELECT ${publicColumns} FROM hash_talk.public_profiles WHERE id=ANY($1::uuid[])`,
+      [ids],
+    );
+    return new Map(result.rows.map((row) => [row.id, visible(row)]));
+  }
   async state(authority: ContactAuthority) {
     return this.authority.withMessageAuthority(authority, async (client) => {
       const result = await client.query<ProfileRow>(

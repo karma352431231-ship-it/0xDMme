@@ -15,6 +15,7 @@ import type { NotificationService } from '../notifications/index.ts';
 import type { MessageLive } from '../message-live/index.ts';
 import type { CallService } from '../calls/index.ts';
 import type { PublicProfileService } from '../public-profile/index.ts';
+import type { CommunityService } from '../communities/index.ts';
 import { publicAvatarLimit } from '../../shared/public-avatar/index.ts';
 import { blockLimit } from '../../shared/vault/index.ts';
 import { createApprovalEntry } from './approval-http.ts';
@@ -77,6 +78,11 @@ const readRoutes = new Set(
       '/api/account/vault/read',
       '/api/account/vault/object',
       '/api/account/public-profile/state',
+      '/api/account/communities/state',
+      '/api/account/communities/list',
+      '/api/account/communities/staff',
+      '/api/account/communities/sanctions',
+      '/api/account/communities/reports',
     ]),
 );
 const challengeRoutes = new Set([
@@ -127,8 +133,12 @@ function messageBodyLimit(url: string): number {
   return messageBodyBudgets.get(url.slice(url.lastIndexOf('/') + 1)) ?? 4096;
 }
 function bodyLimit(url: string | undefined): number {
-  if (url === '/api/account/public-profile/avatar')
+  if (
+    url === '/api/account/public-profile/avatar' ||
+    url === '/api/account/communities/photo'
+  )
     return Math.ceil(publicAvatarLimit / 3) * 4 + 4096;
+  if (url?.startsWith('/api/account/communities/')) return 28000;
   return accountBodyLimit(url);
 }
 function accountBodyLimit(url: string | undefined): number {
@@ -193,6 +203,7 @@ export function createAccountHandler(options: {
   live?: MessageLive;
   calls?: CallService;
   publicProfiles?: PublicProfileService;
+  communities?: CommunityService;
 }) {
   const secure = new URL(options.origin).protocol === 'https:';
   const sessionName = secure ? '__Host-hash-talk-session' : 'hash-talk-session';
@@ -559,7 +570,7 @@ export function createAccountHandler(options: {
     sessionToken: string,
     input: unknown,
   ): Promise<void> {
-    if (await publicProfilePost(request, response, sessionToken, input)) return;
+    if (await socialPost(request, response, sessionToken, input)) return;
     if (await callPost(request, response, sessionToken, input)) return;
     if (await contactPost(request, response, sessionToken, input)) return;
     if (request.url?.startsWith('/api/account/recovery-')) {
@@ -584,12 +595,13 @@ export function createAccountHandler(options: {
     }
     throw new AccountError(404, 'Operação não encontrada.');
   }
-  async function publicProfilePost(
+  async function socialPost(
     request: IncomingMessage,
     response: ServerResponse,
     token: string,
     input: unknown,
   ): Promise<boolean> {
+    if (await communityPost(request, response, token, input)) return true;
     if (
       !request.url?.startsWith('/api/account/public-profile/') ||
       !options.publicProfiles
@@ -600,6 +612,28 @@ export function createAccountHandler(options: {
       200,
       await options.publicProfiles.operate(
         request.url.slice('/api/account/public-profile/'.length),
+        await options.service.session(token),
+        input,
+      ),
+    );
+    return true;
+  }
+  async function communityPost(
+    request: IncomingMessage,
+    response: ServerResponse,
+    token: string,
+    input: unknown,
+  ): Promise<boolean> {
+    if (
+      !request.url?.startsWith('/api/account/communities/') ||
+      !options.communities
+    )
+      return false;
+    send(
+      response,
+      200,
+      await options.communities.operate(
+        request.url.slice('/api/account/communities/'.length),
         await options.service.session(token),
         input,
       ),

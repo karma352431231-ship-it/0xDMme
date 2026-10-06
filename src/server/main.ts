@@ -7,6 +7,10 @@ import {
   PublicProfileService,
   createPublicProfileHandler,
 } from './public-profile/index.ts';
+import {
+  CommunityService,
+  createCommunityHandler,
+} from './communities/index.ts';
 import { chmod } from 'node:fs/promises';
 import { DeviceService } from './devices/index.ts';
 import { VaultService } from './vault/index.ts';
@@ -77,6 +81,10 @@ try {
     database.publicProfiles,
     database.devices,
   );
+  const communities = new CommunityService(
+    database.communities,
+    database.devices,
+  );
   const host = createWebServer({
     origin: config.origin,
     assets,
@@ -85,7 +93,12 @@ try {
     publicProfiles: createPublicProfileHandler((handle) =>
       publicProfiles.read(handle),
     ),
+    communities: createCommunityHandler({
+      read: (id) => communities.read(id),
+      list: (after) => communities.list(after),
+    }),
     account: createAccountHandler({
+      communities,
       publicProfiles,
       calls,
       live: new MessageLive(database.changes),

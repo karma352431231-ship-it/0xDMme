@@ -4,6 +4,10 @@ import {
   PublicProfileService,
   createPublicProfileHandler,
 } from './public-profile/index.ts';
+import {
+  CommunityService,
+  createCommunityHandler,
+} from './communities/index.ts';
 import { createWebServer, loadWebAssets } from './web-host/index.ts';
 import { readWebConfiguration } from './web-configuration/index.ts';
 import { DeviceService } from './devices/index.ts';
@@ -61,6 +65,10 @@ try {
     database.publicProfiles,
     database.devices,
   );
+  const communities = new CommunityService(
+    database.communities,
+    database.devices,
+  );
   const host = createWebServer({
     ...mobile,
     database,
@@ -69,7 +77,12 @@ try {
     publicProfiles: createPublicProfileHandler((handle) =>
       publicProfiles.read(handle),
     ),
+    communities: createCommunityHandler({
+      read: (id) => communities.read(id),
+      list: (after) => communities.list(after),
+    }),
     account: createAccountHandler({
+      communities,
       publicProfiles,
       live: new MessageLive(database.changes),
       contacts: new ContactService(database.contacts, database.devices),

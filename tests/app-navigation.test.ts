@@ -17,4 +17,6 @@ await test('âncora de acessibilidade não navega e rotas desconhecidas não exp
   for (const fragment of ['', '#desconhecida', '#constructor', '#__proto__'])
     assert.equal(pageKey(fragment), 'conversas');
   assert.equal(pageKey('#contatos?convite=convite-sintetico'), 'contatos');
+  assert.equal(pageKey('#comunidades?view=following'), 'comunidades');
+  assert.equal(pageKey('#comunidades?id=identificador'), 'comunidades');
 });

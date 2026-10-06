@@ -31,6 +31,8 @@ await test('fontes públicas incluem instruções/licenças do build e excluem b
   );
   const paths = stdout.trim().split('\n');
   for (const required of [
+    'src/client/communities/controller.ts',
+    'src/shared/communities/index.ts',
     'src/client/public-profile/controller.ts',
     'src/shared/public-profile/index.ts',
     'src/shared/public-avatar/index.ts',

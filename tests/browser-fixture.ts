@@ -15,6 +15,10 @@ import {
   PublicProfileService,
   createPublicProfileHandler,
 } from '../src/server/public-profile/index.ts';
+import {
+  CommunityService,
+  createCommunityHandler,
+} from '../src/server/communities/index.ts';
 import { VaultService } from '../src/server/vault/index.ts';
 import { ObjectStore } from '../src/server/object-store/index.ts';
 import { MessageService } from '../src/server/messages/index.ts';
@@ -146,6 +150,10 @@ function fixtureServer(
     database.publicProfiles,
     database.devices,
   );
+  const communities = new CommunityService(
+    database.communities,
+    database.devices,
+  );
   return createWebServer({
     origin: testOrigin,
     assets: testAssets,
@@ -154,7 +162,12 @@ function fixtureServer(
     publicProfiles: createPublicProfileHandler((handle) =>
       publicProfiles.read(handle),
     ),
+    communities: createCommunityHandler({
+      read: (id) => communities.read(id),
+      list: (after) => communities.list(after),
+    }),
     account: createAccountHandler({
+      communities,
       publicProfiles,
       calls,
       live,

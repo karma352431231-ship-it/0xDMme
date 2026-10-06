@@ -222,6 +222,13 @@ export function createWebServer(options: {
     ) => Promise<void>;
     close: () => void;
   };
+  communities?: {
+    handle: (
+      request: IncomingMessage,
+      response: ServerResponse,
+    ) => Promise<void>;
+    close: () => void;
+  };
   tls?: { cert: Buffer; key: Buffer };
 }) {
   let stopping = false;
@@ -245,12 +252,10 @@ export function createWebServer(options: {
       response.writeHead(403).end();
       return;
     }
-    if (
-      request.url?.startsWith('/api/public-profiles/') &&
-      options.publicProfiles
-    ) {
+    const publicHandler = publicDataHandler(request);
+    if (publicHandler) {
       if (stopping) response.writeHead(503).end();
-      else await options.publicProfiles.handle(request, response);
+      else await publicHandler.handle(request, response);
       return;
     }
     if (accountRequest(request) && options.account) {
@@ -262,6 +267,12 @@ export function createWebServer(options: {
       return;
     }
     await publicRequest(request, response);
+  }
+  function publicDataHandler(request: IncomingMessage) {
+    if (request.url?.startsWith('/api/public-profiles/'))
+      return options.publicProfiles;
+    if (request.url?.startsWith('/api/communities')) return options.communities;
+    return undefined;
   }
   async function publicRequest(
     request: IncomingMessage,
@@ -304,6 +315,7 @@ export function createWebServer(options: {
       stopping = true;
       options.account?.close();
       options.publicProfiles?.close();
+      options.communities?.close();
       await new Promise<void>((resolve, reject) => {
         const timeout = setTimeout(() => server.closeAllConnections(), 5_000);
         timeout.unref();

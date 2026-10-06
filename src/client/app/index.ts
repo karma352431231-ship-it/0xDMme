@@ -9,6 +9,7 @@ import { startRepresentatives } from '../representatives/index.ts';
 import { startContacts } from '../contacts/index.ts';
 import { VoicePlayback } from '../voice-playback/index.ts';
 import { startCalls } from '../calls/index.ts';
+import { startCommunities } from '../communities/index.ts';
 import {
   startPublicProfile,
   showPublicProfile,
@@ -42,6 +43,7 @@ const devices = startDevices({
   changed: async () => {
     await account.refreshPrivate();
     publicProfiles.ready();
+    communities.ready();
     connection();
   },
   linked: (session) => account.acceptLinkedSession(session),
@@ -49,6 +51,7 @@ const devices = startDevices({
 });
 const vault = startVault(devices);
 const publicProfiles = startPublicProfile(devices);
+const communities = startCommunities(devices);
 const playback = new VoicePlayback();
 const calls = startCalls({
   access: devices,
@@ -116,6 +119,7 @@ const account = startAccount({
     statuses.setSession(session);
     representatives.setSession(session);
     publicProfiles.setSession(session);
+    communities.setSession(session);
     connection();
     const label = document.getElementById('account-label');
     if (label)
@@ -139,8 +143,11 @@ const pwa = account.approvalPage
         !calls.active() &&
         statuses.canActivate() &&
         representatives.canActivate() &&
-        publicProfiles.canActivate(),
+        socialCanActivate(),
     });
+function socialCanActivate(): boolean {
+  return publicProfiles.canActivate() && communities.canActivate();
+}
 
 function route(): void {
   if (account.approvalPage) {
@@ -166,6 +173,7 @@ function route(): void {
   statuses.leave();
   representatives.leave();
   publicProfiles.leave();
+  communities.leave();
   closePublicProfile?.();
   closePublicProfile = null;
   backups.leave();
@@ -194,7 +202,9 @@ function renderPageHeader(key: PageKey): void {
   element('page-phase').textContent =
     key === 'publico'
       ? 'Perfil público · Leitura aberta'
-      : 'Conta EVM / Solana · Mensagens privadas';
+      : key === 'comunidades'
+        ? 'Comunidades · Leitura aberta'
+        : 'Conta EVM / Solana · Mensagens privadas';
   document.title = `${title} · 0xDMme`;
 }
 function mountProfileSettings(content: HTMLElement): void {
@@ -225,6 +235,14 @@ function mountFeature(key: PageKey): void {
   const content = element('page-content');
   mountProfileSettings(content);
   mountPublicProfiles(content);
+  const communityContainer =
+    content.querySelector<HTMLElement>('[data-communities]');
+  if (communityContainer)
+    communities.mount(
+      communityContainer,
+      element('community-directory'),
+      new URLSearchParams(location.hash.split('?')[1] ?? ''),
+    );
   if (key === 'conversas') messages.ready();
   mountStatusFeature(key, content);
   const contactContainer = content.querySelector<HTMLElement>(
@@ -263,7 +281,7 @@ function mountStatusFeature(key: PageKey, content: HTMLElement): void {
 }
 
 function mountAccountPanels(key: PageKey): void {
-  if (key === 'publico') return;
+  if (key === 'publico' || key === 'comunidades') return;
   const container = document.createElement('div');
   container.className = 'account-section';
   element('page-content').prepend(container);
@@ -281,6 +299,8 @@ function renderApprovalPage(): void {
 
 function connection(): void {
   if (connectedAccount && devices.authorized()) {
+    publicProfiles.ready();
+    communities.ready();
     messages.ready();
     calls.ready();
     contacts.ready();

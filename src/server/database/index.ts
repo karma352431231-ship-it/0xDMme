@@ -23,6 +23,8 @@ export type { CommittedChange } from './changes.ts';
 import { AuthenticationStore } from './authentication.ts';
 import { PublicProfileStore } from './public-profile.ts';
 export type { PublicProfileStore } from './public-profile.ts';
+import { CommunityStore } from './communities.ts';
+export type { CommunityStore } from './communities.ts';
 import { DeviceStore } from './devices.ts';
 import { VaultStore } from './vault.ts';
 import { ContactStore } from './contacts.ts';
@@ -83,6 +85,7 @@ const migrations = [
   '026-call-preference.sql',
   '027-push-controls.sql',
   '028-public-profiles.sql',
+  '029-communities.sql',
 ];
 
 export interface MaintenanceSnapshot {
@@ -113,6 +116,7 @@ export class Database {
   readonly changes = new DatabaseChanges();
   readonly authentication: AuthenticationStore;
   readonly publicProfiles: PublicProfileStore;
+  readonly communities: CommunityStore;
   readonly devices: DeviceStore;
   readonly vault: VaultStore;
   readonly contacts: ContactStore;
@@ -160,6 +164,12 @@ export class Database {
       this.contacts,
       contentCapacity,
     );
+    this.communities = new CommunityStore({
+      pool: this.pool,
+      authority: this.contacts,
+      profiles: this.publicProfiles,
+      capacity: contentCapacity,
+    });
     this.representatives = new RepresentativeStore(
       this.pool,
       this.contacts,

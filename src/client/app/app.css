@@ -722,6 +722,127 @@ footer {
 .public-profile-card [hidden] {
   display: none;
 }
+.area-nav {
+  display: flex;
+  gap: 8px;
+  padding: 0 20px 18px;
+  flex-shrink: 0;
+}
+.area-nav a {
+  flex: 1;
+  text-align: center;
+  padding: 10px 6px;
+  border: 1px solid #34444e;
+  border-radius: 8px;
+}
+.area-nav a[aria-current='page'] {
+  background: #23413c;
+  color: #a7e1d3;
+}
+.community-directory {
+  display: none;
+  min-height: 0;
+  overflow: auto;
+  padding: 16px 20px;
+  flex: 1;
+}
+.app[data-page='comunidades'] .community-directory {
+  display: block;
+}
+.app[data-page='comunidades'] .chat-directory {
+  display: none;
+}
+.community-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 20px;
+}
+.community-tabs a {
+  padding: 10px 14px;
+  background: #e5f3ee;
+  border-radius: 8px;
+  color: var(--accent);
+}
+.community-card {
+  min-width: 0;
+}
+.community-card label {
+  display: grid;
+  gap: 8px;
+  margin: 14px 0;
+}
+.community-card label:has(input[type='checkbox']) {
+  display: flex;
+  align-items: center;
+}
+.community-card :is(input:not([type='checkbox']), textarea, select) {
+  width: 100%;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid #cbdad7;
+  border-radius: 8px;
+  font: inherit;
+}
+.community-card textarea {
+  min-height: 90px;
+  resize: vertical;
+}
+.community-card button {
+  padding: 10px 14px;
+  border: 1px solid #cbdad7;
+  border-radius: 8px;
+  background: #f5faf8;
+  color: var(--accent);
+  margin: 6px 6px 6px 0;
+}
+.community-card a {
+  color: var(--accent);
+  text-decoration: underline;
+}
+.community-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px 0;
+  border-bottom: 1px solid #d8e4e7;
+  overflow-wrap: anywhere;
+}
+.community-text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.community-feedback {
+  overflow-wrap: anywhere;
+}
+.community-management {
+  margin-bottom: 20px;
+}
+.community-management > summary {
+  cursor: pointer;
+  color: var(--accent);
+  padding: 14px 0;
+  font-weight: 600;
+}
+@media (max-width: 700px) {
+  .area-nav,
+  .app[data-page='comunidades'] .community-directory {
+    display: none;
+  }
+  .community-tabs {
+    gap: 6px;
+  }
+  .community-tabs a {
+    padding: 9px 10px;
+  }
+  .community-card {
+    padding: 18px;
+  }
+  .mobile-nav a {
+    font-size: 11px;
+    min-width: 0;
+  }
+}
 [data-public-profile-settings] {
   margin-bottom: 22px;
 }
