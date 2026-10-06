@@ -3,6 +3,10 @@ import { Database } from './database/index.ts';
 import { ObjectStore } from './object-store/index.ts';
 import { createWebServer, loadWebAssets } from './web-host/index.ts';
 import { AccountService, createAccountHandler } from './account/index.ts';
+import {
+  PublicProfileService,
+  createPublicProfileHandler,
+} from './public-profile/index.ts';
 import { chmod } from 'node:fs/promises';
 import { DeviceService } from './devices/index.ts';
 import { VaultService } from './vault/index.ts';
@@ -69,12 +73,20 @@ try {
   notifications.bindCalls((session, directory) =>
     calls.incoming(session, directory),
   );
+  const publicProfiles = new PublicProfileService(
+    database.publicProfiles,
+    database.devices,
+  );
   const host = createWebServer({
     origin: config.origin,
     assets,
     database,
     objects,
+    publicProfiles: createPublicProfileHandler((handle) =>
+      publicProfiles.read(handle),
+    ),
     account: createAccountHandler({
+      publicProfiles,
       calls,
       live: new MessageLive(database.changes),
       notifications,

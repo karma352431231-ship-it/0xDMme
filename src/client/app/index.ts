@@ -9,6 +9,10 @@ import { startRepresentatives } from '../representatives/index.ts';
 import { startContacts } from '../contacts/index.ts';
 import { VoicePlayback } from '../voice-playback/index.ts';
 import { startCalls } from '../calls/index.ts';
+import {
+  startPublicProfile,
+  showPublicProfile,
+} from '../public-profile/index.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
 import type { AddressBookEntry } from '../../shared/contacts/index.ts';
 import { pages, pageKey } from './pages.ts';
@@ -25,6 +29,7 @@ const conversationContent = document.createElement('div');
 conversationContent.className = 'conversation-content';
 let currentPage = '';
 let currentHash = '';
+let closePublicProfile: (() => void) | null = null;
 function openConversation(): void {
   if (location.hash !== '#conversas') {
     location.hash = '#conversas';
@@ -36,12 +41,14 @@ function openConversation(): void {
 const devices = startDevices({
   changed: async () => {
     await account.refreshPrivate();
+    publicProfiles.ready();
     connection();
   },
   linked: (session) => account.acceptLinkedSession(session),
   confirmWallet: () => account.confirmWallet(),
 });
 const vault = startVault(devices);
+const publicProfiles = startPublicProfile(devices);
 const playback = new VoicePlayback();
 const calls = startCalls({
   access: devices,
@@ -108,6 +115,7 @@ const account = startAccount({
     calls.setSession(session);
     statuses.setSession(session);
     representatives.setSession(session);
+    publicProfiles.setSession(session);
     connection();
     const label = document.getElementById('account-label');
     if (label)
@@ -130,7 +138,8 @@ const pwa = account.approvalPage
         messages.canActivate() &&
         !calls.active() &&
         statuses.canActivate() &&
-        representatives.canActivate(),
+        representatives.canActivate() &&
+        publicProfiles.canActivate(),
     });
 
 function route(): void {
@@ -152,11 +161,13 @@ function route(): void {
   currentHash = location.hash;
   element('app-shell').dataset['page'] = key;
   const page = pages[key];
-  element('page-title').textContent = page.title;
-  element('breadcrumb').textContent = page.title.toLocaleUpperCase('pt-BR');
+  renderPageHeader(key);
   messages.leave();
   statuses.leave();
   representatives.leave();
+  publicProfiles.leave();
+  closePublicProfile?.();
+  closePublicProfile = null;
   backups.leave();
   vault.leave();
   // Templates are static authored content. No user/server input enters HTML.
@@ -170,12 +181,21 @@ function route(): void {
       link.setAttribute('aria-current', 'page');
     else link.removeAttribute('aria-current');
   });
-  document.title = `${page.title} · 0xDMme`;
   const button = document.getElementById('check-updates');
   button?.addEventListener('click', () => {
     void pwa?.check();
   });
   pwa?.render();
+}
+function renderPageHeader(key: PageKey): void {
+  const title = pages[key].title;
+  element('page-title').textContent = title;
+  element('breadcrumb').textContent = title.toLocaleUpperCase('pt-BR');
+  element('page-phase').textContent =
+    key === 'publico'
+      ? 'Perfil público · Leitura aberta'
+      : 'Conta EVM / Solana · Mensagens privadas';
+  document.title = `${title} · 0xDMme`;
 }
 function mountProfileSettings(content: HTMLElement): void {
   const dailyContainer = content.querySelector<HTMLElement>(
@@ -204,6 +224,7 @@ function mountProfileSettings(content: HTMLElement): void {
 function mountFeature(key: PageKey): void {
   const content = element('page-content');
   mountProfileSettings(content);
+  mountPublicProfiles(content);
   if (key === 'conversas') messages.ready();
   mountStatusFeature(key, content);
   const contactContainer = content.querySelector<HTMLElement>(
@@ -221,6 +242,18 @@ function mountFeature(key: PageKey): void {
     backups.mount(backupContainer);
   }
 }
+function mountPublicProfiles(content: HTMLElement): void {
+  const own = content.querySelector<HTMLElement>(
+    '[data-public-profile-settings]',
+  );
+  if (own) publicProfiles.mount(own);
+  const view = content.querySelector<HTMLElement>('[data-public-profile-view]');
+  if (view)
+    closePublicProfile = showPublicProfile(
+      view,
+      new URLSearchParams(location.hash.split('?')[1] ?? '').get('handle'),
+    );
+}
 
 function mountStatusFeature(key: PageKey, content: HTMLElement): void {
   const container = content.querySelector<HTMLElement>(
@@ -230,6 +263,7 @@ function mountStatusFeature(key: PageKey, content: HTMLElement): void {
 }
 
 function mountAccountPanels(key: PageKey): void {
+  if (key === 'publico') return;
   const container = document.createElement('div');
   container.className = 'account-section';
   element('page-content').prepend(container);

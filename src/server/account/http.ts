@@ -14,6 +14,8 @@ import type { ContactService } from '../contacts/index.ts';
 import type { NotificationService } from '../notifications/index.ts';
 import type { MessageLive } from '../message-live/index.ts';
 import type { CallService } from '../calls/index.ts';
+import type { PublicProfileService } from '../public-profile/index.ts';
+import { publicAvatarLimit } from '../../shared/public-avatar/index.ts';
 import { blockLimit } from '../../shared/vault/index.ts';
 import { createApprovalEntry } from './approval-http.ts';
 import { RecoveryReturn } from '../recovery-return/index.ts';
@@ -74,6 +76,7 @@ const readRoutes = new Set(
       '/api/account/devices/read',
       '/api/account/vault/read',
       '/api/account/vault/object',
+      '/api/account/public-profile/state',
     ]),
 );
 const challengeRoutes = new Set([
@@ -124,6 +127,11 @@ function messageBodyLimit(url: string): number {
   return messageBodyBudgets.get(url.slice(url.lastIndexOf('/') + 1)) ?? 4096;
 }
 function bodyLimit(url: string | undefined): number {
+  if (url === '/api/account/public-profile/avatar')
+    return Math.ceil(publicAvatarLimit / 3) * 4 + 4096;
+  return accountBodyLimit(url);
+}
+function accountBodyLimit(url: string | undefined): number {
   if (url?.startsWith('/api/account/calls/'))
     return url.endsWith('/offer') ? 365_000 : 16_000;
   if (url?.startsWith('/api/account/messages/')) return messageBodyLimit(url);
@@ -184,6 +192,7 @@ export function createAccountHandler(options: {
   notifications?: NotificationService;
   live?: MessageLive;
   calls?: CallService;
+  publicProfiles?: PublicProfileService;
 }) {
   const secure = new URL(options.origin).protocol === 'https:';
   const sessionName = secure ? '__Host-hash-talk-session' : 'hash-talk-session';
@@ -550,6 +559,7 @@ export function createAccountHandler(options: {
     sessionToken: string,
     input: unknown,
   ): Promise<void> {
+    if (await publicProfilePost(request, response, sessionToken, input)) return;
     if (await callPost(request, response, sessionToken, input)) return;
     if (await contactPost(request, response, sessionToken, input)) return;
     if (request.url?.startsWith('/api/account/recovery-')) {
@@ -573,6 +583,28 @@ export function createAccountHandler(options: {
       return;
     }
     throw new AccountError(404, 'Operação não encontrada.');
+  }
+  async function publicProfilePost(
+    request: IncomingMessage,
+    response: ServerResponse,
+    token: string,
+    input: unknown,
+  ): Promise<boolean> {
+    if (
+      !request.url?.startsWith('/api/account/public-profile/') ||
+      !options.publicProfiles
+    )
+      return false;
+    send(
+      response,
+      200,
+      await options.publicProfiles.operate(
+        request.url.slice('/api/account/public-profile/'.length),
+        await options.service.session(token),
+        input,
+      ),
+    );
+    return true;
   }
   async function callPost(
     request: IncomingMessage,

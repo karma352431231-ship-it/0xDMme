@@ -6,6 +6,10 @@ import { promisify } from 'node:util';
 
 const execute = promisify(execFile);
 const authored = [
+  'src/client/public-profile',
+  'src/shared/public-profile',
+  'src/shared/public-avatar',
+  'src/shared/image-inspection',
   'src/client/calls',
   'src/shared/calls',
   'src/client/wallet-statements',

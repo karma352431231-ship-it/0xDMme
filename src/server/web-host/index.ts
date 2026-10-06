@@ -157,6 +157,13 @@ function admitted(request: IncomingMessage, origin: string): boolean {
       publicNavigation(request))
   );
 }
+function accountRequest(request: IncomingMessage): boolean {
+  return (
+    request.url?.startsWith('/api/account/') === true ||
+    approvalEntry(request) ||
+    recoveryEntry(request.url) !== null
+  );
+}
 
 function sendAsset(
   request: IncomingMessage,
@@ -208,6 +215,13 @@ export function createWebServer(options: {
     ) => Promise<void>;
     close: () => void;
   };
+  publicProfiles?: {
+    handle: (
+      request: IncomingMessage,
+      response: ServerResponse,
+    ) => Promise<void>;
+    close: () => void;
+  };
   tls?: { cert: Buffer; key: Buffer };
 }) {
   let stopping = false;
@@ -232,11 +246,14 @@ export function createWebServer(options: {
       return;
     }
     if (
-      (request.url?.startsWith('/api/account/') ||
-        approvalEntry(request) ||
-        recoveryEntry(request.url) !== null) &&
-      options.account
+      request.url?.startsWith('/api/public-profiles/') &&
+      options.publicProfiles
     ) {
+      if (stopping) response.writeHead(503).end();
+      else await options.publicProfiles.handle(request, response);
+      return;
+    }
+    if (accountRequest(request) && options.account) {
       if (stopping) {
         response.writeHead(503).end();
         return;
@@ -286,6 +303,7 @@ export function createWebServer(options: {
     async close(): Promise<void> {
       stopping = true;
       options.account?.close();
+      options.publicProfiles?.close();
       await new Promise<void>((resolve, reject) => {
         const timeout = setTimeout(() => server.closeAllConnections(), 5_000);
         timeout.unref();

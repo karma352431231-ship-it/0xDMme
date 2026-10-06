@@ -1,5 +1,9 @@
 import { Database } from './database/index.ts';
 import { AccountService, createAccountHandler } from './account/index.ts';
+import {
+  PublicProfileService,
+  createPublicProfileHandler,
+} from './public-profile/index.ts';
 import { createWebServer, loadWebAssets } from './web-host/index.ts';
 import { readWebConfiguration } from './web-configuration/index.ts';
 import { DeviceService } from './devices/index.ts';
@@ -53,12 +57,20 @@ try {
     ),
   });
   await messages.cleanAttachments();
+  const publicProfiles = new PublicProfileService(
+    database.publicProfiles,
+    database.devices,
+  );
   const host = createWebServer({
     ...mobile,
     database,
     assets,
     objects,
+    publicProfiles: createPublicProfileHandler((handle) =>
+      publicProfiles.read(handle),
+    ),
     account: createAccountHandler({
+      publicProfiles,
       live: new MessageLive(database.changes),
       contacts: new ContactService(database.contacts, database.devices),
       messages,

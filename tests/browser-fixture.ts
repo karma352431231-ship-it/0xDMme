@@ -11,6 +11,10 @@ import {
 } from '../src/server/web-host/index.ts';
 import { readWebConfiguration } from '../src/server/web-configuration/index.ts';
 import { DeviceService } from '../src/server/devices/index.ts';
+import {
+  PublicProfileService,
+  createPublicProfileHandler,
+} from '../src/server/public-profile/index.ts';
 import { VaultService } from '../src/server/vault/index.ts';
 import { ObjectStore } from '../src/server/object-store/index.ts';
 import { MessageService } from '../src/server/messages/index.ts';
@@ -138,12 +142,20 @@ function fixtureServer(
   testOrigin: string,
   testAssets: ReadonlyMap<string, WebAsset>,
 ) {
+  const publicProfiles = new PublicProfileService(
+    database.publicProfiles,
+    database.devices,
+  );
   return createWebServer({
     origin: testOrigin,
     assets: testAssets,
     database,
     objects,
+    publicProfiles: createPublicProfileHandler((handle) =>
+      publicProfiles.read(handle),
+    ),
     account: createAccountHandler({
+      publicProfiles,
       calls,
       live,
       contacts: new ContactService(database.contacts, database.devices),

@@ -11,7 +11,14 @@ const profileContent = `<section class="profile-settings" aria-label="Configura√
 
 export const pages = {
   conversas: { title: 'Conversas', content: '' },
-  perfil: { title: 'Perfil', content: profileContent },
+  perfil: {
+    title: 'Perfil',
+    content: '<div data-public-profile-settings></div>' + profileContent,
+  },
+  publico: {
+    title: 'Perfil p√∫blico',
+    content: '<div data-public-profile-view></div>',
+  },
   status: {
     title: 'Status',
     content: '<div class="cards" data-status-container></div>',

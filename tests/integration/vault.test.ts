@@ -651,6 +651,7 @@ await test('cofre persistente: reservas, isolamento, concorrência, falhas, quot
             +coalesce((SELECT sum(charge) FROM hash_talk.device_presence),0)
             +coalesce((SELECT sum(charge) FROM hash_talk.push_subscriptions),0)
             +coalesce((SELECT sum(charge) FROM hash_talk.push_controls),0)
+            +coalesce((SELECT sum(charge) FROM hash_talk.public_profiles),0)
             +coalesce((SELECT sum(charge) FROM hash_talk.call_controls),0)
             +coalesce((SELECT sum(charge) FROM hash_talk.groups),0)
             +coalesce((SELECT sum(charge) FROM hash_talk.group_events),0)
