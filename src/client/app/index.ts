@@ -51,7 +51,7 @@ const devices = startDevices({
 });
 const vault = startVault(devices);
 const publicProfiles = startPublicProfile(devices);
-const communities = startCommunities(devices);
+const communities = startCommunities(devices, vault.sync);
 const playback = new VoicePlayback();
 const calls = startCalls({
   access: devices,
@@ -196,11 +196,16 @@ function route(): void {
   pwa?.render();
 }
 function renderPageHeader(key: PageKey): void {
-  const title = pages[key].title;
+  const dm =
+    key === 'comunidades' &&
+    new URLSearchParams(location.hash.split('?')[1] ?? '').get('view') ===
+      'dms';
+  const title = dm ? 'Mensagens pelo @' : pages[key].title;
   element('page-title').textContent = title;
   element('breadcrumb').textContent = title.toLocaleUpperCase('pt-BR');
-  element('page-phase').textContent =
-    key === 'publico'
+  element('page-phase').textContent = dm
+    ? 'DMs individuais · E2EE'
+    : key === 'publico'
       ? 'Perfil público · Leitura aberta'
       : key === 'comunidades'
         ? 'Comunidades · Leitura aberta'

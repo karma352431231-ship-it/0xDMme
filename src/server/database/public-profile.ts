@@ -87,6 +87,16 @@ export class PublicProfileStore {
     );
     return new Map(result.rows.map((row) => [row.id, visible(row)]));
   }
+  /** Internal coordination only; callers must never include this account in social responses. */
+  async accountFor(client: pg.PoolClient, profile: string): Promise<string> {
+    const result = await client.query<{ account_id: string }>(
+      'SELECT account_id FROM hash_talk.public_profiles WHERE id=$1',
+      [profile],
+    );
+    const account = result.rows[0]?.account_id;
+    if (!account) throw new AccountError(404, 'Perfil público indisponível.');
+    return account;
+  }
   async state(authority: ContactAuthority) {
     return this.authority.withMessageAuthority(authority, async (client) => {
       const result = await client.query<ProfileRow>(

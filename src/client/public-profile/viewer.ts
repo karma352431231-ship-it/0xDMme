@@ -35,6 +35,10 @@ export function showPublicProfile(
       if (abort.signal.aborted) return;
       const label = container.querySelector('[data-public-handle]');
       if (label) label.textContent = `@${profile.handle}`;
+      const dm = document.createElement('a');
+      dm.textContent = 'Solicitar DM pelo @';
+      dm.href = `#comunidades?view=dms&dm=${profile.id}`;
+      container.querySelector('article')?.append(dm);
       if (status)
         status.textContent =
           'Identidade pública do 0xDMme. Fotos públicas estarão disponíveis após a moderação automática.';

@@ -1,3 +1,4 @@
+import { SocialDmService, socialDmOperations } from '../social-dm/index.ts';
 import { AttachmentService } from '../attachments/index.ts';
 import { representativeOperations } from '../representatives/index.ts';
 import type { RepresentativeService } from '../representatives/index.ts';
@@ -45,7 +46,7 @@ import {
   groupMatrixQuery,
   groupMatrixClaim,
   groupMatrixSend,
-} from './matrix.ts';
+} from '../matrix-protocol/index.ts';
 type Action = (
   a: ContactAuthority,
   d: Record<string, unknown>,
@@ -77,6 +78,9 @@ export class MessageService {
     | 'groupMessages'
     | 'groupMedia'
     | 'groupRetention'
+    | 'socialDm'
+    | 'socialCrypto'
+    | 'socialMatrix'
     | 'statuses'
     | 'statusMedia'
   >;
@@ -104,6 +108,9 @@ export class MessageService {
       | 'groupMessages'
       | 'groupMedia'
       | 'groupRetention'
+      | 'socialDm'
+      | 'socialCrypto'
+      | 'socialMatrix'
       | 'statuses'
       | 'statusMedia'
     >,
@@ -337,6 +344,9 @@ export class MessageService {
         return db.matrix.groupReceived(a, values.map(sequence));
       },
     };
+    const social = new SocialDmService(db);
+    for (const operation of socialDmOperations)
+      this.actions[operation] = (a, d) => social.operate(a, operation, d);
     this.installGroupOperations();
     this.installStatusOperations();
     for (const operation of representativeOperations)

@@ -32,6 +32,18 @@ import {
 const readRoutes = new Set(
   [
     'snapshot',
+    'dm-accepted',
+    'dm-profile',
+    'dm-list',
+    'dm-state',
+    'dm-directory',
+    'dm-recovery-current',
+    'dm-recovery-peer',
+    'dm-recovery-key',
+    'dm-page',
+    'dm-matrix-query',
+    'dm-matrix-inbox',
+    'dm-matrix-received',
     'page',
     'object',
     'confirm',
@@ -118,6 +130,11 @@ function cookie(
 }
 
 const messageBodyBudgets = new Map<string, number>([
+  ['dm-register', 75000],
+  ['dm-publish', 8200000],
+  ['dm-matrix-upload', 200000],
+  ['dm-matrix-claim', 60000],
+  ['dm-matrix-send', 8400000],
   ['group-message-publish', 6_700_000],
   ['group-matrix-send', 8_400_000],
   ['group-matrix-claim', 60_000],

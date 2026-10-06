@@ -12,12 +12,12 @@ import { eventHash, sign } from '../../src/shared/devices/index.ts';
 import type { VaultAuthority } from '../../src/client/vault-authority/index.ts';
 
 export async function groupParticipant(
-  input: { accountId?: string; deviceId?: string } = {},
+  input: { accountId?: string; deviceId?: string; deviceName?: string } = {},
 ) {
   const accountId = input.accountId ?? crypto.randomUUID(),
     identity = await createIdentity(
       input.deviceId ?? crypto.randomUUID(),
-      'Sintético',
+      input.deviceName ?? 'Sintético',
     );
   const root = await createRecovery(accountId, newSecret()),
     ring = freshKeyring(accountId);
@@ -43,6 +43,9 @@ export async function groupParticipant(
     sign: (proof) => sign(identity.signing, proof),
   };
   return {
+    identity,
+    recovery: root,
+    ring,
     accountId,
     deviceId: identity.public.id,
     directory,

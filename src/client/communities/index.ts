@@ -23,8 +23,11 @@ import { mountCommunityGovernance } from './governance.ts';
 import { startCommunityPosts } from './posts.ts';
 import { replyNotificationPage } from '../../shared/community-posts/index.ts';
 import { startCommunityDiscovery } from './discovery.ts';
+import { startSocialDmUi } from './dms.ts';
+import type { VaultSync } from '../vault-sync/index.ts';
 
-export function startCommunities(access: VaultAccess) {
+export function startCommunities(access: VaultAccess, sync: VaultSync) {
+  const dms = startSocialDmUi(access, sync);
   const controller = new Communities(access);
   const posts = startCommunityPosts(controller);
   const discovery = startCommunityDiscovery(controller);
@@ -38,6 +41,7 @@ export function startCommunities(access: VaultAccess) {
   let abort = new AbortController(),
     photoUrl: string | null = null;
   let view = 'feed',
+    selectedDm: string | null = null,
     selected: string | null = null,
     selectedPost: string | null = null,
     selectedTag: string | null = null,
@@ -80,6 +84,7 @@ export function startCommunities(access: VaultAccess) {
     const nav = communityElement('nav', '', 'community-tabs');
     nav.setAttribute('aria-label', 'Comunidades');
     for (const [key, title] of [
+      ['dms', 'Mensagens'],
       ['feed', 'Feed'],
       ['explore', 'Explorar'],
       ['following', 'Seguindo'],
@@ -137,6 +142,9 @@ export function startCommunities(access: VaultAccess) {
       const page = await controller.list('following', sidebarCursor);
       if (old !== generation || !sidebar) return;
       rows(sidebar, page);
+      const dmNode = communityElement('section', '', 'social-dm-directory');
+      sidebar.append(dmNode);
+      await dms.directory(dmNode, () => old === generation && sidebar !== null);
       sidebarCursor = page.next;
       if (page.next)
         communityButton(sidebar, 'Mais comunidades', () => run(directory));
@@ -458,6 +466,11 @@ export function startCommunities(access: VaultAccess) {
   }
   async function refresh(): Promise<void> {
     if (!mounted) return;
+    if (view === 'dms') {
+      navigation();
+      dms.mount(mounted, selectedDm);
+      return;
+    }
     if (view === 'create') {
       creation();
       return;
@@ -499,6 +512,7 @@ export function startCommunities(access: VaultAccess) {
   function leave(): void {
     posts.leave();
     discovery.leave();
+    dms.leave();
     generation++;
     abort.abort();
     mounted = null;
@@ -520,6 +534,7 @@ export function startCommunities(access: VaultAccess) {
       cursor = null;
       sidebarCursor = null;
       try {
+        selectedDm = params.has('dm') ? uuid(params.get('dm')) : null;
         selected = params.has('id') ? uuid(params.get('id')) : null;
         selectedPost = params.has('post') ? uuid(params.get('post')) : null;
         selectedTag = params.has('tag') ? uuid(params.get('tag')) : null;
@@ -531,6 +546,7 @@ export function startCommunities(access: VaultAccess) {
       }
       if (
         ![
+          'dms',
           'explore',
           'feed',
           'saved',
@@ -549,9 +565,14 @@ export function startCommunities(access: VaultAccess) {
     },
     leave,
     ready,
-    canActivate: () => !busy && posts.canActivate() && discovery.canActivate(),
+    canActivate: () =>
+      !busy &&
+      posts.canActivate() &&
+      discovery.canActivate() &&
+      dms.canActivate(),
     setSession(value: AccountSession | null): void {
       session = value;
+      dms.setSession(value);
       if (!controller.setSession(value)) return;
       generation++;
       posts.leave();

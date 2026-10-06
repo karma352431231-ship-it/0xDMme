@@ -29,6 +29,12 @@ import { CommunityPostStore } from './community-posts.ts';
 export type { CommunityPostStore } from './community-posts.ts';
 import { CommunityDiscoveryStore } from './community-discovery.ts';
 export type { CommunityDiscoveryStore } from './community-discovery.ts';
+import { SocialDmStore } from './social-dm.ts';
+import { SocialCryptoStore } from './social-crypto.ts';
+import { SocialMatrixStore } from './social-matrix.ts';
+export type { SocialDmStore, SocialContext } from './social-dm.ts';
+export type { SocialCryptoStore } from './social-crypto.ts';
+export type { SocialMatrixStore } from './social-matrix.ts';
 import { DeviceStore } from './devices.ts';
 import { VaultStore } from './vault.ts';
 import { ContactStore } from './contacts.ts';
@@ -93,6 +99,9 @@ const migrations = [
   '030-community-posts.sql',
   '031-community-interactions.sql',
   '032-community-discovery.sql',
+  '033-social-dm.sql',
+  '034-social-dm-retention.sql',
+  '035-social-block-revisions.sql',
 ];
 
 export interface MaintenanceSnapshot {
@@ -126,6 +135,9 @@ export class Database {
   readonly communities: CommunityStore;
   readonly communityPosts: CommunityPostStore;
   readonly communityDiscovery: CommunityDiscoveryStore;
+  readonly socialDm: SocialDmStore;
+  readonly socialCrypto: SocialCryptoStore;
+  readonly socialMatrix: SocialMatrixStore;
   readonly devices: DeviceStore;
   readonly vault: VaultStore;
   readonly contacts: ContactStore;
@@ -179,6 +191,16 @@ export class Database {
       profiles: this.publicProfiles,
       capacity: contentCapacity,
     });
+    this.socialDm = new SocialDmStore({
+      contacts: this.contacts,
+      profiles: this.publicProfiles,
+      capacity: contentCapacity,
+    });
+    this.socialCrypto = new SocialCryptoStore(
+      this.socialDm,
+      this.publicProfiles,
+    );
+    this.socialMatrix = new SocialMatrixStore(this.socialDm, this.socialCrypto);
     this.communityPosts = new CommunityPostStore({
       pool: this.pool,
       communities: this.communities,

@@ -26,6 +26,15 @@ export async function vaultUsage(
     + coalesce((SELECT sum(charge) FROM hash_talk.matrix_devices WHERE account_id=$1),0)
     + coalesce((SELECT sum(charge) FROM hash_talk.matrix_one_time_keys WHERE account_id=$1),0)
     + coalesce((SELECT sum(charge) FROM hash_talk.matrix_envelopes WHERE account_id=$1),0)
+    + coalesce((SELECT sum(s.charge) FROM (
+      SELECT profile_id AS profile,charge FROM hash_talk.social_directories
+      UNION ALL SELECT profile_id,charge FROM hash_talk.social_recovery
+      UNION ALL SELECT profile_id,charge FROM hash_talk.social_matrix_devices
+      UNION ALL SELECT profile_id,charge FROM hash_talk.social_matrix_keys
+      UNION ALL SELECT recipient,charge FROM hash_talk.social_matrix_envelopes
+      UNION ALL SELECT sender,personal_charge FROM hash_talk.social_messages
+      UNION ALL SELECT recipient,personal_charge FROM hash_talk.social_messages
+    ) s JOIN hash_talk.public_profiles p ON p.id=s.profile WHERE p.account_id=$1),0)
     + coalesce((SELECT sum(charge) FROM hash_talk.group_controls WHERE account_id=$1),0)
     + coalesce((SELECT sum(charge) FROM hash_talk.group_reads WHERE account_id=$1),0)
     + coalesce((SELECT sum(charge) FROM hash_talk.status_posts WHERE author=$1),0)
