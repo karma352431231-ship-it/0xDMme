@@ -1440,6 +1440,8 @@ Dimensionar também pools de conexões, memória de consultas concorrentes, chec
 
 No bloco 02, criar configuração versionada e métricas. Nos blocos de entrega/cofre, testar ciclos repetidos de inserir/confirmar/excluir, expiração de mídias e concorrência com uploads, até observar comportamento estável além do primeiro ciclo. Na revisão da VPS, calibrar orçamento; no bloco 16, validar recuperação após pico, ausência de bloqueadores prolongados, limites de recursos e latência aceitável para os demais serviços. Métricas/limiares de aceite serão fixados com o hardware real.
 
+Em 06/10/2026, o proprietário pediu uma revisão após os dez cortes de comunidades, abrangendo **todas as tabelas do 0xDMme e a performance do backend inteiro**. Inventariar cada tabela, reduzir escritas/limpeza evitáveis, medir gargalos e testar melhorias com comparação antes/depois; apresentar diagnóstico e propostas para priorização, respeitando as autorizações de mudanças materiais. O [escopo e os critérios dessa revisão](docs/COMUNIDADES_PUBLICAS.md#revisão-de-todas-as-tabelas-e-otimização-após-os-cortes) não substituem a manutenção contínua, não autorizam descarte de conteúdo aceito e não prometem eliminar VACUUM.
+
 Referências: [manutenção VACUUM](https://www.postgresql.org/docs/18/routine-vacuuming.html), [configuração e limites de custo](https://www.postgresql.org/docs/18/runtime-config-vacuum.html). Conferir documentação da versão efetivamente instalada antes de aplicar configurações.
 
 ### 19.4 DDoS e preservação do escopo privacy first
