@@ -10,10 +10,28 @@ import type {
   CommunityPage,
 } from '../../shared/communities/index.ts';
 import { RequestBudget } from '../request-budget/index.ts';
+import {
+  communityPost,
+  postPage,
+  postCursor,
+  tagPage,
+} from '../../shared/community-posts/index.ts';
+import type {
+  CommunityPost,
+  PostPage,
+  TagPage,
+} from '../../shared/community-posts/index.ts';
 
 export function createCommunityHandler(read: {
   read: (id: string) => Promise<Community>;
   list: (after: string | null) => Promise<CommunityPage>;
+  post?: (community: string, id: string) => Promise<CommunityPost>;
+  postPage?: (
+    community: string,
+    after: string | null,
+    tag: string | null,
+  ) => Promise<PostPage>;
+  tags?: (community: string, after: string | null) => Promise<TagPage>;
 }) {
   const budget = new RequestBudget();
   let active = 0;
@@ -31,12 +49,14 @@ export function createCommunityHandler(read: {
       throw new AccountError(405, 'Método inválido.');
     budget.admit(request.socket.remoteAddress ?? 'unknown', false, true);
     const address = new URL(request.url ?? '', 'http://local.invalid');
-    if (address.pathname === '/api/communities') {
-      if (
-        [...address.searchParams.keys()].some((key) => key !== 'after') ||
-        address.searchParams.getAll('after').length > 1
+    if (
+      /^\/api\/communities\/[a-f0-9-]{36}\/(?:posts|tags)(?:\/|$)/u.test(
+        address.pathname,
       )
-        throw new AccountError(400, 'Cursor inválido.');
+    )
+      return postLookup(address);
+    if (address.pathname === '/api/communities') {
+      params(address, ['after']);
       return communityPage(
         await read.list(communityCursor(address.searchParams.get('after'))),
       );
@@ -79,6 +99,52 @@ export function createCommunityHandler(read: {
     } finally {
       active--;
     }
+  }
+  function params(address: URL, allowed: string[]): void {
+    if (
+      [...address.searchParams.keys()].some(
+        (key) =>
+          !allowed.includes(key) ||
+          address.searchParams.getAll(key).length !== 1,
+      )
+    )
+      throw new AccountError(400, 'Filtros inválidos.');
+  }
+  async function postLookup(address: URL): Promise<unknown> {
+    const parts = address.pathname.split('/'),
+      id = uuid(parts[3]);
+    if (parts.length === 5) return postList(address, id, parts[4]);
+    if (
+      parts[4] === 'posts' &&
+      parts.length === 6 &&
+      !address.search &&
+      read.post
+    )
+      return communityPost(await read.post(id, uuid(parts[5])));
+    throw new AccountError(404, 'Post indisponível.');
+  }
+  async function postList(
+    address: URL,
+    id: string,
+    kind: string | undefined,
+  ): Promise<unknown> {
+    if (kind === 'tags' && read.tags) {
+      params(address, ['after']);
+      return tagPage(
+        await read.tags(id, communityCursor(address.searchParams.get('after'))),
+      );
+    }
+    if (kind === 'posts' && read.postPage) {
+      params(address, ['after', 'tag']);
+      return postPage(
+        await read.postPage(
+          id,
+          postCursor(address.searchParams.get('after')),
+          communityCursor(address.searchParams.get('tag')),
+        ),
+      );
+    }
+    throw new AccountError(404, 'Post indisponível.');
   }
   return { handle, close: () => budget.close() };
 }

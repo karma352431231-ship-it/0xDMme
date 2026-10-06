@@ -21,6 +21,19 @@ async function responseData(response: Response): Promise<unknown> {
     );
   return data;
 }
+export async function communityRead(
+  path: string,
+  signal: AbortSignal,
+): Promise<unknown> {
+  return responseData(
+    await fetch(path, {
+      credentials: 'omit',
+      cache: 'no-store',
+      redirect: 'error',
+      signal,
+    }),
+  );
+}
 export async function readCommunities(
   after: string | null,
   signal: AbortSignal,

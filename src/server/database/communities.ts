@@ -35,6 +35,7 @@ import type {
 } from './community-authority.ts';
 import { communityGovernance } from './community-governance.ts';
 import { communityModeration, sanctionView } from './community-moderation.ts';
+import { seedCommunityTags } from './community-post-tags.ts';
 
 const columns =
   'c.id,c.owner,c.name,c.description,c.rules,c.revision,c.archived,(SELECT count(*)::text FROM hash_talk.community_follows f WHERE f.community_id=c.id) AS followers';
@@ -224,6 +225,7 @@ export class CommunityStore {
       'INSERT INTO hash_talk.communities(id,owner,name,description,rules) VALUES($1,$2,$3,$4,$5)',
       [id, actor.id, meta.name, meta.description, meta.rules],
     );
+    await seedCommunityTags(client, id);
     await assertContentCapacity(client, this.capacity);
     return this.load(client, id);
   }
@@ -352,19 +354,29 @@ export class CommunityStore {
     id: string,
     work: (context: { client: pg.PoolClient; author: string }) => Promise<T>,
   ): Promise<T> {
+    return this.withContext(authority, id, async (context) => {
+      await requireCommunityParticipation(context);
+      return work({ client: context.client, author: context.actor.id });
+    });
+  }
+  /** Coordinated community operations revalidate account/device and serialize with governance. */
+  async withContext<T>(
+    authority: ContactAuthority,
+    id: string,
+    work: (context: CommunityContext) => Promise<T>,
+  ): Promise<T> {
     return this.authority.withMessageAuthority(authority, async (client) => {
       const actor = await this.profiles.identity(
         client,
         authority.session.accountId,
       );
       const row = await this.load(client, id);
-      await requireCommunityParticipation({
+      return work({
         client,
         actor,
         row,
         profiles: this.profiles,
       });
-      return work({ client, author: actor.id });
     });
   }
 }

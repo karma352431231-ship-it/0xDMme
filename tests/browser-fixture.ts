@@ -153,6 +153,7 @@ function fixtureServer(
   const communities = new CommunityService(
     database.communities,
     database.devices,
+    database.communityPosts,
   );
   return createWebServer({
     origin: testOrigin,
@@ -165,6 +166,9 @@ function fixtureServer(
     communities: createCommunityHandler({
       read: (id) => communities.read(id),
       list: (after) => communities.list(after),
+      post: (id, post) => communities.post(id, post),
+      postPage: (id, after, tag) => communities.postPage(id, after, tag),
+      tags: (id, after) => communities.tags(id, after),
     }),
     account: createAccountHandler({
       communities,

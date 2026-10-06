@@ -20,9 +20,11 @@ import {
   communityLink,
 } from './elements.ts';
 import { mountCommunityGovernance } from './governance.ts';
+import { startCommunityPosts } from './posts.ts';
 
 export function startCommunities(access: VaultAccess) {
   const controller = new Communities(access);
+  const posts = startCommunityPosts(controller);
   let mounted: HTMLElement | null = null,
     sidebar: HTMLElement | null = null,
     session: AccountSession | null = null;
@@ -34,6 +36,8 @@ export function startCommunities(access: VaultAccess) {
     photoUrl: string | null = null;
   let view = 'explore',
     selected: string | null = null,
+    selectedPost: string | null = null,
+    selectedTag: string | null = null,
     cursor: string | null = null,
     sidebarCursor: string | null = null;
   let output: HTMLElement | null = null;
@@ -274,6 +278,14 @@ export function startCommunities(access: VaultAccess) {
     if (!mounted || !current) return;
     navigation();
     summary(current);
+    const postContainer = communityElement('section', '', 'community-posts');
+    mounted.append(postContainer);
+    posts.mount(postContainer, {
+      community: current.id,
+      state,
+      post: selectedPost,
+      tag: selectedTag,
+    });
     if (!state) return;
     const own = state;
     const management = communityElement('details', '', 'community-management');
@@ -298,6 +310,7 @@ export function startCommunities(access: VaultAccess) {
         }),
       );
       photo(card, own);
+      posts.mountTags(management);
     }
     mountCommunityGovernance(management, own, {
       mutate,
@@ -407,6 +420,7 @@ export function startCommunities(access: VaultAccess) {
       });
   }
   function leave(): void {
+    posts.leave();
     generation++;
     abort.abort();
     mounted = null;
@@ -429,6 +443,8 @@ export function startCommunities(access: VaultAccess) {
       sidebarCursor = null;
       try {
         selected = params.has('id') ? uuid(params.get('id')) : null;
+        selectedPost = params.has('post') ? uuid(params.get('post')) : null;
+        selectedTag = params.has('tag') ? uuid(params.get('tag')) : null;
       } catch {
         selected = null;
         navigation();
@@ -446,11 +462,12 @@ export function startCommunities(access: VaultAccess) {
     },
     leave,
     ready,
-    canActivate: () => !busy,
+    canActivate: () => !busy && posts.canActivate(),
     setSession(value: AccountSession | null): void {
       session = value;
       if (!controller.setSession(value)) return;
       generation++;
+      posts.leave();
       state = null;
       current = null;
       sidebarCursor = null;

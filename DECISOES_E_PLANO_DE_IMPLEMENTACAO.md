@@ -367,6 +367,8 @@ A camada não herda silenciosamente histórico, chaves, cotas ou regras de desco
 
 Ver [plano consolidado e contratos por corte](docs/COMUNIDADES_PUBLICAS.md).
 
+**Corte 4 aprovado e implementado localmente em 06/10/2026:** posts de texto com título/tag opcionais, leitura sem conta, permalinks, paginação recente e filtro de tag. Tags locais inicialmente Discussão/Opinião/Memes, geridas pelos gestores, uma tag opcional por post. Exclusão pelo autor elimina o texto do banco ativo e preserva marcador; edições substituem sem histórico de versões. Moderação oculta reversivelmente, com motivo restrito e uma contestação por remoção. Exclusão própria impede restauração; registros de moderação são preservados. Backups/cópias externas conservam seus limites próprios. Migração 030 apenas no banco exclusivo de testes, com autorização, concorrência e contabilidade validadas; sem mídia pública ou deploy. Replies/votos, feed e DMs ficam nos próximos cortes; detalhes no [corte 4](docs/COMUNIDADES_PUBLICAS.md#corte-4--posts-e-tags-locais-em-06102026).
+
 ## 7. Operação de implementação
 
 O estado inicial de todos os blocos é **não iniciado**. O progresso passa a ser registrado no bloco correspondente. Ao executar um bloco, registrar arquivos alterados, decisões, testes, limitações e evidências de conclusão no repositório, mantendo inventários e evidências de infraestrutura somente nos registros privados locais conforme a decisão do bloco 00.

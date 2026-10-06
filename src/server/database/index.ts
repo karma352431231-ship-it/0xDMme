@@ -25,6 +25,8 @@ import { PublicProfileStore } from './public-profile.ts';
 export type { PublicProfileStore } from './public-profile.ts';
 import { CommunityStore } from './communities.ts';
 export type { CommunityStore } from './communities.ts';
+import { CommunityPostStore } from './community-posts.ts';
+export type { CommunityPostStore } from './community-posts.ts';
 import { DeviceStore } from './devices.ts';
 import { VaultStore } from './vault.ts';
 import { ContactStore } from './contacts.ts';
@@ -86,6 +88,7 @@ const migrations = [
   '027-push-controls.sql',
   '028-public-profiles.sql',
   '029-communities.sql',
+  '030-community-posts.sql',
 ];
 
 export interface MaintenanceSnapshot {
@@ -117,6 +120,7 @@ export class Database {
   readonly authentication: AuthenticationStore;
   readonly publicProfiles: PublicProfileStore;
   readonly communities: CommunityStore;
+  readonly communityPosts: CommunityPostStore;
   readonly devices: DeviceStore;
   readonly vault: VaultStore;
   readonly contacts: ContactStore;
@@ -167,6 +171,12 @@ export class Database {
     this.communities = new CommunityStore({
       pool: this.pool,
       authority: this.contacts,
+      profiles: this.publicProfiles,
+      capacity: contentCapacity,
+    });
+    this.communityPosts = new CommunityPostStore({
+      pool: this.pool,
+      communities: this.communities,
       profiles: this.publicProfiles,
       capacity: contentCapacity,
     });

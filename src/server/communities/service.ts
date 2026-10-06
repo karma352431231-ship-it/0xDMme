@@ -6,13 +6,41 @@ import {
   communityCursor,
   communityProof,
 } from '../../shared/communities/index.ts';
-import type { CommunityStore, DeviceStore } from '../database/index.ts';
+import { postCursor } from '../../shared/community-posts/index.ts';
+import type {
+  CommunityPostStore,
+  CommunityStore,
+  DeviceStore,
+} from '../database/index.ts';
 export class CommunityService {
   private readonly store: CommunityStore;
   private readonly devices: DeviceStore;
-  constructor(store: CommunityStore, devices: DeviceStore) {
+  private readonly posts: CommunityPostStore | null;
+  constructor(
+    store: CommunityStore,
+    devices: DeviceStore,
+    posts: CommunityPostStore | null = null,
+  ) {
     this.store = store;
     this.devices = devices;
+    this.posts = posts;
+  }
+  post(community: unknown, id: unknown) {
+    return this.requirePosts().read(uuid(community), uuid(id));
+  }
+  postPage(community: unknown, after: unknown, tag: unknown) {
+    return this.requirePosts().list(
+      uuid(community),
+      postCursor(after),
+      communityCursor(tag),
+    );
+  }
+  tags(community: unknown, after: unknown) {
+    return this.requirePosts().tags(uuid(community), communityCursor(after));
+  }
+  private requirePosts(): CommunityPostStore {
+    if (!this.posts) throw new AccountError(404, 'Posts indisponíveis.');
+    return this.posts;
   }
   read(id: unknown) {
     return this.store.read(uuid(id));
@@ -42,7 +70,11 @@ export class CommunityService {
         payload: proof.payload,
       }),
     );
-    return this.store.operate(
+    const store =
+      operation.startsWith('post-') || operation.startsWith('tag-')
+        ? this.requirePosts()
+        : this.store;
+    return store.operate(
       operation,
       { session, directory: proof.directory },
       proof.payload,

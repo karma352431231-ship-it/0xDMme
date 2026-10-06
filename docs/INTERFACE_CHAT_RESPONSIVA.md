@@ -36,6 +36,16 @@ A conferência usou exclusivamente dados fictícios: criação, seguir e lista l
 
 **Ponto importante:** entrega local com migração 029 somente no banco de testes. Nenhum dado privado é publicado; fotos continuam restritas até a moderação automática validada. Posts, feed e DMs pelo `@` permanecem nos cortes seguintes, sem ativação na VPS.
 
+## Posts e tags — corte 4 implementado localmente
+
+Em 06/10/2026, a comunidade recebeu posts de texto, título/tag opcionais e links seguros, com leitura sem conta. Contas elegíveis podem publicar sem seguir. Criar postagem fica em formulário recolhível; filtros de tag e listas Meus posts/Posts ocultos acompanham a lista recente. A tag do post abre seu filtro e Abrir postagem conserva o permalink. Seletores de tags são paginados sem impor cota de quantidade à comunidade ou descartar o rascunho ao trocar de página.
+
+Opções da postagem carrega controles protegidos conforme autoria/função atual. Autor pode editar ou excluir com confirmação explícita; gestores ocultam/restauram com motivo e resposta. Post oculto deixa marcador público e oferece texto/motivo/contestação somente ao autor/gestores. Tags são criadas, renomeadas e desativadas dentro da gestão existente. Denúncias conservam o canal local e a proteção do denunciante.
+
+A fixture sintética confirmou publicação sem seguir, edição com indicação Editado, ocultação/restauração, filtro por permalink e paginação com 28 tags preservando texto e seleção, inclusive a escolha Sem tag. Após logout, permaneceu leitura pública sem controles privados. Área principal sem transbordamento horizontal em 1280 × 900, 390 × 844 e 320 × 700. Evidências ficam em `.local/`; testes e contratos estão no [corte 4](COMUNIDADES_PUBLICAS.md#corte-4--posts-e-tags-locais-em-06102026).
+
+**Ponto importante:** posts neste corte são texto público; wallet e perfil privado não entram nas respostas. Replies/votos/avisos seguem no corte 5; mídia aguarda os cortes 9–10. Migração 030 somente no banco de testes, sem nova dependência ou deploy; não foi repetido o aceite em aparelhos físicos.
+
 ## Revisão de filtros e contatos — publicada
 
 Decisões em [5.8 do plano](../DECISOES_E_PLANO_DE_IMPLEMENTACAO.md#58-filtros-e-menu-por-contato--aprovados-em-05102026). “Organizar conversas” dá lugar aos filtros Todos, Não lidas, Favoritos, Grupos e Arquivadas. A lista conserva rolagem própria; opções de criação/convites ficam no filtro Grupos. Menus por linha usam seta no desktop, toque prolongado no mobile e teclado. Um deslocamento de mais de 10 px ou cancelamento interrompe o gesto; segurar não abre o chat nem marca leitura.
