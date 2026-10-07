@@ -165,7 +165,7 @@ const pg = createRequire('/var/lib/0xdmme/data/release/package.json')('pg');
 const client = new pg.Client({connectionString:url.href,connectionTimeoutMillis:3000,query_timeout:5000,statement_timeout:4000});
 try {
  await client.connect(); await client.query('BEGIN READ ONLY');
- const result={tables:{},versions:(await client.query('SELECT version,checksum FROM hash_talk.schema_migrations ORDER BY version LIMIT 32')).rows};
+ const result={tables:{},versions:(await client.query('SELECT version,checksum FROM hash_talk.schema_migrations ORDER BY version LIMIT 64')).rows};
  const bytes=Number((await client.query('SELECT pg_database_size(current_database())::text AS bytes')).rows[0].bytes);
  if(bytes>67108864) throw new Error('Database backup budget exceeded.');
  const omitted=""" + omitted + """;

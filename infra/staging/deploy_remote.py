@@ -76,6 +76,21 @@ CALLS_BEFORE = '793bf21f9f0b66cc58fee21fe6a65eccdeb84e98'
 CALLS_REVIEWED = '537240c02377a7217196a678051758b62ff0fece'
 CALLS_TABLES = REPRESENTATIVES_TABLES + REPRESENTATIVES_NEW_TABLES
 CALLS_NEW_TABLES = ('call_controls', 'push_controls')
+# Owner requested activation of the remaining normal flows on 07/10/2026,
+# after being informed of the pending database transition. Exact 027→043 only.
+# Public tables do not exist in the predecessor: no legacy public bytes are lost.
+# The experimental gallery and unaccepted detector are outside this deployment.
+COMMUNITIES_BEFORE = '44af35f99bcb493413af984aa3a7d15b32af194e'
+COMMUNITIES_REVIEWED = '850c3fd56867a5db5dd9037449e1c89f5fd5a5e2'
+COMMUNITIES_TABLES = CALLS_TABLES + CALLS_NEW_TABLES
+COMMUNITIES_NEW_TABLES = ('public_profiles', 'communities', 'community_follows',
+    'community_moderators', 'community_sanctions', 'community_reports',
+    'community_tags', 'community_posts', 'community_post_removals',
+    'community_votes', 'community_reply_notifications', 'community_post_preferences',
+    'social_relations', 'social_blocks', 'social_directories', 'social_devices',
+    'social_recovery', 'social_matrix_devices', 'social_matrix_keys',
+    'social_matrix_envelopes', 'social_messages', 'social_personal_secrets',
+    'social_media', 'social_receipts', 'community_media', 'public_moderation')
 
 
 def run(args, timeout=30):
@@ -307,6 +322,8 @@ def backup_review(candidate, live):
 
 def database_review(candidate, live):
     count = len(list((candidate / 'src/server/database/migrations').glob('*.sql')))
+    if count == 43:
+        return communities_review(candidate, live)
     if count == 27:
         return calls_review(candidate, live)
     if count == 25:
@@ -363,6 +380,48 @@ def calls_review(candidate, live):
 def calls_snapshot():
     import deploy_blocks45 as backups
     return backups.database_snapshot(CALLS_TABLES)
+
+
+def communities_review(candidate, live):
+    reviewed_database(candidate, live, {'before':COMMUNITIES_BEFORE,
+        'reviewed':COMMUNITIES_REVIEWED, 'versions':43, 'previous_versions':27})
+    verify_community_tables(COMMUNITIES_TABLES)
+
+
+def communities_snapshot():
+    import deploy_blocks45 as backups
+    # Partial migrations must remain readable so the existing rollback can
+    # compare them with the backup and restore before opening the writer.
+    return backups.database_snapshot(COMMUNITIES_TABLES)
+
+
+def verify_community_tables(expected):
+    import deploy_blocks45 as backups
+    tables = backups.pg(['psql', '--no-psqlrc', '--set=ON_ERROR_STOP=1',
+        '--tuples-only', '--no-align', '-c',
+        "SELECT tablename FROM pg_tables WHERE schemaname='hash_talk' ORDER BY tablename LIMIT 100"])
+    if set(tables.decode().splitlines()) != set(expected) | {'schema_migrations'}:
+        raise RuntimeError('Community transition table set differs; existing data not reviewed.')
+
+
+def verify_communities_migration(candidate, before):
+    import deploy_blocks45 as backups
+    after, versions = communities_snapshot(), attachment_versions(candidate)
+    if (before['versions'] != versions[:27] or after['versions'] != versions
+            or after['tables'] != before['tables']):
+        raise RuntimeError('Community migration/data preservation failed.')
+    verify_community_tables(COMMUNITIES_TABLES + COMMUNITIES_NEW_TABLES)
+    total = content_total()
+    for table in ('personal_removals',) + DAILY_NEW_TABLES + GROUPS_NEW_TABLES + REPRESENTATIVES_NEW_TABLES + CALLS_NEW_TABLES:
+        total += ' + coalesce((SELECT sum(charge) FROM hash_talk.' + table + '),0)'
+    # No public/social records may exist before opening the writer. This also
+    # verifies that legacy moderation cleanup cannot discard previous uploads.
+    empty = ' AND '.join('NOT EXISTS(SELECT 1 FROM hash_talk.' + table + ')' for table in COMMUNITIES_NEW_TABLES)
+    actual = backups.pg(['psql', '--no-psqlrc', '--set=ON_ERROR_STOP=1', '--tuples-only', '--no-align', '-c',
+        'SELECT used_bytes=(' + total + ') AND ' + empty +
+        ' FROM hash_talk.content_usage WHERE singleton'])
+    if actual.strip() != b't':
+        raise RuntimeError('Community initial tables/actual-use ledger inconsistent.')
 
 
 def verify_calls_migration(candidate, before):
@@ -657,6 +716,13 @@ def activate_calls(config, work, candidate, before_state):
         'verify':verify_calls_migration})
 
 
+def activate_communities(config, work, candidate, before_state):
+    """Reviewed 027→043; retain all existing data and keep new public tables empty."""
+    return activate_database(config, work, candidate, {'before_state':before_state,
+        'review':communities_review, 'snapshot':communities_snapshot, 'versions':27,
+        'verify':verify_communities_migration})
+
+
 def activate_database(config, work, candidate, transition):
     import deploy_blocks45 as backups
     snapshot, before_state = transition['snapshot'], transition['before_state']
@@ -739,6 +805,8 @@ def activate(config, work):
         raise RuntimeError('Own configuration/database service changed.')
     if database_files(candidate) != database_files(DATA / 'release'):
         # Any unreviewed database change was rejected by prepare()/compatibility().
+        if len(list((candidate / 'src/server/database/migrations').glob('*.sql'))) == 43:
+            return activate_communities(config, work, candidate, before)
         if len(list((candidate / 'src/server/database/migrations').glob('*.sql'))) == 27:
             return activate_calls(config, work, candidate, before)
         if len(list((candidate / 'src/server/database/migrations').glob('*.sql'))) == 25:

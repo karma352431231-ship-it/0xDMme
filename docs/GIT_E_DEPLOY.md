@@ -1,5 +1,43 @@
 # 0xDMme — Git e envio à VPS
 
+## Ativação dos fluxos de comunidades — solicitada em 07/10/2026
+
+Depois de informado de que os novos commits ainda não estavam ativos e de que
+a atualização exigia revisão/aprovação das migrações, o proprietário pediu
+explicitamente ativar os demais fluxos enquanto a calibração continua.
+Reutilizar `npm run deploy:staging`, com revisão exata do predecessor `44af35f`
+e das fontes de aplicação de `850c3fd`, sem modificar runtime, dependências,
+Node, configuração, Nginx ou serviços compartilhados.
+
+A conferência somente leitura confirmou schema 001–027, 50 tabelas de dados
+preexistentes, mais o registro de migrações, preservação e saúde. Nenhuma tabela
+de identidade/comunidades/DMs públicas existe no predecessor. A transição
+027→043 acrescenta 26 tabelas inicialmente vazias; as migrações posteriores
+alteram essas tabelas novas e ampliam somente a constraint de tipos de remoção
+pessoal. Não há uploads públicos legados para coletar. Conservar checksums
+001–027, comparar integralmente as 50 tabelas anteriores e os objetos, exigir
+001–043, conjunto exato de tabelas, novas tabelas vazias e contabilidade integral
+antes de reabrir o escritor. A leitura limitada do registro passa a 64 versões
+para conferir todas as 43, sem aceitar uma comparação truncada.
+
+Usar backup privado de banco/objetos, até 64 MiB cada, ensaio de restauração
+transacional revertido e release anterior retida. Antes da abertura, falha
+admite retorno verificado; depois da abertura, preservar novas gravações e
+parar somente o app em caso de falha, sem restaurar banco antigo sobre elas.
+Manter recursos e prazo de 240 segundos do executor, build no Mac, checkout
+limpo/enviado e CI integral do commit exato. A galeria de calibração tem processo
+independente: conferir seu estado antes/depois sem reiniciá-la ou apagar casos.
+Acesso, fingerprints, inventário e evidências ficam exclusivamente em `.local/`.
+
+**Ponto importante:** esta ativação permite testar identidade pública,
+comunidades, posts/replies em texto, votos, feeds, gestão e DMs E2EE pelo `@`.
+Não aceita o detector experimental: inventário aceito vazio e `runner: null`
+permanecem. O processador de mídia não está configurado na VPS; preparar mídia
+pública falha explicitamente, e avatares/fotos aguardam análise. Sua instalação
+isolada e o aceite do detector continuam pendentes, sem relaxar a política.
+Esta seção registra a autorização/revisão; somente recibo e conferência da
+execução real confirmam publicação.
+
 ## Preparação do corte 10 — solicitada em 06/10/2026
 
 O proprietário solicitou consolidar os commits, enviar ao Git e ativar o site
@@ -16,8 +54,9 @@ essa base permite testar envio/fila/avisos, mas não comparar classificação de
 artes com a política. O [estado e aceite do detector](MODERACAO_AUTOMATICA_COMUNIDADES.md)
 continuam pendentes; envio de fontes não os resolve.
 
-O executor existente recusa uma transição para as 43 migrações locais sem revisão
-fixada própria. Não liberar sua verificação nem contornar `npm run deploy:staging`.
+Na preparação inicial, o executor recusava a transição para as 43 migrações
+locais sem revisão fixada própria. A revisão solicitada posteriormente está na
+seção de ativação acima; não liberar sua verificação nem contornar `npm run deploy:staging`.
 Migrações de moderação também agendam coleta de uploads legados ainda não
 aprovados, sem data/hashes verificáveis. A ativação exige conferir predecessor,
 efeitos sobre dados, backup/retorno, runtime e preservação antes de obter aprovação

@@ -4,6 +4,7 @@ import io
 import hashlib
 import json
 import os
+import re
 import shutil
 from pathlib import Path
 import subprocess
@@ -881,6 +882,83 @@ class CallsDeploymentTests(AttachmentDeploymentTests):
             snapshot.assert_called_once_with(remote.CALLS_TABLES)
         self.assertEqual(len(set(remote.CALLS_TABLES)),48)
         self.assertEqual(len(set(remote.CALLS_NEW_TABLES)),2)
+
+
+class CommunitiesDeploymentTests(AttachmentDeploymentTests):
+    count = 43
+    previous_count = 27
+    before_key = 'COMMUNITIES_BEFORE'
+    reviewed_key = 'COMMUNITIES_REVIEWED'
+    review_name = 'communities_review'
+    snapshot_name = 'communities_snapshot'
+    verify_name = 'verify_communities_migration'
+    activate_name = 'activate_communities'
+
+    def test_only_exact_reviewed_sources_and_predecessor_allow_migration(self):
+        tables = ('\n'.join(remote.COMMUNITIES_TABLES + ('schema_migrations',))+'\n').encode()
+        with patch.object(backups, 'pg', return_value=tables):
+            super().test_only_exact_reviewed_sources_and_predecessor_allow_migration()
+
+    def test_migration_checksums_existing_data_and_ledger_are_preserved(self):
+        with tempfile.TemporaryDirectory() as directory:
+            candidate = Path(directory); self.migrations(candidate)
+            versions = remote.attachment_versions(candidate)
+            before = {'versions':versions[:27], 'tables':{'login_sessions':'preserved',
+                'message_packets':'preserved','personal_removals':'preserved','content_usage':'preserved'}}
+            after = dict(before, versions=versions)
+            tables = ('\n'.join(remote.COMMUNITIES_TABLES + remote.COMMUNITIES_NEW_TABLES + ('schema_migrations',))+'\n').encode()
+            with patch.object(remote, self.snapshot_name, return_value=after), patch.object(backups, 'pg', side_effect=[tables,b't']) as pg:
+                remote.verify_communities_migration(candidate, before)
+            sql = pg.call_args.args[0][-1]
+            for table in remote.COMMUNITIES_NEW_TABLES:
+                self.assertIn('NOT EXISTS(SELECT 1 FROM hash_talk.' + table + ')', sql)
+            for table in remote.DAILY_NEW_TABLES + remote.GROUPS_NEW_TABLES + remote.REPRESENTATIVES_NEW_TABLES + remote.CALLS_NEW_TABLES:
+                self.assertIn('sum(charge) FROM hash_talk.' + table, sql)
+            for invalid in [dict(after, tables={}), dict(after, versions=versions[:-1])]:
+                with patch.object(remote, self.snapshot_name, return_value=invalid), patch.object(backups, 'pg') as pg, self.assertRaises(RuntimeError):
+                    remote.verify_communities_migration(candidate, before)
+                pg.assert_not_called()
+            with patch.object(remote, self.snapshot_name, return_value=after), patch.object(backups, 'pg', side_effect=[tables,b'f']), self.assertRaises(RuntimeError):
+                remote.verify_communities_migration(candidate, before)
+            with patch.object(remote, self.snapshot_name, return_value=after), patch.object(backups, 'pg') as pg, self.assertRaises(RuntimeError):
+                remote.verify_communities_migration(candidate, dict(before, versions=versions[:26]))
+            pg.assert_not_called()
+
+    def test_schema_inventory_refuses_unreviewed_existing_or_missing_tables(self):
+        for count in [27, 43]:
+            expected = set(remote.COMMUNITIES_TABLES) | {'schema_migrations'}
+            if count == 43: expected.update(remote.COMMUNITIES_NEW_TABLES)
+            actual = ('\n'.join(sorted(expected))+'\n').encode()
+            with patch.object(backups, 'pg', return_value=actual):
+                remote.verify_community_tables(tuple(expected-{'schema_migrations'}))
+            for invalid in [actual+b'unreviewed_table\n', b'accounts\nschema_migrations\n']:
+                with patch.object(backups, 'pg', return_value=invalid), self.assertRaises(RuntimeError):
+                    remote.verify_community_tables(tuple(expected-{'schema_migrations'}))
+        self.assertEqual(len(set(remote.COMMUNITIES_TABLES)), 50)
+        self.assertEqual(len(set(remote.COMMUNITIES_NEW_TABLES)), 26)
+
+    def test_partial_migration_snapshot_remains_available_for_verified_rollback(self):
+        partial = {'versions':[{'version':i+1} for i in range(32)], 'tables':{'accounts':'preserved'}}
+        with patch.object(backups, 'database_snapshot', return_value=partial) as query:
+            self.assertEqual(remote.communities_snapshot(), partial)
+        query.assert_called_once_with(remote.COMMUNITIES_TABLES)
+
+    def test_snapshot_reads_all_43_migrations_without_a_truncated_success(self):
+        def read(code):
+            limit = int(re.search(r'schema_migrations ORDER BY version LIMIT (\d+)', code).group(1))
+            return json.dumps({'tables':{},'versions':[{'version':i+1} for i in range(min(limit,43))]}).encode()
+        with patch.object(backups, 'node', side_effect=read):
+            snapshot = backups.database_snapshot(remote.COMMUNITIES_TABLES)
+        self.assertEqual(len(snapshot['versions']), 43)
+
+    def test_common_activation_routes_43_to_the_reviewed_community_transition(self):
+        with tempfile.TemporaryDirectory() as directory:
+            work = Path(directory); candidate = work/'candidate'; self.migrations(candidate)
+            (work/'build.tar.gz').write_bytes(b'fixture')
+            with patch.object(remote, 'preflight', return_value={}), patch.object(remote, 'prepare', return_value=candidate), patch.object(remote, 'preservation'), patch.object(remote, 'own_state', return_value={}), patch.object(remote, 'database_files', side_effect=[{'new':'hash'},{'old':'hash'}]), patch.object(remote, 'activate_communities', return_value={'published':True}) as activate, patch.object(remote, 'activate_attachments') as wrong:
+                result = remote.activate({'archive_sha256':remote.digest(work/'build.tar.gz'),'baseline':{}}, work)
+            self.assertEqual(result, {'published':True})
+            activate.assert_called_once(); wrong.assert_not_called()
 
 
 class HistoricalBackupRetentionTests(unittest.TestCase):
