@@ -82,6 +82,10 @@ CALLS_NEW_TABLES = ('call_controls', 'push_controls')
 # The experimental gallery and unaccepted detector are outside this deployment.
 COMMUNITIES_BEFORE = '44af35f99bcb493413af984aa3a7d15b32af194e'
 COMMUNITIES_REVIEWED = '04b1bbf5db5b4c30387cc23a792624a1b3b67a87'
+# Routine UI release: two reviewed read projections, with the entire database
+# tree pinned on both sides. No SQL or migration executor change is permitted.
+COMMUNITY_FEED_BEFORE = '194bbd2988a622265aaf06650549691743d23c7b'
+COMMUNITY_FEED_REVIEWED = '18523cadb16aaf70504317e6e01375b59618e00f'
 COMMUNITIES_TABLES = CALLS_TABLES + CALLS_NEW_TABLES
 COMMUNITIES_NEW_TABLES = ('public_profiles', 'communities', 'community_follows',
     'community_moderators', 'community_sanctions', 'community_reports',
@@ -249,6 +253,22 @@ def database_files(root):
     return {str(p.relative_to(directory)): digest(p) for p in directory.rglob('*') if p.is_file()}
 
 
+def community_feed_projection_reviewed(candidate, live):
+    """Accept only the exact reviewed feed reads; retain every migration guard."""
+    import deploy_blocks45 as backups
+    before, after = database_files(live), database_files(candidate)
+    changed = {name for name in set(before) | set(after) if before.get(name) != after.get(name)}
+    if changed != {'communities.ts', 'community-discovery.ts'}:
+        return False
+    prefix = 'src/server/database/'
+    def projection(revision):
+        return {name[len(prefix):]: hashlib.sha256(value).hexdigest()
+                for name, value in backups.git_export(revision).items()
+                if name.startswith(prefix)}
+    return (before == projection(COMMUNITY_FEED_BEFORE)
+            and after == projection(COMMUNITY_FEED_REVIEWED))
+
+
 def compatibility(candidate, live):
     daily = digest(live / 'package-lock.json') == runtime.BEFORE_LOCK and digest(candidate / 'package-lock.json') == runtime.REVIEWED_LOCK
     if daily:
@@ -261,7 +281,7 @@ def compatibility(candidate, live):
             continue
         if before.is_dir() and after.is_dir():
             old, new = database_files(live), database_files(candidate)
-            if old != new:
+            if old != new and not community_feed_projection_reviewed(candidate, live):
                 database_review(candidate, live)
         elif not before.is_file() or not after.is_file():
             raise RuntimeError('Runtime dependency/Node change requires separate review.')
@@ -803,7 +823,8 @@ def activate(config, work):
     preservation(config['baseline'])
     if own_state() != before:
         raise RuntimeError('Own configuration/database service changed.')
-    if database_files(candidate) != database_files(DATA / 'release'):
+    if (database_files(candidate) != database_files(DATA / 'release')
+            and not community_feed_projection_reviewed(candidate, DATA / 'release')):
         # Any unreviewed database change was rejected by prepare()/compatibility().
         if len(list((candidate / 'src/server/database/migrations').glob('*.sql'))) == 43:
             return activate_communities(config, work, candidate, before)

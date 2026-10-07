@@ -844,6 +844,62 @@ class RepresentativesDeploymentTests(AttachmentDeploymentTests):
         self.assertEqual(len(set(remote.REPRESENTATIVES_NEW_TABLES)),3)
 
 
+class CommunityFeedCodeTests(unittest.TestCase):
+    def setUp(self):
+        self.temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temporary.cleanup)
+        self.root = Path(self.temporary.name)
+        self.live, self.candidate = self.root / 'release', self.root / 'candidate'
+        for path in [self.live, self.candidate]:
+            DeploymentTests().runtime(path)
+            (path / 'src/server/database/communities.ts').write_text('existing community reader')
+            (path / 'src/server/database/community-discovery.ts').write_text('existing feed reader')
+        (self.candidate / 'src/server/database/communities.ts').write_text('reviewed public photo references')
+        (self.candidate / 'src/server/database/community-discovery.ts').write_text('reviewed bounded photo batch')
+        self.exports = {
+            remote.COMMUNITY_FEED_BEFORE: self.export(self.live),
+            remote.COMMUNITY_FEED_REVIEWED: self.export(self.candidate),
+        }
+
+    def export(self, path):
+        return {str(p.relative_to(path)): p.read_bytes() for p in path.rglob('*') if p.is_file()}
+
+    def test_exact_read_projection_uses_code_exchange_without_migration(self):
+        work = self.root / 'work'; work.mkdir()
+        archive = work / 'build.tar.gz'; archive.write_bytes(b'synthetic archive')
+        config = dict(manifest(), archive_sha256=remote.digest(archive), baseline={})
+        with (patch.object(backups, 'git_export', side_effect=lambda sha: self.exports[sha]),
+              patch.object(remote, 'run', return_value=b'v24.14.0'),
+              patch.object(remote, 'database_review') as migration_review):
+            remote.compatibility(self.candidate, self.live)
+            migration_review.assert_not_called()
+            with (patch.object(remote, 'DATA', self.root),
+                  patch.object(remote, 'preflight', return_value={}),
+                  patch.object(remote, 'prepare', return_value=self.candidate),
+                  patch.object(remote, 'preservation'), patch.object(remote, 'own_state', return_value={}),
+                  patch.object(remote, 'wait_ready'), patch.object(remote, 'prune_completed'),
+                  patch.object(remote, 'exchange', side_effect=lambda c,p,verify: verify()) as exchange,
+                  patch.object(remote, 'activate_communities') as migrate):
+                self.assertEqual(remote.activate(config, work)['status'], 'published')
+                exchange.assert_called_once(); migrate.assert_not_called()
+
+    def test_read_projection_pin_rejects_unreviewed_code_sql_and_executor(self):
+        for relative in ['communities.ts', 'community-discovery.ts', 'index.ts', 'migrations/001.sql']:
+            with self.subTest(path=relative):
+                path = self.candidate / 'src/server/database' / relative
+                original = path.read_bytes(); path.write_text('unreviewed change')
+                try:
+                    with (patch.object(backups, 'git_export', side_effect=lambda sha: self.exports[sha]),
+                          self.assertRaises(RuntimeError)):
+                        remote.compatibility(self.candidate, self.live)
+                finally:
+                    path.write_bytes(original)
+        (self.live / 'src/server/database/index.ts').write_text('different predecessor')
+        with (patch.object(backups, 'git_export', side_effect=lambda sha: self.exports[sha]),
+              self.assertRaises(RuntimeError)):
+            remote.compatibility(self.candidate, self.live)
+
+
 class CallsDeploymentTests(AttachmentDeploymentTests):
     count = 27
     previous_count = 25
@@ -955,7 +1011,7 @@ class CommunitiesDeploymentTests(AttachmentDeploymentTests):
         with tempfile.TemporaryDirectory() as directory:
             work = Path(directory); candidate = work/'candidate'; self.migrations(candidate)
             (work/'build.tar.gz').write_bytes(b'fixture')
-            with patch.object(remote, 'preflight', return_value={}), patch.object(remote, 'prepare', return_value=candidate), patch.object(remote, 'preservation'), patch.object(remote, 'own_state', return_value={}), patch.object(remote, 'database_files', side_effect=[{'new':'hash'},{'old':'hash'}]), patch.object(remote, 'activate_communities', return_value={'published':True}) as activate, patch.object(remote, 'activate_attachments') as wrong:
+            with patch.object(remote, 'preflight', return_value={}), patch.object(remote, 'prepare', return_value=candidate), patch.object(remote, 'preservation'), patch.object(remote, 'own_state', return_value={}), patch.object(remote, 'database_files', side_effect=lambda path: {'new':'hash'} if path == candidate else {'old':'hash'}), patch.object(remote, 'activate_communities', return_value={'published':True}) as activate, patch.object(remote, 'activate_attachments') as wrong:
                 result = remote.activate({'archive_sha256':remote.digest(work/'build.tar.gz'),'baseline':{}}, work)
             self.assertEqual(result, {'published':True})
             activate.assert_called_once(); wrong.assert_not_called()

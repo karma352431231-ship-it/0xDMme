@@ -1,5 +1,26 @@
 # 0xDMme — Git e envio à VPS
 
+## Revisão visual de comunidades — solicitada em 07/10/2026
+
+A atualização da UI reutiliza `npm run deploy:staging`, com build no Mac,
+checkout limpo/enviado, CI integral do commit exato, preservação e retorno
+da release própria. Dependências, Node, SQL, executor de migrações e serviços
+compartilhados permanecem iguais. A galeria de calibração é independente;
+conferir os processos e IDs/hashes dos casos antes/depois sem reiniciá-la.
+
+O executor anterior tratava toda alteração em `src/server/database` como
+transição de schema. A revisão estreita de código permite somente a árvore
+exata de banco de `194bbd2` para `18523ca`: apenas `communities.ts` e
+`community-discovery.ts` mudam, para projetar fotos públicas aprovadas em lote.
+Os hashes de todos os demais arquivos, incluindo SQL e executor, precisam
+coincidir com ambos os commits fixados. Qualquer outro conjunto ou fonte
+continua sujeito à revisão de migração existente; esta exceção não autoriza
+novos schemas nem dependências. A ativação usa a troca comum de código com
+retorno, sem executar a transição histórica 027→043.
+
+**Ponto importante:** fotos e mídia ainda pendentes não são liberadas pela UI.
+O detector aceito e a calibração mantêm o estado já documentado.
+
 ## Ativação dos fluxos de comunidades — solicitada em 07/10/2026
 
 Depois de informado de que os novos commits ainda não estavam ativos e de que
