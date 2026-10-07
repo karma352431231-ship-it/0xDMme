@@ -24,8 +24,19 @@ export {
   readMediaShape,
   validateMediaSource,
 } from './normalize.ts';
-export { readMediaRuntime, verifyMediaBudget } from './process.ts';
+export {
+  readMediaRuntime,
+  verifyMediaBudget,
+  mediaProcess,
+} from './process.ts';
 export type { MediaRuntime } from './process.ts';
+export { isolatedMediaProcess } from './isolated.ts';
+export type { MediaProcessRequest } from './isolated.ts';
+export {
+  mediaCommandPaths,
+  probeCommand,
+  preparationCommand,
+} from './commands.ts';
 
 export class CommunityMediaService {
   private readonly store: CommunityMediaStore;
@@ -43,15 +54,15 @@ export class CommunityMediaService {
     environment: Readonly<Record<string, string | undefined>>;
   }) {
     this.store = options.store;
-    this.files = new CommunityMediaFiles(options.directory);
-    this.normalizer = new CommunityMediaNormalizer(
-      readMediaRuntime(options.environment),
-      this.files,
-    );
+    const runtime = readMediaRuntime(options.environment);
+    this.files = new CommunityMediaFiles(options.directory, {
+      sharedProcessing: Boolean(runtime?.socket),
+    });
+    this.normalizer = new CommunityMediaNormalizer(runtime, this.files);
   }
   async initialize(): Promise<void> {
-    await this.normalizer.initialize();
     await this.files.initialize();
+    await this.normalizer.initialize();
     await this.store.resumeInterrupted();
     await this.clean();
   }

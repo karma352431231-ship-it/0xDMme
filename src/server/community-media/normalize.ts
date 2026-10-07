@@ -15,6 +15,7 @@ import type {
 import { CommunityMediaFiles } from './files.ts';
 import { mediaProcess, verifyMediaBudget } from './process.ts';
 import type { MediaRuntime } from './process.ts';
+import { probeCommand, preparationCommand } from './commands.ts';
 
 export interface MediaShape {
   codec: string;
@@ -114,22 +115,7 @@ async function probe(
     binary: 'ffprobe',
     signal,
     maximumBytes: 100_000_000,
-    args: [
-      '-v',
-      'error',
-      '-protocol_whitelist',
-      'file,pipe',
-      '-format_whitelist',
-      'mov,matroska,webm,gif,png_pipe,jpeg_pipe,webp_pipe',
-      '-threads',
-      '4',
-      '-count_frames',
-      '-show_entries',
-      'format=format_name,duration:stream=codec_name,codec_type,width,height,duration,avg_frame_rate,nb_read_frames,nb_frames',
-      '-of',
-      'json',
-      path,
-    ],
+    args: probeCommand(path),
   });
   return readMediaShape(JSON.parse(output) as unknown);
 }
@@ -158,60 +144,20 @@ export class CommunityMediaNormalizer {
     validateMediaSource(source, input);
     await this.files.resetOutput(source.id);
     const directory = await this.files.directory(source.id);
-    const base = [
-      '-hide_banner',
-      '-nostdin',
-      '-v',
-      'error',
-      '-xerror',
-      '-err_detect',
-      'explode',
-      '-n',
-      '-filter_threads',
-      '4',
-      '-filter_complex_threads',
-      '4',
-      '-max_alloc',
-      '268435456',
-      '-protocol_whitelist',
-      'file,pipe',
-      '-format_whitelist',
-      'mov,matroska,webm,gif,png_pipe,jpeg_pipe,webp_pipe',
-      '-threads',
-      '4',
-      '-i',
-      path,
-    ];
     const photoType = await this.prepareMain({
       source,
-      input,
-      base,
+      path,
       directory,
       signal,
     });
-    await this.run(
-      [
-        ...base,
-        '-map',
-        '0:v:0',
-        '-an',
-        '-vf',
-        'scale=144:144:force_original_aspect_ratio=decrease',
-        '-frames:v',
-        '1',
-        '-c:v',
-        'png',
-        '-threads',
-        '1',
-        '-map_metadata',
-        '-1',
-        '-f',
-        'image2',
-        resolve(directory, 'thumbnail'),
-      ],
+    await mediaProcess(this.runtime, {
+      ...preparationCommand({
+        kind: 'thumbnail',
+        source: path,
+        output: resolve(directory, 'thumbnail'),
+      }),
       signal,
-      96_000,
-    );
+    });
     const output =
       source.kind === 'photo'
         ? input
@@ -241,12 +187,12 @@ export class CommunityMediaNormalizer {
   }
   private async prepareMain(request: {
     source: CommunityMediaSource;
-    input: MediaShape;
-    base: string[];
+    path: string;
     directory: string;
     signal: AbortSignal;
   }): Promise<string | null> {
-    const { source, base, directory, signal } = request;
+    if (!this.runtime) throw new AccountError(503, 'Processador indisponível.');
+    const { source, path, directory, signal } = request;
     if (source.kind === 'photo') {
       const bytes = await this.files.read(source.id, 'source', 3_000_000),
         shape = imageShape(bytes, 4_194_304);
@@ -255,76 +201,21 @@ export class CommunityMediaNormalizer {
           422,
           'Prepare a foto para remover seus metadados.',
         );
-      await this.run(
-        [...base, '-map', '0:v:0', '-an', '-f', 'null', '-'],
+      await mediaProcess(this.runtime, {
+        ...preparationCommand({ kind: 'photo', source: path, output: '-' }),
         signal,
-        3_000_000,
-      );
+      });
       await this.files.copySource(source.id);
       return shape.type;
     }
-    if (source.kind === 'gif') {
-      await this.run(
-        [
-          ...base,
-          '-filter_complex',
-          '[0:v]fps=20,split[a][b];[a]palettegen=stats_mode=single:reserve_transparent=1[p];[b][p]paletteuse=new=1:dither=none',
-          '-an',
-          '-map_metadata',
-          '-1',
-          '-loop',
-          '0',
-          '-f',
-          'gif',
-          resolve(directory, 'result'),
-        ],
-        signal,
-        10_000_000,
-      );
-      return null;
-    }
-    const scale =
-      "scale=w='if(gte(iw,ih),min(1280,iw),min(720,iw))':h='if(gte(iw,ih),min(720,ih),min(1280,ih))':force_original_aspect_ratio=decrease:force_divisible_by=2";
-    await this.run(
-      [
-        ...base,
-        '-map',
-        '0:v:0',
-        '-map',
-        '0:a:0?',
-        '-vf',
-        `fps=30,${scale}`,
-        '-c:v',
-        'libx264',
-        '-threads',
-        '4',
-        '-preset',
-        'veryfast',
-        '-crf',
-        '23',
-        '-maxrate',
-        '2800k',
-        '-bufsize',
-        '5600k',
-        '-pix_fmt',
-        'yuv420p',
-        '-c:a',
-        'aac',
-        '-b:a',
-        '128k',
-        '-map_metadata',
-        '-1',
-        '-map_chapters',
-        '-1',
-        '-movflags',
-        '+faststart',
-        '-f',
-        'mp4',
-        resolve(directory, 'result'),
-      ],
+    await mediaProcess(this.runtime, {
+      ...preparationCommand({
+        kind: source.kind,
+        source: path,
+        output: resolve(directory, 'result'),
+      }),
       signal,
-      25_000_000,
-    );
+    });
     return null;
   }
   private validateOutput(
@@ -342,23 +233,5 @@ export class CommunityMediaNormalizer {
         Math.min(output.width, output.height) > 720)
     )
       throw new AccountError(422, 'Resultado de vídeo inválido.');
-  }
-  private async run(
-    args: string[],
-    signal: AbortSignal,
-    maximumBytes: number,
-  ): Promise<void> {
-    if (!this.runtime) throw new AccountError(503, 'Processador indisponível.');
-    await mediaProcess(this.runtime, {
-      binary: 'ffmpeg',
-      args: [
-        ...args.slice(0, -1),
-        '-fs',
-        String(maximumBytes + 1),
-        args.at(-1)!,
-      ],
-      signal,
-      maximumBytes,
-    });
   }
 }

@@ -8,6 +8,7 @@ import {
   unlink,
   rmdir,
   copyFile,
+  chmod,
 } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { createHash } from 'node:crypto';
@@ -18,13 +19,16 @@ import type { CommunityMediaSource } from '../../shared/community-media/index.ts
 /** Dedicated private namespaces. No public/static route points at this directory. */
 export class CommunityMediaFiles {
   readonly root: string;
-  constructor(directory: string) {
+  private readonly sharedProcessing: boolean;
+  constructor(directory: string, options: { sharedProcessing?: boolean } = {}) {
     this.root = resolve(directory, 'community-media');
+    this.sharedProcessing = options.sharedProcessing === true;
   }
   async initialize(): Promise<void> {
     await mkdir(this.root, { recursive: true, mode: 0o700 });
     if ((await realpath(this.root)) !== this.root)
       throw new Error('Diretório de mídia irregular.');
+    if (this.sharedProcessing) await chmod(this.root, 0o2770);
     await this.sync(resolve(this.root, '..'));
   }
   async directory(id: string): Promise<string> {
@@ -39,6 +43,7 @@ export class CommunityMediaFiles {
     const stat = await lstat(path);
     if (!stat.isDirectory() || (await realpath(path)) !== path)
       throw new Error('Diretório de mídia irregular.');
+    if (this.sharedProcessing) await chmod(path, 0o2770);
     return path;
   }
   async part(id: string, index: number, bytes: Uint8Array): Promise<void> {
@@ -101,6 +106,7 @@ export class CommunityMediaFiles {
         hash.update(bytes);
         await file.writeFile(bytes);
       }
+      if (this.sharedProcessing) await file.chmod(0o640);
       await file.sync();
     } finally {
       await file.close();

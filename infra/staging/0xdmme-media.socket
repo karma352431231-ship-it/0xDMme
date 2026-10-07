@@ -1,0 +1,13 @@
+[Unit]
+Description=0xDMme restricted public media processor socket
+
+[Socket]
+ListenStream=/run/0xdmme-media.sock
+SocketUser=root
+SocketGroup=xdmme-test
+SocketMode=0660
+Backlog=4
+RemoveOnStop=yes
+
+[Install]
+WantedBy=sockets.target

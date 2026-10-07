@@ -2,16 +2,31 @@ import { spawn } from 'node:child_process';
 import { isAbsolute, resolve, dirname } from 'node:path';
 import { readFile } from 'node:fs/promises';
 import { AccountError } from '../../shared/account/index.ts';
+import { isolatedMediaProcess } from './isolated.ts';
 
 export interface MediaRuntime {
   ffmpeg: string;
   ffprobe: string;
   limit: string | null;
+  socket?: string;
 }
 export async function verifyMediaBudget(
   runtime: MediaRuntime | null,
 ): Promise<void> {
+  if (runtime?.socket) {
+    const output = await isolatedMediaProcess(
+      runtime.socket,
+      null,
+      AbortSignal.timeout(10_000),
+    );
+    if (output !== '0xdmme-media-worker-v1')
+      throw new Error('Worker de mídia divergente.');
+    return;
+  }
   if (!runtime || process.platform !== 'linux') return;
+  await verifyLocalBudget();
+}
+async function verifyLocalBudget(): Promise<void> {
   const entry = (await readFile('/proc/self/cgroup', 'utf8'))
     .split('\n')
     .find((line) => line.startsWith('0::'));
@@ -52,15 +67,22 @@ export function readMediaRuntime(
   env: Readonly<Record<string, string | undefined>>,
 ): MediaRuntime | null {
   const ffmpeg = env['HASH_TALK_MEDIA_FFMPEG'],
-    ffprobe = env['HASH_TALK_MEDIA_FFPROBE'];
-  if (!ffmpeg && !ffprobe) return null;
-  if (!ffmpeg || !ffprobe || !isAbsolute(ffmpeg) || !isAbsolute(ffprobe))
+    ffprobe = env['HASH_TALK_MEDIA_FFPROBE'],
+    socket = env['HASH_TALK_MEDIA_SOCKET'];
+  if (!ffmpeg && !ffprobe && !socket) return null;
+  if (!absoluteBinary(ffmpeg) || !absoluteBinary(ffprobe))
     throw new Error('Configure executáveis absolutos do processador.');
+  if (socket && !isAbsolute(socket))
+    throw new Error('Configure socket absoluto do processador.');
   return {
     ffmpeg,
     ffprobe,
     limit: process.platform === 'linux' ? '/usr/bin/prlimit' : null,
+    ...(socket ? { socket } : {}),
   };
+}
+function absoluteBinary(value: string | undefined): value is string {
+  return Boolean(value && isAbsolute(value));
 }
 /** No shell; file/pipe protocols only. Linux address space is bounded at 8 GiB.
  * Deployment must additionally isolate the worker from the web service and other projects. */
@@ -73,6 +95,8 @@ export function mediaProcess(
     maximumBytes: number;
   },
 ): Promise<string> {
+  if (runtime.socket)
+    return isolatedMediaProcess(runtime.socket, request, request.signal);
   return new Promise((resolve, reject) => {
     const binary = runtime[request.binary];
     const args = runtime.limit

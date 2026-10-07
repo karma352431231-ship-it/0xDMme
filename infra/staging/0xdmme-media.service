@@ -1,0 +1,53 @@
+[Unit]
+Description=0xDMme isolated public media processor
+Requires=var-lib-0xdmme-data.mount 0xdmme-media.socket
+After=var-lib-0xdmme-data.mount 0xdmme-media.socket
+StartLimitIntervalSec=300
+StartLimitBurst=3
+
+[Service]
+Type=simple
+DynamicUser=yes
+User=0xdmme-media
+SupplementaryGroups=xdmme-test
+Slice=0xdmme-media.slice
+Environment=HASH_TALK_MEDIA_FFMPEG=/opt/0xdmme-media/ffmpeg
+Environment=HASH_TALK_MEDIA_FFPROBE=/opt/0xdmme-media/ffprobe
+Environment=HASH_TALK_MEDIA_ROOT=/var/lib/0xdmme/data/objects/community-media
+Environment=NODE_OPTIONS=--max-old-space-size=128
+WorkingDirectory=/opt/0xdmme-media
+ExecStart=/usr/bin/node worker.mjs
+Sockets=0xdmme-media.socket
+Restart=on-failure
+RestartSec=10
+TimeoutStopSec=15
+CPUQuota=400%
+MemoryMax=8G
+MemorySwapMax=0
+TasksMax=128
+OOMScoreAdjust=500
+UMask=0077
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+PrivateTmp=yes
+PrivateDevices=yes
+PrivateNetwork=yes
+ProtectProc=invisible
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+RestrictRealtime=yes
+LockPersonality=yes
+RestrictAddressFamilies=AF_UNIX
+IPAddressDeny=any
+TemporaryFileSystem=/opt:ro /srv:ro /var:ro /etc:ro /run:ro
+TemporaryFileSystem=/tmp:rw,nosuid,nodev,noexec,size=16M
+InaccessiblePaths=-/usr/local -/usr/src -/mnt -/media
+BindReadOnlyPaths=/var/lib/0xdmme/data/media-runtime/current:/opt/0xdmme-media /etc/passwd /etc/group /etc/localtime
+BindPaths=/var/lib/0xdmme/data/objects/community-media
+StandardOutput=null
+StandardError=null

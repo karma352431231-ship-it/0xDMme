@@ -238,4 +238,13 @@ const manifest = [...files.keys()].map((name) => {
 });
 await writeFile(new URL('assets.json', directory), JSON.stringify(manifest));
 await pruneGeneratedAssets();
+await build({
+  entryPoints: ['src/server/media-worker/main.ts'],
+  bundle: true,
+  platform: 'node',
+  format: 'esm',
+  target: 'node24',
+  outfile: 'dist/media-worker/worker.mjs',
+  sourcemap: false,
+});
 process.stdout.write(`Build web local: ${files.size} assets públicos.\n`);
