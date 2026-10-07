@@ -765,8 +765,11 @@ export function startAccount(options: {
     setSession(null);
     status = 'Encerrando sessão…';
     render();
-    if (options.mobileOpening) await forgetLoginOpening();
-    if (current) await api('logout', { input: {}, csrf: current.csrf });
+    try {
+      if (options.mobileOpening) await forgetLoginOpening();
+    } finally {
+      if (current) await api('logout', { input: {}, csrf: current.csrf });
+    }
     status = 'Sessão encerrada.';
   }
   function observeProvider(instance: WalletConnection): void {

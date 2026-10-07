@@ -257,8 +257,12 @@ export function createWalletReturn(options: {
     pending = null;
     link = null;
     window.clearTimeout(timer);
-    await options.forgetOpening?.();
-    await options.api('handoff-cancel', { input: {} });
+    try {
+      await options.forgetOpening?.();
+    } finally {
+      // Local storage failure cannot keep a cancelled server capability alive.
+      await options.api('handoff-cancel', { input: {} });
+    }
     options.changed();
   }
   const focus = () => {

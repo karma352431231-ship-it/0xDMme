@@ -217,6 +217,27 @@ await test('cancelar enquanto o pedido local é recuperado não confirma nem cri
   controller.close();
 });
 
+await test('falha do armazenamento local não impede cancelar o pedido no servidor', async () => {
+  const { api } = scope();
+  let cancelled = false;
+  const controller = api.createWalletReturn({
+    deviceId: randomUUID,
+    changed: () => {},
+    message: () => {},
+    authenticated: () => Promise.resolve(),
+    forgetOpening: () => Promise.reject(new Error('Storage failed.')),
+    api: (path) => {
+      if (path === 'handoff-cancel') cancelled = true;
+      return Promise.resolve(handoffResponse());
+    },
+  });
+  await controller.start('MetaMask', 'evm');
+  await assert.rejects(controller.cancel(), /Storage failed/u);
+  assert.equal(cancelled, true);
+  assert.equal(controller.state(), null);
+  controller.close();
+});
+
 await test('seleção abre a wallet uma vez após pedido válido; consulta não abre novamente', async () => {
   const { controller, opened } = launchController(
     Promise.resolve(handoffResponse()),

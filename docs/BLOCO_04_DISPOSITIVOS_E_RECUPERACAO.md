@@ -46,6 +46,8 @@ navegador só conclui com o cookie original, receptor exato, sessão e CSRF
 vinculados pelo servidor. Não há recuperação em outro navegador nem assinatura
 privada persistida. A leitura não renova o prazo; cancelamento e expiração limpam
 o registro. Entradas já emitidas na aba conservam compatibilidade temporária.
+Falha na limpeza local não impede cancelar o pedido ou encerrar a sessão no
+servidor; continua visível e não é convertida em sucesso local.
 Restaurar uma sessão existente também consulta o pedido público, e a tela não
 oculta sua confirmação por já haver conta conectada. O endereço ainda precisa
 ser confirmado explicitamente; enquanto houver sessão, exigir a mesma conta.
