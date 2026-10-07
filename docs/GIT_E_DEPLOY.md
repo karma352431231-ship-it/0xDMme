@@ -6,8 +6,9 @@ Depois de informado de que os novos commits ainda não estavam ativos e de que
 a atualização exigia revisão/aprovação das migrações, o proprietário pediu
 explicitamente ativar os demais fluxos enquanto a calibração continua.
 Reutilizar `npm run deploy:staging`, com revisão exata do predecessor `44af35f`
-e das fontes de aplicação de `850c3fd`, sem modificar runtime, dependências,
-Node, configuração, Nginx ou serviços compartilhados.
+e das fontes de aplicação de `04b1bbf`. Dependências npm, Node, Nginx e
+serviços compartilhados permanecem iguais; o runtime e o socket públicos
+tiveram autorização adicional específica descrita ao final deste documento.
 
 A conferência somente leitura confirmou schema 001–027, 50 tabelas de dados
 preexistentes, mais o registro de migrações, preservação e saúde. Nenhuma tabela
@@ -32,9 +33,9 @@ Acesso, fingerprints, inventário e evidências ficam exclusivamente em `.local/
 **Ponto importante:** esta ativação permite testar identidade pública,
 comunidades, posts/replies em texto, votos, feeds, gestão e DMs E2EE pelo `@`.
 Não aceita o detector experimental: inventário aceito vazio e `runner: null`
-permanecem. O processador de mídia não está configurado na VPS; preparar mídia
-pública falha explicitamente, e avatares/fotos aguardam análise. Sua instalação
-isolada e o aceite do detector continuam pendentes, sem relaxar a política.
+permanecem. O processador isolado foi autorizado para habilitar envio/preparação;
+avatares/fotos e mídia pública continuam aguardando análise aceita. Sua instalação
+é uma etapa operacional própria, sem relaxar a política de conteúdo.
 Esta seção registra a autorização/revisão; somente recibo e conferência da
 execução real confirmam publicação.
 
