@@ -29,6 +29,8 @@ Runtime revisado: BtbN `autobuild-2026-10-05-13-07`, FFmpeg `n9.0.2-22-g46d8f462
 
 A preparação operacional guarda baselines, arquivos, hashes, licenças, plano de retorno e evidências somente em `.local/`. Não instala pacotes de sistema. A atualização do aplicativo continua exclusivamente por `npm run deploy:staging` a partir de checkout limpo, enviado ao Git e com CI exata aprovada. Antes de ativar, conferir espaço para runtime e backups, configuração efetiva de systemd, handshake e mídia sintética real, preservação de serviços/configurações existentes e da galeria. Em falha, remover somente as adições desta instalação; nenhum dado de usuário é descartado.
 
+Ativado em 07/10/2026 com a release `194bbd2`; ver [recibo e validação da publicação](GIT_E_DEPLOY.md#ativação-dos-fluxos-de-comunidades--solicitada-em-07102026). O ensaio pelo socket real aprovou uma foto, quatro vídeos de 60 s/1080p/60 FPS com áudio e três GIFs de 20 s/20 FPS. Preparação, validação, miniatura e hashes passaram: foto 0,658 s, vídeos 23,835–24,300 s e GIFs 2,873–3,051 s. Esses tempos não incluem transferência de rede nem moderação. O teste usou mídia sintética, agregou gerador/worker sob quatro CPUs e 8 GiB e removeu seus arquivos. A calibração com imagens reais permanece separada, com os 17 casos preservados; publicação pública continua aguardando detector aceito.
+
 ## Formatos e validação
 
 - Fotos: PNG/JPEG/WebP preparados no navegador pelo worker existente, até 3 MB e 2.048 px; resultado PNG/JPEG sem metadados. O servidor confere estrutura e decodifica o arquivo completo.

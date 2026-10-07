@@ -45,8 +45,26 @@ Não aceita o detector experimental: inventário aceito vazio e `runner: null`
 permanecem. O processador isolado foi autorizado para habilitar envio/preparação;
 avatares/fotos e mídia pública continuam aguardando análise aceita. Sua instalação
 é uma etapa operacional própria, sem relaxar a política de conteúdo.
-Esta seção registra a autorização/revisão; somente recibo e conferência da
-execução real confirmam publicação.
+
+**Resultado:** release `194bbd2` publicada pelo mesmo comando, com
+[CI integral do commit exato aprovada](https://github.com/karma352431231-ship-it/0xDMme/actions/runs/37584837010).
+Build preparado no Mac; somente o web próprio foi parado/reaberto na transição.
+O recibo confirmou publicação, migrações, build público, preservação e backup
+privado retido. A auditoria independente confirmou 43 migrações e 77 tabelas,
+checksums 001–027 e as 50 tabelas anteriores idênticos, objeto existente e
+processo do banco preservados. Serviços/configurações compartilhados não
+mudaram. Galeria e timer mantêm seus processos; os 17 casos conservaram IDs e
+hashes de imagem. O detector aceito continua ausente.
+
+O worker próprio passou no handshake, execução dos binários e conferência do
+namespace/limites efetivos; a proteção de execução do volume permanece. O
+ensaio real aprovou uma foto, quatro vídeos de 60 s/1080p/60 FPS e três GIFs de
+20 s/20 FPS, com hashes, miniaturas e contrato do resultado conferidos. Todos
+os arquivos sintéticos desse ensaio foram removidos, incluindo dois arquivos
+identificados da tentativa anterior. O executor passou em 73 testes locais;
+a reprodução pós-preparação validou a correção dos prazos. Recibos, backups,
+fontes das tentativas interrompidas e provas operacionais ficam em `.local/`
+ou na área privada própria, sem apagar dados de usuários.
 
 ## Preparação do corte 10 — solicitada em 06/10/2026
 
