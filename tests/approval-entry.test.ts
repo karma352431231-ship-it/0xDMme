@@ -137,29 +137,34 @@ await test('entrada valida campos, limpa URL, limita cookie, preserva capacidade
   };
   const query = `ticket=${'a'.repeat(64)}&wallet=Phantom&ecosystem=solana`;
   const first = await get(`/wallet-entry?${query}`, navigation);
-  for (const wallet of ['MetaMask', 'Backpack']) {
-    const validSolana = await get(
-      `/wallet-entry?${query.replace('Phantom', wallet)}`,
-      navigation,
-    );
-    assert.equal(validSolana.status, 303);
-    assert.equal(
-      validSolana.headers.location,
-      wallet === 'Backpack' ? '/wallet-approval' : '/wallet.html#configuracoes',
-    );
-    if (wallet === 'Backpack') {
-      const delivered = await get('/wallet-approval', {
-        ...navigation,
-        cookie: responseCookie(validSolana.headers).split(';')[0] ?? '',
-      });
-      assert.equal(delivered.status, 200);
-      assert.ok(delivered.body.includes('a'.repeat(64)));
-      assert.equal(delivered.headers['set-cookie'], undefined);
+  await checkSolanaWallets();
+  async function checkSolanaWallets() {
+    for (const wallet of ['MetaMask', 'Backpack']) {
+      const validSolana = await get(
+        `/wallet-entry?${query.replace('Phantom', wallet)}`,
+        navigation,
+      );
+      assert.equal(validSolana.status, 303);
+      assert.equal(
+        validSolana.headers.location,
+        wallet === 'Backpack'
+          ? '/wallet-approval'
+          : '/wallet.html#configuracoes',
+      );
+      if (wallet === 'Backpack') {
+        const delivered = await get('/wallet-approval', {
+          ...navigation,
+          cookie: responseCookie(validSolana.headers).split(';')[0] ?? '',
+        });
+        assert.equal(delivered.status, 200);
+        assert.ok(delivered.body.includes('a'.repeat(64)));
+        assert.equal(delivered.headers['set-cookie'], undefined);
+      }
+      assert.match(
+        responseCookie(validSolana.headers),
+        new RegExp(`\\.${wallet}\\.solana;`, 'u'),
+      );
     }
-    assert.match(
-      responseCookie(validSolana.headers),
-      new RegExp(`\\.${wallet}\\.solana;`, 'u'),
-    );
   }
   assert.equal(first.status, 303);
   assert.equal(first.body, '');
