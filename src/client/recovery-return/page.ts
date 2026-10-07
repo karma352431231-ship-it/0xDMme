@@ -90,7 +90,7 @@ async function prepare(): Promise<void> {
       await recoveryApi('submit', { ...entry, envelope });
       current();
       status.textContent =
-        'Resultado cifrado enviado. Volte ao navegador original e toque em Concluir recuperação. Esta página não cria uma sessão ou autoriza aparelhos.';
+        'Resultado cifrado enviado. Volte ao navegador original; a abertura da conta será concluída automaticamente. Esta página não cria uma sessão ou autoriza aparelhos.';
     };
     void send().catch(() => {
       if (token === generation)

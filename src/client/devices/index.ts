@@ -8,6 +8,10 @@ import { notifyMessageControls } from '../message-controls/index.ts';
 import { QrCamera, renderQr } from '../device-qr/index.ts';
 import { DeviceController } from './controller.ts';
 import type { VaultAuthority, VaultLocator } from '../vault-authority/index.ts';
+import {
+  acknowledgeLoginOpening,
+  readLoginOpening,
+} from '../wallet-opening/index.ts';
 
 export function startDevices(options: {
   changed: () => Promise<void>;
@@ -229,6 +233,15 @@ export function startDevices(options: {
     walletOpening: 'login' | 'restore' = 'restore',
   ): Promise<CryptoKey | null> {
     let lease = await controller.privateKey(session);
+    if (controller.authorized) await acknowledgeLoginOpening(session);
+    else {
+      const proof = await readLoginOpening(session);
+      if (proof) {
+        await controller.completeLoginOpening(proof);
+        await acknowledgeLoginOpening(session);
+        lease = await controller.privateKey(session);
+      }
+    }
     if (walletOpening === 'login' && needsWalletOpening(session)) {
       attempted = session.csrf;
       message = 'Confirme a abertura da conta na sua wallet.';
@@ -272,9 +285,22 @@ export function startDevices(options: {
       await options.changed();
     });
   });
-  window.addEventListener('focus', () => {
-    if (invitation || waiting || controller.walletPending) void poll();
-  });
+  function resume(): void {
+    if (
+      !controller.session ||
+      busy ||
+      document.visibilityState === 'hidden' ||
+      !navigator.onLine
+    )
+      return;
+    void run(async () => {
+      await controller.refresh();
+      if (controller.walletPending) await controller.finishWalletRecovery();
+      await options.changed();
+    });
+  }
+  window.addEventListener('focus', resume);
+  document.addEventListener('visibilitychange', resume);
   window.addEventListener('pagehide', () => {
     clearTimeout(timer);
     camera?.stop();
@@ -282,10 +308,7 @@ export function startDevices(options: {
     waiting = false;
     controller.clearTransient();
   });
-  window.addEventListener('pageshow', (event) => {
-    if (!event.persisted || !controller.session) return;
-    void run(options.changed);
-  });
+  window.addEventListener('pageshow', resume);
   return {
     withLocalVault: <T>(
       locator: VaultLocator,

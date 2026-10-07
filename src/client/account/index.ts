@@ -41,6 +41,15 @@ import type {
   PrivateProfile,
   ProfilePreferences,
 } from '../account-profile/index.ts';
+import {
+  prepareLoginOpening,
+  loginOpeningTicket,
+  rememberLoginOpening,
+  forgetLoginOpening,
+  signLoginOpening,
+} from '../wallet-opening/index.ts';
+import { openingRequest } from '../../shared/wallet-opening/index.ts';
+import type { OpeningRequest } from '../../shared/wallet-opening/index.ts';
 
 const template = `<article class="card account-card"><span class="eyebrow">CONTA POR WALLET</span><h2 data-account-title>Seu perfil no 0xDMme</h2>
 <p data-account-intro>Entre com sua wallet ou vincule este aparelho em Perfil → Aparelhos. Assinaturas de acesso não movimentam fundos.</p>
@@ -64,7 +73,7 @@ const template = `<article class="card account-card"><span class="eyebrow">CONTA
 <p data-wallet-purpose hidden>Assine apenas se você abriu este pedido no seu navegador. Ele conectará esse navegador à sua conta; recuse links recebidos de outras pessoas.</p>
 <div data-wallet-return hidden><a data-wallet-open referrerpolicy="no-referrer">Abrir wallet</a><p data-wallet-candidate></p><button data-wallet-confirm type="button" hidden>Confirmar este endereço neste navegador</button><button data-wallet-cancel type="button">Cancelar pedido</button></div>
 <p class="detail" data-wallet-manual hidden>Para voltar ao navegador original, use a tela de apps recentes do celular. O pedido só terá assinatura confirmada quando esta página informar isso.</p>
-<p data-account-status role="status">Verificando sessão…</p>
+<p data-account-status role="status">Verificando sessão…</p><button data-account-finish type="button" hidden>Concluir entrada na conta</button>
 <details data-wallet-diagnostics hidden open><summary>Diagnóstico do login</summary><p class="detail" data-wallet-diagnostic></p><p class="detail">Se falhar, envie esta linha. Ela não contém ticket, endereço ou assinatura.</p></details>
 <div data-profile hidden><div class="profile-identity"><button class="profile-avatar" data-profile-avatar type="button" aria-label="Alterar foto de perfil">#</button><div><strong data-profile-name></strong><p data-account-address class="account-address"></p><button data-profile-copy type="button">Copiar wallet</button></div></div>
 <form data-name-form><label>Nome mostrado nas solicitações de contato<input name="display-name" maxlength="80" autocomplete="nickname"></label><button class="primary" type="submit">Salvar nome</button></form>
@@ -112,7 +121,17 @@ function deviceId(): string {
   return id;
 }
 
+function mobileOpeningOptions(enabled?: true) {
+  if (!enabled) return {};
+  return {
+    prepareOpening: prepareLoginOpening,
+    openingTicket: loginOpeningTicket,
+    rememberOpening: rememberLoginOpening,
+    forgetOpening: forgetLoginOpening,
+  };
+}
 export function startAccount(options: {
+  mobileOpening?: true;
   changed: (session: AccountSession | null) => void;
   privacyChanged?: (preferences: ProfilePreferences) => Promise<void>;
   privateKey?: (
@@ -142,6 +161,7 @@ export function startAccount(options: {
   let incoming = readIncoming();
   const wallets = discoverWallets();
   let incomingSigned = false;
+  let approvalOpening: OpeningRequest | null = null;
   let session: AccountSession | null = null;
   let privateProfile: PrivateProfile | null = null;
   let key: CryptoKey | null = null;
@@ -176,6 +196,7 @@ export function startAccount(options: {
     api,
     deviceId,
     openWallet: launchMobileWallet,
+    ...mobileOpeningOptions(options.mobileOpening),
     changed: () => render(),
     message: (text) => {
       status = text;
@@ -474,7 +495,7 @@ export function startAccount(options: {
   }
   function approvalDescription(): string {
     return incoming
-      ? `${incoming.wallet} · ${incoming.ecosystem === 'solana' ? 'Solana' : 'EVM'}. Confirme somente o pedido que você iniciou. A wallet pode pedir conexão e assinatura; nenhuma transação ou acesso ao histórico será autorizado.`
+      ? `${incoming.wallet} · ${incoming.ecosystem === 'solana' ? 'Solana' : 'EVM'}. Confirme somente o pedido que você iniciou. A wallet pedirá assinaturas para entrar e abrir seus dados cifrados no navegador original. Não há transação ou autorização de tokens.`
       : (diagnostics.rejectionMessage() ??
           'Pedido ausente ou perdido. Volte à aba que iniciou o login e crie um novo pedido.');
   }
@@ -497,6 +518,7 @@ export function startAccount(options: {
     approvalDeadline = undefined;
     epoch++;
     incomingSigned = false;
+    approvalOpening = null;
     clearPrivate();
     removeProviderListeners?.();
     removeProviderListeners = undefined;
@@ -582,15 +604,21 @@ export function startAccount(options: {
     renderPicker();
     renderReturn();
     renderApprovalContext();
-    const panel = node('[data-profile]');
-    if (panel) panel.hidden = !session;
-    const privatePanel = node('[data-private-profile]');
-    if (privatePanel) privatePanel.hidden = !privateProfile;
+    renderAccountPanels();
     if (!session) {
       clearForm();
       return;
     }
     renderProfileForm(session);
+  }
+  function renderAccountPanels(): void {
+    const panel = node('[data-profile]');
+    if (panel) panel.hidden = !session;
+    const privatePanel = node('[data-private-profile]');
+    if (privatePanel) privatePanel.hidden = !privateProfile;
+    const finish = node('[data-account-finish]');
+    if (finish)
+      finish.hidden = !session || privateProfile !== null || approvalOnly;
   }
   function clearForm(): void {
     mounted?.querySelectorAll<HTMLInputElement>('input').forEach((input) => {
@@ -677,14 +705,25 @@ export function startAccount(options: {
     const approvalRequest = incoming;
     busy = true;
     render();
-    const timer = window.setTimeout(() => {
-      // Injected wallet prompts cannot be cancelled by the dapp. Invalidate
-      // their result and keep one operation until the provider settles.
-      epoch++;
-      status =
-        'A wallet não concluiu o pedido. Feche ou recuse a solicitação na wallet antes de tentar novamente.';
-      render();
-    }, 90_000);
+    const timer = window.setTimeout(
+      () => {
+        // Injected wallet prompts cannot be cancelled by the dapp. Invalidate
+        // their result and keep one operation until the provider settles.
+        epoch++;
+        status =
+          'A wallet não concluiu o pedido. Feche ou recuse a solicitação na wallet antes de tentar novamente.';
+        render();
+      },
+      incoming
+        ? Math.max(
+            0,
+            Math.min(
+              300_000,
+              (approvalDeadline ?? Date.now() + 300_000) - Date.now(),
+            ),
+          )
+        : 90_000,
+    );
     try {
       await work();
     } catch (error: unknown) {
@@ -718,6 +757,7 @@ export function startAccount(options: {
   }
   async function logout(): Promise<void> {
     const current = session;
+    if (options.mobileOpening) forgetLoginOpening();
     epoch++;
     removeProviderListeners?.();
     removeProviderListeners = undefined;
@@ -847,6 +887,10 @@ export function startAccount(options: {
       return;
     }
     checkIncoming(instance);
+    if (request && approvalOpening) {
+      await finishIncomingOpening(instance, request, epoch);
+      return;
+    }
     if (!incoming && walletReturn.state()) await walletReturn.cancel();
     status = `Confirme a conexão na ${instance.name}.`;
     render();
@@ -854,22 +898,28 @@ export function startAccount(options: {
     if (request) {
       approvalStep('assinatura-enviada');
       renderDiagnostics();
-      await api('handoff-sign', {
-        input: {
-          ticket: request.ticket,
-          id: proof.id,
-          signature: proof.signature,
-        },
-      });
-      pendingApproval.clear(request.ticket);
+      const signed = object(
+        await api('handoff-sign', {
+          input: {
+            ticket: request.ticket,
+            id: proof.id,
+            signature: proof.signature,
+          },
+        }),
+      );
       checkEpoch(proof.currentEpoch);
-      incomingSigned = true;
-      approvalStep('assinatura-confirmada');
-      status = `Assinatura confirmada. Feche a ${instance.name} e volte ao navegador onde iniciou o login para confirmar o endereço.`;
-      approvalStep('retorno-manual');
-      render();
+      approvalOpening =
+        signed['opening'] === undefined
+          ? null
+          : await openingRequest(signed['opening']);
+      await finishIncomingOpening(instance, request, proof.currentEpoch);
       return;
     }
+    await acceptLoginProof(proof);
+  }
+  async function acceptLoginProof(
+    proof: Awaited<ReturnType<typeof createLoginProof>>,
+  ): Promise<void> {
     const authenticated = accountSession(
       await api('login', {
         input: { id: proof.id, signature: proof.signature },
@@ -882,6 +932,30 @@ export function startAccount(options: {
     setSession(authenticated);
     status = 'Abrindo sua conta…';
     await loadPrivate(authenticated, 'login');
+  }
+  async function finishIncomingOpening(
+    instance: WalletConnection,
+    request: NonNullable<ReturnType<typeof incomingWalletRequest>>,
+    currentEpoch: number,
+  ): Promise<void> {
+    if (approvalOpening) {
+      status = 'Continue nesta wallet para abrir as chaves da sua conta.';
+      render();
+      const encrypted = await signLoginOpening({
+        request: approvalOpening,
+        wallet: instance,
+        ticket: request.ticket,
+        current: () => checkEpoch(currentEpoch),
+      });
+      await api('handoff-opening-submit', { input: encrypted });
+    }
+    checkEpoch(currentEpoch);
+    pendingApproval.clear(request.ticket);
+    incomingSigned = true;
+    approvalStep('assinatura-confirmada');
+    status = `Assinatura confirmada. Feche a ${instance.name} e volte ao navegador onde iniciou o login para confirmar o endereço.`;
+    approvalStep('retorno-manual');
+    render();
   }
   async function saveName(event: Event): Promise<void> {
     event.preventDefault();
@@ -1224,6 +1298,14 @@ export function startAccount(options: {
         void operation(logout);
       });
       bindProfileControls();
+      node('[data-account-finish]')?.addEventListener('click', () => {
+        forcePicker = true;
+        pickerOpen = true;
+        selectedWallet = null;
+        status =
+          'Escolha a wallet desta conta para concluir a entrada e abrir suas chaves.';
+        render();
+      });
       node('[data-profile-avatar]')?.addEventListener('click', () => {
         document.getElementById('account-avatar')?.click();
       });

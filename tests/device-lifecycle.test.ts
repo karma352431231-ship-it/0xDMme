@@ -12,9 +12,10 @@ await test('restauração não abre wallet; login abre somente sem chaves e pedi
   const records = new Map<string, string>();
   const replacements = {
     window,
-    document: { visibilityState: 'visible' },
+    document: Object.assign(new EventTarget(), { visibilityState: 'visible' }),
     localStorage: { getItem: () => 'MetaMask' },
     sessionStorage: {
+      getItem: (key: string) => records.get(key) ?? null,
       removeItem: (key: string) => {
         records.delete(key);
       },

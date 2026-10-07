@@ -84,6 +84,8 @@ const authored = [
   'src/tools/frontend-matrix-source.ts',
   'vendor/matrix-crypto-18.9.0/README.md',
   'src/client/account',
+  'src/client/wallet-opening',
+  'src/shared/wallet-opening',
   'src/client/account-profile',
   'src/client/contacts',
   'src/client/device-keys',

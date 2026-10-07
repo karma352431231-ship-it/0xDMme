@@ -60,6 +60,7 @@ import {
   walletRecoveryKey,
 } from '../wallet-recovery/index.ts';
 import { recoveryIdentity } from '../../shared/wallet-recovery/index.ts';
+import type { WalletRecovery } from '../../shared/wallet-recovery/index.ts';
 import {
   directRecovery,
   requestRecovery,
@@ -556,6 +557,50 @@ export class DeviceController {
         name: input.name || 'Meu aparelho',
       }),
     );
+  }
+  async completeLoginOpening(proof: {
+    config: WalletRecovery;
+    count: 1 | 2;
+    signatures: string[];
+  }): Promise<void> {
+    try {
+      await this.run(async (session) => {
+        await this.loadIdentity(session);
+        await this.synchronize(session);
+        recoveryIdentity(proof.config, session, location.origin);
+        const previous = this.current;
+        if (
+          proof.count !== (previous ? 1 : 2) ||
+          (previous &&
+            canonical(previous.root.wallet) !== canonical(proof.config))
+        )
+          throw new Error(
+            'A recuperação mudou durante a entrada. Inicie novamente.',
+          );
+        const generation = this.generation;
+        const plan: RecoveryPlan = {
+          mode: previous ? 'recover' : 'initialize',
+          config: proof.config,
+          name: 'Meu aparelho',
+          revoked: [],
+          revision: previous?.revision ?? 0,
+          head: previous ? await eventHash(previous) : null,
+        };
+        await this.completeWalletRecovery({
+          session,
+          plan,
+          signatures: proof.signatures,
+          legacy: '',
+          current: () => {
+            this.assertSession(session);
+            if (generation !== this.generation)
+              throw new Error('Entrada interrompida.');
+          },
+        });
+      });
+    } finally {
+      proof.signatures.fill('');
+    }
   }
   private async walletPlan(
     session: AccountSession,

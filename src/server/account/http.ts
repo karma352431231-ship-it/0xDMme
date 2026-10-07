@@ -362,12 +362,30 @@ export function createAccountHandler(options: {
       return;
     }
     if (request.url === '/api/account/handoff-sign') {
-      await options.service.signHandoff(
+      const signed = await options.service.signHandoff(
         input,
         readCookie(request, challengeName),
       );
+      const opening = await options.service.prepareOpening(
+        signed,
+        (accountId) =>
+          options.devices
+            ? options.devices.openingRecovery(accountId)
+            : Promise.reject(
+                new AccountError(503, 'Abertura de conta indisponível.'),
+              ),
+      );
       response.setHeader('Set-Cookie', cookie(challengeName, '', 0, secure));
-      send(response, 200, { status: 'signed', origin: options.origin });
+      send(response, 200, {
+        status: 'signed',
+        origin: options.origin,
+        ...(opening ? { opening } : {}),
+      });
+      return;
+    }
+    if (request.url === '/api/account/handoff-opening-submit') {
+      await options.service.opening.submit(input);
+      send(response, 200, { status: 'encrypted' });
       return;
     }
     if (request.url === '/api/account/handoff-cancel') {
@@ -520,12 +538,40 @@ export function createAccountHandler(options: {
     );
     return true;
   }
+  async function sessionPost(
+    request: IncomingMessage,
+    response: ServerResponse,
+    sessionToken: string,
+    input: unknown,
+  ): Promise<boolean> {
+    if (request.url === '/api/account/logout') {
+      await options.service.logout(sessionToken);
+      response.setHeader('Set-Cookie', cookie(sessionName, '', 0, secure));
+      send(response, 200, { status: 'signed-out' });
+      return true;
+    }
+    if (
+      request.url === '/api/account/opening-read' ||
+      request.url === '/api/account/opening-ack'
+    ) {
+      const session = await options.service.session(sessionToken);
+      if (request.url.endsWith('/opening-read'))
+        send(response, 200, options.service.opening.read(session, input));
+      else {
+        options.service.opening.acknowledge(session, input);
+        send(response, 200, { status: 'acknowledged' });
+      }
+      return true;
+    }
+    return false;
+  }
   async function authenticatedPost(
     request: IncomingMessage,
     response: ServerResponse,
     sessionToken: string,
     input: unknown,
   ): Promise<void> {
+    if (await sessionPost(request, response, sessionToken, input)) return;
     if (await socialPost(request, response, sessionToken, input)) return;
     if (await callPost(request, response, sessionToken, input)) return;
     if (await contactPost(request, response, sessionToken, input)) return;
@@ -534,12 +580,6 @@ export function createAccountHandler(options: {
       return;
     }
     if (await devicePost(request, response, sessionToken, input)) return;
-    if (request.url === '/api/account/logout') {
-      await options.service.logout(sessionToken);
-      response.setHeader('Set-Cookie', cookie(sessionName, '', 0, secure));
-      send(response, 200, { status: 'signed-out' });
-      return;
-    }
     if (request.url === '/api/account/name') {
       send(response, 200, await options.service.rename(sessionToken, input));
       return;
@@ -775,6 +815,7 @@ export function createAccountHandler(options: {
       callAdmission.close();
       callSessions.close();
       recovery.close();
+      options.service.opening.close();
       enrollments?.close();
     },
   };

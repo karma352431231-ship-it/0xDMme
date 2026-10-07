@@ -121,6 +121,6 @@ await test('conector usa somente contas, rede e personal_sign; nunca solicita tr
       ticket: 'a'.repeat(64),
       ecosystem: 'solana',
     }) ?? '',
-    /^https:\/\/phantom\.app\/ul\/browse\//u,
+    /^https:\/\/phantom\.com\/ul\/browse\//u,
   );
 });

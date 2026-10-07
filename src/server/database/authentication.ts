@@ -122,6 +122,7 @@ export class AuthenticationStore {
   private async account(
     client: pg.PoolClient,
     identity: { address: string; ecosystem: Ecosystem },
+    preferredId?: string,
   ): Promise<string> {
     // Serialize only this wallet identity, without committing unused storage.
     await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [
@@ -131,14 +132,33 @@ export class AuthenticationStore {
       'SELECT id FROM hash_talk.accounts WHERE address=$1 AND ecosystem=$2 FOR UPDATE',
       [identity.address, identity.ecosystem],
     );
-    if (existing.rows[0]) return existing.rows[0].id;
+    if (existing.rows[0]) {
+      if (preferredId && existing.rows[0].id !== preferredId)
+        throw new AccountError(
+          409,
+          'A conta mudou durante a entrada. Inicie novamente.',
+        );
+      return existing.rows[0].id;
+    }
     const created = await client.query<{ id: string }>(
-      'INSERT INTO hash_talk.accounts(address,ecosystem) VALUES($1,$2) RETURNING id',
-      [identity.address, identity.ecosystem],
+      'INSERT INTO hash_talk.accounts(address,ecosystem,id) VALUES($1,$2,$3) RETURNING id',
+      [identity.address, identity.ecosystem, preferredId ?? randomUUID()],
     );
     const id = created.rows[0]?.id;
     if (!id) throw new Error('Conta não persistida.');
     return id;
+  }
+
+  async previewAccountId(identity: {
+    address: string;
+    ecosystem: Ecosystem;
+  }): Promise<string> {
+    const result = await this.pool.query<{ id: string }>(
+      'SELECT id FROM hash_talk.accounts WHERE address=$1 AND ecosystem=$2',
+      [identity.address, identity.ecosystem],
+    );
+    // No account or session is created until confirmation in the original browser.
+    return result.rows[0]?.id ?? randomUUID();
   }
 
   async finishLogin(input: {
@@ -172,9 +192,14 @@ export class AuthenticationStore {
       csrf: string;
       expiresAt: Date;
       previousTokenHash?: string;
+      preferredAccountId?: string;
     },
   ): Promise<{ accountId: string; csrf: string } | null> {
-    const accountId = await this.account(client, input.identity);
+    const accountId = await this.account(
+      client,
+      input.identity,
+      input.preferredAccountId,
+    );
     const state = await client.query<{ revoked: boolean }>(
       "SELECT event->'revoked' ? $2::text AS revoked FROM hash_talk.device_directories WHERE account_id=$1",
       [accountId, input.identity.deviceId],
@@ -330,6 +355,7 @@ export class AuthenticationStore {
     csrf: string;
     expiresAt: Date;
     previousTokenHash?: string;
+    preferredAccountId?: string;
   }): Promise<void> {
     const ended = await transaction(this.pool, async (client) => {
       const consumed = await client.query<{ deviceId: string }>(

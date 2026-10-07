@@ -18,6 +18,7 @@ export { walletApprovalRequest } from '../../shared/wallet-approval/index.ts';
 export type { WalletApprovalRequest } from '../../shared/wallet-approval/index.ts';
 import { walletApprovalRequest } from '../../shared/wallet-approval/index.ts';
 import type { WalletApprovalRequest } from '../../shared/wallet-approval/index.ts';
+import type { OpeningReceiver } from '../../shared/wallet-opening/index.ts';
 type Api = (
   path: string,
   options?: { input?: unknown; csrf?: string },
@@ -86,6 +87,13 @@ export function createWalletReturn(options: {
   authenticated: (session: AccountSession) => Promise<void>;
   expectedAccount?: () => Pick<AccountSession, 'address' | 'ecosystem'> | null;
   openWallet?: (link: string) => boolean;
+  prepareOpening?: (wallet: WalletName) => Promise<OpeningReceiver>;
+  openingTicket?: () => string | undefined;
+  rememberOpening?: (
+    receiver: OpeningReceiver,
+    ticket: string,
+  ) => Promise<void>;
+  forgetOpening?: () => void;
 }) {
   const platform = /Android/iu.test(navigator.userAgent)
     ? 'android'
@@ -125,16 +133,30 @@ export function createWalletReturn(options: {
       schedule();
     }
   }
-  async function start(wallet: WalletName, network: Ecosystem): Promise<void> {
-    if (closed) return;
-    const current = ++generation;
-    link = null;
-    pending = null;
-    let response: unknown;
+  function isCurrent(current: number): boolean {
+    return !closed && current === generation;
+  }
+  async function prepareHandoff(
+    wallet: WalletName,
+    network: Ecosystem,
+    current: number,
+  ) {
     try {
-      response = await options.api('handoff-start', {
-        input: { ecosystem: network, deviceId: options.deviceId() },
+      const opening = await options.prepareOpening?.(wallet);
+      if (!isCurrent(current)) return null;
+      const response = await options.api('handoff-start', {
+        input: {
+          ecosystem: network,
+          deviceId: options.deviceId(),
+          ...(opening ? { opening } : {}),
+        },
       });
+      if (!isCurrent(current)) return null;
+      const data = object(response);
+      const ticket = boundedText(data['ticket'], 64);
+      const expiresAt = handoffExpiry(data);
+      if (opening) await options.rememberOpening?.(opening, ticket);
+      return { ticket, expiresAt };
     } catch (error: unknown) {
       if (error instanceof AccountError) throw error;
       throw new AccountError(
@@ -142,10 +164,15 @@ export function createWalletReturn(options: {
         'Não foi possível criar o pedido para abrir a wallet. Confira a conexão e tente novamente.',
       );
     }
-    const data = object(response);
-    if (closed || current !== generation) return;
-    const ticket = boundedText(data['ticket'], 64);
-    const expiresAt = handoffExpiry(data);
+  }
+  async function start(wallet: WalletName, network: Ecosystem): Promise<void> {
+    if (closed) return;
+    const current = ++generation;
+    link = null;
+    pending = null;
+    const prepared = await prepareHandoff(wallet, network, current);
+    if (!prepared || !isCurrent(current)) return;
+    const { ticket, expiresAt } = prepared;
     link = walletBrowserUrl({
       origin: location.origin,
       wallet,
@@ -174,9 +201,8 @@ export function createWalletReturn(options: {
     options.changed();
     schedule();
   }
-  async function confirm(): Promise<void> {
-    const state = pending;
-    if (!state?.address) throw new Error('A wallet ainda não assinou.');
+  function confirmationInput(state: Pending) {
+    if (!state.address) throw new Error('A wallet ainda não assinou.');
     const expected = options.expectedAccount?.();
     if (
       expected &&
@@ -186,13 +212,26 @@ export function createWalletReturn(options: {
       throw new Error(
         'Confirme a wallet da conta que já está aberta neste aparelho.',
       );
+    const openingTicket = options.openingTicket?.();
+    if (options.prepareOpening && !openingTicket)
+      throw new AccountError(
+        409,
+        'O pedido de abertura deste navegador foi perdido. Cancele e conecte novamente.',
+      );
+    return {
+      address: state.address,
+      ecosystem: state.ecosystem,
+      ...(openingTicket ? { openingTicket } : {}),
+    };
+  }
+  async function confirm(): Promise<void> {
+    if (!pending) throw new Error('A wallet ainda não assinou.');
+    const input = confirmationInput(pending);
     const current = ++generation;
     const authenticated = accountSession(
-      await options.api('handoff-confirm', {
-        input: { address: state.address, ecosystem: state.ecosystem },
-      }),
+      await options.api('handoff-confirm', { input }),
     );
-    if (closed || current !== generation) {
+    if (!isCurrent(current)) {
       await options.api('logout', { input: {}, csrf: authenticated.csrf });
       return;
     }
@@ -206,6 +245,7 @@ export function createWalletReturn(options: {
     pending = null;
     link = null;
     window.clearTimeout(timer);
+    options.forgetOpening?.();
     await options.api('handoff-cancel', { input: {} });
     options.changed();
   }

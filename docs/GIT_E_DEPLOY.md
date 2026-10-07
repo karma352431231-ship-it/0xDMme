@@ -1,5 +1,30 @@
 # 0xDMme — Git e envio à VPS
 
+## Continuidade do login mobile — ativação autorizada em 07/10/2026
+
+O proprietário autorizou aplicar a correção, enviar e ativar na VPS, incluindo
+continuidade após compactações até concluir. Login público e prova privada de
+abertura são recolhidos na mesma visita à wallet; o navegador original confirma
+o endereço e autoriza suas chaves sem segunda navegação automática. O contrato
+criptográfico e seus limites estão no [bloco 04](BLOCO_04_DISPOSITIVOS_E_RECUPERACAO.md#continuidade-do-login-mobile--correção-solicitada-em-07102026).
+
+Reutilizar `npm run deploy:staging`, build no Mac, checkout limpo/enviado e CI
+integral do commit exato. A única alteração em `src/server/database` é código
+de `authentication.ts`: preparar UUID sem gravar conta, reutilizar a identidade
+existente e exigir o mesmo identificador na transação original de confirmação.
+O lock por wallet e a recusa de concorrência conflitante permanecem. SQL,
+executor de migrações, dependências, Node e infraestrutura permanecem iguais.
+Fixar ambos os lados dessa revisão no executor existente; a revisão não permite
+outra mudança de banco nem executa a transição histórica 027→043.
+
+Conferir preservação e saúde antes/depois, manter recursos e retorno limitado à
+release própria, reiniciar somente `0xdmme-test.service`. Preservar a galeria e
+seu timer sem reinício. As alterações anteriores do proprietário em AGENTS.md
+e no roteiro manual ficam fora do commit; acesso e provas ficam em `.local/`.
+
+**Ponto importante:** publicação depende das verificações e da CI; os testes
+com contas/providers sintéticos não certificam o retorno entre apps físicos.
+
 ## Revisão visual de comunidades — solicitada em 07/10/2026
 
 A atualização da UI reutiliza `npm run deploy:staging`, com build no Mac,

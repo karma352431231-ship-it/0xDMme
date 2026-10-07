@@ -66,6 +66,17 @@ export class DeviceService {
     const current = await this.store.current(session.accountId);
     return current ? directoryEvent(current.event) : null;
   }
+  async openingRecovery(accountId: string) {
+    const row = await this.store.current(uuid(accountId));
+    if (!row) return null;
+    const current = directoryEvent(row.event);
+    if (!current.root.wallet)
+      throw new AccountError(
+        409,
+        'Esta conta exige recuperação pelo código antigo ou por aparelho autorizado.',
+      );
+    return current.root.wallet;
+  }
   async read(session: AccountSession, input: unknown) {
     const data = object(input);
     keys(data, ['after']);

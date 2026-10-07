@@ -10,7 +10,7 @@ export function mobileLink(
     return `https://link.metamask.io/dapp/${target.slice(8)}`;
   const base =
     transfer.wallet === 'Phantom'
-      ? 'https://phantom.app/ul/browse/'
+      ? 'https://phantom.com/ul/browse/'
       : 'https://backpack.app/ul/v1/browse/';
   const ref =
     transfer.wallet === 'Backpack' && /Android/iu.test(navigator.userAgent)

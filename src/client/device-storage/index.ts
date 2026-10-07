@@ -13,6 +13,54 @@ interface Checkpoint {
   events: DirectoryEvent[];
   trustedRoot: string | null;
 }
+interface OpeningReceiverRecord {
+  identity: LocalIdentity;
+  expires: number;
+}
+export async function storedOpeningReceiverIdentity(
+  receiver: string,
+): Promise<LocalIdentity> {
+  const record = await transaction(
+    'wallet-opening-receiver',
+    (_store, value) => value as OpeningReceiverRecord | undefined,
+  );
+  if (!record || record.identity.public.wrapping !== receiver)
+    throw new Error(
+      'O receptor desta entrada não está disponível. Inicie novamente.',
+    );
+  // Expiry limits reuse for new entries. A live entry keeps its exact receiver;
+  // only its server deadline and session grant retrieval of the ciphertext.
+  await checkIdentity(record.identity);
+  return record.identity;
+}
+/** One bounded transport receiver, separate from account/device authority.
+ * Only non-exportable CryptoKeys live here; no recovery signature is persisted. */
+export async function openingReceiverIdentity(): Promise<LocalIdentity> {
+  const stored = await transaction(
+    'wallet-opening-receiver',
+    (_store, value) => value as OpeningReceiverRecord | undefined,
+  );
+  if (stored && stored.expires > Date.now()) {
+    await checkIdentity(stored.identity);
+    return stored.identity;
+  }
+  const identity = await createIdentity(
+    crypto.randomUUID(),
+    'Abertura de conta',
+  );
+  const record = await transaction(
+    'wallet-opening-receiver',
+    (store, value) => {
+      const current = value as OpeningReceiverRecord | undefined;
+      if (current && current.expires > Date.now()) return current;
+      const next = { identity, expires: Date.now() + 300_000 };
+      store.put(next, 'wallet-opening-receiver');
+      return next;
+    },
+  );
+  await checkIdentity(record.identity);
+  return record.identity;
+}
 function transaction<T>(
   key: string,
   operation: (store: IDBObjectStore, value: unknown) => T,

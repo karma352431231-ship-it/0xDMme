@@ -255,7 +255,7 @@ export function walletBrowserUrl(input: {
   if (input.wallet === 'Backpack' && input.platform === 'android')
     return `https://backpack.app/ul/v1/browse/${encodeURIComponent(target)}`;
   const base = {
-    Phantom: 'https://phantom.app/ul/browse/',
+    Phantom: 'https://phantom.com/ul/browse/',
     Backpack: 'https://backpack.app/ul/v1/browse/',
   }[input.wallet];
   return `${base}${encodeURIComponent(target)}?ref=${encodeURIComponent(origin.origin)}`;

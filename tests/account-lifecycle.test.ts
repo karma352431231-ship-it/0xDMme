@@ -4,6 +4,15 @@ import { runInNewContext } from 'node:vm';
 import { randomUUID } from 'node:crypto';
 import { build } from 'esbuild';
 import type { startAccount } from '../src/client/account/index.ts';
+import { Wallet } from 'ethers';
+import { createIdentity, openFrom } from '../src/client/device-keys/index.ts';
+import { createWalletRecovery } from '../src/client/wallet-recovery/index.ts';
+import { openingTicket } from '../src/shared/wallet-opening/index.ts';
+import { sealedSecret } from '../src/shared/devices/index.ts';
+import {
+  recoveryMessage,
+  transferContext,
+} from '../src/shared/wallet-recovery/index.ts';
 
 const bundle = await build({
   entryPoints: ['src/client/account/index.ts'],
@@ -45,8 +54,10 @@ function scope(options: {
   approvalDocument?: string;
   approvalRejection?: string;
   privateKey?: Parameters<typeof startAccount>[0]['privateKey'];
+  walletSigner?: Wallet;
+  handoffSubmit?: (input: unknown) => void;
 }) {
-  const address = `0x${'1'.repeat(40)}`;
+  const address = options.walletSigner?.address ?? `0x${'1'.repeat(40)}`;
   const listeners = new Map<string, () => void>();
   const requests: string[] = [];
   const inputs = new Map<string, unknown>();
@@ -69,12 +80,19 @@ function scope(options: {
   const window = Object.assign(new EventTarget(), {
     ethereum: {
       isMetaMask: true,
-      request(input: { method: string }): Promise<unknown> {
+      request(input: { method: string; params?: unknown[] }): Promise<unknown> {
         providerRequests.push(input.method);
         if (input.method === 'eth_requestAccounts')
           return options.accounts ?? Promise.resolve([address]);
         if (input.method === 'eth_accounts') return Promise.resolve([address]);
         if (input.method === 'eth_chainId') return Promise.resolve('0x1');
+        if (options.walletSigner && typeof input.params?.[0] === 'string')
+          return options.walletSigner.signMessage(
+            Uint8Array.from(
+              input.params[0].slice(2).match(/.{2}/gu) ?? [],
+              (byte) => Number.parseInt(byte, 16),
+            ),
+          );
         return options.signature ?? Promise.resolve(`0x${'a'.repeat(130)}`);
       },
       on(event: string, listener: () => void) {
@@ -208,6 +226,12 @@ function scope(options: {
     CustomEvent,
     URL,
     TextEncoder,
+    TextDecoder,
+    btoa,
+    atob,
+    DOMException,
+    setTimeout,
+    clearTimeout,
     URLSearchParams,
     crypto,
     AbortSignal,
@@ -261,6 +285,8 @@ function scope(options: {
       requests.push(path);
       if (typeof init?.body === 'string')
         inputs.set(path, JSON.parse(init.body) as unknown);
+      if (path === '/api/account/handoff-opening-submit')
+        options.handoffSubmit?.(inputs.get(path));
       return responses.get(path)?.() ?? Response.json({ status: 'signed-out' });
     },
   }) as { startAccount: typeof startAccount };
@@ -1156,3 +1182,79 @@ await test('assinatura aceita mostra somente aviso de retorno manual, inclusive 
   assert.deepEqual(browser.states, []);
   browser.dispose();
 });
+
+await test(
+  'entrada mobile assina login e prova privada na mesma wallet, sem sessão ou segunda navegação',
+  { timeout: 10000 },
+  async () => {
+    const signer = new Wallet(`0x${'1'.padStart(64, '0')}`);
+    const identity = await createIdentity(randomUUID(), 'Navegador original');
+    const receiver = {
+      receiver: identity.public.wrapping,
+      nonce: 'f'.repeat(64),
+      wallet: 'MetaMask' as const,
+    };
+    const ticket = await openingTicket(receiver);
+    const config = createWalletRecovery(
+      {
+        accountId: randomUUID(),
+        ecosystem: 'evm',
+        address: signer.address.toLowerCase(),
+        deviceId: randomUUID(),
+        csrf: 'c'.repeat(64),
+        expiresAt: new Date(Date.now() + 300000).toISOString(),
+        name: '',
+        profileRevision: 0,
+        deviceState: 'pending',
+        historyAuthorized: false,
+        walletConfirmed: true,
+      },
+      'https://0xdmme.app',
+    );
+    const transfer = {
+      version: 1 as const,
+      ticket,
+      wallet: receiver.wallet,
+      receiver: receiver.receiver,
+      config,
+      count: 2 as const,
+    };
+    const submitted = deferred<unknown>();
+    const browser = scope({
+      pathname: '/wallet.html',
+      hash: `#configuracoes?ticket=${ticket}&wallet=MetaMask&ecosystem=evm`,
+      walletSigner: signer,
+      handoffSign: Promise.resolve({
+        status: 'signed',
+        opening: { transfer, nonce: receiver.nonce },
+      }),
+      handoffSubmit: (input) => submitted.resolve(input),
+    });
+    await tick();
+    browser.confirmApproval();
+    const packet = (await submitted.promise) as { envelope: unknown };
+    await tick();
+    const opened = (await openFrom(
+      identity.wrapping,
+      sealedSecret(packet.envelope),
+      transferContext(transfer),
+    )) as { signatures: string[] };
+    const expected = await signer.signMessage(recoveryMessage(config));
+    assert.deepEqual(opened.signatures, [expected, expected]);
+    assert.equal(
+      JSON.stringify(browser.inputs.get('/api/account/handoff-sign')).includes(
+        expected,
+      ),
+      false,
+    );
+    assert.equal(
+      browser.providerRequests.filter((method) => method === 'personal_sign')
+        .length,
+      3,
+    );
+    assert.equal(browser.requests.includes('/api/account/login'), false);
+    assert.equal(browser.navigated.length, 0);
+    assert.match(browser.status.textContent, /Assinatura confirmada/u);
+    browser.dispose();
+  },
+);

@@ -174,7 +174,7 @@ await test('seleção abre a wallet uma vez após pedido válido; consulta não 
   );
   await controller.start('Phantom', 'solana');
   assert.equal(opened.length, 1);
-  assert.match(opened[0] ?? '', /^https:\/\/phantom\.app\/ul\/browse\//u);
+  assert.match(opened[0] ?? '', /^https:\/\/phantom\.com\/ul\/browse\//u);
   assert.match(decodeURIComponent(opened[0] ?? ''), /0xdmme\.app/u);
   const link = new URL(opened[0] ?? '');
   const destination = new URL(

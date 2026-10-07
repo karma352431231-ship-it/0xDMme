@@ -95,6 +95,7 @@ const messages = startMessages(devices, vault.sync, {
   preferences: () => account.privacyPreferences(),
 });
 const account = startAccount({
+  mobileOpening: true,
   privacyChanged: (preferences) => messages.applyPrivacy(preferences),
   privateKey: async (session, walletOpening) => {
     const key = await devices.privateKey(session, walletOpening);

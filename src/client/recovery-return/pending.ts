@@ -133,7 +133,11 @@ async function parsePending(
     deadline > Date.now() + 300_000
   )
     throw new Error('Retorno inválido ou expirado.');
-  if (link !== mobileLink(transfer, commitment))
+  const expected = mobileLink(transfer, commitment);
+  const priorPhantom =
+    transfer.wallet === 'Phantom' &&
+    link === expected.replace('https://phantom.com/', 'https://phantom.app/');
+  if (link !== expected && !priorPhantom)
     throw new Error('Destino da wallet alterado.');
   return { transfer, commitment, deadline, link };
 }

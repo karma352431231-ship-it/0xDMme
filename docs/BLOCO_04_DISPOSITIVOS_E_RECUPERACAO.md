@@ -1,5 +1,63 @@
 # 0xDMme — Bloco 04 — dispositivos, chaves e recuperação
 
+## Continuidade do login mobile — correção solicitada em 07/10/2026
+
+O login mobile passa a recolher a prova pública de acesso e a prova privada de
+abertura na mesma visita à wallet. Antes de navegar, o navegador original guarda
+um receptor de transporte com chaves não exportáveis em IndexedDB. O ticket
+inclui compromisso SHA-256 do receptor, nonce e wallet; a página da wallet confere
+esse compromisso antes de cifrar a prova privada. As assinaturas de recuperação
+continuam exclusivas e secretas: somente seu envelope RSA-OAEP/AES-GCM chega ao
+servidor. A assinatura pública de login não deriva chaves de conteúdo.
+
+Após verificar a assinatura pública, o backend consulta o identificador da conta
+existente ou prepara um UUID ainda não persistido. Ele fornece a configuração de
+recuperação vigente, ou os parâmetros públicos de uma configuração nova. Isso
+não cria conta, sessão ou autorização na wallet. A confirmação explícita no
+navegador original permanece obrigatória e só avança depois do retorno cifrado.
+A criação da conta continua na transação original: um conflito de identificador
+recusa a tentativa, sem criar uma identidade alternativa ou sobrescrever outra.
+
+O navegador original abre a prova cifrada, confere conta/origem/destino e conclui
+a autorização pelo contrato existente de aparelhos antes de liberar o cofre. Não
+reabre a wallet nessa etapa. Inicialização conserva as duas assinaturas iguais;
+recuperação conserva uma assinatura e preserva os aparelhos anteriores. QR,
+revogação, épocas, cápsulas e formatos existentes continuam aplicáveis. Contas
+com recuperação por código antigo exigem seu fluxo autorizado de recuperação.
+
+O transporte novo mantém até 128 entradas de cinco minutos, com envelope de até
+2 KiB. Ele guarda somente metadados públicos e ciphertext. O destinatário é
+vinculado à sessão original após confirmação. A leitura pode ser retomada por
+essa sessão até confirmar a conclusão; expiração ou reinício encerra o retorno.
+No cliente há um único registro de receptor, com validade de cinco minutos para
+reuso, e metadados públicos limitados à aba; assinaturas privadas não são
+persistidas. Foco, visibilidade e retorno de página revalidam as chaves e retomam
+pedidos válidos sem nova navegação automática. Uma sessão antiga ainda incompleta
+oferece **Concluir entrada na conta** junto ao aviso, usando o login combinado.
+
+Links novos da Phantom usam `phantom.com`, conforme sua
+[documentação](https://docs.phantom.com/phantom-deeplinks/deeplinks-ios-and-android).
+Pedidos privados válidos já preparados com o host anterior continuam reconhecidos.
+A instrução antiga de tocar em “Concluir recuperação” foi ajustada à conclusão
+automática. Nenhuma nova dependência, relay externo, migração SQL ou mudança de
+infraestrutura faz parte desta correção local.
+
+Validação local: assinaturas reais de contas sintéticas em EVM/Solana com os três
+contratos de wallet, prova cifrada, autorização inicial, alteração da visibilidade
+por wallet e retomada por foco/visibilidade/página. Recuperação de outro aparelho
+conserva o anterior e usa uma assinatura. PostgreSQL/HTTP conferiu conta estável,
+criação somente na confirmação original, envelope opaco, origem, sessão, CSRF,
+consumo e replay. Build inclui as fontes correspondentes dos módulos novos.
+
+O proprietário autorizou publicar e ativar esta correção na VPS, e continuar após
+compactações até concluir essa ativação. Usar o executor existente, checkout
+limpo/enviado, CI do commit exato, limites, preservação e retorno da release.
+
+**Ponto importante:** a validação usa providers e contas sintéticas; não certifica
+abertura e retorno das wallets físicas. O cofre permanece protegido até conferir
+a prova privada e a autoridade do aparelho. A ativação será registrada no
+[documento de deploy](GIT_E_DEPLOY.md).
+
 ## Experiência vigente em 04/10/2026
 
 Em Configurações, o aparelho de origem gera QR e código equivalentes. O destino recebe sessão da mesma conta e cria sua identidade local sem wallet. O segredo do convite fixa a raiz e autentica as chaves do destino por HMAC-SHA-256; a origem confere e assina o vínculo automaticamente. Ela precisa permanecer aberta e visível até concluir. O backend guarda somente hash/capacidade temporária, jamais as chaves do conteúdo. Convite vale cinco minutos, é consumido uma única vez e o serviço mantém no máximo 128 convites temporários. Reiniciar o serviço encerra esses convites, sem revogar vínculos concluídos.

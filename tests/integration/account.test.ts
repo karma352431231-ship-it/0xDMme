@@ -14,6 +14,14 @@ import {
 import { createWebServer } from '../../src/server/web-host/index.ts';
 import { readWebConfiguration } from '../../src/server/web-configuration/index.ts';
 import { AccountError } from '../../src/shared/account/index.ts';
+import { createIdentity, sealTo } from '../../src/client/device-keys/index.ts';
+import {
+  recoveryMessage,
+  transferContext,
+} from '../../src/shared/wallet-recovery/index.ts';
+import { canonical, digest } from '../../src/shared/devices/index.ts';
+import { openingRequest } from '../../src/shared/wallet-opening/index.ts';
+import { DeviceService } from '../../src/server/devices/index.ts';
 import {
   emptyProfile,
   openProfile,
@@ -35,6 +43,7 @@ function freshHttpAccount() {
   return createAccountHandler({
     origin,
     service,
+    devices: new DeviceService(database.devices, origin),
     approvalDocument: new TextEncoder().encode(
       '<html><head><title>Aprovar</title></head><body>Documento próprio</body></html>',
     ),
@@ -208,6 +217,162 @@ await test('Autenticação e perfil persistentes', async (t) => {
         "SELECT EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema='hash_talk' AND table_name='accounts' AND column_name='reserved_bytes') AS present",
       );
       assert.equal(row.rows[0]?.present, false);
+    },
+  );
+
+  await t.test(
+    'entrada combinada só cria conta após prova cifrada e confirmação original, preservando o identificador',
+    async () => {
+      const signer = wallet(),
+        deviceId = randomUUID();
+      function post(
+        path: string,
+        input: unknown,
+        headers: Record<string, string> = {},
+      ) {
+        return fetch(`${origin}/api/account/${path}`, {
+          method: 'POST',
+          headers: {
+            Origin: origin,
+            'Content-Type': 'application/json',
+            ...headers,
+          },
+          body: JSON.stringify(input),
+        });
+      }
+      const receiver = await createIdentity(randomUUID(), 'Destino original');
+      const pending = await service.startHandoff(
+        {
+          ecosystem: 'evm',
+          deviceId,
+          opening: {
+            receiver: receiver.public.wrapping,
+            nonce: 'c'.repeat(64),
+            wallet: 'MetaMask',
+          },
+        },
+        '',
+      );
+      const challenge = await service.handoffChallenge({
+        ticket: pending.ticket,
+        address: signer.address,
+        chainId: 1,
+      });
+      const signed = await post(
+        'handoff-sign',
+        {
+          ticket: pending.ticket,
+          id: challenge.id,
+          signature: await signer.signMessage(challenge.message),
+        },
+        { Cookie: `hash-talk-challenge=${challenge.browserToken}` },
+      );
+      assert.equal(signed.status, 200);
+      assert.equal(
+        signed.headers
+          .getSetCookie()
+          .some((cookie) => cookie.startsWith('hash-talk-session=')),
+        false,
+      );
+      const opening = await openingRequest(
+        ((await signed.json()) as { opening: unknown }).opening,
+      );
+      assert.ok(opening);
+      const count = await inspector.query<{ total: number }>(
+        'SELECT count(*)::integer AS total FROM hash_talk.accounts WHERE address=$1',
+        [signer.address.toLowerCase()],
+      );
+      assert.equal(count.rows[0]?.total, 0);
+      assert.equal(
+        (await service.handoffStatus(pending.browserToken))?.address,
+        null,
+      );
+      const input = {
+        address: signer.address.toLowerCase(),
+        ecosystem: 'evm',
+        openingTicket: pending.ticket,
+      };
+      await assert.rejects(
+        service.finishHandoff(input, pending.browserToken),
+        (error) => error instanceof AccountError && error.status === 409,
+      );
+      const signature = await signer.signMessage(
+        recoveryMessage(opening.transfer.config),
+      );
+      const encrypted = {
+        ticket: pending.ticket,
+        commitment: await digest(canonical(opening.transfer)),
+        envelope: await sealTo(
+          receiver.public.wrapping,
+          { signatures: [signature, signature] },
+          transferContext(opening.transfer),
+        ),
+      };
+      assert.equal(
+        (
+          await post('handoff-opening-submit', encrypted, {
+            Origin: 'https://wrong.example',
+          })
+        ).status,
+        403,
+      );
+      assert.equal(
+        (await post('handoff-opening-submit', encrypted)).status,
+        200,
+      );
+      assert.equal(
+        (await post('handoff-opening-submit', encrypted)).status,
+        409,
+      );
+      await assert.rejects(
+        service.finishHandoff(input, challenge.browserToken),
+        (error) => error instanceof AccountError && error.status === 409,
+      );
+      const login = await service.finishHandoff(input, pending.browserToken);
+      assert.equal(login.session.accountId, opening.transfer.config.accountId);
+      assert.equal(login.session.deviceId, deviceId);
+      assert.equal(login.session.walletConfirmed, true);
+      const sessionHeaders = {
+        Cookie: `hash-talk-session=${login.sessionToken}`,
+        'X-Hash-Talk-CSRF': login.session.csrf,
+      };
+      assert.equal(
+        (await post('opening-read', { ticket: pending.ticket })).status,
+        401,
+      );
+      assert.equal(
+        (
+          await post(
+            'opening-read',
+            { ticket: pending.ticket },
+            { ...sessionHeaders, 'X-Hash-Talk-CSRF': 'b'.repeat(64) },
+          )
+        ).status,
+        403,
+      );
+      const read = await post(
+        'opening-read',
+        { ticket: pending.ticket },
+        sessionHeaders,
+      );
+      assert.equal(read.status, 200);
+      assert.deepEqual(
+        ((await read.json()) as { envelope: unknown }).envelope,
+        encrypted.envelope,
+      );
+      await assert.rejects(service.finishHandoff(input, pending.browserToken));
+      const next = await authenticate(signer);
+      assert.equal(next.session.accountId, login.session.accountId);
+      assert.equal(
+        (await post('opening-ack', { ticket: pending.ticket }, sessionHeaders))
+          .status,
+        200,
+      );
+      assert.equal(
+        (await post('opening-read', { ticket: pending.ticket }, sessionHeaders))
+          .status,
+        409,
+      );
     },
   );
 

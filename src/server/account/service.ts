@@ -28,6 +28,8 @@ import type {
 } from '../../shared/account/index.ts';
 import type { AuthenticationStore } from '../database/index.ts';
 import { walletApprovalRequest } from '../../shared/wallet-approval/index.ts';
+import { LoginOpening } from './opening.ts';
+import type { WalletRecovery } from '../../shared/wallet-recovery/index.ts';
 
 export const challengeSeconds = 300;
 export const sessionSeconds = 43_200;
@@ -51,9 +53,11 @@ function validatedEcosystem(value: unknown) {
 export class AccountService {
   private readonly store: AuthenticationStore;
   private readonly origin: string;
+  readonly opening: LoginOpening;
   constructor(options: { store: AuthenticationStore; origin: string }) {
     this.store = options.store;
     this.origin = options.origin;
+    this.opening = new LoginOpening(options.origin);
   }
 
   async challenge(input: unknown) {
@@ -120,14 +124,27 @@ export class AccountService {
 
   async startHandoff(input: unknown, previousBrowserToken: string) {
     const data = object(input);
-    keys(data, ['ecosystem', 'deviceId']);
+    keys(data, [
+      'ecosystem',
+      'deviceId',
+      ...(Object.hasOwn(data, 'opening') ? ['opening'] : []),
+    ]);
     const network = validatedEcosystem(data['ecosystem']);
     const deviceId = uuid(data['deviceId']);
     const browserToken = token();
-    const ticket = token();
     const expiresAt = new Date(Date.now() + challengeSeconds * 1000);
-    if (previousBrowserToken)
+    const ticket =
+      data['opening'] === undefined
+        ? token()
+        : await this.opening.start(
+            tokenHash(browserToken),
+            data['opening'],
+            expiresAt.getTime(),
+          );
+    if (previousBrowserToken) {
       await this.store.cancelHandoff(tokenHash(previousBrowserToken));
+      this.opening.cancel(tokenHash(previousBrowserToken));
+    }
     await this.store.createHandoff({
       browserHash: tokenHash(browserToken),
       ticketHash: tokenHash(ticket),
@@ -176,7 +193,7 @@ export class AccountService {
       throw new AccountError(400, 'Pedido inválido.');
     return value;
   }
-  async signHandoff(input: unknown, browserToken: string): Promise<void> {
+  async signHandoff(input: unknown, browserToken: string) {
     const data = object(input);
     keys(data, ['ticket', 'id', 'signature']);
     const hash = tokenHash(this.handoffTicket(data['ticket']));
@@ -188,15 +205,41 @@ export class AccountService {
       throw new AccountError(401, 'Pedido de retorno inválido.');
     verifyChallenge(challenge, data['signature'], this.origin);
     await this.store.acceptHandoffSignature(challenge, hash);
+    return {
+      ticket: this.handoffTicket(data['ticket']),
+      identity: {
+        accountId: await this.store.previewAccountId(challenge),
+        address: challenge.address,
+        ecosystem: challenge.ecosystem,
+      },
+    };
+  }
+  async prepareOpening(
+    signed: Awaited<ReturnType<AccountService['signHandoff']>>,
+    recovery: (accountId: string) => Promise<WalletRecovery | null>,
+  ) {
+    if (!this.opening.expected(signed.ticket)) return null;
+    return this.opening.prepare(
+      signed.ticket,
+      signed.identity,
+      await recovery(signed.identity.accountId),
+    );
   }
   async handoffStatus(browserToken: string) {
     const state = await this.store.handoffStatus(tokenHash(browserToken));
     return state
-      ? { ...state, expiresAt: state.expiresAt.toISOString() }
+      ? {
+          ...state,
+          address: this.opening.ready(tokenHash(browserToken))
+            ? state.address
+            : null,
+          expiresAt: state.expiresAt.toISOString(),
+        }
       : null;
   }
   async cancelHandoff(browserToken: string): Promise<void> {
     await this.store.cancelHandoff(tokenHash(browserToken));
+    this.opening.cancel(tokenHash(browserToken));
   }
   async finishHandoff(
     input: unknown,
@@ -204,9 +247,20 @@ export class AccountService {
     previousToken?: string,
   ) {
     const data = object(input);
-    keys(data, ['address', 'ecosystem']);
+    keys(data, [
+      'address',
+      'ecosystem',
+      ...(Object.hasOwn(data, 'openingTicket') ? ['openingTicket'] : []),
+    ]);
     const network = validatedEcosystem(data['ecosystem']);
     const address = canonicalAddress(network, data['address']);
+    const preferredAccountId = this.opening.confirmation(
+      tokenHash(browserToken),
+      { address, ecosystem: network },
+      data['openingTicket'] === undefined
+        ? undefined
+        : this.handoffTicket(data['openingTicket']),
+    );
     const sessionToken = token();
     await this.store.finishHandoff({
       browserHash: tokenHash(browserToken),
@@ -215,9 +269,12 @@ export class AccountService {
       tokenHash: tokenHash(sessionToken),
       csrf: token(),
       expiresAt: new Date(Date.now() + sessionSeconds * 1000),
+      ...(preferredAccountId ? { preferredAccountId } : {}),
       ...(previousToken ? { previousTokenHash: tokenHash(previousToken) } : {}),
     });
-    return { sessionToken, session: await this.session(sessionToken) };
+    const session = await this.session(sessionToken);
+    this.opening.bind(tokenHash(browserToken), session);
+    return { sessionToken, session };
   }
 
   async session(sessionToken: string): Promise<AccountSession> {
