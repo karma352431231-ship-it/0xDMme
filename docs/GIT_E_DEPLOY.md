@@ -30,6 +30,15 @@ limpo/enviado e CI integral do commit exato. A galeria de calibração tem proce
 independente: conferir seu estado antes/depois sem reiniciá-la ou apagar casos.
 Acesso, fingerprints, inventário e evidências ficam exclusivamente em `.local/`.
 
+A conferência real após preparar o artefato revelou `Query read timeout` com o
+prazo de cinco segundos do cliente; a leitura isolada passava. O snapshot passa
+a usar cancelamento de consulta no banco em 12 segundos e prazo do cliente em
+15 segundos, com margem para receber o cancelamento. A execução completa dessa
+leitura permanece limitada a 30 segundos e o executor a 240; CPU, memória,
+limites de linhas/bytes, schema, hashes, contabilidade e requisitos de backup e
+retorno permanecem os mesmos. A reprodução usa preparação real e transação
+somente leitura, sem ativação ou migração.
+
 **Ponto importante:** esta ativação permite testar identidade pública,
 comunidades, posts/replies em texto, votos, feeds, gestão e DMs E2EE pelo `@`.
 Não aceita o detector experimental: inventário aceito vazio e `runner: null`

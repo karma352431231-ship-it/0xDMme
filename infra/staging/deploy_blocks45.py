@@ -162,7 +162,10 @@ def database_snapshot(tables=OLD_TABLES, *, omit_columns=None):
 import { createRequire } from 'node:module';
 const pg = createRequire('/var/lib/0xdmme/data/release/package.json')('pg');
 """ + URL_CHECK + """
-const client = new pg.Client({connectionString:url.href,connectionTimeoutMillis:3000,query_timeout:5000,statement_timeout:4000});
+// Snapshot follows release preparation under the installer's low resource budget.
+// Leave time for server cancellation to arrive before the client deadline;
+// node() still bounds the complete read-only snapshot at 30 seconds.
+const client = new pg.Client({connectionString:url.href,connectionTimeoutMillis:3000,query_timeout:15000,statement_timeout:12000});
 try {
  await client.connect(); await client.query('BEGIN READ ONLY');
  const result={tables:{},versions:(await client.query('SELECT version,checksum FROM hash_talk.schema_migrations ORDER BY version LIMIT 64')).rows};
