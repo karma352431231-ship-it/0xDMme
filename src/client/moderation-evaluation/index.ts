@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-only
 import {
-  evaluationLabels,
-  evaluationResult,
+  evaluationCase,
+  evaluationReference,
 } from '../../shared/moderation-evaluation/index.ts';
-import type { EvaluationResult } from '../../shared/moderation-evaluation/index.ts';
+import { EvaluationApi } from './api.ts';
+import { CalibrationGalleryView } from './gallery.ts';
 
 function element<T extends HTMLElement>(id: string, type: { new (): T }): T {
   const node = document.getElementById(id);
@@ -12,13 +13,22 @@ function element<T extends HTMLElement>(id: string, type: { new (): T }): T {
   return node;
 }
 const file = element('image', HTMLInputElement),
-  expected = element('expected', HTMLSelectElement),
-  button = element('evaluate', HTMLButtonElement),
-  status = element('status', HTMLParagraphElement),
-  output = element('output', HTMLDivElement),
+  expected = element('expected', HTMLSelectElement);
+const status = element('status', HTMLParagraphElement),
   preview = element('preview', HTMLImageElement);
-const token = location.hash.slice(1);
+const analyze = element('evaluate', HTMLButtonElement),
+  exportButton = element('export', HTMLButtonElement);
+const clear = element('clear', HTMLButtonElement),
+  reload = element('reload', HTMLButtonElement);
+const api = new EvaluationApi(location.hash.slice(1));
 history.replaceState(null, '', location.pathname);
+const gallery = new CalibrationGalleryView(api, {
+  container: element('gallery', HTMLDivElement),
+  summary: element('round', HTMLParagraphElement),
+  pagination: element('pagination', HTMLDivElement),
+  original: element('original', HTMLDivElement),
+  status,
+});
 let previewUrl: string | null = null;
 function clearPreview(): void {
   if (previewUrl) URL.revokeObjectURL(previewUrl);
@@ -28,32 +38,13 @@ function clearPreview(): void {
 }
 file.addEventListener('change', () => {
   clearPreview();
-  output.replaceChildren();
+  expected.value = '';
   const image = file.files?.[0];
   if (!image) return;
   previewUrl = URL.createObjectURL(image);
   preview.src = previewUrl;
   preview.hidden = false;
 });
-function render(result: EvaluationResult, reference: string): void {
-  output.replaceChildren();
-  const summary = document.createElement('p');
-  summary.textContent = `Sua referência: ${reference}. Inferência: ${(result.elapsedMs / 1000).toFixed(2)} s.`;
-  const rows = document.createElement('dl');
-  for (const label of [...evaluationLabels].sort(
-    (a, b) => result.scores[b] - result.scores[a],
-  )) {
-    const name = document.createElement('dt'),
-      score = document.createElement('dd');
-    name.textContent = label;
-    score.textContent = `${(result.scores[label] * 100).toFixed(2)}%`;
-    rows.append(name, score);
-  }
-  const notice = document.createElement('p');
-  notice.textContent =
-    'Classes do candidato, sem decisão validada da política. Pintura com nudez artística pode ser permitida mesmo com score alto de porn. Nenhum post foi publicado.';
-  output.append(summary, rows, notice);
-}
 function selectedImage(): File {
   const image = file.files?.[0];
   if (
@@ -67,46 +58,79 @@ function selectedImage(): File {
     );
   return image;
 }
-async function evaluate(): Promise<void> {
-  if (!/^[a-f0-9]{64}$/.test(token))
-    throw new Error('Acesso restrito ausente. Reabra o endereço fornecido.');
-  const image = selectedImage();
-  const reference =
-    expected.selectedOptions[0]?.textContent ?? 'Sem referência';
-  status.textContent = 'Analisando na VPS…';
-  output.replaceChildren();
-  const response = await fetch('/api/evaluate', {
-    method: 'POST',
-    credentials: 'omit',
-    redirect: 'error',
-    cache: 'no-store',
-    headers: { Authorization: `Bearer ${token}`, 'Content-Type': image.type },
-    body: image,
-    signal: AbortSignal.timeout(45_000),
-  });
-  if (!response.ok)
-    throw new Error(
-      response.status === 401
-        ? 'Acesso restrito inválido.'
-        : 'A análise falhou. Confira o formato/tamanho ou o prazo do ambiente.',
-    );
-  const text = await response.text();
-  if (text.length > 4096) throw new Error('Resposta excedida.');
-  render(evaluationResult(JSON.parse(text)), reference);
-  status.textContent =
-    'Análise concluída. Os bytes enviados foram descartados pelo avaliador.';
+function busy(value: boolean): void {
+  for (const button of [analyze, exportButton, clear, reload])
+    button.disabled = value;
+  file.disabled = value;
+  expected.disabled = value;
 }
-button.addEventListener('click', () => {
-  button.disabled = true;
-  file.disabled = true;
-  void evaluate()
-    .catch((error: unknown) => {
-      status.textContent =
-        error instanceof Error ? error.message : 'Análise indisponível.';
-    })
-    .finally(() => {
-      button.disabled = false;
-      file.disabled = false;
-    });
+function action(operation: () => Promise<void>): void {
+  busy(true);
+  void operation()
+    .catch((error: unknown) => gallery.message(error))
+    .finally(() => busy(false));
+}
+async function evaluate(): Promise<void> {
+  const image = selectedImage(),
+    reference = evaluationReference(expected.value);
+  status.textContent = 'Analisando e guardando este caso na rodada temporária…';
+  const saved = evaluationCase(
+    await api.json('/api/evaluate', {
+      method: 'POST',
+      headers: {
+        'Content-Type': image.type,
+        'X-Evaluation-Reference': reference,
+      },
+      body: image,
+    }),
+  );
+  // Confirm that the saved identity belongs to exactly this submitted file.
+  const digest = await crypto.subtle.digest(
+    'SHA-256',
+    await image.arrayBuffer(),
+  );
+  const hash = Array.from(new Uint8Array(digest), (byte) =>
+    byte.toString(16).padStart(2, '0'),
+  ).join('');
+  if (saved.imageHash !== hash || saved.reference !== reference)
+    throw new Error('O caso recebido diverge da imagem enviada.');
+  status.textContent = `Caso ${saved.id.slice(0, 8)} salvo com imagem, scores e sua referência.`;
+  await gallery.refresh(true);
+}
+async function exportRound(): Promise<void> {
+  status.textContent = 'Preparando ZIP privado com originais e resultados…';
+  const blob = await api.archive(),
+    url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = '0xdmme-calibration.zip';
+  document.body.append(anchor);
+  anchor.click();
+  anchor.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 30_000);
+  status.textContent =
+    'Exportação solicitada. O arquivo baixado contém as imagens e fica sob seu controle.';
+}
+async function clearRound(): Promise<void> {
+  if (
+    !window.confirm(
+      'Apagar todas as imagens e resultados desta rodada temporária? Arquivos já baixados permanecem no seu dispositivo.',
+    )
+  )
+    return;
+  await api.json('/api/cases', { method: 'DELETE' });
+  clearPreview();
+  file.value = '';
+  expected.value = '';
+  await gallery.refresh(true);
+  status.textContent = 'Imagens e resultados da rodada apagados do avaliador.';
+}
+analyze.addEventListener('click', () => action(evaluate));
+exportButton.addEventListener('click', () => action(exportRound));
+clear.addEventListener('click', () => action(clearRound));
+reload.addEventListener('click', () => action(() => gallery.refresh()));
+window.addEventListener('pagehide', () => {
+  clearPreview();
+  gallery.dispose();
 });
-window.addEventListener('pagehide', clearPreview);
+action(() => gallery.refresh());

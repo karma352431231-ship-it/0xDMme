@@ -15,6 +15,26 @@ export interface EvaluationResult {
   elapsedMs: number;
   scores: Record<EvaluationLabel, number>;
 }
+export const evaluationReferences = ['safe', 'unsafe', 'uncertain'] as const;
+export type EvaluationReference = (typeof evaluationReferences)[number];
+export interface EvaluationCase extends EvaluationResult {
+  id: string;
+  imageHash: string;
+  previewHash: string;
+  mime: string;
+  bytes: number;
+  previewBytes: number;
+  createdAt: number;
+  reference: EvaluationReference;
+}
+export interface EvaluationRound {
+  roundId: string;
+  expiresAt: number;
+  usedBytes: number;
+  maxBytes: number;
+  maxCases: number;
+  cases: EvaluationCase[];
+}
 /** Experimental scores describe the candidate, never grant public publication. */
 function record(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== 'object')
@@ -65,4 +85,71 @@ function readScores(value: unknown): Record<EvaluationLabel, number> {
 export function evaluationResult(value: unknown): EvaluationResult {
   const data = record(value);
   return { ...identity(data), scores: readScores(data['scores']) };
+}
+const uuid =
+  /^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/;
+function identifier(value: unknown, pattern: RegExp): string {
+  if (typeof value !== 'string' || !pattern.test(value))
+    throw new Error('Identificação inválida.');
+  return value;
+}
+function integer(value: unknown, maximum: number): number {
+  if (
+    typeof value !== 'number' ||
+    !Number.isSafeInteger(value) ||
+    value < 1 ||
+    value > maximum
+  )
+    throw new Error('Orçamento inválido.');
+  return value;
+}
+export function evaluationReference(value: unknown): EvaluationReference {
+  if (value !== 'safe' && value !== 'unsafe' && value !== 'uncertain')
+    throw new Error('Escolha sua avaliação para esta imagem.');
+  return value;
+}
+export function evaluationCase(value: unknown): EvaluationCase {
+  const data = record(value),
+    mime = data['mime'];
+  if (mime !== 'image/png' && mime !== 'image/jpeg' && mime !== 'image/webp')
+    throw new Error('Formato inválido.');
+  return {
+    ...evaluationResult(data),
+    id: identifier(data['id'], uuid),
+    imageHash: identifier(data['imageHash'], /^[a-f0-9]{64}$/),
+    previewHash: identifier(data['previewHash'], /^[a-f0-9]{64}$/),
+    mime,
+    bytes: integer(data['bytes'], 8 * 1024 * 1024),
+    previewBytes: integer(data['previewBytes'], 512 * 1024),
+    createdAt: integer(data['createdAt'], Number.MAX_SAFE_INTEGER),
+    reference: evaluationReference(data['reference']),
+  };
+}
+function roundCases(value: unknown, maximum: number): EvaluationCase[] {
+  if (!Array.isArray(value) || value.length > maximum)
+    throw new Error('Galeria excedida.');
+  const cases = value.map(evaluationCase);
+  if (new Set(cases.map((entry) => entry.id)).size !== cases.length)
+    throw new Error('Casos duplicados.');
+  return cases;
+}
+export function evaluationRound(value: unknown): EvaluationRound {
+  const data = record(value);
+  const maxCases = integer(data['maxCases'], 256),
+    maxBytes = integer(data['maxBytes'], 512 * 1024 * 1024);
+  const cases = roundCases(data['cases'], maxCases);
+  const usedBytes = cases.reduce(
+    (sum, entry) => sum + entry.bytes + entry.previewBytes,
+    0,
+  );
+  if (data['usedBytes'] !== usedBytes || usedBytes > maxBytes)
+    throw new Error('Contabilidade inválida.');
+  return {
+    roundId: identifier(data['roundId'], uuid),
+    expiresAt: integer(data['expiresAt'], Number.MAX_SAFE_INTEGER),
+    usedBytes,
+    maxBytes,
+    maxCases,
+    cases,
+  };
 }

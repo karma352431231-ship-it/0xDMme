@@ -71,3 +71,14 @@ class Detector:
                 or np.any(scores > 1) or abs(float(scores.sum()) - 1) > 0.00001):
             raise RuntimeError('Invalid candidate result.')
         return {label: float(score) for label, score in zip(LABELS, scores[0])}
+
+    def preview(self, payload):
+        # Only called after classify validates the original. Thumbnails never feed inference.
+        from PIL import ImageOps
+        with self.Image.open(io.BytesIO(payload)) as original:
+            with ImageOps.exif_transpose(original) as oriented:
+                with oriented.convert('RGBA') as image:
+                    image.thumbnail((320, 320), self.Image.Resampling.LANCZOS)
+                    with io.BytesIO() as output:
+                        image.save(output, format='PNG')
+                        return output.getvalue()

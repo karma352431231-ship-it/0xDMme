@@ -26,18 +26,40 @@
       ><input id="image" type="file" accept="image/png,image/jpeg,image/webp" />
       <label for="expected">Qual resultado você espera pela política?</label
       ><select id="expected">
-        <option>Permitido / safe</option>
-        <option>Proibido / não safe</option>
-        <option>Incerto / revisar</option>
+        <option value="">Escolha sua avaliação desta imagem</option>
+        <option value="safe">Permitido / safe</option>
+        <option value="unsafe">Proibido / não safe</option>
+        <option value="uncertain">Incerto / revisar</option>
       </select>
       <p class="small">
-        Sua referência permanece no navegador e não influencia o modelo. Os
-        bytes enviados não são salvos em disco, banco ou treinamento.
+        Imagem, scores e sua referência ficam juntos nesta rodada temporária,
+        somente em memória na VPS. Sua referência não influencia o modelo. Não
+        há treinamento nem envio automático a serviços externos.
       </p>
       <img id="preview" alt="Prévia local da imagem escolhida" hidden />
       <button id="evaluate" type="button">Analisar na VPS</button>
       <p id="status" role="status" aria-live="polite"></p>
-      <div id="output"></div>
+      <section aria-labelledby="gallery-title">
+        <h2 id="gallery-title">Rodada de calibração</h2>
+        <p class="small">
+          Os casos permanecem enquanto este ambiente estiver ativo, até 24
+          horas. Reiniciar o processo perde a rodada. Reabra o endereço privado
+          para recuperar os casos. Ao terminar, exporte se precisar e apague a
+          rodada. Até 256 casos ou 512 MiB; originais preservados sem
+          recompressão.
+        </p>
+        <div class="actions">
+          <button id="reload" type="button">Atualizar galeria</button>
+          <button id="export" type="button">
+            Exportar imagens + resultados
+          </button>
+          <button id="clear" type="button">Apagar esta rodada</button>
+        </div>
+        <p id="round"></p>
+        <div id="original"></div>
+        <div id="gallery" class="gallery"></div>
+        <div id="pagination" class="pagination"></div>
+      </section>
       <p class="small">
         <a href="/source.tar.gz" download
           >Fontes correspondentes da interface (GPL-3.0-only)</a
