@@ -20,6 +20,15 @@ prazo instalando FFmpeg no runner, antes dos testes. A API recusou repetir esse
 job com o acesso existente. Registrar esta entrega dispara nova CI integral;
 a ativação continua exigindo sucesso do commit exato, sem exceção ao gate.
 
+A CI de entrega `8ce8c8f` passou no check e nas integrações 1/3, mas a instalação
+da integração 2 voltou a exceder o prazo. O log confirmou downloads de pacotes
+presos no mirror Azure, depois de atualizar o índice. Somente o runner passa a
+preferir os dois fallbacks oficiais Ubuntu já presentes na
+[configuração da imagem](https://github.com/actions/runner-images/blob/main/images/ubuntu/scripts/build/configure-apt-sources.sh),
+com uma repetição, timeout de conexão/dados de 15 segundos e limite de três
+minutos para instalar o mesmo FFmpeg. A validação APT e a suíte integral
+permanecem; não há instalação nem troca de runtime na VPS.
+
 O proprietário autorizou aplicar a correção, enviar e ativar na VPS, incluindo
 continuidade após compactações até concluir. Login público e prova privada de
 abertura são recolhidos na mesma visita à wallet; o navegador original confirma

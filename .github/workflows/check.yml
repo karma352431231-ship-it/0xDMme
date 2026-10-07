@@ -56,7 +56,14 @@ jobs:
       - run: npm ci --ignore-scripts
       - run: npm run probe:zk:prepare
       # The runtime integration uses local synthetic media only. No executable is bundled/deployed.
-      - run: sudo apt-get update && sudo apt-get install --no-install-recommends -y ffmpeg
+      - name: Install synthetic media test runtime
+        timeout-minutes: 3
+        run: |
+          # Azure's mirror stalled package downloads; use the image's official Ubuntu fallbacks.
+          printf 'https://archive.ubuntu.com/ubuntu/\tpriority:1\nhttps://security.ubuntu.com/ubuntu/\tpriority:2\n' | sudo tee /etc/apt/apt-mirrors.txt >/dev/null
+          apt_network_options=(-o Acquire::Retries=1 -o Acquire::http::Timeout=15 -o Acquire::https::Timeout=15)
+          sudo apt-get "${apt_network_options[@]}" update
+          sudo apt-get "${apt_network_options[@]}" install --no-install-recommends -y ffmpeg
       # Node partitions the complete file glob; each shard owns its PostgreSQL
       # service. Serial execution inside a shard preserves schema-test isolation.
       - run: npm run build
