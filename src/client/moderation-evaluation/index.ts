@@ -143,6 +143,7 @@ window.addEventListener('hashchange', () => {
   const access = readAccess();
   action(async () => {
     api.acceptAccess(access);
+    status.textContent = '';
     await gallery.refresh();
   });
 });
