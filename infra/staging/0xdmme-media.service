@@ -8,7 +8,7 @@ StartLimitBurst=3
 [Service]
 Type=simple
 DynamicUser=yes
-User=0xdmme-media
+User=xdmme-media
 Group=xdmme-test
 Slice=0xdmme-media.slice
 Environment=HASH_TALK_MEDIA_FFMPEG=/opt/0xdmme-media/ffmpeg
