@@ -56,11 +56,14 @@ export function communityMediaIds(value: unknown): string[] {
   return ids;
 }
 export function communityMediaSet(sources: CommunityMediaSource[]): void {
-  if (!sources.length) return;
-  const kind = sources[0]!.kind;
-  if (sources.some((source) => source.kind !== kind))
+  communityMediaKindsSet(sources.map((source) => source.kind));
+}
+export function communityMediaKindsSet(kinds: CommunityMediaKind[]): void {
+  if (!kinds.length) return;
+  const kind = kinds[0]!;
+  if (kinds.some((item) => item !== kind))
     throw new AccountError(400, 'Use fotos, GIFs ou um vídeo, sem mistura.');
-  if (sources.length > communityMediaLimits[kind].count)
+  if (kinds.length > communityMediaLimits[kind].count)
     throw new AccountError(400, 'Use até 4 fotos, 3 GIFs ou 1 vídeo.');
 }
 export function communityMediaResult(value: unknown): CommunityMediaResult {

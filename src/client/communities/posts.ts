@@ -1,4 +1,5 @@
 import { restrictedMedia } from '../community-media/index.ts';
+import { showPublicPostMedia } from '../public-media/index.ts';
 import { keys, object } from '../../shared/account/index.ts';
 import {
   communityCursor,
@@ -61,7 +62,14 @@ export function startCommunityPosts(controller: Communities) {
     after: string | null = null,
     tag: string | null = null,
     scope = 'public';
-  const mediaCleanup = new Set<() => void>();
+  const mediaCleanup = new Map<() => void, HTMLElement>();
+  function clearMedia(container?: HTMLElement): void {
+    for (const [cleanup, node] of mediaCleanup) {
+      if (container && !container.contains(node)) continue;
+      cleanup();
+      mediaCleanup.delete(cleanup);
+    }
+  }
   function mediaAccess() {
     const old = generation;
     return {
@@ -180,7 +188,6 @@ export function startCommunityPosts(controller: Communities) {
         await load();
       },
     });
-    let disposeMedia: (() => void) | null = null;
     const options = el('div');
     node.append(options);
     button(node, 'Opções da postagem', () =>
@@ -193,19 +200,16 @@ export function startCommunityPosts(controller: Communities) {
             }),
           );
         if (old !== generation) return;
-        if (disposeMedia) {
-          disposeMedia();
-          mediaCleanup.delete(disposeMedia);
-        }
+        clearMedia(options);
         options.replaceChildren();
         restrictedContent(options, state);
         if (state.own && state.content?.media?.length) {
-          disposeMedia = restrictedMedia(
+          const disposeMedia = restrictedMedia(
             options,
             state.content.media,
             mediaAccess(),
           );
-          mediaCleanup.add(disposeMedia);
+          mediaCleanup.set(disposeMedia, options);
         }
         postActions(options, state, tagSource(), actions());
       }),
@@ -232,6 +236,7 @@ export function startCommunityPosts(controller: Communities) {
             ),
           );
         if (old !== generation) return;
+        clearMedia(children);
         children.replaceChildren(
           el('h3', 'Respostas diretas a este comentário'),
         );
@@ -334,12 +339,14 @@ export function startCommunityPosts(controller: Communities) {
         ),
       );
     if (state) restrictedContent(node, state);
-    if (value.status === 'visible')
-      node.append(
-        value.text
-          ? postText(value.text)
-          : el('p', 'Mídia aguardando liberação.'),
+    if (value.status !== 'visible') return;
+    if (value.text) node.append(postText(value.text));
+    if (value.media?.length)
+      mediaCleanup.set(
+        showPublicPostMedia(node, value.media, abort.signal),
+        node,
       );
+    else if (!value.text) node.append(el('p', 'Mídia aguardando liberação.'));
   }
   function rowMeta(node: HTMLElement, value: CommunityPost): void {
     if (value.author)
@@ -384,8 +391,7 @@ export function startCommunityPosts(controller: Communities) {
     );
   }
   async function load(): Promise<void> {
-    for (const cleanup of mediaCleanup) cleanup();
-    mediaCleanup.clear();
+    clearMedia();
     const old = generation;
     if (selected) {
       const result = communityPost(
@@ -572,8 +578,7 @@ export function startCommunityPosts(controller: Communities) {
     });
   }
   function leave(): void {
-    for (const cleanup of mediaCleanup) cleanup();
-    mediaCleanup.clear();
+    clearMedia();
     generation++;
     abort.abort();
     mounted = null;

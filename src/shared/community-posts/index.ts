@@ -9,6 +9,8 @@ import {
 import { communityMediaIds } from '../community-media/index.ts';
 import { publicProfile } from '../public-profile/index.ts';
 import type { PublicProfile } from '../public-profile/index.ts';
+import { publicPostMedia } from '../public-media/index.ts';
+import type { PublicPostMedia } from '../public-media/index.ts';
 
 export interface PostContent {
   title: string;
@@ -37,6 +39,7 @@ export interface CommunityPost {
   root: string | null;
   score: number;
   replies: number;
+  media?: PublicPostMedia[];
 }
 export interface PostRemoval {
   id: string;
@@ -123,6 +126,19 @@ export function postTag(value: unknown): PostTag {
     revision: communityRevision(data['revision']),
   };
 }
+function publicPostContent(data: Record<string, unknown>) {
+  const author = data['author'] === null ? null : publicProfile(data['author']),
+    tag = data['tag'] === null ? null : postTag(data['tag']),
+    title = communityText(data['title'], 200, true),
+    text = communityText(data['text'], 4000, true),
+    media = Object.hasOwn(data, 'media') ? publicPostMedia(data['media']) : [];
+  const hiddenFields = [title, text, author, tag].some(
+    (field) => field !== '' && field !== null,
+  );
+  if (data['status'] !== 'visible' && (hiddenFields || media.length > 0))
+    throw new AccountError(400, 'Marcador de post contém dados restritos.');
+  return { author, tag, title, text, ...(media.length ? { media } : {}) };
+}
 export function communityPost(value: unknown): CommunityPost {
   const data = object(value);
   keys(data, [
@@ -140,26 +156,15 @@ export function communityPost(value: unknown): CommunityPost {
     'root',
     'score',
     'replies',
+    ...(Object.hasOwn(data, 'media') ? ['media'] : []),
   ]);
   const status = data['status'];
   if (status !== 'visible' && status !== 'removed' && status !== 'deleted')
     throw new AccountError(400, 'Estado do post inválido.');
-  const author = data['author'] === null ? null : publicProfile(data['author']),
-    tag = data['tag'] === null ? null : postTag(data['tag']);
-  const title = communityText(data['title'], 200, true),
-    text = communityText(data['text'], 4000, true);
-  const hiddenFields = [title, text, author, tag].some(
-    (field) => field !== '' && field !== null,
-  );
-  if (status !== 'visible' && hiddenFields)
-    throw new AccountError(400, 'Marcador de post contém dados restritos.');
   return {
     id: uuid(data['id']),
     community: uuid(data['community']),
-    author,
-    title,
-    text,
-    tag,
+    ...publicPostContent(data),
     createdAt: postTime(data['createdAt']),
     editedAt: data['editedAt'] === null ? null : postTime(data['editedAt']),
     revision: communityRevision(data['revision']),

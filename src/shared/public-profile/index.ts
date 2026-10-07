@@ -8,6 +8,7 @@ import {
 import { canonical } from '../devices/index.ts';
 import { pendingPublicAvatar } from '../public-avatar/index.ts';
 import type { PendingPublicAvatar } from '../public-avatar/index.ts';
+import { publicAvatar } from '../public-media/index.ts';
 
 const reserved = new Set([
   'admin',
@@ -59,7 +60,7 @@ export function claimableHandle(value: unknown): string {
 export interface PublicProfile {
   id: string;
   handle: string;
-  avatar: null;
+  avatar: string | null;
 }
 export interface OwnPublicProfile {
   profile: PublicProfile;
@@ -69,12 +70,11 @@ export interface OwnPublicProfile {
 export function publicProfile(value: unknown): PublicProfile {
   const data = object(value);
   keys(data, ['id', 'handle', 'avatar']);
-  if (data['avatar'] !== null)
-    throw new AccountError(400, 'Avatar ainda restrito.');
+  const id = uuid(data['id']);
   return {
-    id: uuid(data['id']),
+    id,
     handle: publicHandle(data['handle']),
-    avatar: null,
+    avatar: publicAvatar(data['avatar'], 'avatar', id),
   };
 }
 export function profileRevision(value: unknown): number {

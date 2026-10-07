@@ -1,3 +1,10 @@
+import { PublicModerationService } from '../../src/server/public-moderation/index.ts';
+import { publicModerationRetargeting } from '../../src/server/public-moderation/index.ts';
+import {
+  PublicMediaService,
+  createPublicMediaHandler,
+} from '../../src/server/public-media/index.ts';
+import { publicAvatarPath } from '../../src/shared/public-media/index.ts';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { readFile } from 'node:fs/promises';
@@ -18,6 +25,8 @@ import { createWebServer } from '../../src/server/web-host/index.ts';
 import { readWebConfiguration } from '../../src/server/web-configuration/index.ts';
 import { AccountError, encode } from '../../src/shared/account/index.ts';
 import { publicProfileBody } from '../../src/shared/public-profile/index.ts';
+import { publicModerationNotice } from '../../src/shared/public-moderation/index.ts';
+import { createHash } from 'node:crypto';
 import { eventHash, sign } from '../../src/shared/devices/index.ts';
 import {
   createIdentity,
@@ -51,10 +60,20 @@ await test('perfil público: concorrência, consentimento, sessão/aparelho, mí
   });
   const accounts: string[] = [];
   const addresses: string[] = [];
+  const publicOwners = new Set<string>();
   await db.migrate();
   await inspector.connect();
+  const moderation = new PublicModerationService({
+    profiles: db.publicProfiles,
+    communities: db.communities,
+  });
   t.after(async () => {
     await host.close();
+    await moderation.close();
+    await inspector.query(
+      'DELETE FROM hash_talk.public_moderation WHERE owner=ANY($1::uuid[])',
+      [[...publicOwners]],
+    );
     for (const table of [
       'device_events',
       'device_directories',
@@ -134,11 +153,14 @@ await test('perfil público: concorrência, consentimento, sessão/aparelho, mí
       operation: string,
       payload: Record<string, unknown>,
     ) {
-      return publicProfiles.operate(
+      const result = await publicProfiles.operate(
         operation,
         login.session,
         await proof(operation, payload),
       );
+      if (result && !Array.isArray(result) && 'profile' in result)
+        publicOwners.add(result.profile.id);
+      return result;
     }
     return {
       login,
@@ -328,7 +350,7 @@ await test('perfil público: concorrência, consentimento, sessão/aparelho, mí
       );
       assert.equal(
         Number(current.rows[0]?.bytes) - Number(total.rows[0]?.bytes),
-        png.length,
+        png.length + 1_024,
       );
       assert.equal(
         await vaultUsage(inspector, owner.login.session.accountId),
@@ -374,6 +396,337 @@ await test('perfil público: concorrência, consentimento, sessão/aparelho, mí
         await limitedDb.close();
       }
       assert.equal(await other.operate('state', {}), null);
+    },
+  );
+  await t.test(
+    'avatar: análise e contestação assinadas, substituição, coleta e capacidade líquida',
+    async () => {
+      const png = new Uint8Array(
+        await readFile(
+          new URL('../../src/client/app/icon-192.png', import.meta.url),
+        ),
+      );
+      const bigger = new Uint8Array(
+        await readFile(
+          new URL('../../src/client/app/icon-512.png', import.meta.url),
+        ),
+      );
+      async function state() {
+        return (await owner.operate('state', {})) as {
+          revision: number;
+          pendingAvatar: { bytes: string } | null;
+        };
+      }
+      async function upload(bytes: Uint8Array) {
+        const own = await state();
+        await owner.operate('avatar', {
+          revision: own.revision,
+          avatar: { type: 'image/png', bytes: encode(bytes) },
+        });
+        const data = await owner.operate('moderation-notices', { after: null });
+        assert.ok(Array.isArray(data));
+        const notices = data.map(publicModerationNotice);
+        const pending = notices.find((notice) => notice.status === 'pending');
+        assert.ok(pending);
+        return pending;
+      }
+      const first = await upload(png),
+        model = { hash: 'b'.repeat(64), runtime: 'isolated-contract-test' };
+      const claimed = await db.publicModeration.claim(model);
+      assert.ok(claimed);
+      assert.equal(claimed.id, first.id);
+      assert.equal(
+        claimed.contentHash,
+        createHash('sha256').update(png).digest('hex'),
+      );
+      assert.deepEqual(
+        (await db.publicProfiles.moderationCandidate(claimed))?.bytes,
+        png,
+      );
+      await db.publicModeration.finish(
+        claimed,
+        {
+          contentHash: claimed.contentHash,
+          modelHash: claimed.modelHash,
+          frames: 1,
+          expectedFrames: 1,
+          verdict: 'hold',
+        },
+        (client, subject) => db.publicProfiles.bindModeration(client, subject),
+      );
+      const forbidden = await owner.proof('moderation-appeal', {
+        id: first.id,
+        reason: 'Conteúdo permitido.',
+      });
+      await assert.rejects(
+        publicProfiles.operate('moderation-notices', owner.login.session, {
+          ...forbidden,
+          payload: { after: null },
+        }),
+        AccountError,
+      );
+      const outsider = await create();
+      await outsider.operate('create', {
+        handle: `q_${crypto.randomUUID().slice(0, 8)}`,
+        consent: true,
+      });
+      await assert.rejects(
+        outsider.operate('moderation-appeal', {
+          id: first.id,
+          reason: 'Outra pessoa',
+        }),
+        badStatus(404),
+      );
+      const appealResponse = await fetch(
+        `${origin}/api/account/public-profile/moderation-appeal`,
+        {
+          method: 'POST',
+          headers: {
+            Origin: origin,
+            Cookie: `hash-talk-session=${owner.login.sessionToken}`,
+            'X-Hash-Talk-CSRF': owner.login.session.csrf,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(forbidden),
+        },
+      );
+      assert.equal(appealResponse.status, 200);
+      assert.equal(
+        publicModerationNotice(await appealResponse.json()).appeal,
+        'Conteúdo permitido.',
+      );
+      await assert.rejects(
+        owner.operate('moderation-review', { id: first.id, verdict: 'allow' }),
+        badStatus(404),
+      );
+      const second = await upload(bigger),
+        secondClaim = await db.publicModeration.claim(model);
+      assert.ok(secondClaim);
+      assert.equal(secondClaim.id, second.id);
+      await db.publicModeration.finish(
+        secondClaim,
+        {
+          contentHash: secondClaim.contentHash,
+          modelHash: secondClaim.modelHash,
+          frames: 1,
+          expectedFrames: 1,
+          verdict: 'allow',
+        },
+        (client, subject) => db.publicProfiles.bindModeration(client, subject),
+      );
+      await inspector.query(
+        "UPDATE hash_talk.public_moderation SET created_at=now()-interval '8 days',expires_at=now()-interval '1 day' WHERE id=$1",
+        [second.id],
+      );
+      await moderation.clean();
+      assert.equal((await state()).pendingAvatar?.bytes, encode(bigger));
+      assert.equal((await publicProfiles.read(handle)).avatar, null);
+      const usage = await inspector.query<{ bytes: string }>(
+        'SELECT used_bytes::text AS bytes FROM hash_talk.content_usage WHERE singleton',
+      );
+      assert.ok(
+        bigger.length > png.length,
+        'A substituição deste caso libera bytes.',
+      );
+      const limited = new Database(
+        config.databaseUrl,
+        Number(usage.rows[0]!.bytes) + 1_023,
+      );
+      try {
+        const service = new PublicProfileService(
+          limited.publicProfiles,
+          db.devices,
+        );
+        const payload = {
+          revision: (await state()).revision,
+          avatar: { type: 'image/png', bytes: encode(png) },
+        };
+        await service.operate(
+          'avatar',
+          owner.login.session,
+          await owner.proof('avatar', payload),
+        );
+      } finally {
+        await limited.close();
+      }
+      const notices = await owner.operate('moderation-notices', {
+        after: null,
+      });
+      assert.ok(Array.isArray(notices));
+      const final = notices
+        .map(publicModerationNotice)
+        .find((notice) => notice.status === 'pending');
+      assert.ok(final);
+      const stale = await db.publicModeration.claim(model);
+      assert.ok(stale);
+      const replaced = await upload(bigger);
+      await assert.rejects(
+        db.publicModeration.finish(
+          stale,
+          {
+            contentHash: stale.contentHash,
+            modelHash: stale.modelHash,
+            frames: 1,
+            expectedFrames: 1,
+            verdict: 'allow',
+          },
+          (client, subject) =>
+            db.publicProfiles.bindModeration(client, subject),
+        ),
+        badStatus(409),
+      );
+      assert.equal(await db.publicProfiles.moderationCandidate(stale), null);
+      await inspector.query(
+        "UPDATE hash_talk.public_moderation SET created_at=now()-interval '8 days',expires_at=now()-interval '1 day' WHERE id=$1",
+        [replaced.id],
+      );
+      const before = await inspector.query<{ bytes: string }>(
+        'SELECT used_bytes::text AS bytes FROM hash_talk.content_usage WHERE singleton',
+      );
+      assert.equal(
+        (await state()).pendingAvatar,
+        null,
+        'Prazo fecha a leitura antes da coleta física.',
+      );
+      await moderation.clean();
+      assert.equal((await state()).pendingAvatar, null);
+      const expired = await owner.operate('moderation-notices', {
+        after: null,
+      });
+      assert.ok(Array.isArray(expired));
+      assert.equal(
+        expired
+          .map(publicModerationNotice)
+          .find((notice) => notice.id === replaced.id)?.status,
+        'expired',
+      );
+      const after = await inspector.query<{ bytes: string }>(
+        'SELECT used_bytes::text AS bytes FROM hash_talk.content_usage WHERE singleton',
+      );
+      assert.equal(
+        Number(before.rows[0]!.bytes) - Number(after.rows[0]!.bytes),
+        bigger.length,
+      );
+    },
+  );
+  await t.test(
+    'avatar publicado: regra atual, hash e alvo; URI conhecida não libera pendente ou imagem alterada',
+    async () => {
+      const person = await create(),
+        handle = `u_${crypto.randomUUID().slice(0, 8)}`;
+      const created = await person.operate('create', { handle, consent: true });
+      const profile = created as { profile: { id: string } };
+      const bytes = new Uint8Array(
+        await readFile(
+          new URL('../../src/client/app/icon-192.png', import.meta.url),
+        ),
+      );
+      await person.operate('avatar', {
+        revision: 1,
+        avatar: { type: 'image/png', bytes: encode(bytes) },
+      });
+      const notices = await person.operate('moderation-notices', {
+        after: null,
+      });
+      assert.ok(Array.isArray(notices));
+      const old = notices.map(publicModerationNotice)[0]!;
+      await inspector.query(
+        "UPDATE hash_talk.public_moderation SET policy='0xdmme-public-explicit-v1' WHERE id=$1",
+        [old.id],
+      );
+      const model = { hash: 'b'.repeat(64), runtime: 'isolated-contract-test' };
+      assert.equal(
+        await db.publicModeration.claim(model),
+        null,
+        'A regra antiga não é analisada como se fosse a nova.',
+      );
+      assert.equal(
+        await db.publicModeration.upgrade(publicModerationRetargeting(db)),
+        1,
+      );
+      const current = await person.operate('moderation-notices', {
+        after: null,
+      });
+      assert.ok(Array.isArray(current));
+      const pending = current
+        .map(publicModerationNotice)
+        .find((notice) => notice.status === 'pending');
+      assert.ok(pending);
+      assert.notEqual(pending.id, old.id);
+      assert.equal(
+        pending.expiresAt,
+        old.expiresAt,
+        'Atualizar a regra não renova retenção.',
+      );
+      const accepted = new Database(config.databaseUrl, 3_000_000_000, [model]);
+      const publicHost = createWebServer({
+        origin: 'http://127.0.0.1:45127',
+        assets: new Map(),
+        database: accepted,
+        objects: { healthy: () => Promise.resolve(true) },
+        publicMedia: createPublicMediaHandler(
+          new PublicMediaService({
+            profiles: accepted.publicProfiles,
+            communities: accepted.communities,
+          }),
+        ),
+      });
+      await new Promise<void>((accept, reject) => {
+        publicHost.server.once('error', reject);
+        publicHost.server.listen(45127, '127.0.0.1', accept);
+      });
+      const path = publicAvatarPath('avatar', profile.profile.id, pending.id),
+        url = `http://127.0.0.1:45127${path}`;
+      try {
+        assert.equal((await fetch(url)).status, 404);
+        const job = await db.publicModeration.claim(model);
+        assert.ok(job);
+        assert.equal(job.id, pending.id);
+        await db.publicModeration.finish(
+          job,
+          { ...job, frames: 1, expectedFrames: 1, verdict: 'allow' },
+          (client, subject) =>
+            db.publicProfiles.bindModeration(client, subject),
+        );
+        assert.equal(
+          (await accepted.publicProfiles.read(handle))?.avatar,
+          path,
+        );
+        assert.equal(
+          (await db.publicProfiles.read(handle))?.avatar,
+          null,
+          'A aplicação sem aceite do scanner permanece fechada.',
+        );
+        const response = await fetch(url);
+        assert.equal(response.status, 200);
+        assert.equal(response.headers.get('content-type'), 'image/png');
+        assert.equal(response.headers.get('cache-control'), 'no-store');
+        assert.deepEqual(new Uint8Array(await response.arrayBuffer()), bytes);
+        assert.equal(
+          (await fetch(url, { method: 'HEAD' })).headers.get('content-length'),
+          String(bytes.length),
+        );
+        const altered = Uint8Array.from(bytes);
+        altered[altered.length - 1] = 0;
+        await inspector.query(
+          'UPDATE hash_talk.public_profiles SET pending_avatar=$2 WHERE id=$1',
+          [profile.profile.id, altered],
+        );
+        assert.equal(
+          (await accepted.publicProfiles.read(handle))?.avatar,
+          null,
+        );
+        assert.equal((await fetch(url)).status, 404);
+        const own = (await person.operate('state', {})) as { revision: number };
+        await person.operate('avatar', {
+          revision: own.revision,
+          avatar: null,
+        });
+        assert.equal((await fetch(url)).status, 404);
+      } finally {
+        await publicHost.close();
+        await accepted.close();
+      }
     },
   );
   await t.test(

@@ -222,6 +222,13 @@ export function createWebServer(options: {
     ) => Promise<void>;
     close: () => void;
   };
+  publicMedia?: {
+    handle: (
+      request: IncomingMessage,
+      response: ServerResponse,
+    ) => Promise<void>;
+    close: () => void;
+  };
   communities?: {
     handle: (
       request: IncomingMessage,
@@ -269,6 +276,8 @@ export function createWebServer(options: {
     await publicRequest(request, response);
   }
   function publicDataHandler(request: IncomingMessage) {
+    if (request.url?.startsWith('/api/public-media/'))
+      return options.publicMedia;
     if (request.url?.startsWith('/api/public-profiles/'))
       return options.publicProfiles;
     if (request.url?.startsWith('/api/communities')) return options.communities;
@@ -315,6 +324,7 @@ export function createWebServer(options: {
       stopping = true;
       options.account?.close();
       options.publicProfiles?.close();
+      options.publicMedia?.close();
       options.communities?.close();
       await new Promise<void>((resolve, reject) => {
         const timeout = setTimeout(() => server.closeAllConnections(), 5_000);

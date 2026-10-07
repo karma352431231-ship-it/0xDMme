@@ -1,6 +1,13 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { mkdtemp, readFile, rm, realpath } from 'node:fs/promises';
+import {
+  mkdtemp,
+  readFile,
+  rm,
+  realpath,
+  writeFile,
+  unlink,
+} from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
@@ -15,6 +22,7 @@ import {
 } from '../../src/shared/community-media/index.ts';
 import type { CommunityMediaSource } from '../../src/shared/community-media/index.ts';
 import { postState } from '../../src/shared/community-posts/index.ts';
+import type { CommunityPost } from '../../src/shared/community-posts/index.ts';
 import { Database } from '../../src/server/database/index.ts';
 import { CommunityMediaService } from '../../src/server/community-media/index.ts';
 import {
@@ -31,6 +39,28 @@ import { createWebServer } from '../../src/server/web-host/index.ts';
 import { readWebConfiguration } from '../../src/server/web-configuration/index.ts';
 import { createCommunityAccount } from './community-fixture.ts';
 import { vaultUsage } from '../../src/server/database/vault-quota.ts';
+import {
+  publicModerationNotice,
+  publicModerationRetentionMs,
+} from '../../src/shared/public-moderation/index.ts';
+import { publicProfileBody } from '../../src/shared/public-profile/index.ts';
+import { sign } from '../../src/shared/devices/index.ts';
+import {
+  PublicMediaService,
+  createPublicMediaHandler,
+} from '../../src/server/public-media/index.ts';
+import { publicPostMediaPath } from '../../src/shared/public-media/index.ts';
+import { feedFilter } from '../../src/shared/community-discovery/index.ts';
+import {
+  PublicModerationScanner,
+  PublicModerationWorker,
+  publicModerationBinding,
+} from '../../src/server/public-moderation/index.ts';
+import { readMediaRuntime } from '../../src/server/community-media/index.ts';
+
+function firstMedia(post: CommunityPost | undefined): string | undefined {
+  return post?.media?.[0]?.id;
+}
 
 await test('mídia das comunidades: cadeia real, autorização, vínculo atômico, capacidade e limpeza', async (t) => {
   const ffmpeg = process.env['HASH_TALK_MEDIA_FFMPEG'],
@@ -66,6 +96,7 @@ await test('mídia das comunidades: cadeia real, autorização, vínculo atômic
   );
   const accounts: string[] = [],
     addresses: string[] = [],
+    publicOwners: string[] = [],
     id = crypto.randomUUID(),
     other = crypto.randomUUID();
   const host = createWebServer({
@@ -82,6 +113,15 @@ await test('mídia das comunidades: cadeia real, autorização, vínculo atômic
   });
   await db.migrate();
   await inspector.connect();
+  assert.equal(
+    (
+      await inspector.query<{ count: number }>(
+        'SELECT count(*)::int AS count FROM hash_talk.community_media',
+      )
+    ).rows[0]?.count,
+    0,
+    'Esta fixture usa outro diretório de objetos; isole o banco de mídia antes do teste.',
+  );
   await media.initialize();
   t.after(async () => {
     await host.close();
@@ -89,6 +129,10 @@ await test('mídia das comunidades: cadeia real, autorização, vínculo atômic
     await inspector.query(
       'DELETE FROM hash_talk.community_media WHERE community_id=ANY($1::uuid[])',
       [[id, other]],
+    );
+    await inspector.query(
+      'DELETE FROM hash_talk.public_moderation WHERE owner=ANY($1::uuid[])',
+      [publicOwners],
     );
     await inspector.query(
       'DELETE FROM hash_talk.communities WHERE id=ANY($1::uuid[])',
@@ -131,10 +175,13 @@ await test('mídia das comunidades: cadeia real, autorização, vínculo atômic
       }),
     author = await make(),
     outsider = await make();
-  await author.publicIdentity(`m9_${crypto.randomUUID().slice(0, 8)}`);
+  const authorProfile = await author.publicIdentity(
+    `m9_${crypto.randomUUID().slice(0, 8)}`,
+  );
   const outsiderProfile = await outsider.publicIdentity(
     `m9_${crypto.randomUUID().slice(0, 8)}`,
   );
+  publicOwners.push(authorProfile.id, outsiderProfile.id);
   for (const community of [id, other])
     await author.operate('create', {
       id: community,
@@ -520,6 +567,415 @@ await test('mídia das comunidades: cadeia real, autorização, vínculo atômic
         [id],
       );
       assert.equal(attached.rows[0]?.count, 3);
+    },
+  );
+  await t.test(
+    'análise vincula resultado e miniatura; descarte exige remoção física e preserva texto/links e aprovados',
+    async () => {
+      const attached = await inspector.query<{
+        id: string;
+        post_id: string;
+        moderation_review: string;
+        created_at: Date;
+      }>(
+        "SELECT id,post_id,moderation_review,created_at FROM hash_talk.community_media WHERE community_id=$1 AND status='attached' ORDER BY id",
+        [id],
+      );
+      assert.equal(attached.rows.length, 3);
+      const model = { hash: 'b'.repeat(64), runtime: 'isolated-contract-test' },
+        jobs = [];
+      for (let i = 0; i < 3; i++) {
+        const job = await db.publicModeration.claim(model);
+        assert.ok(job);
+        const candidate = await db.communityMedia.moderationCandidate(job);
+        assert.ok(candidate);
+        const row = attached.rows.find((item) => item.id === job.target);
+        assert.ok(row);
+        assert.equal(job.owner, authorProfile.id);
+        assert.equal(job.id, row.moderation_review);
+        assert.equal(
+          candidate.resultHash,
+          createHash('sha256')
+            .update(
+              await readFile(
+                join(root, 'community-media', candidate.id, 'result'),
+              ),
+            )
+            .digest('hex'),
+        );
+        assert.equal(
+          candidate.thumbnailHash,
+          createHash('sha256')
+            .update(
+              await readFile(
+                join(root, 'community-media', candidate.id, 'thumbnail'),
+              ),
+            )
+            .digest('hex'),
+        );
+        const stored = await inspector.query<{
+          created_at: Date;
+          expires_at: Date;
+        }>(
+          'SELECT created_at,expires_at FROM hash_talk.public_moderation WHERE id=$1',
+          [job.id],
+        );
+        assert.equal(
+          stored.rows[0]!.created_at.getTime(),
+          row.created_at.getTime(),
+        );
+        assert.equal(
+          stored.rows[0]!.expires_at.getTime() - row.created_at.getTime(),
+          publicModerationRetentionMs,
+        );
+        await db.publicModeration.finish(
+          job,
+          {
+            ...job,
+            frames: 21,
+            expectedFrames: 21,
+            verdict: i === 0 ? 'hold' : 'allow',
+          },
+          (client, review) => db.communityMedia.bindModeration(client, review),
+        );
+        jobs.push(job);
+      }
+      const held = jobs[0]!,
+        approved = jobs[1]!;
+      await inspector.query(
+        "UPDATE hash_talk.public_moderation SET created_at=now()-interval '8 days',expires_at=now()-interval '1 day' WHERE id=ANY($1::uuid[])",
+        [[held.id, approved.id]],
+      );
+      const failure = join(root, 'community-media', held.target, 'unexpected');
+      await writeFile(failure, 'fixture de falha');
+      const globalUsage = async () =>
+        Number(
+          (
+            await inspector.query<{ bytes: string }>(
+              'SELECT used_bytes::text AS bytes FROM hash_talk.content_usage WHERE singleton',
+            )
+          ).rows[0]!.bytes,
+        );
+      const before = await globalUsage(),
+        charge = Number(
+          (
+            await inspector.query<{ charge: string }>(
+              'SELECT charge::text AS charge FROM hash_talk.community_media WHERE id=$1',
+              [held.target],
+            )
+          ).rows[0]!.charge,
+        );
+      await assert.rejects(media.clean(), /Objeto irregular/);
+      assert.equal(await globalUsage(), before);
+      assert.equal(
+        (
+          await inspector.query<{ status: string }>(
+            'SELECT status FROM hash_talk.public_moderation WHERE id=$1',
+            [held.id],
+          )
+        ).rows[0]!.status,
+        'discarding',
+      );
+      await unlink(failure);
+      await media.clean();
+      assert.equal(before - (await globalUsage()), charge);
+      await assert.rejects(state(held.target), bad(404));
+      await assert.rejects(
+        reserve({ ...descriptor('gif', await readFile(gif)), id: held.target }),
+        bad(409),
+      );
+      assert.equal((await state(approved.target)).status, 'attached');
+      const body = { directory: author.directory, payload: { after: null } };
+      const notices = await profiles.operate(
+        'moderation-notices',
+        author.login.session,
+        {
+          ...body,
+          signature: await sign(
+            author.identity.signing,
+            publicProfileBody(
+              author.login.session.accountId,
+              author.login.session.deviceId,
+              'moderation-notices',
+              body,
+            ),
+          ),
+        },
+      );
+      assert.equal(
+        notices.map(publicModerationNotice).find((item) => item.id === held.id)
+          ?.status,
+        'expired',
+      );
+      const reply = attached.rows[0]!.post_id,
+        current = postState(
+          await author.operate('post-state', { id, post: reply }),
+        );
+      assert.ok(current.content);
+      const edited = postState(
+        await author.operate('post-edit', {
+          id,
+          post: reply,
+          revision: current.post.revision,
+          content: {
+            ...current.content,
+            text: 'Texto preservado após o descarte.',
+          },
+        }),
+      );
+      assert.equal(edited.content?.text, 'Texto preservado após o descarte.');
+      assert.equal(
+        (await communities.post(id, reply)).text,
+        'Texto preservado após o descarte.',
+      );
+      assert.equal(
+        JSON.stringify(await communities.post(id, reply)).includes(
+          approved.target,
+        ),
+        false,
+      );
+    },
+  );
+  await t.test(
+    'mídia aprovada é pública em posts, replies e feed; ocultação, corrupção e exclusão fecham os bytes',
+    async () => {
+      const model = { hash: 'b'.repeat(64), runtime: 'isolated-contract-test' },
+        accepted = new Database(config.databaseUrl, 3_000_000_000, [model]),
+        clip = descriptor('video', await readFile(video)),
+        animation = descriptor('gif', await readFile(gif)),
+        rootPost = crypto.randomUUID(),
+        reply = crypto.randomUUID();
+      const publicOrigin = 'http://127.0.0.1:45128';
+      const publicHost = createWebServer({
+        origin: publicOrigin,
+        assets: new Map(),
+        database: accepted,
+        objects: { healthy: () => Promise.resolve(true) },
+        publicMedia: createPublicMediaHandler(
+          new PublicMediaService(
+            {
+              profiles: accepted.publicProfiles,
+              communities: accepted.communities,
+              media: accepted.communityMedia,
+            },
+            root,
+          ),
+        ),
+        communities: createCommunityHandler({
+          read: (id) => accepted.communities.read(id),
+          list: (after) => accepted.communities.list(after),
+          post: (community, id) => accepted.communityPosts.read(community, id),
+          postPage: (community, after, tag) =>
+            accepted.communityPosts.list(community, after, tag),
+          replies: (community, parent, after) =>
+            accepted.communityPosts.replies(community, parent, after),
+          feed: (filter, after) =>
+            accepted.communityDiscovery.feed(filter, after),
+        }),
+      });
+      try {
+        await new Promise<void>((resolve, reject) => {
+          publicHost.server.once('error', reject);
+          publicHost.server.listen(45128, '127.0.0.1', resolve);
+        });
+        await ready(clip, await readFile(video));
+        await author.operate('post-create', {
+          id,
+          post: rootPost,
+          content: {
+            title: 'Vídeo sintético',
+            text: 'Legenda',
+            tag: null,
+            media: [clip.id],
+          },
+        });
+        await ready(animation, await readFile(gif));
+        await author.operate('reply-create', {
+          id,
+          post: reply,
+          parent: rootPost,
+          content: {
+            title: '',
+            text: 'Resposta',
+            tag: null,
+            media: [animation.id],
+          },
+        });
+        const reviews = await inspector.query<{ id: string; target: string }>(
+          "SELECT id,target FROM hash_talk.public_moderation WHERE target=ANY($1::uuid[]) AND status='pending'",
+          [[clip.id, animation.id]],
+        );
+        assert.equal(reviews.rows.length, 2);
+        for (const job of reviews.rows) {
+          assert.equal(
+            (
+              await fetch(
+                publicOrigin +
+                  `/api/public-media/post-media/${job.target}/${job.id}`,
+              )
+            ).status,
+            404,
+          );
+        }
+        const runtime = readMediaRuntime(process.env);
+        assert.ok(runtime);
+        const scanner = new PublicModerationScanner({
+          runtime,
+          directory: root,
+          candidates: {
+            avatar: () => Promise.resolve(null),
+            media: (job) => db.communityMedia.moderationCandidate(job),
+          },
+          detector: {
+            model,
+            size: 32,
+            classify: (frames) =>
+              Promise.resolve(frames.map(() => 'allow' as const)),
+          },
+        });
+        const worker = new PublicModerationWorker({
+          queue: db.publicModeration,
+          bind: publicModerationBinding(db),
+          runner: scanner,
+        });
+        try {
+          await worker.run();
+        } finally {
+          await worker.close();
+        }
+        const scanned = await inspector.query<{
+          frames: number;
+          status: string;
+        }>(
+          'SELECT frames,status FROM hash_talk.public_moderation WHERE id=ANY($1::uuid[]) ORDER BY frames',
+          [reviews.rows.map((job) => job.id)],
+        );
+        assert.deepEqual(scanned.rows, [
+          { frames: 21, status: 'approved' },
+          { frames: 61, status: 'approved' },
+        ]);
+        const visible = await accepted.communityPosts.read(id, rootPost),
+          published = visible.media?.[0];
+        assert.ok(published);
+        assert.equal(published.id, clip.id);
+        assert.equal(
+          (await communities.post(id, rootPost)).media,
+          undefined,
+          'O aplicativo não aceita o modelo simulado.',
+        );
+        assert.equal(
+          firstMedia(
+            (await accepted.communityPosts.list(id, null, null)).items.find(
+              (p) => p.id === rootPost,
+            ),
+          ),
+          clip.id,
+        );
+        assert.equal(
+          firstMedia(
+            (
+              await accepted.communityPosts.replies(id, rootPost, null)
+            ).items.find((p) => p.id === reply),
+          ),
+          animation.id,
+        );
+        const filter = feedFilter({
+            scope: 'all',
+            order: 'recent',
+            period: 'all',
+            community: id,
+            tag: null,
+          }),
+          feed = await accepted.communityDiscovery.feed(filter, null);
+        assert.equal(
+          firstMedia(feed.items.find((p) => p.post.id === rootPost)?.post),
+          clip.id,
+        );
+        const content = await readFile(
+            join(root, 'community-media', clip.id, 'result'),
+          ),
+          path = publicPostMediaPath(published),
+          download = await fetch(publicOrigin + path);
+        assert.equal(download.status, 200);
+        assert.equal(download.headers.get('Cache-Control'), 'no-store');
+        assert.equal(download.headers.get('Content-Type'), 'video/mp4');
+        assert.deepEqual(Buffer.from(await download.arrayBuffer()), content);
+        // ON DELETE SET NULL removes the uploader link; accepted public bytes/history remain.
+        await inspector.query(
+          'UPDATE hash_talk.community_media SET author=NULL WHERE id=$1',
+          [clip.id],
+        );
+        assert.equal((await fetch(publicOrigin + path)).status, 200);
+        assert.equal(
+          firstMedia(await accepted.communityPosts.read(id, rootPost)),
+          clip.id,
+        );
+        await inspector.query(
+          'UPDATE hash_talk.community_media SET author=$2 WHERE id=$1',
+          [clip.id, authorProfile.id],
+        );
+        const head = await fetch(publicOrigin + path, { method: 'HEAD' });
+        assert.equal(head.status, 200);
+        assert.equal(
+          Number(head.headers.get('Content-Length')),
+          content.length,
+        );
+        assert.equal((await head.arrayBuffer()).byteLength, 0);
+        const thumb = await fetch(
+          publicOrigin + publicPostMediaPath(published, true),
+        );
+        assert.equal(thumb.status, 200);
+        assert.equal(thumb.headers.get('Content-Type'), 'image/png');
+        assert.deepEqual(
+          Buffer.from(await thumb.arrayBuffer()),
+          await readFile(join(root, 'community-media', clip.id, 'thumbnail')),
+        );
+        const corrupted = Buffer.from(content);
+        corrupted[0] = corrupted[0]! ^ 1;
+        await writeFile(
+          join(root, 'community-media', clip.id, 'result'),
+          corrupted,
+        );
+        assert.equal((await fetch(publicOrigin + path)).status, 503);
+        await writeFile(
+          join(root, 'community-media', clip.id, 'result'),
+          content,
+        );
+        const removal = crypto.randomUUID();
+        await author.operate('post-hide', {
+          id,
+          post: rootPost,
+          revision: visible.revision,
+          record: removal,
+          reason: 'Ensaio local.',
+        });
+        assert.equal((await fetch(publicOrigin + path)).status, 404);
+        assert.equal(
+          (await accepted.communityPosts.read(id, rootPost)).media,
+          undefined,
+        );
+        await author.operate('post-decide', {
+          id,
+          post: rootPost,
+          revision: (await communities.post(id, rootPost)).revision,
+          record: removal,
+          decision: 'Restaurado no ensaio.',
+          restore: true,
+        });
+        assert.equal((await fetch(publicOrigin + path)).status, 200);
+        for (const post of [rootPost, reply])
+          await author.operate('post-delete', {
+            id,
+            post,
+            revision: (await communities.post(id, post)).revision,
+          });
+        assert.equal((await fetch(publicOrigin + path)).status, 404);
+        await media.clean();
+        assert.equal((await fetch(publicOrigin + path)).status, 404);
+      } finally {
+        await publicHost.close();
+        await accepted.close();
+      }
     },
   );
   await t.test(

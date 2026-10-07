@@ -21,6 +21,7 @@ import type {
   PrivatePostPage,
 } from '../../shared/community-posts/index.ts';
 import type { PublicProfile } from '../../shared/public-profile/index.ts';
+import type { PublicPostMedia } from '../../shared/public-media/index.ts';
 import type { PublicProfileStore } from './public-profile.ts';
 import type { CommunityMediaStore } from './community-media.ts';
 import type { CommunityStore } from './communities.ts';
@@ -60,12 +61,18 @@ function content(row: PostRow, own: boolean): PostContent | null {
     ...(own && row.media_ids?.length ? { media: row.media_ids } : {}),
   };
 }
+function sameMedia(
+  current: string[] | undefined,
+  next: string[] | undefined,
+): boolean {
+  return JSON.stringify(current ?? []) === JSON.stringify(next ?? []);
+}
 function sameContent(row: PostRow, value: PostContent): boolean {
   return (
     row.title === value.title &&
     row.text === value.text &&
     row.tag_id === value.tag &&
-    JSON.stringify(row.media_ids ?? []) === JSON.stringify(value.media ?? [])
+    sameMedia(row.media_ids, value.media)
   );
 }
 function editable(row: PostRow, own: boolean, canPost: boolean): boolean {
@@ -73,13 +80,19 @@ function editable(row: PostRow, own: boolean, canPost: boolean): boolean {
 }
 function visibleFields(
   row: PostRow,
-  lookup: { authors: Map<string, PublicProfile>; tags: Map<string, PostTag> },
+  lookup: {
+    authors: Map<string, PublicProfile>;
+    tags: Map<string, PostTag>;
+    media: Map<string, PublicPostMedia[]>;
+  },
 ) {
+  const media = lookup.media.get(row.id);
   return {
     title: row.title,
     text: row.text,
     author: row.author ? (lookup.authors.get(row.author) ?? null) : null,
     tag: row.tag_id ? (lookup.tags.get(row.tag_id) ?? null) : null,
+    ...(media?.length ? { media } : {}),
   };
 }
 function requireCreateRetry(
@@ -157,11 +170,21 @@ export class CommunityPostStore {
         client,
         rows.flatMap((row) => (row.tag_id ? [row.tag_id] : [])),
       );
-    return { authors, tags };
+    const media = await this.media.references(
+      client,
+      rows
+        .filter((row) => !row.deleted && !row.active_removal)
+        .map((row) => row.id),
+    );
+    return { authors, tags, media };
   }
   private view(
     row: PostRow,
-    lookup: { authors: Map<string, PublicProfile>; tags: Map<string, PostTag> },
+    lookup: {
+      authors: Map<string, PublicProfile>;
+      tags: Map<string, PostTag>;
+      media: Map<string, PublicPostMedia[]>;
+    },
   ): CommunityPost {
     const status = row.deleted
         ? 'deleted'
@@ -404,7 +427,8 @@ export class CommunityPostStore {
   ): Promise<void> {
     keys(data, ['id', 'post', 'revision', 'content']);
     const row = await loadPost(context, uuid(data['post'])),
-      value = postContent(data['content']);
+      value = postContent(data['content']),
+      ids = value.media ?? [];
     if (row.author !== context.actor.id)
       throw new AccountError(403, 'Somente o autor pode editar o post.');
     await requireCommunityParticipation(context);
@@ -418,10 +442,16 @@ export class CommunityPostStore {
       throw new AccountError(400, 'Resposta não admite título/tag.');
     await requirePostTag(context, value.tag, row.tag_id);
     if (sameContent(row, value)) return;
-    await this.media.replace(context, { post: row.id, ids: value.media ?? [] });
+    // Expiry removes bytes while preserving the post/reply link and its text.
+    // Editing text need not reattach historical IDs whose bytes were discarded.
+    if (!sameMedia(row.media_ids, ids))
+      await this.media.replace(context, {
+        post: row.id,
+        ids,
+      });
     await context.client.query(
       'UPDATE hash_talk.community_posts SET title=$2,text=$3,tag_id=$4,media_ids=$5,edited_at=clock_timestamp(),revision=revision+1 WHERE id=$1',
-      [row.id, value.title, value.text, value.tag, value.media ?? []],
+      [row.id, value.title, value.text, value.tag, ids],
     );
     await assertContentCapacity(context.client, this.capacity);
   }

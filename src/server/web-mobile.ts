@@ -1,3 +1,13 @@
+import {
+  PublicMediaService,
+  createPublicMediaHandler,
+} from './public-media/index.ts';
+import {
+  PublicModerationService,
+  PublicModerationWorker,
+  publicModerationBinding,
+  publicModerationRetargeting,
+} from './public-moderation/index.ts';
 import { Database } from './database/index.ts';
 import { AccountService, createAccountHandler } from './account/index.ts';
 import {
@@ -66,12 +76,27 @@ try {
     database.publicProfiles,
     database.devices,
   );
+  const publicModeration = new PublicModerationService({
+    profiles: database.publicProfiles,
+    communities: database.communities,
+  });
+  await publicModeration.initialize();
   const communityMedia = new CommunityMediaService({
     store: database.communityMedia,
     directory: config.objectDirectory,
     environment: process.env,
   });
   await communityMedia.initialize();
+  // No runner is selected until precision, policy and runtime acceptance are recorded.
+  const moderationQueue = database.publicModeration;
+  const retargetPolicy = publicModerationRetargeting(database);
+  const moderationWorker = new PublicModerationWorker({
+    queue: database.publicModeration,
+    bind: publicModerationBinding(database),
+    runner: null,
+    upgradePolicy: () => moderationQueue.upgrade(retargetPolicy),
+  });
+  await moderationWorker.initialize();
   const communities = new CommunityService(
     database.communities,
     database.devices,
@@ -83,6 +108,16 @@ try {
     database,
     assets,
     objects,
+    publicMedia: createPublicMediaHandler(
+      new PublicMediaService(
+        {
+          profiles: database.publicProfiles,
+          communities: database.communities,
+          media: database.communityMedia,
+        },
+        config.objectDirectory,
+      ),
+    ),
     publicProfiles: createPublicProfileHandler((handle) =>
       publicProfiles.read(handle),
     ),
@@ -120,7 +155,9 @@ try {
   });
   shutdown = async () => {
     await host.close();
+    await moderationWorker.close();
     await communityMedia.close();
+    await publicModeration.close();
     await messages.close();
     await notifications.close();
     await database?.close();
@@ -134,7 +171,9 @@ try {
     clearTimeout(lifetime);
     void host
       .close()
+      .then(() => moderationWorker.close())
       .then(() => communityMedia.close())
+      .then(() => publicModeration.close())
       .then(() => messages.close())
       .then(() => notifications.close())
       .then(() => database?.close())
@@ -157,6 +196,8 @@ try {
   process.once('SIGTERM', close);
   notifications.start();
   communityMedia.start();
+  publicModeration.start();
+  moderationWorker.start();
   messages.startMaintenance();
   await recordMobileWebEntry(mobile.origin);
   process.stdout.write(

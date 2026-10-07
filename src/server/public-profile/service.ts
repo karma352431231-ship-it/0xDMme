@@ -1,4 +1,9 @@
-import { AccountError, keys } from '../../shared/account/index.ts';
+import {
+  AccountError,
+  boundedText,
+  keys,
+  uuid,
+} from '../../shared/account/index.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
 import { directoryEvent, verify } from '../../shared/devices/index.ts';
 import {
@@ -9,7 +14,16 @@ import {
   publicProfileProof,
 } from '../../shared/public-profile/index.ts';
 import { pendingPublicAvatar } from '../../shared/public-avatar/index.ts';
-import type { DeviceStore, PublicProfileStore } from '../database/index.ts';
+import type {
+  ContactAuthority,
+  DeviceStore,
+  PublicProfileStore,
+} from '../database/index.ts';
+import type { PublicModerationNotice } from '../../shared/public-moderation/index.ts';
+type PublicProfileResponse =
+  | Awaited<ReturnType<PublicProfileStore['state']>>
+  | PublicModerationNotice[]
+  | PublicModerationNotice;
 export class PublicProfileService {
   private readonly store: PublicProfileStore;
   private readonly devices: DeviceStore;
@@ -22,8 +36,40 @@ export class PublicProfileService {
     if (!profile) throw new AccountError(404, 'Perfil público indisponível.');
     return profile;
   }
-  async operate(operation: string, session: AccountSession, input: unknown) {
-    if (!['state', 'create', 'avatar'].includes(operation))
+  operate(
+    operation: 'state' | 'create' | 'avatar',
+    session: AccountSession,
+    input: unknown,
+  ): ReturnType<PublicProfileStore['state']>;
+  operate(
+    operation: 'moderation-notices',
+    session: AccountSession,
+    input: unknown,
+  ): Promise<PublicModerationNotice[]>;
+  operate(
+    operation: 'moderation-appeal',
+    session: AccountSession,
+    input: unknown,
+  ): Promise<PublicModerationNotice>;
+  operate(
+    operation: string,
+    session: AccountSession,
+    input: unknown,
+  ): Promise<PublicProfileResponse>;
+  async operate(
+    operation: string,
+    session: AccountSession,
+    input: unknown,
+  ): Promise<PublicProfileResponse> {
+    if (
+      ![
+        'state',
+        'create',
+        'avatar',
+        'moderation-notices',
+        'moderation-appeal',
+      ].includes(operation)
+    )
       throw new AccountError(404, 'Operação de perfil público não encontrada.');
     const proof = publicProfileProof(input);
     const current = await this.devices.current(session.accountId);
@@ -43,7 +89,27 @@ export class PublicProfileService {
       }),
     );
     const authority = { session, directory: proof.directory };
-    const data = proof.payload;
+    return this.execute(operation, authority, proof.payload);
+  }
+  private async execute(
+    operation: string,
+    authority: ContactAuthority,
+    data: Record<string, unknown>,
+  ) {
+    if (operation === 'moderation-notices') {
+      keys(data, ['after']);
+      return this.store.moderationNotices(
+        authority,
+        data['after'] === null ? null : uuid(data['after']),
+      );
+    }
+    if (operation === 'moderation-appeal') {
+      keys(data, ['id', 'reason']);
+      return this.store.moderationAppeal(authority, {
+        id: uuid(data['id']),
+        reason: boundedText(data['reason'], 2_000),
+      });
+    }
     if (operation === 'state') {
       keys(data, []);
       return this.store.state(authority);

@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { test } from 'node:test';
 import { readFile } from 'node:fs/promises';
 import pg from 'pg';
@@ -15,12 +16,20 @@ import {
 import { DeviceService } from '../../src/server/devices/index.ts';
 import { PublicProfileService } from '../../src/server/public-profile/index.ts';
 import {
+  PublicModerationService,
+  PublicModerationOperator,
+} from '../../src/server/public-moderation/index.ts';
+import { publicModerationNotice } from '../../src/shared/public-moderation/index.ts';
+import { publicProfileBody } from '../../src/shared/public-profile/index.ts';
+import { sign } from '../../src/shared/devices/index.ts';
+import {
   CommunityService,
   createCommunityHandler,
 } from '../../src/server/communities/index.ts';
 import { createWebServer } from '../../src/server/web-host/index.ts';
 import { readWebConfiguration } from '../../src/server/web-configuration/index.ts';
 import { createCommunityAccount } from './community-fixture.ts';
+import { checkOperatorPreview } from './moderation-operator-fixture.ts';
 import { prepareEvent } from '../../src/client/device-operations/index.ts';
 import { freshKeyring } from '../../src/client/device-operations/index.ts';
 import { createIdentity } from '../../src/client/device-keys/index.ts';
@@ -36,6 +45,10 @@ await test('comunidades: criação aberta, privacidade, gestão, sanções, den�
     devices = new DeviceService(db.devices);
   const profiles = new PublicProfileService(db.publicProfiles, db.devices),
     communities = new CommunityService(db.communities, db.devices);
+  const moderation = new PublicModerationService({
+    profiles: db.publicProfiles,
+    communities: db.communities,
+  });
   const host = createWebServer({
     origin,
     assets: new Map(),
@@ -52,10 +65,17 @@ await test('comunidades: criação aberta, privacidade, gestão, sanções, den�
     ids: string[] = [];
   await db.migrate();
   await inspector.connect();
+  // Drain migration-scheduled legacy candidates before measuring fixture deltas.
+  await moderation.initialize();
   t.after(async () => {
     await host.close();
+    await moderation.close();
     await inspector.query(
       'DELETE FROM hash_talk.communities WHERE id=ANY($1::uuid[])',
+      [ids],
+    );
+    await inspector.query(
+      "DELETE FROM hash_talk.public_moderation WHERE kind='community-photo' AND target=ANY($1::uuid[])",
       [ids],
     );
     for (const table of [
@@ -290,6 +310,207 @@ await test('comunidades: criação aberta, privacidade, gestão, sanções, den�
         participant.operate('staff', { id, after: null }),
         bad(403),
       );
+    },
+  );
+  await t.test(
+    'foto: autoria da análise, contestação restrita, substituição, capacidade líquida e descarte',
+    async () => {
+      const png = new Uint8Array(
+          await readFile(
+            new URL('../../src/client/app/icon-192.png', import.meta.url),
+          ),
+        ),
+        bigger = new Uint8Array(
+          await readFile(
+            new URL('../../src/client/app/icon-512.png', import.meta.url),
+          ),
+        );
+      const model = { hash: 'b'.repeat(64), runtime: 'isolated-contract-test' };
+      async function profileOperation(
+        person: typeof owner,
+        operation: string,
+        payload: Record<string, unknown>,
+      ) {
+        const body = { directory: person.directory, payload };
+        return profiles.operate(operation, person.login.session, {
+          ...body,
+          signature: await sign(
+            person.identity.signing,
+            publicProfileBody(
+              person.login.session.accountId,
+              person.login.session.deviceId,
+              operation,
+              body,
+            ),
+          ),
+        });
+      }
+      async function notices(person: typeof owner) {
+        const data = await profileOperation(person, 'moderation-notices', {
+          after: null,
+        });
+        assert.ok(Array.isArray(data));
+        return data.map(publicModerationNotice);
+      }
+      async function upload(person: typeof owner, bytes: Uint8Array) {
+        await change(person, 'photo', {
+          photo: { type: 'image/png', bytes: encode(bytes) },
+        });
+        const pending = (await notices(person)).find(
+          (item) => item.target === id && item.status === 'pending',
+        );
+        assert.ok(pending);
+        return pending;
+      }
+      async function usage() {
+        const result = await inspector.query<{ bytes: string }>(
+          'SELECT used_bytes::text AS bytes FROM hash_talk.content_usage WHERE singleton',
+        );
+        return Number(result.rows[0]!.bytes);
+      }
+      const first = await upload(mod, bigger);
+      assert.equal(
+        (await notices(owner)).some((item) => item.id === first.id),
+        false,
+      );
+      await change(mod, 'photo', {
+        photo: { type: 'image/png', bytes: encode(bigger) },
+      });
+      assert.deepEqual(
+        (await notices(mod)).find((item) => item.id === first.id),
+        first,
+      );
+      const claimed = await db.publicModeration.claim(model);
+      assert.ok(claimed);
+      assert.equal(claimed.id, first.id);
+      assert.equal(claimed.owner, modProfile.id);
+      assert.equal(
+        claimed.contentHash,
+        createHash('sha256').update(bigger).digest('hex'),
+      );
+      assert.deepEqual(
+        (await db.communities.moderationCandidate(claimed))?.bytes,
+        bigger,
+      );
+      await db.publicModeration.finish(
+        claimed,
+        { ...claimed, frames: 1, expectedFrames: 1, verdict: 'hold' },
+        (client, review) => db.communities.bindModeration(client, review),
+      );
+      await assert.rejects(
+        profileOperation(owner, 'moderation-appeal', {
+          id: first.id,
+          reason: 'Sou dono da comunidade.',
+        }),
+        bad(404),
+      );
+      const appealed = await profileOperation(mod, 'moderation-appeal', {
+        id: first.id,
+        reason: 'Peço revisão do candidato sintético.',
+      });
+      assert.equal(
+        publicModerationNotice(appealed).appeal,
+        'Peço revisão do candidato sintético.',
+      );
+      const operator = new PublicModerationOperator(db, config.objectDirectory);
+      assert.ok(
+        (await operator.list(null)).some((item) => item.id === first.id),
+      );
+      assert.deepEqual((await operator.preview(first.id)).bytes, bigger);
+      await checkOperatorPreview({
+        databaseUrl: config.databaseUrl,
+        objectDirectory: config.objectDirectory,
+        id: first.id,
+        bytes: bigger,
+      });
+      await assert.rejects(
+        operator.review({
+          id: first.id,
+          verdict: 'allow',
+          reason: 'Teste sem conteúdo proibido.',
+          confirmsPermitted: false,
+        }),
+        bad(400),
+      );
+      const review = {
+        id: first.id,
+        verdict: 'allow' as const,
+        reason: 'Teste sem conteúdo proibido.',
+        confirmsPermitted: true,
+      };
+      assert.equal((await operator.review(review)).status, 'approved');
+      assert.deepEqual(
+        await operator.review(review),
+        await operator.review(review),
+      );
+      await assert.rejects(operator.preview(first.id), bad(404));
+      const limited = new Database(config.databaseUrl, (await usage()) + 1_023);
+      try {
+        const service = new CommunityService(limited.communities, db.devices);
+        const payload = {
+          id,
+          revision: (await state()).community.revision,
+          photo: { type: 'image/png', bytes: encode(png) },
+        };
+        await service.operate(
+          'photo',
+          owner.login.session,
+          await owner.proof('photo', payload),
+        );
+      } finally {
+        await limited.close();
+      }
+      assert.deepEqual((await state()).pendingPhoto?.bytes, png);
+      assert.equal(
+        (await notices(mod)).find((item) => item.id === first.id)?.status,
+        'removed',
+      );
+      const stale = await db.publicModeration.claim(model);
+      assert.ok(stale);
+      const replacement = await upload(mod, bigger);
+      await assert.rejects(
+        db.publicModeration.finish(
+          stale,
+          { ...stale, frames: 1, expectedFrames: 1, verdict: 'allow' },
+          (client, review) => db.communities.bindModeration(client, review),
+        ),
+        bad(409),
+      );
+      assert.equal(await db.communities.moderationCandidate(stale), null);
+      await inspector.query(
+        "UPDATE hash_talk.public_moderation SET created_at=now()-interval '8 days',expires_at=now()-interval '1 day' WHERE id=$1",
+        [replacement.id],
+      );
+      const before = await usage();
+      assert.equal(
+        (await state()).pendingPhoto,
+        null,
+        'Prazo fecha a leitura antes da coleta física.',
+      );
+      await moderation.clean();
+      assert.equal((await state()).pendingPhoto, null);
+      assert.equal(before - (await usage()), bigger.length);
+      assert.equal(
+        (await notices(mod)).find((item) => item.id === replacement.id)?.status,
+        'expired',
+      );
+      const last = await upload(owner, png),
+        approved = await db.publicModeration.claim(model);
+      assert.ok(approved);
+      assert.equal(approved.id, last.id);
+      await db.publicModeration.finish(
+        approved,
+        { ...approved, frames: 1, expectedFrames: 1, verdict: 'allow' },
+        (client, review) => db.communities.bindModeration(client, review),
+      );
+      await inspector.query(
+        "UPDATE hash_talk.public_moderation SET created_at=now()-interval '8 days',expires_at=now()-interval '1 day' WHERE id=$1",
+        [last.id],
+      );
+      await moderation.clean();
+      assert.deepEqual((await state()).pendingPhoto?.bytes, png);
+      assert.equal((await communities.read(id)).avatar, null);
+      await change(mod, 'photo', { photo: null });
     },
   );
   await t.test(

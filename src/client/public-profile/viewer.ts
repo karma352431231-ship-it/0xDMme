@@ -3,6 +3,27 @@ import {
   publicHandle,
   publicProfile,
 } from '../../shared/public-profile/index.ts';
+import { showPublicAvatar } from '../public-media/index.ts';
+import type { PublicProfile } from '../../shared/public-profile/index.ts';
+
+function renderAvatar(
+  container: HTMLElement,
+  profile: PublicProfile,
+  signal: AbortSignal,
+): void {
+  if (!profile.avatar) return;
+  const placeholder = container.querySelector<HTMLElement>(
+    '.public-avatar-placeholder',
+  );
+  if (!placeholder) return;
+  placeholder.textContent = '';
+  showPublicAvatar(placeholder, {
+    kind: 'avatar',
+    target: profile.id,
+    reference: profile.avatar,
+    signal,
+  });
+}
 
 /** Public read sends no cookie, device proof or private profile information. */
 export function showPublicProfile(
@@ -11,7 +32,7 @@ export function showPublicProfile(
 ): () => void {
   const abort = new AbortController();
   container.innerHTML =
-    '<article class="card public-profile-card"><h2>Perfil público</h2><div class="public-avatar-placeholder" aria-hidden="true">@</div><p data-public-handle></p><p role="status" data-public-status>Carregando perfil público…</p></article>';
+    '<article class="card public-profile-card"><h2>Perfil público</h2><div class="public-avatar-placeholder">@</div><p data-public-handle></p><p role="status" data-public-status>Carregando perfil público…</p></article>';
   const status = container.querySelector<HTMLElement>('[data-public-status]');
   async function load(): Promise<void> {
     try {
@@ -35,13 +56,12 @@ export function showPublicProfile(
       if (abort.signal.aborted) return;
       const label = container.querySelector('[data-public-handle]');
       if (label) label.textContent = `@${profile.handle}`;
+      renderAvatar(container, profile, abort.signal);
       const dm = document.createElement('a');
       dm.textContent = 'Solicitar DM pelo @';
       dm.href = `#comunidades?view=dms&dm=${profile.id}`;
       container.querySelector('article')?.append(dm);
-      if (status)
-        status.textContent =
-          'Identidade pública do 0xDMme. Fotos públicas estarão disponíveis após a moderação automática.';
+      if (status) status.textContent = 'Identidade pública do 0xDMme.';
     } catch (error: unknown) {
       if (!abort.signal.aborted && status)
         status.textContent =

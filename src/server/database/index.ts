@@ -23,10 +23,24 @@ export type { CommittedChange } from './changes.ts';
 import { AuthenticationStore } from './authentication.ts';
 import { PublicProfileStore } from './public-profile.ts';
 export type { PublicProfileStore } from './public-profile.ts';
+import { PublicModerationStore } from './public-moderation.ts';
+import type { PublicModerationAcceptedModel } from './public-moderation.ts';
+export { validateModerationEvaluation } from './public-moderation.ts';
+export type {
+  PublicModerationStore,
+  PublicModerationSubject,
+  PublicModerationClaim,
+  PublicModerationEvaluation,
+  PublicModerationBinding,
+  PublicModerationCollection,
+  PublicModerationAcceptedModel,
+  PublicModerationRetargeting,
+} from './public-moderation.ts';
 import { CommunityStore } from './communities.ts';
 export type { CommunityStore } from './communities.ts';
 import { CommunityPostStore } from './community-posts.ts';
 import { CommunityMediaStore } from './community-media.ts';
+export type { PublicModerationMediaCandidate } from './community-media.ts';
 export type { CommunityMediaStore } from './community-media.ts';
 export type { CommunityPostStore } from './community-posts.ts';
 import { CommunityDiscoveryStore } from './community-discovery.ts';
@@ -110,6 +124,12 @@ const migrations = [
   '035-social-block-revisions.sql',
   '036-social-history-media.sql',
   '037-community-media.sql',
+  '038-public-moderation.sql',
+  '039-public-avatar-moderation.sql',
+  '040-community-photo-moderation.sql',
+  '041-post-media-moderation.sql',
+  '042-public-avatar-hashes.sql',
+  '043-painted-art-policy.sql',
 ];
 
 export interface MaintenanceSnapshot {
@@ -140,6 +160,7 @@ export class Database {
   readonly changes = new DatabaseChanges();
   readonly authentication: AuthenticationStore;
   readonly publicProfiles: PublicProfileStore;
+  readonly publicModeration: PublicModerationStore;
   readonly communities: CommunityStore;
   readonly communityPosts: CommunityPostStore;
   readonly communityMedia: CommunityMediaStore;
@@ -167,7 +188,11 @@ export class Database {
   readonly statusMedia: StatusMediaStore;
   readonly representatives: RepresentativeStore;
 
-  constructor(connectionString: string, contentCapacity = 3_000_000_000) {
+  constructor(
+    connectionString: string,
+    contentCapacity = 3_000_000_000,
+    acceptedModels: readonly PublicModerationAcceptedModel[] = [],
+  ) {
     this.pool = new pg.Pool({
       connectionString,
       max: 4,
@@ -191,16 +216,23 @@ export class Database {
     this.devices = new DeviceStore(this.pool, contentCapacity, this.changes);
     this.vault = new VaultStore(this.pool, contentCapacity);
     this.contacts = new ContactStore(this.pool, this.changes);
+    this.publicModeration = new PublicModerationStore(
+      this.pool,
+      contentCapacity,
+      acceptedModels,
+    );
     this.publicProfiles = new PublicProfileStore(
       this.pool,
       this.contacts,
       contentCapacity,
+      this.publicModeration,
     );
     this.communities = new CommunityStore({
       pool: this.pool,
       authority: this.contacts,
       profiles: this.publicProfiles,
       capacity: contentCapacity,
+      moderation: this.publicModeration,
     });
     this.socialDm = new SocialDmStore({
       contacts: this.contacts,
@@ -226,6 +258,7 @@ export class Database {
       this.pool,
       this.communities,
       contentCapacity,
+      this.publicModeration,
     );
     this.communityPosts = new CommunityPostStore({
       pool: this.pool,

@@ -4,10 +4,11 @@ import { publicProfile, publicProfileProof } from '../public-profile/index.ts';
 import type { PublicProfile } from '../public-profile/index.ts';
 import { pendingPublicAvatar } from '../public-avatar/index.ts';
 import type { PendingPublicAvatar } from '../public-avatar/index.ts';
+import { publicAvatar } from '../public-media/index.ts';
 
 export const communityPageSize = 24;
 export const communityPolicy =
-  'Pornografia e conteúdo sexual explícito são proibidos, inclusive imagens de IA. Regras locais não podem liberar esse conteúdo.';
+  'Nudez artística em pinturas é permitida. Atos sexuais explícitos são proibidos, inclusive pintados, desenhados ou gerados por IA. Fora da exceção para pinturas, genitais e seios femininos expostos são proibidos. Biquíni e roupa curta são permitidos. Regras locais não podem relaxar essa política.';
 export type CommunityRole = 'owner' | 'moderator' | 'participant';
 export interface CommunityMeta {
   name: string;
@@ -18,7 +19,7 @@ export interface Community extends CommunityMeta {
   id: string;
   revision: number;
   archived: boolean;
-  avatar: null;
+  avatar: string | null;
   owner: PublicProfile | null;
   followers: number;
 }
@@ -104,22 +105,22 @@ export function community(value: unknown): Community {
     'followers',
   ]);
   if (
-    d['avatar'] !== null ||
     typeof d['followers'] !== 'number' ||
     !Number.isSafeInteger(d['followers']) ||
     d['followers'] < 0
   )
     throw new AccountError(400, 'Comunidade pública inválida.');
+  const id = uuid(d['id']);
   return {
     ...communityMeta({
       name: d['name'],
       description: d['description'],
       rules: d['rules'],
     }),
-    id: uuid(d['id']),
+    id,
     revision: communityRevision(d['revision']),
     archived: communityBoolean(d['archived']),
-    avatar: null,
+    avatar: publicAvatar(d['avatar'], 'community-photo', id),
     owner: d['owner'] === null ? null : publicProfile(d['owner']),
     followers: d['followers'],
   };

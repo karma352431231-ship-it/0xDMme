@@ -1,5 +1,32 @@
 # 0xDMme — Git e envio à VPS
 
+## Preparação do corte 10 — solicitada em 06/10/2026
+
+O proprietário solicitou consolidar os commits, enviar ao Git e ativar o site
+para testar artes permitidas/proibidas pelo navegador. A base local do corte 10
+tem fila, retenção, contestação, ferramenta restrita, executor de todos os frames
+e leitura pública implementados. A verificação consolidada passou com 334 testes
+da aplicação e 91 do executor; integração de mídia passou com 11 testes. Fontes
+podem ser consolidadas e enviadas conservando a identidade Karma e as alterações
+anteriores do proprietário fora do commit.
+
+A análise automática real permanece desativada: `runner: null` e inventário de
+modelos aceitos vazio. As decisões usadas nos testes são sintéticas. Publicar
+essa base permite testar envio/fila/avisos, mas não comparar classificação de
+artes com a política. O [estado e aceite do detector](MODERACAO_AUTOMATICA_COMUNIDADES.md)
+continuam pendentes; envio de fontes não os resolve.
+
+O executor existente recusa uma transição para as 43 migrações locais sem revisão
+fixada própria. Não liberar sua verificação nem contornar `npm run deploy:staging`.
+Migrações de moderação também agendam coleta de uploads legados ainda não
+aprovados, sem data/hashes verificáveis. A ativação exige conferir predecessor,
+efeitos sobre dados, backup/retorno, runtime e preservação antes de obter aprovação
+da transição concreta. Nenhuma migração, instalação ou reinício está implícito
+na sincronização das fontes; acesso e provas operacionais ficam em `.local/`.
+
+**Ponto importante:** o corte 10 permanece em andamento. Código enviado ao Git
+não significa detector ativo nem nova release ativada na VPS.
+
 ## Ativação da correção mobile — autorizada em 05/10/2026
 
 Após a entrega local, o proprietário pediu explicitamente ativar `793bf21` na

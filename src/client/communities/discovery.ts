@@ -20,6 +20,10 @@ import {
 } from './elements.ts';
 import { postText } from './post-text.ts';
 import {
+  showPublicAvatar,
+  showPublicPostMedia,
+} from '../public-media/index.ts';
+import {
   discoverySelect,
   feedOrders,
   discoveryPeriods,
@@ -42,6 +46,11 @@ export function startCommunityDiscovery(controller: Communities) {
     exploreOrder: 'size' | 'activity' = 'size',
     after: string | null = null;
   const seen = new Set<string>();
+  const mediaCleanup = new Set<() => void>();
+  function clearMedia(): void {
+    for (const cleanup of mediaCleanup) cleanup();
+    mediaCleanup.clear();
+  }
   function disabled(): void {
     mounted
       ?.querySelectorAll<HTMLButtonElement | HTMLSelectElement>('button,select')
@@ -150,6 +159,7 @@ export function startCommunityDiscovery(controller: Communities) {
     const old = generation,
       result = await read();
     if (old !== generation || !list || !paging) return;
+    clearMedia();
     list.replaceChildren();
     paging.replaceChildren();
     if (view === 'explore') {
@@ -166,6 +176,15 @@ export function startCommunityDiscovery(controller: Communities) {
         );
         link(row, 'Abrir comunidade', `#comunidades?id=${community.id}`);
         list.append(row);
+        if (community.avatar)
+          mediaCleanup.add(
+            showPublicAvatar(row, {
+              kind: 'community-photo',
+              target: community.id,
+              reference: community.avatar,
+              signal: abort.signal,
+            }),
+          );
       }
     } else renderFeed(result, old);
     if (!list.children.length)
@@ -205,8 +224,12 @@ export function startCommunityDiscovery(controller: Communities) {
     }
   }
   function postContent(row: HTMLElement, post: CommunityPost): void {
-    if (post.status === 'visible') row.append(postText(post.text));
-    else
+    if (post.status === 'visible') {
+      row.append(postText(post.text));
+      if (post.media?.length)
+        mediaCleanup.add(showPublicPostMedia(row, post.media, abort.signal));
+      else if (!post.text) row.append(el('p', 'Mídia aguardando liberação.'));
+    } else
       row.append(
         el(
           'p',
@@ -243,6 +266,7 @@ export function startCommunityDiscovery(controller: Communities) {
     void run(reload);
   }
   function leave(): void {
+    clearMedia();
     generation++;
     abort.abort();
     mounted = null;

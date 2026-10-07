@@ -2,6 +2,7 @@ import type { AccountSession } from '../../shared/account/index.ts';
 import type { VaultAccess } from '../vault-authority/index.ts';
 import { preparePhoto } from '../attachment-images/index.ts';
 import { PublicProfiles } from './controller.ts';
+import { renderModeration } from './moderation.ts';
 export { showPublicProfile } from './viewer.ts';
 
 const template = `<article class="card public-profile-card"><h2>Perfil público</h2>
@@ -12,8 +13,10 @@ const template = `<article class="card public-profile-card"><h2>Perfil público<
 <button type="button" class="primary" data-public-action="create">Criar perfil público</button></div>
 <div data-public-owned hidden><div class="public-avatar-placeholder" data-public-placeholder aria-hidden="true">@</div><img class="public-avatar-preview" data-public-avatar alt="Prévia da sua foto pública, ainda restrita" hidden>
 <p><strong data-public-own-handle></strong></p><a data-public-link>Ver perfil público</a>
-<p>A foto é escolhida separadamente. PNG, JPEG e WebP são preparados neste aparelho, sem metadados, até 3 MB. Ela fica restrita a você até a moderação automática.</p>
+<p>A foto é escolhida separadamente. PNG, JPEG e WebP são preparados neste aparelho, sem metadados, até 3 MB. Ela fica restrita a você até a análise. Arquivos ainda não aprovados são descartados em até sete dias.</p>
 <input data-public-file type="file" accept="image/png,image/jpeg,image/webp" hidden><button type="button" data-public-action="choose">Escolher foto pública</button><button type="button" data-public-action="remove">Remover foto preparada</button></div>
+<section data-public-moderation aria-label="Análises dos seus arquivos públicos"></section>
+<div><button type="button" data-public-action="moderation-latest" hidden>Análises mais recentes</button><button type="button" data-public-action="moderation-older" hidden>Análises anteriores</button></div>
 <p data-public-status role="status">Conecte e autorize seu aparelho para gerenciar o perfil público.</p><button type="button" data-public-action="reload">Recarregar perfil público</button></article>`;
 
 export function startPublicProfile(access: VaultAccess) {
@@ -51,6 +54,14 @@ export function startPublicProfile(access: VaultAccess) {
     });
     const remove = node<HTMLButtonElement>('[data-public-action="remove"]');
     if (remove) remove.disabled = busy || !controller.profile?.pendingAvatar;
+    const latest = node<HTMLButtonElement>(
+        '[data-public-action="moderation-latest"]',
+      ),
+      older = node<HTMLButtonElement>(
+        '[data-public-action="moderation-older"]',
+      );
+    if (latest) latest.hidden = controller.moderationAfter === null;
+    if (older) older.hidden = controller.moderationOlder === null;
   }
   function renderPhoto(): void {
     const avatar = controller.profile?.pendingAvatar;
@@ -73,6 +84,16 @@ export function startPublicProfile(access: VaultAccess) {
     renderIdentity();
     renderControls();
     renderPhoto();
+    renderModeration(node('[data-public-moderation]'), {
+      notices: controller.notices,
+      busy,
+      appeal: (id, reason) => {
+        void run(async () => {
+          await controller.appeal(id, reason);
+          status = 'Contestação registrada para revisão excepcional.';
+        });
+      },
+    });
   }
   async function run(work: () => Promise<void>): Promise<void> {
     if (busy) return;
@@ -97,6 +118,7 @@ export function startPublicProfile(access: VaultAccess) {
     if (!mounted) return;
     void run(async () => {
       await controller.refresh();
+      if (controller.profile) await controller.refreshModeration();
       status = controller.profile
         ? 'Perfil público restaurado.'
         : 'Você ainda não criou um perfil público.';
@@ -107,6 +129,20 @@ export function startPublicProfile(access: VaultAccess) {
     generation++;
     container.innerHTML = template;
     node('[data-public-action="reload"]')?.addEventListener('click', ready);
+    for (const [action, cursor] of [
+      ['moderation-latest', () => null],
+      ['moderation-older', () => controller.moderationOlder],
+    ] as const) {
+      node(`[data-public-action="${action}"]`)?.addEventListener(
+        'click',
+        () => {
+          void run(async () => {
+            await controller.refreshModeration(cursor());
+            status = 'Análises dos seus arquivos atualizadas.';
+          });
+        },
+      );
+    }
     node('[data-public-action="create"]')?.addEventListener('click', () => {
       const handle = node<HTMLInputElement>('[data-public-input]')?.value ?? '';
       const consent =
@@ -122,6 +158,7 @@ export function startPublicProfile(access: VaultAccess) {
     node('[data-public-action="remove"]')?.addEventListener('click', () => {
       void run(async () => {
         await controller.avatar(null);
+        await controller.refreshModeration();
         status = 'Foto preparada removida.';
       });
     });
@@ -141,6 +178,7 @@ export function startPublicProfile(access: VaultAccess) {
             type: photo.type === 'image/png' ? 'image/png' : 'image/jpeg',
             bytes: photo.bytes,
           });
+          await controller.refreshModeration();
           status =
             'Foto preparada e salva. Ainda restrita a você; a publicação exige moderação automática.';
         });

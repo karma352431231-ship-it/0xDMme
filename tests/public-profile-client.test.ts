@@ -6,6 +6,7 @@ import type {
   VaultAuthority,
 } from '../src/client/vault-authority/index.ts';
 import { PublicProfiles } from '../src/client/public-profile/controller.ts';
+import { publicModerationNotice } from '../src/shared/public-moderation/index.ts';
 
 function session(): AccountSession {
   return {
@@ -47,6 +48,84 @@ const result = () => ({
   profile: { id: crypto.randomUUID(), handle: 'sintetico', avatar: null },
   revision: 1,
   pendingAvatar: null,
+});
+await test('análises anteriores substituem a página sem acumular avisos; cursor é assinado e sessão limpa a navegação', async (t) => {
+  const own = session(),
+    controller = new PublicProfiles(
+      access(own, () => Promise.resolve('assinatura-sintetica')),
+    );
+  controller.setSession(own);
+  const page = Array.from({ length: 32 }, () => ({
+    id: crypto.randomUUID(),
+    target: crypto.randomUUID(),
+    kind: 'post-media',
+    status: 'expired',
+    createdAt: '2026-10-06T00:00:00.000Z',
+    expiresAt: '2026-10-13T00:00:00.000Z',
+    appeal: null,
+    decision: null,
+  }));
+  const payloads: unknown[] = [];
+  t.mock.method(globalThis, 'fetch', (_url: string, input: RequestInit) => {
+    assert.equal(typeof input.body, 'string');
+    if (typeof input.body !== 'string')
+      throw new Error('Prova precisa de JSON.');
+    payloads.push(JSON.parse(input.body) as unknown);
+    return Promise.resolve(Response.json(payloads.length === 1 ? page : []));
+  });
+  await controller.refreshModeration();
+  const cursor = controller.moderationOlder;
+  assert.equal(cursor, page[31]!.id);
+  await controller.refreshModeration(cursor);
+  assert.deepEqual(controller.notices, []);
+  assert.equal(controller.moderationAfter, cursor);
+  assert.equal(controller.moderationOlder, null);
+  assert.deepEqual(payloads[1], {
+    directory: 'b'.repeat(64),
+    payload: { after: cursor },
+    signature: 'assinatura-sintetica',
+  });
+  controller.setSession(null);
+  assert.equal(controller.moderationAfter, null);
+});
+await test('aviso atrasado de análise não reaparece após troca de conta', async (t) => {
+  const first = session(),
+    controller = new PublicProfiles(
+      access(first, () => Promise.resolve('assinatura-sintetica')),
+    );
+  controller.setSession(first);
+  const notice = publicModerationNotice({
+    id: crypto.randomUUID(),
+    target: crypto.randomUUID(),
+    kind: 'avatar',
+    status: 'held',
+    createdAt: '2026-10-06T00:00:00.000Z',
+    expiresAt: '2026-10-13T00:00:00.000Z',
+    appeal: null,
+    decision: null,
+  });
+  let finish: (response: Response) => void = () => {
+    throw new Error('Resposta não preparada.');
+  };
+  let sent: () => void = () => {
+    throw new Error('Pedido não preparado.');
+  };
+  const response = new Promise<Response>((resolve) => {
+    finish = resolve;
+  });
+  const started = new Promise<void>((resolve) => {
+    sent = resolve;
+  });
+  t.mock.method(globalThis, 'fetch', () => {
+    sent();
+    return response;
+  });
+  const pending = controller.refreshModeration();
+  await started;
+  controller.setSession(session());
+  finish(Response.json([notice]));
+  await assert.rejects(pending, /Sessão alterada/);
+  assert.deepEqual(controller.notices, []);
 });
 await test('resposta atrasada do perfil público não repõe identidade após troca de conta', async (t) => {
   const first = session(),

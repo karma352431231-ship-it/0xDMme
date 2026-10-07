@@ -120,6 +120,11 @@ await test('objetos de mídia: montagem limitada, hash integral, retomada e limp
     await assert.rejects(files.assemble({ ...input, hash: 'b'.repeat(64) }));
     await files.assemble(input);
     await files.copySource(input.id);
+    assert.equal(
+      await files.digest(input.id, 'result', bytes.length),
+      input.hash,
+    );
+    await assert.rejects(files.digest(input.id, 'result', bytes.length - 1));
     assert.deepEqual(
       await files.slice(input.id, {
         name: 'result',

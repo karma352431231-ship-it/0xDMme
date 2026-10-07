@@ -112,7 +112,7 @@ export class CommunityMediaFiles {
   async read(id: string, name: string, maximum: number): Promise<Uint8Array> {
     if (!validName(name)) throw new Error('Objeto irregular.');
     const file = await open(
-      resolve(await this.directory(id), name),
+      resolve(await this.existingDirectory(id), name),
       constants.O_RDONLY | constants.O_NOFOLLOW,
     );
     try {
@@ -151,12 +151,55 @@ export class CommunityMediaFiles {
     await this.sync(await this.directory(id));
     return stat.size;
   }
+  /** Hash immutable prepared output with a bounded buffer, outside SQL transactions. */
+  async digest(
+    id: string,
+    name: 'result' | 'thumbnail',
+    expectedBytes: number,
+  ): Promise<string> {
+    const file = await open(
+      resolve(await this.existingDirectory(id), name),
+      constants.O_RDONLY | constants.O_NOFOLLOW,
+    );
+    try {
+      const stat = await file.stat();
+      if (
+        !stat.isFile() ||
+        stat.size !== expectedBytes ||
+        expectedBytes < 1 ||
+        expectedBytes > 25_000_000
+      )
+        throw new Error('Objeto de mídia irregular.');
+      const buffer = Buffer.alloc(
+          Math.min(expectedBytes, communityMediaPartBytes),
+        ),
+        hash = createHash('sha256');
+      let offset = 0;
+      while (offset < expectedBytes) {
+        const read = await file.read(
+          buffer,
+          0,
+          Math.min(buffer.length, expectedBytes - offset),
+          offset,
+        );
+        if (!read.bytesRead) throw new Error('Objeto incompleto.');
+        hash.update(buffer.subarray(0, read.bytesRead));
+        offset += read.bytesRead;
+      }
+      const after = await file.stat();
+      if (after.size !== stat.size || after.mtimeMs !== stat.mtimeMs)
+        throw new Error('Objeto alterado durante a leitura.');
+      return hash.digest('hex');
+    } finally {
+      await file.close();
+    }
+  }
   async slice(
     id: string,
     input: { name: 'result' | 'thumbnail'; index: number; bytes: number },
   ): Promise<Uint8Array> {
     const file = await open(
-      resolve(await this.directory(id), input.name),
+      resolve(await this.existingDirectory(id), input.name),
       constants.O_RDONLY | constants.O_NOFOLLOW,
     );
     try {
@@ -212,6 +255,13 @@ export class CommunityMediaFiles {
       await unlink(resolve(path, name));
     await rmdir(path);
     await this.sync(this.root);
+  }
+  private async existingDirectory(id: string): Promise<string> {
+    const path = resolve(this.root, uuid(id)),
+      stat = await lstat(path);
+    if (!stat.isDirectory() || (await realpath(path)) !== path)
+      throw new Error('Diretório de mídia irregular.');
+    return path;
   }
   private async names(path: string): Promise<string[]> {
     const names = await readdir(path);

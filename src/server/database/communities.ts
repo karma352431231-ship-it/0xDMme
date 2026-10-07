@@ -19,7 +19,11 @@ import type {
   CommunityState,
 } from '../../shared/communities/index.ts';
 import { pendingPublicAvatar } from '../../shared/public-avatar/index.ts';
-import type { PendingPublicAvatar } from '../../shared/public-avatar/index.ts';
+import type {
+  PublicModerationStore,
+  PublicModerationSubject,
+} from './public-moderation.ts';
+import { CommunityPhotoStore } from './community-photo.ts';
 import type { ContactAuthority, ContactStore } from './contacts.ts';
 import type { PublicProfileStore } from './public-profile.ts';
 import { assertContentCapacity } from './vault-quota.ts';
@@ -44,14 +48,6 @@ const privateColumns = columns + ',c.transfer_id,c.transfer_to';
 type CommunityStateWire = Omit<CommunityState, 'pendingPhoto'> & {
   pendingPhoto: { type: string | null; bytes: string } | null;
 };
-function samePhoto(
-  old: { type: string | null; bytes: Buffer | null },
-  photo: PendingPublicAvatar | null,
-): boolean {
-  if (old.type !== (photo?.type ?? null)) return false;
-  if (old.bytes === null) return photo === null;
-  return photo !== null && old.bytes.equals(photo.bytes);
-}
 function pageRows<T extends { id: string }>(
   rows: T[],
 ): { items: T[]; next: string | null } {
@@ -66,16 +62,19 @@ export class CommunityStore {
   private readonly authority: ContactStore;
   private readonly profiles: PublicProfileStore;
   private readonly capacity: number;
+  private readonly photos: CommunityPhotoStore;
   constructor(options: {
     pool: pg.Pool;
     authority: ContactStore;
     profiles: PublicProfileStore;
     capacity: number;
+    moderation: PublicModerationStore;
   }) {
     this.pool = options.pool;
     this.authority = options.authority;
     this.profiles = options.profiles;
     this.capacity = options.capacity;
+    this.photos = new CommunityPhotoStore(options.pool, options.moderation);
   }
   private async visible(
     client: Pick<pg.PoolClient, 'query'>,
@@ -85,6 +84,10 @@ export class CommunityStore {
       client,
       rows.flatMap((row) => (row.owner ? [row.owner] : [])),
     );
+    const photos = await this.photos.references(
+      client,
+      rows.map((row) => row.id),
+    );
     return rows.map((row) => ({
       id: row.id,
       name: row.name,
@@ -92,7 +95,7 @@ export class CommunityStore {
       rules: row.rules,
       revision: row.revision,
       archived: row.archived,
-      avatar: null,
+      avatar: photos.get(row.id) ?? null,
       owner: row.owner ? (owners.get(row.owner) ?? null) : null,
       followers: Number(row.followers),
     }));
@@ -151,15 +154,7 @@ export class CommunityStore {
     const photo =
       role === 'participant'
         ? null
-        : (
-            await context.client.query<{
-              bytes: Buffer | null;
-              type: string | null;
-            }>(
-              'SELECT pending_photo AS bytes,pending_photo_type AS type FROM hash_talk.communities WHERE id=$1',
-              [row.id],
-            )
-          ).rows[0];
+        : await this.photos.restricted(context.client, row.id);
     const transfer = await this.transfer(next, role);
     return {
       community: (await this.visible(context.client, [row]))[0]!,
@@ -270,27 +265,26 @@ export class CommunityStore {
   ): Promise<void> {
     keys(data, ['id', 'revision', 'photo']);
     await requireCommunityManager(context);
-    const photo = pendingPublicAvatar(data['photo']);
-    const result = await context.client.query<{
-      bytes: Buffer | null;
-      type: string | null;
-    }>(
-      'SELECT pending_photo AS bytes,pending_photo_type AS type FROM hash_talk.communities WHERE id=$1',
-      [context.row.id],
+    await this.photos.replace(
+      context,
+      communityRevision(data['revision']),
+      pendingPublicAvatar(data['photo']),
     );
-    const old = result.rows[0]!;
-    if (samePhoto(old, photo)) return;
-    currentCommunity(context, communityRevision(data['revision']));
-    await context.client.query(
-      'UPDATE hash_talk.communities SET pending_photo=$2,pending_photo_type=$3,revision=revision+1 WHERE id=$1',
-      [
-        context.row.id,
-        photo ? Buffer.from(photo.bytes) : null,
-        photo?.type ?? null,
-      ],
-    );
-    if (photo && photo.bytes.length > (old.bytes?.length ?? 0))
-      await assertContentCapacity(context.client, this.capacity);
+  }
+  moderationCandidate(review: PublicModerationSubject) {
+    return this.photos.candidate(review);
+  }
+  releasedPhoto(target: string, review: string) {
+    return this.photos.releasedPhoto(target, review);
+  }
+  bindPolicy(client: pg.PoolClient, subject: PublicModerationSubject) {
+    return this.photos.bindPolicy(client, subject);
+  }
+  bindModeration(client: pg.PoolClient, review: PublicModerationSubject) {
+    return this.photos.bind(client, review);
+  }
+  collectModeration(signal: AbortSignal) {
+    return this.photos.collect(signal);
   }
   private async follow(
     context: CommunityContext,

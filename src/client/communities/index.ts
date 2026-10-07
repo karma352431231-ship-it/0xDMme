@@ -25,6 +25,7 @@ import { replyNotificationPage } from '../../shared/community-posts/index.ts';
 import { startCommunityDiscovery } from './discovery.ts';
 import { startSocialDmUi } from './dms.ts';
 import type { VaultSync } from '../vault-sync/index.ts';
+import { showPublicAvatar } from '../public-media/index.ts';
 
 export function startCommunities(access: VaultAccess, sync: VaultSync) {
   const dms = startSocialDmUi(access, sync);
@@ -49,6 +50,26 @@ export function startCommunities(access: VaultAccess, sync: VaultSync) {
     cursor: string | null = null,
     sidebarCursor: string | null = null;
   let output: HTMLElement | null = null;
+  const publicPhotos = new Map<() => void, HTMLElement>();
+  function clearPublicPhotos(container?: HTMLElement | null): void {
+    for (const [cleanup, node] of publicPhotos) {
+      if (container && !container.contains(node)) continue;
+      cleanup();
+      publicPhotos.delete(cleanup);
+    }
+  }
+  function publicPhoto(container: HTMLElement, item: Community): void {
+    if (!item.avatar) return;
+    publicPhotos.set(
+      showPublicAvatar(container, {
+        kind: 'community-photo',
+        target: item.id,
+        reference: item.avatar,
+        signal: abort.signal,
+      }),
+      container,
+    );
+  }
   function clearPhoto(): void {
     if (photoUrl) URL.revokeObjectURL(photoUrl);
     photoUrl = null;
@@ -81,6 +102,7 @@ export function startCommunities(access: VaultAccess, sync: VaultSync) {
   function navigation(): void {
     if (!mounted) return;
     clearPhoto();
+    clearPublicPhotos(mounted);
     mounted.replaceChildren();
     const nav = communityElement('nav', '', 'community-tabs');
     nav.setAttribute('aria-label', 'Comunidades');
@@ -110,6 +132,7 @@ export function startCommunities(access: VaultAccess, sync: VaultSync) {
       communityLink(row, item.name, `#comunidades?id=${item.id}`);
       row.append(communityElement('small', followerLabel(item)));
       container.append(row);
+      publicPhoto(row, item);
     }
     if (!page.items.length)
       container.append(
@@ -121,6 +144,7 @@ export function startCommunities(access: VaultAccess, sync: VaultSync) {
   }
   async function directory(): Promise<void> {
     if (!sidebar) return;
+    clearPublicPhotos(sidebar);
     sidebar.replaceChildren();
     communityLink(sidebar, 'Feed geral', '#comunidades?view=feed');
     communityLink(sidebar, 'Explorar comunidades', '#comunidades?view=explore');
@@ -288,6 +312,7 @@ export function startCommunities(access: VaultAccess, sync: VaultSync) {
     if (!mounted) return;
     const card = communityCard(value.name);
     mounted.append(card);
+    publicPhoto(card, value);
     card.append(
       communityElement('p', value.description),
       communityElement('p', followerLabel(value)),
@@ -400,7 +425,7 @@ export function startCommunities(access: VaultAccess, sync: VaultSync) {
     card.append(
       communityElement(
         'p',
-        'A foto da comunidade fica restrita aos gestores até a moderação automática.',
+        'A foto fica restrita aos gestores até a moderação automática. Arquivos ainda não aprovados são descartados em até sete dias. Quem enviou consulta a análise e pode contestar em Perfil.',
       ),
     );
     if (own.pendingPhoto) {
@@ -520,6 +545,7 @@ export function startCommunities(access: VaultAccess, sync: VaultSync) {
     state = null;
     current = null;
     clearPhoto();
+    clearPublicPhotos();
   }
   return {
     mount(
@@ -583,6 +609,7 @@ export function startCommunities(access: VaultAccess, sync: VaultSync) {
       current = null;
       sidebarCursor = null;
       clearPhoto();
+      clearPublicPhotos();
       sidebar?.replaceChildren();
       if (mounted) {
         navigation();

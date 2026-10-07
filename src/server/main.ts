@@ -1,3 +1,13 @@
+import {
+  PublicMediaService,
+  createPublicMediaHandler,
+} from './public-media/index.ts';
+import {
+  PublicModerationService,
+  PublicModerationWorker,
+  publicModerationBinding,
+  publicModerationRetargeting,
+} from './public-moderation/index.ts';
 import { readWebConfiguration } from './web-configuration/index.ts';
 import { Database } from './database/index.ts';
 import { CommunityMediaService } from './community-media/index.ts';
@@ -82,12 +92,27 @@ try {
     database.publicProfiles,
     database.devices,
   );
+  const publicModeration = new PublicModerationService({
+    profiles: database.publicProfiles,
+    communities: database.communities,
+  });
+  await publicModeration.initialize();
   const communityMedia = new CommunityMediaService({
     store: database.communityMedia,
     directory: config.objectDirectory,
     environment: process.env,
   });
   await communityMedia.initialize();
+  // No runner is selected until precision, policy and runtime acceptance are recorded.
+  const moderationQueue = database.publicModeration;
+  const retargetPolicy = publicModerationRetargeting(database);
+  const moderationWorker = new PublicModerationWorker({
+    queue: database.publicModeration,
+    bind: publicModerationBinding(database),
+    runner: null,
+    upgradePolicy: () => moderationQueue.upgrade(retargetPolicy),
+  });
+  await moderationWorker.initialize();
   const communities = new CommunityService(
     database.communities,
     database.devices,
@@ -99,6 +124,16 @@ try {
     assets,
     database,
     objects,
+    publicMedia: createPublicMediaHandler(
+      new PublicMediaService(
+        {
+          profiles: database.publicProfiles,
+          communities: database.communities,
+          media: database.communityMedia,
+        },
+        config.objectDirectory,
+      ),
+    ),
     publicProfiles: createPublicProfileHandler((handle) =>
       publicProfiles.read(handle),
     ),
@@ -158,6 +193,8 @@ try {
   notifications.start();
   messages.startMaintenance();
   communityMedia.start();
+  publicModeration.start();
+  moderationWorker.start();
   const shutdown = () => {
     if (closing) return;
     closing = true;
@@ -165,7 +202,9 @@ try {
     deadline.unref();
     void host
       .close()
+      .then(() => moderationWorker.close())
       .then(() => communityMedia.close())
+      .then(() => publicModeration.close())
       .then(() => messages.close())
       .then(() => notifications.close())
       .then(() => database?.close())

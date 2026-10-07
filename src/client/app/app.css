@@ -1853,6 +1853,26 @@ footer {
   object-fit: contain;
   margin: 1rem 0;
 }
+.community-public-media {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  min-width: 0;
+}
+.community-public-media figure {
+  margin: 0;
+  min-width: 0;
+  max-width: 100%;
+}
+.community-public-media button,
+.community-public-media a {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+.community-public-media a {
+  display: block;
+  color: var(--accent);
+}
 .post-composer fieldset,
 .community-post fieldset {
   min-width: 0;

@@ -197,7 +197,7 @@ export function mediaEditor(
   legend.textContent = 'Fotos, GIFs ou vídeo';
   const info = document.createElement('p');
   info.textContent =
-    'Até 4 fotos (3 MB preparadas), 3 GIFs (10 MB cada, 20 s) ou 1 vídeo (100 MB original, 60 s). Sem mistura. Resolução/FPS podem ser reduzidos. A mídia fica restrita até a liberação da moderação.';
+    'Até 4 fotos (3 MB preparadas), 3 GIFs (10 MB cada, 20 s) ou 1 vídeo (100 MB original, 60 s). Sem mistura. Resolução/FPS podem ser reduzidos. A mídia fica restrita até a liberação da moderação. Arquivos sem aprovação são descartados em até sete dias; uploads sem postagem expiram em 24 horas. Consulte a análise e conteste em Perfil.';
   const label = document.createElement('label');
   label.textContent = ids.length
     ? 'Substituir os arquivos'

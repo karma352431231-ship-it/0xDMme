@@ -24,7 +24,7 @@ export {
   readMediaShape,
   validateMediaSource,
 } from './normalize.ts';
-export { readMediaRuntime } from './process.ts';
+export { readMediaRuntime, verifyMediaBudget } from './process.ts';
 export type { MediaRuntime } from './process.ts';
 
 export class CommunityMediaService {
@@ -56,6 +56,9 @@ export class CommunityMediaService {
     await this.clean();
   }
   start(): void {
+    if (this.stop.signal.aborted)
+      throw new Error('Serviço de mídia encerrado.');
+    if (this.timer) return;
     this.timer = setInterval(() => {
       void this.clean().catch(() => {
         process.stderr.write('Limpeza de temporários públicos indisponível.\n');
@@ -65,11 +68,13 @@ export class CommunityMediaService {
   }
   async close(): Promise<void> {
     if (this.timer) clearInterval(this.timer);
+    this.timer = null;
     this.stop.abort();
     await Promise.all(this.jobs.values());
     if (this.cleaning) await this.cleaning;
   }
   async clean(): Promise<void> {
+    if (this.stop.signal.aborted) return;
     if (this.cleaning) return this.cleaning;
     this.cleaning = this.collect();
     try {
@@ -79,13 +84,23 @@ export class CommunityMediaService {
     }
   }
   private async collect(): Promise<void> {
-    for (const id of await this.store.unsettled()) {
-      await this.files.prune(id);
-      await this.store.settled(id);
-    }
-    for (const id of await this.store.garbage()) {
-      await this.files.discard(id);
-      await this.store.collected(id);
+    let remaining = true;
+    while (remaining && !this.stop.signal.aborted) {
+      const unsettled = await this.store.unsettled();
+      for (const id of unsettled) {
+        if (this.stop.signal.aborted) return;
+        await this.files.prune(id);
+        await this.store.settled(id);
+      }
+      const garbage = await this.store.garbage();
+      for (const id of garbage) {
+        if (this.stop.signal.aborted) return;
+        await this.files.discard(id);
+        await this.store.collected(id);
+      }
+      remaining = unsettled.length === 32 || garbage.length === 32;
+      if (remaining)
+        await new Promise<void>((resolve) => setImmediate(resolve));
     }
   }
   async operate(
@@ -210,7 +225,22 @@ export class CommunityMediaService {
     // The promise is owned until settlement; processing never holds a DB transaction.
     const job = this.normalizer
       .prepare(lease.state.source, this.stop.signal)
-      .then((result) => this.store.ready(a, { community, id, writer, result }))
+      .then(async (result) => {
+        const resultHash = await this.files.digest(id, 'result', result.bytes),
+          thumbnailHash = await this.files.digest(
+            id,
+            'thumbnail',
+            result.thumbnailBytes,
+          );
+        await this.store.ready(a, {
+          community,
+          id,
+          writer,
+          result,
+          resultHash,
+          thumbnailHash,
+        });
+      })
       .then(() => this.clean())
       .catch(async (error: unknown) => {
         await this.store.release(
