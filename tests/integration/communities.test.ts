@@ -44,7 +44,12 @@ await test('comunidades: criação aberta, privacidade, gestão, sanções, den�
     account = new AccountService({ store: db.authentication, origin }),
     devices = new DeviceService(db.devices);
   const profiles = new PublicProfileService(db.publicProfiles, db.devices),
-    communities = new CommunityService(db.communities, db.devices);
+    communities = new CommunityService(
+      db.communities,
+      db.devices,
+      db.communityPosts,
+      { discovery: db.communityDiscovery },
+    );
   const moderation = new PublicModerationService({
     profiles: db.publicProfiles,
     communities: db.communities,
@@ -281,6 +286,28 @@ await test('comunidades: criação aberta, privacidade, gestão, sanções, den�
       assert.equal((await state(mod)).pendingPhoto?.bytes.length, bytes.length);
       assert.equal((await state(participant)).pendingPhoto, null);
       assert.equal((await communities.read(id)).avatar, null);
+      await owner.operate('post-create', {
+        id,
+        post: crypto.randomUUID(),
+        content: {
+          title: '',
+          text: 'Texto sintético com foto da comunidade ainda restrita.',
+          tag: null,
+        },
+      });
+      const feed = await communities.feed(
+        {
+          scope: 'all',
+          order: 'recent',
+          period: 'all',
+          community: id,
+          tag: null,
+        },
+        null,
+      );
+      assert.equal(feed.items.length, 1);
+      assert.equal(feed.items[0]?.community.avatar, undefined);
+      assert.equal(JSON.stringify(feed).includes(encode(bytes)), false);
       const response = await fetch(`${origin}/api/communities/${id}`);
       assert.equal(
         JSON.stringify(await response.json()).includes(encode(bytes)),

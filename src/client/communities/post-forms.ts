@@ -11,6 +11,7 @@ import type {
   PostContent,
   PostState,
   TagPage,
+  CommunityPost,
 } from '../../shared/community-posts/index.ts';
 import {
   communityButton as button,
@@ -156,7 +157,9 @@ export function postActions(
     hideForm(container, state, actions);
   if (state.removal) removalForms(container, state, actions);
   if (state.own || state.manager) history(container, state, actions);
-  reportForm(container, state, actions);
+  postReportForm(container, state.post, (data) =>
+    actions.mutate('report', data),
+  );
 }
 function deleteForm(
   container: HTMLElement,
@@ -275,22 +278,22 @@ function history(
     }),
   );
 }
-function reportForm(
+export function postReportForm(
   container: HTMLElement,
-  state: PostState,
-  actions: PostActions,
+  post: CommunityPost,
+  report: (data: Record<string, unknown>) => Promise<void>,
 ): void {
-  if (state.post.status !== 'visible') return;
+  if (post.status !== 'visible') return;
   const reason = field(container, 'Motivo da denúncia do post', {
       maximum: 900,
       multiline: true,
     }),
     record = crypto.randomUUID();
   button(container, 'Denunciar postagem', () =>
-    actions.mutate('report', {
-      id: state.post.community,
+    report({
+      id: post.community,
       record,
-      reason: `Post ${state.post.id}: ${communityText(reason.value, 900)}`,
+      reason: `Post ${post.id}: ${communityText(reason.value, 900)}`,
     }),
   );
 }

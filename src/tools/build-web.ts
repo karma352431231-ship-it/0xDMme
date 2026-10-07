@@ -103,11 +103,7 @@ const script = hashedAsset(
     EMOJI_CATALOG: JSON.stringify(emojis.catalog),
   }),
 );
-const style = hashedAsset(
-  'app',
-  'css',
-  await readFile(new URL('src/client/app/app.css', root)),
-);
+const style = hashedAsset('app', 'css', await bundle('src/client/app/app.css'));
 const nativeProbe = hashedAsset(
   'phantom-probe',
   'js',

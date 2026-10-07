@@ -11,6 +11,7 @@ import type {
 } from '../../shared/community-discovery/index.ts';
 import type { Communities } from './controller.ts';
 import type { CommunityPost } from '../../shared/community-posts/index.ts';
+import { communityState } from '../../shared/communities/index.ts';
 import { communityRead } from './controller.ts';
 import {
   communityButton as button,
@@ -19,6 +20,13 @@ import {
   communityLink as link,
 } from './elements.ts';
 import { postText } from './post-text.ts';
+import {
+  communityAvatar,
+  communityIcon,
+  postHeader,
+  postComments,
+  postTagLink,
+} from './presentation.ts';
 import {
   showPublicAvatar,
   showPublicPostMedia,
@@ -40,6 +48,7 @@ export function startCommunityDiscovery(controller: Communities) {
     busy = false,
     signedIn = false,
     abort = new AbortController();
+  let followChanged: () => Promise<void> = () => Promise.resolve();
   let view = 'feed',
     order: FeedOrder = 'recent',
     period: DiscoveryPeriod = 'all',
@@ -77,8 +86,29 @@ export function startCommunityDiscovery(controller: Communities) {
   }
   function filters(): void {
     if (!mounted) return;
-    const toolbar = el('div', '', 'post-toolbar');
-    mounted.append(toolbar);
+    const filterPanel = el('details', '', 'community-filters'),
+      toolbar = el('div', '', 'post-toolbar community-feed-filters'),
+      breakpoint = window.matchMedia('(min-width: 701px)');
+    filterPanel.append(el('summary', 'Ordenar e filtrar'), toolbar);
+    const adapt = () => {
+      filterPanel.open = breakpoint.matches;
+    };
+    adapt();
+    breakpoint.addEventListener('change', adapt, { signal: abort.signal });
+    mounted.append(filterPanel);
+    if (view === 'feed' || view === 'following') {
+      const scopes = el('nav', '', 'community-feed-scopes');
+      scopes.setAttribute('aria-label', 'Escolher feed');
+      for (const [key, label] of [
+        ['feed', 'Descobrir'],
+        ['following', 'Seguindo'],
+      ] as const) {
+        link(scopes, label, `#comunidades?view=${key}`);
+        if (view === key)
+          scopes.lastElementChild?.setAttribute('aria-current', 'page');
+      }
+      toolbar.append(scopes);
+    }
     if (view === 'explore')
       discoverySelect(
         toolbar,
@@ -98,7 +128,7 @@ export function startCommunityDiscovery(controller: Communities) {
     else
       discoverySelect(
         toolbar,
-        'Ordenar postagens',
+        'Ordenar',
         { value: order, options: feedOrders },
         (value) => {
           order = feedFilter({
@@ -113,7 +143,7 @@ export function startCommunityDiscovery(controller: Communities) {
       );
     discoverySelect(
       toolbar,
-      view === 'explore' ? 'Período de atividade' : 'Publicadas no período',
+      view === 'explore' ? 'Atividade' : 'Período',
       { value: period, options: discoveryPeriods },
       (value) => {
         period = exploreFilter({ order: exploreOrder, period: value }).period;
@@ -162,35 +192,47 @@ export function startCommunityDiscovery(controller: Communities) {
     clearMedia();
     list.replaceChildren();
     paging.replaceChildren();
-    if (view === 'explore') {
-      const page = explorePage(result);
-      after = page.next;
-      for (const { community, activity } of page.items) {
-        const row = card(community.name);
-        row.append(
-          el(
-            'p',
-            `${community.followers} seguidores · ${activity} publicações e respostas no período${community.archived ? ' · Arquivada' : ''}`,
-          ),
-          el('p', community.description),
-        );
-        link(row, 'Abrir comunidade', `#comunidades?id=${community.id}`);
-        list.append(row);
-        if (community.avatar)
-          mediaCleanup.add(
-            showPublicAvatar(row, {
-              kind: 'community-photo',
-              target: community.id,
-              reference: community.avatar,
-              signal: abort.signal,
-            }),
-          );
-      }
-    } else renderFeed(result, old);
+    if (view === 'explore') renderExplore(result);
+    else renderFeed(result, old);
     if (!list.children.length)
-      list.append(el('p', 'Nenhum conteúdo nesta página com estes filtros.'));
+      list.append(
+        el(
+          'p',
+          'Nenhum conteúdo nesta página com estes filtros.',
+          'community-empty',
+        ),
+      );
     if (after) button(paging, 'Próxima página', () => run(load));
     button(paging, 'Recarregar do início', () => run(reload));
+  }
+  function renderExplore(result: unknown): void {
+    if (!list) return;
+    const page = explorePage(result);
+    after = page.next;
+    for (const { community, activity } of page.items) {
+      const row = card(community.name);
+      const avatar = communityAvatar(community.name);
+      row.firstElementChild?.prepend(avatar);
+      row.classList.add('community-explore-card');
+      row.append(
+        el(
+          'p',
+          `${community.followers} seguidores · ${activity} publicações e respostas no período${community.archived ? ' · Arquivada' : ''}`,
+        ),
+        el('p', community.description),
+      );
+      link(row, 'Abrir comunidade', `#comunidades?id=${community.id}`);
+      list.append(row);
+      if (community.avatar)
+        mediaCleanup.add(
+          showPublicAvatar(avatar, {
+            kind: 'community-photo',
+            target: community.id,
+            reference: community.avatar,
+            signal: abort.signal,
+          }),
+        );
+    }
   }
   function renderFeed(result: unknown, old: number): void {
     const page = feedPage(result);
@@ -203,29 +245,70 @@ export function startCommunityDiscovery(controller: Communities) {
       if (seen.size > 240) seen.delete(seen.values().next().value!);
       const row = card(post.parent ? 'Resposta' : post.title || 'Postagem');
       row.dataset['postId'] = post.id;
-      link(row, entry.community.name, `#comunidades?id=${post.community}`);
+      row.classList.add('community-post');
+      const avatar = postHeader(row, post, entry.community);
+      followControl(row, entry.community, old);
+      if (entry.community.avatar)
+        mediaCleanup.add(
+          showPublicAvatar(avatar, {
+            kind: 'community-photo',
+            target: entry.community.id,
+            reference: entry.community.avatar,
+            signal: abort.signal,
+          }),
+        );
       postContent(row, post);
-      link(
-        row,
-        'Abrir postagem e respostas',
-        `#comunidades?id=${post.community}&post=${post.id}`,
-      );
+      const toolbar = el('div', '', 'post-actions');
+      row.append(toolbar);
+      const actions = {
+        controller,
+        run,
+        valid: () => old === generation,
+        changed: reload,
+      };
+      postVoting(toolbar, post, signedIn ? actions : null);
+      postComments(toolbar, post);
       if (signedIn) {
-        const actions = {
-          controller,
-          run,
-          valid: () => old === generation,
-          changed: reload,
-        };
-        preferenceControls(row, post, actions);
-        postVoting(row, post, actions);
+        preferenceControls(toolbar, post, actions);
       }
       list?.append(row);
     }
   }
+  function followControl(
+    row: HTMLElement,
+    community: { id: string; name: string },
+    old: number,
+  ): void {
+    const header = row.querySelector<HTMLElement>('.community-post-header');
+    if (!header || !signedIn) return;
+    let following = false;
+    const node = button(header, '+ Seguir', () =>
+      run(async () => {
+        const state = communityState(
+          await controller.request('follow', {
+            id: community.id,
+            following: !following,
+          }),
+        );
+        if (old !== generation) return;
+        following = state.following;
+        node.textContent = following ? 'Seguindo' : '+ Seguir';
+        node.setAttribute('aria-pressed', String(following));
+        node.setAttribute(
+          'aria-label',
+          `${following ? 'Deixar de seguir' : 'Seguir'} a comunidade ${community.name}`,
+        );
+        await followChanged();
+      }),
+    );
+    node.className = 'community-post-follow';
+    node.setAttribute('aria-label', `Seguir a comunidade ${community.name}`);
+    // First click is idempotent even if already followed; never guess private state.
+  }
   function postContent(row: HTMLElement, post: CommunityPost): void {
     if (post.status === 'visible') {
       row.append(postText(post.text));
+      postTagLink(row, post);
       if (post.media?.length)
         mediaCleanup.add(showPublicPostMedia(row, post.media, abort.signal));
       else if (!post.text) row.append(el('p', 'Mídia aguardando liberação.'));
@@ -237,24 +320,6 @@ export function startCommunityDiscovery(controller: Communities) {
             ? 'Conteúdo excluído pelo autor.'
             : 'Conteúdo ocultado pela moderação.',
         ),
-      );
-    if (post.author)
-      link(
-        row,
-        `@${post.author.handle}`,
-        `#publico?handle=${post.author.handle}`,
-      );
-    row.append(
-      el(
-        'p',
-        `${new Date(post.createdAt).toLocaleString('pt-BR')} · Placar: ${post.score} · ${post.replies} respostas diretas`,
-      ),
-    );
-    if (post.tag)
-      link(
-        row,
-        post.tag.label,
-        `#comunidades?id=${post.community}&tag=${post.tag.id}`,
       );
   }
   async function reload(): Promise<void> {
@@ -278,13 +343,18 @@ export function startCommunityDiscovery(controller: Communities) {
   return {
     mount(
       container: HTMLElement,
-      options: { view: string; signedIn: boolean },
+      options: {
+        view: string;
+        signedIn: boolean;
+        followChanged?: () => Promise<void>;
+      },
     ): void {
       leave();
       mounted = container;
       abort = new AbortController();
       view = options.view;
       signedIn = options.signedIn;
+      followChanged = options.followChanged ?? (() => Promise.resolve());
       order = 'recent';
       period = view === 'explore' ? 'week' : 'all';
       exploreOrder = 'size';
@@ -295,19 +365,33 @@ export function startCommunityDiscovery(controller: Communities) {
         saved: 'Suas postagens salvas',
         hidden: 'Conteúdo oculto dos seus feeds',
       };
-      mounted.append(el('h2', titles[view] ?? 'Feed'));
+      const heading = el('header', '', 'community-heading'),
+        text = el('div');
+      text.append(el('h1', titles[view] ?? 'Feed'));
+      heading.append(text);
+      mounted.append(heading);
       if (!signedIn && view !== 'feed' && view !== 'explore') {
         link(mounted, 'Entre pelo Perfil para acessar sua lista', '#perfil');
         return;
       }
-      mounted.append(
+      text.append(
         el(
           'p',
           view === 'explore'
-            ? 'Maiores: número de seguidores. Mais ativas: publicações e respostas públicas visíveis no período. Seguir é opcional para participar.'
-            : 'Você pode participar sem seguir. Mais comentados usa respostas diretas; placares são atualizados ao vivo.',
+            ? 'Encontre assuntos e comunidades que você quer acompanhar.'
+            : view === 'feed'
+              ? 'Posts de várias comunidades, inclusive das que você não segue.'
+              : 'Acompanhe e organize suas postagens.',
+          'community-subtitle',
         ),
       );
+      const label = el(
+        'p',
+        'Leitura pública · participação com conta',
+        'community-public-label',
+      );
+      label.prepend(communityIcon('globe'));
+      text.append(label);
       if (view === 'following')
         link(
           mounted,
@@ -315,7 +399,7 @@ export function startCommunityDiscovery(controller: Communities) {
           '#comunidades?view=communities',
         );
       filters();
-      feedback = el('p');
+      feedback = el('p', '', 'community-feedback');
       feedback.setAttribute('role', 'status');
       list = el('section', '', 'community-feed');
       paging = el('div', '', 'post-toolbar');

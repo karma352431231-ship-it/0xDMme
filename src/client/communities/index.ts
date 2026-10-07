@@ -26,6 +26,11 @@ import { startCommunityDiscovery } from './discovery.ts';
 import { startSocialDmUi } from './dms.ts';
 import type { VaultSync } from '../vault-sync/index.ts';
 import { showPublicAvatar } from '../public-media/index.ts';
+import { communityAvatar } from './presentation.ts';
+import {
+  communityDirectoryNavigation,
+  communityNavigation,
+} from './navigation.ts';
 
 export function startCommunities(access: VaultAccess, sync: VaultSync) {
   const dms = startSocialDmUi(access, sync);
@@ -104,24 +109,11 @@ export function startCommunities(access: VaultAccess, sync: VaultSync) {
     clearPhoto();
     clearPublicPhotos(mounted);
     mounted.replaceChildren();
-    const nav = communityElement('nav', '', 'community-tabs');
-    nav.setAttribute('aria-label', 'Comunidades');
-    for (const [key, title] of [
-      ['dms', 'Mensagens'],
-      ['feed', 'Feed'],
-      ['explore', 'Explorar'],
-      ['following', 'Seguindo'],
-      ['saved', 'Salvos'],
-      ['hidden', 'Ocultos'],
-      ['replies', 'Respostas'],
-      ['managed', 'Gerenciar'],
-      ['invitations', 'Transferências'],
-      ['create', 'Criar comunidade'],
-    ] as const) {
-      if (!session && key !== 'explore' && key !== 'feed') continue;
-      communityLink(nav, title, `#comunidades?view=${key}`);
-    }
-    mounted.append(nav);
+    communityNavigation(mounted, {
+      view,
+      selected,
+      signedIn: session !== null,
+    });
     output = communityElement('p', '', 'community-feedback');
     output.setAttribute('role', 'status');
     mounted.append(output);
@@ -129,10 +121,19 @@ export function startCommunities(access: VaultAccess, sync: VaultSync) {
   function rows(container: HTMLElement, page: CommunityPage): void {
     for (const item of page.items) {
       const row = communityElement('div', '', 'community-row');
-      communityLink(row, item.name, `#comunidades?id=${item.id}`);
-      row.append(communityElement('small', followerLabel(item)));
+      const a = communityElement('a', '', 'community-row-link'),
+        avatar = communityAvatar(item.name),
+        copy = communityElement('span', '', 'community-row-copy');
+      a.href = `#comunidades?id=${item.id}`;
+      if (item.id === selected) a.setAttribute('aria-current', 'page');
+      copy.append(
+        communityElement('strong', item.name),
+        communityElement('small', followerLabel(item)),
+      );
+      a.append(avatar, copy);
+      row.append(a);
       container.append(row);
-      publicPhoto(row, item);
+      publicPhoto(avatar, item);
     }
     if (!page.items.length)
       container.append(
@@ -146,22 +147,13 @@ export function startCommunities(access: VaultAccess, sync: VaultSync) {
     if (!sidebar) return;
     clearPublicPhotos(sidebar);
     sidebar.replaceChildren();
-    communityLink(sidebar, 'Feed geral', '#comunidades?view=feed');
-    communityLink(sidebar, 'Explorar comunidades', '#comunidades?view=explore');
-    sidebar.append(communityElement('h2', 'Suas comunidades'));
+    communityDirectoryNavigation(sidebar, view, selected);
     if (!session) {
       sidebar.append(
         communityElement('p', 'Entre para ver suas comunidades seguidas.'),
       );
       return;
     }
-    communityLink(
-      sidebar,
-      'Respostas ao seu conteúdo',
-      '#comunidades?view=replies',
-    );
-    communityLink(sidebar, 'Feed de seguidos', '#comunidades?view=following');
-    communityLink(sidebar, 'Salvos', '#comunidades?view=saved');
     const old = generation;
     try {
       const page = await controller.list('following', sidebarCursor);
@@ -249,8 +241,26 @@ export function startCommunities(access: VaultAccess, sync: VaultSync) {
     );
     if (old !== generation || !mounted) return;
     navigation();
-    const card = communityCard('Suas comunidades');
+    const card = communityCard(
+      view === 'managed'
+        ? 'Comunidades que você gerencia'
+        : view === 'invitations'
+          ? 'Transferências de comunidades'
+          : 'Minhas comunidades',
+    );
     mounted.append(card);
+    if (view === 'communities') {
+      const links = communityElement('nav', '', 'community-personal-links');
+      links.setAttribute('aria-label', 'Suas listas');
+      for (const [key, label] of [
+        ['following', 'Feed de seguidos'],
+        ['saved', 'Salvos'],
+        ['replies', 'Respostas'],
+        ['create', 'Criar comunidade'],
+      ] as const)
+        communityLink(links, label, `#comunidades?view=${key}`);
+      card.append(links);
+    }
     rows(card, page);
     cursor = page.next;
     if (page.next) communityButton(card, 'Próxima página', () => run(listing));
@@ -312,22 +322,28 @@ export function startCommunities(access: VaultAccess, sync: VaultSync) {
     if (!mounted) return;
     const card = communityCard(value.name);
     mounted.append(card);
-    publicPhoto(card, value);
+    const avatar = communityAvatar(value.name);
+    card.firstElementChild?.prepend(avatar);
+    card.classList.add('community-summary');
+    publicPhoto(avatar, value);
     card.append(
       communityElement('p', value.description),
       communityElement('p', followerLabel(value)),
     );
+    const info = communityElement('details', '', 'community-info');
+    info.append(communityElement('summary', 'Sobre e regras da comunidade'));
+    card.append(info);
     if (value.owner)
       communityLink(
-        card,
+        info,
         `Proprietário: @${value.owner.handle}`,
         `#publico?handle=${encodeURIComponent(value.owner.handle)}`,
       );
     else
-      card.append(
+      info.append(
         communityElement('p', 'Proprietário removido; comunidade arquivada.'),
       );
-    card.append(
+    info.append(
       communityElement('h3', 'Regras da comunidade'),
       communityElement(
         'p',
@@ -384,6 +400,7 @@ export function startCommunities(access: VaultAccess, sync: VaultSync) {
     mounted.append(postContainer);
     posts.mount(postContainer, {
       community: current.id,
+      identity: current,
       state,
       post: selectedPost,
       tag: selectedTag,
@@ -504,7 +521,14 @@ export function startCommunities(access: VaultAccess, sync: VaultSync) {
     if (!selected) {
       if (['feed', 'explore', 'following', 'saved', 'hidden'].includes(view)) {
         navigation();
-        discovery.mount(mounted, { view, signedIn: session !== null });
+        discovery.mount(mounted, {
+          view,
+          signedIn: session !== null,
+          followChanged: async () => {
+            sidebarCursor = null;
+            await directory();
+          },
+        });
         return;
       }
       if (view === 'replies') {

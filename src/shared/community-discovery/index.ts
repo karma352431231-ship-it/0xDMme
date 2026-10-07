@@ -7,6 +7,7 @@ import {
   communityText,
 } from '../communities/index.ts';
 import type { Community } from '../communities/index.ts';
+import { publicAvatar } from '../public-media/index.ts';
 import {
   communityPost,
   postCount,
@@ -37,7 +38,7 @@ export interface RankCursor {
 }
 export interface FeedEntry {
   post: CommunityPost;
-  community: { id: string; name: string };
+  community: { id: string; name: string; avatar?: string | null };
 }
 export interface FeedPage {
   items: FeedEntry[];
@@ -144,14 +145,23 @@ export function feedPage(value: unknown): FeedPage {
       const row = object(value),
         group = object(row['community']);
       keys(row, ['post', 'community']);
-      keys(group, ['id', 'name']);
+      keys(
+        group,
+        Object.hasOwn(group, 'avatar')
+          ? ['id', 'name', 'avatar']
+          : ['id', 'name'],
+      );
       const post = communityPost(row['post']),
         id = uuid(group['id']);
       if (post.community !== id)
         throw new AccountError(400, 'Comunidade do feed inválida.');
       return {
         post,
-        community: { id, name: communityText(group['name'], 100) },
+        community: {
+          id,
+          name: communityText(group['name'], 100),
+          avatar: publicAvatar(group['avatar'] ?? null, 'community-photo', id),
+        },
       };
     }),
     next: nextCursor(data['next']),

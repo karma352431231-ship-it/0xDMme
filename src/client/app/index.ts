@@ -184,11 +184,13 @@ function route(): void {
   mountAccountPanels(key);
   mountFeature(key);
   element('workspace').scrollTop = 0;
-  document.querySelectorAll<HTMLAnchorElement>('nav a').forEach((link) => {
-    if (link.dataset['route'] === key)
-      link.setAttribute('aria-current', 'page');
-    else link.removeAttribute('aria-current');
-  });
+  document
+    .querySelectorAll<HTMLAnchorElement>('nav a[data-route]')
+    .forEach((link) => {
+      if (link.dataset['route'] === key)
+        link.setAttribute('aria-current', 'page');
+      else link.removeAttribute('aria-current');
+    });
   const button = document.getElementById('check-updates');
   button?.addEventListener('click', () => {
     void pwa?.check();

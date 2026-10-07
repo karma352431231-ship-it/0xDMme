@@ -6,7 +6,21 @@ Revisão solicitada pelo proprietário: lista de contatos/grupos na coluna esque
 
 Em 05/10/2026, o proprietário definiu reunir Perfil e Configurações na mesma tela em desktop/mobile. Foto, nome, wallet e demais dados da própria conta ficam no topo; todos os controles existentes ficam abaixo, sem obrigar a abrir outra página de Configurações. Preservar permissões, confirmações, estados de operações, links e parâmetros de retorno da rota atual.
 
-No desktop, o acesso Perfil da coluna esquerda abre essa tela completa; entradas antigas de Configurações passam a conduzir a ela. No mobile, a barra inferior será Conversas, Contatos, Comunidades e Perfil. Comunidades terá Feed, Explorar e Seguindo no topo e botão de DMs no cabeçalho, conforme alternativa visual adotada no fechamento. DMs pelo `@` ficam na área Comunidades e usam somente perfil público; o fluxo por wallet permanece na área Conversas.
+No desktop, o acesso Perfil da coluna esquerda abre essa tela completa; entradas antigas de Configurações passam a conduzir a ela. No mobile, a barra inferior será Conversas, Contatos, Comunidades e Perfil. A revisão visual de 07/10/2026 substitui as abas anteriores por Feed, Explorar e Minhas, conforme o print do proprietário; Seguindo continua no feed e nas listas pessoais. DMs pelo `@` ficam na área Comunidades e usam somente perfil público; o fluxo por wallet permanece na área Conversas.
+
+## Revisão visual de Comunidades — 07/10/2026
+
+O proprietário solicitou alinhar desktop e mobile aos prints da proposta: tema escuro, alternância de áreas, Feed geral/Explorar com estado selecionado, comunidades com foto em vez do `#` e cards com identidade, título, texto, mídia e ações compactas. Os nomes Solana/Criadores e os posts dos prints são exemplos; não são dados a criar no aplicativo. A seta inferior central pertence ao Codex e não deve entrar na interface.
+
+No mobile, Feed/Explorar/Minhas ficam abaixo da marca e a navegação inferior continua fixa. Minhas reúne comunidades seguidas e acessos às listas pessoais. Gestão, transferências, salvos, ocultos, respostas e criação ficam em Mais opções, preservando os contratos e permissões. O feed conserva períodos e as três ordenações implementadas; não introduz um ranking novo sob o rótulo “Em alta”.
+
+O proprietário confirmou que “+ Seguir” acompanha a comunidade da postagem. O botão identifica a comunidade para leitores de tela e atualiza a lista pessoal após a ação. No mobile, os filtros ficam recolhidos em “Ordenar e filtrar”; a página de uma comunidade reúne proprietário e regras em “Sobre e regras da comunidade”.
+
+Fotos no feed usam a mesma projeção pública aprovada das comunidades, carregada em lote por página, sem consultar cada postagem individualmente. Avatar pendente não aparece; a inicial permanece até existir uma foto disponível. Votos consultam o estado assinado atual antes de aplicar a mudança, incluindo retirar o próprio voto ao tocar novamente. Salvar/ocultar conserva revisão e o outro campo da preferência privada.
+
+Validação local: lint, tipos, fronteiras, licenças, formatação e build de 38 assets aprovados; 22 testes direcionados e 22 de integração passaram, incluindo não expor foto pendente no feed. A conferência em Chromium isolado usou conteúdo sintético e os renderizadores de produção em 1280, 390 e 320 px, sem rolagem horizontal. Exercitou votar/retirar voto, seguir/deixar de seguir a comunidade, salvar, denunciar, abrir respostas, filtros, Explorar, Minhas e menus. Não substitui o aceite em aparelhos físicos nem uma sessão real de wallet/E2EE. A publicação reutiliza o executor documentado e exige CI do commit exato, preservando a galeria independente de calibração.
+
+**Ponto importante:** a revisão não muda moderação, retenção, E2EE, dependências ou migrações. Mídia real continua aguardando detector validado; os exemplos da calibração permanecem separados da aplicação.
 
 Perfil/Configurações foi implementado localmente em 05/10/2026. O nome/foto/wallet da própria conta e preferências privadas aparecem antes dos painéis de configuração existentes, incluindo aparelhos e acesso a cofre/backups/status. Links `#configuracoes` abrem essa mesma tela sem reescrever o fragmento ou consumir parâmetros de assinatura/retorno. Alternar entre atalhos de Perfil conserva a montagem, rascunhos e operações; mudança real de página volta ao topo.
 

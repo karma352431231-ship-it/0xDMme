@@ -127,13 +127,26 @@ export class CommunityDiscoveryStore {
             result.items.map((row) => row.id),
           )
         ).map((post) => [post.id, post]),
-      );
+      ),
+      photos = await this.communities.photoReferences(client, [
+        ...new Set(result.items.map((row) => row.community_id)),
+      ]);
     return {
       next: result.next,
       items: result.items.flatMap((row) => {
         const post = posts.get(row.id);
+        const avatar = photos.get(row.community_id);
         return post
-          ? [{ post, community: { id: row.community_id, name: row.name } }]
+          ? [
+              {
+                post,
+                community: {
+                  id: row.community_id,
+                  name: row.name,
+                  ...(avatar ? { avatar } : {}),
+                },
+              },
+            ]
           : [];
       }),
     };

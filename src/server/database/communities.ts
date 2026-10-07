@@ -109,6 +109,16 @@ export class CommunityStore {
     const result = await this.visible(this.pool, found.rows);
     return result[0]!;
   }
+  /** Feed photos reuse the approval gate, without fetching private candidates. */
+  async photoReferences(
+    client: Pick<pg.PoolClient, 'query'>,
+    ids: string[],
+  ): Promise<Map<string, string>> {
+    if (ids.length > communityPageSize)
+      throw new AccountError(400, 'Página muito grande.');
+    if (!ids.length) return new Map();
+    return this.photos.references(client, ids);
+  }
   /** Discovery projects at most one page without private governance columns. */
   async readMany(
     client: Pick<pg.PoolClient, 'query'>,

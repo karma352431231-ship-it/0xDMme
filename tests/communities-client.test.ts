@@ -6,6 +6,13 @@ import type {
   VaultAuthority,
 } from '../src/client/vault-authority/index.ts';
 import { Communities } from '../src/client/communities/controller.ts';
+import {
+  togglePostPreference,
+  togglePostVote,
+} from '../src/client/communities/post-interactions.ts';
+import type { CommunityPost } from '../src/shared/community-posts/index.ts';
+import { feedPage } from '../src/shared/community-discovery/index.ts';
+import { publicAvatarPath } from '../src/shared/public-media/index.ts';
 
 function session(): AccountSession {
   return {
@@ -130,4 +137,142 @@ await test('resposta atrasada não restaura comunidade de outra sessão; estado 
     Promise.resolve(Response.json({ ...result(), accountId: first.accountId })),
   );
   await assert.rejects(clean.state(crypto.randomUUID()), /Campos inválidos/);
+});
+
+function post(): CommunityPost {
+  return {
+    id: crypto.randomUUID(),
+    community: crypto.randomUUID(),
+    author: null,
+    title: 'Teste',
+    text: 'Texto público sintético',
+    tag: null,
+    createdAt: new Date().toISOString(),
+    editedAt: null,
+    revision: 1,
+    status: 'visible',
+    parent: null,
+    root: null,
+    score: 12,
+    replies: 3,
+  };
+}
+function voteState(value: CommunityPost, position: number) {
+  return {
+    post: value,
+    own: false,
+    manager: false,
+    canEdit: false,
+    canDelete: false,
+    content: null,
+    removal: null,
+    vote: { position, revision: 7 },
+  };
+}
+await test('botões de voto usam revisão atual, alternam posição e retiram o voto repetido', async () => {
+  const value = post();
+  for (const [current, clicked, expected] of [
+    [0, 1, 1],
+    [1, 1, 0],
+    [-1, 1, 1],
+    [1, -1, -1],
+    [-1, -1, 0],
+  ] as const) {
+    const writes: Record<string, unknown>[] = [];
+    await togglePostVote(value, clicked, {
+      valid: () => true,
+      controller: {
+        request: (operation, payload) => {
+          if (operation === 'post-vote') writes.push(payload);
+          return Promise.resolve(voteState(value, current));
+        },
+      },
+    });
+    assert.deepEqual(writes, [
+      {
+        id: value.community,
+        post: value.id,
+        position: expected,
+        voteRevision: 7,
+      },
+    ]);
+  }
+});
+await test('trocar de página durante consulta privada impede voto ou preferência posterior', async () => {
+  const value = post();
+  for (const kind of ['vote', 'preference'] as const) {
+    let valid = true;
+    const operations: string[] = [];
+    const access = {
+      valid: () => valid,
+      controller: {
+        request: (operation: string) => {
+          operations.push(operation);
+          valid = false;
+          return Promise.resolve(
+            kind === 'vote'
+              ? voteState(value, 0)
+              : { saved: false, hidden: true, revision: 4 },
+          );
+        },
+      },
+    };
+    if (kind === 'vote') await togglePostVote(value, 1, access);
+    else await togglePostPreference(value, 'saved', access);
+    assert.equal(operations.length, 1);
+  }
+});
+await test('salvar e ocultar preservam a outra preferência privada e a revisão corrente', async () => {
+  const value = post();
+  for (const key of ['saved', 'hidden'] as const) {
+    const writes: Record<string, unknown>[] = [];
+    const result = await togglePostPreference(value, key, {
+      valid: () => true,
+      controller: {
+        request: (operation, payload) => {
+          if (operation === 'discovery-preference-set') writes.push(payload);
+          return Promise.resolve({ saved: false, hidden: true, revision: 4 });
+        },
+      },
+    });
+    assert.ok(result);
+    assert.deepEqual(writes, [
+      {
+        id: value.community,
+        post: value.id,
+        preference: {
+          saved: key === 'saved',
+          hidden: key !== 'hidden',
+          revision: 4,
+        },
+      },
+    ]);
+  }
+});
+await test('foto do feed aceita projeção pública da comunidade e recusa outra identidade ou campos privados', () => {
+  const value = post(),
+    avatar = publicAvatarPath(
+      'community-photo',
+      value.community,
+      crypto.randomUUID(),
+    ),
+    group = { id: value.community, name: 'Comunidade sintética', avatar },
+    parse = (community: Record<string, unknown>) =>
+      feedPage({ items: [{ post: value, community }], next: null });
+  assert.equal(parse(group).items[0]?.community.avatar, avatar);
+  assert.equal(
+    parse({ id: group.id, name: group.name }).items[0]?.community.avatar,
+    null,
+  );
+  assert.throws(() =>
+    parse({
+      ...group,
+      avatar: publicAvatarPath(
+        'community-photo',
+        crypto.randomUUID(),
+        crypto.randomUUID(),
+      ),
+    }),
+  );
+  assert.throws(() => parse({ ...group, wallet: 'privada' }));
 });

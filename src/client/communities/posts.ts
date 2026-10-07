@@ -1,5 +1,9 @@
 import { restrictedMedia } from '../community-media/index.ts';
-import { showPublicPostMedia } from '../public-media/index.ts';
+import {
+  showPublicPostMedia,
+  showPublicAvatar,
+} from '../public-media/index.ts';
+import { postHeader, postComments, postTagLink } from './presentation.ts';
 import { keys, object } from '../../shared/account/index.ts';
 import {
   communityCursor,
@@ -53,6 +57,7 @@ export function startCommunityPosts(controller: Communities) {
   let mounted: HTMLElement | null = null,
     management: HTMLElement | null = null,
     community = '',
+    identity: { id: string; name: string; avatar: string | null } | null = null,
     own: CommunityState | null = null,
     selected: string | null = null;
   let generation = 0,
@@ -173,13 +178,29 @@ export function startCommunityPosts(controller: Communities) {
     node.dataset['postId'] = value.id;
     node.classList.add('community-post');
     container.append(node);
+    if (identity) {
+      const avatar = postHeader(node, value, identity);
+      if (identity.avatar)
+        mediaCleanup.set(
+          showPublicAvatar(avatar, {
+            kind: 'community-photo',
+            target: identity.id,
+            reference: identity.avatar,
+            signal: abort.signal,
+          }),
+          node,
+        );
+    }
     rowContent(node, value, privateState);
     rowMeta(node, value);
-    voting(node, value);
+    const toolbar = el('div', '', 'post-actions');
+    node.append(toolbar);
+    voting(toolbar, value);
+    postComments(toolbar, value);
     branch(node, value, depth);
     if (!own) return;
     const old = generation;
-    preferenceControls(node, value, {
+    preferenceControls(toolbar, value, {
       controller,
       run,
       valid: () => old === generation,
@@ -253,21 +274,29 @@ export function startCommunityPosts(controller: Communities) {
     );
   }
   function voting(node: HTMLElement, value: CommunityPost): void {
-    node.append(
-      el('p', `Placar: ${value.score} · ${value.replies} respostas diretas`),
-    );
-    if (!own?.canPost || value.status !== 'visible') return;
+    if (own && !own.canPost && value.status === 'visible') {
+      const score = el('span', String(value.score), 'post-score');
+      score.title = 'Votação indisponível nesta comunidade.';
+      node.append(score);
+      return;
+    }
     const old = generation;
-    postVoting(node, value, {
-      controller,
-      run,
-      valid: () => old === generation,
-      changed: async () => {
-        after = null;
-        await load();
-        if (feedback) feedback.textContent = 'Alteração salva.';
-      },
-    });
+    postVoting(
+      node,
+      value,
+      own?.canPost
+        ? {
+            controller,
+            run,
+            valid: () => old === generation,
+            changed: async () => {
+              after = null;
+              await load();
+              if (feedback) feedback.textContent = 'Alteração salva.';
+            },
+          }
+        : null,
+    );
   }
   function replyComposer(container: HTMLElement, parent: CommunityPost): void {
     if (!own?.canPost || parent.status !== 'visible') return;
@@ -341,6 +370,7 @@ export function startCommunityPosts(controller: Communities) {
     if (state) restrictedContent(node, state);
     if (value.status !== 'visible') return;
     if (value.text) node.append(postText(value.text));
+    postTagLink(node, value);
     if (value.media?.length)
       mediaCleanup.set(
         showPublicPostMedia(node, value.media, abort.signal),
@@ -349,26 +379,7 @@ export function startCommunityPosts(controller: Communities) {
     else if (!value.text) node.append(el('p', 'Mídia aguardando liberação.'));
   }
   function rowMeta(node: HTMLElement, value: CommunityPost): void {
-    if (value.author)
-      link(
-        node,
-        `@${value.author.handle}`,
-        `#publico?handle=${encodeURIComponent(value.author.handle)}`,
-      );
-    if (value.tag) {
-      link(
-        node,
-        value.tag.label,
-        `#comunidades?id=${community}&tag=${value.tag.id}`,
-      );
-      node.lastElementChild?.classList.add('post-tag');
-    }
-    node.append(
-      el(
-        'small',
-        `${new Date(value.createdAt).toLocaleString('pt-BR')}${value.editedAt ? ' · Editado' : ''}`,
-      ),
-    );
+    if (!value.parent) return;
     const nav = el('nav', '', 'post-toolbar');
     nav.setAttribute('aria-label', 'Navegação da resposta ou postagem');
     node.append(nav);
@@ -560,7 +571,7 @@ export function startCommunityPosts(controller: Communities) {
     mounted.append(feedback);
     composer();
     if (!selected) filters();
-    list = el('div');
+    list = el('div', '', 'community-post-list');
     controls = el('div', '', 'post-toolbar');
     mounted.append(list, controls);
   }
@@ -584,6 +595,7 @@ export function startCommunityPosts(controller: Communities) {
     mounted = null;
     management = null;
     own = null;
+    identity = null;
     list = null;
     feedback = null;
   }
@@ -670,6 +682,7 @@ export function startCommunityPosts(controller: Communities) {
       container: HTMLElement,
       options: {
         community: string;
+        identity: { id: string; name: string; avatar: string | null };
         state: CommunityState | null;
         post: string | null;
         tag: string | null;
@@ -678,6 +691,7 @@ export function startCommunityPosts(controller: Communities) {
       leave();
       mounted = container;
       community = options.community;
+      identity = options.identity;
       own = options.state;
       selected = options.post;
       scope = 'public';
