@@ -192,7 +192,7 @@ export function startAccount(options: {
   let removeProviderListeners: (() => void) | undefined;
 
   const walletReturn = createWalletReturn({
-    expectedAccount: () => (forcePicker ? session : null),
+    expectedAccount: () => session,
     api,
     deviceId,
     openWallet: launchMobileWallet,
@@ -373,7 +373,7 @@ export function startAccount(options: {
   function renderReturn(): void {
     const pending = walletReturn.state();
     const panel = node('[data-wallet-return]');
-    if (panel) panel.hidden = !pending || session !== null || approvalOnly;
+    if (panel) panel.hidden = !pending || approvalOnly;
     const open = node<HTMLAnchorElement>('[data-wallet-open]');
     const link = walletReturn.link();
     if (open) {
@@ -590,7 +590,8 @@ export function startAccount(options: {
   function render(): void {
     renderSidebar();
     if (disposed || !mounted) return;
-    mounted.hidden = mountMode === 'login' && session !== null;
+    mounted.hidden =
+      mountMode === 'login' && session !== null && !walletReturn.state();
     const message = node('[data-account-status]');
     if (message) message.textContent = status;
     const profileMessage = node('[data-profile-status]');
@@ -757,7 +758,6 @@ export function startAccount(options: {
   }
   async function logout(): Promise<void> {
     const current = session;
-    if (options.mobileOpening) forgetLoginOpening();
     epoch++;
     removeProviderListeners?.();
     removeProviderListeners = undefined;
@@ -765,6 +765,7 @@ export function startAccount(options: {
     setSession(null);
     status = 'Encerrando sessão…';
     render();
+    if (options.mobileOpening) await forgetLoginOpening();
     if (current) await api('logout', { input: {}, csrf: current.csrf });
     status = 'Sessão encerrada.';
   }
@@ -1057,6 +1058,9 @@ export function startAccount(options: {
       const restored = accountSession((await response.json()) as unknown);
       if (!restoreContextIsCurrent(current)) return;
       setSession(restored);
+      // A resumed/new tab can have the old session cookie while a newly signed
+      // handoff is still awaiting the original browser's explicit confirmation.
+      if (options.mobileOpening) await walletReturn.refresh();
       status = 'Abrindo sua conta…';
       await loadPrivate(restored);
     } catch {

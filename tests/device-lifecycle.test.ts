@@ -6,6 +6,7 @@ import { createIdentity } from '../src/client/device-keys/index.ts';
 import { createWalletRecovery } from '../src/client/wallet-recovery/index.ts';
 import type { AccountSession } from '../src/shared/account/index.ts';
 import type { RecoveryFlow } from '../src/client/recovery-return/index.ts';
+import { deviceDatabase } from './fixtures/device-database.ts';
 
 await test('restauração não abre wallet; login abre somente sem chaves e pedido expirado deixa de bloquear atualização', async (t) => {
   const window = new EventTarget();
@@ -21,6 +22,7 @@ await test('restauração não abre wallet; login abre somente sem chaves e pedi
       },
     },
     BroadcastChannel: undefined,
+    indexedDB: deviceDatabase(),
   };
   for (const [name, value] of Object.entries(replacements)) {
     const original = Object.getOwnPropertyDescriptor(globalThis, name);

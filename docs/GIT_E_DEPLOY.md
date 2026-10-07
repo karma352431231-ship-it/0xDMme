@@ -2,6 +2,14 @@
 
 ## Continuidade do login mobile — ativação autorizada em 07/10/2026
 
+O reteste físico posterior à release `91a82e8` mostrou perda do pedido e falhas
+de abertura no iPhone. A correção de continuidade conserva o pedido público no
+IndexedDB, preserva pedidos novos diante de ACK recusado/tardio, usa doc-3 também
+para Backpack Android e handlers nativos MetaMask/Phantom no iPhone. Mantém
+autenticação, criptografia, banco, dependências e infraestrutura. A autorização
+de concluir o fix e ativar na VPS continua aplicável; reutilizar o mesmo comando,
+CI exata, preservação e rollback. Publicação e teste físico permanecem distintos.
+
 O proprietário autorizou aplicar a correção, enviar e ativar na VPS, incluindo
 continuidade após compactações até concluir. Login público e prova privada de
 abertura são recolhidos na mesma visita à wallet; o navegador original confirma

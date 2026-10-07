@@ -820,6 +820,27 @@ await test('Autenticação e perfil persistentes', async (t) => {
         return documentCookie;
       }
       const documentCookie = await deliveredDocument(inlinePath);
+      const androidDocumentCookie = await deliveredDocument(
+        `/wallet-entry?${new URLSearchParams({
+          ticket: pending.ticket,
+          ecosystem: 'evm',
+          wallet: 'Backpack',
+          returnBrowser: 'chrome',
+        })}`,
+      );
+      const androidRequest = await fetch(
+        `${origin}/api/account/approval-request`,
+        { headers: { Cookie: androidDocumentCookie } },
+      );
+      assert.equal(androidRequest.status, 200);
+      assert.equal(
+        (
+          (await androidRequest.json()) as {
+            request: { returnBrowser: string };
+          }
+        ).request.returnBrowser,
+        'chrome',
+      );
       const entry = await navigateEntry(
         `/wallet-entry?${new URLSearchParams({
           ticket: pending.ticket,

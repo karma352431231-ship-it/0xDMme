@@ -27,6 +27,9 @@ export function deviceDatabase(): IDBFactory {
                 put(value: unknown, key: string) {
                   records.set(key, structuredClone(value));
                 },
+                delete(key: string) {
+                  records.delete(key);
+                },
                 add(value: unknown, key: string) {
                   if (records.has(key)) throw new Error('Duplicate IDB record');
                   records.set(key, structuredClone(value));

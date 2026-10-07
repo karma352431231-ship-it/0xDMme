@@ -14,6 +14,7 @@ import {
 import type {
   OpeningRequest,
   OpeningReceiver,
+  OpeningPending,
 } from '../../shared/wallet-opening/index.ts';
 import {
   recoveryIdentity,
@@ -22,28 +23,32 @@ import {
 import {
   openingReceiverIdentity,
   storedOpeningReceiverIdentity,
+  readOpeningPending,
+  saveOpeningPending,
+  clearOpeningPending,
 } from '../device-storage/index.ts';
 import { openFrom, sealTo } from '../device-keys/index.ts';
 import { signRecovery } from '../wallet-recovery/index.ts';
 import type { WalletConnection } from '../wallet/index.ts';
 
 const storageKey = '0xdmme:wallet-opening';
-interface Pending {
-  ticket: string;
-  nonce: string;
-  receiver: string;
-  wallet: OpeningReceiver['wallet'];
-  expires: number;
-}
-function pending(): Pending | null {
-  const text = sessionStorage.getItem(storageKey);
-  if (!text) return null;
+function legacyPending(): unknown {
+  let text: string | null;
+  try {
+    text = sessionStorage.getItem(storageKey);
+  } catch {
+    return undefined;
+  }
+  if (!text) return undefined;
   if (text.length > 2048) throw new Error('Entrada pendente inválida.');
-  const data = object(JSON.parse(text) as unknown);
+  return JSON.parse(text) as unknown;
+}
+function pendingData(value: unknown): OpeningPending {
+  const data = object(value);
   keys(data, ['ticket', 'nonce', 'receiver', 'wallet', 'expires']);
   if (
     typeof data['expires'] !== 'number' ||
-    data['expires'] <= Date.now() ||
+    !Number.isSafeInteger(data['expires']) ||
     data['expires'] > Date.now() + 300_000
   )
     throw new AccountError(
@@ -62,6 +67,26 @@ function pending(): Pending | null {
     ticket,
     expires: data['expires'],
   };
+}
+async function pending(): Promise<OpeningPending | null> {
+  const stored = await readOpeningPending();
+  const value = stored === undefined ? legacyPending() : stored;
+  if (value === undefined) return null;
+  const current = pendingData(value);
+  if (current.expires <= Date.now()) {
+    await forgetLoginOpening(current.ticket);
+    return null;
+  }
+  if (
+    (await openingTicket({
+      receiver: current.receiver,
+      nonce: current.nonce,
+      wallet: current.wallet,
+    })) !== current.ticket
+  )
+    throw new Error('Destino da entrada alterado.');
+  await storedOpeningReceiverIdentity(current.receiver);
+  return current;
 }
 export async function prepareLoginOpening(
   wallet: OpeningReceiver['wallet'],
@@ -82,20 +107,41 @@ export async function rememberLoginOpening(
 ): Promise<void> {
   if ((await openingTicket(receiver)) !== ticket)
     throw new Error('Destino da entrada alterado.');
-  sessionStorage.setItem(
-    storageKey,
-    JSON.stringify({ ...receiver, ticket, expires: Date.now() + 300_000 }),
-  );
+  await storedOpeningReceiverIdentity(receiver.receiver);
+  await saveOpeningPending({
+    ...receiver,
+    ticket,
+    expires: Date.now() + 300_000,
+  });
+  // The receiver and its public handoff share browser storage. A new tab may
+  // continue only with the original cookie and exact locally held receiver.
+  try {
+    sessionStorage.removeItem(storageKey);
+  } catch {
+    /* Legacy tab metadata is optional. */
+  }
 }
-export function forgetLoginOpening(): void {
-  sessionStorage.removeItem(storageKey);
+export async function forgetLoginOpening(ticket?: string): Promise<void> {
+  await clearOpeningPending(ticket);
+  try {
+    const text = sessionStorage.getItem(storageKey);
+    if (
+      ticket === undefined ||
+      (text && object(JSON.parse(text) as unknown)['ticket'] === ticket)
+    )
+      sessionStorage.removeItem(storageKey);
+  } catch {
+    /* Legacy tab metadata never grants authorization. */
+  }
 }
-export function loginOpeningTicket(): string | undefined {
-  return pending()?.ticket;
+export async function loginOpeningTicket(): Promise<string | undefined> {
+  return (await pending())?.ticket;
 }
-async function api(session: AccountSession, operation: 'read' | 'ack') {
-  const current = pending();
-  if (!current) return null;
+async function api(
+  session: AccountSession,
+  operation: 'read' | 'ack',
+  ticket: string,
+) {
   const response = await fetch(`/api/account/opening-${operation}`, {
     method: 'POST',
     credentials: 'same-origin',
@@ -105,7 +151,7 @@ async function api(session: AccountSession, operation: 'read' | 'ack') {
       'Content-Type': 'application/json',
       'X-Hash-Talk-CSRF': session.csrf,
     },
-    body: JSON.stringify({ ticket: current.ticket }),
+    body: JSON.stringify({ ticket }),
     signal: AbortSignal.timeout(8000),
   });
   if (!response.ok)
@@ -116,9 +162,9 @@ async function api(session: AccountSession, operation: 'read' | 'ack') {
   return response.json() as Promise<unknown>;
 }
 export async function readLoginOpening(session: AccountSession) {
-  const current = pending();
+  const current = await pending();
   if (!current) return null;
-  const data = object(await api(session, 'read'));
+  const data = object(await api(session, 'read', current.ticket));
   keys(data, ['request', 'envelope']);
   const request = await openingRequest(data['request']);
   const transfer = request.transfer;
@@ -156,13 +202,17 @@ export async function readLoginOpening(session: AccountSession) {
 export async function acknowledgeLoginOpening(
   session: AccountSession,
 ): Promise<void> {
+  const current = await pending();
+  if (!current) return;
   try {
-    await api(session, 'ack');
+    await api(session, 'ack', current.ticket);
   } catch (error: unknown) {
-    // A verified, durable device grant survives expiry/restart of this temporary transport.
-    if (!(error instanceof AccountError && error.status === 409)) throw error;
+    // Restoring an older authorized session must not consume a new handoff.
+    // Its grant remains usable, while this pending entry belongs to the new login.
+    if (error instanceof AccountError && error.status === 409) return;
+    throw error;
   }
-  forgetLoginOpening();
+  await forgetLoginOpening(current.ticket);
 }
 export async function signLoginOpening(input: {
   request: OpeningRequest;

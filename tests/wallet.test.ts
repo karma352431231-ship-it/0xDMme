@@ -77,6 +77,35 @@ await test('MetaMask abre o destino HTTPS completo sem exigir decodificação do
     );
   }
 });
+await test('iPhone usa o handler do app instalado para MetaMask e Phantom, preservando o destino HTTPS próprio', () => {
+  for (const wallet of ['MetaMask', 'Phantom'] as const) {
+    for (const ecosystem of ['evm', 'solana'] as const) {
+      const link = walletBrowserUrl({
+        origin: 'https://0xdmme.app',
+        wallet,
+        ecosystem,
+        ticket: 'd'.repeat(64),
+        platform: 'ios',
+      });
+      assert.ok(link);
+      const prefix =
+        wallet === 'MetaMask' ? 'metamask://dapp/' : 'phantom://browse/';
+      assert.ok(link.startsWith(prefix));
+      const destination =
+        wallet === 'MetaMask'
+          ? new URL('https://' + link.slice(prefix.length))
+          : new URL(decodeURIComponent(new URL(link).pathname.slice(1)));
+      assert.equal(destination.origin, 'https://0xdmme.app');
+      assert.equal(destination.pathname, '/wallet-entry');
+      assert.equal(destination.searchParams.get('wallet'), wallet);
+      assert.equal(destination.searchParams.get('ecosystem'), ecosystem);
+      assert.equal(destination.searchParams.get('ticket'), 'd'.repeat(64));
+      assert.equal(destination.hash, '');
+      assert.equal(link.includes('session='), false);
+      assert.equal(link.includes('signature='), false);
+    }
+  }
+});
 await test('Backpack Android recebe o destino próprio completo pela rota HTTPS v1, sem ref externo', () => {
   const ticket = 'c'.repeat(64);
   const prefix = 'https://backpack.app/ul/v1/browse/';

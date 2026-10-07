@@ -246,17 +246,30 @@ export function walletBrowserUrl(input: {
     origin: origin.origin,
     query,
   });
+  return browseLink({ ...input, origin: origin.origin, target });
+}
+/** App handlers receive the same HTTPS approval request on each platform. */
+function browseLink(input: {
+  wallet: WalletName;
+  platform?: MobilePlatform;
+  origin: string;
+  target: string;
+}): string {
+  const { target } = input;
   if (input.wallet === 'MetaMask')
     // MetaMask appends everything after /dapp/ to https:// without decoding
     // the path. Preserve URL delimiters; query values are already encoded.
-    return `https://link.metamask.io/dapp/${target.slice('https://'.length)}`;
+    return `${input.platform === 'ios' ? 'metamask://dapp/' : 'https://link.metamask.io/dapp/'}${target.slice('https://'.length)}`;
   // HTTPS v1 without an outer ref was verified on Android, including a closed
   // Backpack app. Keep the encoded destination and its login parameters intact.
   if (input.wallet === 'Backpack' && input.platform === 'android')
     return `https://backpack.app/ul/v1/browse/${encodeURIComponent(target)}`;
   const base = {
-    Phantom: 'https://phantom.com/ul/browse/',
+    Phantom:
+      input.platform === 'ios'
+        ? 'phantom://browse/'
+        : 'https://phantom.com/ul/browse/',
     Backpack: 'https://backpack.app/ul/v1/browse/',
   }[input.wallet];
-  return `${base}${encodeURIComponent(target)}?ref=${encodeURIComponent(origin.origin)}`;
+  return `${base}${encodeURIComponent(target)}?ref=${encodeURIComponent(input.origin)}`;
 }

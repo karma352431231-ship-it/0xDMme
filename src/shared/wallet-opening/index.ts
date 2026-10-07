@@ -8,6 +8,10 @@ export interface OpeningReceiver {
   nonce: string;
   wallet: RecoveryTransfer['wallet'];
 }
+export interface OpeningPending extends OpeningReceiver {
+  ticket: string;
+  expires: number;
+}
 export interface OpeningRequest {
   transfer: RecoveryTransfer;
   nonce: string;

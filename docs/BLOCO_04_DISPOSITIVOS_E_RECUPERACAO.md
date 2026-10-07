@@ -30,10 +30,41 @@ O transporte novo mantém até 128 entradas de cinco minutos, com envelope de at
 vinculado à sessão original após confirmação. A leitura pode ser retomada por
 essa sessão até confirmar a conclusão; expiração ou reinício encerra o retorno.
 No cliente há um único registro de receptor, com validade de cinco minutos para
-reuso, e metadados públicos limitados à aba; assinaturas privadas não são
+reuso, e um único pedido público em IndexedDB pelo mesmo prazo; assinaturas privadas não são
 persistidas. Foco, visibilidade e retorno de página revalidam as chaves e retomam
 pedidos válidos sem nova navegação automática. Uma sessão antiga ainda incompleta
 oferece **Concluir entrada na conta** junto ao aviso, usando o login combinado.
+
+Reteste físico relatado em 07/10/2026 reabriu a pendência: perda do pedido no
+Android, Backpack chegando sem contexto e links de instalação no iPhone.
+A reprodução local confirmou que um ACK recusado com 409 de uma sessão anterior
+apagava o pedido novo; também confirmou perda dos metadados ao recriar a aba.
+O ACK agora conserva pedidos recusados e só limpa o ticket que confirmou,
+sem remover um substituto recebido enquanto aguardava a resposta. Os metadados
+públicos acompanham o receptor não exportável em IndexedDB: outra aba do mesmo
+navegador só conclui com o cookie original, receptor exato, sessão e CSRF
+vinculados pelo servidor. Não há recuperação em outro navegador nem assinatura
+privada persistida. A leitura não renova o prazo; cancelamento e expiração limpam
+o registro. Entradas já emitidas na aba conservam compatibilidade temporária.
+Restaurar uma sessão existente também consulta o pedido público, e a tela não
+oculta sua confirmação por já haver conta conectada. O endereço ainda precisa
+ser confirmado explicitamente; enquanto houver sessão, exigir a mesma conta.
+
+Backpack Android mantém seu link HTTPS v1 e destino query, mas passa a receber
+o documento final `/wallet-approval`, como no iPhone, sem fragmento, RPC inicial
+ou History API. Isso elimina etapas de entrega no cliente; o D1 informado ainda
+não comprova a causa interna da perda. Cookies, validação e prazo permanecem.
+MetaMask/Phantom no iPhone usam respectivamente `metamask://dapp/` e
+`phantom://browse/`, handlers dos apps instalados, com o mesmo destino HTTPS
+próprio e pedido preparado antes da tentativa. Android conserva seus links.
+O botão explícito usa o mesmo destino se a tentativa automática for bloqueada.
+Não detectar instalação nem simular sucesso a partir da navegação.
+Os esquemas são previstos pela [Phantom](https://docs.phantom.com/phantom-deeplinks/deeplinks-ios-and-android)
+e pelo [handler MetaMask](https://github.com/MetaMask/metamask-mobile/blob/main/app/core/DeeplinkManager/utils/parseDeeplink.ts).
+A Phantom prefere universal links; o caminho nativo restringe a tentativa iOS
+ao app instalado para evitar navegar para a página web de instalação. O relato
+confirma a falha HTTPS, mas a associação publicada não revela o motivo interno
+no aparelho. O handler e a configuração sintéticos não garantem abertura física.
 
 Links novos da Phantom usam `phantom.com`, conforme sua
 [documentação](https://docs.phantom.com/phantom-deeplinks/deeplinks-ios-and-android).

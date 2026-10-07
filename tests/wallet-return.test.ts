@@ -167,6 +167,56 @@ function handoffResponse() {
   };
 }
 
+await test('cancelar enquanto o pedido local é recuperado não confirma nem cria uma sessão tardia', async () => {
+  const { api } = scope();
+  const authenticated = session();
+  const calls: string[] = [];
+  let release: (ticket: string) => void = () => {};
+  let sessions = 0;
+  const controller = api.createWalletReturn({
+    deviceId: () => authenticated.deviceId,
+    changed: () => {},
+    message: () => {},
+    authenticated: () => {
+      sessions++;
+      return Promise.resolve();
+    },
+    prepareOpening: () =>
+      Promise.resolve({
+        receiver: 'receiver',
+        nonce: 'a'.repeat(64),
+        wallet: 'MetaMask',
+      }),
+    openingTicket: () =>
+      new Promise((resolve) => {
+        release = resolve;
+      }),
+    api: (path) => {
+      calls.push(path);
+      return Promise.resolve(
+        path === 'handoff-start'
+          ? handoffResponse()
+          : path === 'handoff-status'
+            ? {
+                ...handoffResponse(),
+                address: authenticated.address,
+                ecosystem: 'evm',
+              }
+            : authenticated,
+      );
+    },
+  });
+  await controller.start('MetaMask', 'evm');
+  await controller.refresh();
+  const confirming = controller.confirm();
+  await controller.cancel();
+  release('a'.repeat(64));
+  await confirming;
+  assert.equal(sessions, 0);
+  assert.equal(calls.includes('handoff-confirm'), false);
+  controller.close();
+});
+
 await test('seleção abre a wallet uma vez após pedido válido; consulta não abre novamente', async () => {
   const { controller, opened } = launchController(
     Promise.resolve(handoffResponse()),
@@ -399,6 +449,10 @@ await test('confirmação tardia após cancelar é revogada e não abre a conta 
   const late = new Promise<unknown>((done) => {
     resolve = done;
   });
+  let submitted: () => void = () => {};
+  const started = new Promise<void>((done) => {
+    submitted = done;
+  });
   const controller = api.createWalletReturn({
     deviceId: () => authenticated.deviceId,
     changed: () => {},
@@ -422,13 +476,17 @@ await test('confirmação tardia após cancelar é revogada e não abre a conta 
           expiresAt: new Date(Date.now() + 300_000).toISOString(),
           serverTime: new Date().toISOString(),
         });
-      if (path === 'handoff-confirm') return late;
+      if (path === 'handoff-confirm') {
+        submitted();
+        return late;
+      }
       return Promise.resolve({ status: 'ok' });
     },
   });
   await controller.start('MetaMask', 'evm');
   await controller.refresh();
   const confirming = controller.confirm();
+  await started;
   await controller.cancel();
   resolve?.(authenticated);
   await confirming;

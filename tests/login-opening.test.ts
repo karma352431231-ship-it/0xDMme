@@ -22,6 +22,9 @@ import {
   prepareLoginOpening,
   rememberLoginOpening,
   signLoginOpening,
+  loginOpeningTicket,
+  acknowledgeLoginOpening,
+  forgetLoginOpening,
 } from '../src/client/wallet-opening/index.ts';
 import { recoveryMessage } from '../src/shared/wallet-recovery/index.ts';
 import { createIdentity } from '../src/client/device-keys/index.ts';
@@ -181,6 +184,10 @@ for (const ecosystem of ['evm', 'solana'] as const)
           server.confirmation('original-browser', user, ticket),
           user.accountId,
         );
+        // A wallet/browser return can create another tab in the same browser.
+        // Only its cookie plus the exact durable local receiver may finish.
+        records.clear();
+        assert.equal(await loginOpeningTicket(), ticket);
         server.bind('original-browser', user);
         const directory = directoryFixture();
         let activeSession = user;
@@ -343,6 +350,49 @@ await test('abertura rejeita troca de destinatário, sessão, wallet, replay e r
   server.acknowledge(user, { ticket });
   assert.throws(() => server.read(user, { ticket }));
   assert.throws(() => server.confirmation('browser', user, ticket));
+});
+
+await test('restaurar sessão anterior não apaga o pedido novo recusado por sua vinculação de sessão', async (t) => {
+  globals(t);
+  const receiver = await prepareLoginOpening('MetaMask');
+  const ticket = await openingTicket(receiver);
+  await rememberLoginOpening(receiver, ticket);
+  t.mock.method(globalThis, 'fetch', () =>
+    Promise.resolve(new Response('{}', { status: 409 })),
+  );
+  await acknowledgeLoginOpening(session());
+  assert.equal(await loginOpeningTicket(), ticket);
+});
+
+await test('ACK tardio e cancelamento antigo não removem o pedido substituto; expiração não é renovada pela leitura', async (t) => {
+  const { records } = globals(t);
+  const receiver = await prepareLoginOpening('Phantom');
+  const ticket = await openingTicket(receiver);
+  await rememberLoginOpening(receiver, ticket);
+  let complete: (response: Response) => void = () => {};
+  let submitted: () => void = () => {};
+  const started = new Promise<void>((resolve) => {
+    submitted = resolve;
+  });
+  t.mock.method(globalThis, 'fetch', () => {
+    submitted();
+    return new Promise<Response>((resolve) => {
+      complete = resolve;
+    });
+  });
+  const acknowledged = acknowledgeLoginOpening(session());
+  await started;
+  const next = { ...receiver, nonce: 'e'.repeat(64) };
+  const replacement = await openingTicket(next);
+  await rememberLoginOpening(next, replacement);
+  complete(Response.json({ status: 'acknowledged' }));
+  await acknowledged;
+  await forgetLoginOpening(ticket);
+  records.clear();
+  assert.equal(await loginOpeningTicket(), replacement);
+  const now = Date.now();
+  t.mock.method(Date, 'now', () => now + 300001);
+  assert.equal(await loginOpeningTicket(), undefined);
 });
 
 await test('abertura limita entradas concorrentes e encerra provas no prazo original', async (t) => {

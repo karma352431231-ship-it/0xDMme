@@ -8,6 +8,7 @@ import {
 } from '../../shared/devices/index.ts';
 import { checkIdentity, createIdentity } from '../device-keys/index.ts';
 import type { LocalIdentity } from '../device-keys/index.ts';
+import type { OpeningPending } from '../../shared/wallet-opening/index.ts';
 
 interface Checkpoint {
   events: DirectoryEvent[];
@@ -16,6 +17,28 @@ interface Checkpoint {
 interface OpeningReceiverRecord {
   identity: LocalIdentity;
   expires: number;
+}
+/** One expiring public handoff, alongside the browser's non-exportable receiver. */
+export function readOpeningPending(): Promise<unknown> {
+  return transaction('wallet-opening-pending', (_store, value) => value);
+}
+export function saveOpeningPending(value: OpeningPending): Promise<void> {
+  return transaction('wallet-opening-pending', (store) => {
+    store.put(value, 'wallet-opening-pending');
+  });
+}
+export function clearOpeningPending(ticket?: string): Promise<void> {
+  return transaction('wallet-opening-pending', (store, value) => {
+    if (
+      ticket !== undefined &&
+      (typeof value !== 'object' ||
+        value === null ||
+        !('ticket' in value) ||
+        value.ticket !== ticket)
+    )
+      return;
+    store.delete('wallet-opening-pending');
+  });
 }
 export async function storedOpeningReceiverIdentity(
   receiver: string,

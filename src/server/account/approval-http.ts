@@ -151,8 +151,8 @@ export function createApprovalEntry(
     try {
       const entry = entryInput(request.url ?? '', origin);
       const { state, seconds } = await pendingState(entry.input);
-      if (request.url?.startsWith('/wallet-entry/')) {
-        const value = `${state.request.ticket}.${state.request.wallet}.${state.request.ecosystem}`;
+      if (state.request.wallet === 'Backpack' && page) {
+        const value = `${state.request.ticket}.${state.request.wallet}.${state.request.ecosystem}${state.request.returnBrowser ? '.' + state.request.returnBrowser : ''}`;
         response.setHeader('Set-Cookie', cookie(value, seconds));
         response.writeHead(303, { Location: approvalDocumentPath }).end();
         return;

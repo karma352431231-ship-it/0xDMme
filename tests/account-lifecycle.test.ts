@@ -56,6 +56,8 @@ function scope(options: {
   privateKey?: Parameters<typeof startAccount>[0]['privateKey'];
   walletSigner?: Wallet;
   handoffSubmit?: (input: unknown) => void;
+  mobileOpening?: true;
+  handoffStatus?: Promise<Response>;
 }) {
   const address = options.walletSigner?.address ?? `0x${'1'.repeat(40)}`;
   const listeners = new Map<string, () => void>();
@@ -144,6 +146,12 @@ function scope(options: {
   const manual = { hidden: false };
   const purpose = { hidden: false };
   const diagnosticsPanel = { hidden: false };
+  const returnPanel = { hidden: true };
+  const returnCandidate = { textContent: '' };
+  const returnConfirm = Object.assign(new EventTarget(), {
+    hidden: true,
+    disabled: false,
+  });
   const nodes = new Map<string, unknown>([
     ['[data-wallet-approve]', approve],
     ['[data-wallet-picker-toggle]', picker],
@@ -153,6 +161,9 @@ function scope(options: {
     ['[data-wallet-manual]', manual],
     ['[data-wallet-purpose]', purpose],
     ['[data-wallet-diagnostics]', diagnosticsPanel],
+    ['[data-wallet-return]', returnPanel],
+    ['[data-wallet-candidate]', returnCandidate],
+    ['[data-wallet-confirm]', returnConfirm],
   ]);
   const mounted = {
     innerHTML: '',
@@ -198,7 +209,10 @@ function scope(options: {
       '/api/account/approval-request',
       () => options.approvalResponse ?? Promise.resolve(Response.json(null)),
     ],
-    ['/api/account/handoff-status', () => Promise.resolve(Response.json(null))],
+    [
+      '/api/account/handoff-status',
+      () => options.handoffStatus ?? Promise.resolve(Response.json(null)),
+    ],
     [
       '/api/account/session',
       async () =>
@@ -293,6 +307,7 @@ function scope(options: {
   const account = api.startAccount({
     changed: (value) => states.push(value),
     ...(options.privateKey ? { privateKey: options.privateKey } : {}),
+    ...(options.mobileOpening ? { mobileOpening: options.mobileOpening } : {}),
   });
   account.mount(mounted as unknown as HTMLElement);
   return {
@@ -308,6 +323,9 @@ function scope(options: {
     manual,
     purpose,
     diagnosticsPanel,
+    returnPanel,
+    returnConfirm,
+    returnCandidate,
     view: mounted,
     navigated,
     providerRequests,
@@ -360,6 +378,39 @@ await test('restaurar sessão abre somente chaves locais; novo login pode solici
   browser.click();
   await tick();
   assert.deepEqual(modes, ['restore', 'login']);
+  browser.dispose();
+});
+
+await test('sessão anterior não oculta o pedido assinado nem sua confirmação ao restaurar a aba', async () => {
+  const restored = deferred<Response>();
+  const browser = scope({
+    sessionResponse: restored.promise,
+    mobileOpening: true,
+    privateKey: () => Promise.resolve(null),
+    handoffStatus: Promise.resolve(
+      Response.json({
+        address: '0x' + '1'.repeat(40),
+        ecosystem: 'evm',
+        expiresAt: new Date(Date.now() + 300000).toISOString(),
+        serverTime: new Date().toISOString(),
+      }),
+    ),
+  });
+  browser.account.mount(browser.view as unknown as HTMLElement, 'login');
+  restored.resolve(Response.json(browser.session));
+  await tick();
+  assert.equal(browser.returnPanel.hidden, false);
+  assert.equal(browser.returnConfirm.hidden, false);
+  assert.match(browser.returnCandidate.textContent, /Endereço verificado/u);
+  assert.equal(
+    (browser.view as typeof browser.view & { hidden: boolean }).hidden,
+    false,
+  );
+  assert.equal(
+    browser.requests.includes('/api/account/handoff-confirm'),
+    false,
+  );
+  assert.deepEqual(browser.navigated, []);
   browser.dispose();
 });
 

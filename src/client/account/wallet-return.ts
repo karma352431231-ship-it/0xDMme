@@ -88,12 +88,12 @@ export function createWalletReturn(options: {
   expectedAccount?: () => Pick<AccountSession, 'address' | 'ecosystem'> | null;
   openWallet?: (link: string) => boolean;
   prepareOpening?: (wallet: WalletName) => Promise<OpeningReceiver>;
-  openingTicket?: () => string | undefined;
+  openingTicket?: () => Promise<string | undefined>;
   rememberOpening?: (
     receiver: OpeningReceiver,
     ticket: string,
   ) => Promise<void>;
-  forgetOpening?: () => void;
+  forgetOpening?: (ticket?: string) => Promise<void>;
 }) {
   const platform = /Android/iu.test(navigator.userAgent)
     ? 'android'
@@ -136,6 +136,16 @@ export function createWalletReturn(options: {
   function isCurrent(current: number): boolean {
     return !closed && current === generation;
   }
+  async function rememberPreparedOpening(
+    opening: OpeningReceiver | undefined,
+    ticket: string,
+    current: number,
+  ): Promise<boolean> {
+    if (opening) await options.rememberOpening?.(opening, ticket);
+    if (isCurrent(current)) return true;
+    await options.forgetOpening?.(ticket);
+    return false;
+  }
   async function prepareHandoff(
     wallet: WalletName,
     network: Ecosystem,
@@ -155,7 +165,8 @@ export function createWalletReturn(options: {
       const data = object(response);
       const ticket = boundedText(data['ticket'], 64);
       const expiresAt = handoffExpiry(data);
-      if (opening) await options.rememberOpening?.(opening, ticket);
+      if (!(await rememberPreparedOpening(opening, ticket, current)))
+        return null;
       return { ticket, expiresAt };
     } catch (error: unknown) {
       if (error instanceof AccountError) throw error;
@@ -201,7 +212,7 @@ export function createWalletReturn(options: {
     options.changed();
     schedule();
   }
-  function confirmationInput(state: Pending) {
+  async function confirmationInput(state: Pending) {
     if (!state.address) throw new Error('A wallet ainda não assinou.');
     const expected = options.expectedAccount?.();
     if (
@@ -212,7 +223,7 @@ export function createWalletReturn(options: {
       throw new Error(
         'Confirme a wallet da conta que já está aberta neste aparelho.',
       );
-    const openingTicket = options.openingTicket?.();
+    const openingTicket = await options.openingTicket?.();
     if (options.prepareOpening && !openingTicket)
       throw new AccountError(
         409,
@@ -226,8 +237,9 @@ export function createWalletReturn(options: {
   }
   async function confirm(): Promise<void> {
     if (!pending) throw new Error('A wallet ainda não assinou.');
-    const input = confirmationInput(pending);
     const current = ++generation;
+    const input = await confirmationInput(pending);
+    if (!isCurrent(current)) return;
     const authenticated = accountSession(
       await options.api('handoff-confirm', { input }),
     );
@@ -245,7 +257,7 @@ export function createWalletReturn(options: {
     pending = null;
     link = null;
     window.clearTimeout(timer);
-    options.forgetOpening?.();
+    await options.forgetOpening?.();
     await options.api('handoff-cancel', { input: {} });
     options.changed();
   }
