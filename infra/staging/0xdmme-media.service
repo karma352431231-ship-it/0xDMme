@@ -48,6 +48,7 @@ TemporaryFileSystem=/opt:ro /srv:ro /var:ro /etc:ro /run:ro
 TemporaryFileSystem=/tmp:rw,nosuid,nodev,noexec,size=16M
 InaccessiblePaths=-/usr/local -/usr/src -/mnt -/media
 BindReadOnlyPaths=/var/lib/0xdmme/data/media-runtime/current:/opt/0xdmme-media /etc/passwd /etc/group /etc/localtime
+ExecPaths=/opt/0xdmme-media
 BindPaths=/var/lib/0xdmme/data/objects/community-media
 StandardOutput=null
 StandardError=null
