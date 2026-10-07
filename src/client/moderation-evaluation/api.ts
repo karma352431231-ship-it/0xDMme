@@ -37,8 +37,13 @@ function responseFailure(status: number): Error {
   );
 }
 export class EvaluationApi {
-  private readonly token: string;
+  private token: string;
   constructor(token: string) {
+    this.token = token;
+  }
+  acceptAccess(token: string): void {
+    if (!/^[a-f0-9]{64}$/.test(token))
+      throw new Error('Acesso ausente. Reabra o endereço privado fornecido.');
     this.token = token;
   }
 

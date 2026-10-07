@@ -69,6 +69,14 @@ await test('cliente confere bytes, MIME e hash antes de mostrar a imagem associa
       );
     };
     const signal = new AbortController().signal;
+    const reopened = new EvaluationApi('');
+    await assert.rejects(reopened.image(entry, 'image', signal), /Acesso/);
+    assert.throws(() => reopened.acceptAccess('invalid'), /Acesso/);
+    reopened.acceptAccess('a'.repeat(64));
+    assert.equal(
+      (await reopened.image(entry, 'image', signal)).size,
+      bytes.length,
+    );
     assert.equal((await api.image(entry, 'image', signal)).size, bytes.length);
     await assert.rejects(
       api.image({ ...entry, imageHash: 'f'.repeat(64) }, 'image', signal),

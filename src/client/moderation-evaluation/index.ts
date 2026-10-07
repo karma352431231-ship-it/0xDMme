@@ -20,8 +20,12 @@ const analyze = element('evaluate', HTMLButtonElement),
   exportButton = element('export', HTMLButtonElement);
 const clear = element('clear', HTMLButtonElement),
   reload = element('reload', HTMLButtonElement);
-const api = new EvaluationApi(location.hash.slice(1));
-history.replaceState(null, '', location.pathname);
+function readAccess(): string {
+  const token = location.hash.slice(1);
+  history.replaceState(null, '', location.pathname);
+  return token;
+}
+const api = new EvaluationApi(readAccess());
 const gallery = new CalibrationGalleryView(api, {
   container: element('gallery', HTMLDivElement),
   summary: element('round', HTMLParagraphElement),
@@ -134,3 +138,11 @@ window.addEventListener('pagehide', () => {
   gallery.dispose();
 });
 action(() => gallery.refresh());
+// Reopening the private link in this same tab is a hash navigation, not a reload.
+window.addEventListener('hashchange', () => {
+  const access = readAccess();
+  action(async () => {
+    api.acceptAccess(access);
+    await gallery.refresh();
+  });
+});
