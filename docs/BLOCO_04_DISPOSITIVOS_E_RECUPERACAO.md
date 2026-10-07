@@ -54,6 +54,7 @@ Backpack Android mantém seu link HTTPS v1 e destino query, mas passa a receber
 o documento final `/wallet-approval`, como no iPhone, sem fragmento, RPC inicial
 ou History API. Isso elimina etapas de entrega no cliente; o D1 informado ainda
 não comprova a causa interna da perda. Cookies, validação e prazo permanecem.
+Pedidos antigos com `view=page` conservam sua entrega inline pelo prazo restante.
 MetaMask/Phantom no iPhone usam respectivamente `metamask://dapp/` e
 `phantom://browse/`, handlers dos apps instalados, com o mesmo destino HTTPS
 próprio e pedido preparado antes da tentativa. Android conserva seus links.

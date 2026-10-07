@@ -143,7 +143,19 @@ await test('entrada valida campos, limpa URL, limita cookie, preserva capacidade
       navigation,
     );
     assert.equal(validSolana.status, 303);
-    assert.equal(validSolana.headers.location, '/wallet.html#configuracoes');
+    assert.equal(
+      validSolana.headers.location,
+      wallet === 'Backpack' ? '/wallet-approval' : '/wallet.html#configuracoes',
+    );
+    if (wallet === 'Backpack') {
+      const delivered = await get('/wallet-approval', {
+        ...navigation,
+        cookie: responseCookie(validSolana.headers).split(';')[0] ?? '',
+      });
+      assert.equal(delivered.status, 200);
+      assert.ok(delivered.body.includes('a'.repeat(64)));
+      assert.equal(delivered.headers['set-cookie'], undefined);
+    }
     assert.match(
       responseCookie(validSolana.headers),
       new RegExp(`\\.${wallet}\\.solana;`, 'u'),
