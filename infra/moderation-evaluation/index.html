@@ -1,0 +1,48 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: GPL-3.0-only -->
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>0xDMme — avaliação restrita</title>
+    <link rel="stylesheet" href="/style.css" />
+    <script type="module" src="/client.js"></script>
+  </head>
+  <body>
+    <main>
+      <p class="badge">AVALIAÇÃO EXPERIMENTAL RESTRITA</p>
+      <h1>Teste suas artes</h1>
+      <p>
+        O candidato Viddexa Nano analisa a imagem na VPS e mostra suas cinco
+        classes, usando ONNX Runtime 1.24.4 em CPU. Ele ainda não é a proteção
+        aceita do 0xDMme.
+      </p>
+      <p>
+        Nudez artística em pinturas é permitida pela política; atos sexuais
+        explícitos continuam proibidos. A classe <code>porn</code> do modelo não
+        decide essa distinção.
+      </p>
+      <label for="image">Imagem estática (PNG, JPEG ou WebP, até 8 MiB)</label
+      ><input id="image" type="file" accept="image/png,image/jpeg,image/webp" />
+      <label for="expected">Qual resultado você espera pela política?</label
+      ><select id="expected">
+        <option>Permitido / safe</option>
+        <option>Proibido / não safe</option>
+        <option>Incerto / revisar</option>
+      </select>
+      <p class="small">
+        Sua referência permanece no navegador e não influencia o modelo. Os
+        bytes enviados não são salvos em disco, banco ou treinamento.
+      </p>
+      <img id="preview" alt="Prévia local da imagem escolhida" hidden />
+      <button id="evaluate" type="button">Analisar na VPS</button>
+      <p id="status" role="status" aria-live="polite"></p>
+      <div id="output"></div>
+      <p class="small">
+        <a href="/source.tar.gz" download
+          >Fontes correspondentes da interface (GPL-3.0-only)</a
+        >
+      </p>
+    </main>
+  </body>
+</html>

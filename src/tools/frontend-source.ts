@@ -6,6 +6,8 @@ import { promisify } from 'node:util';
 
 const execute = promisify(execFile);
 const authored = [
+  'src/client/moderation-evaluation',
+  'src/shared/moderation-evaluation',
   'src/client/public-media',
   'src/shared/public-media',
   'src/shared/public-moderation',
