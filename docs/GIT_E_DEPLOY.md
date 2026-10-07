@@ -29,6 +29,17 @@ com uma repetição, timeout de conexão/dados de 15 segundos e limite de três
 minutos para instalar o mesmo FFmpeg. A validação APT e a suíte integral
 permanecem; não há instalação nem troca de runtime na VPS.
 
+**Resultado da continuidade:** release `543a34e` ativa pelo executor oficial,
+após [CI integral do commit exato aprovada](https://github.com/karma352431231-ship-it/0xDMme/actions/runs/37695596097).
+O pacote de 8.443.831 bytes foi preparado no Mac. O executor confirmou build
+público, preservação e rollback retido, sem reiniciar serviços compartilhados.
+A conferência HTTPS independente confirmou prontidão e hashes do HTML normal,
+HTML de atualização, JavaScript e Worker. A comparação antes/depois confirmou
+43 migrações, 77 tabelas e cinco objetos preservados, com snapshots de banco,
+configurações, PostgreSQL e processos/invocações da galeria idênticos. Não houve
+migração, instalação ou mudança de infraestrutura. O aceite físico mobile
+permanece pendente; evidências operacionais ficam exclusivamente em `.local/`.
+
 O proprietário autorizou aplicar a correção, enviar e ativar na VPS, incluindo
 continuidade após compactações até concluir. Login público e prova privada de
 abertura são recolhidos na mesma visita à wallet; o navegador original confirma
