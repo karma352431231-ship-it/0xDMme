@@ -26,8 +26,28 @@ release própria, reiniciar somente `0xdmme-test.service`. Preservar a galeria e
 seu timer sem reinício. As alterações anteriores do proprietário em AGENTS.md
 e no roteiro manual ficam fora do commit; acesso e provas ficam em `.local/`.
 
-**Ponto importante:** publicação depende das verificações e da CI; os testes
-com contas/providers sintéticos não certificam o retorno entre apps físicos.
+**Resultado:** release `91a82e8` ativa pelo executor oficial, com
+[CI integral aprovada](https://github.com/karma352431231-ship-it/0xDMme/actions/runs/37611372387).
+Fontes da correção em `6f8f2ab`; revisão restrita da publicação em `91a82e8`.
+Build de 8.442.439 bytes preparado no Mac. O executor confirmou build público,
+preservação, release anterior retida e nenhum serviço compartilhado reiniciado.
+A auditoria independente confirmou 43 migrações, 77 tabelas e snapshots de
+banco/objetos idênticos, configurações e processo do PostgreSQL preservados.
+Galeria e timer conservaram seus processos e invocações. HTTPS confirmou
+prontidão e hashes exatos do HTML normal/atualização, JavaScript e Worker.
+
+Lint, tipos, limites de dependências, licenças, formato e builds passaram;
+regressões de assinatura/retomada e integração PostgreSQL/HTTP passaram.
+Os 105 testes do executor passaram; a CI executou a suíte completa e as três
+partes da integração. A primeira preparação parou antes de ativar porque o
+checkout isolado selecionava Python 3.9 do macOS; repetir com Python 3.14 já
+instalado e Node 24.14 aprovado resolveu, sem instalar runtime ou mudar a VPS.
+Acesso, baselines, artefatos, recibos e comparação ficam em `.local/`.
+
+**Ponto importante:** a correção está publicada. Os testes com contas/providers
+sintéticos não certificam o retorno entre apps físicos. Sessões antigas ainda
+sem chaves oferecem **Concluir entrada na conta** no fluxo combinado. A entrada
+`/?atualizar=1` entrega o código atual sem apagar o armazenamento local.
 
 ## Revisão visual de comunidades — solicitada em 07/10/2026
 

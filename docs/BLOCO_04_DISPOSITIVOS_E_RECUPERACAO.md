@@ -55,8 +55,10 @@ limpo/enviado, CI do commit exato, limites, preservação e retorno da release.
 
 **Ponto importante:** a validação usa providers e contas sintéticas; não certifica
 abertura e retorno das wallets físicas. O cofre permanece protegido até conferir
-a prova privada e a autoridade do aparelho. A ativação será registrada no
-[documento de deploy](GIT_E_DEPLOY.md).
+a prova privada e a autoridade do aparelho. Release `91a82e8` ativa na VPS de
+testes, com CI integral, prontidão HTTPS, hashes públicos e preservação de banco,
+objetos/configurações/processos conferidos. Ver o
+[registro de deploy](GIT_E_DEPLOY.md#continuidade-do-login-mobile--ativação-autorizada-em-07102026).
 
 ## Experiência vigente em 04/10/2026
 
