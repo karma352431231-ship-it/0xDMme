@@ -211,8 +211,11 @@ function approvalDestination(input: {
   wallet: WalletName;
   platform?: MobilePlatform;
 }): string {
-  // Keep the iOS request in a fixed path: query/fragment loss cannot remove it.
-  if (input.wallet === 'Backpack' && input.platform === 'ios')
+  // Both mobile apps receive a fixed path, independent of query/fragment loss.
+  if (
+    input.wallet === 'Backpack' &&
+    (input.platform === 'ios' || input.platform === 'android')
+  )
     return `${input.origin}/wallet-entry/${input.query.get('ticket')}/${input.query.get('ecosystem')}/Backpack`;
   return `${input.origin}/wallet-entry?${input.query}`;
 }

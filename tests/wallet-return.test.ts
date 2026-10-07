@@ -260,7 +260,7 @@ await test('seleção abre a wallet uma vez após pedido válido; consulta não 
   controller.close();
 });
 
-await test('pedido Backpack mantém Android e solicita documento de aprovação direto no iOS', async () => {
+await test('pedido Backpack conserva o destino completo no caminho do documento Android/iOS', async () => {
   for (const agent of ['Android Chrome/141.0', 'iPhone']) {
     for (const ecosystem of ['evm', 'solana'] as const) {
       const { controller, opened } = launchController(
@@ -276,7 +276,7 @@ await test('pedido Backpack mantém Android e solicita documento de aprovação 
         diagnostic,
         agent === 'iPhone'
           ? /plataforma=ios.*modo=documento/u
-          : /plataforma=android.*modo=padrao/u,
+          : /plataforma=android.*modo=documento/u,
       );
       assert.doesNotMatch(diagnostic, /a{64}|0x|https:|ticket=/u);
       assert.equal(opened.length, 1);
@@ -288,18 +288,15 @@ await test('pedido Backpack mantém Android e solicita documento de aprovação 
       assert.equal(destination.origin, 'https://0xdmme.app');
       if (agent.startsWith('Android')) {
         assert.equal(link.search, '');
-        assert.equal(destination.pathname, '/wallet-entry');
-        assert.equal(destination.searchParams.get('ecosystem'), ecosystem);
-        assert.equal(destination.hash, '');
       } else {
         assert.equal(link.searchParams.get('ref'), 'https://0xdmme.app');
-        assert.equal(
-          destination.pathname,
-          `/wallet-entry/${handoffResponse().ticket}/${ecosystem}/Backpack`,
-        );
-        assert.equal(destination.hash, '');
-        assert.equal(destination.search, '');
       }
+      assert.equal(
+        destination.pathname,
+        `/wallet-entry/${handoffResponse().ticket}/${ecosystem}/Backpack`,
+      );
+      assert.equal(destination.hash, '');
+      assert.equal(destination.search, '');
       assert.equal(controller.state()?.address, null);
       controller.close();
       assert.equal(controller.openingDiagnostic(), null);

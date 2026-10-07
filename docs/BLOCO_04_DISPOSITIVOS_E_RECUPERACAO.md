@@ -52,14 +52,16 @@ Restaurar uma sessão existente também consulta o pedido público, e a tela nã
 oculta sua confirmação por já haver conta conectada. O endereço ainda precisa
 ser confirmado explicitamente; enquanto houver sessão, exigir a mesma conta.
 
-Backpack Android mantém seu link HTTPS v1 e destino query, mas passa a receber
-o documento final `/wallet-approval`, como no iPhone, sem fragmento, RPC inicial
-ou History API. Isso elimina etapas de entrega no cliente; o D1 informado ainda
+Backpack Android mantém o browse HTTPS v1 sem ref externo e usa o mesmo destino
+fixo no caminho `/wallet-entry/<ticket>/<ecossistema>/Backpack` do iPhone,
+recebendo o documento final `/wallet-approval`, sem query do pedido, fragmento,
+RPC inicial ou History API. Links query já emitidos continuam validados.
+Isso elimina etapas de entrega no cliente; o D1 informado ainda
 não comprova a causa interna da perda. Cookies, validação e prazo permanecem.
 Pedidos antigos com `view=page` conservam sua entrega inline pelo prazo restante.
 MetaMask/Phantom no iPhone usam respectivamente `metamask://dapp/` e
 `phantom://browse/`, handlers dos apps instalados, com o mesmo destino HTTPS
-próprio e pedido preparado antes da tentativa. Android conserva seus links.
+próprio e pedido preparado antes da tentativa. MetaMask/Phantom Android conservam seus links.
 O botão explícito usa o mesmo destino se a tentativa automática for bloqueada.
 Não detectar instalação nem simular sucesso a partir da navegação.
 Os esquemas são previstos pela [Phantom](https://docs.phantom.com/phantom-deeplinks/deeplinks-ios-and-android)

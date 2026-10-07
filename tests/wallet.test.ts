@@ -10,6 +10,7 @@ import {
   canonicalAddress,
   solanaPublicKey,
 } from '../src/shared/wallet-identity/index.ts';
+import { approvalPathRequest } from '../src/shared/wallet-approval/index.ts';
 
 await test('links mobile limitam destino à entrada HTTPS própria sem fragmento ou token de sessão', () => {
   const ticket = 'a'.repeat(64);
@@ -123,16 +124,17 @@ await test('Backpack Android recebe o destino próprio completo pela rota HTTPS 
     // The observed Android handler forwards the entire decoded suffix.
     const destination = new URL(decodeURIComponent(link.slice(prefix.length)));
     assert.equal(destination.origin, 'https://0xdmme.app:8443');
-    assert.equal(destination.pathname, '/wallet-entry');
-    assert.equal(destination.hash, '');
-    assert.deepEqual(
-      [...destination.searchParams],
-      [
-        ['ticket', ticket],
-        ['ecosystem', ecosystem],
-        ['wallet', 'Backpack'],
-      ],
+    assert.equal(
+      destination.pathname,
+      `/wallet-entry/${ticket}/${ecosystem}/Backpack`,
     );
+    assert.equal(destination.hash, '');
+    assert.equal(destination.search, '');
+    assert.deepEqual(approvalPathRequest(destination.pathname), {
+      ticket,
+      ecosystem,
+      wallet: 'Backpack',
+    });
     const other = walletBrowserUrl({
       origin: 'https://0xdmme.app',
       wallet: 'Backpack',
