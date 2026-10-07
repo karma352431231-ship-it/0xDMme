@@ -10,6 +10,16 @@ autenticação, criptografia, banco, dependências e infraestrutura. A autoriza�
 de concluir o fix e ativar na VPS continua aplicável; reutilizar o mesmo comando,
 CI exata, preservação e rollback. Publicação e teste físico permanecem distintos.
 
+A validação da continuidade passou nas regressões de retorno com metadados de
+aba ausentes, ACK 409 de sessão antiga, substituição concorrente de pedido,
+cancelamento com falha de armazenamento e confirmação visível com sessão já
+existente. Os contratos sintéticos EVM/Solana das três wallets passaram, assim
+como a integração de conta, os 105 testes do executor e as verificações locais.
+Na CI de `df905fb`, o check e duas integrações passaram; a terceira excedeu o
+prazo instalando FFmpeg no runner, antes dos testes. A API recusou repetir esse
+job com o acesso existente. Registrar esta entrega dispara nova CI integral;
+a ativação continua exigindo sucesso do commit exato, sem exceção ao gate.
+
 O proprietário autorizou aplicar a correção, enviar e ativar na VPS, incluindo
 continuidade após compactações até concluir. Login público e prova privada de
 abertura são recolhidos na mesma visita à wallet; o navegador original confirma
@@ -34,7 +44,7 @@ release própria, reiniciar somente `0xdmme-test.service`. Preservar a galeria e
 seu timer sem reinício. As alterações anteriores do proprietário em AGENTS.md
 e no roteiro manual ficam fora do commit; acesso e provas ficam em `.local/`.
 
-**Resultado:** release `91a82e8` ativa pelo executor oficial, com
+**Resultado da primeira publicação:** release `91a82e8` ativa pelo executor oficial, com
 [CI integral aprovada](https://github.com/karma352431231-ship-it/0xDMme/actions/runs/37611372387).
 Fontes da correção em `6f8f2ab`; revisão restrita da publicação em `91a82e8`.
 Build de 8.442.439 bytes preparado no Mac. O executor confirmou build público,

@@ -85,6 +85,13 @@ conserva o anterior e usa uma assinatura. PostgreSQL/HTTP conferiu conta estáve
 criação somente na confirmação original, envelope opaco, origem, sessão, CSRF,
 consumo e replay. Build inclui as fontes correspondentes dos módulos novos.
 
+As regressões de continuidade também verificam retorno sem armazenamento da
+aba, conservação do pedido diante de ACK 409 de sessão anterior e confirmação
+exposta quando essa sessão já está conectada. Uma resposta tardia não remove
+um pedido substituto; cancelamento ainda chega ao servidor se a limpeza local
+falhar. Testes de links conferem o caminho fixo Backpack Android/iOS e os
+handlers nativos iOS com o destino HTTPS próprio. O aceite físico segue aberto.
+
 O proprietário autorizou publicar e ativar esta correção na VPS, e continuar após
 compactações até concluir essa ativação. Usar o executor existente, checkout
 limpo/enviado, CI do commit exato, limites, preservação e retorno da release.
