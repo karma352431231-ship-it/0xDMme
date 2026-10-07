@@ -81,7 +81,7 @@ CALLS_NEW_TABLES = ('call_controls', 'push_controls')
 # Public tables do not exist in the predecessor: no legacy public bytes are lost.
 # The experimental gallery and unaccepted detector are outside this deployment.
 COMMUNITIES_BEFORE = '44af35f99bcb493413af984aa3a7d15b32af194e'
-COMMUNITIES_REVIEWED = '850c3fd56867a5db5dd9037449e1c89f5fd5a5e2'
+COMMUNITIES_REVIEWED = '04b1bbf5db5b4c30387cc23a792624a1b3b67a87'
 COMMUNITIES_TABLES = CALLS_TABLES + CALLS_NEW_TABLES
 COMMUNITIES_NEW_TABLES = ('public_profiles', 'communities', 'community_follows',
     'community_moderators', 'community_sanctions', 'community_reports',
