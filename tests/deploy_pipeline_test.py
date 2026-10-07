@@ -900,6 +900,26 @@ class CommunityFeedCodeTests(unittest.TestCase):
             remote.compatibility(self.candidate, self.live)
 
 
+class MobileOpeningCodeTests(CommunityFeedCodeTests):
+    def setUp(self):
+        super().setUp()
+        for relative in ['communities.ts', 'community-discovery.ts']:
+            (self.candidate / 'src/server/database' / relative).write_bytes(
+                (self.live / 'src/server/database' / relative).read_bytes())
+        (self.live / 'src/server/database/authentication.ts').write_text('existing atomic account login')
+        (self.candidate / 'src/server/database/authentication.ts').write_text('reviewed provisional ID with atomic confirmation')
+        self.exports = {
+            remote.MOBILE_OPENING_BEFORE: self.export(self.live),
+            remote.MOBILE_OPENING_REVIEWED: self.export(self.candidate),
+        }
+
+    def test_authentication_code_must_match_exact_review(self):
+        (self.candidate / 'src/server/database/authentication.ts').write_text('unreviewed authorization change')
+        with (patch.object(backups, 'git_export', side_effect=lambda sha: self.exports[sha]),
+              self.assertRaises(RuntimeError)):
+            remote.compatibility(self.candidate, self.live)
+
+
 class CallsDeploymentTests(AttachmentDeploymentTests):
     count = 27
     previous_count = 25

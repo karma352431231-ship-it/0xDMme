@@ -17,6 +17,10 @@ executor de migrações, dependências, Node e infraestrutura permanecem iguais.
 Fixar ambos os lados dessa revisão no executor existente; a revisão não permite
 outra mudança de banco nem executa a transição histórica 027→043.
 
+A revisão fixa a árvore inteira de banco de `f8ac068` para `6f8f2ab`,
+aceitando somente a alteração exata em `authentication.ts`. Todos os demais
+arquivos precisam coincidir com esses commits, incluindo SQL e executor.
+
 Conferir preservação e saúde antes/depois, manter recursos e retorno limitado à
 release própria, reiniciar somente `0xdmme-test.service`. Preservar a galeria e
 seu timer sem reinício. As alterações anteriores do proprietário em AGENTS.md
