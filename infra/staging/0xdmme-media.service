@@ -9,7 +9,7 @@ StartLimitBurst=3
 Type=simple
 DynamicUser=yes
 User=0xdmme-media
-SupplementaryGroups=xdmme-test
+Group=xdmme-test
 Slice=0xdmme-media.slice
 Environment=HASH_TALK_MEDIA_FFMPEG=/opt/0xdmme-media/ffmpeg
 Environment=HASH_TALK_MEDIA_FFPROBE=/opt/0xdmme-media/ffprobe

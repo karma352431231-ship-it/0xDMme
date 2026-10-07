@@ -215,11 +215,7 @@ await test('processamento compartilhado expõe somente o original montado ao gru
       (await stat(resolve(files.root, id, 'part-0'))).mode & 0o777,
       0o600,
     );
-    assert.equal(
-      (await stat(resolve(files.root, id))).mode &
-        (process.platform === 'linux' ? 0o2777 : 0o777),
-      process.platform === 'linux' ? 0o2770 : 0o770,
-    );
+    assert.equal((await stat(resolve(files.root, id))).mode & 0o7777, 0o770);
   } finally {
     await rm(root, { recursive: true, force: true });
   }

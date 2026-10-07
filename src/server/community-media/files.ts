@@ -28,7 +28,7 @@ export class CommunityMediaFiles {
     await mkdir(this.root, { recursive: true, mode: 0o700 });
     if ((await realpath(this.root)) !== this.root)
       throw new Error('Diretório de mídia irregular.');
-    if (this.sharedProcessing) await chmod(this.root, 0o2770);
+    if (this.sharedProcessing) await chmod(this.root, 0o770);
     await this.sync(resolve(this.root, '..'));
   }
   async directory(id: string): Promise<string> {
@@ -43,7 +43,7 @@ export class CommunityMediaFiles {
     const stat = await lstat(path);
     if (!stat.isDirectory() || (await realpath(path)) !== path)
       throw new Error('Diretório de mídia irregular.');
-    if (this.sharedProcessing) await chmod(path, 0o2770);
+    if (this.sharedProcessing) await chmod(path, 0o770);
     return path;
   }
   async part(id: string, index: number, bytes: Uint8Array): Promise<void> {
