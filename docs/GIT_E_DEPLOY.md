@@ -21,6 +21,17 @@ retorno, sem executar a transição histórica 027→043.
 **Ponto importante:** fotos e mídia ainda pendentes não são liberadas pela UI.
 O detector aceito e a calibração mantêm o estado já documentado.
 
+**Resultado:** release `f8ac068` ativa pelo executor oficial, com
+[CI integral aprovada](https://github.com/karma352431231-ship-it/0xDMme/actions/runs/37596095715).
+A UI está em `18523ca`; o segundo commit fixa a revisão restrita da publicação.
+Os 102 testes locais do executor passaram. O recibo confirmou build público,
+preservação, release anterior retida e nenhum serviço compartilhado reiniciado.
+A conferência HTTPS em navegador isolado confirmou os hashes do CSS/JavaScript
+do manifesto e a UI em 1280/390 px, sem erros de página ou rolagem horizontal.
+Galeria e timer conservaram processos e invocações; os 17 casos conservaram
+IDs, hashes de imagem e referências. Acesso, screenshots e recibos ficam
+exclusivamente em `.local/`.
+
 ## Ativação dos fluxos de comunidades — solicitada em 07/10/2026
 
 Depois de informado de que os novos commits ainda não estavam ativos e de que
