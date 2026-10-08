@@ -75,6 +75,24 @@ class BackgroundTests(unittest.TestCase):
             self.assertIs(transition['start'], workers.start)
             self.assertIs(transition['uninstall'], workers.uninstall)
 
+    def test_unit_validation_failure_prevents_installation_and_migration(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            dropin = root / '40-background.conf'
+            unit_root = root / 'background-units'
+            candidate = root / 'candidate'
+            with patch.object(workers, 'DROPIN', dropin), \
+                 patch.object(workers, 'UNIT_ROOT', unit_root), \
+                 patch.object(base, 'reviewed_database'), \
+                 patch.object(base, 'verify_community_tables'), \
+                 patch.object(base, 'run', side_effect=RuntimeError('validator unavailable')) as command:
+                with self.assertRaisesRegex(RuntimeError, 'validator unavailable'):
+                    workers.review(candidate, root / 'live')
+            command.assert_called_once_with(['systemd-analyze', 'verify',
+                *(str(candidate / 'infra/staging' / unit) for unit in workers.UNITS)], timeout=30)
+            self.assertFalse(dropin.exists())
+            self.assertFalse(unit_root.exists())
+
     def test_worker_readiness_requires_three_exclusive_leases(self):
         with patch.object(base, 'run', return_value=b'active\n'), \
              patch.object(workers.backups, 'pg', return_value=b'2\n'):

@@ -883,3 +883,15 @@ Acesso, hashes privados, backups e evidências operacionais ficam em `.local/`.
 Fontes de aplicação fixadas em `a2ed2c32cb63abd85311fc381b691fe1c6d6ce37`; predecessor exclusivo
 `2921232287a929477e6d7cf18e7f82ff9d0fcddd`. Commits posteriores desta
 entrega acrescentam documentação e executor, sem alterar as fontes aprovadas.
+
+Na primeira tentativa desta transição, o validador systemd tentou criar seu
+diretório temporário no filesystem somente leitura do executor. O rollback
+restaurou o schema 43, mas o limite de 240 segundos interrompeu seu retorno de
+arquivos. A revisão confirmou escritores fechados, backup válido, fontes exatas
+e preservação; o retorno da release anterior foi concluído e sua saúde validada.
+A tentativa e o backup permanecem privados para revisão, sem retry automático.
+
+O executor de ativação agora oferece `/tmp` privado de 16 MiB, sem execução,
+e define `TMPDIR`. Validação das unidades ocorre antes de parar o web ou migrar.
+**Ponto importante:** CPU, RAM, processos, timeout, banco e infraestrutura
+compartilhada conservam seus limites; esta correção não altera fontes da aplicação.

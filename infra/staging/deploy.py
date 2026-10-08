@@ -198,7 +198,9 @@ def remote(action, config, target):
             ';print(json.dumps(sys.modules["deploy_remote"].main()))')
     worker_paths = []
     if action == 'activate' and 'src/server/worker.ts' in config['files']:
-        worker_paths = ['-p', 'ReadWritePaths=/var/lib/0xdmme/data /etc/systemd/system/0xdmme-test.service.d']
+        worker_paths = ['-p', 'ReadWritePaths=/var/lib/0xdmme/data /etc/systemd/system/0xdmme-test.service.d',
+                        '-p', 'TemporaryFileSystem=/tmp:rw,nosuid,nodev,noexec,size=16M',
+                        '-p', 'Environment=TMPDIR=/tmp']
     proxy_properties = []
     if action == 'requests':
         proxy_properties = ['-p', 'TemporaryFileSystem=/var/log/nginx:rw',

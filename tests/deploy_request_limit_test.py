@@ -126,5 +126,26 @@ class RequestLimitTests(unittest.TestCase):
                     self.assertIn('RuntimeMaxSec=240', command)
 
 
+    def test_worker_validator_gets_bounded_private_temp_only_for_activation(self):
+        files = {str(p.relative_to(Path(deploy.__file__).parent.parent.parent)): base.digest(p)
+                 for p in Path(deploy.__file__).parent.glob('deploy*.py')}
+        files['src/server/worker.ts'] = 'a' * 64
+        with tempfile.TemporaryDirectory() as directory:
+            local = Path(directory)
+            revision = 'a' * 40
+            (local / revision).mkdir()
+            config = {'commit': revision, 'files': files}
+            result = SimpleNamespace(returncode=0, stdout=b'{"verified":true}', stderr=b'')
+            with patch.object(deploy, 'LOCAL', local), patch.object(deploy.subprocess, 'run', return_value=result) as run:
+                for action in ['check', 'activate', 'requests']:
+                    deploy.remote(action, config, 'synthetic-target')
+                    command = shlex.split(run.call_args.args[0][-1])
+                    self.assertEqual('TemporaryFileSystem=/tmp:rw,nosuid,nodev,noexec,size=16M' in command, action == 'activate')
+                    self.assertEqual('Environment=TMPDIR=/tmp' in command, action == 'activate')
+                    self.assertIn('ProtectSystem=strict', command)
+                    self.assertIn('MemoryMax=192M', command)
+                    self.assertIn('RuntimeMaxSec=240', command)
+
+
 if __name__ == '__main__':
     unittest.main()

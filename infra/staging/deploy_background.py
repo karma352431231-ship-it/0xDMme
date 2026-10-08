@@ -43,6 +43,10 @@ def review(candidate, live):
             raise RuntimeError('Worker unit already exists; review required.')
     if not DROPIN.parent.is_dir() or DROPIN.parent.is_symlink():
         raise RuntimeError('Own existing web drop-in directory required.')
+    # Verify before stopping the writer or migrating. systemd-analyze needs a
+    # private temporary directory, supplied by the bounded activation executor.
+    base.run(['systemd-analyze', 'verify',
+              *(str(candidate / 'infra/staging' / unit) for unit in UNITS)], timeout=30)
 
 
 def verify_migration(candidate, before):
@@ -118,7 +122,6 @@ def install(before, source):
     for unit in UNITS:
         write_file(UNIT_ROOT / unit, (source / 'infra/staging' / unit).read_bytes())
     write_file(DROPIN, (source / 'infra/staging/0xdmme-background.conf').read_bytes())
-    base.run(['systemd-analyze', 'verify', *(str(UNIT_ROOT / unit) for unit in UNITS)], timeout=30)
     base.run(['systemctl', 'link', *(str(UNIT_ROOT / unit) for unit in UNITS)])
     base.run(['systemctl', 'daemon-reload'])
     base.run(['systemctl', 'enable', *UNITS])
