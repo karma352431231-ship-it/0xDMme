@@ -1,5 +1,22 @@
 # 0xDMme — Git e envio à VPS
 
+## Conversa visível e exclusão prioritária — 08/10/2026
+
+Continuação do fix de chat que o proprietário pediu corrigir, enviar e ativar.
+Fontes `2607192`, com predecessor ativo `0c5b629`: conservar a visão verificada
+durante atualizações normais, fechar ao receber exclusão/autorização e impedir
+que o controle entre abas cancele a própria exclusão por aviso duplicado.
+O [contrato atual](BLOCO_10A_AUDIO_E_TEMPO_REAL.md#conversa-visível-e-aviso-prioritário-de-exclusão--08102026)
+preserva confirmação de snapshot e falha fechada.
+
+O executor existente fixa a árvore inteira de banco desses dois commits;
+somente `backups.ts`, `changes.ts`, `contacts.ts` e `messages.ts` diferem, com
+marcador transitório publicado após COMMIT. SQL, migrações, executor de migrações,
+dependências, Node e infraestrutura permanecem idênticos. Essa revisão permite
+a troca de código, sem caminho de migração. Exigir checkout limpo/enviado,
+CI integral do commit final, preservação, limites e rollback; reiniciar somente
+`0xdmme-test.service` por `npm run deploy:staging`. Evidências em `.local/`.
+
 ## Continuidade do login mobile — ativação autorizada em 07/10/2026
 
 O reteste físico posterior à release `91a82e8` mostrou perda do pedido e falhas

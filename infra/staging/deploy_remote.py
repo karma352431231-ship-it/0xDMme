@@ -97,6 +97,10 @@ COMMUNITY_FEED_REVIEWED = '18523cadb16aaf70504317e6e01375b59618e00f'
 # Pin the whole database tree; SQL and its executor remain byte-identical.
 MOBILE_OPENING_BEFORE = 'f8ac068973468cc0bcae13ca3b1312171ca99252'
 MOBILE_OPENING_REVIEWED = '6f8f2abe8b8521d78dfa53bb76b9364cd0f881d1'
+# Owner approved the chat fix and its activation. Only post-COMMIT control
+# markers change in these four modules; migrations/SQL/executor stay identical.
+MESSAGE_REMOVAL_BEFORE = '0c5b6290370bde4f5d0e0a52c2e72cf576756dc3'
+MESSAGE_REMOVAL_REVIEWED = '260719297084c8d8f74fb117dcacd42e7530be6a'
 COMMUNITIES_TABLES = CALLS_TABLES + CALLS_NEW_TABLES
 COMMUNITIES_NEW_TABLES = ('public_profiles', 'communities', 'community_follows',
     'community_moderators', 'community_sanctions', 'community_reports',
@@ -272,6 +276,8 @@ def database_code_reviewed(candidate, live):
     reviews = [
         ({'communities.ts', 'community-discovery.ts'}, COMMUNITY_FEED_BEFORE, COMMUNITY_FEED_REVIEWED),
         ({'authentication.ts'}, MOBILE_OPENING_BEFORE, MOBILE_OPENING_REVIEWED),
+        ({'backups.ts', 'changes.ts', 'contacts.ts', 'messages.ts'},
+         MESSAGE_REMOVAL_BEFORE, MESSAGE_REMOVAL_REVIEWED),
     ]
     selected = next((review for review in reviews if changed == review[0]), None)
     if selected is None:

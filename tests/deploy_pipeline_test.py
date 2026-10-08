@@ -936,6 +936,34 @@ class MobileOpeningCodeTests(CommunityFeedCodeTests):
             remote.compatibility(self.candidate, self.live)
 
 
+class MessageRemovalCodeTests(CommunityFeedCodeTests):
+    def setUp(self):
+        super().setUp()
+        for relative in ['communities.ts', 'community-discovery.ts']:
+            (self.candidate / 'src/server/database' / relative).write_bytes(
+                (self.live / 'src/server/database' / relative).read_bytes())
+        for relative in ['backups.ts', 'changes.ts', 'contacts.ts', 'messages.ts']:
+            (self.live / 'src/server/database' / relative).write_text('existing signed operation')
+            (self.candidate / 'src/server/database' / relative).write_text('reviewed post-commit removal control')
+        self.exports = {
+            remote.MESSAGE_REMOVAL_BEFORE: self.export(self.live),
+            remote.MESSAGE_REMOVAL_REVIEWED: self.export(self.candidate),
+        }
+
+    def test_removal_code_rejects_unreviewed_changes_in_each_allowed_module(self):
+        for relative in ['backups.ts', 'changes.ts', 'contacts.ts', 'messages.ts']:
+            with self.subTest(path=relative):
+                path = self.candidate / 'src/server/database' / relative
+                original = path.read_bytes()
+                path.write_text('unreviewed operation')
+                try:
+                    with (patch.object(backups, 'git_export', side_effect=lambda sha: self.exports[sha]),
+                          self.assertRaises(RuntimeError)):
+                        remote.compatibility(self.candidate, self.live)
+                finally:
+                    path.write_bytes(original)
+
+
 class CallsDeploymentTests(AttachmentDeploymentTests):
     count = 27
     previous_count = 25
