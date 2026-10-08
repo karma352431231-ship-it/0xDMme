@@ -62,6 +62,8 @@ Validação local: 35 testes direcionados do cliente/SDK e 44 integrações de m
 
 **Ponto importante:** esta correção preserva o fechamento do histórico durante a validação e a distinção entre mensagem aceita, entregue e lida. Os demais custos de processamento e a latência final no site ainda precisam ser medidos depois da publicação; a alteração local não ativa uma release nem modifica dependências, banco, cotas ou infraestrutura.
 
+A prontidão por sessão fica junto ao ciclo de eventos em `message-live`, preservando o teto vigente de entradas do manifesto de publicação. A primeira CI aprovou os testes da aplicação e detectou que um módulo separado ultrapassava esse teto; a organização final conserva comportamento, limites e verificações, sem ampliar o executor.
+
 ## Validação e limites
 
 Cobertura automatizada: PCM em 8/16/44,1/48/96 kHz, WAV máximo e adulteração, permissão/cancelamento/interrupção, compatibilidade v1/v2, cifra real de anexos, backup independente, encaminhamento SSE para mil clientes simulados sem teto de 8/2, ausência de consultas no heartbeat, isolamento, cliente lento, reconexão/cancelamento e encerramento de sessão. A simulação do módulo não é benchmark de VPS.

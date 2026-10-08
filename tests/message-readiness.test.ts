@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { MessageReadiness } from '../src/client/app/message-readiness.ts';
+import { MessageReadiness } from '../src/client/message-live/index.ts';
 import type { AccountSession } from '../src/shared/account/index.ts';
 
 const session = {

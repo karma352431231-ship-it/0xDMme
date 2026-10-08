@@ -2,7 +2,7 @@ import { startPwa } from '../pwa/index.ts';
 import { startAccount } from '../account/index.ts';
 import { startDevices } from '../devices/index.ts';
 import { bindSettingsSections } from './settings.ts';
-import { MessageReadiness } from './message-readiness.ts';
+import { MessageReadiness } from '../message-live/index.ts';
 import { startBackups } from '../backups/index.ts';
 import { startVault } from '../vault-ui/index.ts';
 import { startMessages } from '../messages/index.ts';
