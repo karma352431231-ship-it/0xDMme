@@ -1,10 +1,6 @@
+import { fetchApi, readApiJson } from '../api-response/index.ts';
 import { RemovalIndex } from '../personal-removals/index.ts';
-import {
-  AccountError,
-  base64,
-  encode,
-  object,
-} from '../../shared/account/index.ts';
+import { base64, encode, object } from '../../shared/account/index.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
 import {
   blockLimit,
@@ -76,21 +72,20 @@ async function api(
     headers['X-0xdmme-Vault-Id'] = String(
       object(object(input)['commit'])['id'],
     );
-  const response = await fetch(`/api/account/vault/${path}`, {
-    method: 'POST',
-    credentials: 'same-origin',
-    cache: 'no-store',
-    redirect: 'error',
-    headers,
-    body: JSON.stringify(input),
-    signal: AbortSignal.timeout(8000),
-  });
-  const data: unknown = await response.json();
-  if (!response.ok)
-    throw new AccountError(
-      response.status,
-      String(object(data)['error']).slice(0, 200),
-    );
+  const response = await fetchApi(
+    `vault/${path}`,
+    `/api/account/vault/${path}`,
+    {
+      method: 'POST',
+      credentials: 'same-origin',
+      cache: 'no-store',
+      redirect: 'error',
+      headers,
+      body: JSON.stringify(input),
+      signal: AbortSignal.timeout(8000),
+    },
+  );
+  const data = await readApiJson(response, `vault/${path}`);
   return data;
 }
 export class VaultSync {

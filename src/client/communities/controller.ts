@@ -1,4 +1,4 @@
-import { AccountError, object } from '../../shared/account/index.ts';
+import { fetchApi, readApiJson } from '../api-response/index.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
 import {
   community,
@@ -12,37 +12,34 @@ import type {
 } from '../../shared/communities/index.ts';
 import type { VaultAccess } from '../vault-authority/index.ts';
 
-async function responseData(response: Response): Promise<unknown> {
-  const data: unknown = await response.json();
-  if (!response.ok)
-    throw new AccountError(
-      response.status,
-      String(object(data)['error']).slice(0, 200),
-    );
-  return data;
-}
 export async function communityRead(
   path: string,
   signal: AbortSignal,
 ): Promise<unknown> {
-  return responseData(
-    await fetch(path, {
+  return readApiJson(
+    await fetchApi('communities/read', path, {
       credentials: 'omit',
       cache: 'no-store',
       redirect: 'error',
       signal,
     }),
+    'communities/read',
   );
 }
 export async function readCommunity(id: string, signal: AbortSignal) {
   return community(
-    await responseData(
-      await fetch(`/api/communities/${encodeURIComponent(id)}`, {
-        credentials: 'omit',
-        cache: 'no-store',
-        redirect: 'error',
-        signal,
-      }),
+    await readApiJson(
+      await fetchApi(
+        'communities/read',
+        `/api/communities/${encodeURIComponent(id)}`,
+        {
+          credentials: 'omit',
+          cache: 'no-store',
+          redirect: 'error',
+          signal,
+        },
+      ),
+      'communities/read',
     ),
   );
 }
@@ -89,21 +86,25 @@ export class Communities {
         ),
       );
       if (generation !== this.generation) throw new Error('Sessão alterada.');
-      const response = await fetch(`/api/account/communities/${operation}`, {
-        method: 'POST',
-        credentials: 'same-origin',
-        cache: 'no-store',
-        redirect: 'error',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Hash-Talk-CSRF': authority.session.csrf,
+      const response = await fetchApi(
+        `communities/${operation}`,
+        `/api/account/communities/${operation}`,
+        {
+          method: 'POST',
+          credentials: 'same-origin',
+          cache: 'no-store',
+          redirect: 'error',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Hash-Talk-CSRF': authority.session.csrf,
+          },
+          body: JSON.stringify({ ...proof, signature }),
+          signal: AbortSignal.timeout(
+            operation.startsWith('media-') ? 15000 : 8000,
+          ),
         },
-        body: JSON.stringify({ ...proof, signature }),
-        signal: AbortSignal.timeout(
-          operation.startsWith('media-') ? 15000 : 8000,
-        ),
-      });
-      const result = await responseData(response);
+      );
+      const result = await readApiJson(response, `communities/${operation}`);
       if (generation !== this.generation)
         throw new Error('Sessão alterada durante a operação.');
       return result;

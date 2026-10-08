@@ -234,12 +234,10 @@ await test('bloquear um contato da caixa de solicitações envia somente ecossis
       if (typeof options?.body !== 'string')
         throw new Error('Corpo de teste inválido.');
       sent.push(JSON.parse(options.body) as unknown);
-      return Promise.resolve(new Response(JSON.stringify({ status: 'saved' })));
+      return Promise.resolve(Response.json({ status: 'saved' }));
     }
     return Promise.resolve(
-      new Response(
-        JSON.stringify({ revision: 1, mode: 'invite', inviteHash: null }),
-      ),
+      Response.json({ revision: 1, mode: 'invite', inviteHash: null }),
     );
   };
   const controller = new Contacts(access);
@@ -324,8 +322,7 @@ await test('minha identidade pública coincide com a referência verificada pelo
     revision: 1,
     head: authority.directory,
   };
-  globalThis.fetch = () =>
-    Promise.resolve(new Response(JSON.stringify(responseData)));
+  globalThis.fetch = () => Promise.resolve(Response.json(responseData));
   const known = { identity: null, directory: null, identityRevision: 0 };
   const viewed = await controller.identity(accountId, known);
   assert.equal(own.accountId, accountId);

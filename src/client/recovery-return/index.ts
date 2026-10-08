@@ -1,4 +1,9 @@
 import { boundedText, keys, object } from '../../shared/account/index.ts';
+import {
+  ApiResponseError,
+  fetchApi,
+  readApiJson,
+} from '../api-response/index.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
 import { canonical, digest, sealedSecret } from '../../shared/devices/index.ts';
 import {
@@ -13,13 +18,16 @@ import { openFrom } from '../device-keys/index.ts';
 import { walletRecoveryKey, signRecovery } from '../wallet-recovery/index.ts';
 import { discoverWallets } from '../wallet/index.ts';
 
-export class RecoveryReturnError extends Error {
-  readonly status: number;
-  constructor(status: number) {
-    super(
-      'Retorno de recuperação indisponível, expirado ou recusado. Inicie novamente.',
-    );
-    this.status = status;
+export class RecoveryReturnError extends ApiResponseError {
+  constructor(error: ApiResponseError) {
+    super({
+      operation: error.operation,
+      status: error.status,
+      failure: error.failure,
+      responseType: error.responseType,
+      message:
+        'Retorno de recuperação indisponível, expirado ou recusado. Inicie novamente.',
+    });
   }
 }
 
@@ -28,21 +36,29 @@ export async function recoveryApi(
   input: unknown,
   session?: AccountSession,
 ): Promise<unknown> {
-  const response = await fetch(`/api/account/recovery-${path}`, {
-    method: 'POST',
-    credentials: 'same-origin',
-    cache: 'no-store',
-    redirect: 'error',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(session ? { 'X-Hash-Talk-CSRF': session.csrf } : {}),
+  const response = await fetchApi(
+    `recovery/${path}`,
+    `/api/account/recovery-${path}`,
+    {
+      method: 'POST',
+      credentials: 'same-origin',
+      cache: 'no-store',
+      redirect: 'error',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(session ? { 'X-Hash-Talk-CSRF': session.csrf } : {}),
+      },
+      body: JSON.stringify(input),
+      signal: AbortSignal.timeout(8000),
     },
-    body: JSON.stringify(input),
-    signal: AbortSignal.timeout(8000),
-  });
-  const data: unknown = await response.json();
-  if (!response.ok) throw new RecoveryReturnError(response.status);
-  return data;
+  );
+  try {
+    return await readApiJson(response, `recovery/${path}`);
+  } catch (error: unknown) {
+    if (!response.ok && error instanceof ApiResponseError)
+      throw new RecoveryReturnError(error);
+    throw error;
+  }
 }
 export async function requestRecovery(input: {
   session: AccountSession;

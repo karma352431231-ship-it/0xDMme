@@ -1,3 +1,4 @@
+import { fetchApi, readApiJson } from '../api-response/index.ts';
 import { keys, object } from '../../shared/account/index.ts';
 import {
   communityArray,
@@ -67,7 +68,8 @@ function targetPicker(
     actions.query(async () => {
       selected = null;
       const requested = handle.value;
-      const response = await fetch(
+      const response = await fetchApi(
+        'public-profile/read',
         `/api/public-profiles/${encodeURIComponent(publicHandle(requested))}`,
         {
           credentials: 'omit',
@@ -76,8 +78,9 @@ function targetPicker(
           signal: AbortSignal.timeout(8000),
         },
       );
-      if (!response.ok) throw new Error('Perfil público indisponível.');
-      const profile = publicProfile(await response.json());
+      const profile = publicProfile(
+        await readApiJson(response, 'public-profile/read'),
+      );
       if (handle.value !== requested) return;
       selected = profile;
       result.textContent = `Perfil selecionado: @${selected.handle}. Confira antes de confirmar.`;

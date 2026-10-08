@@ -22,6 +22,12 @@ UNIT = '0xdmme-test.service'
 ORIGIN = 'https://0xdmme.app'
 MAX_ARCHIVE = 16 * 1024 * 1024
 MAX_RELEASE = 128 * 1024 * 1024
+# The previous release already used all 512 manifest entries. Only these two
+# owner-requested HTTP modules are additional entries; unrelated growth still
+# fails. Archive, extraction, manifest-byte and runtime budgets stay unchanged.
+REQUEST_DIAGNOSTIC_FILES = frozenset([
+    'src/client/api-response/index.ts', 'infra/staging/deploy_request_limit.py',
+])
 # Owner-reviewed dev-only NaCl transition, including rollback. Never a general
 # allowance for dev dependencies; every other changed lock remains blocked.
 PHANTOM_PROBE_LOCKFILES = frozenset([
@@ -116,7 +122,7 @@ def validate(config):
     if not re.fullmatch(r'codex/[A-Za-z0-9][A-Za-z0-9._/-]*', config['branch']):
         raise RuntimeError('Invalid branch.')
     files = config['files']
-    if not 1 <= len(files) <= 512:
+    if not 1 <= len(files) <= 512 + len(set(files) & REQUEST_DIAGNOSTIC_FILES):
         raise RuntimeError('Invalid release manifest size.')
     for name, value in files.items():
         parts = PurePosixPath(name).parts
@@ -963,6 +969,9 @@ def main():
         raise RuntimeError('Deployment input exceeded budget.')
     config = json.loads(raw)
     validate(config)
+    if 'request_limit' in config:
+        import deploy_request_limit as request_limits
+        request_limits.reviewed_path(config['request_limit'])
     action = sys.argv[1]
     work = DATA / ('deployment-' + config['commit'])
     if action == 'check':
@@ -978,12 +987,29 @@ def main():
                     healthy(config['files'])
                     return {'preflight_passed': True, 'already_active': True, 'commit': config['commit']}
         return {'preflight_passed': True, 'activated': False}
-    if action not in ['receive', 'activate']:
+    if action not in ['receive', 'activate', 'requests']:
         raise RuntimeError('Invalid deployment action.')
     fd = os.open(DATA / 'deployment.lock', os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
     with os.fdopen(fd, 'w') as lock:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         preflight(config)
+        if action == 'requests':
+            import deploy_request_limit as request_limits
+            if 'request_limit' not in config:
+                raise RuntimeError('Request-limit approval absent.')
+            marker = work / 'result.json'
+            if work.is_symlink() or marker.is_symlink() or not marker.is_file():
+                raise RuntimeError('Code must be published before changing the request limit.')
+            state = json.loads(marker.read_text())
+            if state.get('status') != 'published' or state.get('commit') != config['commit']:
+                raise RuntimeError('Request-limit activation requires the exact published commit.')
+            if any(not (DATA / 'release' / name).is_file() or
+                   digest(DATA / 'release' / name) != checksum
+                   for name, checksum in config['files'].items()):
+                raise RuntimeError('Active release differs from request-limit review.')
+            # Keep operational evidence outside code workspaces so their existing
+            # retention/rollback contract remains unchanged on later releases.
+            return request_limits.change(config, DATA / 'request-limit-20261008')
         if action == 'receive':
             archive = base64.b64decode(config['archive'], validate=True)
             if len(archive) != config['archive_bytes'] or hashlib.sha256(archive).hexdigest() != config['archive_sha256']:

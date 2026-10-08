@@ -170,7 +170,7 @@ async function worker(
         assert.equal(request.cache, 'no-store');
         if (options.pushCheckFails)
           return Promise.reject(new Error('synthetic-unavailable'));
-        return Promise.resolve(new Response(JSON.stringify(pushResult)));
+        return Promise.resolve(Response.json(pushResult));
       }
       if (!networkAvailable)
         return Promise.reject(new Error('synthetic-offline'));

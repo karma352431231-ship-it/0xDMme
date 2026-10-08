@@ -1,4 +1,4 @@
-import { AccountError, object } from '../../shared/account/index.ts';
+import { fetchApi, readApiJson } from '../api-response/index.ts';
 import {
   publicHandle,
   publicProfile,
@@ -37,7 +37,8 @@ export function showPublicProfile(
   async function load(): Promise<void> {
     try {
       const name = publicHandle(handle);
-      const response = await fetch(
+      const response = await fetchApi(
+        'public-profile/read',
         `/api/public-profiles/${encodeURIComponent(name)}`,
         {
           credentials: 'omit',
@@ -46,12 +47,7 @@ export function showPublicProfile(
           signal: AbortSignal.any([abort.signal, AbortSignal.timeout(8000)]),
         },
       );
-      const data: unknown = await response.json();
-      if (!response.ok)
-        throw new AccountError(
-          response.status,
-          String(object(data)['error']).slice(0, 200),
-        );
+      const data = await readApiJson(response, 'public-profile/read');
       const profile = publicProfile(data);
       if (abort.signal.aborted) return;
       const label = container.querySelector('[data-public-handle]');

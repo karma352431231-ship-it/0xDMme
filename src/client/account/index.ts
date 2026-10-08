@@ -1,3 +1,4 @@
+import { fetchApi, readApiJson } from '../api-response/index.ts';
 import {
   AccountError,
   accountSession,
@@ -86,7 +87,7 @@ async function api(
   path: string,
   options: { input?: unknown; csrf?: string } = {},
 ): Promise<unknown> {
-  const response = await fetch(`/api/account/${path}`, {
+  const response = await fetchApi(`account/${path}`, `/api/account/${path}`, {
     method: options.input === undefined ? 'GET' : 'POST',
     credentials: 'same-origin',
     cache: 'no-store',
@@ -103,14 +104,7 @@ async function api(
       : { body: JSON.stringify(options.input) }),
     signal: AbortSignal.timeout(8000),
   });
-  if (response.status === 401)
-    throw new AccountError(401, 'Sessão encerrada ou login rejeitado.');
-  const data: unknown = await response.json();
-  if (!response.ok)
-    throw new AccountError(
-      response.status,
-      boundedText(object(data)['error'], 200),
-    );
+  const data = await readApiJson(response, `account/${path}`);
   return data;
 }
 
@@ -1051,19 +1045,24 @@ export function startAccount(options: {
     const current = epoch;
     try {
       // A 401 is an expected signed-out state; other failures must be visible.
-      const response = await fetch('/api/account/session', {
-        credentials: 'same-origin',
-        cache: 'no-store',
-        redirect: 'error',
-        signal: AbortSignal.timeout(8000),
-      });
+      const response = await fetchApi(
+        'account/session',
+        '/api/account/session',
+        {
+          credentials: 'same-origin',
+          cache: 'no-store',
+          redirect: 'error',
+          signal: AbortSignal.timeout(8000),
+        },
+      );
       if (!restoreContextIsCurrent(current)) return;
       if (response.status === 401) {
         if (!incoming) await walletReturn.refresh();
         return;
       }
-      if (!response.ok) throw new Error('Sessão indisponível.');
-      const restored = accountSession((await response.json()) as unknown);
+      const restored = accountSession(
+        await readApiJson(response, 'account/session'),
+      );
       if (!restoreContextIsCurrent(current)) return;
       setSession(restored);
       // A resumed/new tab can have the old session cookie while a newly signed
@@ -1071,9 +1070,11 @@ export function startAccount(options: {
       if (options.mobileOpening) await walletReturn.refresh();
       status = 'Abrindo sua conta…';
       await loadPrivate(restored);
-    } catch {
+    } catch (error: unknown) {
       status =
-        'Não foi possível recuperar a sessão ou abrir o perfil privado. Confira a conexão.';
+        error instanceof AccountError
+          ? error.message
+          : 'Não foi possível recuperar a sessão ou abrir o perfil privado. Confira a conexão.';
     }
     render();
   }

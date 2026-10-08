@@ -1,9 +1,5 @@
-import {
-  AccountError,
-  keys,
-  object,
-  uuid,
-} from '../../shared/account/index.ts';
+import { fetchApi, readApiJson } from '../api-response/index.ts';
+import { keys, object, uuid } from '../../shared/account/index.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
 import { notifyMessageControls } from '../message-controls/index.ts';
 import {
@@ -97,26 +93,25 @@ export class Contacts {
         'unblock',
       ].includes(operation);
       if (mutation) notifyMessageControls();
-      const response = await fetch(`/api/account/contacts/${operation}`, {
-        method: 'POST',
-        credentials: 'same-origin',
-        cache: 'no-store',
-        redirect: 'error',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Hash-Talk-CSRF': authority.session.csrf,
+      const response = await fetchApi(
+        `contacts/${operation}`,
+        `/api/account/contacts/${operation}`,
+        {
+          method: 'POST',
+          credentials: 'same-origin',
+          cache: 'no-store',
+          redirect: 'error',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Hash-Talk-CSRF': authority.session.csrf,
+          },
+          body: JSON.stringify({ ...proof, signature }),
+          signal: AbortSignal.timeout(8000),
         },
-        body: JSON.stringify({ ...proof, signature }),
-        signal: AbortSignal.timeout(8000),
-      });
-      const data: unknown = await response.json();
+      );
+      const data = await readApiJson(response, `contacts/${operation}`);
       if (generation !== this.generation)
         throw new Error('Sessão alterada durante a operação.');
-      if (!response.ok)
-        throw new AccountError(
-          response.status,
-          String(object(data)['error']).slice(0, 200),
-        );
       if (mutation) notifyMessageControls();
       return data;
     });

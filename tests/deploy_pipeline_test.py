@@ -31,6 +31,22 @@ def manifest():
 
 
 class DeploymentTests(unittest.TestCase):
+    def test_manifest_extra_entries_are_only_the_two_http_diagnostic_modules(self):
+        value = manifest()
+        value['files'].update({'src/fixture-' + str(i) + '.ts': 'a' * 64 for i in range(511)})
+        remote.validate(value)
+        for path in remote.REQUEST_DIAGNOSTIC_FILES:
+            value['files'][path] = 'a' * 64
+            remote.validate(value)
+        self.assertEqual(len(value['files']), 514)
+        value['files']['src/unreviewed-extra.ts'] = 'a' * 64
+        with self.assertRaisesRegex(RuntimeError, 'manifest size'):
+            remote.validate(value)
+        for path in remote.REQUEST_DIAGNOSTIC_FILES:
+            value['files'].pop(path)
+        with self.assertRaisesRegex(RuntimeError, 'manifest size'):
+            remote.validate(value)
+
     def test_manifest_rejects_escape_and_unbounded_input(self):
         for name in ['/etc/passwd', 'src/../../etc/passwd', '.local/access', 'data/history']:
             value = manifest()

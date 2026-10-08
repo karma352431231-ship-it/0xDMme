@@ -1,6 +1,7 @@
 import { cacheableRequest } from '../../shared/pwa-policy/index.ts';
 import { genericNotification } from '../../shared/daily/index.ts';
 import { pushSoundEnabled } from '../notification-sound/index.ts';
+import { fetchApi, readApiJson } from '../api-response/index.ts';
 
 // Narrow structural interfaces keep DOM client and worker contexts independent.
 interface WorkerScope {
@@ -182,13 +183,17 @@ scope.addEventListener('message', (event) => {
 });
 async function notify(): Promise<void> {
   try {
-    const response = await fetch('/api/account/push-check', {
-      credentials: 'same-origin',
-      cache: 'no-store',
-      redirect: 'error',
-      signal: AbortSignal.timeout(5000),
-    });
-    const data: unknown = await response.json();
+    const response = await fetchApi(
+      'account/push-check',
+      '/api/account/push-check',
+      {
+        credentials: 'same-origin',
+        cache: 'no-store',
+        redirect: 'error',
+        signal: AbortSignal.timeout(5000),
+      },
+    );
+    const data = await readApiJson(response, 'account/push-check');
     if (
       !response.ok ||
       typeof data !== 'object' ||

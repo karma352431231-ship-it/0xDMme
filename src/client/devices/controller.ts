@@ -1,5 +1,5 @@
+import { fetchApi, readApiJson } from '../api-response/index.ts';
 import {
-  AccountError,
   boundedText,
   keys,
   object,
@@ -147,7 +147,7 @@ async function api(
   path: string,
   input?: unknown,
 ): Promise<unknown> {
-  const response = await fetch(`/api/account/${path}`, {
+  const response = await fetchApi(`account/${path}`, `/api/account/${path}`, {
     method: input === undefined ? 'GET' : 'POST',
     credentials: 'same-origin',
     cache: 'no-store',
@@ -162,12 +162,7 @@ async function api(
     ...(input === undefined ? {} : { body: JSON.stringify(input) }),
     signal: AbortSignal.timeout(8000),
   });
-  const data: unknown = await response.json();
-  if (!response.ok)
-    throw new AccountError(
-      response.status,
-      boundedText(object(data)['error'], 200),
-    );
+  const data = await readApiJson(response, `account/${path}`);
   return data;
 }
 export class DeviceController {
@@ -236,17 +231,20 @@ export class DeviceController {
       signature: await sign(identity.signing, linkProof(code)),
       proof: await enrollmentMac(invitation.secret, code),
     };
-    const response = await fetch('/api/account/enrollment-join', {
-      method: 'POST',
-      credentials: 'same-origin',
-      cache: 'no-store',
-      redirect: 'error',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(input),
-      signal: AbortSignal.timeout(8000),
-    });
-    const data: unknown = await response.json();
-    if (!response.ok) throw new Error(boundedText(object(data)['error'], 200));
+    const response = await fetchApi(
+      'account/enrollment-join',
+      '/api/account/enrollment-join',
+      {
+        method: 'POST',
+        credentials: 'same-origin',
+        cache: 'no-store',
+        redirect: 'error',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(input),
+        signal: AbortSignal.timeout(8000),
+      },
+    );
+    const data = await readApiJson(response, 'account/enrollment-join');
     const session = accountSession(data);
     if (
       session.accountId !== invitation.accountId ||

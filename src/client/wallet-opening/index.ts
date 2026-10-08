@@ -1,3 +1,4 @@
+import { fetchApi, readApiJson } from '../api-response/index.ts';
 import {
   AccountError,
   boundedText,
@@ -142,24 +143,23 @@ async function api(
   operation: 'read' | 'ack',
   ticket: string,
 ) {
-  const response = await fetch(`/api/account/opening-${operation}`, {
-    method: 'POST',
-    credentials: 'same-origin',
-    cache: 'no-store',
-    redirect: 'error',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-Hash-Talk-CSRF': session.csrf,
+  const response = await fetchApi(
+    `opening/${operation}`,
+    `/api/account/opening-${operation}`,
+    {
+      method: 'POST',
+      credentials: 'same-origin',
+      cache: 'no-store',
+      redirect: 'error',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Hash-Talk-CSRF': session.csrf,
+      },
+      body: JSON.stringify({ ticket }),
+      signal: AbortSignal.timeout(8000),
     },
-    body: JSON.stringify({ ticket }),
-    signal: AbortSignal.timeout(8000),
-  });
-  if (!response.ok)
-    throw new AccountError(
-      response.status,
-      'Não foi possível concluir a entrada. Conecte a wallet novamente.',
-    );
-  return response.json() as Promise<unknown>;
+  );
+  return readApiJson(response, `opening/${operation}`);
 }
 export async function readLoginOpening(session: AccountSession) {
   const current = await pending();

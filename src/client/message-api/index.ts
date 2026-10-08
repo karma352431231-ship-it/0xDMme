@@ -1,4 +1,5 @@
-import { AccountError, object } from '../../shared/account/index.ts';
+import { fetchApi, readApiJson } from '../api-response/index.ts';
+import { AccountError } from '../../shared/account/index.ts';
 import { messageBody } from '../../shared/messages/index.ts';
 import type { VaultAuthority } from '../vault-authority/index.ts';
 export async function messageApi(
@@ -10,17 +11,16 @@ export async function messageApi(
   guard();
   const options = await prepareMessageRequest(authority, operation, payload);
   guard();
-  const response = await fetch(`/api/account/messages/${operation}`, {
-    ...options,
-    signal: AbortSignal.timeout(15000),
-  });
-  const data: unknown = await response.json();
+  const response = await fetchApi(
+    `messages/${operation}`,
+    `/api/account/messages/${operation}`,
+    {
+      ...options,
+      signal: AbortSignal.timeout(15000),
+    },
+  );
+  const data = await readApiJson(response, `messages/${operation}`);
   guard();
-  if (!response.ok)
-    throw new AccountError(
-      response.status,
-      String(object(data)['error']).slice(0, 200),
-    );
   return data;
 }
 export async function prepareMessageRequest(

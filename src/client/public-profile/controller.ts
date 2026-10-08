@@ -1,4 +1,5 @@
-import { AccountError, encode, object } from '../../shared/account/index.ts';
+import { fetchApi, readApiJson } from '../api-response/index.ts';
+import { encode } from '../../shared/account/index.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
 import {
   claimableHandle,
@@ -71,26 +72,25 @@ export class PublicProfiles {
         ),
       );
       if (generation !== this.generation) throw new Error('Sessão alterada.');
-      const response = await fetch(`/api/account/public-profile/${operation}`, {
-        method: 'POST',
-        credentials: 'same-origin',
-        cache: 'no-store',
-        redirect: 'error',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Hash-Talk-CSRF': authority.session.csrf,
+      const response = await fetchApi(
+        `public-profile/${operation}`,
+        `/api/account/public-profile/${operation}`,
+        {
+          method: 'POST',
+          credentials: 'same-origin',
+          cache: 'no-store',
+          redirect: 'error',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Hash-Talk-CSRF': authority.session.csrf,
+          },
+          body: JSON.stringify({ ...proof, signature }),
+          signal: AbortSignal.timeout(8000),
         },
-        body: JSON.stringify({ ...proof, signature }),
-        signal: AbortSignal.timeout(8000),
-      });
-      const data: unknown = await response.json();
+      );
+      const data = await readApiJson(response, `public-profile/${operation}`);
       if (generation !== this.generation)
         throw new Error('Sessão alterada durante a operação.');
-      if (!response.ok)
-        throw new AccountError(
-          response.status,
-          String(object(data)['error']).slice(0, 200),
-        );
       return data;
     });
   }

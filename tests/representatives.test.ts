@@ -4,6 +4,7 @@ import { Wallet } from 'ethers';
 import { base58 } from '@scure/base';
 import { ed25519 } from '@noble/curves/ed25519';
 import { Representatives } from '../src/client/representatives/controller.ts';
+import { ApiResponseError } from '../src/client/api-response/index.ts';
 import { signWalletStatement } from '../src/client/wallet-statements/index.ts';
 import type { WalletConnection } from '../src/client/wallet/index.ts';
 import { VaultSync } from '../src/client/vault-sync/index.ts';
@@ -211,7 +212,12 @@ await test('verificação no cliente exige estado recente e revogação assinada
   t.mock.method(globalThis, 'fetch', () =>
     Promise.reject(new Error('Offline')),
   );
-  await assert.rejects(controller.check(card), /Offline/u);
+  await assert.rejects(controller.check(card), (error: unknown) => {
+    assert.ok(error instanceof ApiResponseError);
+    assert.equal(error.failure, 'network');
+    assert.equal(error.status, 0);
+    return true;
+  });
   const accepting = controller.accept(card);
   controller.setSession({ ...session, csrf: 'c'.repeat(64) });
   await assert.rejects(accepting, /Sessão alterada/u);

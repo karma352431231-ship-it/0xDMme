@@ -1396,6 +1396,8 @@ Ponto inicial ilustrativo para teste, não limites de produto já aprovados: dua
 
 Não encaminhar nem pré-carregar automaticamente conteúdo externo não confiável. Downloads e arquivos descriptografados devem ser renderizados com isolamento/tipos seguros; servidor não pode analisar o conteúdo cifrado para garantir que seja benigno ou a categoria declarada seja verdadeira.
 
+Atualização solicitada em 08/10/2026: calibrar o limite HTTP do site próprio de 5 para **30 pedidos por segundo por IP**, com rajada de **120**, para acomodar consultas legítimas do mensageiro. Preservar CPU/RAM, concorrência, limites de corpo, autenticação, cotas e serviços do outro projeto. A alteração exige proposta privada exata, CI, validação e reload gracioso do Nginx, preservação e rollback próprio, pelo executor existente. A origem HTTP da captura anterior não foi confirmada: 429 é hipótese forte, também compatível com 502/504 mascarados. O cliente deve distinguir operação fixa, status HTTP e categoria/tipo de resposta, sem registrar URL, wallet, payload, assinatura, ticket ou conteúdo privado. Sem novo serviço, telemetria, log HTTP ou reenvio automático de mutações. Ver [diagnóstico HTTP](docs/DIAGNOSTICO_HTTP.md).
+
 ### 17.3 Privacy first na proteção de infraestrutura
 
 - Contadores principais por conta/dispositivo/capacidade; quando não autenticado, limite por IP pode ajudar, mas precisa tolerar redes compartilhadas e não é identidade humana.

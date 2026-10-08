@@ -19,6 +19,7 @@ import urllib.request
 from deploy_remote import digest, validate
 import deploy_sources as public_sources
 import deploy_runtime as runtime
+import deploy_request_limit as request_limits
 
 ROOT = Path(__file__).resolve().parents[2]
 OWNER = 'karma352431231-ship-it'
@@ -187,7 +188,7 @@ def private_inputs():
 
 def remote(action, config, target):
     modules = []
-    for name in ['deploy_sources', 'deploy_runtime', 'deploy_remote', 'deploy_blocks45']:
+    for name in ['deploy_sources', 'deploy_runtime', 'deploy_remote', 'deploy_blocks45', 'deploy_request_limit']:
         path = ROOT / 'infra/staging' / (name + '.py')
         if digest(path) != config['files'].get('infra/staging/' + name + '.py'):
             raise RuntimeError('Deployment executor changed after the reviewed commit.')
@@ -195,6 +196,10 @@ def remote(action, config, target):
                        ']=m;exec(' + repr(path.read_text()) + ',m.__dict__)')
     code = ('import sys,types,json;' + ';'.join(modules) +
             ';print(json.dumps(sys.modules["deploy_remote"].main()))')
+    proxy_properties = []
+    if action == 'requests':
+        proxy_properties = ['-p', 'TemporaryFileSystem=/var/log/nginx:rw',
+                            '-p', 'BindPaths=/dev/null:/run/nginx.pid']
     command = shlex.join([
         'systemd-run', '--quiet', '--wait', '--pipe', '--collect',
         '--unit=0xdmme-deploy-' + action + '-' + config['commit'][:12],
@@ -202,8 +207,10 @@ def remote(action, config, target):
         '-p', 'MemorySwapMax=0', '-p', 'TasksMax=32', '-p', 'Nice=19',
         '-p', 'IOSchedulingClass=idle', '-p', 'NoNewPrivileges=yes',
         '-p', 'ProtectSystem=strict', '-p', 'ProtectHome=yes',
-        '-p', 'ReadWritePaths=/var/lib/0xdmme/data', '-p', 'RuntimeMaxSec=240',
-        '/usr/bin/python3', '-c', code, action])
+        '-p', 'ReadWritePaths=/var/lib/0xdmme/data' +
+        (' ' + str(request_limits.PROXY) if action == 'requests' else ''),
+        '-p', 'RuntimeMaxSec=240',
+        *proxy_properties, '/usr/bin/python3', '-c', code, action])
     result = subprocess.run(['ssh', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=10',
                              '-o', 'StrictHostKeyChecking=yes', target, command],
                             input=json.dumps(config).encode(), capture_output=True, timeout=250)
@@ -221,7 +228,11 @@ def main():
     mode.add_argument('--prepare', action='store_true', help='Prepare the exact-commit build locally only.')
     mode.add_argument('--check', action='store_true', help='Prepare, synchronize Git and verify; do not activate.')
     mode.add_argument('--activate', action='store_true', help='Run the explicitly approved own code deployment.')
+    parser.add_argument('--request-limit', action='store_true',
+                        help='Apply the separately approved 30 r/s site limit after code activation.')
     args = parser.parse_args()
+    if args.request_limit and args.prepare:
+        parser.error('--request-limit requires --check or --activate.')
     revision, branch = repository()
     proof = ci(revision, branch)
     manifest, archive = prepare(revision, branch)
@@ -230,11 +241,24 @@ def main():
         return
     target, baseline = private_inputs()
     config = dict(manifest, baseline=baseline)
+    if args.request_limit:
+        review = ROOT / '.local/VPS_REQUEST_LIMIT_REVIEW.json'
+        if review.is_symlink() or not review.is_file() or review.stat().st_mode & 0o077:
+            raise RuntimeError('Private request-limit review missing or permissions too broad.')
+        run(['git', 'check-ignore', '--', str(review.relative_to(ROOT))])
+        if review.stat().st_size > 2 * request_limits.MAX_CONFIG + 2048:
+            raise RuntimeError('Private request-limit review exceeded budget.')
+        config['request_limit'] = json.loads(review.read_text())
+        request_limits.validate(config['request_limit'])
     # Existing source-sync contract checks clean tree, canonical remote and exact SHA.
     run(['python3', 'infra/staging/sync-git.py'], timeout=150)
     checked = remote('check', config, target)
     print(json.dumps(checked), flush=True)
-    if args.check or checked.get('already_active'):
+    if args.check:
+        return
+    if checked.get('already_active'):
+        if args.request_limit:
+            print(json.dumps(remote('requests', config, target)))
         return
     repository()  # Refuse a changed checkout/branch before sending the build.
     if run(['git', 'rev-parse', 'HEAD']).decode().strip() != revision:
@@ -242,6 +266,8 @@ def main():
     remote('receive', dict(config, archive=base64.b64encode(archive.read_bytes()).decode()), target)
     result = remote('activate', config, target)
     print(json.dumps(result))
+    if args.request_limit:
+        print(json.dumps(remote('requests', config, target)))
 
 
 if __name__ == '__main__':

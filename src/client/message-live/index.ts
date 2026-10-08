@@ -1,4 +1,9 @@
 import { AccountError } from '../../shared/account/index.ts';
+import {
+  ApiResponseError,
+  fetchApi,
+  readApiJson,
+} from '../api-response/index.ts';
 import { prepareMessageRequest } from '../message-api/index.ts';
 import type { VaultAccess } from '../vault-authority/index.ts';
 export type LiveEvent =
@@ -89,6 +94,7 @@ export class LiveMessages {
           return;
         }
         this.notice =
+          (error instanceof ApiResponseError ? error.message + ' ' : '') +
           'Recebimento em tempo real indisponível. O app continua conferindo a cada 30 segundos; você também pode sincronizar.';
       })
       .finally(() => {
@@ -120,15 +126,15 @@ export class LiveMessages {
       watchdog = setTimeout(() => controller.abort(), 15000);
     };
     try {
-      const response = await fetch('/api/account/messages/live', {
-        ...request,
-        signal: controller.signal,
-      });
-      if ([401, 403].includes(response.status))
-        throw new AccountError(
-          response.status,
-          'Atualização sem autorização atual.',
-        );
+      const response = await fetchApi(
+        'messages/live',
+        '/api/account/messages/live',
+        {
+          ...request,
+          signal: controller.signal,
+        },
+      );
+      if (!response.ok) await readApiJson(response, 'messages/live');
       if (
         !response.ok ||
         !response.headers.get('content-type')?.startsWith('text/event-stream')

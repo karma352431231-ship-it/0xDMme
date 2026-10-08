@@ -1,4 +1,4 @@
-import { AccountError, object } from '../../shared/account/index.ts';
+import { fetchApi, readApiJson } from '../api-response/index.ts';
 import { prepareMessageRequest } from '../message-api/index.ts';
 import type { VaultAccess } from '../vault-authority/index.ts';
 /** Serial requests avoid out-of-order replay counters. Nothing is stored locally. */
@@ -51,17 +51,12 @@ export class CallTransport {
       );
     });
     this.guard(g);
-    const response = await fetch(`/api/account/calls/${op}`, {
+    const response = await fetchApi(`calls/${op}`, `/api/account/calls/${op}`, {
       ...options,
       signal: AbortSignal.timeout(5000),
     });
-    const data: unknown = await response.json();
+    const data = await readApiJson(response, `calls/${op}`);
     this.guard(g);
-    if (!response.ok)
-      throw new AccountError(
-        response.status,
-        String(object(data)['error']).slice(0, 200),
-      );
     return data;
   }
 }
