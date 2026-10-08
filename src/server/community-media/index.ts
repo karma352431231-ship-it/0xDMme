@@ -19,6 +19,7 @@ import { CommunityMediaFiles } from './files.ts';
 import { CommunityMediaNormalizer } from './normalize.ts';
 import { readMediaRuntime } from './process.ts';
 export { CommunityMediaFiles } from './files.ts';
+export { CommunityMediaCollector } from './collector.ts';
 export {
   CommunityMediaNormalizer,
   readMediaShape,
@@ -47,7 +48,6 @@ export class CommunityMediaService {
   private cleaning: Promise<void> | null = null;
   private transfers = 0;
   private preparing = false;
-  private timer: ReturnType<typeof setInterval> | null = null;
   constructor(options: {
     store: CommunityMediaStore;
     directory: string;
@@ -64,22 +64,8 @@ export class CommunityMediaService {
     await this.files.initialize();
     await this.normalizer.initialize();
     await this.store.resumeInterrupted();
-    await this.clean();
-  }
-  start(): void {
-    if (this.stop.signal.aborted)
-      throw new Error('Serviço de mídia encerrado.');
-    if (this.timer) return;
-    this.timer = setInterval(() => {
-      void this.clean().catch(() => {
-        process.stderr.write('Limpeza de temporários públicos indisponível.\n');
-      });
-    }, 60_000);
-    this.timer.unref();
   }
   async close(): Promise<void> {
-    if (this.timer) clearInterval(this.timer);
-    this.timer = null;
     this.stop.abort();
     await Promise.all(this.jobs.values());
     if (this.cleaning) await this.cleaning;

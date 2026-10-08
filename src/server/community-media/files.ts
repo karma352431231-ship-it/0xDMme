@@ -240,27 +240,29 @@ export class CommunityMediaFiles {
       });
   }
   async prune(id: string): Promise<void> {
-    const path = await this.directory(id);
-    for (const name of await this.names(path)) {
-      if (name === 'source' || name.startsWith('part-'))
-        await unlink(resolve(path, name));
+    try {
+      const path = await this.existingDirectory(id);
+      for (const name of await this.names(path)) {
+        if (name === 'source' || name.startsWith('part-'))
+          await this.unlinkCollected(resolve(path, name));
+      }
+      await this.sync(path);
+    } catch (error: unknown) {
+      if (!isCode(error, 'ENOENT')) throw error;
+      // Another collector may have already removed the same accepted source.
     }
-    await this.sync(path);
   }
   async discard(id: string): Promise<void> {
-    const path = resolve(this.root, uuid(id));
     try {
-      await lstat(path);
-    } catch (e: unknown) {
-      if (isCode(e, 'ENOENT')) return;
-      throw e;
+      const path = await this.existingDirectory(id);
+      for (const name of await this.names(path))
+        await this.unlinkCollected(resolve(path, name));
+      await rmdir(path);
+      await this.sync(this.root);
+    } catch (error: unknown) {
+      if (!isCode(error, 'ENOENT')) throw error;
+      // Missing bytes are collected; permissions and irregular paths still fail.
     }
-    if ((await realpath(path)) !== path)
-      throw new Error('Diretório irregular.');
-    for (const name of await this.names(path))
-      await unlink(resolve(path, name));
-    await rmdir(path);
-    await this.sync(this.root);
   }
   private async existingDirectory(id: string): Promise<string> {
     const path = resolve(this.root, uuid(id)),
@@ -272,11 +274,25 @@ export class CommunityMediaFiles {
   private async names(path: string): Promise<string[]> {
     const names = await readdir(path);
     if (names.length > 385) throw new Error('Objetos excedem orçamento.');
+    const present: string[] = [];
     for (const name of names) {
-      if (!validName(name) || !(await lstat(resolve(path, name))).isFile())
-        throw new Error('Objeto irregular.');
+      if (!validName(name)) throw new Error('Objeto irregular.');
+      try {
+        if (!(await lstat(resolve(path, name))).isFile())
+          throw new Error('Objeto irregular.');
+        present.push(name);
+      } catch (error: unknown) {
+        if (!isCode(error, 'ENOENT')) throw error;
+      }
     }
-    return names;
+    return present;
+  }
+  private async unlinkCollected(path: string): Promise<void> {
+    try {
+      await unlink(path);
+    } catch (error: unknown) {
+      if (!isCode(error, 'ENOENT')) throw error;
+    }
   }
   private async sync(path: string): Promise<void> {
     const file = await open(path, constants.O_RDONLY);

@@ -2,12 +2,7 @@ import {
   PublicMediaService,
   createPublicMediaHandler,
 } from './public-media/index.ts';
-import {
-  PublicModerationService,
-  PublicModerationWorker,
-  publicModerationBinding,
-  publicModerationRetargeting,
-} from './public-moderation/index.ts';
+import { embeddedBackground } from './background/index.ts';
 import { Database } from './database/index.ts';
 import { AccountService, createAccountHandler } from './account/index.ts';
 import {
@@ -58,7 +53,13 @@ try {
   await objects.initialize();
   await database.groupMedia.resumeInterrupted();
   await database.statusMedia.resumeInterrupted();
+  const background = await embeddedBackground({
+    db: database,
+    directory: config.objectDirectory,
+    origin: mobile.origin,
+  });
   const notifications = new NotificationService({
+    signals: database.workSignals,
     store: database.daily,
     devices: database.devices,
     config: readPushConfiguration(process.env),
@@ -71,32 +72,16 @@ try {
       mobile.origin,
     ),
   });
-  await messages.cleanAttachments();
   const publicProfiles = new PublicProfileService(
     database.publicProfiles,
     database.devices,
   );
-  const publicModeration = new PublicModerationService({
-    profiles: database.publicProfiles,
-    communities: database.communities,
-  });
-  await publicModeration.initialize();
   const communityMedia = new CommunityMediaService({
     store: database.communityMedia,
     directory: config.objectDirectory,
     environment: process.env,
   });
   await communityMedia.initialize();
-  // No runner is selected until precision, policy and runtime acceptance are recorded.
-  const moderationQueue = database.publicModeration;
-  const retargetPolicy = publicModerationRetargeting(database);
-  const moderationWorker = new PublicModerationWorker({
-    queue: database.publicModeration,
-    bind: publicModerationBinding(database),
-    runner: null,
-    upgradePolicy: () => moderationQueue.upgrade(retargetPolicy),
-  });
-  await moderationWorker.initialize();
   const communities = new CommunityService(
     database.communities,
     database.devices,
@@ -122,6 +107,8 @@ try {
       publicProfiles.read(handle),
     ),
     communities: createCommunityHandler({
+      origin: mobile.origin,
+      views: (input) => database!.communityViews.observe(input),
       read: (id) => communities.read(id),
       list: (after) => communities.list(after),
       feed: (filter, after) => communities.feed(filter, after),
@@ -155,9 +142,8 @@ try {
   });
   shutdown = async () => {
     await host.close();
-    await moderationWorker.close();
+    await background.close();
     await communityMedia.close();
-    await publicModeration.close();
     await messages.close();
     await notifications.close();
     await database?.close();
@@ -171,9 +157,8 @@ try {
     clearTimeout(lifetime);
     void host
       .close()
-      .then(() => moderationWorker.close())
+      .then(() => background.close())
       .then(() => communityMedia.close())
-      .then(() => publicModeration.close())
       .then(() => messages.close())
       .then(() => notifications.close())
       .then(() => database?.close())
@@ -194,11 +179,11 @@ try {
   });
   process.once('SIGINT', close);
   process.once('SIGTERM', close);
+  await database.workSignals.start().catch(() => {
+    process.stderr.write('Sinalização indisponível; reconexão agendada.\n');
+  });
+  background.start();
   notifications.start();
-  communityMedia.start();
-  publicModeration.start();
-  moderationWorker.start();
-  messages.startMaintenance();
   await recordMobileWebEntry(mobile.origin);
   process.stdout.write(
     'Base mobile temporária iniciada; acesso em .local/WEB_MOBILE_ACESSO.md.\n',

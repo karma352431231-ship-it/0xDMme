@@ -3,7 +3,9 @@ import type {
   PublicModerationClaim,
   PublicModerationEvaluation,
   PublicModerationBinding,
+  WorkSignals,
 } from '../database/index.ts';
+import { WorkScheduler } from '../work-scheduler/index.ts';
 
 /** A configured runner must be validated separately; this contract does not select a model. */
 export interface PublicModerationRunner {
@@ -16,7 +18,8 @@ export interface PublicModerationRunner {
 type ModerationQueue = Pick<
   PublicModerationStore,
   'claim' | 'finish' | 'fail' | 'recover'
->;
+> &
+  Partial<Pick<PublicModerationStore, 'nextWork'>>;
 /** One owned inference at a time, with bounded attempts and durable lease recovery. */
 export class PublicModerationWorker {
   private readonly queue: ModerationQueue;
@@ -25,17 +28,33 @@ export class PublicModerationWorker {
   private readonly upgradePolicy: (() => Promise<number>) | null;
   private readonly stop = new AbortController();
   private running: Promise<void> | null = null;
-  private timer: ReturnType<typeof setInterval> | null = null;
+  private readonly scheduler: WorkScheduler;
+  private readonly unsubscribe: (() => void) | undefined;
   constructor(options: {
     queue: ModerationQueue;
     bind: PublicModerationBinding;
     runner: PublicModerationRunner | null;
     upgradePolicy?: () => Promise<number>;
+    signals?: Pick<WorkSignals, 'subscribe'>;
+    keepAlive?: boolean;
   }) {
     this.queue = options.queue;
     this.bind = options.bind;
     this.runner = options.runner;
     this.upgradePolicy = options.upgradePolicy ?? null;
+    this.scheduler = new WorkScheduler({
+      keepAlive: options.keepAlive ?? false,
+      work: async () => {
+        await this.run();
+        return this.queue.nextWork?.(this.runner !== null) ?? null;
+      },
+      failed: () => {
+        process.stderr.write('Análise pública indisponível.\n');
+      },
+    });
+    this.unsubscribe = options.signals?.subscribe('public-moderation', () =>
+      this.scheduler.wake(),
+    );
   }
   async initialize(): Promise<void> {
     while (!this.stop.signal.aborted && (await this.queue.recover()) === 32)
@@ -51,21 +70,13 @@ export class PublicModerationWorker {
   start(): void {
     if (this.stop.signal.aborted)
       throw new Error('Analisador público encerrado.');
-    if ((!this.runner && !this.upgradePolicy) || this.timer) return;
-    this.timer = setInterval(
-      () => {
-        void this.run().catch(() => {
-          process.stderr.write('Análise pública indisponível.\n');
-        });
-      },
-      this.runner ? 1000 : 60_000,
-    );
-    this.timer.unref();
+    if (!this.runner && !this.upgradePolicy) return;
+    this.scheduler.start();
   }
   async close(): Promise<void> {
-    if (this.timer) clearInterval(this.timer);
-    this.timer = null;
+    this.unsubscribe?.();
     this.stop.abort();
+    await this.scheduler.close();
     if (this.running) await this.running;
   }
   async run(): Promise<void> {

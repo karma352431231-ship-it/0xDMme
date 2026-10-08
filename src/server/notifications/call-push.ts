@@ -27,7 +27,7 @@ export class CallPushQueue {
   ) => Promise<void>;
   private readonly pending = new Map<string, Pending>();
   private readonly running = new Set<Promise<void>>();
-  private readonly timer: ReturnType<typeof setInterval>;
+  private timer: ReturnType<typeof setTimeout> | null = null;
   private stopped = false;
   constructor(
     store: Pick<
@@ -41,8 +41,6 @@ export class CallPushQueue {
   ) {
     this.store = store;
     this.send = send;
-    this.timer = setInterval(() => this.kick(), 1000);
-    this.timer.unref();
   }
   async enqueue(invitation: CallInvitation): Promise<void> {
     if (this.stopped || invitation.deadline <= Date.now()) return;
@@ -72,7 +70,7 @@ export class CallPushQueue {
         this.pending.delete(key);
         continue;
       }
-      if (this.running.size >= 3) return;
+      if (this.running.size >= 3) break;
       if (pending.active || pending.due > Date.now()) continue;
       pending.active = true;
       const work = this.dispatch(pending).finally(() => {
@@ -84,6 +82,20 @@ export class CallPushQueue {
       });
       this.running.add(work);
     }
+    this.schedule();
+  }
+  private schedule(): void {
+    if (this.timer) clearTimeout(this.timer);
+    this.timer = null;
+    let next = Infinity;
+    for (const pending of this.pending.values()) {
+      next = Math.min(next, pending.invitation.deadline);
+      if (!pending.active && this.running.size < 3)
+        next = Math.min(next, pending.due);
+    }
+    if (!Number.isFinite(next) || this.stopped) return;
+    this.timer = setTimeout(() => this.kick(), Math.max(1, next - Date.now()));
+    this.timer.unref();
   }
   private async dispatch(pending: Pending): Promise<void> {
     pending.due = 0;
@@ -124,7 +136,7 @@ export class CallPushQueue {
   }
   async close(): Promise<void> {
     this.stopped = true;
-    clearInterval(this.timer);
+    if (this.timer) clearTimeout(this.timer);
     this.pending.clear();
     await Promise.all(this.running);
   }

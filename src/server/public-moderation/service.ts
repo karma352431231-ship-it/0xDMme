@@ -1,13 +1,48 @@
-import type { CommunityStore, PublicProfileStore } from '../database/index.ts';
+import type {
+  CommunityStore,
+  PublicProfileStore,
+  WorkSignals,
+} from '../database/index.ts';
+import { WorkConsumers } from '../work-scheduler/index.ts';
 
 /** Own the global moderation lifecycle; byte owners collect only their own targets. */
 export class PublicModerationService {
   private readonly stop = new AbortController();
-  private timer: ReturnType<typeof setInterval> | null = null;
+  private readonly consumers: WorkConsumers;
   private cleaning: Promise<void> | null = null;
   private readonly stores: ModerationCollectors;
-  constructor(stores: ModerationCollectors) {
+  constructor(
+    stores: ModerationCollectors,
+    options: {
+      signals?: Pick<WorkSignals, 'subscribe'>;
+      fallbackMs?: number;
+    } = {},
+  ) {
     this.stores = stores;
+    this.consumers = new WorkConsumers(
+      [
+        {
+          topic: 'public-moderation',
+          work: async () => {
+            await stores.profiles.collectModeration(this.stop.signal);
+          },
+          next: () =>
+            stores.profiles.nextModerationCollection?.() ??
+            Promise.resolve(null),
+        },
+        {
+          topic: 'public-moderation',
+          work: async () => {
+            await stores.communities.collectModeration(this.stop.signal);
+          },
+          next: () =>
+            stores.communities.nextModerationCollection?.() ??
+            Promise.resolve(null),
+        },
+      ],
+      options.signals ?? { subscribe: () => () => {} },
+      options,
+    );
   }
   async initialize(): Promise<void> {
     await this.clean();
@@ -15,18 +50,11 @@ export class PublicModerationService {
   start(): void {
     if (this.stop.signal.aborted)
       throw new Error('Serviço de moderação pública encerrado.');
-    if (this.timer) return;
-    this.timer = setInterval(() => {
-      void this.clean().catch(() => {
-        process.stderr.write('Descarte de mídia pública indisponível.\n');
-      });
-    }, 30_000);
-    this.timer.unref();
+    this.consumers.start();
   }
   async close(): Promise<void> {
-    if (this.timer) clearInterval(this.timer);
-    this.timer = null;
     this.stop.abort();
+    await this.consumers.close();
     if (this.cleaning) await this.cleaning;
   }
   async clean(): Promise<void> {
@@ -57,6 +85,8 @@ export class PublicModerationService {
 }
 
 type ModerationCollectors = {
-  profiles: Pick<PublicProfileStore, 'collectModeration'>;
-  communities: Pick<CommunityStore, 'collectModeration'>;
+  profiles: Pick<PublicProfileStore, 'collectModeration'> &
+    Partial<Pick<PublicProfileStore, 'nextModerationCollection'>>;
+  communities: Pick<CommunityStore, 'collectModeration'> &
+    Partial<Pick<CommunityStore, 'nextModerationCollection'>>;
 };

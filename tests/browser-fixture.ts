@@ -1,6 +1,7 @@
 import { build } from 'esbuild';
 import { createHash, randomBytes } from 'node:crypto';
 import { Database } from '../src/server/database/index.ts';
+import { embeddedBackground } from '../src/server/background/index.ts';
 import {
   AccountService,
   createAccountHandler,
@@ -152,7 +153,13 @@ const communityMedia = new CommunityMediaService({
   environment: process.env,
 });
 await communityMedia.initialize();
-communityMedia.start();
+const background = await embeddedBackground({
+  db: database,
+  directory: config.objectDirectory,
+  origin,
+});
+await database.workSignals.start();
+background.start();
 function fixtureServer(
   testOrigin: string,
   testAssets: ReadonlyMap<string, WebAsset>,
@@ -176,6 +183,8 @@ function fixtureServer(
       publicProfiles.read(handle),
     ),
     communities: createCommunityHandler({
+      origin: testOrigin,
+      views: (input) => database.communityViews.observe(input),
       read: (id) => communities.read(id),
       list: (after) => communities.list(after),
       feed: (filter, after) => communities.feed(filter, after),
@@ -304,6 +313,7 @@ const close = () => {
   live.close();
   void Promise.all(hosts.map((value) => value.close()))
     .then(async () => {
+      await background.close();
       await communityMedia.close();
       await messages.close();
       await notifications.close();

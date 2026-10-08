@@ -477,6 +477,17 @@ export class CallState {
     for (const [key, e] of this.endpoints)
       if (e.expires + 10_000 <= now) this.endpoints.delete(key);
   }
+  nextExpiry(): number | null {
+    const dates = [...this.endpoints.values()].map((e) => e.expires + 10_000);
+    for (const call of this.calls.values()) {
+      dates.push(call.caller.expires);
+      if (call.callee) dates.push(call.callee.expires);
+      if (call.deadline !== null) dates.push(call.deadline);
+      for (const endpoint of call.ringing.values())
+        dates.push(endpoint.expires);
+    }
+    return dates.length ? Math.min(...dates) : null;
+  }
   private cleanRinging(c: Connection, now: number): void {
     if (c.callee) return;
     for (const [key, e] of c.ringing)

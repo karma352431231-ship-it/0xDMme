@@ -2,12 +2,7 @@ import {
   PublicMediaService,
   createPublicMediaHandler,
 } from './public-media/index.ts';
-import {
-  PublicModerationService,
-  PublicModerationWorker,
-  publicModerationBinding,
-  publicModerationRetargeting,
-} from './public-moderation/index.ts';
+import { backgroundMode, embeddedBackground } from './background/index.ts';
 import { readWebConfiguration } from './web-configuration/index.ts';
 import { Database } from './database/index.ts';
 import { CommunityMediaService } from './community-media/index.ts';
@@ -40,6 +35,7 @@ import {
 } from './push-sender/index.ts';
 
 let database: Database | undefined;
+let stopApplication: (() => Promise<void>) | undefined;
 
 try {
   const config = readWebConfiguration(process.env);
@@ -57,7 +53,16 @@ try {
   await database.groupMedia.resumeInterrupted();
   await database.statusMedia.resumeInterrupted();
   const push = readPushClientConfiguration(process.env);
+  const background =
+    backgroundMode(process.env) === 'embedded'
+      ? await embeddedBackground({
+          db: database,
+          directory: config.objectDirectory,
+          origin: config.origin,
+        })
+      : null;
   const notifications = new NotificationService({
+    signals: database.workSignals,
     store: database.daily,
     devices: database.devices,
     config: push,
@@ -76,7 +81,6 @@ try {
       config.origin,
     ),
   });
-  await messages.cleanAttachments();
   if (!(await database.healthy())) throw new Error('Banco indisponível.');
   const calls = new CallService({
     store: database.calls,
@@ -92,27 +96,12 @@ try {
     database.publicProfiles,
     database.devices,
   );
-  const publicModeration = new PublicModerationService({
-    profiles: database.publicProfiles,
-    communities: database.communities,
-  });
-  await publicModeration.initialize();
   const communityMedia = new CommunityMediaService({
     store: database.communityMedia,
     directory: config.objectDirectory,
     environment: process.env,
   });
   await communityMedia.initialize();
-  // No runner is selected until precision, policy and runtime acceptance are recorded.
-  const moderationQueue = database.publicModeration;
-  const retargetPolicy = publicModerationRetargeting(database);
-  const moderationWorker = new PublicModerationWorker({
-    queue: database.publicModeration,
-    bind: publicModerationBinding(database),
-    runner: null,
-    upgradePolicy: () => moderationQueue.upgrade(retargetPolicy),
-  });
-  await moderationWorker.initialize();
   const communities = new CommunityService(
     database.communities,
     database.devices,
@@ -138,6 +127,8 @@ try {
       publicProfiles.read(handle),
     ),
     communities: createCommunityHandler({
+      origin: config.origin,
+      views: (input) => database!.communityViews.observe(input),
       read: (id) => communities.read(id),
       list: (after) => communities.list(after),
       feed: (filter, after) => communities.feed(filter, after),
@@ -184,45 +175,55 @@ try {
   });
   // Nginx connects through the socket; the private network namespace exposes no host TCP port.
   if (config.socketPath) await chmod(config.socketPath, 0o666);
-  host.server.on('error', () => {
-    process.stderr.write('Falha no serviço web local.\n');
-    process.exitCode = 1;
-    shutdown();
-  });
   let closing = false;
-  notifications.start();
-  messages.startMaintenance();
-  communityMedia.start();
-  publicModeration.start();
-  moderationWorker.start();
+  stopApplication = async () => {
+    const hostResult = await Promise.allSettled([host.close()]);
+    const results = [
+      ...hostResult,
+      ...(await Promise.allSettled([
+        background?.close(),
+        communityMedia.close(),
+        messages.close(),
+        notifications.close(),
+      ])),
+    ];
+    await database?.close();
+    if (results.some((result) => result.status === 'rejected'))
+      throw new Error('Desligamento incompleto.');
+  };
   const shutdown = () => {
     if (closing) return;
     closing = true;
     const deadline = setTimeout(() => process.exit(1), 8_000);
     deadline.unref();
-    void host
-      .close()
-      .then(() => moderationWorker.close())
-      .then(() => communityMedia.close())
-      .then(() => publicModeration.close())
-      .then(() => messages.close())
-      .then(() => notifications.close())
-      .then(() => database?.close())
-      .then(() => {
-        clearTimeout(deadline);
-      })
+    void stopApplication?.()
       .catch(() => {
         process.stderr.write('Falha no desligamento local.\n');
         process.exitCode = 1;
+      })
+      .finally(() => {
+        clearTimeout(deadline);
       });
   };
+  host.server.on('error', () => {
+    process.stderr.write('Falha no serviço web local.\n');
+    process.exitCode = 1;
+    shutdown();
+  });
+  await database.workSignals.start().catch(() => {
+    process.stderr.write('Sinalização indisponível; reconexão agendada.\n');
+  });
+  background?.start();
+  notifications.start();
   process.once('SIGINT', shutdown);
   process.once('SIGTERM', shutdown);
   process.stdout.write(
     `0xDMme: ambiente ${config.profile} em ${config.origin}. Use somente dados fictícios.\n`,
   );
 } catch {
-  await database?.close();
+  await (stopApplication ? stopApplication() : database?.close())?.catch(
+    () => {},
+  );
   process.stderr.write(
     'Base local não iniciada. Confira configuração, build e banco exclusivo do 0xDMme.\n',
   );

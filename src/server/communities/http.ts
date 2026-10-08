@@ -10,6 +10,8 @@ import type {
   CommunityPage,
 } from '../../shared/communities/index.ts';
 import { RequestBudget } from '../request-budget/index.ts';
+import { viewRequest } from './views.ts';
+import { postViewsPage } from '../../shared/community-views/index.ts';
 import {
   feedPage,
   explorePage,
@@ -35,6 +37,8 @@ import type {
 } from '../../shared/community-posts/index.ts';
 
 export function createCommunityHandler(read: {
+  origin?: string;
+  views?: (input: unknown) => Promise<unknown>;
   read: (id: string) => Promise<Community>;
   list: (after: string | null) => Promise<CommunityPage>;
   feed?: (filter: FeedFilter, after: string | null) => Promise<FeedPage>;
@@ -67,6 +71,16 @@ export function createCommunityHandler(read: {
     response.writeHead(status).end(head ? undefined : JSON.stringify(data));
   }
   async function lookup(request: IncomingMessage): Promise<unknown> {
+    if (request.url !== '/api/communities/views') return readLookup(request);
+    if (!read.views || !read.origin)
+      throw new AccountError(404, 'Visualizações indisponíveis.');
+    return {
+      items: postViewsPage(
+        await read.views(await viewRequest(request, read.origin)),
+      ),
+    };
+  }
+  async function readLookup(request: IncomingMessage): Promise<unknown> {
     if (request.method !== 'GET' && request.method !== 'HEAD')
       throw new AccountError(405, 'Método inválido.');
     budget.admit(request.socket.remoteAddress ?? 'unknown', false, true);
@@ -112,7 +126,12 @@ export function createCommunityHandler(read: {
       send(response, 200, await lookup(request), head);
     } catch (error: unknown) {
       if (error instanceof AccountError && error.status === 405)
-        response.setHeader('Allow', 'GET, HEAD');
+        response.setHeader(
+          'Allow',
+          request.url === '/api/communities/views' && read.views
+            ? 'POST'
+            : 'GET, HEAD',
+        );
       send(
         response,
         error instanceof AccountError ? error.status : 503,
@@ -160,8 +179,8 @@ export function createCommunityHandler(read: {
       return explorePage(
         await read.explore(
           exploreFilter({
-            order: query.get('order') ?? 'size',
-            period: query.get('period') ?? 'week',
+            order: query.get('order') ?? 'trending',
+            period: query.get('period') ?? 'day',
           }),
           query.get('after'),
         ),

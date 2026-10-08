@@ -23,20 +23,30 @@ export class RecoveryReturn {
   private readonly pending = new Map<string, Pending>();
   private readonly origin: string;
   private readonly now: () => number;
-  private readonly timer: ReturnType<typeof setInterval>;
+  private timer: ReturnType<typeof setTimeout> | null = null;
   constructor(origin: string, now: () => number = Date.now) {
     this.origin = origin;
     this.now = now;
-    this.timer = setInterval(() => this.prune(), 30_000);
-    this.timer.unref();
   }
   close(): void {
-    clearInterval(this.timer);
+    if (this.timer) clearTimeout(this.timer);
+    this.timer = null;
     this.pending.clear();
   }
   private prune(): void {
     for (const [ticket, state] of this.pending)
       if (state.expires <= this.now()) this.pending.delete(ticket);
+    this.schedule();
+  }
+  private schedule(): void {
+    if (this.timer) clearTimeout(this.timer);
+    this.timer = null;
+    if (!this.pending.size) return;
+    const next = Math.min(
+      ...Array.from(this.pending.values(), (state) => state.expires),
+    );
+    this.timer = setTimeout(() => this.prune(), Math.max(1, next - this.now()));
+    this.timer.unref();
   }
   private timestamps(state: Pending) {
     return {
@@ -89,6 +99,7 @@ export class RecoveryReturn {
       consumed: false,
     };
     this.pending.set(transfer.ticket, state);
+    this.schedule();
     return {
       ticket: transfer.ticket,
       commitment: state.commitment,

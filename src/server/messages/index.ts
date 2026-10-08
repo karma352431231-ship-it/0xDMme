@@ -95,8 +95,6 @@ export class MessageService {
   private readonly statuses: StatusService | null;
   private readonly social: SocialDmService;
   private readonly representatives: RepresentativeService | null;
-  private maintenanceTimer: ReturnType<typeof setInterval> | null = null;
-  private maintenanceRunning: Promise<void> | null = null;
   constructor(
     db: Pick<
       Database,
@@ -424,24 +422,7 @@ export class MessageService {
         )
       : null;
   }
-  startMaintenance(): void {
-    if (this.maintenanceTimer) return;
-    this.maintenanceTimer = setInterval(() => {
-      if (this.maintenanceRunning || !this.groupMedia) return;
-      this.maintenanceRunning = this.maintainSharedContent()
-        .catch(() => {
-          process.stderr.write('Manutenção de mídia de grupos indisponível.\n');
-        })
-        .finally(() => {
-          this.maintenanceRunning = null;
-        });
-    }, 30000);
-    this.maintenanceTimer.unref();
-  }
   async close(): Promise<void> {
-    if (this.maintenanceTimer) clearInterval(this.maintenanceTimer);
-    this.maintenanceTimer = null;
-    await this.maintenanceRunning;
     await this.statuses?.close();
   }
   private statusService(
@@ -473,13 +454,6 @@ export class MessageService {
           throw new AccountError(503, 'Armazenamento de status indisponível.');
         return this.statuses.operate(a, operation, d);
       };
-  }
-  private async maintainSharedContent(): Promise<void> {
-    await this.social.clean();
-    await this.groupMedia?.clean();
-    await this.db.groupDaily.clean();
-    await this.statuses?.clean();
-    await this.representatives?.maintain();
   }
   async preflightSocialAttachment(
     session: AccountSession,

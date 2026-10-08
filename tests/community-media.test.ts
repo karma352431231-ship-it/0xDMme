@@ -133,10 +133,11 @@ await test('objetos de mídia: montagem limitada, hash integral, retomada e limp
       }),
       bytes.subarray(communityMediaPartBytes),
     );
-    await files.prune(input.id);
+    await Promise.all([files.prune(input.id), files.prune(input.id)]);
     assert.deepEqual(await files.read(input.id, 'result', bytes.length), bytes);
+    await Promise.all([files.discard(input.id), files.discard(input.id)]);
     await files.discard(input.id);
-    await files.discard(input.id);
+    await assert.rejects(files.read(input.id, 'result', bytes.length));
   } finally {
     await rm(root, { recursive: true, force: true });
   }

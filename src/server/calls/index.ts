@@ -43,13 +43,11 @@ interface Options {
 export class CallService {
   private readonly options: Options;
   private readonly state: CallState;
-  private readonly timer: ReturnType<typeof setInterval>;
+  private timer: ReturnType<typeof setTimeout> | null = null;
   private readonly unsubscribe: () => void;
   constructor(options: Options) {
     this.options = options;
     this.state = new CallState(options.config?.maxCalls ?? 16);
-    this.timer = setInterval(() => this.state.clean(), 1000);
-    this.timer.unref();
     this.unsubscribe = options.changes.subscribe({
       notify: (change) => {
         if (
@@ -58,8 +56,12 @@ export class CallService {
           change.ended.length
         )
           this.state.endAccounts(change.accounts);
+        this.schedule();
       },
-      failed: () => this.state.close(),
+      failed: () => {
+        this.state.close();
+        this.schedule();
+      },
     });
   }
   async operate(
@@ -115,6 +117,8 @@ export class CallService {
       if (!(error instanceof AccountError))
         this.state.endAccounts([session.accountId]);
       throw error;
+    } finally {
+      this.schedule();
     }
   }
   private async wake(
@@ -258,9 +262,24 @@ export class CallService {
     throw new AccountError(404, 'Operação de chamada indisponível.');
   }
   close(): void {
-    clearInterval(this.timer);
+    if (this.timer) clearTimeout(this.timer);
+    this.timer = null;
     this.unsubscribe();
     this.state.close();
+  }
+  private schedule(): void {
+    if (this.timer) clearTimeout(this.timer);
+    this.timer = null;
+    const next = this.state.nextExpiry();
+    if (next === null) return;
+    this.timer = setTimeout(
+      () => {
+        this.state.clean();
+        this.schedule();
+      },
+      Math.max(1, next - Date.now()),
+    );
+    this.timer.unref();
   }
 }
 function packets(input: unknown) {

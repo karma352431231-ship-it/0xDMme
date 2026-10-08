@@ -16,6 +16,7 @@ import type {
   DailyStore,
   DeviceStore,
   PushJob,
+  WorkSignals,
 } from '../database/index.ts';
 import type { PushDelivery, PushConfiguration } from '../push-sender/index.ts';
 export {
@@ -28,6 +29,7 @@ export type PushSend = (
   config: Pick<PushConfiguration, 'publicKey'>,
   delivery?: PushDelivery,
 ) => Promise<void>;
+import { WorkScheduler } from '../work-scheduler/index.ts';
 import { CallPushQueue } from './call-push.ts';
 import type { CallInvitation } from './call-push.ts';
 
@@ -36,8 +38,8 @@ export class NotificationService {
   private readonly devices: DeviceStore;
   private readonly config: Pick<PushConfiguration, 'publicKey'> | null;
   private readonly send: PushSend;
-  private running: Promise<void> | null = null;
-  private timer: ReturnType<typeof setInterval> | null = null;
+  private readonly scheduler: WorkScheduler;
+  private readonly unsubscribe: (() => void) | undefined;
   private stopped = false;
   private readonly calls: CallPushQueue;
   private incoming: (
@@ -49,7 +51,17 @@ export class NotificationService {
     devices: DeviceStore;
     config: Pick<PushConfiguration, 'publicKey'> | PushConfiguration | null;
     send?: PushSend;
+    signals?: WorkSignals;
   }) {
+    this.scheduler = new WorkScheduler({
+      work: () => this.dispatch(),
+      failed: () => {
+        process.stderr.write('Fila de notificações indisponível.\n');
+      },
+    });
+    this.unsubscribe = options.signals?.subscribe('push', () =>
+      this.scheduler.wake(),
+    );
     this.store = options.store;
     this.devices = options.devices;
     this.config = options.config;
@@ -178,29 +190,19 @@ export class NotificationService {
     };
   }
   start(): void {
-    if (this.timer) return;
-    this.timer = setInterval(() => {
-      void this.flush().catch(() => {
-        process.stderr.write('Fila de notificações indisponível.\n');
-      });
-    }, 30000);
-    this.timer.unref();
+    if (this.config) this.scheduler.start();
   }
   async flush(): Promise<void> {
-    if (this.running) return this.running;
-    if (this.stopped) return;
-    this.running = this.dispatch();
-    try {
-      await this.running;
-    } finally {
-      this.running = null;
-    }
+    if (this.config) await this.scheduler.flush();
   }
-  private async dispatch(): Promise<void> {
-    for (const job of await this.store.jobs()) {
-      if (this.stopped) return;
+  private async dispatch(): Promise<number | null> {
+    if (this.stopped || !this.config) return null;
+    const jobs = await this.store.jobs();
+    for (const job of jobs) {
+      if (this.stopped) return null;
       await this.dispatchOne(job);
     }
+    return jobs.length === 16 ? Date.now() : this.store.nextPushAttempt();
   }
   private async dispatchOne(job: PushJob): Promise<void> {
     if (!this.config) return;
@@ -221,8 +223,8 @@ export class NotificationService {
   }
   async close(): Promise<void> {
     this.stopped = true;
-    if (this.timer) clearInterval(this.timer);
-    await this.running;
+    this.unsubscribe?.();
+    await this.scheduler.close();
     await this.calls.close();
   }
 }
