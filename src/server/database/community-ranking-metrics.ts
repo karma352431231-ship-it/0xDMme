@@ -18,6 +18,26 @@ export async function measureRanking(
   ids: string[],
   cutoff: Date,
 ): Promise<CommunityRankingMeasurement[]> {
+  await client.query('BEGIN READ ONLY');
+  try {
+    // Planner estimates can enable expensive JIT compilation even for a tiny
+    // batch. Keep this bounded query within its existing execution deadline;
+    // the setting ends with this transaction, including on failure.
+    await client.query('SET LOCAL jit = off');
+    const rows = await readRanking(client, ids, cutoff);
+    await client.query('COMMIT');
+    return rows;
+  } catch (error: unknown) {
+    await client.query('ROLLBACK');
+    throw error;
+  }
+}
+
+async function readRanking(
+  client: Pick<pg.PoolClient, 'query'>,
+  ids: string[],
+  cutoff: Date,
+): Promise<CommunityRankingMeasurement[]> {
   const result = await client.query<CommunityRankingMeasurement>(
     `WITH targets AS (
       SELECT c.id,c.created_at,c.archived,s.revision::text,

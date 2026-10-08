@@ -14,6 +14,8 @@ Fórmula inicial versionada: transformações logarítmicas locais para particip
 
 Ciclo de vida inicial: agrupamento de avisos por até 100 ms, lotes de 32 comunidades, um produtor global, pendência por revisão na transação original, avisos PostgreSQL sem payload após commit, conexão exclusiva de sinalização além do pool de quatro, próximos vencimentos e fallback de cinco minutos. Gerações pagináveis com validade máxima de cinco minutos e orçamento de cache de 64 MiB; sob pressão, as mais antigas expiram antes e seus cursores exigem recarga, sem truncar o universo. Coleta em lotes de 256 entradas, contador de bytes por lote e publicação atômica; consultas públicas não recalculam métricas. Dados derivados contam no orçamento global existente; falha/capacidade do produtor não é publicada como lista vazia válida. Push comum drena lotes de 16 alvos, preserva limite de três tentativas e agenda retry de 60s somente após falha. Esses parâmetros são escolhas de implementação, não desempenho já comprovado.
 
+A consulta de métricas usa uma transação curta de somente leitura com JIT desativado apenas nessa transação: estimativas altas do planner podem provocar compilação cara mesmo para lotes pequenos. Sucesso e falha encerram a transação e restauram as opções da conexão; os limites existentes de consulta, CPU e RAM continuam. A configuração global do PostgreSQL não é alterada.
+
 A autorização inicial abrangia cortes 1–8. A ampliação abaixo inclui cortes 9–10, visualizações e ativação revisada na VPS. Não inclui novos provedores, persistência de chamadas ou relaxamento de moderação.
 
 ## 1. Objetivo e direção definida

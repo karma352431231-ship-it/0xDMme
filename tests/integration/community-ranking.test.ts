@@ -133,6 +133,50 @@ await test('rankings: métricas exatas, votos agregados, eventos, recuperação 
     );
   }
   await t.test(
+    'medição respeita o prazo com JIT forçado e devolve a conexão após sucesso ou erro',
+    async () => {
+      await inspector.query('SET jit=on');
+      await inspector.query('SET jit_above_cost=0');
+      await inspector.query('SET statement_timeout=4000');
+      try {
+        const rows = await measureRanking(inspector, ids, new Date());
+        assert.equal(
+          rows.find((row) => row.community_id === community)?.day.current
+            .participants,
+          3,
+        );
+        async function reusable() {
+          assert.equal(
+            (await inspector.query<{ jit: string }>('SHOW jit')).rows[0]?.jit,
+            'on',
+          );
+          assert.equal(
+            (
+              await inspector.query<{ transaction_read_only: string }>(
+                'SHOW transaction_read_only',
+              )
+            ).rows[0]?.transaction_read_only,
+            'off',
+          );
+        }
+        await reusable();
+        await assert.rejects(
+          measureRanking(inspector, ['invalid-uuid'], new Date()),
+          { code: '22P02' },
+        );
+        await reusable();
+        assert.equal(
+          (await measureRanking(inspector, ids, new Date())).length,
+          ids.length,
+        );
+      } finally {
+        await inspector.query('RESET jit');
+        await inspector.query('RESET jit_above_cost');
+        await inspector.query('RESET statement_timeout');
+      }
+    },
+  );
+  await t.test(
     'únicos não somam horários, conversa exclui auto-resposta e três autores entram em novas',
     async () => {
       await refresh();
