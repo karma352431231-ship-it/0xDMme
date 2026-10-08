@@ -1,0 +1,453 @@
+.app[data-page='contatos'] :is(.page-heading, main > .notice) {
+  display: none;
+}
+.app[data-page='contatos'] main {
+  padding: 24px clamp(16px, 3vw, 40px);
+}
+.contacts-card.card {
+  padding: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.contacts-card [hidden],
+.contacts-card button[hidden] {
+  display: none;
+}
+.contacts-card button,
+.contacts-card input,
+.contacts-card select {
+  font: inherit;
+}
+.contacts-card button {
+  margin: 0;
+  min-height: 42px;
+  padding: 9px 14px;
+  border: 1px solid #cfddd6;
+  border-radius: 10px;
+  background: #f7faf8;
+  color: #254539;
+  font-size: 13px;
+  cursor: pointer;
+}
+.contacts-card button:hover {
+  background: #eaf2ed;
+}
+.contacts-card button.primary {
+  border-color: #247d67;
+  background: #247d67;
+  color: white;
+}
+.contacts-card button.primary:hover {
+  background: #18634f;
+}
+.contacts-card button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.contacts-heading {
+  padding: 26px 24px 20px;
+  gap: 16px;
+}
+.contacts-card .contacts-heading h1 {
+  margin: 0;
+  font-size: 28px;
+  letter-spacing: -0.8px;
+}
+.contacts-card .contacts-heading p {
+  margin: 5px 0 0;
+  line-height: 1.5;
+}
+.contacts-heading .primary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.contacts-heading .primary span {
+  font-size: 22px;
+  line-height: 1;
+}
+.contacts-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 0 24px 22px;
+}
+.contact-search {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  border: 1px solid #dae5de;
+  border-radius: 12px;
+  background: #f5f8f6;
+  padding: 0 12px;
+}
+.contact-search svg {
+  flex: 0 0 18px;
+  height: 18px;
+  fill: none;
+  stroke: #6c8478;
+  stroke-width: 1.8;
+}
+.contact-search input {
+  width: 100%;
+  min-width: 0;
+  height: 44px;
+  padding: 8px 0;
+  border: 0;
+  background: transparent;
+  color: #233c30;
+  font-size: 16px;
+}
+.contact-invite-link {
+  flex: 0 0 auto;
+  font-size: 13px;
+  color: #247d67;
+  padding: 10px 0;
+}
+.contact-tabs {
+  display: flex;
+  gap: 6px;
+  padding: 0 24px;
+  border-bottom: 1px solid #e0e8e3;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+.contacts-card .contact-tabs button {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 14px;
+  border: 0;
+  border-bottom: 3px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  color: #708278;
+}
+.contacts-card .contact-tabs button[aria-selected='true'] {
+  color: #20755e;
+  border-bottom-color: #247d67;
+  font-weight: 650;
+}
+.contact-count {
+  display: grid;
+  place-items: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  border-radius: 12px;
+  background: #dceee4;
+  font-size: 11px;
+  color: #23664e;
+}
+.contact-section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 20px 24px 6px;
+}
+.contacts-card .contact-section-heading h2 {
+  margin: 0;
+  font-size: 15px;
+}
+.contact-section-heading span {
+  color: #7e9186;
+  font-size: 11px;
+}
+.contacts-card .contact-hint {
+  margin: 12px 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: #6c8074;
+}
+.contacts-card > section > .contact-hint,
+.contacts-card > section > section > .contact-hint {
+  padding: 0 24px;
+}
+.contact-list {
+  margin: 8px 0;
+  padding: 0;
+  list-style: none;
+}
+.contact-row {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 24px;
+  border-bottom: 1px solid #edf1ee;
+}
+.contact-row:last-child {
+  border-bottom: 0;
+}
+.contact-row:hover {
+  background: #f8fbf9;
+}
+.contact-avatar {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: #e3f0e9;
+  color: #377059;
+  font-size: 14px;
+  font-weight: 650;
+}
+.contact-row-body {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+.contacts-card .contact-row-body strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+  color: #243c32;
+}
+.contact-row-detail {
+  color: #7a8f82;
+  font-size: 12px;
+}
+.contact-row-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.contacts-card .contact-menu-trigger,
+.contacts-card .contact-close {
+  width: 42px;
+  padding: 9px;
+  background: transparent;
+  border: 0;
+}
+.contact-menu-trigger svg,
+.contact-close svg {
+  width: 22px;
+  height: 22px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+}
+.contact-empty {
+  padding: 52px 24px;
+  text-align: center;
+  font-size: 13px;
+  line-height: 1.7;
+  color: #7a8f82;
+}
+.contacts-card .contact-more {
+  display: block;
+  margin: 12px auto 20px;
+}
+.contact-subtabs {
+  display: flex;
+  gap: 8px;
+  padding: 18px 24px 4px;
+  overflow-x: auto;
+}
+.contacts-card .contact-subtabs button {
+  flex: 0 0 auto;
+  border-radius: 22px;
+  min-height: 36px;
+}
+.contacts-card .contact-subtabs button[aria-selected='true'] {
+  background: #e3f1e9;
+  color: #206d52;
+  border-color: #bcdacb;
+}
+.contact-feedback {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 24px;
+  border-top: 1px solid #e5ede7;
+  background: #f9fbfa;
+}
+.contacts-card .contact-feedback p {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.6;
+}
+.contacts-card .contact-test-note {
+  margin: 0;
+  padding: 10px 24px 16px;
+  font-size: 10px;
+  line-height: 1.6;
+}
+.contact-dialog,
+.contact-menu {
+  width: min(520px, calc(100vw - 32px));
+  max-height: calc(100dvh - 32px);
+  padding: 24px;
+  overflow-y: auto;
+  border: 1px solid #d7e3da;
+  border-radius: 18px;
+  background: white;
+  color: #243c32;
+  box-shadow: 0 16px 50px #142f2633;
+}
+.contact-dialog::backdrop,
+.contact-menu::backdrop {
+  background: #10221c70;
+}
+.contact-dialog header {
+  align-items: flex-start;
+  gap: 12px;
+}
+.contacts-card .contact-dialog h2 {
+  margin: 5px 0 14px;
+  font-size: 22px;
+}
+.contact-eyebrow {
+  font-size: 10px;
+  letter-spacing: 1.3px;
+  color: #658275;
+}
+.contact-dialog .contact-subtabs {
+  padding: 4px 0 12px;
+}
+.contact-dialog form {
+  display: grid;
+  gap: 16px;
+  margin: 12px 0;
+}
+.contact-dialog label {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  font-size: 13px;
+}
+.contact-dialog input,
+.contact-dialog select {
+  width: 100%;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid #c9d9cf;
+  border-radius: 10px;
+  background: white;
+  color: #243c32;
+  font-size: 16px;
+}
+.contact-optional {
+  font-size: 11px;
+  color: #8a9b91;
+  font-weight: 400;
+}
+.contact-form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.contact-dialog .contact-feedback {
+  margin: 20px -24px -24px;
+}
+.contact-dialog video {
+  width: 100%;
+  max-height: 240px;
+  border-radius: 12px;
+  background: black;
+}
+.contact-menu {
+  position: relative;
+  width: min(360px, calc(100vw - 32px));
+}
+.contact-menu[open] {
+  display: grid;
+  gap: 10px;
+}
+.contact-menu h3 {
+  grid-row: 1;
+  grid-column: 1;
+  align-self: center;
+  margin: 0 80px 8px 0;
+  font-size: 16px;
+}
+.contact-menu p {
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.contacts-card .contact-menu button {
+  text-align: left;
+}
+.contacts-card .contact-menu-close {
+  justify-self: end;
+  grid-row: 1;
+  grid-column: 1;
+  border: 0;
+  background: transparent;
+}
+@media (max-width: 700px) {
+  .app[data-page='contatos'] main {
+    padding: 14px 10px;
+  }
+  .contacts-heading {
+    padding: 20px 16px 16px;
+  }
+  .contacts-card .contacts-heading h1 {
+    font-size: 25px;
+  }
+  .contacts-heading .primary {
+    width: 100%;
+    justify-content: center;
+  }
+  .contacts-toolbar {
+    padding: 0 16px 16px;
+    flex-wrap: wrap;
+    gap: 6px 16px;
+  }
+  .contact-search {
+    flex-basis: 100%;
+  }
+  .contact-tabs {
+    padding: 0 10px;
+  }
+  .contact-section-heading,
+  .contacts-card > section > .contact-hint,
+  .contacts-card > section > section > .contact-hint {
+    padding-inline: 16px;
+  }
+  .contact-row {
+    grid-template-columns: 40px minmax(0, 1fr);
+    padding: 14px 16px;
+    gap: 12px;
+  }
+  .contact-avatar {
+    width: 40px;
+    height: 40px;
+  }
+  .contact-row-actions {
+    grid-column: 2;
+    justify-content: flex-start;
+    flex-wrap: wrap;
+  }
+  .contact-row-actions button {
+    min-height: 44px;
+  }
+  .contact-feedback {
+    padding-inline: 16px;
+  }
+  .contact-subtabs {
+    padding-inline: 16px;
+  }
+  .contact-dialog,
+  .contact-menu {
+    margin: auto 8px max(8px, env(safe-area-inset-bottom));
+    width: calc(100vw - 16px);
+    max-width: calc(100vw - 16px);
+    max-height: calc(100dvh - 16px);
+    padding: 20px;
+  }
+  .contact-dialog .contact-subtabs {
+    padding-inline: 0;
+  }
+  .contact-dialog .contact-feedback {
+    margin: 16px -20px -20px;
+  }
+}

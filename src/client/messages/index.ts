@@ -1436,6 +1436,13 @@ export function startMessages(
     if (direct) direct.hidden = !!groups.selected;
   }
   return {
+    async openContact(peer: Peer): Promise<void> {
+      if (busy)
+        throw new Error(
+          'Aguarde a atualização das conversas e tente novamente.',
+        );
+      await run(() => openPeer(peer));
+    },
     async contactSaved(contact: AddressBookEntry): Promise<void> {
       await agenda.saved(contact);
       renderContacts(peers);

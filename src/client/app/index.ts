@@ -67,6 +67,7 @@ const backups = startBackups(devices, vault.sync, playback, {
 });
 const contacts = startContacts(devices, vault.sync, {
   saved: (contact) => messages.contactSaved(contact),
+  open: (peer) => messages.openContact(peer),
 });
 const statuses = startStatus(devices, vault.sync);
 const representatives = startRepresentatives(devices, vault.sync, (message) =>

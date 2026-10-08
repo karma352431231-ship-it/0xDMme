@@ -14,17 +14,28 @@ import type {
 } from '../../shared/contacts/index.ts';
 import { digest } from '../../shared/devices/index.ts';
 import type { VaultAccess } from '../vault-authority/index.ts';
-import type { VaultSync } from '../vault-sync/index.ts';
+import type { VaultSync, VaultEntry } from '../vault-sync/index.ts';
 import { QrCamera, renderQr } from '../device-qr/index.ts';
 import { AddressBook, incomingInvitation, walletKey } from './agenda.ts';
 import type { BookVersion } from './agenda.ts';
 import { Contacts } from './controller.ts';
 import { template, settingsTemplate } from './template.ts';
+import {
+  bindContactTabs,
+  contactRow,
+  contactMenu,
+  contactSearchMatches,
+  emptyContacts,
+  searchContacts,
+  selectContactTab,
+  shortWallet,
+} from './view.ts';
 export function startContacts(
   access: VaultAccess,
   sync: VaultSync,
   options: {
     saved?: (contact: AddressBookEntry) => Promise<void>;
+    open?: (peer: Peer) => Promise<void>;
   } = {},
 ) {
   const contacts = new Contacts(access),
@@ -88,14 +99,17 @@ export function startContacts(
     }
   }
   function render(): void {
-    text('[data-contact-status]', status);
-    mounted?.querySelectorAll<HTMLButtonElement>('button').forEach((b) => {
-      b.disabled = busy;
-    });
+    text('[data-contact-status]', busy ? 'Atualizando contatos…' : status);
+    text('[data-contact-editor-status]', busy ? 'Processando…' : status);
     renderInvite();
     renderBook();
     renderLists();
     renderPagination();
+    mounted?.querySelectorAll<HTMLButtonElement>('button').forEach((b) => {
+      b.disabled = busy;
+    });
+    const close = node<HTMLButtonElement>('[data-contact-editor-close]');
+    if (close) close.disabled = false;
   }
   function renderPagination(): void {
     mounted
@@ -106,8 +120,7 @@ export function startContacts(
         )?.next;
       });
     const next = node('[data-contact-action="book-more"]');
-    if (next)
-      next.hidden = book.versions(value('[data-book-search]')).length <= 16;
+    if (next) next.hidden = bookEntries().length <= 16;
   }
   function renderInvite(): void {
     const own = node('[data-contact-own-invite]');
@@ -124,9 +137,47 @@ export function startContacts(
     found = null;
     prepared = null;
     node<HTMLFormElement>('[data-book-form]')?.reset();
-    text('[data-book-title]', 'Salvar wallet na agenda');
+    text('[data-book-title]', 'Adicionar contato');
     text('[data-contact-discovery]', '');
     node('[data-contact-discovery-actions]')?.replaceChildren();
+  }
+  function openEditor(tab: 'wallet' | 'invite'): void {
+    const dialog = node<HTMLDialogElement>('[data-contact-editor]');
+    if (!dialog || !mounted) return;
+    selectContactTab(mounted, 'editor', tab);
+    if (!dialog.open) dialog.showModal();
+    dialog
+      .querySelector<HTMLInputElement>(
+        `[data-contact-panel="editor"][data-tab="${tab}"] input`,
+      )
+      ?.focus();
+  }
+  function bindEditor(): void {
+    node('[data-contact-add]')?.addEventListener('click', () => {
+      resetEditor();
+      status =
+        'Salvar guarda o apelido na agenda; solicitar conversa depende do aceite.';
+      render();
+      openEditor('wallet');
+    });
+    const dialog = node<HTMLDialogElement>('[data-contact-editor]');
+    node('[data-contact-editor-close]')?.addEventListener('click', () =>
+      dialog?.close(),
+    );
+    dialog?.addEventListener('close', () => {
+      // A queued close from session reset must not clear a reopened invitation.
+      if (dialog.open || dialog !== node('[data-contact-editor]')) return;
+      camera?.stop();
+      resetEditor();
+      received = null;
+      invitePeer = null;
+      node<HTMLFormElement>('[data-contact-invite-form]')?.reset();
+      node('[data-contact-invite-peer]')?.replaceChildren();
+    });
+    node('[data-contact-tab="editor"][data-tab="wallet"]')?.addEventListener(
+      'click',
+      () => camera?.stop(),
+    );
   }
   async function refresh(): Promise<void> {
     const deadline = Date.now() + 60_000;
@@ -145,36 +196,50 @@ export function startContacts(
         contacts.state.inviteHash,
       );
     status = sync.complete
-      ? 'Agenda e permissões atuais conferidas. Conteúdo privado é aberto sob demanda.'
+      ? 'Contatos atualizados.'
       : 'Permissões conferidas. Continue carregando o índice do cofre antes de editar a agenda.';
     if (received) await inspectInvite();
   }
   function renderBook(): void {
-    const entries = book.versions(value('[data-book-search]'));
-    text(
-      '[data-book-state]',
-      `${entries.length} versões na agenda · busca particular neste aparelho`,
-    );
+    const entries = bookEntries();
+    text('[data-book-state]', `Versões carregadas: ${entries.length}`);
     const list = node('[data-book-list]');
     if (!list) return;
     list.replaceChildren();
     for (const entry of entries.slice(offset, offset + 16)) {
-      const li = document.createElement('li'),
-        p = document.createElement('p');
       const conflicts = sync.heads(entry.change.entity).length;
-      p.textContent = `${entry.change.label} · ${conflicts > 1 ? conflicts + ' versões em conflito' : 'salvo no cofre'}`;
-      li.append(
-        p,
+      const { row, actions } = contactRow({
+        title: entry.change.label,
+        detail:
+          conflicts > 1
+            ? `${conflicts} versões em conflito`
+            : 'Registro da sua agenda particular',
+      });
+      actions.append(
         button('Abrir contato', async () => edit(entry.commit.id, false)),
       );
       if (conflicts > 1)
-        li.append(
+        contactMenu(actions, entry.change.label).append(
           button('Resolver usando esta versão', async () =>
             edit(entry.commit.id, true),
           ),
         );
-      list.append(li);
+      list.append(row);
     }
+    if (!list.childElementCount)
+      emptyContacts(
+        list,
+        value('[data-book-search]')
+          ? 'Nenhum registro encontrado nesta agenda.'
+          : 'Sua agenda está vazia. Adicione uma wallet para guardar um apelido particular.',
+      );
+  }
+  function bookEntries(): VaultEntry[] {
+    return book
+      .versions()
+      .filter((entry) =>
+        contactSearchMatches(entry.change.label, value('[data-book-search]')),
+      );
   }
   async function edit(id: string, resolve: boolean): Promise<void> {
     editing = await book.open(id);
@@ -206,6 +271,7 @@ export function startContacts(
     status = resolve
       ? 'Salvar preservará as versões anteriores e resolverá os ramos escolhidos.'
       : 'Contato aberto apenas neste aparelho.';
+    openEditor('wallet');
   }
   function referenceContact(
     wallet: AddressBookEntry | ReturnType<typeof walletContact>,
@@ -244,6 +310,7 @@ export function startContacts(
       ? 'Contato salvo neste aparelho. Será enviado quando a conexão voltar.'
       : 'Contato particular confirmado no cofre. Isso não aprovou conversa.';
     resetEditor();
+    node<HTMLDialogElement>('[data-contact-editor]')?.close();
   }
   async function discover(): Promise<void> {
     found = await contacts.discover(
@@ -272,51 +339,76 @@ export function startContacts(
       if (!list) continue;
       list.replaceChildren();
       const page = contacts.pages.get(kind);
-      for (const contact of page?.items ?? [])
-        list.append(peerRow(contact, kind));
-      if (!page?.items.length) {
-        const li = document.createElement('li');
-        li.textContent = page
-          ? 'Nenhum item nesta página.'
-          : 'Atualize para conferir.';
-        list.append(li);
-      }
+      const items = searchContacts(
+        page?.items ?? [],
+        value('[data-book-search]'),
+      );
+      for (const contact of items) list.append(peerRow(contact, kind));
+      if (!items.length) emptyContacts(list, emptyList(kind, !!page));
+      text(
+        `[data-contact-page-state="${kind}"]`,
+        page ? `${page.items.length}${page.next ? '+' : ''} nesta página` : '',
+      );
     }
+    renderRequestCount();
     renderBlocks();
+  }
+  function renderRequestCount(): void {
+    const count = node('[data-contact-request-count]'),
+      incoming = contacts.pages.get('incoming');
+    if (count) {
+      const amount = incoming?.items.length ?? 0;
+      count.hidden = amount === 0;
+      count.textContent = `${amount}${incoming?.next ? '+' : ''}`;
+      count.setAttribute(
+        'aria-label',
+        `Pedidos recebidos nesta página: ${amount}`,
+      );
+    }
+  }
+  function emptyList(kind: ContactList, loaded: boolean): string {
+    if (!loaded) return 'Entre e sincronize para conferir esta lista.';
+    if (value('[data-book-search]'))
+      return 'Nenhum resultado nos itens desta página.';
+    const labels = {
+      approved:
+        'Nenhuma conversa liberada. Adicione um contato ou aceite uma solicitação.',
+      incoming: 'Nenhum pedido recebido. Os novos pedidos aparecem aqui.',
+      outgoing: 'Você não tem pedidos enviados nesta página.',
+      rejected: 'Nenhum pedido recusado nesta página.',
+      blocked: 'Nenhum bloqueio nesta página.',
+    };
+    return labels[kind];
   }
   function peerRow(
     contact: Peer & { requester: string },
     kind: ContactList,
   ): HTMLLIElement {
-    const li = document.createElement('li'),
-      p = document.createElement('p'),
+    const title = contact.name || shortWallet(contact.address);
+    const { row, actions } = contactRow({
+      title,
+      detail: `${contact.ecosystem.toUpperCase()} · ${shortWallet(contact.address)}`,
+    });
+    if (kind === 'approved' && options.open) {
+      const open = options.open;
+      const converse = button('Conversar', () => open(contact));
+      converse.className = 'primary';
+      actions.append(converse);
+    }
+    if (kind === 'incoming') requestActions(actions, contact);
+    const menu = contactMenu(actions, title),
       details = document.createElement('details'),
       summary = document.createElement('summary'),
       wallet = document.createElement('p');
-    p.textContent = `${contact.name || 'Sem nome'} · nome escolhido pelo usuário`;
-    summary.textContent = 'Wallet e ecossistema';
-    wallet.textContent = `${contact.ecosystem} · ${contact.address}`;
+    summary.textContent = 'Wallet e nome informado';
+    wallet.textContent = `${contact.ecosystem.toUpperCase()} · ${contact.address}. Nome escolhido pelo usuário.`;
     details.append(summary, wallet);
-    li.append(p, details);
-    if (kind === 'incoming')
-      li.append(
-        button('Aceitar', async () => {
-          await contacts.respond(contact.accountId, true);
-          await refresh();
-          status = 'Contato aprovado nos dois sentidos.';
-        }),
-        button('Rejeitar', async () => {
-          await contacts.respond(contact.accountId, false);
-          await refresh();
-          status =
-            'Solicitação rejeitada. A mesma identidade não pode repetir este pedido.';
-        }),
-      );
-    li.append(
+    menu.append(
+      details,
       button('Salvar na minha agenda', async () => selectPeer(contact)),
     );
     if (kind === 'outgoing')
-      li.append(
+      menu.append(
         button('Cancelar solicitação', async () => {
           await contacts.api('cancel', {
             revision: contacts.state.revision,
@@ -326,18 +418,41 @@ export function startContacts(
           status = 'Solicitação pendente cancelada.';
         }),
       );
-    return li;
+    return row;
+  }
+  function requestActions(actions: HTMLElement, contact: Peer): void {
+    const accept = button('Aceitar', async () => {
+      await contacts.respond(contact.accountId, true);
+      await refresh();
+      status = 'Contato aprovado nos dois sentidos.';
+    });
+    accept.className = 'primary';
+    actions.append(
+      accept,
+      button('Recusar', async () => {
+        await contacts.respond(contact.accountId, false);
+        await refresh();
+        status =
+          'Solicitação recusada. A mesma identidade não pode repetir este pedido.';
+      }),
+    );
   }
   function renderBlocks(): void {
     const list = node('[data-contact-list="blocked"]');
     if (!list) return;
     list.replaceChildren();
+    const query = value('[data-book-search]').trim().toLowerCase();
     for (const hash of contacts.pages.get('blocked')?.blocks ?? []) {
-      const li = document.createElement('li'),
-        p = document.createElement('p');
-      p.textContent = 'Referência do bloqueio: ' + hash;
-      li.append(
-        p,
+      if (!hash.toLowerCase().includes(query)) continue;
+      const { row, actions } = contactRow({
+        title: 'Wallet bloqueada',
+        detail: `Referência · ${shortWallet(hash)}`,
+      });
+      const menu = contactMenu(actions, `bloqueio ${shortWallet(hash)}`),
+        reference = document.createElement('p');
+      reference.textContent = `Referência do bloqueio: ${hash}`;
+      menu.append(reference);
+      actions.prepend(
         button('Desbloquear', async () => {
           await contacts.api('unblock', {
             revision: contacts.state.revision,
@@ -348,8 +463,10 @@ export function startContacts(
             'Bloqueio removido. Uma nova solicitação e aprovação continuam necessárias.';
         }),
       );
-      list.append(li);
+      list.append(row);
     }
+    if (!list.childElementCount)
+      emptyContacts(list, emptyList('blocked', contacts.pages.has('blocked')));
   }
   async function selectPeer(contact: Peer): Promise<void> {
     resetEditor();
@@ -360,6 +477,7 @@ export function startContacts(
     if (a) a.value = contact.address;
     if (alias) alias.value = contact.name;
     status = 'Confira o apelido particular e salve explicitamente na agenda.';
+    openEditor('wallet');
     await Promise.resolve();
   }
   async function configure(): Promise<void> {
@@ -457,10 +575,7 @@ export function startContacts(
       status = 'Link copiado. Compartilhe manualmente com o destinatário.';
     },
     'book-more': async () => {
-      offset =
-        offset + 16 < book.versions(value('[data-book-search]')).length
-          ? offset + 16
-          : 0;
+      offset = offset + 16 < bookEntries().length ? offset + 16 : 0;
       await Promise.resolve();
     },
     scan: async () => {
@@ -475,6 +590,7 @@ export function startContacts(
   function clear(): void {
     generation++;
     camera?.stop();
+    node<HTMLDialogElement>('[data-contact-editor]')?.close();
     contacts.clear();
     ownLink = null;
     editing = null;
@@ -505,6 +621,7 @@ export function startContacts(
     if (!received) return;
     const input = node<HTMLInputElement>('[data-contact-received]');
     if (input) input.value = invitationLink(location.origin, received);
+    openEditor('invite');
   }
   function readIncomingInvite(): void {
     try {
@@ -572,7 +689,7 @@ export function startContacts(
       status =
         'Salvar guarda o contato; pedir conversa continua sujeito ao aceite.';
       render();
-      node('[data-book-form]')?.scrollIntoView({ block: 'start' });
+      openEditor('wallet');
     },
     setSession(session: AccountSession | null): void {
       const firstConnection = !contacts.session && session !== null;
@@ -585,6 +702,7 @@ export function startContacts(
     canActivate: () =>
       !busy &&
       !camera?.active &&
+      !node<HTMLDialogElement>('[data-contact-editor]')?.open &&
       !value('[data-book-address]') &&
       !value('[data-contact-received]'),
     mount(
@@ -603,6 +721,8 @@ export function startContacts(
       mounted = container;
       container.innerHTML = mode === 'settings' ? settingsTemplate : template;
       restoreForm(formValues);
+      bindContactTabs(container);
+      bindEditor();
       readIncomingInvite();
       showReceivedInvite();
       mountCamera();
@@ -638,6 +758,8 @@ export function startContacts(
       node('[data-book-search]')?.addEventListener('input', () => {
         offset = 0;
         renderBook();
+        renderLists();
+        renderPagination();
       });
       render();
       void run(async () => {
