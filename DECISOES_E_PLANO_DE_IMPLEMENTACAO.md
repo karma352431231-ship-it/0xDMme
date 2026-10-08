@@ -23,6 +23,29 @@ Este documento registra o escopo, a arquitetura pretendida e a sequência de exe
 
 ## 2. Decisões consolidadas
 
+**Ampliação do ranking em 08/10/2026:** implementar manutenções por eventos e
+isolamento dos cortes 9–10, visualizações públicas e entrega em commits
+separados, com envio/ativação pela rotina revisada da VPS. O proprietário
+escolheu únicos estimados por navegador/post, incluindo leitura sem login:
+marca aleatória própria por post no navegador, somente hash por post no
+backend até a exclusão do post, sem conta/wallet/IP/fingerprint ou histórico
+correlacionável entre posts. A interface mostra só o total; não promete pessoas
+físicas únicas nem conta visitas anteriores à ativação. Percentuais de
+crescimento ficam internos. Contratos e aceite operacional no
+[plano do ranking](docs/RANKING_COMUNIDADES_TRENDING.md).
+
+**Implementação ampliada local em 08/10/2026:** cortes 9–10 usam consumidores
+independentes por eventos, vencimentos e fallback de cinco minutos. VPS terá
+três processos próprios (ranking, conteúdo privado, coleta pública), com pool
+1+uma conexão de sinais/trava cada, dentro do orçamento global existente de
+768 MiB/50% CPU/128 tarefas. Web isolado conserva pool 4+sinais. Visualizações
+usam um segundo de exposição, marcas distintas por post, admissão idempotente
+e coleta após exclusão. Não entram no Trending v1. Migrações 044–049, backup,
+preservação e rollback são revisão específica do executor existente; nenhum
+novo provedor/runtime/relaxamento de moderação foi aprovado. A entrega final
+registrará CI, commits e resultado real da ativação. As referências históricas
+abaixo a 9–10 pendentes ou execução somente local descrevem a autorização anterior.
+
 | Tema                          | Decisão                                                                                                                                                                                                                                                |
 | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Plataforma                    | Aplicação inteiramente web, responsiva e instalável como PWA.                                                                                                                                                                                          |
@@ -362,6 +385,16 @@ Uma prova de existência não armazena o conteúdo e não comprova concordância
 Provas podem ser verificadas no backend sem transação on-chain. Medir custo de geração em celulares reais. Bibliotecas e circuitos auditados são candidatos; a integração do aplicativo ainda exige revisão própria.
 
 ### 6.4 Comunidades públicas — camada social planejada
+
+**Implementação dos rankings autorizada em 08/10/2026:** executar localmente cortes 1–8 do plano, incluindo revisão do push comum, com continuidade após compactação e decisões técnicas autônomas registradas para revisão final. O proprietário escolheu upvotes pela variação líquida agregada recente (opção B, até 14 dias, sem histórico de votantes), recém-criadas com idade máxima de sete dias e arquivadas fora de Trending/recém-criadas, conservadas em Maiores/listagem completa. Parâmetros iniciais e fronteiras no [registro de execução](docs/RANKING_COMUNIDADES_TRENDING.md#execução-dos-cortes-18--autorizada-em-08102026). Autorização local não inclui migração/ativação na VPS; cortes 9–10 permanecem posteriores.
+
+**Histórico do planejamento do ranking em 08/10/2026, substituído pela entrega abaixo:** o proprietário definiu substituir a experiência de Explorar comunidades por Trending, Maiores e Comunidades recém-criadas, sem pontos para gastar ou boost. Trending combina atividade e crescimento em 24h/sete dias, equilibrando ganho absoluto e percentual; os seis critérios escolhidos são participantes distintos, posts que geram conversa, retorno, constância, diversidade de autores e upvotes agregados em posts. Maiores mantém seguidores atuais; recém-criadas destaca comunidades novas e pequenas ganhando engajamento. Preservar leitura pública, participação sem follow e privacidade dos votos individuais. Naquela investigação, fórmula, pesos, novidade/tamanho e contratos temporais ainda estavam abertos; o código anterior mantinha placar líquido sem histórico temporal de upvotes e não registrava data de criação das comunidades. Direção, limites, cenários e etapas no [plano do ranking](docs/RANKING_COMUNIDADES_TRENDING.md). Esse parágrafo registra a etapa documental anterior à implementação; a entrega histórica do corte 6 abaixo descreve o contrato que existia antes do ranking.
+
+**Lições de implementação documentadas em 08/10/2026:** o proprietário pediu incorporar a experiência de outro ranking ao [desenho de processamento/publicação](docs/RANKING_COMUNIDADES_TRENDING.md#9-aprendizados-de-outro-ranking-aplicados-à-implementação): comunidades afetadas, trabalho durável após commit, métricas e fórmula versionadas, geração compartilhada consumida pela API, expiração de janelas, deduplicação exata, reversões/moderação e custo do fluxo completo. Recomposição por comunidade afetada é a proposta inicial; incrementos mais complexos dependem de medição. Essa diretriz foi aplicada nos cortes locais abaixo. O relato externo não aprova infraestrutura/ativação nem comprova desempenho deste projeto.
+
+**Acionamento e próxima etapa definidos em 08/10/2026:** o proprietário definiu eventos confirmados e próximos vencimentos como fluxo principal, com verificação periódica somente como fallback de recuperação. Aplicar durante o ranking a marcação durável, o sinal após commit, a continuidade dos lotes elegíveis e o agendamento das janelas. Após entregar Trending/Maiores/recém-criadas, revisar push comum, manutenções acopladas, coletores e demais rotinas existentes, incluindo isolamento de falhas por responsabilidade quando necessário. Heartbeats/timeouts de protocolo preservam sua finalidade; estados efêmeros de chamadas/recuperação não ganham persistência por consequência. Direção e aceite nas [seções 9.8 e 10.1 do plano](docs/RANKING_COMUNIDADES_TRENDING.md#98-acionamento-por-eventos-e-prazos--direção-definida-em-08102026). Push comum foi antecipado ao corte 8; demais manutenções e novos serviços continuam nos cortes 9–10. Ativação e migrações na VPS exigem revisão própria.
+
+**Entrega local do ranking em 08/10/2026 — cortes 1–8:** Ranking/Trending, Maiores e recém-criadas, seis métricas exatas, fórmula versionada, deltas agregados de positivos por post, produtor por eventos/prazos e geração compartilhada paginável implementados. Migrações 044–047 somente no banco exclusivo de testes. Push comum usa sinais após commit, drena lotes e agenda retries; reserva periódica de cinco minutos preservada. Escolhas iniciais sob autonomia: recém-criadas com até 500 seguidores/três participantes e data comprovada, regularização de crescimento 100/50, janela observada completa antes de crescimento, agrupamento 100 ms, lotes de 32/16 e cache de 64 MiB com cursores de até cinco minutos. Pressão expira gerações antigas sem truncar candidatos. Contratos, validação, decisões para revisão e limites operacionais no [documento do ranking](docs/RANKING_COMUNIDADES_TRENDING.md). **Ponto importante:** sem publicação/ativação na VPS; cortes 9–10 e aceite físico/operacional permanecem posteriores.
 
 **Processador público autorizado em 07/10/2026:** após a explicação de que o FFmpeg não estava instalado e exigia isolamento, o proprietário pediu habilitar também envio/preparação de mídia e retomar a calibração depois. Serviço e socket Unix próprios, orçamento separado de quatro CPUs/8 GiB, sem elevar o orçamento do web ou acessar dados privados, banco, credenciais ou arquivos do outro projeto. Runtime FFmpeg/ffprobe externo, com os mesmos hashes do benchmark e GPL preservada no runtime interno; sem nova dependência npm/Node e sem distribuição desses executáveis no frontend. Unidades próprias e drop-in do web têm rollback limitado às nossas adições; a aplicação continua ativada pelo executor existente, com CI exata e migrações revisadas. Esta decisão não aceita o candidato de moderação, não altera a política artística e não libera publicação de mídia sem análise aceita. Evidências e acesso somente em `.local/`; ver [processador](docs/PROCESSADOR_MIDIA_COMUNIDADES.md).
 

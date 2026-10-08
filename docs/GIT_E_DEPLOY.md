@@ -834,3 +834,52 @@ A ação requer a release exata já publicada, manifesto correspondente e config
 **Ponto importante:** 429 ainda não foi confirmado como a causa da captura. O novo diagnóstico identifica a operação e o status das próximas falhas sem conteúdo privado. O teto de concorrência do site permanece; não há benchmark de capacidade ou garantia de eliminar toda indisponibilidade.
 
 A release anterior já ocupava as 512 entradas do manifesto. A exceção técnica admite somente as duas entradas `src/client/api-response/index.ts` e `infra/staging/deploy_request_limit.py` além das 512 existentes, total máximo 514 quando ambas estiverem presentes. Qualquer crescimento adicional continua recusado. Os limites de bytes do manifesto, pacote de 16 MiB, extração de 128 MiB, fontes públicas e recursos não aumentam; a regressão cobre a recusa de um terceiro arquivo adicional e de um manifesto excedido sem esses módulos.
+
+## Preparação local do ranking — 08/10/2026
+
+A implementação local dos cortes 1–8 acrescentou dez arquivos de execução ao
+manifesto. Sob a autorização de decisões técnicas autônomas, o executor
+existente admite somente os dez caminhos enumerados em `RANKING_SOURCE_FILES`,
+além das duas exceções anteriores de diagnóstico HTTP. Arquivos adicionais não
+revisados continuam sujeitos ao teto base de 512 entradas. Limites de arquivo,
+extração, runtime, hashes, fontes correspondentes e compatibilidade permanecem
+ativos. A preparação foi verificada em snapshot Git sintético temporário, sem
+commit no checkout do proprietário, SSH ou ativação.
+
+**Ponto importante:** essa exceção permite preparar as fontes; não autoriza a
+transição de banco 043→047, não cria uma autorização de release e não muda
+serviços da VPS. Migrações 044–047 foram aplicadas somente no banco exclusivo de
+testes. Ativação futura exige revisão operacional e autorização próprias,
+checkout limpo/enviado, CI do commit exato, preservação e rollback pelo comando
+já existente. Parâmetros e verificação no [plano do ranking](RANKING_COMUNIDADES_TRENDING.md).
+
+### Ranking, visualizações e workers — autorização de 08/10/2026
+
+O proprietário autorizou concluir os cortes 1–10, visualizações públicas,
+commits separados, push ao GitHub e Git dedicado da VPS e ativação. Reusar
+`npm run deploy:staging`, com checkout limpo, fontes exatas e CI aprovada.
+`deploy_background.py` é um módulo interno do mesmo executor, sem novo comando
+alternativo. A revisão é restrita ao predecessor registrado e fontes de aplicação
+fixadas no módulo, schema 043→049, sem dependências/Node novos. As exceções do
+manifesto enumeram exatamente os caminhos adicionais; limites de arquivo,
+extração, bytes e runtime continuam os mesmos.
+
+O executor instala somente três unidades próprias, bytes duráveis no volume do
+0xDMme e links administrados pelo systemd, mais `40-background.conf` no drop-in
+existente do nosso web. O deploy pode escrever nesse diretório próprio; nenhuma
+permissão adicional para configuração de outros projetos. Recarrega o inventário
+do systemd e habilita somente esses serviços, preservando configurações e PIDs
+registrados dos serviços existentes. Nenhum reload do Nginx é necessário.
+
+O web para antes do backup/migração; workers novos ainda não estão ativos. A
+abertura exige schema/dados/objetos preservados, web saudável e três travas
+exclusivas PostgreSQL. Rollback antes de abrir restaura backup validado, release
+e nossas adições. Depois de abrir, preservar novas escritas e parar somente
+nossos escritores para revisão. Releases seguintes de código também reiniciam
+os três workers próprios para evitar processos executando arquivos da release
+anterior. CPU/RAM/tarefas do slice compartilhado do 0xDMme permanecem limitados.
+Acesso, hashes privados, backups e evidências operacionais ficam em `.local/`.
+
+Fontes de aplicação fixadas em `a2ed2c32cb63abd85311fc381b691fe1c6d6ce37`; predecessor exclusivo
+`2921232287a929477e6d7cf18e7f82ff9d0fcddd`. Commits posteriores desta
+entrega acrescentam documentação e executor, sem alterar as fontes aprovadas.

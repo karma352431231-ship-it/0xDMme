@@ -1,16 +1,16 @@
 # Comunidades públicas — direção de produto em 05/10/2026
 
-Estado: plano consolidado em 10 cortes; cortes 1–9 implementados localmente. Perfil/Configurações reunidos, perfil público opcional com `@` fixo e comunidades com governança, posts de texto e tags locais. A área Comunidades oferece diretório público, seguidos privados, criação e gestão no desktop/mobile. Replies, votos, avisos diretos, feeds, descoberta, preferências privadas e DMs pelo `@` com texto/links, áudio, foto/GIF e histórico/backup E2EE implementados. Corte 10 em andamento: fila, retenção/coleta, contestação, ferramenta restrita, executor de frames e leitura pública preparados; liberação testada somente com detector sintético. Mídia real permanece sem liberação automática enquanto o detector não tiver precisão validada. Migrações 028–043 somente no banco exclusivo de testes; nenhum pacote npm novo, modelo de análise aceito ou ativação na VPS. O aceite final mantém ensaios físicos e a validação obrigatória antes da exposição pública de mídia; as limitações da conferência local do corte 8 estão registradas abaixo. Referência central: [plano, seção 6.4](../DECISOES_E_PLANO_DE_IMPLEMENTACAO.md#64-comunidades-públicas--camada-social-planejada).
+Estado: plano consolidado em 10 cortes; cortes 1–9 implementados localmente. Perfil/Configurações reunidos, perfil público opcional com `@` fixo e comunidades com governança, posts de texto e tags locais. A área Comunidades oferece diretório público, seguidos privados, criação e gestão no desktop/mobile. Replies, votos, avisos diretos, feeds, descoberta, preferências privadas e DMs pelo `@` com texto/links, áudio, foto/GIF e histórico/backup E2EE implementados. Corte 10 em andamento: fila, retenção/coleta, contestação, ferramenta restrita, executor de frames e leitura pública preparados; liberação testada somente com detector sintético. Mídia real permanece sem liberação automática enquanto o detector não tiver precisão validada. As migrações de comunidades 028–043 têm histórico de ativação próprio; ranking 044–047 foi aplicado somente no banco exclusivo de testes. A entrega do ranking não acrescenta pacote npm, aceite de detector real ou ativação na VPS. O aceite final mantém ensaios físicos e a validação obrigatória antes da exposição pública de mídia; as limitações da conferência local do corte 8 estão registradas abaixo. Referência central: [plano, seção 6.4](../DECISOES_E_PLANO_DE_IMPLEMENTACAO.md#64-comunidades-públicas--camada-social-planejada).
 
 ## Decisões do proprietário
 
 - Preservar Conversas com a tela existente, contatos e grupos privados; Comunidades é uma área separada.
 - Perfil e Configurações formam uma única tela no desktop/mobile: foto, nome, wallet e demais dados da própria conta no topo; configurações existentes logo abaixo. Não obrigar outra navegação para configurar. Informações privadas dessa tela pertencem ao dono autenticado e não compõem o perfil público por `@`.
-- Na área Comunidades, a coluna esquerda mostra comunidades seguidas, DMs pelo `@`, Feed geral e Explorar. A prévia social apresentada na conversa foi aceita como base inicial. O uso de “MVP” refere-se a essa base visual, sem reduzir os requisitos já aprovados da V1 privada.
+- Na área Comunidades, a coluna esquerda mostra comunidades seguidas, DMs pelo `@`, Feed geral e Ranking (Explorar no contrato histórico). A prévia social apresentada na conversa foi aceita como base inicial. O uso de “MVP” refere-se a essa base visual, sem reduzir os requisitos já aprovados da V1 privada.
 - Cada comunidade possui nome e foto próprios, regras próprias de moderação e espaço para posts de qualquer conta autorizada. Seguir/entrar não é condição para publicar ou interagir. Não criar modo de página em que apenas o dono publica; restrições decorrentes da moderação continuam aplicáveis.
 - Qualquer conta com perfil público pode criar gratuitamente. O criador é proprietário, pode nomear moderadores e transferir a propriedade com aceite. Não importar automaticamente limite de membros, convites ou cotas dos grupos privados.
 - Qualquer visitante pode ler na web sem conta. Participação exige conta, regras e controles de abuso; seguir serve para acompanhar e organizar a navegação.
-- Feed geral contém posts de várias comunidades, inclusive não seguidas. Explorar permite descobrir e abrir maiores/mais engajadas antes de seguir. Classificações por tamanho e atividade são distintas, com fórmulas explicitadas no contrato do corte 6.
+- Feed geral contém posts de várias comunidades, inclusive não seguidas. A descoberta permite abrir comunidades antes de seguir. O contrato histórico do corte 6 separava Maiores/Mais ativas; a implementação local de 08/10/2026 substitui Explorar por Ranking, com Trending, Maiores e Comunidades recém-criadas, conforme o [plano do ranking](RANKING_COMUNIDADES_TRENDING.md).
 - Experiência centrada em memes, posts, tags, upvote/downvote em posts, comentários, respostas em árvore e votos em respostas. Filtros incluem recentes, mais votados e mais comentados. Não transformar sugestões de fórum/suporte em requisitos.
 - Moderação faz parte da primeira entrega pública, com desenvolvimento/validação automática na etapa final. Proibir pornografia/conteúdo sexual explícito real, de IA ou desenhado: genitais expostos, seios femininos expostos e atos sexuais explícitos, incluindo poses que simulam ou apresentam esses atos conforme o esclarecimento de 07/10/2026. Biquíni, roupa curta, provocação e personagem de IA nessas roupas não são pornografia por si só. Regras locais não relaxam essa política global. Análise deve ser automática na própria infraestrutura, sem enviar conteúdo a serviços externos ou exigir que uma pessoa avalie todos os posts.
 - Não reter todos os posts para aprovação humana. Somente suspeitos ficam retidos após análise automática; a checagem breve de imagens antes da exposição precisa ser validada e comunicada.
@@ -20,6 +20,18 @@ Estado: plano consolidado em 10 cortes; cortes 1–9 implementados localmente. P
 - Notificações de comunidades somente para respostas: quando alguém responde ao post do usuário, ele recebe notificação. Não notificar novos posts, votos, novos seguidores ou atividade genérica. O detalhamento adotado no fechamento do plano e implementado no corte 5 inclui respostas diretas a comentários próprios, sem avisar o autor do post por toda a árvore e sem autoaviso.
 - Não revelar wallet, nome do perfil privado ou demais informações privadas pela camada pública. Manter conversas, agenda, cofre, status privado e chaves nas proteções atuais.
 - O proprietário concordou com a separação de dados públicos/privados e com os recursos complementares apresentados anteriormente. Isso inclui feed de descoberta/seguidos, controles para ocultar conteúdo, períodos de ordenação e proteção de votos, salvos, comunidades seguidas e denúncias contra divulgação pública automática. Contratos de follows/salvos/ocultos estão registrados no corte 6; permissões e retenção das demais operações seguem seus cortes próprios.
+
+## Ranking de comunidades — implementação local em 08/10/2026
+
+Os oito primeiros cortes do [plano detalhado](RANKING_COMUNIDADES_TRENDING.md) implementam Ranking no lugar de Explorar, com Trending/24h ou sete dias, Maiores pelo total de seguidores e Comunidades recém-criadas. Os seis sinais são participantes distintos, discussões com respostas de outro autor, retorno, constância, diversidade de autores e ganhos líquidos positivos de upvotes por post, inclusive antigo. Leitura sem conta, participação sem follow, votos individuais privados e listagem completa foram preservados.
+
+O proprietário escolheu a opção B de votos temporais, idade máxima de sete dias e arquivadas fora de Trending/recém-criadas, mantidas em Maiores. Sob autorização de decisão autônoma, recém-criadas recebe teto inicial de 500 seguidores e mínimo de três participantes; idade antiga desconhecida fica fora desse filtro. Crescimento exige duas janelas observadas completas: 48h para 24h e 14 dias para sete dias; a interface informa histórico em formação. As migrações 044–047 registram futuras criações, deltas agregados sem votantes e dados derivados com orçamento global. Não inventam histórico passado.
+
+O produtor consome revisões duráveis por comunidade, acorda após commit via PostgreSQL e agenda próximos vencimentos. Calcula em lotes de 32, usa corte fixo por rodada e publica atomicamente o universo completo em gerações compartilhadas. API paginada não recalcula os seis critérios. Cache de 64 MiB, validade máxima de cinco minutos e coleta limitada; pressão pode expirar cursores antigos e exige recarga explícita. Resultados e limites dos ensaios locais ficam no plano.
+
+O corte 8 converteu o push comum para sinais após commit, drenagem de lotes de 16 e próximo retry agendado. Novas admissões ficam disponíveis imediatamente; falha mantém retry de 60s e até três tentativas. Ranking/push conservam fallback de cinco minutos e recuperação na inicialização/reconexão. Outros coletores e separações de serviços aguardam cortes 9–10, conforme a [revisão dos workers](RANKING_COMUNIDADES_TRENDING.md#101-revisão-dos-workers-existentes-depois-da-entrega-dos-rankings).
+
+**Ponto importante:** esses cortes foram implementados e verificados localmente, sem ativação ou migrações na VPS. Fórmula e parâmetros iniciais estão registrados para revisão do proprietário; números sintéticos não comprovam capacidade operacional nem substituem aceite físico mobile.
 
 ## Perfil público separado — aprovado
 
@@ -220,6 +232,8 @@ Validação local: lint com tipos, TypeScript estrito, fronteiras/ciclos, licen�
 
 ### Corte 6 — feed e descoberta local em 06/10/2026
 
+**Evolução planejada em 08/10/2026:** o [ranking de comunidades](RANKING_COMUNIDADES_TRENDING.md) substitui a classificação da área Explorar por Trending/Maiores/Comunidades recém-criadas quando implementado. O contrato abaixo registra o funcionamento atualmente implementado. Os filtros dos feeds de posts e as fronteiras de privacidade continuam válidos.
+
 O feed geral reúne posts públicos de comunidades seguidas e não seguidas. Seguindo agora abre o feed das comunidades acompanhadas; sua lista continua no atalho “Ver comunidades seguidas” e na coluna esquerda. Explorar ordena por **Maiores**, número atual de seguidores, ou **Mais ativas**, quantidade de posts e replies visíveis publicados no período. Não há limiar mínimo: comunidades sem seguidores/atividade continuam descobríveis. Atividade desconsidera conteúdo excluído/retirado e replies cujo original está excluído/retirado. Não é prova de pessoas únicas nem proteção completa contra várias contas; controles de abuso e aceite operacional continuam necessários.
 
 Feeds gerais, de seguidos e da própria comunidade oferecem Recentes, Mais votados (placar líquido atual, inclusive negativo) e Mais comentados (número público de respostas diretas, incluindo marcadores preservados). Salvos/Ocultos têm os mesmos filtros. Períodos são janelas de publicação de 24 horas, 7 dias, 30 dias ou todo o histórico; a ordenação usa os placares atuais desses posts, sem prometer votos recebidos somente naquele período. Explorar começa em Maiores/7 dias de atividade; os feeds começam em Recentes/todo o histórico. Tags continuam locais à comunidade, com filtro paginado.
@@ -359,3 +373,25 @@ O plano de produto e a divisão estão fechados. Os itens abaixo são contratos/
 - **Antes de ativação:** dimensionamento global, temporários/recusados/backups e preservação do outro projeto da VPS, sem compras nem mudanças compartilhadas implícitas. Conservar os registros de governança/denúncias conforme o contrato do corte 3; capacidade finita exige admissão e acompanhamento operacional.
 
 **Ponto importante:** os cortes 1–9 reuniram Perfil/Configurações, identidade pública, comunidades/governança, posts/tags, replies/votos, avisos diretos, feeds/descoberta e DMs pelo `@` com mídia/cofre pessoal e preparo restrito de mídia dos posts/replies locais, sem divulgar perfil ou chaves privados. Mídia pública permanece restrita até a análise automática validada no corte final. Migrações 028–037 aplicadas somente no banco de testes; sem pacote npm novo, alteração do runtime de produção ou deploy.
+
+### Visualizações públicas e manutenção isolada — 08/10/2026
+
+Posts e respostas visíveis expõem `views`, agregado de navegadores estimados.
+`POST /api/communities/views` recebe até 24 observações com comunidade, post e
+marca aleatória distinta por post; admite leitura anônima, valida origem,
+formato, visibilidade e capacidade global. Repete a marca sem incrementar;
+resposta inclui somente IDs/totais. Não recebe wallet, IP, conta ou fingerprint.
+Marca armazenada como hash, coletada em lotes após exclusão. Ocultação
+restaurável conserva a deduplicação. O cliente observa exposição por um segundo,
+batcheia e limita tentativas; as contagens não alteram Trending v1. Contrato e
+limitações no [plano do ranking](RANKING_COMUNIDADES_TRENDING.md#entrega-dos-cortes-910-e-visualizações--08102026).
+
+Ranking, manutenção privada e coleta pública têm consumidores por eventos e
+prazos e três serviços próprios na VPS, com erros/reinícios independentes.
+Checksums dos schemas são verificados pelos workers, que não migram o banco.
+A ativação usa o [executor existente](GIT_E_DEPLOY.md#ranking-visualizações-e-workers--autorização-de-08102026), preservando o orçamento global e o outro projeto.
+
+**Ponto importante:** contagem estima navegadores, incluindo visitantes sem
+login, e começa na ativação. Limpar armazenamento ou usar outro aparelho pode
+contar novamente. A seleção do detector real de moderação continua dependendo
+do aceite já documentado.
