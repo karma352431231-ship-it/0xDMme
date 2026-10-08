@@ -942,6 +942,26 @@ class CommunityFeedCodeTests(unittest.TestCase):
             remote.compatibility(self.candidate, self.live)
 
 
+class RankingMetricsCodeTests(CommunityFeedCodeTests):
+    def setUp(self):
+        super().setUp()
+        for relative in ['communities.ts', 'community-discovery.ts']:
+            (self.candidate / 'src/server/database' / relative).write_bytes(
+                (self.live / 'src/server/database' / relative).read_bytes())
+        (self.live / 'src/server/database/community-ranking-metrics.ts').write_text('existing ranking query')
+        (self.candidate / 'src/server/database/community-ranking-metrics.ts').write_text('reviewed transaction-scoped JIT setting')
+        self.exports = {
+            remote.RANKING_METRICS_BEFORE: self.export(self.live),
+            remote.RANKING_METRICS_REVIEWED: self.export(self.candidate),
+        }
+
+    def test_unreviewed_metric_query_is_rejected(self):
+        (self.candidate / 'src/server/database/community-ranking-metrics.ts').write_text('unreviewed query')
+        with (patch.object(backups, 'git_export', side_effect=lambda sha: self.exports[sha]),
+              self.assertRaises(RuntimeError)):
+            remote.compatibility(self.candidate, self.live)
+
+
 class MobileOpeningCodeTests(CommunityFeedCodeTests):
     def setUp(self):
         super().setUp()

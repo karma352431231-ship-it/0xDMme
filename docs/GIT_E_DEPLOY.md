@@ -880,9 +880,10 @@ os três workers próprios para evitar processos executando arquivos da release
 anterior. CPU/RAM/tarefas do slice compartilhado do 0xDMme permanecem limitados.
 Acesso, hashes privados, backups e evidências operacionais ficam em `.local/`.
 
-Fontes de aplicação fixadas em `a2ed2c32cb63abd85311fc381b691fe1c6d6ce37`; predecessor exclusivo
-`2921232287a929477e6d7cf18e7f82ff9d0fcddd`. Commits posteriores desta
-entrega acrescentam documentação e executor, sem alterar as fontes aprovadas.
+Fontes da transição inicial fixadas em `a2ed2c32cb63abd85311fc381b691fe1c6d6ce37`; predecessor exclusivo
+`2921232287a929477e6d7cf18e7f82ff9d0fcddd`. Os primeiros commits posteriores
+acrescentam documentação e executor. A correção de consulta descrita abaixo
+tem sua própria revisão de fontes, sem novas migrações.
 
 Na primeira tentativa desta transição, o validador systemd tentou criar seu
 diretório temporário no filesystem somente leitura do executor. O rollback
@@ -900,3 +901,19 @@ Falhas de transição também registram fase, tipo e mensagens controladas dos
 guards no recibo/stderr privado antes do rollback. Não incluir SQL, argumentos,
 credenciais ou conteúdo. Assim o rollback conserva a causa diagnosticável,
 inclusive quando o limite do executor interrompe sua conclusão.
+
+### Correção da consulta de ranking — 08/10/2026
+
+Sob a autorização de concluir e ativar a entrega, a medição de ranking passa a
+usar transação curta de somente leitura e `SET LOCAL jit=off`. A opção termina
+com a transação, inclusive após erro; limites de consultas, CPU e RAM permanecem.
+Não alterar a configuração global do PostgreSQL nem executar novas migrações.
+
+O mesmo executor admite somente o diff de `community-ranking-metrics.ts` entre
+o predecessor `0139e1d0f04681555e1dffea23f77cdf367c70d3` e a fonte revisada
+`04a02dad65d480ad662f0a0f93e58da884518a5f`, comparando o diretório inteiro do banco.
+SQLs aplicados, demais módulos, dependências e Node devem permanecer idênticos.
+Commits posteriores podem acrescentar esta guarda/documentação sem mudar a
+projeção aprovada. Build no Mac, CI exata, publicação pelo `npm run deploy:staging`,
+reinício dos serviços próprios, preservação e rollback de código continuam
+obrigatórios. Evidências e consumo reais ficam exclusivamente em `.local/`.
