@@ -341,13 +341,16 @@ conversationContent.addEventListener('click', (event) => {
   if (
     event.target instanceof Element &&
     event.target.closest('[data-chat-back]')
-  )
+  ) {
     element('app-shell').dataset['chatOpen'] = 'false';
+    messages.viewChanged();
+  }
 });
 document
   .querySelector('[data-route=conversas]')
   ?.addEventListener('click', () => {
     element('app-shell').dataset['chatOpen'] = 'false';
+    messages.viewChanged();
   });
 window.addEventListener('hashchange', route);
 window.addEventListener('online', connection);

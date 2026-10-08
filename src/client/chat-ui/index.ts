@@ -152,6 +152,21 @@ export function bindChatOptions(host: HTMLElement): void {
   });
 }
 
+/** Receipts never replace a bubble, its media, actions or reading position. */
+export function updateMessageStates(
+  history: HTMLElement | null,
+  states: ReadonlyMap<string, HTMLElement>,
+): void {
+  history
+    ?.querySelectorAll<HTMLElement>('[data-message]')
+    .forEach((article) => {
+      const previous = article.querySelector('.message-meta'),
+        next = states.get(article.dataset['message'] ?? '');
+      if (previous && next && !previous.isEqualNode(next))
+        previous.replaceWith(next);
+    });
+}
+
 /** Keep the reading position on refresh; only follow messages when already at the bottom. */
 const positions = new WeakMap<HTMLElement, { top: number; follow: boolean }>();
 const newConversations = new WeakSet<HTMLElement>();

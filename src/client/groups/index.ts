@@ -46,7 +46,9 @@ export function startGroups(
   const controller = new GroupController(
       access,
       sync,
-      () => !!host?.getClientRects().length,
+      () =>
+        document.visibilityState === 'visible' &&
+        !!host?.getClientRects().length,
     ),
     emoji = new EmojiPicker(),
     attachments = new AttachmentUi(options.playback, voiceStatus);
@@ -188,6 +190,11 @@ export function startGroups(
       notice = 'Propriedade do grupo atualizada.';
   }
   async function refreshSelected(selected: string | undefined): Promise<void> {
+    if (
+      document.visibilityState !== 'visible' ||
+      !host?.getClientRects().length
+    )
+      return;
     if (
       selected &&
       controller.entries.some((g) => g.state.groupId === selected)

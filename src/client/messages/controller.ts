@@ -49,6 +49,7 @@ import {
 } from '../message-recovery/index.ts';
 import { MessageCrypto } from '../message-crypto/index.ts';
 import { MessageVisibility } from '../message-visibility/index.ts';
+import type { HistoryUpdate } from '../message-visibility/index.ts';
 import {
   localGet,
   localPut,
@@ -132,7 +133,10 @@ export class Messages {
   constructor(
     access: VaultAccess,
     sync: VaultSync,
-    publish: (rows: readonly MessageView[] | null) => void,
+    publish: (
+      rows: readonly MessageView[] | null,
+      update: HistoryUpdate,
+    ) => void,
   ) {
     this.access = access;
     this.sync = sync;
@@ -162,6 +166,11 @@ export class Messages {
   hide(): void {
     this.confirmed = null;
     this.visibility.close();
+  }
+  /** A wakeup is not authority. Keep the verified snapshot only for comparison,
+   * with the history hidden until a fresh snapshot and delivery check succeed. */
+  hint(): void {
+    this.visibility.close(this.confirmed ? 'delivery' : 'history');
   }
   select(peer: string | null, older = false): void {
     this.close();
@@ -1226,18 +1235,23 @@ export class Messages {
     });
   }
   async probe(): Promise<boolean> {
-    const token = this.visibility.begin(),
+    const token = this.visibility.begin(
+        this.confirmed ? 'delivery' : 'history',
+      ),
       generation = this.generation;
     try {
       const snapshot = await this.access.withVault(false, (a) =>
         messageApi(a, 'snapshot', {}, () => this.guard(generation)),
       );
+      this.guard(generation);
       if (this.confirmed?.snapshot === JSON.stringify(snapshot)) {
         await this.refreshDelivery(snapshot, generation);
         this.visibility.stage(token, this.confirmed.views);
         this.visibility.complete(token);
         return false;
       }
+      this.confirmed = null;
+      this.visibility.close();
       return true;
     } catch (error: unknown) {
       this.confirmed = null;

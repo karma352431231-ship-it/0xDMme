@@ -4,6 +4,7 @@ import {
   composerState,
   historyPosition,
   resetHistoryPosition,
+  updateMessageStates,
 } from '../src/client/chat-ui/index.ts';
 
 await test('sincronização bloqueia envio mesmo com texto ou anexo pronto', () => {
@@ -112,4 +113,45 @@ await test('trocar de conversa não reutiliza a posição antiga antes de oculta
   history.scrollHeight = 1500;
   restore();
   assert.equal(history.scrollTop, 1500);
+});
+await test('recibos alteram somente os checks; mídia, bolha e posição de leitura permanecem', () => {
+  const media = {},
+    body = {},
+    actions = {},
+    unchanged = {} as HTMLElement,
+    received = {} as HTMLElement;
+  let detail = unchanged,
+    replacements = 0;
+  const article = {
+    dataset: { message: 'synthetic-id' },
+    media,
+    body,
+    actions,
+    querySelector: () => ({
+      isEqualNode: (next: HTMLElement) => next === detail,
+      replaceWith: (next: HTMLElement) => {
+        replacements++;
+        detail = next;
+      },
+    }),
+  };
+  const history = {
+    scrollTop: 170,
+    querySelectorAll: () => [article],
+  };
+  updateMessageStates(
+    history as unknown as HTMLElement,
+    new Map([['synthetic-id', unchanged]]),
+  );
+  assert.equal(replacements, 0);
+  updateMessageStates(
+    history as unknown as HTMLElement,
+    new Map([['synthetic-id', received]]),
+  );
+  assert.equal(replacements, 1);
+  assert.equal(detail, received);
+  assert.equal(article.media, media);
+  assert.equal(article.body, body);
+  assert.equal(article.actions, actions);
+  assert.equal(history.scrollTop, 170);
 });

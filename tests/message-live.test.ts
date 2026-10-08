@@ -7,6 +7,7 @@ import { MessageLive } from '../src/server/message-live/index.ts';
 import {
   WakeupFrames,
   LiveMessages,
+  LiveUpdates,
 } from '../src/client/message-live/index.ts';
 import type { AccountSession } from '../src/shared/account/index.ts';
 import type {
@@ -44,6 +45,62 @@ function response() {
 function turn(): Promise<void> {
   return new Promise((resolve) => setImmediate(resolve));
 }
+await test('avisos próximos geram uma sondagem; reconexão exige refresh e não pode ser rebaixada por changed', (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const applied: string[] = [];
+  const updates = new LiveUpdates({
+    available: () => true,
+    run: (update) => applied.push(update),
+  });
+  for (let i = 0; i < 100; i++) updates.request('probe');
+  t.mock.timers.tick(149);
+  assert.deepEqual(applied, []);
+  t.mock.timers.tick(1);
+  assert.deepEqual(applied, ['probe']);
+  updates.request('probe');
+  updates.request('refresh');
+  updates.request('probe');
+  t.mock.timers.tick(150);
+  assert.deepEqual(applied, ['probe', 'refresh']);
+});
+await test('avisos durante trabalho ou suspensão aguardam retomada; troca de sessão cancela o pedido antigo', (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const applied: string[] = [];
+  let available = false;
+  const updates = new LiveUpdates({
+    available: () => available,
+    run: (update) => {
+      applied.push(update);
+      available = false;
+    },
+  });
+  updates.request('probe');
+  updates.request('probe');
+  t.mock.timers.tick(1000);
+  assert.deepEqual(applied, []);
+  available = true;
+  updates.resume();
+  t.mock.timers.tick(150);
+  assert.deepEqual(applied, ['probe']);
+  updates.request('refresh');
+  updates.request('probe');
+  available = true;
+  updates.resume();
+  available = false;
+  t.mock.timers.tick(150);
+  assert.deepEqual(applied, ['probe']);
+  available = true;
+  updates.resume();
+  t.mock.timers.tick(150);
+  assert.deepEqual(applied, ['probe', 'refresh']);
+  available = true;
+  updates.request('refresh');
+  updates.clear();
+  t.mock.timers.tick(1000);
+  updates.resume();
+  t.mock.timers.tick(150);
+  assert.deepEqual(applied, ['probe', 'refresh']);
+});
 await test('SSE admite mais de 8 clientes/2 abas; fanout só para contas afetadas e heartbeat sem banco', async (t) => {
   t.mock.timers.enable({ apis: ['setTimeout', 'setInterval'] });
   const changes = new DatabaseChanges(),

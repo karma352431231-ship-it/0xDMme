@@ -8,6 +8,44 @@ import { prepareMessageRequest } from '../message-api/index.ts';
 import type { VaultAccess } from '../vault-authority/index.ts';
 export type LiveEvent =
   'ready' | 'changed' | 'authorization' | 'invalidated' | 'revoked' | 'ended';
+export type LiveUpdate = 'probe' | 'refresh';
+
+/** One bounded wakeup window, one pending update. Invalidations happen at the
+ * caller immediately; only the subsequent network work is coalesced. */
+export class LiveUpdates {
+  private pending: LiveUpdate | null = null;
+  private timer: ReturnType<typeof setTimeout> | null = null;
+  private readonly available: () => boolean;
+  private readonly run: (update: LiveUpdate) => void;
+  constructor(options: {
+    available: () => boolean;
+    run: (update: LiveUpdate) => void;
+  }) {
+    this.available = options.available;
+    this.run = options.run;
+  }
+  request(update: LiveUpdate = 'refresh'): void {
+    if (this.pending !== 'refresh') this.pending = update;
+    this.resume();
+  }
+  resume(): void {
+    if (this.timer !== null || this.pending === null || !this.available())
+      return;
+    this.timer = setTimeout(() => {
+      this.timer = null;
+      if (!this.available() || this.pending === null) return;
+      const update = this.pending;
+      this.pending = null;
+      this.run(update);
+    }, 150);
+  }
+  clear(): void {
+    if (this.timer !== null) clearTimeout(this.timer);
+    this.timer = null;
+    this.pending = null;
+  }
+}
+
 export class WakeupFrames {
   private readonly decoder = new TextDecoder('utf-8', { fatal: true });
   private buffer = '';

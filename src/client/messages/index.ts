@@ -5,7 +5,9 @@ import {
   updateChatComposer,
   historyPosition,
   resetHistoryPosition,
+  updateMessageStates,
 } from '../chat-ui/index.ts';
+import type { HistoryUpdate } from '../message-visibility/index.ts';
 import { mountPushSettings } from '../push-settings/index.ts';
 import { notificationSettings } from './settings.ts';
 import { ConversationSearch } from './search.ts';
@@ -27,7 +29,8 @@ import { VoiceRecording } from '../voice-recording/index.ts';
 import { voiceDuration, voiceRate } from '../../shared/voice/index.ts';
 import { AttachmentUi } from '../attachment-ui/index.ts';
 import type { LiveEvent } from '../message-live/index.ts';
-import { LiveMessages } from '../message-live/index.ts';
+import { LiveMessages, LiveUpdates } from '../message-live/index.ts';
+import type { LiveUpdate } from '../message-live/index.ts';
 import { Daily } from '../daily/index.ts';
 import type { PeerState } from '../daily/index.ts';
 import { dailyViews } from '../daily-text/index.ts';
@@ -82,6 +85,7 @@ export function startMessages(
     directoryFilter: ConversationFilter = 'all';
   let composing: { mode: 'reply' | 'edit'; view: MessageView } | null = null;
   let focusRequested = false;
+  let navigatingToConversation = false;
   let readIds = new Set<string>();
   let directory: HTMLElement | null = null;
   const searchPanel = new ConversationSearch(searchPage);
@@ -91,7 +95,6 @@ export function startMessages(
     session: AccountSession | null = null,
     rows: readonly MessageView[] | null = null,
     generation = 0,
-    refreshRequested = false,
     automaticAttempts = 0,
     lastTransferAttempt = 0;
   let archivedAfter: string | null = null;
@@ -163,9 +166,20 @@ export function startMessages(
       file.disabled =
         busy || rows === null || voice.active || !!attachments.selected?.voice;
   }
-  const controller = new Messages(access, sync, (value) => {
+  const controller = new Messages(access, sync, (value, update) => {
     rows = value;
-    renderHistory();
+    renderHistory(update);
+  });
+  const updates = new LiveUpdates({
+    available: () =>
+      !busy &&
+      connected() &&
+      !!session &&
+      navigator.onLine &&
+      document.visibilityState === 'visible',
+    run: (update) => {
+      void run(update === 'refresh' ? refresh : refreshChanges);
+    },
   });
   const groups = startGroups(access, sync, {
     playback,
@@ -184,7 +198,7 @@ export function startMessages(
         'Envie ou remova a prévia de voz antes de trocar de conversa.',
       );
     selected = null;
-    options.openConversation();
+    enterConversation();
     clearContext();
     attachments.clearSelection();
     controller.select(null);
@@ -207,20 +221,23 @@ export function startMessages(
         void checkVoiceAuthority();
         return;
       }
-      if (event === 'revoked' || event === 'ended') {
-        voice.cancel();
-        attachments.clearSelection();
-        playback.close();
-      }
-      if (event === 'invalidated' || event === 'revoked' || event === 'ended')
-        suspend();
-      else controller.hide();
-      requestRefresh();
+      hideLiveHistory(event);
+      requestRefresh(event === 'changed' ? 'probe' : 'refresh');
     },
   });
   function invalidateGroupAuthority(event: LiveEvent): void {
     if (['invalidated', 'revoked', 'ended'].includes(event))
       groups.suspend(event === 'revoked' || event === 'ended');
+  }
+  function hideLiveHistory(event: LiveEvent): void {
+    if (event === 'revoked' || event === 'ended') {
+      voice.cancel();
+      attachments.clearSelection();
+      playback.close();
+    }
+    if (['invalidated', 'revoked', 'ended'].includes(event)) suspend();
+    else if (event === 'changed') controller.hint();
+    else controller.hide();
   }
   async function checkVoiceAuthority(): Promise<void> {
     await playback.check((peer) => controller.playbackAllowed(peer));
@@ -357,14 +374,23 @@ export function startMessages(
         });
         status();
       }
-      runQueuedRefresh();
+      updates.resume();
     }
   }
-  function runQueuedRefresh(): void {
-    if (refreshRequested && connected() && session && navigator.onLine)
-      queueMicrotask(() => {
-        void run(refresh);
-      });
+  function conversationVisible(selector = '.chat-panel'): boolean {
+    return (
+      document.visibilityState === 'visible' &&
+      !!mounted?.isConnected &&
+      !!node(selector)?.getClientRects().length
+    );
+  }
+  function enterConversation(): void {
+    navigatingToConversation = true;
+    try {
+      options.openConversation();
+    } finally {
+      navigatingToConversation = false;
+    }
   }
   async function resumePending(): Promise<void> {
     if (automaticAttempts >= 3 || Date.now() - lastTransferAttempt < 60000)
@@ -374,17 +400,9 @@ export function startMessages(
     automaticAttempts++;
     await controller.sendPending();
   }
-  function requestRefresh(): void {
-    refreshRequested = true;
+  function requestRefresh(update: LiveUpdate = 'refresh'): void {
     automaticAttempts = 0;
-    if (
-      !busy &&
-      connected() &&
-      session &&
-      navigator.onLine &&
-      document.visibilityState === 'visible'
-    )
-      void run(refresh);
+    updates.request(update);
   }
   function peerLabel(): string {
     return (
@@ -392,13 +410,11 @@ export function startMessages(
     );
   }
   const urls: string[] = [];
-  function renderHistory(): void {
-    attachments.clearMedia();
-    for (const url of urls.splice(0)) URL.revokeObjectURL(url);
+  function renderHistory(update: HistoryUpdate = 'history'): void {
     const history = node('[data-message-history]');
     if (!history) return;
     const restoreScroll = historyPosition(history);
-    history.replaceChildren();
+    renderHistoryContent(history, update);
     history.hidden = rows === null;
     const gate = node('[data-message-gate]');
     if (gate) {
@@ -409,10 +425,28 @@ export function startMessages(
     const older = node('[data-message-older]');
     if (older) older.hidden = rows === null || rows.length === 0;
     renderPeer();
-    for (const view of dailyViews(rows ?? []))
-      history.append(renderMessage(view));
     restoreScroll();
     composerStatus();
+  }
+  function renderHistoryContent(
+    history: HTMLElement,
+    update: HistoryUpdate,
+  ): void {
+    if (update === 'history') {
+      attachments.clearMedia();
+      for (const url of urls.splice(0)) URL.revokeObjectURL(url);
+      history.replaceChildren();
+      for (const view of dailyViews(rows ?? []))
+        history.append(renderMessage(view));
+    } else if (rows !== null) renderMessageStates();
+  }
+  function renderMessageStates(): void {
+    updateMessageStates(
+      node('[data-message-history]'),
+      new Map(
+        dailyViews(rows ?? []).map((view) => [view.id, messageState(view)]),
+      ),
+    );
   }
   function renderPeer(): void {
     const title = node('[data-message-peer]');
@@ -509,7 +543,7 @@ export function startMessages(
           ? {
               remove: async () => {
                 await controller.remove(view);
-                await controller.synchronize();
+                await synchronizeVisible();
               },
             }
           : {}),
@@ -595,7 +629,7 @@ export function startMessages(
   async function transmit(): Promise<void> {
     if (navigator.onLine) {
       await controller.sendPending();
-      await controller.synchronize();
+      await synchronizeVisible();
       await controller.savePins();
     }
   }
@@ -895,13 +929,13 @@ export function startMessages(
     await controller.loadPins();
     const card = sharedProfile();
     if (card) await controller.shareProfile(peer.accountId, card);
-    await controller.synchronize();
+    await synchronizeVisible();
     await controller.savePins();
     await dailyTick();
   }
   function selectPeer(peer: ConversationPeer): void {
     showDirectConversation();
-    options.openConversation();
+    enterConversation();
     clearContext();
     if (selected?.accountId !== peer.accountId)
       resetHistoryPosition(node('[data-message-history]'));
@@ -972,7 +1006,8 @@ export function startMessages(
     else await daily.loadSettings(organizationIds());
     renderContacts(peers);
     contactsMore();
-    if (selected) await controller.openOffline(selected.accountId);
+    if (selected && conversationVisible('[data-direct-conversation]'))
+      await controller.openOffline(selected.accountId);
   }
   function updateSelected(combined: Map<string, ConversationPeer>): void {
     if (selected && combined.has(selected.accountId))
@@ -1008,7 +1043,7 @@ export function startMessages(
     contactsMore();
   }
   async function refresh(): Promise<void> {
-    refreshRequested = false;
+    updates.clear();
     lastTransferAttempt = Date.now();
     controller.hide();
     await controller.initialize();
@@ -1017,7 +1052,7 @@ export function startMessages(
     await groups.refresh();
     contactsMore();
     await controller.sendPending();
-    if (selected) {
+    if (selected && conversationVisible('[data-direct-conversation]')) {
       await refreshSelected();
     }
     await controller.savePins();
@@ -1029,6 +1064,23 @@ export function startMessages(
     )
       live.start();
   }
+  async function refreshChanges(): Promise<void> {
+    await refreshChangedSelected();
+    await refreshContacts();
+    await groups.refresh();
+    contactsMore();
+    await dailyTick();
+  }
+  async function refreshChangedSelected(): Promise<void> {
+    const peer = selected;
+    if (!peer || !conversationVisible('[data-direct-conversation]')) return;
+    if (peer.localOnly) return refreshSelected();
+    const changed = await controller.probe();
+    if (selected !== peer || !conversationVisible('[data-direct-conversation]'))
+      return;
+    if (changed) await controller.synchronize();
+    await controller.savePins();
+  }
   async function refreshSelected(): Promise<void> {
     if (!selected) return;
     if (selected.localOnly) {
@@ -1037,7 +1089,11 @@ export function startMessages(
     }
     const card = sharedProfile();
     if (card) await controller.shareProfile(selected.accountId, card);
-    await controller.synchronize();
+    await synchronizeVisible();
+  }
+  async function synchronizeVisible(): Promise<void> {
+    if (conversationVisible('[data-direct-conversation]'))
+      await controller.synchronize();
   }
   async function submit(): Promise<void> {
     if (selected?.localOnly)
@@ -1060,7 +1116,7 @@ export function startMessages(
     recordingPeer = null;
     if (navigator.onLine) {
       await controller.sendPending();
-      await controller.synchronize();
+      await synchronizeVisible();
       await controller.savePins();
     }
     await dailyTick();
@@ -1122,7 +1178,6 @@ export function startMessages(
     }
     alertUnread(old);
     renderContacts(peers);
-    renderHistory();
     await markVisibleRead();
   }
   function alertUnread(old: Map<string, PeerState>): void {
@@ -1134,16 +1189,35 @@ export function startMessages(
       )
         sound.beep();
   }
-  async function markVisibleRead(): Promise<void> {
+  function readableWindow(): {
+    peer: string;
+    views: readonly MessageView[];
+  } | null {
     if (
       !selected ||
       selected.localOnly ||
       rows === null ||
-      document.visibilityState !== 'visible' ||
+      !conversationVisible('[data-direct-conversation]') ||
       !node('[data-message-history]')?.getClientRects().length
     )
-      return;
-    const incoming = rows
+      return null;
+    return { peer: selected.accountId, views: rows };
+  }
+  function readStillVisible(
+    peer: string,
+    views: readonly MessageView[],
+  ): boolean {
+    return (
+      rows === views &&
+      selected?.accountId === peer &&
+      conversationVisible('[data-direct-conversation]')
+    );
+  }
+  async function markVisibleRead(): Promise<void> {
+    const window = readableWindow();
+    if (!window) return;
+    const { views: currentRows, peer } = window;
+    const incoming = currentRows
       .filter(
         (r) =>
           !r.own &&
@@ -1153,15 +1227,18 @@ export function startMessages(
           r.state !== 'Suspensa',
       )
       .map((r) => r.id);
-    if (incoming.length) await daily.read(selected.accountId, incoming);
-    readIds = await daily.receipts(
-      rows
+    if (incoming.length) await daily.read(peer, incoming);
+    if (!readStillVisible(peer, currentRows)) return;
+    const receipts = await daily.receipts(
+      currentRows
         .filter(
           (r) => r.own && !r.archived && !r.relation && r.kind !== 'profile',
         )
         .map((r) => r.id),
     );
-    renderHistory();
+    if (!readStillVisible(peer, currentRows)) return;
+    readIds = receipts;
+    renderMessageStates();
   }
   async function searchPage(
     query: string,
@@ -1258,7 +1335,7 @@ export function startMessages(
       : new BroadcastChannel('0xdmme-message-controls');
   channel?.addEventListener('message', () => {
     suspend();
-    if (mounted?.isConnected && session && navigator.onLine) void run(refresh);
+    requestRefresh();
   });
   window.addEventListener('0xdmme-message-controls', () => {
     suspend();
@@ -1281,7 +1358,8 @@ export function startMessages(
   async function groupTick(): Promise<void> {
     if (!mounted?.isConnected) return;
     if (!live.connected) await groups.refresh();
-    await groups.resumePending();
+    if (conversationVisible('[data-group-conversation]'))
+      await groups.resumePending();
   }
   const timer = setInterval(() => {
     if (
@@ -1294,9 +1372,15 @@ export function startMessages(
     void run(async () => {
       await dailyTick();
       await groupTick();
-      if (!mounted?.isConnected || !selected || selected.localOnly) return;
+      if (
+        !conversationVisible('[data-direct-conversation]') ||
+        !selected ||
+        selected.localOnly
+      )
+        return;
       await resumePending();
       if (!live.connected && (await controller.probe())) {
+        if (!conversationVisible('[data-direct-conversation]')) return;
         await controller.synchronize();
         await controller.savePins();
       }
@@ -1306,6 +1390,7 @@ export function startMessages(
     if (!busy && session && navigator.onLine) void run(dailyTick);
   });
   window.addEventListener('pagehide', (event) => {
+    updates.clear();
     live.stop();
     if (voice.active)
       void voice.stop(
@@ -1478,7 +1563,7 @@ export function startMessages(
       recordingPeer = null;
       live.stop();
       emojiPicker.reset();
-      refreshRequested = false;
+      updates.clear();
       automaticAttempts = 0;
       session = value;
       contacts.setSession(value);
@@ -1505,15 +1590,8 @@ export function startMessages(
       if (selected) mountRepresentativeChat(selected);
       if (session && navigator.onLine && document.visibilityState === 'visible')
         live.start();
-      if (!busy && session && navigator.onLine)
-        void run(
-          connected()
-            ? refresh
-            : async () => {
-                await controller.initialize();
-                await dailyTick();
-              },
-        );
+      if (!navigatingToConversation && session && navigator.onLine)
+        requestRefresh();
     },
     canActivate: () =>
       !busy &&
@@ -1521,6 +1599,7 @@ export function startMessages(
       !attachments.selected?.voice &&
       groups.canActivate(),
     leave(): void {
+      suspend();
       groups.leave();
       if (voice.active)
         void voice.stop(
@@ -1528,6 +1607,9 @@ export function startMessages(
         );
       attachments.clearMedia();
       attachments.pausePreview();
+    },
+    viewChanged(): void {
+      if (!conversationVisible()) this.leave();
     },
     mountSettings(container: HTMLElement): void {
       settingsHost = container;

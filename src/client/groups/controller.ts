@@ -248,7 +248,8 @@ export class GroupController {
             await new GroupCatalog(c.authority).save(summary);
             if (this.selected?.state.groupId === raw.groupId) {
               this.selected = summary;
-              await this.openVerified(c, group, machine, null);
+              if (this.visible())
+                await this.openVerified(c, group, machine, null);
             }
           }
         });
@@ -277,6 +278,7 @@ export class GroupController {
   private async reconcileSelected(): Promise<void> {
     const selected = this.selected;
     if (
+      !this.visible() ||
       !selected ||
       this.entries.some(
         (g) => g.state.groupId === selected.state.groupId && !g.localOnly,
