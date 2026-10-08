@@ -188,7 +188,7 @@ def private_inputs():
 
 def remote(action, config, target):
     modules = []
-    for name in ['deploy_sources', 'deploy_runtime', 'deploy_remote', 'deploy_blocks45', 'deploy_request_limit']:
+    for name in ['deploy_sources', 'deploy_runtime', 'deploy_remote', 'deploy_blocks45', 'deploy_request_limit', 'deploy_background']:
         path = ROOT / 'infra/staging' / (name + '.py')
         if digest(path) != config['files'].get('infra/staging/' + name + '.py'):
             raise RuntimeError('Deployment executor changed after the reviewed commit.')
@@ -196,6 +196,9 @@ def remote(action, config, target):
                        ']=m;exec(' + repr(path.read_text()) + ',m.__dict__)')
     code = ('import sys,types,json;' + ';'.join(modules) +
             ';print(json.dumps(sys.modules["deploy_remote"].main()))')
+    worker_paths = []
+    if action == 'activate' and 'src/server/worker.ts' in config['files']:
+        worker_paths = ['-p', 'ReadWritePaths=/var/lib/0xdmme/data /etc/systemd/system/0xdmme-test.service.d']
     proxy_properties = []
     if action == 'requests':
         proxy_properties = ['-p', 'TemporaryFileSystem=/var/log/nginx:rw',
@@ -210,7 +213,7 @@ def remote(action, config, target):
         '-p', 'ReadWritePaths=/var/lib/0xdmme/data' +
         (' ' + str(request_limits.PROXY) if action == 'requests' else ''),
         '-p', 'RuntimeMaxSec=240',
-        *proxy_properties, '/usr/bin/python3', '-c', code, action])
+        *proxy_properties, *worker_paths, '/usr/bin/python3', '-c', code, action])
     result = subprocess.run(['ssh', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=10',
                              '-o', 'StrictHostKeyChecking=yes', target, command],
                             input=json.dumps(config).encode(), capture_output=True, timeout=250)

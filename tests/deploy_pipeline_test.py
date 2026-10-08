@@ -58,6 +58,19 @@ class DeploymentTests(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             remote.validate(value)
 
+    def test_ranking_source_entries_are_scoped_and_keep_byte_budgets(self):
+        value = manifest()
+        value['files'].update({'src/fixture-' + str(i) + '.ts': 'a' * 64 for i in range(511)})
+        value['files'].update({path: 'a' * 64 for path in remote.RANKING_SOURCE_FILES})
+        remote.validate(value)
+        value['files']['src/unreviewed-ranking-extra.ts'] = 'a' * 64
+        with self.assertRaisesRegex(RuntimeError, 'manifest size'):
+            remote.validate(value)
+        value['files'].pop('src/unreviewed-ranking-extra.ts')
+        value['archive_bytes'] = remote.MAX_ARCHIVE + 1
+        with self.assertRaisesRegex(RuntimeError, 'Archive budget'):
+            remote.validate(value)
+
     def test_archive_rejects_traversal_links_and_devices_before_writing(self):
         for name, kind in [('dist/../../outside', tarfile.REGTYPE),
                            ('dist/link', tarfile.SYMTYPE),

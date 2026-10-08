@@ -28,6 +28,34 @@ MAX_RELEASE = 128 * 1024 * 1024
 REQUEST_DIAGNOSTIC_FILES = frozenset([
     'src/client/api-response/index.ts', 'infra/staging/deploy_request_limit.py',
 ])
+# Local ranking cuts add exactly these authored paths to source preparation.
+# This is not approval to activate them or migrate 043 -> 047. Unknown files
+# and archive/extraction/runtime budgets remain blocked by the existing guards.
+RANKING_SOURCE_FILES = frozenset([
+    'src/server/community-ranking/index.ts',
+    'src/server/database/community-ranking-metrics.ts',
+    'src/server/database/community-ranking.ts',
+    'src/server/database/work-signals.ts',
+    'src/server/work-scheduler/index.ts',
+    'src/shared/community-ranking/index.ts',
+    'src/server/database/migrations/044-community-ranking.sql',
+    'src/server/database/migrations/045-ranking-rounds.sql',
+    'src/server/database/migrations/046-ranking-batch-accounting.sql',
+    'src/server/database/migrations/047-ranking-cache-budget.sql',
+])
+# Views and isolated worker paths requested on 08/10/2026. Exact paths only.
+BACKGROUND_SOURCE_FILES = frozenset([
+    'src/shared/community-views/index.ts', 'src/client/communities/post-views.ts',
+    'src/server/communities/views.ts', 'src/server/database/community-views.ts',
+    'src/server/database/migrations/048-community-post-views.sql',
+    'src/server/database/migrations/049-maintenance-work-signals.sql',
+    'src/server/background/index.ts', 'src/server/content-maintenance/index.ts',
+    'src/server/public-maintenance/index.ts', 'src/server/community-media/collector.ts',
+    'src/server/worker.ts', 'infra/staging/deploy_background.py',
+    'infra/staging/0xdmme-ranking-worker.service',
+    'infra/staging/0xdmme-content-worker.service',
+    'infra/staging/0xdmme-public-worker.service', 'infra/staging/0xdmme-background.conf',
+])
 # Owner-reviewed dev-only NaCl transition, including rollback. Never a general
 # allowance for dev dependencies; every other changed lock remains blocked.
 PHANTOM_PROBE_LOCKFILES = frozenset([
@@ -126,7 +154,8 @@ def validate(config):
     if not re.fullmatch(r'codex/[A-Za-z0-9][A-Za-z0-9._/-]*', config['branch']):
         raise RuntimeError('Invalid branch.')
     files = config['files']
-    if not 1 <= len(files) <= 512 + len(set(files) & REQUEST_DIAGNOSTIC_FILES):
+    extra = REQUEST_DIAGNOSTIC_FILES | RANKING_SOURCE_FILES | BACKGROUND_SOURCE_FILES
+    if not 1 <= len(files) <= 512 + len(set(files) & extra):
         raise RuntimeError('Invalid release manifest size.')
     for name, value in files.items():
         parts = PurePosixPath(name).parts
@@ -363,6 +392,9 @@ def backup_review(candidate, live):
 
 def database_review(candidate, live):
     count = len(list((candidate / 'src/server/database/migrations').glob('*.sql')))
+    if count == 49:
+        import deploy_background
+        return deploy_background.review(candidate, live)
     if count == 43:
         return communities_review(candidate, live)
     if count == 27:
@@ -774,9 +806,13 @@ def activate_database(config, work, candidate, transition):
         raise RuntimeError('Insufficient disk budget for private backups.')
     receipt(work, {'status':'maintenance', 'commit':config['commit']})
     opened = installed = False
+    infrastructure_touched = False
+    expected_state = before_state
     before = objects = checksum = None
     live, previous = DATA / 'release', work / 'previous'
     try:
+        if transition.get('stop') and infrastructure_touched:
+            transition['stop']()
         run(['systemctl', 'stop', UNIT])
         if run(['systemctl', 'show', UNIT, '--property=MainPID', '--value']).strip() != b'0':
             raise RuntimeError('Own writer did not stop.')
@@ -796,17 +832,24 @@ def activate_database(config, work, candidate, transition):
         live.rename(previous)
         candidate.rename(live)
         installed = True
+        if transition.get('install'):
+            infrastructure_touched = True
+            expected_state = transition['install']()
         receipt(work, {'status':'opening', 'commit':config['commit'], 'backup_sha256':checksum})
         # New writes may exist after this point; never automatically restore old data.
         opened = True
         run(['systemctl', 'start', UNIT])
         wait_ready(config['files'])
+        if transition.get('start'):
+            transition['start']()
         preservation(config['baseline'])
-        if own_state() != before_state:
+        if own_state() != expected_state:
             raise RuntimeError('Configuration/database process changed.')
     except BaseException:
         rollback = False
         try:
+            if infrastructure_touched and transition.get('stop'):
+                transition['stop']()
             run(['systemctl', 'stop', UNIT])
             if not opened:
                 if checksum is not None and before is not None and snapshot() != before:
@@ -817,6 +860,8 @@ def activate_database(config, work, candidate, transition):
                     live.rename(candidate)
                 if previous.exists():
                     previous.rename(live)
+                if infrastructure_touched and transition.get('uninstall'):
+                    transition['uninstall']()
                 run(['systemctl', 'start', UNIT])
                 wait_ready()
                 preservation(config['baseline'])
@@ -830,6 +875,8 @@ def activate_database(config, work, candidate, transition):
     result = {'status':'published', 'commit':config['commit'], 'migrations_verified':True,
               'public_build_verified':True, 'preservation_checks_passed':True,
               'private_backup_retained':True, 'shared_services_restarted':False}
+    if transition.get('start'):
+        result['independent_workers_verified'] = True
     receipt(work, result)
     return result
 
@@ -847,6 +894,9 @@ def activate(config, work):
     if (database_files(candidate) != database_files(DATA / 'release')
             and not database_code_reviewed(candidate, DATA / 'release')):
         # Any unreviewed database change was rejected by prepare()/compatibility().
+        if len(list((candidate / 'src/server/database/migrations').glob('*.sql'))) == 49:
+            import deploy_background
+            return deploy_background.activate(config, work, candidate, before)
         if len(list((candidate / 'src/server/database/migrations').glob('*.sql'))) == 43:
             return activate_communities(config, work, candidate, before)
         if len(list((candidate / 'src/server/database/migrations').glob('*.sql'))) == 27:
@@ -864,14 +914,25 @@ def activate(config, work):
         return activate_attachments(config, work, candidate, before)
     # Interrupted processes leave an explicit receipt; never blindly retry them.
     receipt(work, {'status': 'activating', 'commit': config['commit']})
+    background = None
+    if (DATA / 'background-units').exists():
+        import deploy_background as background
+        background.verify_current(config)
+        background.stop()
     def verify():
         wait_ready(config['files'])
+        if background:
+            background.start()
         preservation(config['baseline'])
         if own_state() != before:
             raise RuntimeError('Own configuration/database service changed.')
     try:
         exchange(candidate, work / 'previous', verify)
     except BaseException as error:
+        if background:
+            background.stop()
+            if isinstance(error, ActivationFailed) and error.rollback_verified:
+                background.start()
         receipt(work, {'status': 'failed', 'commit': config['commit'],
                        'rollback_verified': isinstance(error, ActivationFailed) and error.rollback_verified})
         raise
@@ -991,6 +1052,11 @@ def main():
                               for name, expected in config['files'].items())
                 if current:
                     healthy(config['files'])
+                    if 'src/server/worker.ts' in config['files']:
+                        import deploy_background
+                        deploy_background.verify_current(config)
+                        if not deploy_background.ready():
+                            raise RuntimeError('Previously published background workers are not ready.')
                     return {'preflight_passed': True, 'already_active': True, 'commit': config['commit']}
         return {'preflight_passed': True, 'activated': False}
     if action not in ['receive', 'activate', 'requests']:
