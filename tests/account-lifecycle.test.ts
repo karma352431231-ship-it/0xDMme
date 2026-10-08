@@ -165,9 +165,11 @@ function scope(options: {
     ['[data-wallet-candidate]', returnCandidate],
     ['[data-wallet-confirm]', returnConfirm],
   ]);
+  const attributes = new Map<string, string>();
   const mounted = {
     innerHTML: '',
     addEventListener: () => {},
+    setAttribute: (name: string, value: string) => attributes.set(name, value),
     querySelector: (selector: string) => nodes.get(selector) ?? null,
     querySelectorAll: (selector: string) =>
       selector === 'button'
@@ -327,6 +329,7 @@ function scope(options: {
     returnConfirm,
     returnCandidate,
     view: mounted,
+    attributes,
     navigated,
     providerRequests,
     historyWrites,
@@ -375,6 +378,7 @@ await test('restaurar sessão abre somente chaves locais; novo login pode solici
   assert.deepEqual(modes, ['restore']);
   assert.equal(browser.account.canActivate(), true);
   assert.match(browser.status.textContent, /Sessão conectada/);
+  assert.equal(browser.attributes.get('data-connected'), 'true');
   browser.click();
   await tick();
   assert.deepEqual(modes, ['restore', 'login']);
@@ -400,6 +404,7 @@ await test('sessão anterior não oculta o pedido assinado nem sua confirmação
   restored.resolve(Response.json(browser.session));
   await tick();
   assert.equal(browser.returnPanel.hidden, false);
+  assert.equal(browser.attributes.get('data-connected'), 'false');
   assert.equal(browser.returnConfirm.hidden, false);
   assert.match(browser.returnCandidate.textContent, /Endereço verificado/u);
   assert.equal(

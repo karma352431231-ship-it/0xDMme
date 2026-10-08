@@ -339,6 +339,7 @@ export function startDevices(options: {
       await controller.saveProfile(session, profile, lease.epoch);
     },
     authorized: () => controller.authorized,
+    stopCamera: () => camera?.stop(),
     updateBlockReason(): string | null {
       expireWalletRequest();
       if (controller.walletPending)

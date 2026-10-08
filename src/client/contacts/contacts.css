@@ -106,6 +106,18 @@
   color: #247d67;
   padding: 10px 0;
 }
+.contacts-card button.contact-invite-link {
+  padding: 10px 0;
+  border: 0;
+  background: transparent;
+  color: #247d67;
+}
+[data-contact-own-invite] > label {
+  margin: 16px 0;
+}
+[data-contact-invites] > [data-contact-action='rotate'] {
+  margin-top: 12px;
+}
 .contact-tabs {
   display: flex;
   gap: 6px;

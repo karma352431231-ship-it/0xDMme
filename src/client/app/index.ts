@@ -1,6 +1,7 @@
 import { startPwa } from '../pwa/index.ts';
 import { startAccount } from '../account/index.ts';
 import { startDevices } from '../devices/index.ts';
+import { bindSettingsSections } from './settings.ts';
 import { startBackups } from '../backups/index.ts';
 import { startVault } from '../vault-ui/index.ts';
 import { startMessages } from '../messages/index.ts';
@@ -253,6 +254,10 @@ function mountFeature(key: PageKey): void {
       new URLSearchParams(location.hash.split('?')[1] ?? ''),
     );
   if (key === 'conversas') messages.ready();
+  if (key === 'perfil')
+    bindSettingsSections(content, (id) => {
+      if (id === 'devices') devices.stopCamera();
+    });
   mountStatusFeature(key, content);
   const contactContainer = content.querySelector<HTMLElement>(
     '[data-contacts-container]',

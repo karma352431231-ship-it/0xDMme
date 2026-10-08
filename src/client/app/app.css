@@ -1,6 +1,7 @@
 @import '../communities/community.css';
 @import '../chat-ui/chat.css';
 @import '../contacts/contacts.css';
+@import './settings.css';
 
 :root {
   font-family:

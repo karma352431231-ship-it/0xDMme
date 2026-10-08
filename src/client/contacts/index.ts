@@ -101,6 +101,7 @@ export function startContacts(
   function render(): void {
     text('[data-contact-status]', busy ? 'Atualizando contatos…' : status);
     text('[data-contact-editor-status]', busy ? 'Processando…' : status);
+    text('[data-contact-invite-status]', busy ? 'Processando…' : status);
     renderInvite();
     renderBook();
     renderLists();
@@ -110,6 +111,8 @@ export function startContacts(
     });
     const close = node<HTMLButtonElement>('[data-contact-editor-close]');
     if (close) close.disabled = false;
+    const inviteClose = node<HTMLButtonElement>('[data-contact-invites-close]');
+    if (inviteClose) inviteClose.disabled = false;
   }
   function renderPagination(): void {
     mounted
@@ -127,9 +130,13 @@ export function startContacts(
     if (own) own.hidden = !ownLink;
     const input = node<HTMLInputElement>('[data-contact-invite]');
     if (input) input.value = ownLink ?? '';
+    const rotate = node('[data-contact-action="rotate"]');
+    if (rotate)
+      rotate.textContent = ownLink ? 'Trocar convite' : 'Criar convite';
     if (!ownLink) return;
     const qr = node('[data-contact-invite-qr]');
-    if (qr) renderQr(qr, ownLink, 'QR Code de convite para contato');
+    if (qr && node<HTMLDialogElement>('[data-contact-invites]')?.open)
+      renderQr(qr, ownLink, 'QR Code de convite para contato');
   }
   function resetEditor(): void {
     editing = null;
@@ -179,6 +186,16 @@ export function startContacts(
       () => camera?.stop(),
     );
   }
+  function bindOwnInvite(): void {
+    const dialog = node<HTMLDialogElement>('[data-contact-invites]');
+    node('[data-contact-own-open]')?.addEventListener('click', () => {
+      dialog?.showModal();
+      renderInvite();
+    });
+    node('[data-contact-invites-close]')?.addEventListener('click', () =>
+      dialog?.close(),
+    );
+  }
   async function refresh(): Promise<void> {
     const deadline = Date.now() + 60_000;
     do {
@@ -198,7 +215,7 @@ export function startContacts(
     status = sync.complete
       ? 'Contatos atualizados.'
       : 'Permissões conferidas. Continue carregando o índice do cofre antes de editar a agenda.';
-    if (received) await inspectInvite();
+    if (received && node('[data-contact-invite-form]')) await inspectInvite();
   }
   function renderBook(): void {
     const entries = bookEntries();
@@ -591,6 +608,7 @@ export function startContacts(
     generation++;
     camera?.stop();
     node<HTMLDialogElement>('[data-contact-editor]')?.close();
+    node<HTMLDialogElement>('[data-contact-invites]')?.close();
     contacts.clear();
     ownLink = null;
     editing = null;
@@ -703,6 +721,7 @@ export function startContacts(
       !busy &&
       !camera?.active &&
       !node<HTMLDialogElement>('[data-contact-editor]')?.open &&
+      !node<HTMLDialogElement>('[data-contact-invites]')?.open &&
       !value('[data-book-address]') &&
       !value('[data-contact-received]'),
     mount(
@@ -723,6 +742,7 @@ export function startContacts(
       restoreForm(formValues);
       bindContactTabs(container);
       bindEditor();
+      bindOwnInvite();
       readIncomingInvite();
       showReceivedInvite();
       mountCamera();

@@ -8,13 +8,13 @@ export { showPublicProfile } from './viewer.ts';
 const template = `<article class="card public-profile-card"><h2>Perfil público</h2>
 <p>Seu @ será visível na web. Wallet, nome e foto privados não são incluídos neste perfil.</p>
 <div data-public-create><label>@ público<input data-public-input type="text" minlength="3" maxlength="31" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="seu_nome"></label>
-<p>Use 3–30 letras sem acento, números ou _. O @ é único e não poderá ser alterado enquanto sua conta existir.</p>
+<p>3–30 letras sem acento, números ou _. Seu @ é único e fixo enquanto a conta existir.</p>
 <label class="public-consent"><input data-public-consent type="checkbox">Quero criar este perfil público com um @ fixo.</label>
 <button type="button" class="primary" data-public-action="create">Criar perfil público</button></div>
 <div data-public-owned hidden><div class="public-avatar-placeholder" data-public-placeholder aria-hidden="true">@</div><img class="public-avatar-preview" data-public-avatar alt="Prévia da sua foto pública, ainda restrita" hidden>
 <p><strong data-public-own-handle></strong></p><a data-public-link>Ver perfil público</a>
-<p>A foto é escolhida separadamente. PNG, JPEG e WebP são preparados neste aparelho, sem metadados, até 3 MB. Ela fica restrita a você até a análise. Arquivos ainda não aprovados são descartados em até sete dias.</p>
-<input data-public-file type="file" accept="image/png,image/jpeg,image/webp" hidden><button type="button" data-public-action="choose">Escolher foto pública</button><button type="button" data-public-action="remove">Remover foto preparada</button></div>
+<p>A foto pública é separada e fica restrita a você até a análise. Sem aprovação, é descartada em até sete dias.</p><details class="settings-help"><summary>Formatos e preparo da foto</summary><p>PNG, JPEG e WebP, até 3 MB, preparados neste aparelho sem metadados.</p></details>
+<div class="settings-actions"><input data-public-file type="file" accept="image/png,image/jpeg,image/webp" hidden><button type="button" data-public-action="choose">Escolher foto pública</button><button type="button" data-public-action="remove">Remover foto preparada</button></div></div>
 <section data-public-moderation aria-label="Análises dos seus arquivos públicos"></section>
 <div><button type="button" data-public-action="moderation-latest" hidden>Análises mais recentes</button><button type="button" data-public-action="moderation-older" hidden>Análises anteriores</button></div>
 <p data-public-status role="status">Conecte e autorize seu aparelho para gerenciar o perfil público.</p><button type="button" data-public-action="reload">Recarregar perfil público</button></article>`;

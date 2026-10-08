@@ -75,11 +75,12 @@ const template = `<article class="card account-card"><span class="eyebrow">CONTA
 <p class="detail" data-wallet-manual hidden>Para voltar ao navegador original, use a tela de apps recentes do celular. O pedido só terá assinatura confirmada quando esta página informar isso.</p>
 <p data-account-status role="status">Verificando sessão…</p><button data-account-finish type="button" hidden>Concluir entrada na conta</button>
 <details data-wallet-diagnostics hidden open><summary>Diagnóstico do login</summary><p class="detail" data-wallet-diagnostic></p><p class="detail">Se falhar, envie esta linha. Ela não contém ticket, endereço ou assinatura.</p></details>
-<div data-profile hidden><div class="profile-identity"><button class="profile-avatar" data-profile-avatar type="button" aria-label="Alterar foto de perfil">#</button><div><strong data-profile-name></strong><p data-account-address class="account-address"></p><button data-profile-copy type="button">Copiar wallet</button></div></div>
+<div data-profile hidden><div class="profile-identity"><button class="profile-avatar" data-profile-avatar type="button" aria-label="Alterar foto de perfil">#</button><div><strong data-profile-name></strong><p data-account-address class="account-address"></p><div class="settings-actions"><button data-profile-copy type="button">Copiar wallet</button><button data-logout type="button" aria-label="Encerrar sessão">Sair</button></div></div></div>
+<details class="settings-section" data-settings-section="account"><summary><span class="settings-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m4 16 12-12 4 4-12 12H4zM13 7l4 4"/></svg></span><span><strong>Editar perfil e privacidade</strong><small>Nome, presença, leitura e lembrete de backup</small></span><span class="settings-chevron" aria-hidden="true">⌄</span></summary><div class="settings-body">
 <form data-name-form><label>Nome mostrado nas solicitações de contato<input name="display-name" maxlength="80" autocomplete="nickname"></label><button class="primary" type="submit">Salvar nome</button></form>
-<div data-private-profile hidden><h3>Privacidade</h3>
+<div data-private-profile hidden><h3>Presença e preferências</h3>
 <form data-preferences><label><input type="checkbox" name="online"> Exibir online para contatos aprovados</label><label><input type="checkbox" name="lastSeen"> Exibir último acesso para contatos aprovados</label><label><input type="checkbox" name="readReceipts"> Enviar confirmação de leitura</label><label><input type="checkbox" name="backupReminder"> Lembrar de salvar um backup a cada sete dias</label><button class="primary" type="submit">Salvar preferências</button></form></div>
-<p data-profile-status role="status"></p><button data-logout type="button">Encerrar sessão</button></div></article>`;
+</div></details><p data-profile-status role="status"></p></div></article>`;
 
 async function api(
   path: string,
@@ -613,6 +614,10 @@ export function startAccount(options: {
     renderProfileForm(session);
   }
   function renderAccountPanels(): void {
+    mounted?.setAttribute(
+      'data-connected',
+      String(!!session && !approvalOnly && !walletReturn.state()),
+    );
     const panel = node('[data-profile]');
     if (panel) panel.hidden = !session;
     const privatePanel = node('[data-private-profile]');

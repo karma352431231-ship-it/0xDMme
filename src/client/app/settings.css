@@ -1,0 +1,333 @@
+.app[data-page='perfil'] main {
+  padding: 24px clamp(16px, 3vw, 40px);
+}
+.app[data-page='perfil']
+  :is(.page-heading .phase, .page-heading .section-label, main > .notice) {
+  display: none;
+}
+.app[data-page='perfil'] .page-heading h1 {
+  margin: 0 0 18px;
+}
+.app[data-page='perfil'] #page-content {
+  width: 100%;
+  max-width: 960px;
+  margin-inline: auto;
+}
+.app[data-page='perfil']
+  .account-section[data-connected='true']
+  :is(.account-card > .eyebrow, [data-account-title], [data-account-intro]) {
+  display: none;
+}
+.app[data-page='perfil'] .account-card {
+  padding: 18px 20px 10px;
+}
+.app[data-page='perfil'] .account-section {
+  margin-bottom: 0;
+}
+.app[data-page='perfil'] [data-profile-status] {
+  margin: 8px 0;
+  font-size: 11px;
+}
+.app[data-page='perfil'] .account-card > [data-account-status] {
+  margin: 0 0 10px;
+  font-size: 11px;
+}
+.app[data-page='perfil'] .profile-identity {
+  margin: 0 0 16px;
+  gap: 14px;
+}
+.app[data-page='perfil'] .profile-identity > div {
+  flex: 1;
+}
+.app[data-page='perfil'] [data-profile-name] {
+  font-size: 19px;
+}
+.app[data-page='perfil'] .account-address {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin: 6px 0;
+  font-size: 12px;
+}
+.app[data-page='perfil'] :is(.account-card, .profile-settings) button {
+  min-height: 40px;
+  border: 1px solid #d0ded7;
+  border-radius: 9px;
+  padding: 8px 12px;
+  margin: 0;
+  background: #f5f9f6;
+  color: #2e5645;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.app[data-page='perfil'] :is(.account-card, .profile-settings) button.primary {
+  background: #247d67;
+  border-color: #247d67;
+  color: white;
+}
+.app[data-page='perfil'] .account-card .profile-avatar {
+  flex-basis: 56px;
+  width: 56px;
+  height: 56px;
+  padding: 0;
+  border-radius: 50%;
+  background: #253c35;
+  color: #bcdfcf;
+  font-size: 24px;
+}
+.app[data-page='perfil'] .profile-settings {
+  gap: 0;
+  margin-top: 22px;
+}
+@media (min-width: 1000px) {
+  .app[data-page='perfil'] .profile-settings {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: 12px;
+  }
+  .app[data-page='perfil']
+    .profile-settings
+    > :is(h2, p, .profile-content-links, .settings-section[open]) {
+    grid-column: 1 / -1;
+  }
+}
+.app[data-page='perfil'] .profile-settings > h2 {
+  margin: 0;
+  font-size: 18px;
+}
+.app[data-page='perfil'] .settings-intro {
+  margin: 6px 0 14px;
+  font-size: 12px;
+  color: #7c9084;
+}
+.settings-section {
+  min-width: 0;
+  border: 1px solid #dde6e0;
+  border-radius: 12px;
+  background: white;
+  margin-bottom: 8px;
+  overflow-wrap: anywhere;
+}
+.settings-section > summary {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  cursor: pointer;
+  list-style: none;
+  min-height: 66px;
+}
+.settings-section > summary::-webkit-details-marker {
+  display: none;
+}
+.settings-section > summary:hover {
+  background: #f6faf7;
+  border-radius: 12px;
+}
+.settings-section > summary > span:nth-child(2) {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+  flex: 1;
+}
+.settings-section > summary strong {
+  color: #29483a;
+  font-size: 14px;
+  font-weight: 600;
+}
+.settings-section > summary small {
+  font-size: 11px;
+  color: #82968a;
+  line-height: 1.4;
+}
+.settings-icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 34px;
+  height: 34px;
+  border-radius: 10px;
+  color: #3f7b60;
+  background: #eaf3ed;
+}
+.settings-icon svg {
+  width: 19px;
+  height: 19px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.settings-chevron {
+  color: #819789;
+  font-size: 20px;
+}
+.settings-section[open] > summary {
+  border-bottom: 1px solid #e7eee9;
+}
+.settings-section[open] > summary .settings-chevron {
+  transform: rotate(180deg);
+}
+.settings-body {
+  padding: 18px;
+  min-width: 0;
+}
+.app[data-page='perfil'] .settings-body .card {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  margin: 0;
+}
+.settings-body
+  :is(
+    [data-public-profile-settings],
+    [data-device-settings],
+    [data-representatives-settings]
+  )
+  .card
+  > h2 {
+  display: none;
+}
+.app[data-page='perfil'] .settings-body :is(h2, h3) {
+  margin: 4px 0 12px;
+  font-size: 14px;
+}
+.app[data-page='perfil'] .settings-body p {
+  margin: 8px 0;
+  font-size: 12px;
+  line-height: 1.6;
+}
+.app[data-page='perfil'] .settings-body :is(form, fieldset) {
+  margin: 10px 0;
+  gap: 12px;
+}
+.app[data-page='perfil'] .settings-body form {
+  display: grid;
+}
+.app[data-page='perfil'] .settings-body form > button {
+  justify-self: start;
+}
+.app[data-page='perfil'] .settings-body label {
+  margin: 0;
+  font-size: 13px;
+  gap: 8px;
+  line-height: 1.5;
+}
+.app[data-page='perfil'] .settings-body label:has(input[type='checkbox']) {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+}
+.app[data-page='perfil'] .settings-body input:not([type='checkbox']),
+.app[data-page='perfil'] .settings-body :is(select, textarea) {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 9px;
+  font-size: 16px;
+  min-width: 0;
+}
+.app[data-page='perfil'] .settings-body input[type='checkbox'] {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  accent-color: #247d67;
+}
+.app[data-page='perfil'] .settings-body button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.app[data-page='perfil'] .profile-settings [hidden] {
+  display: none;
+}
+.settings-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.settings-actions label {
+  flex: 1;
+  min-width: 180px;
+}
+.settings-help {
+  margin: 14px 0;
+  font-size: 12px;
+}
+.settings-help > summary {
+  color: #467a62;
+  cursor: pointer;
+  padding: 7px 0;
+}
+.settings-block,
+[data-call-settings] {
+  border-top: 1px solid #e1eae4;
+  margin-top: 18px;
+  padding-top: 14px;
+}
+.app[data-page='perfil'] .profile-content-links {
+  gap: 8px;
+  margin: 8px 0;
+}
+.app[data-page='perfil'] .profile-content-links a {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 13px;
+  padding: 14px 16px;
+  border-radius: 10px;
+  background: #e9f2ec;
+  color: #34684f;
+}
+.app[data-page='perfil'] .settings-test-note {
+  margin: 5px 0;
+  font-size: 10px;
+  color: #85968b;
+}
+[data-device-settings] ul {
+  padding: 0;
+  list-style: none;
+}
+[data-device-settings] li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 0;
+  border-bottom: 1px solid #edf2ee;
+  font-size: 13px;
+}
+@media (max-width: 700px) {
+  .app[data-page='perfil'] main {
+    padding: 14px 10px;
+  }
+  .app[data-page='perfil'] .account-card {
+    padding: 14px 12px 8px;
+  }
+  .app[data-page='perfil'] .profile-identity {
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .app[data-page='perfil'] .profile-identity > div {
+    min-width: 0;
+    flex-basis: calc(100% - 66px);
+  }
+  .app[data-page='perfil'] :is(.account-card, .profile-settings) button {
+    min-height: 44px;
+  }
+  .app[data-page='perfil'] .profile-settings {
+    margin-top: 16px;
+  }
+  .settings-section > summary {
+    padding: 10px 12px;
+    gap: 10px;
+    min-height: 60px;
+  }
+  .settings-body {
+    padding: 14px;
+  }
+  .app[data-page='perfil'] .settings-body label:has(input[type='checkbox']) {
+    min-height: 44px;
+  }
+}

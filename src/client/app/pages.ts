@@ -1,13 +1,13 @@
-const profileContent = `<section class="profile-settings" aria-label="Configurações da conta">
-<h2>Configurações</h2>
-<div data-contact-settings-container></div>
-<div data-daily-settings></div>
-<div data-call-settings></div>
-<div data-device-settings></div>
-<div data-representatives-settings></div>
-<article class="card"><h2>Conteúdo e histórico</h2><p>Consulte seu espaço, backups e status.</p><div class="profile-content-links"><a href="#cofre">Cofre e backups</a><a href="#status">Meu status</a></div></article>
-<article class="card"><h2>Aplicativo</h2><p id="pwa-state" role="status">Verificando atualização…</p><button id="check-updates" type="button">Verificar atualização</button></article>
-</section>`;
+import { settingsSection } from './settings.ts';
+
+const profileContent = `<section class="profile-settings" aria-label="Configurações da conta"><h2>Configurações</h2><p class="settings-intro">Abra a categoria que você quer ajustar.</p>
+${settingsSection({ id: 'privacy', title: 'Quem pode me encontrar', description: 'Solicitações por wallet ou convite', content: '<div data-contact-settings-container></div>' })}
+${settingsSection({ id: 'profile', title: 'Perfil público', description: 'Seu @ e sua foto nas comunidades', content: '<div data-public-profile-settings></div>' })}
+${settingsSection({ id: 'alerts', title: 'Notificações e chamadas', description: 'Push, sons e silêncio das conversas', content: '<div data-daily-settings></div><div data-call-settings></div>' })}
+${settingsSection({ id: 'devices', title: 'Aparelhos', description: 'Vincular, recuperar e gerenciar acessos', content: '<div data-device-settings></div>' })}
+${settingsSection({ id: 'representatives', title: 'Organizações e representantes', description: 'Organizações e autorizações assinadas', content: '<div data-representatives-settings></div>' })}
+${settingsSection({ id: 'app', title: 'Aplicativo', description: 'Versão e atualizações', content: '<article class="card"><p id="pwa-state" role="status">Verificando atualização…</p><button id="check-updates" type="button">Verificar atualização</button></article>' })}
+<div class="profile-content-links"><a href="#cofre">Cofre e backups <span aria-hidden="true">↗</span></a><a href="#status">Meu status <span aria-hidden="true">↗</span></a></div><p class="settings-test-note">Chat em teste · use somente dados fictícios.</p></section>`;
 
 export const pages = {
   conversas: { title: 'Conversas', content: '' },
@@ -17,7 +17,7 @@ export const pages = {
   },
   perfil: {
     title: 'Perfil',
-    content: '<div data-public-profile-settings></div>' + profileContent,
+    content: profileContent,
   },
   publico: {
     title: 'Perfil público',
