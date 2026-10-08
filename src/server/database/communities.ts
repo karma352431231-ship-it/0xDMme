@@ -296,6 +296,9 @@ export class CommunityStore {
   collectModeration(signal: AbortSignal) {
     return this.photos.collect(signal);
   }
+  nextModerationCollection(): Promise<number | null> {
+    return this.photos.nextCollection();
+  }
   private async follow(
     context: CommunityContext,
     data: Record<string, unknown>,

@@ -19,6 +19,7 @@ import {
   freshKeyring,
 } from '../../src/client/device-operations/index.ts';
 import { Database } from '../../src/server/database/index.ts';
+import { NotificationService } from '../../src/server/notifications/index.ts';
 import { vaultUsage } from '../../src/server/database/vault-quota.ts';
 import {
   AccountService,
@@ -212,6 +213,58 @@ await test('corte 5: árvore, votos e avisos diretos com autorização e persist
         ),
         [root],
       );
+    },
+  );
+  await t.test(
+    'push comum acorda após commit e uma nova resposta não herda a espera após sucesso',
+    async () => {
+      const testRoot = crypto.randomUUID(),
+        testCommunity = crypto.randomUUID();
+      ids.push(testCommunity);
+      await owner.operate('create', {
+        id: testCommunity,
+        meta: { name: 'Push sintético isolado', description: '', rules: '' },
+      });
+      await create(owner, testRoot, null, testCommunity);
+      let deliveries = 0;
+      const notifications = new NotificationService({
+        store: db.daily,
+        devices: db.devices,
+        config: { publicKey: 'synthetic' },
+        signals: db.workSignals,
+        send: () => {
+          deliveries++;
+          return Promise.resolve();
+        },
+      });
+      try {
+        await db.workSignals.start();
+        notifications.start();
+        const awaitDelivery = async (expected: number) => {
+          const until = Date.now() + 2000;
+          while (deliveries < expected && Date.now() < until)
+            await new Promise<void>((resolve) => setTimeout(resolve, 10));
+          assert.equal(deliveries, expected);
+        };
+        await awaitDelivery(1);
+        // Finish() persists after the send callback; wait for its acknowledgment.
+        const until = Date.now() + 2000;
+        while (Date.now() < until) {
+          const state = await inspector.query<{ pending: boolean }>(
+            'SELECT pending FROM hash_talk.push_subscriptions WHERE account_id=$1',
+            [owner.login.session.accountId],
+          );
+          if (!state.rows[0]!.pending) break;
+          await new Promise<void>((resolve) => setTimeout(resolve, 10));
+        }
+        await create(author, crypto.randomUUID(), testRoot, testCommunity);
+        await awaitDelivery(2);
+      } finally {
+        await notifications.close();
+        await inspector.query('DELETE FROM hash_talk.communities WHERE id=$1', [
+          testCommunity,
+        ]);
+      }
     },
   );
   await t.test(

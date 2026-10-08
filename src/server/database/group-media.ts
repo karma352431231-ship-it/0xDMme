@@ -339,4 +339,10 @@ export class GroupMediaStore {
       [id],
     );
   }
+  async nextCollection(): Promise<number | null> {
+    const result = await this.pool.query<{ at: Date | null }>(
+      "SELECT min(CASE WHEN status='deleting' THEN clock_timestamp() ELSE created_at+interval '24 hours 1 millisecond' END) AS at FROM hash_talk.group_media WHERE status IN ('deleting','reserved','ready')",
+    );
+    return result.rows[0]?.at?.getTime() ?? null;
+  }
 }

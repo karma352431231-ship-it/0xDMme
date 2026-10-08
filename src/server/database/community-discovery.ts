@@ -4,6 +4,7 @@ import { communityPageSize } from '../../shared/communities/index.ts';
 import {
   discoveryKey,
   discoveryWindow,
+  exploreCursor,
   feedFilter,
   rankCursor,
 } from '../../shared/community-discovery/index.ts';
@@ -17,6 +18,7 @@ import type {
 import type { CommunityPost } from '../../shared/community-posts/index.ts';
 import type { CommunityStore } from './communities.ts';
 import type { ContactAuthority } from './contacts.ts';
+import type { CommunityRankingStore } from './community-ranking.ts';
 import { operatePostPreference } from './community-preferences.ts';
 
 type Reader = Pick<pg.PoolClient, 'query'>;
@@ -28,9 +30,6 @@ interface RankedRow {
 interface FeedRow extends RankedRow {
   community_id: string;
   name: string;
-}
-interface ExploreRow extends RankedRow {
-  activity: string;
 }
 function window(filter: FeedFilter | ExploreFilter, after: unknown) {
   const key = discoveryKey(filter),
@@ -66,13 +65,16 @@ export class CommunityDiscoveryStore {
     ids: string[],
   ) => Promise<CommunityPost[]>;
   private readonly capacity: number;
+  private readonly ranking: CommunityRankingStore;
   constructor(options: {
     pool: pg.Pool;
+    ranking: CommunityRankingStore;
     communities: CommunityStore;
     posts: (client: Reader, ids: string[]) => Promise<CommunityPost[]>;
     capacity: number;
   }) {
     this.pool = options.pool;
+    this.ranking = options.ranking;
     this.communities = options.communities;
     this.posts = options.posts;
     this.capacity = options.capacity;
@@ -155,45 +157,49 @@ export class CommunityDiscoveryStore {
     filter: ExploreFilter,
     after: string | null,
   ): Promise<ExplorePage> {
-    const current = window(filter, after),
-      rank = filter.order === 'size' ? 'coalesce(f.n,0)' : 'coalesce(a.n,0)';
-    const found = await this.pool.query<ExploreRow>(
-      `WITH follows AS (
-      SELECT community_id,count(*) AS n FROM hash_talk.community_follows GROUP BY community_id
-    ), activity AS (
-      SELECT p.community_id,count(*) AS n FROM hash_talk.community_posts p
-      LEFT JOIN hash_talk.community_posts root ON root.id=p.root_id
-      WHERE NOT p.deleted AND p.active_removal IS NULL AND (p.root_id IS NULL OR (NOT root.deleted AND root.active_removal IS NULL))
-      AND ($1::timestamptz IS NULL OR p.created_at>=$1) AND p.created_at<=$2 GROUP BY p.community_id
-    ), ranked AS (
-      SELECT c.id,${rank} AS rank,coalesce(a.n,0) AS activity,$2::timestamptz AS created_at
-      FROM hash_talk.communities c LEFT JOIN follows f ON f.community_id=c.id LEFT JOIN activity a ON a.community_id=c.id
-    ) SELECT * FROM ranked WHERE ($3::bigint IS NULL OR (rank,id)<($3,$4::uuid)) ORDER BY rank DESC,id DESC LIMIT $5`,
-      [
-        current.since,
-        current.anchor,
-        current.cursor?.rank ?? null,
-        current.cursor?.id ?? null,
-        communityPageSize + 1,
-      ],
+    const key = discoveryKey(filter),
+      cursor = exploreCursor(after, key);
+    const result = await this.ranking.page(filter, cursor);
+    const rows = result.rows.slice(0, communityPageSize),
+      last = rows.at(-1);
+    const groups = new Map(
+      (
+        await this.communities.readMany(
+          this.pool,
+          rows.map((r) => r.community_id),
+        )
+      ).map((g) => [g.id, g]),
     );
-    const result = page(found.rows, current),
-      groups = new Map(
-        (
-          await this.communities.readMany(
-            this.pool,
-            result.items.map((row) => row.id),
-          )
-        ).map((group) => [group.id, group]),
-      );
     return {
-      next: result.next,
-      items: result.items.flatMap((row) => {
-        const community = groups.get(row.id);
-        return community ? [{ community, activity: Number(row.activity) }] : [];
+      generation: result.head.id,
+      cutoff: result.head.cutoff.toISOString(),
+      expiresAt: result.head.expires_at.toISOString(),
+      next:
+        result.rows.length > communityPageSize && last
+          ? JSON.stringify({
+              filter: key,
+              generation: result.head.id,
+              rank: Number(last.rank),
+              id: last.community_id,
+            })
+          : null,
+      items: rows.flatMap((row) => {
+        const community = groups.get(row.community_id);
+        return community && (filter.order === 'size' || !community.archived)
+          ? [
+              {
+                community,
+                activity: row.contributions,
+                participants: row.participants,
+                upvotes: row.upvotes,
+                historyComplete: row.history_complete,
+              },
+            ]
+          : [];
       }),
     };
   }
+
   async operate(
     operation: string,
     authority: ContactAuthority,

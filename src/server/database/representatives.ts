@@ -242,4 +242,13 @@ export class RepresentativeStore {
     }
     return result;
   }
+  async nextCheck(): Promise<number | null> {
+    const result = await this.pool.query<{ at: string | null }>(
+      'SELECT min(checked_at+$1)::text AS at FROM hash_talk.organization_domains WHERE verified_once',
+      [domainFreshness / 2 + 1],
+    );
+    return result.rows[0]?.at === null || result.rows[0]?.at === undefined
+      ? null
+      : Number(result.rows[0].at);
+  }
 }

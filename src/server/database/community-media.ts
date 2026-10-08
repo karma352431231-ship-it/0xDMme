@@ -412,6 +412,20 @@ export class CommunityMediaStore {
       )
     ).rows.map((r) => r.id);
   }
+  async nextCollection(): Promise<number | null> {
+    const result = await this.pool.query<{ at: Date | null }>(
+      `SELECT min(CASE
+        WHEN m.status='deleting' OR r.status IN ('discarding','removed') OR (m.post_id IS NULL AND m.author IS NULL) OR
+         (m.status IN ('ready','attached') AND m.charge>(m.result->>'bytes')::bigint+(m.result->>'thumbnailBytes')::bigint+32768)
+         THEN clock_timestamp()
+        WHEN m.post_id IS NULL THEN m.expires_at
+        WHEN r.status NOT IN ('approved','expired','removed') THEN r.expires_at
+        ELSE NULL END) AS at
+       FROM hash_talk.community_media m LEFT JOIN hash_talk.public_moderation r ON r.id=m.moderation_review
+       WHERE m.status<>'processing' AND m.writer IS NULL`,
+    );
+    return result.rows[0]?.at?.getTime() ?? null;
+  }
   async collected(id: string): Promise<void> {
     await this.transaction(async (client) => {
       const row = await client.query<{ moderation_review: string | null }>(

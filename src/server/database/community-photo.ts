@@ -28,6 +28,9 @@ function matches(
 }
 /** CommunityStore owns authorization and the enclosing replacement transaction. */
 export class CommunityPhotoStore {
+  nextCollection(): Promise<number | null> {
+    return this.moderation.nextCollection('community-photo');
+  }
   private readonly pool: pg.Pool;
   private readonly moderation: PublicModerationStore;
   constructor(pool: pg.Pool, moderation: PublicModerationStore) {

@@ -16,6 +16,11 @@ import type { GroupScope } from './group-media.ts';
 import { assertGroupTextQuota } from './group-quota.ts';
 import { assertContentCapacity } from './vault-quota.ts';
 import { admitGroupNotification } from './daily.ts';
+const clearableGroup = `(EXISTS(SELECT 1 FROM hash_talk.group_packets p WHERE p.group_id=g.id AND p.body IS NOT NULL) OR EXISTS(SELECT 1 FROM hash_talk.group_media m WHERE m.group_id=g.id AND m.status NOT IN ('writing','deleting')) OR EXISTS(SELECT 1 FROM hash_talk.group_key_sets k WHERE k.group_id=g.id) OR EXISTS(SELECT 1 FROM hash_talk.group_matrix_envelopes e WHERE e.group_id=g.id AND e.body IS NOT NULL) OR NOT EXISTS(SELECT 1 FROM hash_talk.group_media m WHERE m.group_id=g.id))`;
+const dueGroups = `((g.clearing AND ${clearableGroup}) OR
+ (g.deleted AND (EXISTS(SELECT 1 FROM hash_talk.group_packets p WHERE p.group_id=g.id AND p.body IS NOT NULL) OR EXISTS(SELECT 1 FROM hash_talk.group_media m WHERE m.group_id=g.id AND m.status NOT IN ('writing','deleting')) OR EXISTS(SELECT 1 FROM hash_talk.group_matrix_envelopes e WHERE e.group_id=g.id AND e.body IS NOT NULL))) OR
+ EXISTS(SELECT 1 FROM hash_talk.group_cleanups c WHERE c.group_id=g.id AND (c.due_at IS NULL OR c.due_at<=clock_timestamp())) OR
+ (NOT g.deleted AND NOT EXISTS(SELECT 1 FROM hash_talk.group_cleanups c WHERE c.group_id=g.id) AND (SELECT coalesce(sum(m.bytes),0) FROM hash_talk.group_media m WHERE m.group_id=g.id AND m.status='accepted')>=$1))`;
 interface CleanupRow {
   id: string;
   remaining: number;
@@ -125,11 +130,8 @@ export class GroupRetentionStore {
   /** Each tick touches at most four groups and 64 messages per group; no filesystem I/O here. */
   async tick(): Promise<void> {
     const candidates = await this.pool.query<{ id: string }>(
-      `SELECT g.id FROM hash_talk.groups g WHERE (g.clearing OR
-       (g.deleted AND (EXISTS(SELECT 1 FROM hash_talk.group_packets p WHERE p.group_id=g.id AND p.body IS NOT NULL) OR EXISTS(SELECT 1 FROM hash_talk.group_media m WHERE m.group_id=g.id AND m.status<>'deleting') OR EXISTS(SELECT 1 FROM hash_talk.group_matrix_envelopes e WHERE e.group_id=g.id AND e.body IS NOT NULL))) OR
-       EXISTS(SELECT 1 FROM hash_talk.group_cleanups c WHERE c.group_id=g.id AND (c.due_at IS NULL OR c.due_at<=clock_timestamp())) OR
-       (NOT g.deleted AND NOT EXISTS(SELECT 1 FROM hash_talk.group_cleanups c WHERE c.group_id=g.id) AND (SELECT coalesce(sum(m.bytes),0) FROM hash_talk.group_media m WHERE m.group_id=g.id AND m.status='accepted')>=$1)
-       ) AND ($2::uuid IS NULL OR g.id>$2) ORDER BY g.id LIMIT 4`,
+      `SELECT g.id FROM hash_talk.groups g WHERE ${dueGroups}
+       AND ($2::uuid IS NULL OR g.id>$2) ORDER BY g.id LIMIT 4`,
       [groupMediaWarning, this.after],
     );
     this.after = candidates.rows.at(-1)?.id ?? null;
@@ -137,6 +139,17 @@ export class GroupRetentionStore {
       await this.groups.withMaintenance(group.id, async (client, state) =>
         this.process(client, state),
       );
+  }
+  async nextCollection(): Promise<number | null> {
+    const result = await this.pool.query<{ at: Date | null }>(
+      `SELECT min(at) AS at FROM (
+       SELECT clock_timestamp() AS at WHERE EXISTS(SELECT 1 FROM hash_talk.groups g WHERE ${dueGroups})
+       UNION ALL SELECT due_at FROM hash_talk.group_cleanups WHERE due_at>clock_timestamp()
+       UNION ALL SELECT clock_timestamp() WHERE EXISTS(SELECT 1 FROM hash_talk.groups g WHERE g.deleted AND NOT g.media_scope_retired AND NOT EXISTS(SELECT 1 FROM hash_talk.group_media m WHERE m.group_id=g.id))
+       ) deadlines`,
+      [groupMediaWarning],
+    );
+    return result.rows[0]?.at?.getTime() ?? null;
   }
   private async process(
     client: pg.PoolClient,

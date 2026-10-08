@@ -39,6 +39,7 @@ export interface CommunityPost {
   root: string | null;
   score: number;
   replies: number;
+  views?: number;
   media?: PublicPostMedia[];
 }
 export interface PostRemoval {
@@ -156,6 +157,7 @@ export function communityPost(value: unknown): CommunityPost {
     'root',
     'score',
     'replies',
+    ...(Object.hasOwn(data, 'views') ? ['views'] : []),
     ...(Object.hasOwn(data, 'media') ? ['media'] : []),
   ]);
   const status = data['status'];
@@ -172,6 +174,9 @@ export function communityPost(value: unknown): CommunityPost {
     ...postTree(data),
     score: postCount(data['score'], true),
     replies: postCount(data['replies']),
+    ...(Object.hasOwn(data, 'views')
+      ? { views: postCount(data['views']) }
+      : {}),
   };
 }
 export function postPage(value: unknown): PostPage {

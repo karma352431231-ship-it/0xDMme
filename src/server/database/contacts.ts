@@ -44,13 +44,19 @@ function unavailable(): never {
 export class ContactStore {
   private readonly pool: pg.Pool;
   private readonly changes: import('./changes.ts').DatabaseChanges | undefined;
+  private readonly relayChanges: boolean;
   private readonly pendingChanges = new WeakMap<
     pg.PoolClient,
     { accounts: Set<string>; authorization: boolean; removed: boolean }
   >();
-  constructor(pool: pg.Pool, changes?: import('./changes.ts').DatabaseChanges) {
+  constructor(
+    pool: pg.Pool,
+    changes?: import('./changes.ts').DatabaseChanges,
+    relayChanges = false,
+  ) {
     this.pool = pool;
     this.changes = changes;
+    this.relayChanges = relayChanges;
   }
   /** Coordinated schema operations register hints; only a successful COMMIT publishes them. */
   changed(
@@ -96,6 +102,20 @@ export class ContactStore {
         await this.authorize(client, authority);
       }
       const result = await work(client);
+      if (this.relayChanges) {
+        const accounts = Array.from(pending.accounts);
+        for (let offset = 0; offset < accounts.length; offset += 64)
+          await client.query(
+            "SELECT pg_notify('hash_talk_content_changes',$1)",
+            [
+              JSON.stringify({
+                accounts: accounts.slice(offset, offset + 64),
+                authorization: pending.authorization,
+                removed: pending.removed,
+              }),
+            ],
+          );
+      }
       await client.query('COMMIT');
       this.pendingChanges.delete(client);
       this.changes?.committed(pending.accounts, {

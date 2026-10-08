@@ -94,7 +94,7 @@ export async function admitReplyNotification(
   );
   if (!inserted.rowCount) return;
   await context.client.query(
-    `UPDATE hash_talk.push_subscriptions SET pending=true,generation=generation+1,attempts=0 WHERE account_id=(SELECT account_id FROM hash_talk.public_profiles WHERE id=$1)`,
+    `UPDATE hash_talk.push_subscriptions SET pending=true,generation=generation+1,attempts=0,next_attempt=now() WHERE account_id=(SELECT account_id FROM hash_talk.public_profiles WHERE id=$1)`,
     [parent.author],
   );
 }

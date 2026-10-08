@@ -44,6 +44,13 @@ export type { PublicModerationMediaCandidate } from './community-media.ts';
 export type { CommunityMediaStore } from './community-media.ts';
 export type { CommunityPostStore } from './community-posts.ts';
 import { CommunityDiscoveryStore } from './community-discovery.ts';
+import { CommunityRankingStore } from './community-ranking.ts';
+import { CommunityViewsStore } from './community-views.ts';
+export type { CommunityViewsStore } from './community-views.ts';
+import { WorkSignals } from './work-signals.ts';
+export { CommunityRankingStore } from './community-ranking.ts';
+export type { WorkSignals } from './work-signals.ts';
+export type { WorkTopic } from './work-signals.ts';
 export type { CommunityDiscoveryStore } from './community-discovery.ts';
 import { SocialDmStore } from './social-dm.ts';
 import { SocialCryptoStore } from './social-crypto.ts';
@@ -130,6 +137,12 @@ const migrations = [
   '041-post-media-moderation.sql',
   '042-public-avatar-hashes.sql',
   '043-painted-art-policy.sql',
+  '044-community-ranking.sql',
+  '045-ranking-rounds.sql',
+  '046-ranking-batch-accounting.sql',
+  '047-ranking-cache-budget.sql',
+  '048-community-post-views.sql',
+  '049-maintenance-work-signals.sql',
 ];
 
 export interface MaintenanceSnapshot {
@@ -165,6 +178,9 @@ export class Database {
   readonly communityPosts: CommunityPostStore;
   readonly communityMedia: CommunityMediaStore;
   readonly communityDiscovery: CommunityDiscoveryStore;
+  readonly communityRanking: CommunityRankingStore;
+  readonly communityViews: CommunityViewsStore;
+  readonly workSignals: WorkSignals;
   readonly socialDm: SocialDmStore;
   readonly socialCrypto: SocialCryptoStore;
   readonly socialMatrix: SocialMatrixStore;
@@ -192,10 +208,12 @@ export class Database {
     connectionString: string,
     contentCapacity = 3_000_000_000,
     acceptedModels: readonly PublicModerationAcceptedModel[] = [],
+    role: 'web' | 'worker' = 'web',
   ) {
+    this.workSignals = new WorkSignals(connectionString, this.changes);
     this.pool = new pg.Pool({
       connectionString,
-      max: 4,
+      max: role === 'worker' ? 1 : 4,
       connectionTimeoutMillis: 3_000,
       idleTimeoutMillis: 10_000,
       query_timeout: 5_000,
@@ -215,7 +233,11 @@ export class Database {
     );
     this.devices = new DeviceStore(this.pool, contentCapacity, this.changes);
     this.vault = new VaultStore(this.pool, contentCapacity);
-    this.contacts = new ContactStore(this.pool, this.changes);
+    this.contacts = new ContactStore(
+      this.pool,
+      this.changes,
+      role === 'worker',
+    );
     this.publicModeration = new PublicModerationStore(
       this.pool,
       contentCapacity,
@@ -267,8 +289,18 @@ export class Database {
       media: this.communityMedia,
       capacity: contentCapacity,
     });
+    this.communityViews = new CommunityViewsStore(
+      this.pool,
+      this.contacts,
+      contentCapacity,
+    );
+    this.communityRanking = new CommunityRankingStore(
+      this.pool,
+      contentCapacity,
+    );
     this.communityDiscovery = new CommunityDiscoveryStore({
       pool: this.pool,
+      ranking: this.communityRanking,
       communities: this.communities,
       posts: (client, ids) => this.communityPosts.readMany(client, ids),
       capacity: contentCapacity,
@@ -382,6 +414,26 @@ export class Database {
     }
   }
 
+  /** Workers cannot create or migrate schema; deployment owns that transition. */
+  async verifyMigrations(): Promise<void> {
+    const result = await this.pool.query<{ version: number; checksum: string }>(
+      'SELECT version,checksum FROM hash_talk.schema_migrations ORDER BY version',
+    );
+    if (result.rows.length !== migrations.length)
+      throw new Error('Esquema do worker incompatível.');
+    for (const [offset, filename] of migrations.entries()) {
+      const sql = await readFile(
+        new URL(`./migrations/${filename}`, import.meta.url),
+        'utf8',
+      );
+      if (
+        result.rows[offset]?.version !== offset + 1 ||
+        result.rows[offset]?.checksum !==
+          createHash('sha256').update(sql).digest('hex')
+      )
+        throw new Error('Migração do worker incompatível.');
+    }
+  }
   async healthy(): Promise<boolean> {
     if (this.failed) return false;
     try {
@@ -449,6 +501,7 @@ export class Database {
   }
 
   async close(): Promise<void> {
+    await this.workSignals.close();
     await this.pool.end();
   }
 }

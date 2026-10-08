@@ -121,4 +121,10 @@ export class GroupDailyStore {
       'DELETE FROM hash_talk.group_reads r WHERE (r.account_id,r.message_id) IN (SELECT r.account_id,r.message_id FROM hash_talk.group_reads r JOIN hash_talk.group_packets p ON p.id=r.message_id WHERE p.body IS NULL LIMIT 64)',
     );
   }
+  async nextCollection(): Promise<number | null> {
+    const result = await this.pool.query(
+      'SELECT 1 FROM hash_talk.group_reads r JOIN hash_talk.group_packets p ON p.id=r.message_id WHERE p.body IS NULL LIMIT 1',
+    );
+    return result.rowCount ? Date.now() : null;
+  }
 }

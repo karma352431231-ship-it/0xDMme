@@ -26,8 +26,8 @@ export interface FeedFilter {
   tag: string | null;
 }
 export interface ExploreFilter {
-  order: 'size' | 'activity';
-  period: DiscoveryPeriod;
+  order: 'size' | 'trending' | 'new';
+  period: 'day' | 'week';
 }
 export interface RankCursor {
   filter: string;
@@ -45,7 +45,16 @@ export interface FeedPage {
   next: string | null;
 }
 export interface ExplorePage {
-  items: { community: Community; activity: number }[];
+  items: {
+    community: Community;
+    activity: number;
+    participants: number;
+    upvotes: number;
+    historyComplete: boolean;
+  }[];
+  generation: string;
+  cutoff: string;
+  expiresAt: string;
   next: string | null;
 }
 export interface PostPreference {
@@ -94,10 +103,13 @@ export function feedFilter(value: unknown): FeedFilter {
 export function exploreFilter(value: unknown): ExploreFilter {
   const data = object(value);
   keys(data, ['order', 'period']);
-  const order = data['order'];
-  if (order !== 'size' && order !== 'activity')
+  const order = data['order'] === 'activity' ? 'trending' : data['order'];
+  if (order !== 'size' && order !== 'trending' && order !== 'new')
     throw new AccountError(400, 'Classificação inválida.');
-  return { order, period: discoveryPeriod(data['period']) };
+  const period = data['period'];
+  if (period !== 'day' && period !== 'week')
+    throw new AccountError(400, 'Ranking usa 24 horas ou sete dias.');
+  return { order, period };
 }
 export function discoveryKey(value: FeedFilter | ExploreFilter): string {
   return JSON.stringify(value);
@@ -169,17 +181,53 @@ export function feedPage(value: unknown): FeedPage {
 }
 export function explorePage(value: unknown): ExplorePage {
   const data = object(value);
-  keys(data, ['items', 'next']);
+  keys(data, ['items', 'next', 'generation', 'cutoff', 'expiresAt']);
   return {
+    generation: uuid(data['generation']),
+    cutoff: postTime(data['cutoff']),
+    expiresAt: postTime(data['expiresAt']),
     items: communityArray(data['items']).map((value) => {
       const row = object(value);
-      keys(row, ['community', 'activity']);
+      keys(row, [
+        'community',
+        'activity',
+        'participants',
+        'upvotes',
+        'historyComplete',
+      ]);
       return {
         community: community(row['community']),
         activity: postCount(row['activity']),
+        participants: postCount(row['participants']),
+        upvotes: postCount(row['upvotes']),
+        historyComplete: communityBoolean(row['historyComplete']),
       };
     }),
-    next: nextCursor(data['next']),
+    next: exploreCursor(data['next']) ? (data['next'] as string) : null,
+  };
+}
+export function exploreCursor(
+  value: unknown,
+  filter?: string,
+): { generation: string; rank: number; id: string; filter: string } | null {
+  if (value === null) return null;
+  if (typeof value !== 'string' || value.length > 500)
+    throw new AccountError(400, 'Cursor de ranking inválido.');
+  let data: Record<string, unknown>;
+  try {
+    data = object(JSON.parse(value));
+  } catch {
+    throw new AccountError(400, 'Cursor de ranking inválido.');
+  }
+  keys(data, ['generation', 'rank', 'id', 'filter']);
+  const key = communityText(data['filter'], 240);
+  if (filter !== undefined && key !== filter)
+    throw new AccountError(400, 'Cursor pertence a outros filtros.');
+  return {
+    generation: uuid(data['generation']),
+    rank: postCount(data['rank']),
+    id: uuid(data['id']),
+    filter: key,
   };
 }
 export function postPreference(value: unknown): PostPreference {

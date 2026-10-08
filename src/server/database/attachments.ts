@@ -278,6 +278,12 @@ export class AttachmentStore {
     );
     return result.rows;
   }
+  async nextCollection(): Promise<number | null> {
+    const result = await this.pool.query<{ at: Date | null }>(
+      "SELECT min(CASE WHEN status='deleting' THEN clock_timestamp() ELSE created_at+interval '24 hours 1 millisecond' END) AS at FROM hash_talk.message_attachments WHERE status IN ('deleting','reserved','ready')",
+    );
+    return result.rows[0]?.at?.getTime() ?? null;
+  }
   async collected(id: string): Promise<void> {
     await this.pool.query(
       "DELETE FROM hash_talk.message_attachments WHERE id=$1 AND status='deleting'",

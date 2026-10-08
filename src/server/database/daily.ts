@@ -302,6 +302,12 @@ export class DailyStore {
       )
     ).rows;
   }
+  async nextPushAttempt(): Promise<number | null> {
+    const result = await this.pool.query<{ at: Date | null }>(
+      'SELECT min(next_attempt) AS at FROM hash_talk.push_subscriptions WHERE pending AND attempts<3',
+    );
+    return result.rows[0]?.at?.getTime() ?? null;
+  }
   async eligible(job: PushJob): Promise<boolean> {
     return Boolean(
       (
@@ -325,7 +331,7 @@ export class DailyStore {
       return;
     }
     await this.pool.query(
-      `UPDATE hash_talk.push_subscriptions SET pending=CASE WHEN $4='retry' AND attempts<2 THEN true ELSE false END,attempts=CASE WHEN $4='retry' THEN least(attempts+1,3) ELSE 0 END,next_attempt=now()+interval '60 seconds' WHERE account_id=$1 AND device_id=$2 AND generation=$3`,
+      `UPDATE hash_talk.push_subscriptions SET pending=CASE WHEN $4='retry' AND attempts<2 THEN true ELSE false END,attempts=CASE WHEN $4='retry' THEN least(attempts+1,3) ELSE 0 END,next_attempt=CASE WHEN $4='retry' THEN now()+interval '60 seconds' ELSE now() END WHERE account_id=$1 AND device_id=$2 AND generation=$3`,
       [...args, outcome],
     );
   }
@@ -337,7 +343,7 @@ export async function enqueuePush(
   sender: string,
 ): Promise<void> {
   await c.query(
-    `UPDATE hash_talk.push_subscriptions SET pending=true,generation=generation+1,attempts=0 WHERE account_id=$1 AND NOT EXISTS(SELECT 1 FROM hash_talk.conversation_controls cc WHERE cc.account_id=$1 AND cc.peer=$2 AND cc.muted_until>(extract(epoch FROM now())*1000)::bigint)`,
+    `UPDATE hash_talk.push_subscriptions SET pending=true,generation=generation+1,attempts=0,next_attempt=now() WHERE account_id=$1 AND NOT EXISTS(SELECT 1 FROM hash_talk.conversation_controls cc WHERE cc.account_id=$1 AND cc.peer=$2 AND cc.muted_until>(extract(epoch FROM now())*1000)::bigint)`,
     [recipient, sender],
   );
 }
@@ -356,7 +362,7 @@ export async function admitGroupNotification(
   if (input.accounts.length > 200)
     throw new Error('Audiência de grupo excedida.');
   await client.query(
-    `UPDATE hash_talk.push_subscriptions s SET pending=true,generation=generation+1,attempts=0 WHERE s.account_id=ANY($1::uuid[]) AND ($2::uuid IS NULL OR s.account_id<>$2) AND NOT EXISTS(SELECT 1 FROM hash_talk.group_controls c WHERE c.account_id=s.account_id AND c.group_id=$3 AND c.muted_until>(extract(epoch FROM now())*1000)::bigint)`,
+    `UPDATE hash_talk.push_subscriptions s SET pending=true,generation=generation+1,attempts=0,next_attempt=now() WHERE s.account_id=ANY($1::uuid[]) AND ($2::uuid IS NULL OR s.account_id<>$2) AND NOT EXISTS(SELECT 1 FROM hash_talk.group_controls c WHERE c.account_id=s.account_id AND c.group_id=$3 AND c.muted_until>(extract(epoch FROM now())*1000)::bigint)`,
     [input.accounts, input.sender, input.groupId],
   );
 }

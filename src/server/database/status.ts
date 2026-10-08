@@ -545,6 +545,17 @@ export class StatusStore {
     }
     return retired;
   }
+  async nextCollection(): Promise<number | null> {
+    const result = await this.pool.query<{ at: Date | null }>(
+      `SELECT min(CASE WHEN p.state='deleting' THEN clock_timestamp()
+        WHEN p.state='draft' THEN p.created_at+interval '24 hours' ELSE p.expires_at END) AS at
+       FROM hash_talk.status_posts p WHERE p.state<>'deleting' OR
+       EXISTS(SELECT 1 FROM hash_talk.status_recipients r WHERE r.status_id=p.id) OR
+       EXISTS(SELECT 1 FROM hash_talk.status_pages r WHERE r.status_id=p.id) OR
+       NOT EXISTS(SELECT 1 FROM hash_talk.status_media m WHERE m.status_id=p.id AND m.status='writing')`,
+    );
+    return result.rows[0]?.at?.getTime() ?? null;
+  }
   /** Durable fanout cursor; each short transaction emits at most 64 ciphertext-free hints. */
   async notifyBatch(): Promise<boolean> {
     return this.contacts.withMaintenance(async (client) => {

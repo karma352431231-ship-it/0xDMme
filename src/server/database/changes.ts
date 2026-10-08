@@ -19,6 +19,10 @@ export class DatabaseChanges {
     };
   }
   private observer: Observer | null = null;
+  /** A cross-process hint gap requires a fresh signed snapshot; call state stays local. */
+  invalidateStreams(): void {
+    this.observer?.failed();
+  }
   observe(observer: Observer): () => void {
     if (this.observer) throw new Error('Observador de alterações já ativo.');
     this.observer = observer;

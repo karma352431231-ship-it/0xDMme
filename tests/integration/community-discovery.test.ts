@@ -135,6 +135,12 @@ await test('corte 6: feeds públicos, descoberta e referências privadas', async
       ).rows[0]!.bytes,
     );
   }
+  async function ranked(filter: unknown, after: string | null) {
+    let next = await db.communityRanking.process();
+    while (next !== null && next <= Date.now())
+      next = await db.communityRanking.process();
+    return communities.explore(filter, after);
+  }
   const bad = (status: number) => (error: unknown) =>
     error instanceof AccountError && error.status === status;
   async function create(
@@ -405,14 +411,14 @@ await test('corte 6: feeds públicos, descoberta e referências privadas', async
     'maiores e atividade são distintas; ocultações pessoais não mudam rankings públicos',
     async () => {
       const size = explorePage(
-        await communities.explore({ order: 'size', period: 'week' }, null),
+        await ranked({ order: 'size', period: 'week' }, null),
       );
       assert.ok(
         size.items.find((item) => item.community.id === community)?.community
           .followers === 2,
       );
       const activity = explorePage(
-        await communities.explore({ order: 'activity', period: 'week' }, null),
+        await ranked({ order: 'activity', period: 'week' }, null),
       );
       const group = activity.items.find(
         (item) => item.community.id === community,
@@ -422,10 +428,7 @@ await test('corte 6: feeds públicos, descoberta e referências privadas', async
       await set(reader, root, { ...current, hidden: true });
       assert.equal(
         explorePage(
-          await communities.explore(
-            { order: 'activity', period: 'week' },
-            null,
-          ),
+          await ranked({ order: 'activity', period: 'week' }, null),
         ).items.find((item) => item.community.id === community)?.activity,
         26,
       );
@@ -446,10 +449,7 @@ await test('corte 6: feeds públicos, descoberta e referências privadas', async
       );
       assert.equal(
         explorePage(
-          await communities.explore(
-            { order: 'activity', period: 'week' },
-            null,
-          ),
+          await ranked({ order: 'activity', period: 'week' }, null),
         ).items.find((item) => item.community.id === community)?.activity,
         25,
       );
@@ -487,7 +487,7 @@ await test('corte 6: feeds públicos, descoberta e referências privadas', async
     },
   );
   await t.test(
-    'exploração pagina comunidades sem atividade/seguidores e mantém desempates',
+    'Maiores pagina comunidades sem atividade; Trending exclui candidatas sem sinais',
     async () => {
       const extra = Array.from({ length: 26 }, () => crypto.randomUUID());
       ids.push(...extra);
@@ -500,7 +500,7 @@ await test('corte 6: feeds públicos, descoberta e referências privadas', async
         const seen = new Set<string>();
         for (let page = 0; page < 5; page++) {
           const result = explorePage(
-            await communities.explore({ order, period: 'week' }, after),
+            await ranked({ order, period: 'week' }, after),
           );
           for (const entry of result.items) {
             assert.ok(!seen.has(entry.community.id));
@@ -510,7 +510,8 @@ await test('corte 6: feeds públicos, descoberta e referências privadas', async
           if (!after) break;
         }
         assert.equal(after, null);
-        assert.ok(extra.every((id) => seen.has(id)));
+        if (order === 'size') assert.ok(extra.every((id) => seen.has(id)));
+        else assert.ok(extra.every((id) => !seen.has(id)));
       }
     },
   );
@@ -544,6 +545,7 @@ await test('corte 6: feeds públicos, descoberta e referências privadas', async
           (await fetch(`${origin}/api/communities/feed?${query}`)).status,
           400,
         );
+      await ranked({ order: 'trending', period: 'week' }, null);
       assert.equal(
         (
           await fetch(

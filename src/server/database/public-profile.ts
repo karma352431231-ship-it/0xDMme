@@ -354,4 +354,7 @@ export class PublicProfileStore {
     }
     return reviews.length;
   }
+  nextModerationCollection(): Promise<number | null> {
+    return this.moderation.nextCollection('avatar');
+  }
 }

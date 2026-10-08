@@ -227,6 +227,12 @@ export class BackupStore {
       )
     ).rows;
   }
+  async nextCollection(): Promise<number | null> {
+    const result = await this.pool.query(
+      "SELECT 1 FROM hash_talk.personal_removals WHERE kind='vault' AND retained_bytes>0 LIMIT 1",
+    );
+    return result.rowCount ? Date.now() : null;
+  }
   async collected(account: string, id: string): Promise<void> {
     await this.pool.query(
       "UPDATE hash_talk.personal_removals SET charge=charge-retained_bytes,retained_bytes=0 WHERE account_id=$1 AND kind='vault' AND id=$2 AND retained_bytes>0",

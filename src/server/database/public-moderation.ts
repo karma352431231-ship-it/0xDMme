@@ -448,6 +448,25 @@ export class PublicModerationStore {
     );
     return result.rows.map(notice);
   }
+  async nextCollection(
+    kind: 'avatar' | 'community-photo',
+  ): Promise<number | null> {
+    const result = await this.pool.query<{ at: Date | null }>(
+      "SELECT min(CASE WHEN status='discarding' THEN clock_timestamp() ELSE expires_at END) AS at FROM hash_talk.public_moderation WHERE kind=$1 AND status NOT IN ('approved','expired','removed')",
+      [kind],
+    );
+    return result.rows[0]?.at?.getTime() ?? null;
+  }
+  async nextWork(analyze: boolean): Promise<number | null> {
+    const result = await this.pool.query<{ at: Date | null }>(
+      `SELECT min(CASE WHEN status='analyzing' THEN lease_until
+       WHEN $1 AND status IN ('pending','failed') AND attempts<3 AND expires_at>now()
+       THEN coalesce(next_attempt_at,clock_timestamp()) ELSE NULL END) AS at
+       FROM hash_talk.public_moderation`,
+      [analyze],
+    );
+    return result.rows[0]?.at?.getTime() ?? null;
+  }
   /** Caller confirms physical deletion; no media ledger is released by this record alone. */
   async collected(client: pg.PoolClient, id: string): Promise<void> {
     await client.query(

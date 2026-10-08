@@ -206,6 +206,7 @@ export class CommunityPostStore {
       root: row.root_id,
       score: row.score,
       replies: row.replies,
+      views: visible ? Number(row.views) : 0,
     };
   }
   async read(community: string, id: string): Promise<CommunityPost> {

@@ -291,4 +291,10 @@ export class SocialMediaStore {
       [id],
     );
   }
+  async nextCollection(): Promise<number | null> {
+    const result = await this.pool.query<{ at: Date | null }>(
+      "SELECT min(CASE WHEN status='deleting' THEN clock_timestamp() WHEN status='writing' THEN lease_at+interval '2 minutes 1 millisecond' ELSE reserved_at+interval '24 hours 1 millisecond' END) AS at FROM hash_talk.social_media WHERE status IN ('deleting','writing','reserved','ready')",
+    );
+    return result.rows[0]?.at?.getTime() ?? null;
+  }
 }
