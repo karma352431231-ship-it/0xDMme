@@ -55,7 +55,7 @@ export function communityDirectoryNavigation(
   nav.setAttribute('aria-label', 'Navegação de comunidades');
   for (const [key, title, icon] of [
     ['feed', 'Feed geral', 'layers'],
-    ['explore', 'Explorar', 'compass'],
+    ['explore', 'Ranking', 'compass'],
   ] as const) {
     link(nav, title, `#comunidades?view=${key}`);
     const a = nav.lastElementChild as HTMLAnchorElement;

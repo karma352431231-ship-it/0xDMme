@@ -1,5 +1,6 @@
 import {
   feedFilter,
+  discoveryPeriod,
   feedPage,
   exploreFilter,
   explorePage,
@@ -8,6 +9,7 @@ import type {
   DiscoveryPeriod,
   FeedOrder,
   FeedScope,
+  ExploreFilter,
 } from '../../shared/community-discovery/index.ts';
 import type { Communities } from './controller.ts';
 import type { CommunityPost } from '../../shared/community-posts/index.ts';
@@ -20,6 +22,7 @@ import {
   communityLink as link,
 } from './elements.ts';
 import { postText } from './post-text.ts';
+import { postViews } from './post-views.ts';
 import {
   communityAvatar,
   communityIcon,
@@ -52,8 +55,9 @@ export function startCommunityDiscovery(controller: Communities) {
   let view = 'feed',
     order: FeedOrder = 'recent',
     period: DiscoveryPeriod = 'all',
-    exploreOrder: 'size' | 'activity' = 'size',
-    after: string | null = null;
+    exploreOrder: ExploreFilter['order'] = 'trending',
+    after: string | null = null,
+    rankOffset = 0;
   const seen = new Set<string>();
   const mediaCleanup = new Set<() => void>();
   function clearMedia(): void {
@@ -89,6 +93,7 @@ export function startCommunityDiscovery(controller: Communities) {
     const filterPanel = el('details', '', 'community-filters'),
       toolbar = el('div', '', 'post-toolbar community-feed-filters'),
       breakpoint = window.matchMedia('(min-width: 701px)');
+    toolbar.classList.toggle('community-ranking-filters', view === 'explore');
     filterPanel.append(el('summary', 'Ordenar e filtrar'), toolbar);
     const adapt = () => {
       filterPanel.open = breakpoint.matches;
@@ -109,6 +114,7 @@ export function startCommunityDiscovery(controller: Communities) {
       }
       toolbar.append(scopes);
     }
+    const periodPanel = el('div', '', 'community-ranking-period');
     if (view === 'explore')
       discoverySelect(
         toolbar,
@@ -116,12 +122,14 @@ export function startCommunityDiscovery(controller: Communities) {
         {
           value: exploreOrder,
           options: [
+            ['trending', 'Trending'],
             ['size', 'Maiores'],
-            ['activity', 'Mais ativas'],
+            ['new', 'Comunidades recém-criadas'],
           ],
         },
         (value) => {
           exploreOrder = exploreFilter({ order: value, period }).order;
+          periodPanel.hidden = exploreOrder === 'size';
           void run(reload);
         },
       );
@@ -141,12 +149,26 @@ export function startCommunityDiscovery(controller: Communities) {
           void run(reload);
         },
       );
+    toolbar.append(periodPanel);
+    periodPanel.hidden = view === 'explore' && exploreOrder === 'size';
     discoverySelect(
-      toolbar,
-      view === 'explore' ? 'Atividade' : 'Período',
-      { value: period, options: discoveryPeriods },
+      periodPanel,
+      'Período',
+      {
+        value: period,
+        options:
+          view === 'explore'
+            ? [
+                ['day', '24 horas'],
+                ['week', '7 dias'],
+              ]
+            : discoveryPeriods,
+      },
       (value) => {
-        period = exploreFilter({ order: exploreOrder, period: value }).period;
+        period =
+          view === 'explore'
+            ? exploreFilter({ order: exploreOrder, period: value }).period
+            : discoveryPeriod(value);
         void run(reload);
       },
     );
@@ -209,18 +231,33 @@ export function startCommunityDiscovery(controller: Communities) {
     if (!list) return;
     const page = explorePage(result);
     after = page.next;
-    for (const { community, activity } of page.items) {
-      const row = card(community.name);
+    for (const {
+      community,
+      participants,
+      upvotes,
+      historyComplete,
+    } of page.items) {
+      const row = card(`${++rankOffset}. ${community.name}`);
       const avatar = communityAvatar(community.name);
       row.firstElementChild?.prepend(avatar);
       row.classList.add('community-explore-card');
       row.append(
         el(
           'p',
-          `${community.followers} seguidores · ${activity} publicações e respostas no período${community.archived ? ' · Arquivada' : ''}`,
+          exploreOrder === 'size'
+            ? `${community.followers} seguidores${community.archived ? ' · Arquivada' : ''}`
+            : `${community.followers} seguidores · ${participants} participantes ativos · +${upvotes} upvotes nos posts em alta`,
         ),
         el('p', community.description),
       );
+      if (exploreOrder !== 'size' && !historyComplete)
+        row.append(
+          el(
+            'p',
+            'Histórico em formação; crescimento ainda não comparável.',
+            'community-subtitle',
+          ),
+        );
       link(row, 'Abrir comunidade', `#comunidades?id=${community.id}`);
       list.append(row);
       if (community.avatar)
@@ -268,6 +305,7 @@ export function startCommunityDiscovery(controller: Communities) {
       };
       postVoting(toolbar, post, signedIn ? actions : null);
       postComments(toolbar, post);
+      mediaCleanup.add(postViews(row, post, toolbar));
       if (signedIn) {
         preferenceControls(toolbar, post, actions);
       }
@@ -324,6 +362,7 @@ export function startCommunityDiscovery(controller: Communities) {
   }
   async function reload(): Promise<void> {
     after = null;
+    rankOffset = 0;
     seen.clear();
     await load();
   }
@@ -356,12 +395,12 @@ export function startCommunityDiscovery(controller: Communities) {
       signedIn = options.signedIn;
       followChanged = options.followChanged ?? (() => Promise.resolve());
       order = 'recent';
-      period = view === 'explore' ? 'week' : 'all';
-      exploreOrder = 'size';
+      period = view === 'explore' ? 'day' : 'all';
+      exploreOrder = 'trending';
       const titles: Record<string, string> = {
         feed: 'Feed geral',
         following: 'Feed das comunidades seguidas',
-        explore: 'Descubra comunidades',
+        explore: 'Ranking de comunidades',
         saved: 'Suas postagens salvas',
         hidden: 'Conteúdo oculto dos seus feeds',
       };
@@ -378,7 +417,7 @@ export function startCommunityDiscovery(controller: Communities) {
         el(
           'p',
           view === 'explore'
-            ? 'Encontre assuntos e comunidades que você quer acompanhar.'
+            ? 'Veja comunidades em destaque, as maiores e as que estão começando.'
             : view === 'feed'
               ? 'Posts de várias comunidades, inclusive das que você não segue.'
               : 'Acompanhe e organize suas postagens.',

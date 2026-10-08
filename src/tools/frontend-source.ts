@@ -22,6 +22,7 @@ const authored = [
   'src/client/social-dm',
   'src/shared/community-discovery',
   'src/shared/community-posts',
+  'src/shared/community-views',
   'src/client/communities',
   'src/shared/communities',
   'src/client/public-profile',

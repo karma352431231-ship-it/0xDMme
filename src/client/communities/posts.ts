@@ -1,4 +1,5 @@
 import { restrictedMedia } from '../community-media/index.ts';
+import { postViews } from './post-views.ts';
 import {
   showPublicPostMedia,
   showPublicAvatar,
@@ -197,6 +198,7 @@ export function startCommunityPosts(controller: Communities) {
     node.append(toolbar);
     voting(toolbar, value);
     postComments(toolbar, value);
+    mediaCleanup.set(postViews(node, value, toolbar), node);
     branch(node, value, depth);
     if (!own) return;
     const old = generation;

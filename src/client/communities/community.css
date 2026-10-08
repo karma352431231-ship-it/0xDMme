@@ -440,6 +440,12 @@
   align-items: center;
   gap: 6px;
 }
+.community-ranking-period {
+  display: contents;
+}
+.community-ranking-period[hidden] {
+  display: none;
+}
 .community-feed-scopes {
   display: flex;
   gap: 8px;
@@ -742,6 +748,9 @@
   }
   .community-feed-scopes {
     flex: 1 0 100%;
+  }
+  .community-ranking-filters label {
+    flex-basis: 100%;
   }
   .community-feed-scopes a {
     min-height: 36px;
