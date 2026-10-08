@@ -331,8 +331,12 @@ if (!account.approvalPage) {
 document
   .getElementById('open-search')
   ?.addEventListener('click', () => messages.openSearch());
-document.getElementById('back-to-chats')?.addEventListener('click', () => {
-  element('app-shell').dataset['chatOpen'] = 'false';
+conversationContent.addEventListener('click', (event) => {
+  if (
+    event.target instanceof Element &&
+    event.target.closest('[data-chat-back]')
+  )
+    element('app-shell').dataset['chatOpen'] = 'false';
 });
 document
   .querySelector('[data-route=conversas]')

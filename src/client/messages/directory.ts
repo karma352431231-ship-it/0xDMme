@@ -80,6 +80,13 @@ export function conversationButton(
   detail.textContent = entry.detail;
   text.append(title, detail);
   button.append(avatar, text);
+  if (entry.unread) {
+    const unread = document.createElement('span');
+    unread.className = 'conversation-unread';
+    unread.textContent = entry.unread > 99 ? '99+' : String(entry.unread);
+    unread.setAttribute('aria-label', `${entry.unread} mensagens não lidas`);
+    button.append(unread);
+  }
   button.addEventListener('click', entry.open);
   return button;
 }

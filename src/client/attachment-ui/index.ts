@@ -86,6 +86,7 @@ export class AttachmentUi {
         }
         this.selection = value;
         this.preview(host, value);
+        this.changed();
       });
     });
     host

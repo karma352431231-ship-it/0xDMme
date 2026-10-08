@@ -1,4 +1,12 @@
 import {
+  chatIcon,
+  chatComposer,
+  bindChatComposer,
+  updateChatComposer,
+  historyPosition,
+  resetHistoryPosition,
+} from '../chat-ui/index.ts';
+import {
   groupTextQuota,
   groupMediaQuota,
 } from '../../shared/group-quota/index.ts';
@@ -67,7 +75,15 @@ export function startGroups(
   function sidebar<T extends HTMLElement>(selector: string): T | null {
     return aside?.querySelector<T>(selector) ?? null;
   }
+  function composerStatus(): void {
+    updateChatComposer(node('[data-group-compose]'), {
+      blocked: options.isBusy() || !controller.selected,
+      recording: voice.active,
+      attachment: attachments.selected !== null,
+    });
+  }
   function voiceStatus(): void {
+    composerStatus();
     const label = node('[data-voice-status]');
     if (label)
       label.textContent =
@@ -75,18 +91,30 @@ export function startGroups(
         (voice.active
           ? ` ${voiceDuration({ samples: voice.state.samples, sampleRate: voiceRate })} / 1:30`
           : '');
+    voiceControls();
+  }
+  function voiceControls(): void {
     const stop = node<HTMLButtonElement>('[data-voice-stop]');
     if (stop) stop.hidden = !voice.active;
+    const cancel = node('[data-voice-cancel]');
+    if (cancel) cancel.hidden = !voice.active;
     const start = node<HTMLButtonElement>('[data-voice-record]');
     if (start)
       start.disabled =
         options.isBusy() || voice.active || attachments.selected !== null;
     const file = node<HTMLInputElement>('[data-attachment-file]');
-    if (file) file.disabled = voice.active || !!attachments.selected?.voice;
+    if (file)
+      file.disabled =
+        options.isBusy() || voice.active || !!attachments.selected?.voice;
   }
   function status(): void {
     const label = node('[data-group-notice]');
-    if (label) label.textContent = notice;
+    if (label)
+      label.textContent = ['Grupo aberto.', 'Mensagem enviada.'].includes(
+        notice,
+      )
+        ? ''
+        : notice;
     const compose = node<HTMLFormElement>('[data-group-compose]');
     if (compose) compose.hidden = !!controller.selected?.localOnly;
     voiceStatus();
@@ -184,6 +212,8 @@ export function startGroups(
       throw new Error(
         'Envie ou remova a prévia de voz antes de trocar de conversa.',
       );
+    if (controller.selected?.state.groupId !== group.state.groupId)
+      resetHistoryPosition(node('[data-group-history]'));
     options.select();
     attachments.clearSelection();
     emoji.close();
@@ -198,8 +228,10 @@ export function startGroups(
     attachments.clearMedia();
     const history = node('[data-group-history]');
     if (!history) return;
+    const restoreScroll = historyPosition(history);
     history.replaceChildren();
     for (const view of controller.views) renderView(history, view);
+    restoreScroll();
     const older = node('[data-group-older]');
     if (older) older.hidden = controller.before === null;
   }
@@ -234,14 +266,20 @@ export function startGroups(
       read: view.read ?? false,
     });
     if (checks) {
-      const state = document.createElement('span');
-      state.textContent = checks.text;
-      state.className = `message-checks ${checks.color}`;
-      state.setAttribute(
+      const state = document.createElement('small');
+      state.className = 'message-meta';
+      const icon = document.createElement('span');
+      icon.textContent = checks.text;
+      icon.className = `message-checks ${checks.color}`;
+      icon.setAttribute(
         'aria-label',
         view.read
           ? 'Vista pelos destinatários com confirmação de leitura'
           : checks.label,
+      );
+      state.append(
+        view.delivery === 'received' ? 'Entregue ' : 'Enviada ',
+        icon,
       );
       article.append(state);
     }
@@ -551,7 +589,11 @@ export function startGroups(
           const input = node<HTMLTextAreaElement>('[data-group-text]');
           await controller.compose(input?.value ?? '', attachments.selected);
           attachments.clearSelection();
-          if (input) input.value = '';
+          voice.cancel();
+          if (input) {
+            input.value = '';
+            input.dispatchEvent(new Event('input'));
+          }
           await controller.sendPending();
           await reopen();
           notice = 'Mensagem enviada.';
@@ -574,6 +616,9 @@ export function startGroups(
     });
     bind('[data-voice-stop]', () => void voice.stop());
     bind('[data-voice-cancel]', () => voice.cancel());
+    bind('[data-attachment-clear]', () => {
+      if (!voice.active) voice.cancel();
+    });
     bind(
       '[data-group-leave]',
       () =>
@@ -779,8 +824,10 @@ export function startGroups(
       container.hidden = !controller.selected;
       if (session) container.dataset['voicePeer'] = session.accountId;
       sidebarContainer.innerHTML = `<button data-group-new type="button">Novo grupo</button><p data-group-mode></p><form data-group-create hidden><label>Nome do grupo<input data-group-name maxlength="160" required></label><button type="submit">Criar grupo</button></form><button data-group-cancel-create type="button" hidden>Descartar pedido local de criação</button><details><summary>Convites e transferências de grupos</summary><div data-group-incoming></div><button data-group-more-incoming type="button" hidden>Mais convites</button></details>`;
-      container.innerHTML = `<h3 data-group-title></h3><p data-group-count></p><p data-group-notice role="status"></p><div data-group-history class="chat-history"></div><button data-group-older type="button">Mensagens anteriores</button><form data-group-compose><label>Mensagem<textarea data-group-text rows="3"></textarea></label><button data-group-emoji type="button">Escolher emoji</button><label>Enviar como<select data-attachment-mode><option value="photo">Foto otimizada</option><option value="file">Arquivo original (até 3 MB)</option></select></label><label>Foto ou arquivo<input data-attachment-file type="file"></label><button data-voice-record type="button">Gravar voz</button><button data-voice-stop type="button" hidden>Parar e conferir</button><button data-voice-cancel type="button" hidden>Cancelar gravação</button><p data-voice-status role="status"></p><p>Voz: até 90 segundos. Ouça a prévia e toque em Enviar.</p><div data-attachment-preview></div><button data-attachment-clear type="button">Remover seleção</button><button class="primary" type="submit">Enviar</button></form><ul data-group-pending></ul><details><summary>Participantes e administração</summary><ul data-group-members></ul><form data-group-invite><label>Convidar contato<select data-group-invite-target></select></label><button type="submit">Enviar convite</button></form><p data-group-owner-note>Para sair, ofereça a propriedade a outro membro e aguarde o aceite. A propriedade muda somente após o aceite.</p><button data-group-leave type="button">Sair do grupo</button><button data-group-delete type="button">Excluir grupo</button></details><details data-group-vault><summary>Cofre do grupo</summary><p data-group-usage></p><p data-group-cleanup-warning role="status"></p><ul data-group-cleanup-items></ul><button data-group-cleanup-more type="button" hidden>Próximas mídias selecionadas</button><p><a href="#cofre">Salvar um backup cifrado</a> para conservar uma cópia das mídias antes da limpeza. Status não entra no backup.</p><button data-group-clear type="button">Limpar cofre remoto</button></details>`;
+      container.innerHTML = `<header class="chat-header"><button data-chat-back class="chat-icon chat-mobile-back" type="button" aria-label="Voltar às conversas">${chatIcon('back')}</button><span class="chat-peer-avatar" aria-hidden="true">#</span><div class="chat-peer"><h3 data-group-title></h3><p data-group-count></p></div><details class="chat-options"><summary class="chat-icon" aria-label="Opções do grupo" title="Opções do grupo">${chatIcon('more')}</summary><div class="chat-popover group-options"><details><summary>Participantes e administração</summary><ul data-group-members></ul><form data-group-invite><label>Convidar contato<select data-group-invite-target></select></label><button type="submit">Enviar convite</button></form><p data-group-owner-note>Para sair, ofereça a propriedade a outro membro e aguarde o aceite. A propriedade muda somente após o aceite.</p><button data-group-leave type="button">Sair do grupo</button><button data-group-delete type="button">Excluir grupo</button></details><details data-group-vault><summary>Cofre do grupo</summary><p data-group-usage></p><p data-group-cleanup-warning role="status"></p><ul data-group-cleanup-items></ul><button data-group-cleanup-more type="button" hidden>Próximas mídias selecionadas</button><p><a href="#cofre">Salvar um backup cifrado</a> para conservar uma cópia das mídias antes da limpeza. Status não entra no backup.</p><button data-group-clear type="button">Limpar cofre remoto</button></details></div></details></header><p data-group-notice class="compose-notice" role="status"></p><div class="chat-thread"><button data-group-older class="chat-older" type="button" hidden>Mensagens anteriores</button><div data-group-history class="chat-history" tabindex="0" aria-label="Mensagens do grupo"></div><ul data-group-pending class="chat-pending" aria-label="Envios pendentes no grupo"></ul></div>${chatComposer('group')}`;
       attachments.mount(container, run);
+      const form = node('[data-group-compose]');
+      if (form) bindChatComposer(form, composerStatus);
       bindChat();
       bindAside();
       renderCreation();

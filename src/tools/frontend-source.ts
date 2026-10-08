@@ -41,6 +41,7 @@ const authored = [
   'src/client/daily',
   'src/client/daily-text',
   'src/client/message-actions',
+  'src/client/chat-ui',
   'src/client/message-search',
   'src/client/message-status',
   'src/client/notification-sound',

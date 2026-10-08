@@ -1,4 +1,5 @@
 @import '../communities/community.css';
+@import '../chat-ui/chat.css';
 
 :root {
   font-family:
@@ -239,6 +240,7 @@ button:disabled {
 }
 .account {
   display: flex;
+  margin-top: auto;
   flex: 0 0 auto;
   align-items: center;
   gap: 12px;
@@ -308,8 +310,7 @@ button:disabled {
   color: #b9eee5;
   font-size: 10px;
 }
-.mobile-nav,
-.chat-back {
+.mobile-nav {
   display: none;
 }
 main {
@@ -571,16 +572,6 @@ footer {
   main {
     grid-row: 2;
     padding: 18px 16px;
-  }
-  .app[data-page='conversas'][data-chat-open='true'] .chat-back {
-    display: inline-flex;
-    align-self: flex-start;
-    border: 0;
-    background: transparent;
-    color: var(--accent);
-    padding: 12px 4px;
-    font-size: 15px;
-    margin-bottom: 10px;
   }
   .mobile-nav {
     display: flex;
@@ -1220,35 +1211,8 @@ footer {
   opacity: 0.65;
   margin-top: 6px;
 }
-.conversation-content {
-  flex: 1;
-  min-height: 0;
-}
-.chat-panel {
-  min-height: 100%;
-}
-.chat-welcome {
-  display: none;
-}
-.chat-panel[data-empty='true'] .chat-layout {
-  display: none;
-}
-.chat-panel[data-empty='true'] .chat-welcome {
-  display: flex;
-  min-height: 280px;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-}
 .app[data-page='conversas'] .page-heading {
   display: none;
-}
-.app[data-page='conversas'] main {
-  padding: 20px 24px;
-}
-.app[data-page='conversas'] footer {
-  padding-top: 16px;
 }
 .conversation-search {
   width: min(620px, calc(100vw - 24px));
@@ -1344,39 +1308,6 @@ footer {
   margin: 8px 0;
 }
 
-.chat-history {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-  max-height: 60vh;
-  overflow: auto;
-}
-.chat-history[hidden] {
-  display: none;
-}
-.chat-message {
-  max-width: 90%;
-  padding: 0.75rem;
-  border: 1px solid var(--border, #d5dde2);
-  border-radius: 0.75rem;
-  overflow-wrap: anywhere;
-}
-.chat-message p {
-  white-space: pre-wrap;
-}
-.chat-message.own {
-  align-self: flex-end;
-  background: #eef5fa;
-}
-.chat-message button {
-  display: block;
-  margin-top: 0.5rem;
-}
-.chat-panel textarea {
-  width: 100%;
-  box-sizing: border-box;
-}
-
 [data-attachment-preview] img,
 .chat-message img {
   max-width: 100%;
@@ -1426,20 +1357,6 @@ footer {
 }
 .backup-history p {
   white-space: pre-wrap;
-}
-.message-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.4rem;
-  margin-top: 0.7rem;
-}
-.message-actions select,
-.message-actions input {
-  min-width: 0;
-  max-width: 100%;
-}
-.message-actions input {
-  flex: 1 1 12rem;
 }
 .message-checks {
   font-size: 1.1rem;
@@ -1595,9 +1512,6 @@ footer {
 }
 
 @media (max-width: 700px) {
-  .app[data-page='conversas'] main {
-    padding: 10px 12px;
-  }
   .conversation-search {
     padding: 18px;
   }
