@@ -170,7 +170,7 @@ export class Messages {
   /** A wakeup is not authority. Keep the verified snapshot only for comparison,
    * with the history hidden until a fresh snapshot and delivery check succeed. */
   hint(): void {
-    this.visibility.close(this.confirmed ? 'delivery' : 'history');
+    this.visibility.hint(this.confirmed ? 'delivery' : 'history');
   }
   select(peer: string | null, older = false): void {
     this.close();
@@ -704,11 +704,6 @@ export class Messages {
         }
       });
       await this.savePins();
-      await this.access.withVault(false, (a) =>
-        messageApi(a, 'confirm', { snapshot: staged.snapshot }, () =>
-          this.guard(generation),
-        ),
-      );
       this.guard(generation);
       this.oldest =
         staged.items.filter((item) => item.kind !== 'profile')[0]?.sequence ??
@@ -731,13 +726,25 @@ export class Messages {
           (v) => !v.relation && v.kind !== 'profile',
         )[0]?.sequence ?? this.before;
       this.visibility.stage(token, this.confirmed.views);
-      this.visibility.complete(token);
+      await this.confirmVisible(token, staged.snapshot, generation);
       this.index.reset();
     } catch (error: unknown) {
       this.confirmed = null;
       this.visibility.fail(token);
       throw error;
     }
+  }
+  private async confirmVisible(
+    token: number,
+    snapshot: unknown,
+    generation: number,
+  ): Promise<void> {
+    await this.visibility.confirm(token, async () => {
+      await this.access.withVault(false, (a) =>
+        messageApi(a, 'confirm', { snapshot }, () => this.guard(generation)),
+      );
+      this.guard(generation);
+    });
   }
   private historicalView(
     a: VaultAuthority,
@@ -1247,7 +1254,7 @@ export class Messages {
       if (this.confirmed?.snapshot === JSON.stringify(snapshot)) {
         await this.refreshDelivery(snapshot, generation);
         this.visibility.stage(token, this.confirmed.views);
-        this.visibility.complete(token);
+        await this.confirmVisible(token, snapshot, generation);
         return false;
       }
       this.confirmed = null;

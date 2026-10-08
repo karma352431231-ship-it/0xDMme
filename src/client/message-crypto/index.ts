@@ -253,14 +253,28 @@ export class MessageCrypto {
   private async flush(): Promise<void> {
     for (const request of await this.machine.outgoingRequests()) {
       try {
-        // Other requests require a selected, verified conversation and are
-        // dispatched explicitly by trustDevices/getMissingSessions/shareRoomKey.
-        if (!(request instanceof KeysUploadRequest)) continue;
+        // The SDK's own tracked query must complete too: manual queries do not
+        // clear its pending flag. Never dispatch queued queries for other users
+        // here; they need the selected conversation's verified scope/transport.
+        if (
+          !(request instanceof KeysUploadRequest) &&
+          !(request instanceof KeysQueryRequest && this.ownKeyQuery(request))
+        )
+          continue;
         await this.dispatch(request);
       } finally {
         request.free();
       }
     }
+  }
+  private ownKeyQuery(request: KeysQueryRequest): boolean {
+    if (!this.binding) return false;
+    const users = Object.keys(
+      object(object(JSON.parse(request.body) as unknown)['device_keys']),
+    );
+    return (
+      users.length === 1 && users[0] === matrixUser(this.binding.accountId)
+    );
   }
   private async dispatch(
     request:

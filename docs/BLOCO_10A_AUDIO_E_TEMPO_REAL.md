@@ -48,6 +48,20 @@ Uma recusa HTTP 403 na abertura pode indicar que o diretório mudou depois da as
 
 Este encaminhamento após commit pertence ao processo único do serviço web atual. Vários processos, escritores externos ou outra topologia exigem distribuir esses avisos de forma coordenada, com revisão e testes próprios. Reconexão recupera eventos perdidos pelo estado persistido; mensagens aceitas preservam fila e retenção anteriores. Cadastro/conexão não significa capacidade física ilimitada.
 
+## Correções apoiadas em evidência — 08/10/2026
+
+O proprietário autorizou corrigir os caminhos comprovados na investigação, sem atribuir uma causa ainda não medida ao processamento das leituras. Evidências operacionais, capturas e experimentos continuam exclusivamente em `.local/`.
+
+O cliente atende a consulta de chaves da própria conta gerada pela fila acompanhada do SDK, preservando a verificação de bindings e o diretório atual. Consultas a outros usuários não são despachadas por esse caminho: continuam exigindo a conversa e o transporte de escopo correspondente. As consultas manuais anteriores não encerravam a pendência interna do SDK, que aguardava seu timeout ao estabelecer sessões. Nenhum timeout, assinatura ou verificação foi removido.
+
+Rechecagens de conexão/perfil da mesma sessão já autorizada deixam de disparar repetidamente a carga do chat. Nova conta, aparelho, sessão ou perda/retomada de autorização exigem nova prontidão; a entrada explícita na conversa, a reconexão SSE e suas invalidações conservam a conferência existente.
+
+Um `changed` continua ocultando o histórico imediatamente, mas não inutiliza sozinho uma leitura já em andamento. A publicação passa a depender de `confirm` ao fim de todos os passos, com versão do aviso capturada antes da confirmação. Um aviso durante esse pedido exige outra confirmação, no máximo três tentativas; mudança real de snapshot/permissão recusa a publicação. Revogação, troca de sessão, navegação e falha ainda descartam a visão. Isso evita refazer toda a decifração apenas por um aviso repetido, sem abrir cache antigo ou histórico parcialmente conferido.
+
+Validação local: 35 testes direcionados do cliente/SDK e 44 integrações de mensagens, grupos e DMs passaram, incluindo recuperação, exclusão, bloqueio, revogação, idempotência e limites de confirmação. Lint, tipos, fronteiras, licenças, formatação e build passaram; permanecem 38 assets públicos. No Chromium com contas fictícias, layouts desktop/mobile conservaram envio/recebimento, bolhas/posição de leitura e falha fechada. A rechecagem de foco da mesma sessão foi exercitada na tela montada e não recarregou o histórico. Cada pacote da janela foi buscado uma vez durante o envio, mesmo com SSE; o ensaio do SDK no caminho corrigido não apresentou a espera fixa de cinco segundos. Esses resultados locais não medem a latência na VPS nem encerram o aceite físico.
+
+**Ponto importante:** esta correção preserva o fechamento do histórico durante a validação e a distinção entre mensagem aceita, entregue e lida. Os demais custos de processamento e a latência final no site ainda precisam ser medidos depois da publicação; a alteração local não ativa uma release nem modifica dependências, banco, cotas ou infraestrutura.
+
 ## Validação e limites
 
 Cobertura automatizada: PCM em 8/16/44,1/48/96 kHz, WAV máximo e adulteração, permissão/cancelamento/interrupção, compatibilidade v1/v2, cifra real de anexos, backup independente, encaminhamento SSE para mil clientes simulados sem teto de 8/2, ausência de consultas no heartbeat, isolamento, cliente lento, reconexão/cancelamento e encerramento de sessão. A simulação do módulo não é benchmark de VPS.

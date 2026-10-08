@@ -2,6 +2,7 @@ import { startPwa } from '../pwa/index.ts';
 import { startAccount } from '../account/index.ts';
 import { startDevices } from '../devices/index.ts';
 import { bindSettingsSections } from './settings.ts';
+import { MessageReadiness } from './message-readiness.ts';
 import { startBackups } from '../backups/index.ts';
 import { startVault } from '../vault-ui/index.ts';
 import { startMessages } from '../messages/index.ts';
@@ -27,6 +28,7 @@ function element<T extends HTMLElement>(id: string): T {
 }
 
 let connectedAccount: AccountSession | null = null;
+const messageReadiness = new MessageReadiness();
 const conversationContent = document.createElement('div');
 conversationContent.className = 'conversation-content';
 let currentPage = '';
@@ -312,10 +314,14 @@ function renderApprovalPage(): void {
 }
 
 function connection(): void {
+  const messagesReady = messageReadiness.update(
+    connectedAccount,
+    devices.authorized(),
+  );
   if (connectedAccount && devices.authorized()) {
     publicProfiles.ready();
     communities.ready();
-    messages.ready();
+    if (messagesReady) messages.ready();
     calls.ready();
     contacts.ready();
     statuses.ready();

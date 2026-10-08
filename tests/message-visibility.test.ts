@@ -63,3 +63,89 @@ await test('revogação ou saída da conversa invalida a sondagem de entrega em 
   assert.throws(() => visibility.complete(token));
   assert.ok(frames.every((rows) => rows === null));
 });
+await test('aviso durante a leitura oculta imediatamente e permite concluir os mesmos dados só após nova conferência', () => {
+  const frames: (readonly string[] | null)[] = [];
+  const visibility = new MessageVisibility<string>((rows) => frames.push(rows));
+  const token = visibility.begin();
+  visibility.stage(token, ['histórico verificado']);
+  const oldCheck = visibility.verificationVersion(token);
+  visibility.hint();
+  assert.equal(frames.at(-1), null);
+  assert.equal(visibility.complete(token, oldCheck), false);
+  assert.throws(() => visibility.complete(token));
+  const freshCheck = visibility.verificationVersion(token);
+  visibility.hint();
+  assert.equal(visibility.complete(token, freshCheck), false);
+  assert.equal(
+    visibility.complete(token, visibility.verificationVersion(token)),
+    true,
+  );
+  assert.deepEqual(frames.at(-1), ['histórico verificado']);
+});
+await test('exclusão divergente ou revogação após aviso descarta a leitura retida sem reabrir conteúdo', () => {
+  for (const invalidate of ['fail', 'close'] as const) {
+    const frames: (readonly string[] | null)[] = [];
+    const visibility = new MessageVisibility<string>((rows) =>
+      frames.push(rows),
+    );
+    const token = visibility.begin();
+    visibility.stage(token, ['conteúdo antigo']);
+    visibility.hint();
+    const check = visibility.verificationVersion(token);
+    if (invalidate === 'fail') visibility.fail(token);
+    else visibility.close();
+    assert.throws(() => visibility.complete(token, check));
+    assert.ok(frames.every((rows) => rows === null));
+  }
+});
+await test('aviso durante confirm repete só a conferência, preservando a janela decifrada oculta até concluir', async () => {
+  const frames: (readonly string[] | null)[] = [];
+  const visibility = new MessageVisibility<string>((rows) => frames.push(rows));
+  const token = visibility.begin();
+  visibility.stage(token, ['janela decifrada uma vez']);
+  let checks = 0;
+  await visibility.confirm(token, async () => {
+    checks++;
+    assert.equal(frames.at(-1), null);
+    if (checks === 1) visibility.hint();
+    await Promise.resolve();
+  });
+  assert.equal(checks, 2);
+  assert.deepEqual(frames.at(-1), ['janela decifrada uma vez']);
+});
+await test('avisos contínuos têm limite de três confirmações e não publicam snapshot não conferido', async () => {
+  const frames: (readonly string[] | null)[] = [];
+  const visibility = new MessageVisibility<string>((rows) => frames.push(rows));
+  const token = visibility.begin();
+  visibility.stage(token, ['conteúdo retido']);
+  let checks = 0;
+  await assert.rejects(
+    visibility.confirm(token, () => {
+      checks++;
+      visibility.hint();
+      return Promise.resolve();
+    }),
+    /Novas atualizações/,
+  );
+  assert.equal(checks, 3);
+  assert.ok(frames.every((rows) => rows === null));
+});
+await test('confirm recusado por exclusão e revogação durante confirm permanecem fechados', async () => {
+  for (const reason of ['deleted', 'revoked'] as const) {
+    const frames: (readonly string[] | null)[] = [];
+    const visibility = new MessageVisibility<string>((rows) =>
+      frames.push(rows),
+    );
+    const token = visibility.begin();
+    visibility.stage(token, ['não deve abrir']);
+    await assert.rejects(
+      visibility.confirm(token, () => {
+        if (reason === 'deleted')
+          return Promise.reject(new Error('snapshot mudou'));
+        visibility.close();
+        return Promise.resolve();
+      }),
+    );
+    assert.ok(frames.every((rows) => rows === null));
+  }
+});

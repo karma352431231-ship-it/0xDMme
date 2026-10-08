@@ -747,6 +747,8 @@ Publicação do bloco 10 solicitada em 03/10/2026: revisão específica 017→01
 
 **Aceite:** gravar e ouvir entre desktop, Android e iOS; interrupção ou falta de permissão não perde silenciosamente o estado; tamanho/cota são respeitados.
 
+**Correções apoiadas em evidência autorizadas em 08/10/2026:** atender a consulta pendente da própria conta na fila do SDK Matrix, com verificação de bindings e sem despachar consultas de outros usuários fora do escopo autenticado; impedir que rechecagens repetidas da mesma sessão autorizada acionem cargas completas pelo fluxo de conexão; permitir que uma leitura em andamento sobreviva a um aviso `changed` somente após confirmar seu snapshot depois do aviso. O histórico continua oculto durante a conferência; exclusão ou permissão divergente recusam a publicação, e revogação/troca de sessão/navegação continuam invalidando a leitura. `ready` do SSE, reconexão e entrada na conversa preservam a conferência completa. Retentativas de confirmação são limitadas, sem fallback de cache antigo. O processamento adicional da leitura ainda exige medição própria; não presumir sua causa nem prometer latência final. Nenhuma alteração de dependência, migração, cota, infraestrutura ou ativação está incluída.
+
 ### Bloco 11 — Grupos e status
 
 **Início autorizado pelo proprietário em 04/10/2026:** grupos e conversas individuais ficam juntos na aba **Conversas**, na mesma lista/área de chats; não criar uma aba separada de grupos. **Status** terá item e área próprios na navegação **Seu espaço**. Esta autorização inicia a implementação local do bloco, preservando a revisão de novas decisões materiais e a separação entre código local e ativação/migração na VPS. [Registro do bloco 11](docs/BLOCO_11_GRUPOS_E_STATUS.md).
