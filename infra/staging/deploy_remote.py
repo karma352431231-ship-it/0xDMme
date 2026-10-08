@@ -796,6 +796,30 @@ def activate_communities(config, work, candidate, before_state):
         'verify':verify_communities_migration})
 
 
+def transition_failure(phase, error):
+    failure = {'phase': phase, 'type': type(error).__name__}
+    if isinstance(error, RuntimeError):
+        failure['reason'] = str(error)[:256]
+    if isinstance(error, subprocess.SubprocessError):
+        failure['timeout'] = isinstance(error, subprocess.TimeoutExpired)
+    if isinstance(error, subprocess.CalledProcessError):
+        failure['exit_code'] = error.returncode
+        raw = (error.stderr or b'')[-65536:]
+        detail = (raw.decode(errors='replace') if isinstance(raw, bytes) else raw).lower()
+        for text, category in [
+            ('statement timeout', 'statement-timeout'),
+            ('lock timeout', 'lock-timeout'),
+            ('idle-in-transaction timeout', 'idle-transaction-timeout'),
+            ('err_module_not_found', 'runtime-dependency'),
+            ('heap out of memory', 'node-heap'),
+            ('read-only file system', 'read-only-filesystem'),
+        ]:
+            if text in detail:
+                failure['category'] = category
+                break
+    return failure
+
+
 def activate_database(config, work, candidate, transition):
     import deploy_blocks45 as backups
     snapshot, before_state = transition['snapshot'], transition['before_state']
@@ -810,42 +834,55 @@ def activate_database(config, work, candidate, transition):
     expected_state = before_state
     before = objects = checksum = None
     live, previous = DATA / 'release', work / 'previous'
+    phase = 'stopping'
     try:
         if transition.get('stop') and infrastructure_touched:
             transition['stop']()
         run(['systemctl', 'stop', UNIT])
         if run(['systemctl', 'show', UNIT, '--property=MainPID', '--value']).strip() != b'0':
             raise RuntimeError('Own writer did not stop.')
+        phase = 'backup'
         before, objects = snapshot(), backups.objects_snapshot()
         checksum = backups.backup(work)
         if backups.file_tree(work / 'objects-backup') != objects:
             raise RuntimeError('Object backup verification failed.')
         backups.validate_restore(work, before, checksum, snapshot=snapshot)
         receipt(work, {'status':'backed-up', 'commit':config['commit'], 'backup_sha256':checksum})
+        phase = 'migration'
         backups.migrate(candidate)
+        phase = 'verifying-migration'
         transition['verify'](candidate, before)
         if backups.objects_snapshot() != objects:
             raise RuntimeError('Existing objects changed during migration.')
         preservation(config['baseline'])
         if own_state() != before_state:
             raise RuntimeError('Configuration/database process changed.')
+        phase = 'exchanging-release'
         live.rename(previous)
         candidate.rename(live)
         installed = True
         if transition.get('install'):
+            phase = 'installing-workers'
             infrastructure_touched = True
             expected_state = transition['install']()
         receipt(work, {'status':'opening', 'commit':config['commit'], 'backup_sha256':checksum})
         # New writes may exist after this point; never automatically restore old data.
         opened = True
+        phase = 'opening-web'
         run(['systemctl', 'start', UNIT])
         wait_ready(config['files'])
         if transition.get('start'):
+            phase = 'starting-workers'
             transition['start']()
+        phase = 'preservation'
         preservation(config['baseline'])
         if own_state() != expected_state:
             raise RuntimeError('Configuration/database process changed.')
-    except BaseException:
+    except BaseException as error:
+        failure = transition_failure(phase, error)
+        # Only phase/type and our controlled guard messages: never SQL, argv,
+        # database credentials or content. stderr is captured privately by deploy.py.
+        print(json.dumps({'transition_failure': failure}), file=sys.stderr, flush=True)
         rollback = False
         try:
             if infrastructure_touched and transition.get('stop'):
@@ -869,7 +906,8 @@ def activate_database(config, work, candidate, transition):
         except BaseException:
             rollback = False
         receipt(work, {'status':'failed', 'commit':config['commit'],
-                       'rollback_verified':rollback, 'new_state_preserved':opened})
+                       'rollback_verified':rollback, 'new_state_preserved':opened,
+                       'failure':failure, 'backup_sha256':checksum})
         raise RuntimeError('Transition failed; old release returned.' if rollback else
                            'Transition failed; own service stopped and state retained for review.') from None
     result = {'status':'published', 'commit':config['commit'], 'migrations_verified':True,

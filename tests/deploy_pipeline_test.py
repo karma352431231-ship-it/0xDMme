@@ -31,6 +31,16 @@ def manifest():
 
 
 class DeploymentTests(unittest.TestCase):
+    def test_transition_diagnostics_classify_failures_without_private_details(self):
+        for detail, category in [(b'statement timeout', 'statement-timeout'),
+                                 (b'Read-only file system', 'read-only-filesystem')]:
+            error = remote.subprocess.CalledProcessError(1, ['node', 'private-argument'],
+                stderr=detail + b' private-sql private-password private-content')
+            failure = remote.transition_failure('migration', error)
+            self.assertEqual(failure, {'phase':'migration', 'type':'CalledProcessError',
+                'timeout':False, 'exit_code':1, 'category':category})
+            self.assertNotIn('private-', json.dumps(failure))
+
     def test_manifest_extra_entries_are_only_the_two_http_diagnostic_modules(self):
         value = manifest()
         value['files'].update({'src/fixture-' + str(i) + '.ts': 'a' * 64 for i in range(511)})
@@ -643,10 +653,13 @@ class AttachmentDeploymentTests(unittest.TestCase):
             commands = [c.args[0] for c in command.call_args_list]
             self.assertTrue(all(c[:2]==['systemctl','show'] or c in [['systemctl','start',remote.UNIT],['systemctl','stop',remote.UNIT]] for c in commands))
             if failure == 'migration':
+                self.assertEqual(receipt['failure'], {'phase':'migration',
+                    'type':'RuntimeError', 'reason':'failed before opening'})
                 returned.assert_called_once_with(work,before,'backup-hash',snapshot=getattr(remote,self.snapshot_name))
                 self.assertTrue(receipt['rollback_verified']); self.assertEqual(state['value'],before)
                 self.assertEqual((live / 'version').read_text(),'old')
             elif failure == 'opened':
+                self.assertEqual(receipt['failure']['phase'], 'opening-web')
                 returned.assert_not_called(); self.assertTrue(receipt['new_state_preserved'])
                 self.assertFalse(receipt['rollback_verified']); self.assertEqual(commands[-1],['systemctl','stop',remote.UNIT])
                 self.assertEqual((live / 'version').read_text(),'new')

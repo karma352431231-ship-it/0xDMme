@@ -895,3 +895,8 @@ O executor de ativação agora oferece `/tmp` privado de 16 MiB, sem execução,
 e define `TMPDIR`. Validação das unidades ocorre antes de parar o web ou migrar.
 **Ponto importante:** CPU, RAM, processos, timeout, banco e infraestrutura
 compartilhada conservam seus limites; esta correção não altera fontes da aplicação.
+
+Falhas de transição também registram fase, tipo e mensagens controladas dos
+guards no recibo/stderr privado antes do rollback. Não incluir SQL, argumentos,
+credenciais ou conteúdo. Assim o rollback conserva a causa diagnosticável,
+inclusive quando o limite do executor interrompe sua conclusão.
