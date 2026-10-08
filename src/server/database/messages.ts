@@ -296,6 +296,7 @@ export class MessageStore {
         [id],
       );
       await this.bump(client, [row.sender, row.recipient]);
+      this.contacts.removed(client, [row.sender, row.recipient]);
     });
   }
   async acknowledge(

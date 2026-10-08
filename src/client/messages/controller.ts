@@ -167,10 +167,9 @@ export class Messages {
     this.confirmed = null;
     this.visibility.close();
   }
-  /** A wakeup is not authority. Keep the verified snapshot only for comparison,
-   * with the history hidden until a fresh snapshot and delivery check succeed. */
+  /** A normal wakeup retains the last verified view, but cannot publish new rows. */
   hint(): void {
-    this.visibility.hint(this.confirmed ? 'delivery' : 'history');
+    this.visibility.hint();
   }
   select(peer: string | null, older = false): void {
     this.close();
@@ -654,7 +653,7 @@ export class Messages {
   }
   async synchronize(): Promise<void> {
     this.confirmed = null;
-    const token = this.visibility.begin(),
+    const token = this.visibility.refresh(),
       generation = this.generation,
       selected = this.selected;
     try {
@@ -1242,7 +1241,7 @@ export class Messages {
     });
   }
   async probe(): Promise<boolean> {
-    const token = this.visibility.begin(
+    const token = this.visibility.refresh(
         this.confirmed ? 'delivery' : 'history',
       ),
       generation = this.generation;
@@ -1258,7 +1257,7 @@ export class Messages {
         return false;
       }
       this.confirmed = null;
-      this.visibility.close();
+      this.visibility.discard(token);
       return true;
     } catch (error: unknown) {
       this.confirmed = null;

@@ -33,7 +33,7 @@ await test('resposta antiga e falha antiga não reabrem nem interrompem a nova c
   visibility.close();
   assert.equal(frames.at(-1), null);
 });
-await test('sondagem de entrega oculta antes da rede e somente libera a visão completa validada; falha descarta os nós retidos', () => {
+await test('primeira sondagem mantém o histórico fechado até validar a visão completa; falha descarta os nós retidos', () => {
   const frames: { rows: readonly string[] | null; update: HistoryUpdate }[] =
     [];
   const visibility = new MessageVisibility<string>((rows, update) =>
@@ -63,7 +63,7 @@ await test('revogação ou saída da conversa invalida a sondagem de entrega em 
   assert.throws(() => visibility.complete(token));
   assert.ok(frames.every((rows) => rows === null));
 });
-await test('aviso durante a leitura oculta imediatamente e permite concluir os mesmos dados só após nova conferência', () => {
+await test('aviso durante a leitura inicial permite concluir os mesmos dados só após nova conferência', () => {
   const frames: (readonly string[] | null)[] = [];
   const visibility = new MessageVisibility<string>((rows) => frames.push(rows));
   const token = visibility.begin();
@@ -81,6 +81,72 @@ await test('aviso durante a leitura oculta imediatamente e permite concluir os m
     true,
   );
   assert.deepEqual(frames.at(-1), ['histórico verificado']);
+});
+await test('atualizações normais conservam a última visão completa sem publicar partes ou fechar o histórico', async () => {
+  for (const update of ['history', 'delivery'] as const) {
+    const frames: (readonly string[] | null)[] = [];
+    const visibility = new MessageVisibility<string>((rows) =>
+      frames.push(rows),
+    );
+    const initial = visibility.begin();
+    visibility.stage(initial, ['já verificada']);
+    visibility.complete(initial);
+    visibility.hint();
+    const token = visibility.refresh(update);
+    visibility.stage(token, ['nova visão completa']);
+    assert.deepEqual(frames, [null, ['já verificada']]);
+    let checks = 0;
+    await visibility.confirm(token, () => {
+      checks++;
+      assert.deepEqual(frames.at(-1), ['já verificada']);
+      if (checks === 1) visibility.hint();
+      return Promise.resolve();
+    });
+    assert.equal(checks, 2);
+    assert.deepEqual(frames, [
+      null,
+      ['já verificada'],
+      ['nova visão completa'],
+    ]);
+  }
+});
+await test('snapshot diferente na sondagem conserva a visão enquanto uma carga completa é conferida', async () => {
+  const frames: (readonly string[] | null)[] = [];
+  const visibility = new MessageVisibility<string>((rows) => frames.push(rows));
+  const initial = visibility.begin();
+  visibility.stage(initial, ['verificada']);
+  visibility.complete(initial);
+  const probe = visibility.refresh('delivery');
+  visibility.discard(probe);
+  assert.throws(() => visibility.complete(probe));
+  const full = visibility.refresh();
+  visibility.stage(full, ['após mudança']);
+  assert.deepEqual(frames.at(-1), ['verificada']);
+  await visibility.confirm(full, () => Promise.resolve());
+  assert.deepEqual(frames.at(-1), ['após mudança']);
+});
+await test('exclusão ou invalidação fecha a visão durante trabalho e respostas antigas não a reabrem; falha também fecha', async () => {
+  for (const reason of ['removed', 'authorization', 'failed'] as const) {
+    const frames: (readonly string[] | null)[] = [];
+    const visibility = new MessageVisibility<string>((rows) =>
+      frames.push(rows),
+    );
+    const initial = visibility.begin();
+    visibility.stage(initial, ['antiga']);
+    visibility.complete(initial);
+    const token = visibility.refresh();
+    visibility.stage(token, ['resposta antiga']);
+    if (reason === 'failed') visibility.fail(token);
+    else visibility.close();
+    assert.equal(frames.at(-1), null);
+    await assert.rejects(visibility.confirm(token, () => Promise.resolve()));
+    assert.equal(frames.at(-1), null);
+    const retry = visibility.refresh();
+    visibility.stage(retry, ['após aplicar exclusões']);
+    assert.equal(frames.at(-1), null);
+    await visibility.confirm(retry, () => Promise.resolve());
+    assert.deepEqual(frames.at(-1), ['após aplicar exclusões']);
+  }
 });
 await test('exclusão divergente ou revogação após aviso descarta a leitura retida sem reabrir conteúdo', () => {
   for (const invalidate of ['fail', 'close'] as const) {

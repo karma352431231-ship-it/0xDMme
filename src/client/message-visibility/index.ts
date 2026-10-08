@@ -7,6 +7,7 @@ export class MessageVisibility<T> {
   private update: HistoryUpdate = 'history';
   private changeVersion = 0;
   private startedVersion = 0;
+  private visible = false;
   private readonly publish: (
     rows: readonly T[] | null,
     update: HistoryUpdate,
@@ -21,20 +22,37 @@ export class MessageVisibility<T> {
     this.token = null;
     this.staged = [];
     this.update = update;
+    this.visible = false;
     this.publish(null, update);
   }
   begin(update: HistoryUpdate = 'history'): number {
     this.close(update);
+    return this.start();
+  }
+  /** Retain only the last complete view while preparing a normal update. */
+  refresh(update: HistoryUpdate = 'history'): number {
+    if (!this.visible) return this.begin(update);
+    this.generation++;
+    this.staged = [];
+    this.update = update;
+    return this.start();
+  }
+  private start(): number {
     this.token = this.generation;
     this.startedVersion = this.changeVersion;
     return this.generation;
   }
-  /** A wakeup hides immediately, but a running read can still finish if its
-   * snapshot is confirmed after the wakeup. Authority changes use close(). */
-  hint(update: HistoryUpdate = 'history'): void {
+  /** Normal wakeups require a fresh confirmation without hiding verified rows.
+   * Removal and authority changes use close(), cancelling the current token. */
+  hint(): void {
     this.changeVersion++;
-    if (this.token === null) this.close(update);
-    else this.publish(null, update);
+  }
+  /** A probe found new content; drop its staged work before the full read. */
+  discard(token: number): void {
+    this.assert(token);
+    this.generation++;
+    this.token = null;
+    this.staged = [];
   }
   verificationVersion(token: number): number {
     this.assert(token);
@@ -54,6 +72,7 @@ export class MessageVisibility<T> {
     const rows = this.staged;
     this.staged = [];
     this.token = null;
+    this.visible = true;
     this.publish(rows, this.update);
     return true;
   }

@@ -36,6 +36,7 @@ import type { PeerState } from '../daily/index.ts';
 import { dailyViews } from '../daily-text/index.ts';
 import type { DailyView } from '../daily-text/index.ts';
 import { messageActions } from '../message-actions/index.ts';
+import { observeMessageControls } from '../message-controls/index.ts';
 import { messageChecks } from '../message-status/index.ts';
 import { EmojiPicker, emojiIntoComposer, emojiText } from '../emoji/index.ts';
 import {
@@ -217,10 +218,7 @@ export function startMessages(
       options.liveEvent?.(event);
       invalidateGroupAuthority(event);
       if (event === 'ready') void checkVoiceAuthority();
-      if (event === 'authorization') {
-        void checkVoiceAuthority();
-        return;
-      }
+      if (event === 'authorization') void checkVoiceAuthority();
       hideLiveHistory(event);
       requestRefresh(event === 'changed' ? 'probe' : 'refresh');
     },
@@ -235,8 +233,16 @@ export function startMessages(
       attachments.clearSelection();
       playback.close();
     }
-    if (['invalidated', 'revoked', 'ended'].includes(event)) suspend();
-    else if (event === 'changed') controller.hint();
+    if (['authorization', 'invalidated', 'revoked', 'ended'].includes(event))
+      suspend();
+    else if (event === 'removed') {
+      // Cancel the history token immediately without cancelling an in-flight
+      // signed mutation (the sender receives its own deletion before its reply).
+      controller.hide();
+      groups.suspend();
+      menu.close();
+      searchPanel.close();
+    } else if (event === 'changed') controller.hint();
     else controller.hide();
   }
   async function checkVoiceAuthority(): Promise<void> {
@@ -1329,15 +1335,7 @@ export function startMessages(
     )
       requestRefresh();
   });
-  const channel =
-    typeof BroadcastChannel === 'undefined'
-      ? null
-      : new BroadcastChannel('0xdmme-message-controls');
-  channel?.addEventListener('message', () => {
-    suspend();
-    requestRefresh();
-  });
-  window.addEventListener('0xdmme-message-controls', () => {
+  const stopControls = observeMessageControls(() => {
     suspend();
     requestRefresh();
   });
@@ -1402,7 +1400,7 @@ export function startMessages(
       playback.close();
       attachments.clearSelection();
       clearInterval(timer);
-      channel?.close();
+      stopControls();
       devicesChannel?.close();
       soundEvents.abort();
       void sound.dispose().catch(() => {

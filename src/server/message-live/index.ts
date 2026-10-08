@@ -79,6 +79,10 @@ export class MessageLive {
     }
     if (change.authorization)
       this.write(stream, 'event: authorization\ndata: {}\n\n');
+    // This empty control frame only closes content already visible. Like
+    // authorization, it must not wait behind normal batching/access checks.
+    // It never grants access; subsequent changed/read operations still validate.
+    if (change.removed) this.write(stream, 'event: removed\ndata: {}\n\n');
     if (!this.has(stream)) return;
     stream.pending = true;
     if (stream.timer) return;

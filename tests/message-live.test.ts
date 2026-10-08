@@ -166,8 +166,10 @@ await test('eventos encerram apenas sessão/aparelho afetado; falha de autoriza�
   changes.committed([first.accountId], {
     authorization: true,
     revoked: [first.deviceId],
+    removed: true,
   });
   assert.match(a.text(), /event: revoked/);
+  assert.doesNotMatch(a.text(), /event: removed/);
   assert.doesNotMatch(b.text(), /event: revoked/);
   changes.committed([second.accountId], {
     authorization: true,
@@ -195,6 +197,52 @@ await test('eventos encerram apenas sessão/aparelho afetado; falha de autoriza�
   });
   assert.equal(slow.output.destroyed, true);
 });
+await test('exclusão envia somente aviso vazio às contas afetadas sem esperar lote ou autorização da atualização normal', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout', 'setInterval'] });
+  const changes = new DatabaseChanges(),
+    live = new MessageLive(changes);
+  t.after(() => live.close());
+  const first = session(),
+    second = session(),
+    unrelated = session();
+  const targets = [first, first, second, unrelated].map((s) => ({
+    session: s,
+    ...response(),
+  }));
+  let release: (() => void) | undefined;
+  const checking = new Promise<boolean>((resolve) => {
+    release = () => resolve(true);
+  });
+  for (const target of targets)
+    live.open({
+      session: target.session,
+      response: target.output,
+      validate: () => checking,
+    });
+  changes.committed([first.accountId, second.accountId]);
+  t.mock.timers.tick(100);
+  await turn();
+  assert.ok(
+    targets.every((target) => !target.text().includes('event: changed')),
+  );
+  changes.committed([first.accountId, second.accountId], { removed: true });
+  const parser = new WakeupFrames();
+  for (const target of targets.slice(0, 3)) {
+    assert.deepEqual(parser.accept(new TextEncoder().encode(target.text())), [
+      'ready',
+      'removed',
+    ]);
+    assert.ok(!target.text().includes(target.session.accountId));
+  }
+  assert.doesNotMatch(targets[3]!.text(), /event: removed/);
+  release?.();
+  await turn();
+  assert.ok(
+    targets
+      .slice(0, 3)
+      .every((target) => target.text().includes('event: changed')),
+  );
+});
 await test('falha de publicação de aviso não transforma um commit durável em erro; observador falha fechando canais', () => {
   const changes = new DatabaseChanges();
   let failed = 0;
@@ -218,6 +266,7 @@ await test('parser SSE suporta UTF-8 fragmentado e recusa conteúdo, campos extr
   const events = [
     'ready',
     'changed',
+    'removed',
     'authorization',
     'invalidated',
     'revoked',

@@ -533,7 +533,17 @@ await test('mensagens persistentes: Olm/Megolm, recuperação, idempotência, ex
           [bob.session.accountId, bob.session.deviceId],
         );
       }
+      const removals: (readonly string[])[] = [];
+      const stopRemoval = db.changes.subscribe({
+        notify: (change) => {
+          if (change.removed) removals.push(change.accounts);
+        },
+        failed: () => assert.fail('Observador não deve falhar'),
+      });
+      t.after(stopRemoval);
       const result = object(await op(bob, 'personal-clean', selection));
+      stopRemoval();
+      assert.deepEqual(removals, [[bob.session.accountId]]);
       assert.equal(result['status'], 'cleaned');
       const after = await inspector.query<{
         account_id: string;
@@ -722,13 +732,23 @@ await test('mensagens persistentes: Olm/Megolm, recuperação, idempotência, ex
           body: JSON.stringify(await proof(alice, 'publish', { packet: p })),
         });
         assert.equal(response.status, 200);
-        await response.json();
+        const acceptance = object(await response.json());
         await Promise.all(streams.map((item) => item.next('changed')));
         const snap = await op(bob, 'snapshot');
         assert.ok(await op(bob, 'object', { id: p.id, snapshot: snap }));
         assert.equal(
           await op(bob, 'playback-allowed', { peer: alice.session.accountId }),
           true,
+        );
+        await op(alice, 'delete', {
+          id: p.id,
+          hash: acceptance['hash'],
+          revision: alice.events.length,
+        });
+        await Promise.all(streams.map((item) => item.next('removed')));
+        await assert.rejects(
+          op(bob, 'object', { id: p.id, snapshot: await op(bob, 'snapshot') }),
+          { status: 410 },
         );
         await contactChange(bob, 'block', {
           wallet: {
@@ -776,7 +796,7 @@ await test('mensagens persistentes: Olm/Megolm, recuperação, idempotência, ex
           db.contacts.withMessageAuthority(
             { session: alice.session, directory: a.directory },
             (client) => {
-              db.contacts.changed(client, [bob.session.accountId]);
+              db.contacts.removed(client, [bob.session.accountId]);
               return Promise.reject(
                 new Error('Quota recusada após registrar mudança'),
               );

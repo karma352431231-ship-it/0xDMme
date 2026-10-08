@@ -46,7 +46,7 @@ export class ContactStore {
   private readonly changes: import('./changes.ts').DatabaseChanges | undefined;
   private readonly pendingChanges = new WeakMap<
     pg.PoolClient,
-    { accounts: Set<string>; authorization: boolean }
+    { accounts: Set<string>; authorization: boolean; removed: boolean }
   >();
   constructor(pool: pg.Pool, changes?: import('./changes.ts').DatabaseChanges) {
     this.pool = pool;
@@ -63,12 +63,23 @@ export class ContactStore {
     for (const account of accounts) pending.accounts.add(account);
     pending.authorization ||= authorization;
   }
+  /** A removal is a closing signal, published only after this transaction commits. */
+  removed(client: pg.PoolClient, accounts: readonly string[]): void {
+    this.changed(client, accounts);
+    const pending = this.pendingChanges.get(client);
+    if (!pending) throw new Error('Exclusão exige transação coordenada.');
+    pending.removed = true;
+  }
   private async transaction<T>(
     authority: ContactAuthority | null,
     work: (client: pg.PoolClient) => Promise<T>,
   ): Promise<T> {
     const client = await this.pool.connect();
-    const pending = { accounts: new Set<string>(), authorization: false };
+    const pending = {
+      accounts: new Set<string>(),
+      authorization: false,
+      removed: false,
+    };
     this.pendingChanges.set(client, pending);
     try {
       await client.query('BEGIN');
@@ -89,6 +100,7 @@ export class ContactStore {
       this.pendingChanges.delete(client);
       this.changes?.committed(pending.accounts, {
         authorization: pending.authorization,
+        removed: pending.removed,
       });
       return result;
     } catch (error: unknown) {

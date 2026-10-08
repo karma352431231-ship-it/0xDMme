@@ -1,6 +1,7 @@
 export interface CommittedChange {
   accounts: readonly string[];
   authorization: boolean;
+  removed: boolean;
   revoked: readonly string[];
   ended: readonly string[];
 }
@@ -29,6 +30,7 @@ export class DatabaseChanges {
     accounts: Iterable<string>,
     details: {
       authorization?: boolean;
+      removed?: boolean;
       revoked?: readonly string[];
       ended?: readonly string[];
     } = {},
@@ -38,6 +40,7 @@ export class DatabaseChanges {
     const change = {
       accounts: unique,
       authorization: details.authorization ?? false,
+      removed: details.removed ?? false,
       revoked: details.revoked ?? [],
       ended: details.ended ?? [],
     };

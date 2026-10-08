@@ -8,7 +8,13 @@ import { prepareMessageRequest } from '../message-api/index.ts';
 import type { VaultAccess } from '../vault-authority/index.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
 export type LiveEvent =
-  'ready' | 'changed' | 'authorization' | 'invalidated' | 'revoked' | 'ended';
+  | 'ready'
+  | 'changed'
+  | 'removed'
+  | 'authorization'
+  | 'invalidated'
+  | 'revoked'
+  | 'ended';
 export type LiveUpdate = 'probe' | 'refresh';
 
 /** Account rechecks do not replace entering a chat or reconnecting SSE.
@@ -87,7 +93,7 @@ export class WakeupFrames {
     return frames.flatMap((frame) => {
       if (frame === ': heartbeat') return [];
       const match =
-        /^event: (ready|changed|authorization|invalidated|revoked|ended)\ndata: \{\}$/u.exec(
+        /^event: (ready|changed|removed|authorization|invalidated|revoked|ended)\ndata: \{\}$/u.exec(
           frame,
         );
       if (!match) throw new Error('Aviso de atualização inválido.');

@@ -138,7 +138,8 @@ export class BackupStore {
     );
     if (item.kind === 'message') await this.collectMessage(c, item.id);
     if (item.kind === 'dm-message') await this.social.collect(c, item.id);
-    this.contacts.changed(c, [account]);
+    if (item.kind === 'message') this.contacts.removed(c, [account]);
+    else this.contacts.changed(c, [account]);
     return true;
   }
   private async cleanVault(

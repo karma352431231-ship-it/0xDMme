@@ -34,6 +34,8 @@ O cliente assina o pedido dentro da trava do cofre e libera a trava antes de man
 
 ## Primeira otimização do cliente — 08/10/2026
 
+Registro histórico: o fechamento em atualizações normais descrito nesta etapa e na correção seguinte foi substituído pela decisão de visibilidade abaixo. Permanecem a confirmação de snapshot, os limites e as invalidações.
+
 Presença e recibos de leitura atualizam seus indicadores sem reconstruir as bolhas, ações, mídias ou posição de leitura. Avisos próximos são agrupados numa janela fixa de 150 ms, com um único pedido pendente; uma conferência completa tem precedência sobre uma sondagem. Avisos recebidos durante uma operação aguardam seu término, e trocar de sessão ou fechar a página cancela o pedido antigo. Invalidações continuam ocultando o histórico imediatamente; a janela agrupa somente o trabalho posterior na rede.
 
 Um `changed` não autoriza reabrir conteúdo: primeiro consulta o snapshot autenticado. Se for idêntico ao último snapshot completo, confere os estados de entrega no servidor e atualiza somente os metadados das mesmas mensagens. Os nós existentes permanecem ocultos durante essa conferência. Snapshot alterado, erro, troca de conta, revogação ou saída da conversa descartam a visão retida; o caminho completo continua aplicando exclusões e confirmando o estado antes de publicar. Reconexão/`ready` conservam esse caminho completo.
@@ -63,6 +65,18 @@ Validação local: 35 testes direcionados do cliente/SDK e 44 integrações de m
 **Ponto importante:** esta correção preserva o fechamento do histórico durante a validação e a distinção entre mensagem aceita, entregue e lida. Os demais custos de processamento e a latência final no site ainda precisam ser medidos depois da publicação; a alteração local não ativa uma release nem modifica dependências, banco, cotas ou infraestrutura.
 
 A prontidão por sessão fica junto ao ciclo de eventos em `message-live`, preservando o teto vigente de entradas do manifesto de publicação. A primeira CI aprovou os testes da aplicação e detectou que um módulo separado ultrapassava esse teto; a organização final conserva comportamento, limites e verificações, sem ampliar o executor.
+
+## Conversa visível e aviso prioritário de exclusão — 08/10/2026
+
+O proprietário aprovou manter a conversa individual já verificada durante atualizações normais, preservando fechamento imediato em revogação, fim/troca de sessão e invalidação de autorização. A nova janela continua sendo preparada fora da interface e publicada inteira somente depois da confirmação autenticada. Um `changed` normal registra nova versão para a confirmação, sem esconder as mensagens. Snapshot diferente inicia carga completa conservando a visão anterior; erro fecha e descarta essa visão. Entrada, reconexão, retorno de suspensão, navegação e abertura de outra janela mantêm conferência com histórico fechado.
+
+Exclusão bilateral e limpeza pessoal de mensagens registram um marcador na mesma transação que remove o conteúdo. Somente após COMMIT o servidor envia `removed` com `data: {}` às contas afetadas; na limpeza pessoal, somente à própria conta. Esse sinal de fechamento não espera a janela de 100 ms dos avisos comuns nem sua consulta de autorização pendente. Assim como `authorization`, só invalida conteúdo já aberto em um stream autenticado: não entrega mensagem, identificador, chaves ou nova autorização. `changed` conserva a conferência de acesso antes do aviso normal, e todo acesso posterior continua assinado/autorizado. Rollback não emite o sinal.
+
+O cliente fecha a visão ao receber `removed` ou `authorization`, mesmo que uma operação esteja ocupando a fila. Uma leitura anterior não pode reabrir o histórico: seu token foi invalidado. A atualização completa posterior tem precedência sobre uma sondagem, aplica as exclusões e confirma o snapshot. O player separado conserva a exceção aprovada de continuidade de voz já iniciada.
+
+O teste montado de exclusão identificou uma duplicação no controle entre abas: cada envio criava um novo BroadcastChannel, cujo aviso voltava também ao observador da própria página depois do evento local síncrono. Essa segunda invalidação podia cancelar a exclusão antes do pedido HTTPS. A página agora envia pelo mesmo canal que observa, recebendo uma única invalidação local; outras abas continuam sendo notificadas. O canal é encerrado no ciclo de vida existente, sem incluir identificadores no aviso.
+
+**Ponto importante:** a conversa deixa de desaparecer em cada envio normal. Em exclusão, o aviso vazio fecha toda a visão enquanto a conferência identifica o que remover; não se envia ID privado no SSE. A latência entre COMMIT e ocultação depende da rede/execução do cliente e deve ser medida; offline, suspensão e fallback de 30 segundos não permitem prometer retirada instantânea. Novos acessos ao conteúdo excluído continuam recusados pelo backend após COMMIT.
 
 ## Validação e limites
 
