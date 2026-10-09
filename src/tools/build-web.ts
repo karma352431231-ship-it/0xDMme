@@ -180,8 +180,8 @@ asset(
       start_url: '/',
       scope: '/',
       display: 'standalone',
-      background_color: '#f5f7f8',
-      theme_color: '#121c25',
+      background_color: '#0a0f22',
+      theme_color: '#0a0f22',
       icons: [192, 512].map((size) => ({
         src: `/icon-${size}.png`,
         sizes: `${size}x${size}`,

@@ -10,7 +10,10 @@ import type { RecoveryTransfer } from '../../shared/wallet-recovery/index.ts';
 import { sealTo } from '../device-keys/index.ts';
 import { discoverWallets } from '../wallet/index.ts';
 import { signRecovery } from '../wallet-recovery/index.ts';
+import { applyTheme, storedTheme } from '../appearance/index.ts';
 import { recoveryApi } from './index.ts';
+
+applyTheme(storedTheme().theme);
 
 const status = document.querySelector<HTMLElement>('[data-status]');
 const message = document.querySelector<HTMLElement>('[data-message]');

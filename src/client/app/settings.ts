@@ -7,6 +7,8 @@ const icons = {
   devices:
     '<rect x="3" y="3" width="12" height="16" rx="2"/><rect x="17" y="8" width="4" height="13" rx="1"/><path d="M8 16h2"/>',
   representatives: '<path d="m12 2 3 6 7 1-5 5 1 7-6-3-6 3 1-7-5-5 7-1z"/>',
+  appearance:
+    '<circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 0 0 18z" fill="currentColor"/>',
   app: '<path d="M20 7a9 9 0 1 0 1 7M20 2v5h-5"/>',
 } as const;
 

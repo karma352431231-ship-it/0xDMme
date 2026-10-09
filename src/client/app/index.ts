@@ -1,3 +1,4 @@
+import { startAppearance } from '../appearance/index.ts';
 import { startPwa } from '../pwa/index.ts';
 import { startAccount } from '../account/index.ts';
 import { startDevices } from '../devices/index.ts';
@@ -27,6 +28,8 @@ function element<T extends HTMLElement>(id: string): T {
   return result as T;
 }
 
+// Theme first, so the first render already uses the saved device choice.
+const appearance = startAppearance();
 let connectedAccount: AccountSession | null = null;
 const messageReadiness = new MessageReadiness();
 const conversationContent = document.createElement('div');
@@ -220,6 +223,10 @@ function renderPageHeader(key: PageKey): void {
   document.title = `${title} · 0xDMme`;
 }
 function mountProfileSettings(content: HTMLElement): void {
+  const appearanceSettings = content.querySelector<HTMLElement>(
+    '[data-appearance-settings]',
+  );
+  if (appearanceSettings) appearance.mount(appearanceSettings);
   const dailyContainer = content.querySelector<HTMLElement>(
     '[data-daily-settings]',
   );

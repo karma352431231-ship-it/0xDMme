@@ -1,5 +1,7 @@
 # Conversas — revisão aprovada em 07/10/2026
 
+Em 09/10/2026, a navegação e o tema desta revisão passam a ser substituídos por [painéis e temas](UI_PAINEIS_E_TEMAS.md), por etapas. As regras de conversa abaixo continuam.
+
 O proprietário escolheu a proposta **Conversa em foco** e autorizou sua implementação, com o menu atual incorporado à composição. As imagens fornecidas são referências de organização; dados pessoais e conteúdo das imagens não entram na interface.
 
 - Desktop mantém a navegação Conversas/Comunidades, os filtros Todos, Não lidas, Favoritos, Grupos e Arquivadas e o perfil no rodapé esquerdo. A lista rola independentemente do perfil.

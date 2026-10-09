@@ -273,6 +273,8 @@ Publicação verificada em 07/10/2026: release `91a82e8` ativa pelo executor ofi
 
 O proprietário solicitou reorganizar a interface com as referências visuais fornecidas. Esta revisão substitui a posição de navegação descrita nos blocos anteriores; mantém as regras de consentimento, criptografia, histórico e perfil.
 
+A disposição desta seção é substituída pela seção 5.11 (09/10/2026) à medida que suas etapas forem implementadas.
+
 A disposição abaixo registra a interface já publicada. Perfil/Configurações e a navegação básica de Comunidades foram implementados localmente nos cortes 1–3, conforme seções 5.9–5.10; o corte 6 acrescentou feed/descoberta e o corte 7 a base de DMs pelo `@` locais. A VPS não foi alterada por esses cortes.
 
 - Desktop: a coluna esquerda abriga contatos aprovados, conversas do histórico local e grupos adicionados, numa lista com rolagem independente. Perfil, nome e wallet permanecem fixos no rodapé dessa coluna. Os três pontos ao lado do nome abrem Configurações. Status e Cofre saem da navegação principal por enquanto; suas rotas e operações existentes são preservadas.
@@ -299,6 +301,8 @@ Após a entrega local e a CI integral de `e0cb062`, o proprietário autorizou ex
 **Ponto importante:** remover da agenda não interrompe uma conversa aprovada. Para impedir novos envios, usar Bloquear. A revisão passou nas verificações locais e no navegador com dados fictícios; toque físico permanece pendente. Evidências e limites em [interface de chat responsiva](docs/INTERFACE_CHAT_RESPONSIVA.md).
 
 ### 5.9 Camada social de comunidades — direção aprovada em 05/10/2026
+
+Em 09/10/2026, a seção 5.11 moveu as DMs pelo `@` para Contatos → Públicos e substituiu a barra mobile; as demais regras desta seção continuam.
 
 - Separar Conversas de Comunidades. Conversas preserva a tela, contatos e grupos privados existentes. Comunidades usa a coluna esquerda para as comunidades seguidas, com acessos a Feed geral e Explorar.
 - Feed geral mistura posts de várias comunidades, com apresentação social inspirada em X/Reddit. Seguir uma comunidade não é condição para publicar, votar, comentar ou responder; permanecem autenticação, regras de moderação e restrições aplicáveis ao participante.
@@ -327,6 +331,20 @@ Dividir a implementação em **10 cortes**: (1) Perfil e navegação; (2) identi
 **Entrega local do corte 1 em 05/10/2026:** Perfil/Configurações reunidos, atalhos antigos compatíveis sem modificar fragmentos, rascunhos preservados ao alternar aliases e retorno ao topo nas trocas de página. Controles e links de cofre/backups/status integrados; instruções passam a apontar para Perfil → Aparelhos. Validação integral, regressões de navegação e conferência com conta fictícia registradas em [interface responsiva](docs/INTERFACE_CHAT_RESPONSIVA.md). A barra mobile inicialmente manteve Conversas, Contatos e Perfil. Os cortes 2–3 foram implementados localmente em 06/10/2026, conforme seção 6.4; Comunidades já entrou na barra com diretório, seguidos e gestão funcionais. Os cortes 4–8 acrescentaram posts/interação/feeds e DMs pelo `@` com mídia/histórico e cofre locais; preparação de mídia dos posts/replies já está local no corte 9; análise e exposição pública continuam no corte 10.
 
 **Ponto importante:** cortes são unidades revisáveis de trabalho, não dez deploys automáticos. O corte 1 não publica wallet/perfil privado nem antecipa Comunidades/DMs. Sem nova dependência, migração ou alteração da VPS. Mídia pública continua sujeita à validação de proteção no corte final; DMs permanecem E2EE e fora da análise de conteúdo pelo backend.
+
+### 5.11 Painéis e temas — redesign aprovado em 09/10/2026
+
+O proprietário declarou que a interface atual é uma base de MVP e aprovou a proposta de redesign apresentada em 09/10/2026, com ajustes próprios. Esta seção substitui, onde conflitam, a navegação das seções 5.7 e 5.9, a localização das DMs pelo `@`, o tema claro de Conversas aprovado em 07/10/2026 e a organização de [Contatos](docs/UI_CONTATOS.md). Regras de consentimento, criptografia, histórico, identidade pública e Perfil/Configurações reunidos (seção 5.10) continuam.
+
+- Desktop: trilho de ícones (Painel completo, Conversas, Comunidades, Atividade e avatar/Perfil no pé). O padrão é **Contatos | Conversa | Feed**, com o feed na maior área. A conversa recolhe pela seta no seu canto e reabre por **Conversa ao lado** ou ao abrir um contato; há modos só conversas e só comunidades, e duas colunas em telas menores. Painel de contexto fechável para detalhes de contato/grupo e, nas comunidades, ranking/Sobre.
+- Contatos no desktop e topo de Conversas no mobile com **Privados | Públicos**. Públicos recebe as DMs pelo `@`, que deixam a lateral de Comunidades; as listas não se misturam e as restrições da seção 5.9 permanecem (1–1, sem chamadas, grupos, vídeos, transações ou acordos, sem expor wallet/perfil privado).
+- Mobile: barra **Conversas, Comunidades, Atividade e Perfil**. Agenda, bloqueados e Meu convite vão para Perfil → Contatos; adicionar contato fica no botão de nova conversa; pedidos aparecem em Atividade. Salvar, solicitar e aceitar continuam separados.
+- **Atividade** reúne no aparelho pedidos, respostas em comunidades, chamadas perdidas, convites e transferências já recebidos pelo app, sem tabela, notificação ou dado novo no servidor; qualquer dado novo exige revisão separada.
+- Três temas: **Azul** (padrão, navy do logo), **Preto** e **Branco**, escolhidos em Perfil → Aparência e salvos somente no aparelho. O degradê do logo fica restrito a marca, contadores, anel de status e área ativa.
+- Pré-requisitos: fontes novas só após conferência de licença/tamanho e distribuição local; mover links de código/licenças do rodapé exige confirmar a acessibilidade da oferta de código; horário e prévia só com dados do histórico local.
+- Ordem: (1) tokens e temas sem mudar layout; (2) limpeza de ruído; (3) painéis do desktop; (4) Comunidades; (5) Atividade, status e cofre; (6) navegação mobile com teste físico. Detalhes e registro de cada etapa em [painéis e temas](docs/UI_PAINEIS_E_TEMAS.md).
+
+**Ponto importante:** a revisão muda a apresentação e o lugar de acesso, não as proteções. DMs pelo `@` continuam E2EE e separadas da identidade privada; preferências de tema/layout não vão ao servidor. Implementação local não ativa a revisão na VPS nem substitui aceite físico.
 
 ## 6. Escopo funcional
 

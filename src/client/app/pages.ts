@@ -6,6 +6,7 @@ ${settingsSection({ id: 'profile', title: 'Perfil público', description: 'Seu @
 ${settingsSection({ id: 'alerts', title: 'Notificações e chamadas', description: 'Push, sons e silêncio das conversas', content: '<div data-daily-settings></div><div data-call-settings></div>' })}
 ${settingsSection({ id: 'devices', title: 'Aparelhos', description: 'Vincular, recuperar e gerenciar acessos', content: '<div data-device-settings></div>' })}
 ${settingsSection({ id: 'representatives', title: 'Organizações e representantes', description: 'Organizações e autorizações assinadas', content: '<div data-representatives-settings></div>' })}
+${settingsSection({ id: 'appearance', title: 'Aparência', description: 'Tema Azul, Preto ou Branco', content: '<div data-appearance-settings></div>' })}
 ${settingsSection({ id: 'app', title: 'Aplicativo', description: 'Versão e atualizações', content: '<article class="card"><p id="pwa-state" role="status">Verificando atualização…</p><button id="check-updates" type="button">Verificar atualização</button></article>' })}
 <div class="profile-content-links"><a href="#cofre">Cofre e backups <span aria-hidden="true">↗</span></a><a href="#status">Meu status <span aria-hidden="true">↗</span></a></div><p class="settings-test-note">Chat em teste · use somente dados fictícios.</p></section>`;
 

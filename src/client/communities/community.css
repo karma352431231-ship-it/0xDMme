@@ -2,22 +2,14 @@
   display: none;
 }
 .app[data-page='comunidades'] {
-  --accent: #80c8ba;
-  --community-bg: #142025;
-  --community-surface: #1b2b31;
-  --community-text: #e5edf0;
-  --community-muted: #a8bbc3;
-  --community-border: #33484f;
-  --community-soft: #263e39;
-  color-scheme: dark;
-  color: var(--community-text);
-  background: var(--community-bg);
+  color: var(--text);
+  background: var(--bg);
   font-size: 14px;
   grid-template-columns: 260px minmax(0, 1fr);
 }
 .app[data-page='comunidades'] .sidebar {
-  background: #0d171c;
-  border-color: var(--community-border);
+  background: var(--surface);
+  border-color: var(--line);
 }
 .app[data-page='comunidades'] .brand-bar {
   padding: 22px 18px 28px;
@@ -26,24 +18,24 @@
   margin: 0 18px;
   padding: 0;
   gap: 2px;
-  border-bottom: 1px solid var(--community-border);
+  border-bottom: 1px solid var(--line);
 }
 .app[data-page='comunidades'] .area-nav a {
   border: 0;
   padding: 13px 8px;
   border-radius: 8px;
-  color: var(--community-muted);
+  color: var(--text-muted);
 }
 .app[data-page='comunidades'] .area-nav a[aria-current='page'] {
-  background: #254a43;
-  color: var(--community-text);
+  background: var(--accent-soft);
+  color: var(--text);
 }
 .app[data-page='comunidades'] .account {
-  background: #0d171c;
-  border-color: var(--community-border);
+  background: var(--surface);
+  border-color: var(--line);
 }
 .app[data-page='comunidades'] main {
-  background: var(--community-bg);
+  background: var(--bg);
   padding: 28px;
 }
 .app[data-page='comunidades'] .page-heading {
@@ -54,22 +46,22 @@
   border: 0;
   padding: 0;
   margin: 0 0 22px;
-  color: var(--community-muted);
+  color: var(--text-muted);
   font-size: 11px;
 }
 .app[data-page='comunidades'] footer {
   flex-wrap: wrap;
-  color: var(--community-muted);
+  color: var(--text-muted);
 }
 .app[data-page='comunidades'] :is(button, input, textarea, select) {
   font: inherit;
-  color: var(--community-text);
+  color: var(--text);
 }
 .app[data-page='comunidades'] :is(button, select, textarea),
 .app[data-page='comunidades'] input:not([type='checkbox']) {
-  border: 1px solid var(--community-border);
+  border: 1px solid var(--line);
   border-radius: 8px;
-  background: var(--community-surface);
+  background: var(--surface);
   min-height: 40px;
   max-width: 100%;
 }
@@ -87,7 +79,7 @@
 .app[data-page='comunidades'] .account .avatar {
   padding: 0;
   border-radius: 50%;
-  background: var(--community-soft);
+  background: var(--accent-soft);
   color: var(--accent);
 }
 .app[data-page='comunidades'] .chat-directory {
@@ -114,19 +106,19 @@
   gap: 10px;
   padding: 12px 10px;
   border-radius: 8px;
-  color: var(--community-muted);
+  color: var(--text-muted);
   min-height: 44px;
 }
 .community-directory-nav a[aria-current='page'],
 .community-row-link[aria-current='page'] {
-  background: #254a43;
-  color: var(--community-text);
+  background: var(--accent-soft);
+  color: var(--text);
 }
 .community-directory h2,
 .social-dm-directory h2 {
   font-size: 12px;
   font-weight: 500;
-  color: var(--community-muted);
+  color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 1px;
   margin: 30px 8px 12px;
@@ -134,7 +126,7 @@
 .community-directory p {
   padding: 0 8px;
   line-height: 1.6;
-  color: var(--community-muted);
+  color: var(--text-muted);
   font-size: 12px;
 }
 .community-row {
@@ -171,7 +163,7 @@
   width: 34px;
   height: 34px;
   border-radius: 50%;
-  background: var(--community-soft);
+  background: var(--accent-soft);
   color: var(--accent);
   font-weight: 600;
   overflow: hidden;
@@ -208,10 +200,10 @@
 .community-tabs a {
   display: inline-flex;
   align-items: center;
-  border: 1px solid var(--community-border);
+  border: 1px solid var(--line);
   border-radius: 8px;
   padding: 10px 12px;
-  background: var(--community-surface);
+  background: var(--surface);
   color: var(--accent);
 }
 .community-tools > a,
@@ -221,7 +213,7 @@
   gap: 7px;
   padding: 8px;
   min-height: 40px;
-  color: var(--community-muted);
+  color: var(--text-muted);
   cursor: pointer;
   border-radius: 8px;
   font-size: 12px;
@@ -244,10 +236,10 @@
   display: grid;
   width: min(280px, calc(100vw - 32px));
   padding: 8px;
-  border: 1px solid var(--community-border);
+  border: 1px solid var(--line);
   border-radius: 12px;
-  background: var(--community-surface);
-  box-shadow: 0 12px 32px #0006;
+  background: var(--surface);
+  box-shadow: 0 12px 32px var(--shadow);
 }
 .community-more > nav a {
   padding: 12px;
@@ -265,7 +257,7 @@
 }
 .community-subtitle {
   margin: 0;
-  color: var(--community-muted);
+  color: var(--text-muted);
   line-height: 1.6;
 }
 .community-public-label {
@@ -299,9 +291,9 @@
 .app[data-page='comunidades'] .community-card {
   min-width: 0;
   margin: 0 0 16px;
-  border: 1px solid var(--community-border);
+  border: 1px solid var(--line);
   border-radius: 10px;
-  background: var(--community-surface);
+  background: var(--surface);
   padding: 16px;
 }
 .app[data-page='comunidades'] .community-feed .community-card,
@@ -313,7 +305,7 @@
   font-weight: 600;
   line-height: 1.4;
   margin: 0 0 8px;
-  color: var(--community-text);
+  color: var(--text);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
@@ -321,7 +313,7 @@
   font-size: 14px;
   line-height: 1.6;
   margin: 0 0 12px;
-  color: var(--community-text);
+  color: var(--text);
 }
 .app[data-page='comunidades'] .community-card strong {
   color: inherit;
@@ -356,7 +348,7 @@
 }
 .community-feedback {
   overflow-wrap: anywhere;
-  color: var(--community-muted);
+  color: var(--text-muted);
   line-height: 1.6;
 }
 .community-feedback:empty {
@@ -364,9 +356,9 @@
 }
 .community-empty {
   padding: 28px 16px;
-  border: 1px solid var(--community-border);
+  border: 1px solid var(--line);
   border-radius: 10px;
-  color: var(--community-muted);
+  color: var(--text-muted);
   text-align: center;
   line-height: 1.6;
 }
@@ -397,11 +389,11 @@
   min-height: 32px;
 }
 .app[data-page='comunidades'] .community-post-header .community-post-community {
-  color: var(--community-text);
+  color: var(--text);
   font-weight: 600;
 }
 .community-post-byline {
-  color: var(--community-muted);
+  color: var(--text-muted);
   font-size: 12px;
 }
 .app[data-page='comunidades'] .community-post-byline a {
@@ -411,7 +403,7 @@
   display: inline-block;
   padding: 3px 8px;
   border-radius: 4px;
-  background: var(--community-soft);
+  background: var(--accent-soft);
   color: var(--accent);
   margin: 0 0 12px;
   font-size: 12px;
@@ -428,7 +420,7 @@
   gap: 8px;
   min-width: 0;
   font-size: 12px;
-  color: var(--community-muted);
+  color: var(--text-muted);
 }
 .community-feed-filters {
   align-items: center;
@@ -456,12 +448,12 @@
   align-items: center;
   min-height: 40px;
   padding: 8px 10px;
-  border: 1px solid var(--community-border);
+  border: 1px solid var(--line);
   border-radius: 8px;
-  background: var(--community-surface);
+  background: var(--surface);
 }
 .community-feed-scopes a[aria-current='page'] {
-  background: var(--community-soft);
+  background: var(--accent-soft);
   color: var(--accent);
   border-color: var(--accent);
 }
@@ -487,8 +479,8 @@
   gap: 6px;
   border: 0;
   border-radius: 22px;
-  background: var(--community-bg);
-  color: var(--community-text);
+  background: var(--bg);
+  color: var(--text);
   min-height: 40px;
   padding: 6px 12px;
   font-size: 12px;
@@ -508,7 +500,7 @@
   min-width: 36px;
   min-height: 40px;
   margin: 0;
-  color: var(--community-text);
+  color: var(--text);
 }
 .post-score {
   min-width: 26px;
@@ -539,7 +531,7 @@
 .post-more-content {
   margin-top: 12px;
   padding: 12px;
-  border: 1px solid var(--community-border);
+  border: 1px solid var(--line);
   border-radius: 10px;
 }
 .post-report > summary {
@@ -565,7 +557,7 @@
 }
 .community-info > summary {
   padding: 8px 0;
-  color: var(--community-muted);
+  color: var(--text-muted);
   cursor: pointer;
 }
 .community-reply-branch .community-card {
@@ -584,7 +576,7 @@
   display: block;
   padding: 10px 8px;
   overflow-wrap: anywhere;
-  color: var(--community-muted);
+  color: var(--text-muted);
 }
 .social-dm-history {
   display: grid;
@@ -609,7 +601,7 @@
 .app[data-page='comunidades'] .community-public-media button {
   display: block;
   width: 100%;
-  background: var(--community-soft);
+  background: var(--accent-soft);
   border: 0;
   padding: 0;
   margin: 0;
@@ -623,7 +615,7 @@
   max-height: 560px;
   border-radius: 8px;
   object-fit: contain;
-  background: var(--community-soft);
+  background: var(--accent-soft);
 }
 @media (max-width: 1000px) and (min-width: 701px) {
   .app[data-page='comunidades'] {
@@ -639,7 +631,7 @@
     grid-template-rows: auto auto minmax(0, 1fr) auto;
   }
   .app[data-page='comunidades'] .brand-bar {
-    background: #101b22;
+    background: var(--surface);
     padding: max(15px, env(safe-area-inset-top)) 15px 15px;
   }
   .app[data-page='comunidades'] .community-directory {
@@ -650,9 +642,9 @@
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 6px;
-    background: #1c2b32;
+    background: var(--surface);
     padding: 10px 12px;
-    border-bottom: 1px solid var(--community-border);
+    border-bottom: 1px solid var(--line);
   }
   .community-mobile-tabs a {
     display: grid;
@@ -662,8 +654,8 @@
     min-height: 40px;
   }
   .community-mobile-tabs a[aria-current='page'] {
-    background: #28473f;
-    color: #90d3c3;
+    background: var(--accent-soft);
+    color: var(--accent-text);
   }
   .app[data-page='comunidades'] main {
     grid-row: 3;
@@ -704,7 +696,7 @@
   }
   .app[data-page='comunidades'] .community-card {
     padding: 13px;
-    background: #1c2b32;
+    background: var(--surface);
   }
   .app[data-page='comunidades'] .community-card h2 {
     font-size: 16px;
@@ -730,10 +722,10 @@
     align-items: center;
     min-height: 36px;
     padding: 8px 10px;
-    border: 1px solid var(--community-border);
+    border: 1px solid var(--line);
     border-radius: 8px;
-    background: var(--community-surface);
-    color: var(--community-muted);
+    background: var(--surface);
+    color: var(--text-muted);
     cursor: pointer;
     font-size: 12px;
   }
@@ -764,8 +756,8 @@
   }
   .app[data-page='comunidades'] .mobile-nav {
     grid-row: 4;
-    background: #15262e;
-    border-color: var(--community-border);
+    background: var(--surface);
+    border-color: var(--line);
     padding: 10px 2px max(10px, env(safe-area-inset-bottom));
   }
   .app[data-page='comunidades'] .mobile-nav a {
@@ -773,8 +765,8 @@
     border-radius: 12px;
   }
   .app[data-page='comunidades'] .mobile-nav a[aria-current='page'] {
-    background: #28473f;
-    color: #90d3c3;
+    background: var(--accent-soft);
+    color: var(--accent-text);
   }
   .app[data-page='comunidades'] .mobile-nav svg {
     width: 21px;
