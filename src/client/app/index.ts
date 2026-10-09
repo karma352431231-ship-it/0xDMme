@@ -383,6 +383,11 @@ function mountAccountPanels(key: PageKey): void {
   container.className = 'account-section';
   element('page-content').prepend(container);
   account.mount(container, key === 'perfil' ? 'settings' : 'login');
+  if (key !== 'perfil') return;
+  const meter = document.createElement('div');
+  meter.className = 'vault-meter';
+  container.after(meter);
+  vault.mountMeter(meter);
 }
 
 function renderApprovalPage(): void {

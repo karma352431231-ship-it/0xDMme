@@ -392,3 +392,42 @@
 .appearance-feedback {
   color: var(--warn);
 }
+/* Vault usage under the account identity; the exact figures stay in Cofre e backup. */
+.vault-meter {
+  display: grid;
+  gap: 6px;
+  margin: 0 0 22px;
+  max-width: 520px;
+}
+.vault-meter[hidden] {
+  display: none;
+}
+.vault-meter-row {
+  display: flex;
+  justify-content: space-between;
+  color: var(--text-muted);
+  font-size: var(--fs-caption);
+}
+.vault-meter-row [data-vault-meter-label] {
+  font-family: var(--font-mono);
+}
+.vault-meter progress {
+  width: 100%;
+  height: 6px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--surface-3);
+  appearance: none;
+  overflow: hidden;
+}
+.vault-meter progress::-webkit-progress-bar {
+  background: var(--surface-3);
+}
+.vault-meter progress::-webkit-progress-value {
+  background: var(--brand-grad);
+  border-radius: 999px;
+}
+.vault-meter progress::-moz-progress-bar {
+  background: var(--brand-grad);
+  border-radius: 999px;
+}

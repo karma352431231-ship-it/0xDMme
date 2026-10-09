@@ -7,6 +7,8 @@ import { rememberLocator } from '../vault-storage/index.ts';
 export function startVault(access: VaultAccess) {
   const sync = new VaultSync(access);
   let mounted: HTMLElement | null = null;
+  // Compact meter at the top of Perfil; filled by the same usage query as the card.
+  let meter: HTMLElement | null = null;
   let busy = false;
   let known = false;
   let message = 'Entre na sua conta para consultar o armazenamento.';
@@ -24,6 +26,17 @@ export function startVault(access: VaultAccess) {
     const retry =
       mounted?.querySelector<HTMLButtonElement>('[data-vault-retry]');
     if (retry) retry.disabled = busy;
+    renderMeter();
+  }
+  function renderMeter(): void {
+    if (!meter) return;
+    meter.hidden = sync.session === null;
+    const label = meter.querySelector('[data-vault-meter-label]');
+    if (label)
+      label.textContent = known
+        ? `${storageSize(sync.state.used)} de ${storageSize(vaultQuota)}`
+        : 'Consultando…';
+    renderUsage(meter.querySelector<HTMLProgressElement>('progress'));
   }
   function renderUsage(usage: HTMLProgressElement | null): void {
     if (!usage) return;
@@ -94,6 +107,12 @@ export function startVault(access: VaultAccess) {
     canActivate: () => !busy,
     leave(): void {
       mounted = null;
+      meter = null;
+    },
+    mountMeter(container: HTMLElement): void {
+      meter = container;
+      container.innerHTML = `<div class="vault-meter-row"><span>Cofre</span><span data-vault-meter-label></span></div><progress max="${vaultQuota}" aria-label="Uso do cofre"></progress>`;
+      renderMeter();
     },
     mount(container: HTMLElement): void {
       mounted = container;
@@ -107,4 +126,12 @@ export function startVault(access: VaultAccess) {
       void refresh();
     },
   };
+}
+
+/** 312 MB, 1,2 GB: short labels for the meter; the card keeps the exact figures. */
+export function storageSize(bytes: number): string {
+  if (bytes >= 1_000_000_000)
+    return `${(bytes / 1_000_000_000).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} GB`;
+  const megabytes = bytes / 1_000_000;
+  return `${megabytes.toLocaleString('pt-BR', { maximumFractionDigits: megabytes < 10 ? 1 : 0 })} MB`;
 }
