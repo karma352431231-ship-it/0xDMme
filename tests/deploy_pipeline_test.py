@@ -156,7 +156,9 @@ class DeploymentTests(unittest.TestCase):
                 self.runtime(old)
                 self.runtime(new)
                 (new / changed).write_text('changed')
-                with self.assertRaises(RuntimeError):
+                # index.ts now has a pinned review; an unmatched Git export must still refuse.
+                with (patch.object(backups, 'git_export', return_value={}),
+                      self.assertRaises(RuntimeError)):
                     remote.compatibility(new, old)
 
     def test_scripts_change_does_not_install_dependencies(self):
@@ -252,7 +254,8 @@ class DeploymentTests(unittest.TestCase):
                     (new / changed).write_text(json.dumps(package))
                 else:
                     (new / changed).write_text('unreviewed')
-                with patch.object(remote, 'run') as command:
+                with (patch.object(remote, 'run') as command,
+                      patch.object(backups, 'git_export', return_value={})):
                     with self.assertRaises(RuntimeError):
                         remote.compatibility(new, old)
                 command.assert_not_called()
@@ -1018,6 +1021,20 @@ class MessageRemovalCodeTests(CommunityFeedCodeTests):
                         remote.compatibility(self.candidate, self.live)
                 finally:
                     path.write_bytes(original)
+
+
+class DatabasePoolCodeTests(CommunityFeedCodeTests):
+    def setUp(self):
+        super().setUp()
+        for relative in ['communities.ts', 'community-discovery.ts']:
+            (self.candidate / 'src/server/database' / relative).write_bytes(
+                (self.live / 'src/server/database' / relative).read_bytes())
+        (self.live / 'src/server/database/index.ts').write_text('pool web 4, worker 1')
+        (self.candidate / 'src/server/database/index.ts').write_text('pool web 16, worker 4')
+        self.exports = {
+            remote.POOL_SIZE_BEFORE: self.export(self.live),
+            remote.POOL_SIZE_REVIEWED: self.export(self.candidate),
+        }
 
 
 class CallsDeploymentTests(AttachmentDeploymentTests):

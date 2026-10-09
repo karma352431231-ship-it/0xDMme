@@ -4,6 +4,8 @@
 
 O proprietário pediu ampliar o teto de arquivos por release, que impedia o app de crescer (a publicação do redesign precisou juntar arquivos para caber). O executor passa a aceitar até 1024 entradas (`MAX_MANIFEST_FILES` em `deploy_remote.py`), no lugar de 512 mais conjuntos revisados. O teto continua barrando pacotes descontrolados; orçamentos de arquivo, extração e runtime não mudaram.
 
+Na mesma data, o pool de conexões do app subiu de 4 para 16 (web) e de 1 para 4 (cada worker), acompanhando `max_connections` 64. Como o app executa migrações ao iniciar, o executor só aceita código de banco revisado: a primeira ativação foi recusada antes de trocar a release e o par exato `b1aa82c` → `68831a5` (somente `src/server/database/index.ts`) passou a constar das revisões fixadas, sem SQL ou migração.
+
 ## Agilidade do deploy — correção solicitada em 09/10/2026
 
 O proprietário pediu corrigir a demora recorrente da publicação. Reutilizar o comando existente, mantendo build no Mac, CI integral do commit exato, preservação, orçamento e rollback. Os jobs de check e integração passam a executar em paralelo; todos precisam aprovar o workflow para liberar a ativação. Não remover testes nem alterar runners, dependências, banco ou serviços compartilhados.

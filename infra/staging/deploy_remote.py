@@ -157,6 +157,11 @@ RANKING_METRICS_REVIEWED = '04a02dad65d480ad662f0a0f93e58da884518a5f'
 # markers change in these four modules; migrations/SQL/executor stay identical.
 MESSAGE_REMOVAL_BEFORE = '0c5b6290370bde4f5d0e0a52c2e72cf576756dc3'
 MESSAGE_REMOVAL_REVIEWED = '260719297084c8d8f74fb117dcacd42e7530be6a'
+# Owner request of 09/10/2026: only the connection pool size in index.ts changes
+# (web 4 -> 16, worker 1 -> 4) to match PostgreSQL max_connections 64. No SQL,
+# migration or other database module changes.
+POOL_SIZE_BEFORE = 'b1aa82c092e16650baebad8b2f522bcb837b48f5'
+POOL_SIZE_REVIEWED = '68831a56089d26c2de8c129a47eda9be6ac0b5a5'
 COMMUNITIES_TABLES = CALLS_TABLES + CALLS_NEW_TABLES
 COMMUNITIES_NEW_TABLES = ('public_profiles', 'communities', 'community_follows',
     'community_moderators', 'community_sanctions', 'community_reports',
@@ -335,6 +340,7 @@ def database_code_reviewed(candidate, live):
         ({'community-ranking-metrics.ts'}, RANKING_METRICS_BEFORE, RANKING_METRICS_REVIEWED),
         ({'backups.ts', 'changes.ts', 'contacts.ts', 'messages.ts'},
          MESSAGE_REMOVAL_BEFORE, MESSAGE_REMOVAL_REVIEWED),
+        ({'index.ts'}, POOL_SIZE_BEFORE, POOL_SIZE_REVIEWED),
     ]
     selected = next((review for review in reviews if changed == review[0]), None)
     if selected is None:
