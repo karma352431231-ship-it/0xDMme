@@ -66,8 +66,7 @@ import {
   DecryptionErrorCode,
 } from '@matrix-org/matrix-sdk-crypto-wasm';
 import { messageApi, backupMessageApi } from '../message-api/index.ts';
-import { MessageIndex } from './index-sync.ts';
-import { VerifiedWindow } from './verified-window.ts';
+import { MessageIndex, VerifiedWindow } from './index-sync.ts';
 import { OfflineIndex } from './offline-index.ts';
 import type { CachedText } from './offline-index.ts';
 import { notifyMessageControls } from '../message-controls/index.ts';

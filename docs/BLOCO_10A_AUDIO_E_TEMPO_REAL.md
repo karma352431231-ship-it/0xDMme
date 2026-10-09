@@ -94,6 +94,8 @@ Validação local: 36 testes direcionados e 27 integrações de mensagens aprova
 
 **Ponto importante:** a melhoria foi medida em laboratório no Mac, com layout mobile também exercitado. Não certifica latência nos aparelhos físicos nem envio/entrega instantâneos. A aplicação de código local não ativa uma release na VPS; não houve mudança de banco, dependência, retenção, cota ou infraestrutura.
 
+A CI integral inicial aprovou os 410 testes da aplicação e encontrou uma entrada além do teto do manifesto de publicação. A janela verificada fica junto ao índice de mensagens em `index-sync.ts`, preservando responsabilidade, comportamento e limites do executor; o teste de build real reproduziu a recusa antes desse ajuste.
+
 ## Validação e limites
 
 Cobertura automatizada: PCM em 8/16/44,1/48/96 kHz, WAV máximo e adulteração, permissão/cancelamento/interrupção, compatibilidade v1/v2, cifra real de anexos, backup independente, encaminhamento SSE para mil clientes simulados sem teto de 8/2, ausência de consultas no heartbeat, isolamento, cliente lento, reconexão/cancelamento e encerramento de sessão. A simulação do módulo não é benchmark de VPS.

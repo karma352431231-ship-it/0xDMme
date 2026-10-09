@@ -1,5 +1,13 @@
 # 0xDMme — Git e envio à VPS
 
+## Correção de latência do chat — ativação autorizada em 09/10/2026
+
+O proprietário pediu envio e ativação do fix de latência medido, com fontes iniciais em `f5f10ce`. Usar `npm run deploy:staging` em checkout limpo/enviado e CI integral do commit final, com build no Mac, preservação, limites e rollback do executor existente. As alterações pessoais no checkout original ficam fora da release.
+
+A primeira CI aprovou os 410 testes da aplicação e recusou o manifesto de publicação por uma entrada além do teto vigente. A janela verificada passa a residir no módulo existente do índice de mensagens, mantendo comportamento, contratos e limites; não ampliar o executor nem criar outro script de deploy. Banco, migrações, dependências, Node, infraestrutura e sessões de 160 dias permanecem iguais ao predecessor `506c187`. Ativar somente os serviços próprios conforme a publicação vigente dos workers. Acesso e evidências operacionais exclusivamente em `.local/`.
+
+**Ponto importante:** os ganhos do fix foram medidos no laboratório local. Publicação e hash conferidos no site não substituem a medição física de envio nos aparelhos do proprietário.
+
 ## Sessões de 160 dias — autorização de 08/10/2026
 
 O proprietário escolheu 160 dias para novas sessões e pediu envio e ativação

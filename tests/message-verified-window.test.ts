@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { VerifiedWindow } from '../src/client/messages/verified-window.ts';
+import { VerifiedWindow } from '../src/client/messages/index-sync.ts';
 import type { MessageItem } from '../src/client/messages/history.ts';
 
 const snapshot = { revision: 1, directory: 'a'.repeat(64), contacts: 1 };
