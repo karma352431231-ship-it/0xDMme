@@ -2,16 +2,13 @@
   padding: 16px 20px 10px;
   overflow: hidden;
 }
-.app[data-page='conversas'] main > .notice {
-  display: none;
-}
 .app[data-page='conversas'] #page-content {
   min-height: 0;
 }
 .app[data-page='conversas'] footer {
   flex: 0 0 auto;
   padding-top: 8px;
-  font-size: 9px;
+  font-size: var(--fs-caption);
 }
 .app[data-page='conversas'] ~ .update {
   bottom: 110px;
@@ -42,12 +39,12 @@
   border-bottom: 1px solid var(--line);
   background: var(--surface-2);
   border-radius: 12px 12px 0 0;
-  font-size: 11px;
+  font-size: var(--fs-caption);
   color: var(--text-muted);
 }
 .chat-panel .chat-feedback p {
   margin: 0;
-  font-size: 11px;
+  font-size: var(--fs-caption);
   line-height: 1.5;
 }
 .chat-panel .chat-layout {
@@ -88,7 +85,7 @@
   min-width: 0;
 }
 .chat-peer h3 {
-  font-size: 16px;
+  font-size: var(--fs-input);
   margin: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -96,7 +93,7 @@
 }
 .chat-panel .chat-peer p {
   margin: 3px 0 0;
-  font-size: 11px;
+  font-size: var(--fs-caption);
   line-height: 1.5;
 }
 .chat-panel .chat-icon {
@@ -168,7 +165,7 @@
   text-align: left;
   margin: 0;
   padding: 12px;
-  font-size: 13px;
+  font-size: var(--fs-small);
 }
 .chat-panel .chat-thread {
   display: flex;
@@ -227,18 +224,18 @@
 .chat-panel .chat-message p {
   white-space: pre-wrap;
   margin: 0 0 6px;
-  font-size: 14px;
+  font-size: var(--fs-body);
   line-height: 1.6;
   color: var(--text);
 }
 .chat-message > strong {
   display: block;
   margin-bottom: 4px;
-  font-size: 12px;
+  font-size: var(--fs-caption);
 }
 .chat-message > small {
   display: block;
-  font-size: 11px;
+  font-size: var(--fs-caption);
   color: var(--text-muted);
 }
 .chat-message .message-meta {
@@ -247,10 +244,10 @@
   align-items: center;
   gap: 4px;
   margin-top: 8px;
-  font-size: 10px;
+  font-size: var(--fs-caption);
 }
 .chat-message > button {
-  font-size: 12px;
+  font-size: var(--fs-caption);
 }
 .chat-message a {
   display: inline-block;
@@ -266,6 +263,15 @@
   width: 30px;
   height: 30px;
   padding: 6px;
+}
+/* Mouse users see message actions on hover or focus; touch keeps them visible. */
+@media (hover: hover) and (pointer: fine) {
+  .chat-message .message-actions:not([open]) > .chat-icon {
+    opacity: 0;
+  }
+  .chat-message:is(:hover, :focus-within) .message-actions > .chat-icon {
+    opacity: 1;
+  }
 }
 .message-menu {
   width: min(320px, calc(100vw - 32px));
@@ -304,7 +310,7 @@
   border: 0;
   border-radius: 20px;
   background: var(--surface-2);
-  font-size: 11px;
+  font-size: var(--fs-caption);
 }
 .chat-panel .chat-pending {
   flex: 0 0 auto;
@@ -313,7 +319,7 @@
   max-height: 110px;
   overflow: auto;
   list-style: none;
-  font-size: 12px;
+  font-size: var(--fs-caption);
 }
 .chat-panel .chat-pending:empty {
   display: none;
@@ -355,7 +361,7 @@
   resize: none;
   background: transparent;
   color: var(--text);
-  font-size: 16px;
+  font-size: var(--fs-input);
   line-height: 20px;
 }
 .chat-panel .compose-input textarea:focus-visible {
@@ -380,7 +386,7 @@
 .chat-panel .compose-notice {
   margin: 0;
   padding: 0 4px;
-  font-size: 12px;
+  font-size: var(--fs-caption);
   line-height: 1.5;
 }
 .compose-notice:empty,
@@ -401,7 +407,7 @@
 .chat-panel .compose-context p {
   margin: 0;
   min-width: 0;
-  font-size: 12px;
+  font-size: var(--fs-caption);
   line-height: 1.5;
   overflow: hidden;
   white-space: nowrap;
@@ -443,7 +449,7 @@
   border-radius: 12px;
   background: var(--brand-grad);
   color: var(--brand-ink);
-  font-size: 11px;
+  font-size: var(--fs-caption);
   font-weight: 700;
 }
 @media (max-width: 700px) {
@@ -491,10 +497,10 @@
     flex-basis: 36px;
     width: 36px;
     height: 36px;
-    font-size: 13px;
+    font-size: var(--fs-small);
   }
   .chat-peer h3 {
-    font-size: 15px;
+    font-size: var(--fs-body);
   }
   .chat-panel .chat-history {
     padding: 16px 12px;

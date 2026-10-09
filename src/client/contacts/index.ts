@@ -28,8 +28,8 @@ import {
   emptyContacts,
   searchContacts,
   selectContactTab,
-  shortWallet,
 } from './view.ts';
+import { shortAddress } from '../identity-display/index.ts';
 export function startContacts(
   access: VaultAccess,
   sync: VaultSync,
@@ -227,6 +227,7 @@ export function startContacts(
       const conflicts = sync.heads(entry.change.entity).length;
       const { row, actions } = contactRow({
         title: entry.change.label,
+        seed: entry.change.entity,
         detail:
           conflicts > 1
             ? `${conflicts} versões em conflito`
@@ -401,10 +402,11 @@ export function startContacts(
     contact: Peer & { requester: string },
     kind: ContactList,
   ): HTMLLIElement {
-    const title = contact.name || shortWallet(contact.address);
+    const title = contact.name || shortAddress(contact.address);
     const { row, actions } = contactRow({
       title,
-      detail: `${contact.ecosystem.toUpperCase()} · ${shortWallet(contact.address)}`,
+      seed: contact.address,
+      detail: `${contact.ecosystem.toUpperCase()} · ${shortAddress(contact.address)}`,
     });
     if (kind === 'approved' && options.open) {
       const open = options.open;
@@ -463,9 +465,10 @@ export function startContacts(
       if (!hash.toLowerCase().includes(query)) continue;
       const { row, actions } = contactRow({
         title: 'Wallet bloqueada',
-        detail: `Referência · ${shortWallet(hash)}`,
+        seed: hash,
+        detail: `Referência · ${shortAddress(hash)}`,
       });
-      const menu = contactMenu(actions, `bloqueio ${shortWallet(hash)}`),
+      const menu = contactMenu(actions, `bloqueio ${shortAddress(hash)}`),
         reference = document.createElement('p');
       reference.textContent = `Referência do bloqueio: ${hash}`;
       menu.append(reference);

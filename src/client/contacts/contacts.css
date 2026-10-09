@@ -1,4 +1,4 @@
-.app[data-page='contatos'] :is(.page-heading, main > .notice) {
+.app[data-page='contatos'] .page-heading {
   display: none;
 }
 .app[data-page='contatos'] main {
@@ -26,7 +26,7 @@
   border-radius: 10px;
   background: var(--surface-2);
   color: var(--text);
-  font-size: 13px;
+  font-size: var(--fs-small);
   cursor: pointer;
 }
 .contacts-card button:hover {
@@ -50,7 +50,7 @@
 }
 .contacts-card .contacts-heading h1 {
   margin: 0;
-  font-size: 28px;
+  font-size: var(--fs-title);
   letter-spacing: -0.8px;
 }
 .contacts-card .contacts-heading p {
@@ -63,7 +63,7 @@
   gap: 6px;
 }
 .contacts-heading .primary span {
-  font-size: 22px;
+  font-size: var(--fs-title);
   line-height: 1;
 }
 .contacts-toolbar {
@@ -98,11 +98,11 @@
   border: 0;
   background: transparent;
   color: var(--text);
-  font-size: 16px;
+  font-size: var(--fs-input);
 }
 .contact-invite-link {
   flex: 0 0 auto;
-  font-size: 13px;
+  font-size: var(--fs-small);
   color: var(--accent);
   padding: 10px 0;
 }
@@ -151,7 +151,7 @@
   padding: 0 5px;
   border-radius: 12px;
   background: var(--accent-soft);
-  font-size: 11px;
+  font-size: var(--fs-caption);
   color: var(--accent-text);
 }
 .contact-section-heading {
@@ -163,15 +163,15 @@
 }
 .contacts-card .contact-section-heading h2 {
   margin: 0;
-  font-size: 15px;
+  font-size: var(--fs-body);
 }
 .contact-section-heading span {
   color: var(--text-muted);
-  font-size: 11px;
+  font-size: var(--fs-caption);
 }
 .contacts-card .contact-hint {
   margin: 12px 0;
-  font-size: 12px;
+  font-size: var(--fs-caption);
   line-height: 1.6;
   color: var(--text-muted);
 }
@@ -206,7 +206,7 @@
   border-radius: 50%;
   background: var(--accent-soft);
   color: var(--accent-text);
-  font-size: 14px;
+  font-size: var(--fs-body);
   font-weight: 650;
 }
 .contact-row-body {
@@ -218,12 +218,12 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 14px;
+  font-size: var(--fs-body);
   color: var(--text);
 }
 .contact-row-detail {
   color: var(--text-muted);
-  font-size: 12px;
+  font-size: var(--fs-caption);
 }
 .contact-row-actions {
   display: flex;
@@ -249,7 +249,7 @@
 .contact-empty {
   padding: 52px 24px;
   text-align: center;
-  font-size: 13px;
+  font-size: var(--fs-small);
   line-height: 1.7;
   color: var(--text-muted);
 }
@@ -284,13 +284,13 @@
 }
 .contacts-card .contact-feedback p {
   margin: 0;
-  font-size: 12px;
+  font-size: var(--fs-caption);
   line-height: 1.6;
 }
 .contacts-card .contact-test-note {
   margin: 0;
   padding: 10px 24px 16px;
-  font-size: 10px;
+  font-size: var(--fs-caption);
   line-height: 1.6;
 }
 .contact-dialog,
@@ -315,10 +315,10 @@
 }
 .contacts-card .contact-dialog h2 {
   margin: 5px 0 14px;
-  font-size: 22px;
+  font-size: var(--fs-title);
 }
 .contact-eyebrow {
-  font-size: 10px;
+  font-size: var(--fs-caption);
   letter-spacing: 1.3px;
   color: var(--text-muted);
 }
@@ -334,7 +334,7 @@
   display: grid;
   gap: 8px;
   min-width: 0;
-  font-size: 13px;
+  font-size: var(--fs-small);
 }
 .contact-dialog input,
 .contact-dialog select {
@@ -345,10 +345,10 @@
   border-radius: 10px;
   background: var(--surface);
   color: var(--text);
-  font-size: 16px;
+  font-size: var(--fs-input);
 }
 .contact-optional {
-  font-size: 11px;
+  font-size: var(--fs-caption);
   color: var(--text-faint);
   font-weight: 400;
 }
@@ -379,10 +379,10 @@
   grid-column: 1;
   align-self: center;
   margin: 0 80px 8px 0;
-  font-size: 16px;
+  font-size: var(--fs-input);
 }
 .contact-menu p {
-  font-size: 12px;
+  font-size: var(--fs-caption);
   overflow-wrap: anywhere;
 }
 .contacts-card .contact-menu button {
@@ -403,7 +403,7 @@
     padding: 20px 16px 16px;
   }
   .contacts-card .contacts-heading h1 {
-    font-size: 25px;
+    font-size: var(--fs-title);
   }
   .contacts-heading .primary {
     width: 100%;

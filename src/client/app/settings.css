@@ -2,7 +2,7 @@
   padding: 24px clamp(16px, 3vw, 40px);
 }
 .app[data-page='perfil']
-  :is(.page-heading .phase, .page-heading .section-label, main > .notice) {
+  :is(.page-heading .phase, .page-heading .section-label) {
   display: none;
 }
 .app[data-page='perfil'] .page-heading h1 {
@@ -26,11 +26,11 @@
 }
 .app[data-page='perfil'] [data-profile-status] {
   margin: 8px 0;
-  font-size: 11px;
+  font-size: var(--fs-caption);
 }
 .app[data-page='perfil'] .account-card > [data-account-status] {
   margin: 0 0 10px;
-  font-size: 11px;
+  font-size: var(--fs-caption);
 }
 .app[data-page='perfil'] .profile-identity {
   margin: 0 0 16px;
@@ -40,14 +40,14 @@
   flex: 1;
 }
 .app[data-page='perfil'] [data-profile-name] {
-  font-size: 19px;
+  font-size: var(--fs-heading);
 }
 .app[data-page='perfil'] .account-address {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   margin: 6px 0;
-  font-size: 12px;
+  font-size: var(--fs-caption);
 }
 .app[data-page='perfil'] :is(.account-card, .profile-settings) button {
   min-height: 40px;
@@ -58,7 +58,7 @@
   background: var(--surface-2);
   color: var(--text);
   font: inherit;
-  font-size: 13px;
+  font-size: var(--fs-small);
   cursor: pointer;
 }
 .app[data-page='perfil'] :is(.account-card, .profile-settings) button.primary {
@@ -74,7 +74,7 @@
   border-radius: 50%;
   background: var(--surface-3);
   color: var(--accent-text);
-  font-size: 24px;
+  font-size: var(--fs-title);
 }
 .app[data-page='perfil'] .profile-settings {
   gap: 0;
@@ -93,11 +93,11 @@
 }
 .app[data-page='perfil'] .profile-settings > h2 {
   margin: 0;
-  font-size: 18px;
+  font-size: var(--fs-input);
 }
 .app[data-page='perfil'] .settings-intro {
   margin: 6px 0 14px;
-  font-size: 12px;
+  font-size: var(--fs-caption);
   color: var(--text-muted);
 }
 .settings-section {
@@ -132,11 +132,11 @@
 }
 .settings-section > summary strong {
   color: var(--text);
-  font-size: 14px;
+  font-size: var(--fs-body);
   font-weight: 600;
 }
 .settings-section > summary small {
-  font-size: 11px;
+  font-size: var(--fs-caption);
   color: var(--text-muted);
   line-height: 1.4;
 }
@@ -160,7 +160,7 @@
 }
 .settings-chevron {
   color: var(--text-faint);
-  font-size: 20px;
+  font-size: var(--fs-heading);
 }
 .settings-section[open] > summary {
   border-bottom: 1px solid var(--line);
@@ -190,11 +190,11 @@
 }
 .app[data-page='perfil'] .settings-body :is(h2, h3) {
   margin: 4px 0 12px;
-  font-size: 14px;
+  font-size: var(--fs-body);
 }
 .app[data-page='perfil'] .settings-body p {
   margin: 8px 0;
-  font-size: 12px;
+  font-size: var(--fs-caption);
   line-height: 1.6;
 }
 .app[data-page='perfil'] .settings-body :is(form, fieldset) {
@@ -209,7 +209,7 @@
 }
 .app[data-page='perfil'] .settings-body label {
   margin: 0;
-  font-size: 13px;
+  font-size: var(--fs-small);
   gap: 8px;
   line-height: 1.5;
 }
@@ -223,7 +223,7 @@
   width: 100%;
   padding: 10px 12px;
   border-radius: 9px;
-  font-size: 16px;
+  font-size: var(--fs-input);
   min-width: 0;
 }
 .app[data-page='perfil'] .settings-body input[type='checkbox'] {
@@ -251,7 +251,7 @@
 }
 .settings-help {
   margin: 14px 0;
-  font-size: 12px;
+  font-size: var(--fs-caption);
 }
 .settings-help > summary {
   color: var(--accent-text);
@@ -273,7 +273,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  font-size: 13px;
+  font-size: var(--fs-small);
   padding: 14px 16px;
   border-radius: 10px;
   background: var(--accent-soft);
@@ -281,7 +281,7 @@
 }
 .app[data-page='perfil'] .settings-test-note {
   margin: 5px 0;
-  font-size: 10px;
+  font-size: var(--fs-caption);
   color: var(--text-faint);
 }
 [data-device-settings] ul {
@@ -296,7 +296,7 @@
   gap: 8px;
   padding: 10px 0;
   border-bottom: 1px solid var(--line);
-  font-size: 13px;
+  font-size: var(--fs-small);
 }
 @media (max-width: 700px) {
   .app[data-page='perfil'] main {

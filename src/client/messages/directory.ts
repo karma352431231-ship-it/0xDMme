@@ -1,3 +1,4 @@
+import { displayName, paintAvatar } from '../identity-display/index.ts';
 export interface DirectoryMenu {
   update: (entries: readonly ConversationEntry[]) => void;
   bind: (
@@ -18,6 +19,8 @@ export interface ConversationEntry {
   title: string;
   detail: string;
   kind: 'contact' | 'group';
+  /** Wallet address for contacts, so the avatar tone matches Contatos; defaults to the id. */
+  seed?: string;
   searchText: string;
   selected: boolean;
   open: () => void;
@@ -68,14 +71,12 @@ export function conversationButton(
   const avatar = document.createElement('span');
   avatar.className = `conversation-avatar ${entry.kind}`;
   avatar.setAttribute('aria-hidden', 'true');
-  avatar.textContent =
-    entry.kind === 'group'
-      ? '#'
-      : entry.title.slice(0, 2).toLocaleUpperCase('pt-BR');
+  paintAvatar(avatar, { label: entry.title, seed: entry.seed ?? entry.id });
   const text = document.createElement('span');
   text.className = 'conversation-copy';
   const title = document.createElement('strong');
-  title.textContent = entry.title;
+  title.textContent = displayName(entry.title);
+  if (title.textContent !== entry.title) title.title = entry.title;
   const detail = document.createElement('small');
   detail.textContent = entry.detail;
   text.append(title, detail);

@@ -99,6 +99,14 @@
 }
 :root {
   accent-color: var(--accent);
+  /* Type scale shared by every theme; inputs stay at 16px so iOS does not zoom on focus. */
+  --fs-caption: 12px;
+  --fs-small: 13px;
+  --fs-body: 15px;
+  --fs-input: 16px;
+  --fs-heading: 20px;
+  --fs-title: 24px;
+  --font-mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
 }
 /* Zero-specificity defaults: controls without authored colors follow the theme instead of the browser palette. */
 :where(
@@ -123,4 +131,26 @@
 }
 [data-theme-preview='white'] .appearance-swatch {
   background: linear-gradient(135deg, #ffffff 50%, #3355f0 50%);
+}
+/* Avatars without a photo: a stable tone derived on the device from the address or group id. */
+:is(.conversation-avatar, .chat-peer-avatar, .contact-avatar)[data-tone] {
+  color: var(--brand-ink);
+}
+:is(.conversation-avatar, .chat-peer-avatar, .contact-avatar)[data-tone='0'] {
+  background: linear-gradient(135deg, #2ee6f6, #3b82f6);
+}
+:is(.conversation-avatar, .chat-peer-avatar, .contact-avatar)[data-tone='1'] {
+  background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+}
+:is(.conversation-avatar, .chat-peer-avatar, .contact-avatar)[data-tone='2'] {
+  background: linear-gradient(135deg, #8b5cf6, #d946ef);
+}
+:is(.conversation-avatar, .chat-peer-avatar, .contact-avatar)[data-tone='3'] {
+  background: linear-gradient(135deg, #f59e0b, #ef4444);
+}
+:is(.conversation-avatar, .chat-peer-avatar, .contact-avatar)[data-tone='4'] {
+  background: linear-gradient(135deg, #10b981, #06b6d4);
+}
+:is(.conversation-avatar, .chat-peer-avatar, .contact-avatar)[data-tone='5'] {
+  background: linear-gradient(135deg, #64748b, #334155);
 }

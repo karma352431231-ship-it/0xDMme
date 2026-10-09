@@ -7,6 +7,11 @@ import {
   resetHistoryPosition,
   updateMessageStates,
 } from '../chat-ui/index.ts';
+import {
+  displayName,
+  paintAvatar,
+  shortAddress,
+} from '../identity-display/index.ts';
 import type { HistoryUpdate } from '../message-visibility/index.ts';
 import { mountPushSettings } from '../push-settings/index.ts';
 import { notificationSettings } from './settings.ts';
@@ -53,7 +58,7 @@ import type { VaultAccess } from '../vault-authority/index.ts';
 import type { VaultSync } from '../vault-sync/index.ts';
 import { Contacts } from '../contacts/index.ts';
 import { profileCard } from '../message-profile/index.ts';
-import { Messages } from './controller.ts';
+import { Messages, receivedState } from './controller.ts';
 import type { MessageView } from './controller.ts';
 type ConversationPeer = Peer & { localOnly?: boolean };
 export function startMessages(
@@ -567,12 +572,21 @@ export function startMessages(
       ),
     );
   }
-  function renderPeer(): void {
+  function renderPeerIdentity(): void {
     const title = node('[data-message-peer]');
-    if (title) title.textContent = peerLabel();
+    if (title) {
+      title.textContent = selected ? displayName(peerLabel()) : peerLabel();
+      title.title = selected?.address ?? '';
+    }
     const avatar = node('[data-chat-avatar]');
     if (avatar)
-      avatar.textContent = peerLabel().slice(0, 2).toLocaleUpperCase('pt-BR');
+      paintAvatar(avatar, {
+        label: peerLabel(),
+        seed: selected?.address ?? '',
+      });
+  }
+  function renderPeer(): void {
+    renderPeerIdentity();
     const call = node('[data-call-start]');
     if (call) call.hidden = !options.calls || !!selected?.localOnly;
     const form = node('[data-message-form]');
@@ -589,12 +603,11 @@ export function startMessages(
       icon.setAttribute('role', 'img');
       icon.setAttribute('aria-label', checks.label);
       icon.title = `${checks.label}. ${view.state}`;
-      detail.append(
-        view.delivery === 'received' ? 'Entregue ' : 'Enviada ',
-        icon,
-      );
-    } else detail.textContent = view.state;
-    if (view.edited) detail.append(' · Editada');
+      detail.append(icon);
+    } else if (view.state === receivedState) detail.title = view.state;
+    else detail.textContent = view.state;
+    if (view.edited)
+      detail.prepend(detail.childNodes.length ? 'Editada · ' : 'Editada');
     return detail;
   }
   function renderAnnotations(
@@ -898,6 +911,7 @@ export function startMessages(
       title: contactTitle(contact, peer),
       detail: contactLabel(peer, settingsId),
       kind: 'contact',
+      seed: peer.address,
       searchText: `${contact.alias} ${peer.name} ${peer.address}`,
       selected: selected?.accountId === peer.accountId,
       hidden: contact.removed,
@@ -935,8 +949,9 @@ export function startMessages(
     return {
       id: entity,
       title: contact.alias || contact.address,
-      detail: `${settings.pinned ? '📌 ' : ''}${contact.address.slice(0, 6)}…${contact.address.slice(-4)} · salvo na agenda`,
+      detail: `${settings.pinned ? '📌 ' : ''}${shortAddress(contact.address)} · salvo na agenda`,
       kind: 'contact',
+      seed: contact.address,
       searchText: `${contact.alias} ${contact.address}`,
       selected: false,
       hidden: contact.removed,
@@ -1025,7 +1040,7 @@ export function startMessages(
     const conflict = daily.organizationConflict(settingsId)
       ? ' · organização em conflito'
       : '';
-    const address = `${peer.address.slice(0, 6)}…${peer.address.slice(-4)}`;
+    const address = shortAddress(peer.address);
     return `${settings.pinned ? '📌 ' : ''}${address}${state && state.mutedUntil > Date.now() ? ' · silenciada' : ''}${conflict}`;
   }
   async function openPeer(peer: ConversationPeer): Promise<void> {
@@ -1088,12 +1103,18 @@ export function startMessages(
   function renderPresence(): void {
     const presence = node('[data-peer-presence]'),
       state = selected ? states.get(selected.accountId) : null;
-    if (presence)
-      presence.textContent = state?.online
-        ? 'Online'
-        : state?.lastSeen
-          ? `Último acesso: ${new Date(state.lastSeen).toLocaleString('pt-BR')}`
-          : 'Presença não compartilhada';
+    if (!presence) return;
+    const text = presenceText(state);
+    presence.classList.toggle('peer-address', text === null);
+    // Without shared presence the subtitle identifies a named wallet instead of stating an absence.
+    presence.textContent =
+      text ?? (selected?.name ? shortAddress(selected.address) : '');
+  }
+  function presenceText(state: PeerState | null | undefined): string | null {
+    if (state?.online) return 'Online';
+    if (state?.lastSeen)
+      return `Último acesso: ${new Date(state.lastSeen).toLocaleString('pt-BR')}`;
+    return null;
   }
   function contactsMore(): void {
     const button = node('[data-message-more-contacts]');

@@ -94,8 +94,31 @@ button:disabled {
   align-items: center;
   gap: 12px;
   font-weight: 700;
-  font-size: 25px;
+  font-size: var(--fs-title);
   letter-spacing: -0.7px;
+}
+.test-badge {
+  margin-right: auto;
+  padding: 3px 8px;
+  border: 1px solid var(--warn);
+  border-radius: 999px;
+  color: var(--warn);
+  font-size: var(--fs-caption);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: help;
+}
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.peer-address {
+  font-family: var(--font-mono);
 }
 .brand-mark {
   width: 38px;
@@ -113,7 +136,7 @@ button:disabled {
   border-radius: 12px;
   background: transparent;
   color: inherit;
-  font-size: 26px;
+  font-size: var(--fs-title);
 }
 .icon-button:hover {
   background: var(--surface-2);
@@ -129,7 +152,7 @@ button:disabled {
   stroke-linejoin: round;
 }
 .section-label {
-  font-size: 10px;
+  font-size: var(--fs-caption);
   letter-spacing: 1.8px;
   font-weight: 650;
   color: var(--text-muted);
@@ -148,7 +171,7 @@ button:disabled {
   padding: 0 16px 0 22px;
 }
 .directory-heading h2 {
-  font-size: 15px;
+  font-size: var(--fs-body);
   margin: 0;
 }
 .directory-filters {
@@ -166,7 +189,7 @@ button:disabled {
   color: var(--text-muted);
   border-radius: 24px;
   padding: 8px 12px;
-  font-size: 12px;
+  font-size: var(--fs-caption);
   white-space: nowrap;
 }
 .directory-filters button[aria-pressed='true'] {
@@ -178,16 +201,10 @@ button:disabled {
   color: var(--warn);
   margin: 0;
   padding: 0 22px;
-  font-size: 12px;
+  font-size: var(--fs-caption);
 }
 .directory-status:empty {
   display: none;
-}
-.directory-notice {
-  color: var(--text-muted);
-  font-size: 11px;
-  padding: 0 22px;
-  margin: 8px 0 16px;
 }
 .directory-scroll {
   flex: 1;
@@ -200,7 +217,7 @@ button:disabled {
 .directory-empty {
   color: var(--text-muted);
   padding: 24px 12px;
-  font-size: 13px;
+  font-size: var(--fs-small);
   line-height: 1.7;
 }
 .chat-directory button {
@@ -219,7 +236,7 @@ button:disabled {
   margin: 0 22px 12px;
   max-height: 40vh;
   overflow-y: auto;
-  font-size: 12px;
+  font-size: var(--fs-caption);
   color: var(--text-muted);
 }
 .directory-tools summary {
@@ -249,7 +266,7 @@ button:disabled {
   border-top: 1px solid var(--line);
   padding: 16px 20px;
   background: var(--surface);
-  font-size: 13px;
+  font-size: var(--fs-small);
 }
 .account-copy {
   min-width: 0;
@@ -276,7 +293,7 @@ button:disabled {
 .account small {
   display: block;
   color: var(--text-muted);
-  font-size: 11px;
+  font-size: var(--fs-caption);
   line-height: 1.5;
 }
 #account-profile-feedback {
@@ -295,7 +312,7 @@ button:disabled {
   border: 1px solid var(--line-strong);
   padding: 0;
   border-radius: 50%;
-  font-size: 19px;
+  font-size: var(--fs-heading);
   overflow: hidden;
 }
 .account .avatar img {
@@ -310,7 +327,7 @@ button:disabled {
   border-radius: 6px;
   background: transparent;
   color: var(--accent-text);
-  font-size: 10px;
+  font-size: var(--fs-caption);
 }
 .mobile-nav {
   display: none;
@@ -331,7 +348,7 @@ header {
   gap: 20px;
 }
 h1 {
-  font-size: 29px;
+  font-size: var(--fs-title);
   letter-spacing: -1px;
   margin: 12px 0 26px;
   font-weight: 650;
@@ -341,18 +358,8 @@ h1 {
   border-radius: 30px;
   padding: 8px 12px;
   color: var(--text-muted);
-  font-size: 11px;
+  font-size: var(--fs-caption);
   white-space: nowrap;
-}
-.notice {
-  background: var(--surface-2);
-  color: var(--text-muted);
-  font-size: 12px;
-  padding: 14px 18px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  margin-bottom: 26px;
-  line-height: 1.6;
 }
 #page-content {
   flex: 1;
@@ -374,12 +381,12 @@ h1 {
   padding: 24px;
 }
 .list-placeholder h2 {
-  font-size: 14px;
+  font-size: var(--fs-body);
   margin: 0 0 32px;
 }
 .list-placeholder p {
   color: var(--text-muted);
-  font-size: 12px;
+  font-size: var(--fs-caption);
   line-height: 1.8;
 }
 .empty-state {
@@ -403,18 +410,18 @@ h1 {
 }
 .eyebrow {
   color: var(--accent);
-  font-size: 10px;
+  font-size: var(--fs-caption);
   font-weight: 650;
   letter-spacing: 1.7px;
 }
 .empty-state h2 {
-  font-size: 23px;
+  font-size: var(--fs-title);
   letter-spacing: -0.6px;
   margin: 12px 0;
 }
 .empty-state p {
   max-width: 400px;
-  font-size: 13px;
+  font-size: var(--fs-small);
   line-height: 1.9;
   color: var(--text-muted);
 }
@@ -425,14 +432,14 @@ h1 {
   border-radius: 7px;
   padding: 13px 20px;
   margin-top: 14px;
-  font-size: 12px;
+  font-size: var(--fs-caption);
 }
 .primary:disabled {
   background: var(--surface-3);
   color: var(--text-muted);
 }
 .detail {
-  font-size: 10px !important;
+  font-size: var(--fs-caption) !important;
   color: var(--text-faint) !important;
 }
 .cards {
@@ -447,11 +454,11 @@ h1 {
   background: var(--surface);
 }
 .card h2 {
-  font-size: 17px;
+  font-size: var(--fs-input);
   margin: 8px 0 18px;
 }
 .card p {
-  font-size: 13px;
+  font-size: var(--fs-small);
   color: var(--text-muted);
   line-height: 1.8;
 }
@@ -475,7 +482,7 @@ h1 {
   gap: 12px;
   border-top: 1px solid var(--line);
   padding-top: 16px;
-  font-size: 12px;
+  font-size: var(--fs-caption);
 }
 .privacy-row span:last-child {
   color: var(--text-muted);
@@ -486,7 +493,7 @@ footer {
   gap: 18px;
   padding-top: 26px;
   color: var(--text-muted);
-  font-size: 10px;
+  font-size: var(--fs-caption);
   line-height: 1.8;
 }
 .update {
@@ -498,7 +505,7 @@ footer {
   padding: 16px;
   border-radius: 10px;
   max-width: calc(100vw - 48px);
-  font-size: 13px;
+  font-size: var(--fs-small);
 }
 .update[hidden] {
   display: none;
@@ -541,7 +548,7 @@ footer {
     gap: 12px;
   }
   .brand {
-    font-size: 24px;
+    font-size: var(--fs-title);
     gap: 10px;
   }
   .brand-mark {
@@ -593,7 +600,7 @@ footer {
     align-items: center;
     gap: 4px;
     padding: 8px 2px;
-    font-size: 10px;
+    font-size: var(--fs-caption);
     border-radius: 14px;
   }
   .mobile-nav a[aria-current='page'] {
@@ -604,12 +611,12 @@ footer {
     gap: 10px;
   }
   .phase {
-    font-size: 10px;
+    font-size: var(--fs-caption);
     padding: 6px 8px;
     white-space: normal;
   }
   h1 {
-    font-size: 25px;
+    font-size: var(--fs-title);
     margin-bottom: 12px;
   }
   footer {
@@ -618,11 +625,6 @@ footer {
   }
   .card {
     padding: 20px;
-  }
-  .notice {
-    margin-bottom: 16px;
-    padding: 10px 12px;
-    font-size: 11px;
   }
   .update {
     bottom: 90px;
@@ -644,7 +646,7 @@ footer {
 }
 .profile-settings > h2 {
   margin: 0;
-  font-size: 22px;
+  font-size: var(--fs-title);
 }
 .profile-settings .card {
   margin-bottom: 0;
@@ -739,7 +741,7 @@ footer {
     display: none;
   }
   .mobile-nav a {
-    font-size: 11px;
+    font-size: var(--fs-caption);
     min-width: 0;
   }
 }
@@ -763,7 +765,7 @@ footer {
   background: transparent;
   color: var(--accent);
   font: inherit;
-  font-size: 13px;
+  font-size: var(--fs-small);
   cursor: pointer;
   text-decoration: underline;
 }
@@ -805,7 +807,7 @@ footer {
   border-radius: 12px;
   background: var(--surface-2);
   color: var(--text-muted);
-  font-size: 11px;
+  font-size: var(--fs-caption);
   font-weight: 500;
 }
 .wallet-detection.is-detected {
@@ -822,7 +824,7 @@ footer {
   flex-wrap: wrap;
   align-items: center;
   gap: 10px;
-  font-size: 13px;
+  font-size: var(--fs-small);
 }
 .account-card input:not([type='checkbox']),
 .device-card input:not([type='checkbox']),
@@ -879,7 +881,7 @@ footer {
 }
 .account-card a {
   text-decoration: underline;
-  font-size: 13px;
+  font-size: var(--fs-small);
 }
 
 .wallet-approval {
@@ -934,7 +936,7 @@ footer {
 .status-card label {
   display: grid;
   gap: 8px;
-  font-size: 13px;
+  font-size: var(--fs-small);
 }
 .vault-card input,
 .vault-card select,
@@ -1091,7 +1093,7 @@ footer {
   background: var(--surface-2);
   color: var(--text-muted);
   opacity: 0;
-  font-size: 23px;
+  font-size: var(--fs-title);
 }
 .conversation-item:hover .conversation-menu-trigger,
 .conversation-item:focus-within .conversation-menu-trigger {
@@ -1178,7 +1180,7 @@ footer {
   border-radius: 50%;
   background: var(--accent-soft);
   color: var(--accent-text);
-  font-size: 17px;
+  font-size: var(--fs-input);
   font-weight: 600;
 }
 .conversation-avatar.group {
@@ -1197,11 +1199,11 @@ footer {
   text-overflow: ellipsis;
 }
 .conversation-copy strong {
-  font-size: 14px;
+  font-size: var(--fs-body);
   font-weight: 600;
 }
 .conversation-copy small {
-  font-size: 12px;
+  font-size: var(--fs-caption);
   opacity: 0.65;
   margin-top: 6px;
 }
@@ -1228,7 +1230,7 @@ footer {
 }
 .search-heading h2 {
   margin: 0;
-  font-size: 22px;
+  font-size: var(--fs-title);
 }
 .conversation-search button {
   border: 1px solid var(--line-strong);
@@ -1239,7 +1241,7 @@ footer {
   font: inherit;
 }
 .search-heading button {
-  font-size: 24px;
+  font-size: var(--fs-title);
   border: 0;
   background: transparent;
   padding: 0 8px;
@@ -1247,7 +1249,7 @@ footer {
 .conversation-search label {
   display: block;
   margin: 22px 0 10px;
-  font-size: 13px;
+  font-size: var(--fs-small);
 }
 .search-input-row {
   display: flex;
@@ -1267,11 +1269,11 @@ footer {
 .search-scope,
 [data-search-notice] {
   color: var(--text-muted);
-  font-size: 12px;
+  font-size: var(--fs-caption);
   line-height: 1.6;
 }
 .conversation-search h3 {
-  font-size: 14px;
+  font-size: var(--fs-body);
   margin-top: 24px;
 }
 .conversation-search .chat-contacts {
@@ -1298,7 +1300,7 @@ footer {
 }
 [data-search-messages] p {
   white-space: pre-wrap;
-  font-size: 13px;
+  font-size: var(--fs-small);
   margin: 8px 0;
 }
 
@@ -1323,7 +1325,7 @@ footer {
   align-items: center;
   gap: 8px;
   margin: 10px 0;
-  font-size: 13px;
+  font-size: var(--fs-small);
 }
 .backup-card input[type='file'] {
   max-width: 100%;
@@ -1353,7 +1355,7 @@ footer {
   white-space: pre-wrap;
 }
 .message-checks {
-  font-size: 1.1rem;
+  font-size: var(--fs-input);
   font-weight: 700;
   white-space: nowrap;
 }
@@ -1433,7 +1435,7 @@ footer {
   min-width: 0;
   min-height: 42px;
   padding: 5px 2px;
-  font-size: 24px;
+  font-size: var(--fs-title);
   background: var(--bg);
   border: 1px solid transparent;
   border-radius: 8px;
@@ -1541,7 +1543,7 @@ footer {
   padding: 0;
   background: var(--surface-2);
   color: var(--accent-text);
-  font-size: 24px;
+  font-size: var(--fs-title);
   overflow: hidden;
 }
 .profile-avatar img {

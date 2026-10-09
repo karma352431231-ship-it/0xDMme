@@ -1,3 +1,4 @@
+import { paintAvatar } from '../identity-display/index.ts';
 import { chatIcon } from '../chat-ui/index.ts';
 import type { Peer } from '../../shared/contacts/index.ts';
 
@@ -25,12 +26,12 @@ export function searchContacts<T extends Peer>(
   );
 }
 
-export function shortWallet(address: string): string {
-  return `${address.slice(0, 6)}…${address.slice(-4)}`;
-}
-
 /** Names and decrypted labels enter textContent, never an HTML template. */
-export function contactRow(input: { title: string; detail: string }): {
+export function contactRow(input: {
+  title: string;
+  detail: string;
+  seed: string;
+}): {
   row: HTMLLIElement;
   actions: HTMLDivElement;
 } {
@@ -43,7 +44,7 @@ export function contactRow(input: { title: string; detail: string }): {
   row.className = 'contact-row';
   avatar.className = 'contact-avatar';
   avatar.setAttribute('aria-hidden', 'true');
-  avatar.textContent = input.title.slice(0, 2).toLocaleUpperCase('pt-BR');
+  paintAvatar(avatar, { label: input.title, seed: input.seed });
   body.className = 'contact-row-body';
   title.textContent = input.title;
   detail.className = 'contact-row-detail';

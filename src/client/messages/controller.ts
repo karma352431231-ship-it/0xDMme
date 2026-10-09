@@ -88,6 +88,8 @@ import {
 } from './history.ts';
 import type { MessageItem } from './history.ts';
 import { PeerIdentity } from '../peer-identity/index.ts';
+/** Normal state of an accepted message; the bubble shows it only as a tooltip to keep the thread quiet. */
+export const receivedState = 'Recebida e preservada';
 export interface MessageView {
   archived?: boolean;
   delivery?: DeliveryState;
@@ -1046,7 +1048,7 @@ export class Messages {
       text,
       state: item.queue_active
         ? 'Aceita · entrega por aparelho pendente'
-        : 'Recebida e preservada',
+        : receivedState,
     };
   }
   private async decryptPacket(c: {
@@ -1563,7 +1565,7 @@ export class Messages {
             ? view.state
             : state.pending
               ? 'Aceita · entrega por aparelho pendente'
-              : 'Recebida e preservada',
+              : receivedState,
       };
     });
   }

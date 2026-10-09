@@ -38,6 +38,20 @@ Implementada localmente em 09/10/2026, sem mudança de layout:
 
 - `src/client/app/theme.css` concentra os tokens dos três temas (Azul padrão, Preto, Branco) e os padrões de campos, botões e diálogos sem cor própria. As 185 cores literais de `app.css`, `settings.css`, `chat.css`, `contacts.css` e `community.css` passaram a usar esses tokens; Comunidades deixou de ter paleta e tema escuro próprios. Bolha recebida e enviada, contador de não lidas (degradê da marca), QR (fundo claro) e vídeo (fundo preto) têm tokens específicos.
 - Perfil → **Aparência** escolhe o tema. A escolha fica em `localStorage` (`0xdmme:theme`), sem servidor, cofre ou sincronização; valor ausente, inválido ou ilegível volta para Azul com aviso. O tema é aplicado antes da primeira renderização do app e também na página de retorno da recuperação. Barra do navegador (`theme-color`) acompanha o tema; o manifesto PWA usa o navy padrão.
-- Tipografia: as fontes novas continuam pendentes da conferência de licença/distribuição; a escala tipográfica entra junto com a etapa 2.
+- Tipografia: as fontes novas continuam pendentes da conferência de licença/distribuição; a escala tipográfica entrou na etapa 2.
 
 Validação: lint, TypeScript, fronteiras, formatação, build (38 assets, módulo novo incluído no pacote de fontes GPL) e 421 testes unitários passaram. Testes novos cobrem a leitura da preferência (ausente, válida, inválida, bloqueada), a aplicação na raiz/`theme-color` e a regra de que nenhum CSS de componente usa cor literal fora de `theme.css`. Prévia local sem backend conferiu Perfil, Aparência e Comunidades nos três temas, persistência após recarregar e Contatos em 375 px. Conversa aberta com mensagens, chamada e diálogos não foram vistos com conta real nesta etapa; a cobertura deles é pelos tokens e pela regra automatizada.
+
+## Etapa 2 — limpeza de ruído
+
+Implementada localmente em 09/10/2026, sem mudança de layout ou de regras:
+
+- **Um aviso de teste.** O selo **TESTE**, ao lado do logo (lateral no desktop e cabeçalho no mobile), substitui os avisos repetidos da lateral, do topo das páginas e de Perfil. O texto completo continua no título e para leitores de tela. Contatos mantém só o aviso funcional de que a busca cobre os itens carregados neste aparelho.
+- **Endereço curto.** Contatos sem nome aparecem como `0xbff0…7867` na lista, no cabeçalho do chat e em Contatos; o endereço completo fica no título (hover), na cópia e na busca, que continua usando o valor completo. Sem presença compartilhada, o subtítulo do chat mostra o endereço curto em fonte mono quando o contato tem nome, no lugar de “Presença não compartilhada”.
+- **Avatares.** Sem foto, o avatar mostra as iniciais do nome (ou os dois caracteres depois de `0x`) sobre um dos seis degradês da marca, escolhido no aparelho por hash FNV-1a do endereço ou do id do grupo. Nada é consultado fora do aparelho. Lista, cabeçalho e Contatos usam a mesma semente, então a cor de uma pessoa é igual nos três lugares. O módulo `src/client/identity-display` concentra essas regras e substituiu o `shortWallet` de Contatos.
+- **Mensagens.** O estado de entrega aparece só pelos ✓/✓✓, com o texto no título e no rótulo acessível. “Recebida e preservada”, o estado normal, fica apenas no título; estados que pedem atenção (entrega pendente, suspensa) continuam visíveis. Em aparelhos com mouse, o botão de ações da mensagem aparece no hover ou foco; no toque continua visível.
+- **Escala tipográfica.** Vinte tamanhos de fonte viraram seis tokens: legenda 12, pequeno 13, corpo 15, campo 16, seção 20 e título 24 px. Textos de 9 a 11 px passaram a 12 px. Dois tamanhos decorativos (32 e 42 px) ficaram fora da escala.
+
+Validação: lint, TypeScript, fronteiras, formatação, build e 424 testes unitários passaram, com testes novos para endereço curto, nomes, iniciais e estabilidade da cor. Prévia local sem backend conferiu o selo e Comunidades no desktop, e Comunidades e Perfil em 320 px, sem rolagem horizontal e com a barra inferior cabendo. Lista com contatos reais, bolhas, grupos e chamada não foram vistos com conta nesta etapa. A troca do texto de teste no fixture de integração passa a atingir o título do selo; os testes de integração (PostgreSQL) não foram executados.
+
+Pendente desta etapa, por depender de conferência: mover os links de código e licenças do rodapé para Perfil → Sobre o app.

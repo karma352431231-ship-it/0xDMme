@@ -1,3 +1,4 @@
+import { paintAvatar } from '../identity-display/index.ts';
 import {
   chatIcon,
   chatComposer,
@@ -284,10 +285,8 @@ export function startGroups(
           ? 'Vista pelos destinatários com confirmação de leitura'
           : checks.label,
       );
-      state.append(
-        view.delivery === 'received' ? 'Entregue ' : 'Enviada ',
-        icon,
-      );
+      icon.title = icon.getAttribute('aria-label') ?? '';
+      state.append(icon);
       article.append(state);
     }
     if (view.localOnly) {
@@ -305,6 +304,9 @@ export function startGroups(
     }
     const heading = node('[data-group-title]');
     if (heading) heading.textContent = group.title;
+    const avatar = node('[data-group-avatar]');
+    if (avatar)
+      paintAvatar(avatar, { label: group.title, seed: group.state.groupId });
     const count = node('[data-group-count]');
     if (count)
       count.textContent = group.localOnly
@@ -833,7 +835,7 @@ export function startGroups(
       container.hidden = !controller.selected;
       if (session) container.dataset['voicePeer'] = session.accountId;
       sidebarContainer.innerHTML = `<button data-group-new type="button">Novo grupo</button><p data-group-mode></p><form data-group-create hidden><label>Nome do grupo<input data-group-name maxlength="160" required></label><button type="submit">Criar grupo</button></form><button data-group-cancel-create type="button" hidden>Descartar pedido local de criação</button><details><summary>Convites e transferências de grupos</summary><div data-group-incoming></div><button data-group-more-incoming type="button" hidden>Mais convites</button></details>`;
-      container.innerHTML = `<header class="chat-header"><button data-chat-back class="chat-icon chat-mobile-back" type="button" aria-label="Voltar às conversas">${chatIcon('back')}</button><span class="chat-peer-avatar" aria-hidden="true">#</span><div class="chat-peer"><h3 data-group-title></h3><p data-group-count></p></div><details class="chat-options"><summary class="chat-icon" aria-label="Opções do grupo" title="Opções do grupo">${chatIcon('more')}</summary><div class="chat-popover group-options"><details><summary>Participantes e administração</summary><ul data-group-members></ul><form data-group-invite><label>Convidar contato<select data-group-invite-target></select></label><button type="submit">Enviar convite</button></form><p data-group-owner-note>Para sair, ofereça a propriedade a outro membro e aguarde o aceite. A propriedade muda somente após o aceite.</p><button data-group-leave type="button">Sair do grupo</button><button data-group-delete type="button">Excluir grupo</button></details><details data-group-vault><summary>Cofre do grupo</summary><p data-group-usage></p><p data-group-cleanup-warning role="status"></p><ul data-group-cleanup-items></ul><button data-group-cleanup-more type="button" hidden>Próximas mídias selecionadas</button><p><a href="#cofre">Salvar um backup cifrado</a> para conservar uma cópia das mídias antes da limpeza. Status não entra no backup.</p><button data-group-clear type="button">Limpar cofre remoto</button></details></div></details></header><p data-group-notice class="compose-notice" role="status"></p><div class="chat-thread"><button data-group-older class="chat-older" type="button" hidden>Mensagens anteriores</button><div data-group-history class="chat-history" tabindex="0" aria-label="Mensagens do grupo"></div><ul data-group-pending class="chat-pending" aria-label="Envios pendentes no grupo"></ul></div>${chatComposer('group')}`;
+      container.innerHTML = `<header class="chat-header"><button data-chat-back class="chat-icon chat-mobile-back" type="button" aria-label="Voltar às conversas">${chatIcon('back')}</button><span data-group-avatar class="chat-peer-avatar" aria-hidden="true">#</span><div class="chat-peer"><h3 data-group-title></h3><p data-group-count></p></div><details class="chat-options"><summary class="chat-icon" aria-label="Opções do grupo" title="Opções do grupo">${chatIcon('more')}</summary><div class="chat-popover group-options"><details><summary>Participantes e administração</summary><ul data-group-members></ul><form data-group-invite><label>Convidar contato<select data-group-invite-target></select></label><button type="submit">Enviar convite</button></form><p data-group-owner-note>Para sair, ofereça a propriedade a outro membro e aguarde o aceite. A propriedade muda somente após o aceite.</p><button data-group-leave type="button">Sair do grupo</button><button data-group-delete type="button">Excluir grupo</button></details><details data-group-vault><summary>Cofre do grupo</summary><p data-group-usage></p><p data-group-cleanup-warning role="status"></p><ul data-group-cleanup-items></ul><button data-group-cleanup-more type="button" hidden>Próximas mídias selecionadas</button><p><a href="#cofre">Salvar um backup cifrado</a> para conservar uma cópia das mídias antes da limpeza. Status não entra no backup.</p><button data-group-clear type="button">Limpar cofre remoto</button></details></div></details></header><p data-group-notice class="compose-notice" role="status"></p><div class="chat-thread"><button data-group-older class="chat-older" type="button" hidden>Mensagens anteriores</button><div data-group-history class="chat-history" tabindex="0" aria-label="Mensagens do grupo"></div><ul data-group-pending class="chat-pending" aria-label="Envios pendentes no grupo"></ul></div>${chatComposer('group')}`;
       attachments.mount(container, run);
       const form = node('[data-group-compose]');
       if (form) bindChatComposer(form, composerStatus);
