@@ -26,6 +26,7 @@ import { postViews } from './post-views.ts';
 import {
   communityAvatar,
   communityIcon,
+  iconLabel,
   postHeader,
   postComments,
   postTagLink,
@@ -164,6 +165,15 @@ export function startCommunityDiscovery(controller: Communities) {
         void run(reload);
       },
     );
+    postShortcut(toolbar);
+  }
+  /** Posting starts from the community the person chooses. */
+  function postShortcut(toolbar: HTMLElement): void {
+    if (!signedIn || (view !== 'feed' && view !== 'following')) return;
+    link(toolbar, 'Postar', '#comunidades?view=communities');
+    const post = toolbar.lastElementChild as HTMLElement;
+    post.className = 'community-post-cta';
+    iconLabel(post, 'pencil');
   }
   function query(): string {
     const data = new URLSearchParams({
@@ -403,7 +413,7 @@ export function startCommunityDiscovery(controller: Communities) {
       period = view === 'explore' ? 'day' : 'all';
       exploreOrder = 'trending';
       const titles: Record<string, string> = {
-        feed: 'Feed geral',
+        feed: 'Feed',
         following: 'Feed das comunidades seguidas',
         explore: 'Ranking de comunidades',
         saved: 'Suas postagens salvas',

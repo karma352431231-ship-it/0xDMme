@@ -1,4 +1,5 @@
 import type { CommunityPost } from '../../shared/community-posts/index.ts';
+import { avatarInitials, avatarTone } from '../appearance/index.ts';
 import { communityElement as el, communityLink as link } from './elements.ts';
 
 const paths = {
@@ -22,6 +23,8 @@ const paths = {
   flag: ['M4 22V3', 'M4 4c5-5 10 5 16 0v11c-6 5-11-5-16 0'],
   mail: ['M3 5h18v14H3z', 'm3 5 9 7 9-7'],
   more: ['M5 12h.01M12 12h.01M19 12h.01'],
+  pencil: ['M4 20h4L19 9l-4-4L4 16z', 'm13.5 6.5 4 4'],
+  plus: ['M12 5v14', 'M5 12h14'],
 } as const;
 export type CommunityIcon = keyof typeof paths;
 
@@ -39,15 +42,13 @@ export function communityIcon(name: CommunityIcon): SVGSVGElement {
 export function iconLabel(node: HTMLElement, name: CommunityIcon): void {
   node.prepend(communityIcon(name));
 }
+/** Initials on a stable tone derived from the public name; a photo covers it. */
 export function communityAvatar(name: string): HTMLElement {
   const avatar = el('span', '', 'community-avatar');
   avatar.append(
-    el(
-      'span',
-      Array.from(name.trim())[0]?.toLocaleUpperCase('pt-BR') ?? '?',
-      'community-avatar-initial',
-    ),
+    el('span', avatarInitials(name) || '?', 'community-avatar-initial'),
   );
+  avatar.dataset['tone'] = avatarTone(name);
   avatar.setAttribute('aria-hidden', 'true');
   return avatar;
 }

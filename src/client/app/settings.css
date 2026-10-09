@@ -431,3 +431,18 @@
   background: var(--brand-grad);
   border-radius: 999px;
 }
+/* Sobre o app: build-time source and license links (index.html template). */
+.about-app-links {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+  font-size: var(--fs-small);
+}
+.about-app-links a {
+  color: var(--accent-text);
+}
+.about-app-links p {
+  margin: 4px 0 0;
+  color: var(--text-muted);
+  font-size: var(--fs-caption);
+}

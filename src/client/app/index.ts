@@ -280,12 +280,20 @@ function route(): void {
         link.setAttribute('aria-current', 'page');
       else link.removeAttribute('aria-current');
     });
+  showAboutLinks();
   const button = document.getElementById('check-updates');
   button?.addEventListener('click', () => {
     void pwa?.check();
   });
   pwa?.render();
   panels.routed(key);
+}
+/** Build-time source and license links live in a template of the shell. */
+function showAboutLinks(): void {
+  const host = document.querySelector('[data-about-links]');
+  const links = document.getElementById('about-app-links');
+  if (host && links instanceof HTMLTemplateElement)
+    host.replaceChildren(links.content.cloneNode(true));
 }
 function renderPageHeader(key: PageKey): void {
   const dm =

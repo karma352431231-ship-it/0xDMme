@@ -36,7 +36,7 @@ export async function loadWebAssets(): Promise<ReadonlyMap<string, WebAsset>> {
   const manifest: unknown = JSON.parse(
     await readFile(new URL('assets.json', root), 'utf8'),
   );
-  if (!Array.isArray(manifest) || manifest.length > 38)
+  if (!Array.isArray(manifest) || manifest.length > 40)
     throw new Error('Build inválido.');
   const assets = new Map<string, WebAsset>();
   for (const value of manifest as unknown[]) {

@@ -113,6 +113,31 @@
   --fs-heading: 20px;
   --fs-title: 24px;
   --font-mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  --font-body: Figtree, ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-display: Sora, Figtree, ui-sans-serif, system-ui, sans-serif;
+}
+/* Same-origin OFL fonts (vendor/fonts/README.md); other scripts fall back to the system. */
+@font-face {
+  font-family: Figtree;
+  font-style: normal;
+  font-weight: 300 900;
+  font-display: swap;
+  src: url('/figtree-latin-5.3.0.woff2') format('woff2');
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC,
+    U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212,
+    U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: Sora;
+  font-style: normal;
+  font-weight: 100 800;
+  font-display: swap;
+  src: url('/sora-latin-5.3.0.woff2') format('woff2');
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC,
+    U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212,
+    U+2215, U+FEFF, U+FFFD;
 }
 /* Zero-specificity defaults: controls without authored colors follow the theme instead of the browser palette. */
 :where(
@@ -143,7 +168,8 @@
   .conversation-avatar,
   .chat-peer-avatar,
   .contact-avatar,
-  .rail-avatar
+  .rail-avatar,
+  .community-avatar
 )[data-tone] {
   color: var(--brand-ink);
 }
@@ -151,7 +177,8 @@
   .conversation-avatar,
   .chat-peer-avatar,
   .contact-avatar,
-  .rail-avatar
+  .rail-avatar,
+  .community-avatar
 )[data-tone='0'] {
   background: linear-gradient(135deg, #2ee6f6, #3b82f6);
 }
@@ -159,7 +186,8 @@
   .conversation-avatar,
   .chat-peer-avatar,
   .contact-avatar,
-  .rail-avatar
+  .rail-avatar,
+  .community-avatar
 )[data-tone='1'] {
   background: linear-gradient(135deg, #3b82f6, #8b5cf6);
 }
@@ -167,7 +195,8 @@
   .conversation-avatar,
   .chat-peer-avatar,
   .contact-avatar,
-  .rail-avatar
+  .rail-avatar,
+  .community-avatar
 )[data-tone='2'] {
   background: linear-gradient(135deg, #8b5cf6, #d946ef);
 }
@@ -175,7 +204,8 @@
   .conversation-avatar,
   .chat-peer-avatar,
   .contact-avatar,
-  .rail-avatar
+  .rail-avatar,
+  .community-avatar
 )[data-tone='3'] {
   background: linear-gradient(135deg, #f59e0b, #ef4444);
 }
@@ -183,7 +213,8 @@
   .conversation-avatar,
   .chat-peer-avatar,
   .contact-avatar,
-  .rail-avatar
+  .rail-avatar,
+  .community-avatar
 )[data-tone='4'] {
   background: linear-gradient(135deg, #10b981, #06b6d4);
 }
@@ -191,7 +222,8 @@
   .conversation-avatar,
   .chat-peer-avatar,
   .contact-avatar,
-  .rail-avatar
+  .rail-avatar,
+  .community-avatar
 )[data-tone='5'] {
   background: linear-gradient(135deg, #64748b, #334155);
 }
@@ -435,14 +467,6 @@
     font-size: var(--fs-small);
     font-weight: 600;
     letter-spacing: 0.04em;
-  }
-  /* The chat column is narrower than the page; let source and license links wrap by item. */
-  #app-shell[data-page='conversas'][data-layout='all'] footer {
-    flex-wrap: wrap;
-    gap: 4px 14px;
-  }
-  #app-shell[data-page='conversas'][data-layout='all'] footer > * {
-    flex: 0 1 auto;
   }
 }
 .feed-panel-heading {
@@ -897,27 +921,6 @@
       color: var(--text);
     }
   }
-  /*
-   * Source and license links stay reachable until moving them to Perfil is
-   * confirmed (docs/UI_PAINEIS_E_TEMAS.md); here they are one slim line.
-   */
-  #app-shell[data-page='conversas'] footer {
-    justify-content: flex-start;
-    gap: 2px 14px;
-    padding: 4px 18px 6px;
-    border-top: 1px solid var(--line);
-    color: var(--text-faint);
-    font-size: 11px;
-    line-height: 1.6;
-  }
-  #app-shell[data-page='conversas'] footer > span {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip-path: inset(50%);
-    white-space: nowrap;
-  }
 
   /* Comunidades ao lado */
   #app-shell .feed-panel-heading {
@@ -1335,12 +1338,7 @@
 }
 
 :root {
-  font-family:
-    Inter,
-    ui-sans-serif,
-    system-ui,
-    -apple-system,
-    sans-serif;
+  font-family: var(--font-body);
   color: var(--text);
   background: var(--bg);
   font-synthesis: none;
@@ -1385,6 +1383,17 @@ button:disabled {
 :focus-visible {
   outline: 3px solid var(--focus);
   outline-offset: 4px;
+}
+:is(h1, h2, h3, h4),
+.brand,
+:is(
+  .conversation-avatar,
+  .chat-peer-avatar,
+  .contact-avatar,
+  .rail-avatar,
+  .community-avatar
+) {
+  font-family: var(--font-display);
 }
 .skip {
   position: absolute;

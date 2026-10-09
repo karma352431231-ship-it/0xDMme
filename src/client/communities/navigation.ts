@@ -51,10 +51,28 @@ export function communityDirectoryNavigation(
   view: string,
   selected: string | null,
 ): void {
+  const head = el('header', '', 'community-directory-head');
+  head.append(el('h2', 'Comunidades'));
+  link(head, '', '#comunidades?view=create');
+  const create = head.lastElementChild as HTMLAnchorElement;
+  create.className = 'icon-button';
+  create.setAttribute('aria-label', 'Criar comunidade');
+  create.title = 'Criar comunidade';
+  iconLabel(create, 'plus');
+  const tabs = el('nav', '', 'community-directory-tabs');
+  tabs.setAttribute('aria-label', 'Comunidades ou mensagens pelo @');
+  for (const [key, title] of [
+    ['feed', 'Comunidades'],
+    ['dms', 'Mensagens @'],
+  ] as const) {
+    link(tabs, title, `#comunidades?view=${key}`);
+    if ((view === 'dms') === (key === 'dms'))
+      tabs.lastElementChild?.setAttribute('aria-current', 'page');
+  }
   const nav = el('nav', '', 'community-directory-nav');
   nav.setAttribute('aria-label', 'Navegação de comunidades');
   for (const [key, title, icon] of [
-    ['feed', 'Feed geral', 'layers'],
+    ['feed', 'Feed', 'layers'],
     ['explore', 'Ranking', 'compass'],
   ] as const) {
     link(nav, title, `#comunidades?view=${key}`);
@@ -63,5 +81,5 @@ export function communityDirectoryNavigation(
     if (!selected && (view === key || (key === 'feed' && view === 'following')))
       a.setAttribute('aria-current', 'page');
   }
-  container.append(nav, el('h2', 'Suas comunidades'));
+  container.append(head, tabs, nav, el('h2', 'Seguidas'));
 }

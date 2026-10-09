@@ -5,18 +5,13 @@
 .app[data-page='conversas'] #page-content {
   min-height: 0;
 }
-/* Visitors also see the login card here; scroll instead of letting the empty chat overlap the footer. */
+/* Visitors also see the login card here; scroll instead of squeezing the empty chat under it. */
 .app[data-page='conversas'][data-account='guest'][data-chat-open='false'] main {
   overflow-y: auto;
 }
 .app[data-page='conversas'][data-account='guest'][data-chat-open='false']
   #page-content {
   flex: 0 0 auto;
-}
-.app[data-page='conversas'] footer {
-  flex: 0 0 auto;
-  padding-top: 8px;
-  font-size: var(--fs-caption);
 }
 .app[data-page='conversas'] ~ .update {
   bottom: 110px;
@@ -473,9 +468,6 @@
   }
   .app[data-page='conversas'][data-chat-open='true'] main {
     grid-row: 1;
-  }
-  .app[data-page='conversas'][data-chat-open='true'] footer {
-    display: none;
   }
   .chat-panel.card {
     border: 0;

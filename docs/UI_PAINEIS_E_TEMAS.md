@@ -15,8 +15,8 @@ O proprietário avaliou a proposta de redesign apresentada em 09/10/2026 (págin
 
 ## Pré-requisitos antes de cada parte
 
-- **Fontes.** A proposta usa Sora, Figtree e JetBrains Mono. Elas só entram depois de conferir licença (OFL), tamanho e distribuição como arquivos do próprio app, sem CDN externo. Até lá, as fontes do sistema seguem a nova escala tipográfica.
-- **Código e licenças.** Mover os links de código/licenças do rodapé para Perfil → Sobre o app e para a tela de visitante exige confirmar antes que a oferta de código-fonte continua acessível o bastante.
+- **Fontes.** Aprovadas em 09/10/2026: Sora e Figtree (OFL-1.1), entregues como arquivos do próprio app, sem CDN externo ([vendor/fonts](../vendor/fonts/README.md)). JetBrains Mono não entrou; o mono continua do sistema.
+- **Código e licenças.** Aprovado em 09/10/2026: o rodapé sai e os links ficam em Perfil → Sobre o app, que abre sem conta.
 - **Horário e prévia.** A lista e as bolhas mostram horário ou prévia somente quando o histórico local já tiver esses dados; não inventar horários ou recibos fora do contrato.
 
 ## Ordem de implementação
@@ -143,3 +143,16 @@ Depois da ativação, o proprietário apontou que o desktop não estava igual ao
 **Ponto importante:** os links de código e licenças continuam visíveis numa linha fina sob a conversa, porque mover a oferta de código para o Perfil ainda depende de conferência. O status de conexão e a frase de privacidade ficam só para leitores de tela. A fonte continua Inter; Figtree/Sora seguem pendentes de conferência de licença e tamanho.
 
 Validação: lint, TypeScript, fronteiras, formatação, build e testes unitários passaram. A prévia local com dados fictícios, só na apresentação, conferiu a 1440 px a conversa, o feed com posts sintéticos, o Perfil e o atalho Arquivadas. Também confirmou que 1000 px e 375 px não mudaram.
+
+## Rodapé, fontes e aba de Comunidades — 09/10/2026
+
+Decisão do proprietário no mesmo dia:
+
+- **Sem rodapé.** Os três links de código e licenças ficam em **Perfil → Sobre o app** (antes "Aplicativo"), junto da versão e das atualizações. O build continua trocando os endereços com hash num `<template>` do shell, e o Perfil o copia ao abrir. O status de conexão segue só para leitores de tela. As páginas avulsas (carteira, recuperação, prova Phantom) mantêm o próprio rodapé.
+- **Fontes Figtree e Sora**, latinas e variáveis, servidas pela própria origem (`/figtree-latin-5.3.0.woff2`, `/sora-latin-5.3.0.woff2`). O build confere o SHA-256 e o pacote de código inclui as licenças. Isso soma 54 KB, e o teto de assets do servidor web passou de 38 para 40.
+- **Aba de Comunidades (≥1280 px):**
+  - Lateral com o título "Comunidades" e "+" (criar), as abas **Comunidades | Mensagens @**, Feed e Ranking, e a lista **Seguidas** com avatares quadrados coloridos.
+  - O feed principal tem uma linha só com o título, Descobrir/Seguindo, a ordem, **Postar** e "⋯".
+  - Os cartões ficam compactos, com a tag na linha das ações.
+  - Sem a coluna de ranking à direita do modelo, a pedido do proprietário.
+  - Avatares de comunidade passam a ser quadrados arredondados com iniciais e tom estável em todas as larguras.

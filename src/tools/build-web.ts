@@ -23,6 +23,18 @@ const mime = new Map([
   ['.xz', 'application/x-xz'],
   ['.wasm', 'application/wasm'],
   ['.bin', 'application/octet-stream'],
+  ['.woff2', 'font/woff2'],
+]);
+// Interface fonts, vendored with their licenses (vendor/fonts/README.md).
+const fonts = new Map([
+  [
+    'figtree-latin-5.3.0.woff2',
+    '4ba7d3d096695818fe0686be4f1e82c6b05134e18a22260336130335027462dd',
+  ],
+  [
+    'sora-latin-5.3.0.woff2',
+    'fa26406eeda9a3c6ec3d9ea8813c3045d6dc755e30c716d5c094e8ef43be5a7f',
+  ],
 ]);
 const files = new Map<string, Uint8Array>();
 const inputs = new Set<string>();
@@ -56,6 +68,8 @@ async function bundle(
     format: 'esm',
     target: ['safari16.4', 'chrome111'],
     legalComments: 'inline',
+    // Same-origin fonts are separate assets published by this build.
+    external: ['/*.woff2'],
     logLevel: 'silent',
   });
   const output = result.outputFiles[0];
@@ -166,6 +180,12 @@ asset(
       .replace('{{STYLE}}', style),
   ),
 );
+for (const [name, expected] of fonts) {
+  const bytes = await readFile(new URL(`vendor/fonts/${name}`, root));
+  if (createHash('sha256').update(bytes).digest('hex') !== expected)
+    throw new Error('Fonte divergente.');
+  asset(name, bytes);
+}
 for (const name of ['icon.svg', 'icon-192.png', 'icon-512.png']) {
   asset(name, await readFile(new URL(`src/client/app/${name}`, root)));
 }

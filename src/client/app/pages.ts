@@ -50,7 +50,7 @@ ${settingsSection({ id: 'devices', title: 'Aparelhos', description: 'Vincular, r
 ${settingsSection({ id: 'vault', title: 'Cofre e backup', description: 'Uso do armazenamento, salvar e restaurar', content: '<div class="cards" data-vault-settings></div>' })}
 ${settingsSection({ id: 'representatives', title: 'Organizações e representantes', description: 'Organizações e autorizações assinadas', content: '<div data-representatives-settings></div>' })}
 ${settingsSection({ id: 'appearance', title: 'Aparência', description: 'Tema Azul, Preto ou Branco', content: '<div data-appearance-settings></div>' })}
-${settingsSection({ id: 'app', title: 'Aplicativo', description: 'Versão e atualizações', content: '<article class="card"><p id="pwa-state" role="status">Verificando atualização…</p><button id="check-updates" type="button">Verificar atualização</button></article>' })}
+${settingsSection({ id: 'app', title: 'Sobre o app', description: 'Versão, atualizações, código e licenças', content: '<article class="card"><p id="pwa-state" role="status">Verificando atualização…</p><button id="check-updates" type="button">Verificar atualização</button></article><nav class="about-app-links" aria-label="Código e licenças" data-about-links></nav>' })}
 <div class="profile-content-links"><a href="#contatos">Contatos, agenda e convite <span aria-hidden="true">↗</span></a><a href="#status">Meu status <span aria-hidden="true">↗</span></a></div></section>`;
 
 export const pages = {
