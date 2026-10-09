@@ -19,6 +19,9 @@
     <a class="skip" href="#workspace">Ir para o conteúdo</a>
     <div class="app" id="app-shell" data-account="guest" data-chat-open="false">
       <nav class="rail" aria-label="Organização da tela">
+        <a class="rail-logo" href="#conversas" aria-label="0xDMme"
+          ><img src="/icon.svg" alt=""
+        /></a>
         <button
           type="button"
           class="rail-button"
@@ -67,6 +70,22 @@
             <path d="M10 20a2 2 0 0 0 4 0" /></svg
           ><span class="activity-badge" data-activity-count hidden></span
         ></a>
+        <span class="rail-spacer"></span>
+        <span
+          class="rail-test"
+          title="Chat em teste: use somente contas e mensagens fictícias."
+          >Teste</span
+        >
+        <a
+          class="rail-profile"
+          href="#perfil"
+          data-route="perfil"
+          aria-label="Perfil e configurações"
+          title="Perfil e configurações"
+          ><span class="rail-avatar" data-rail-avatar aria-hidden="true"
+            >#</span
+          ></a
+        >
       </nav>
       <aside class="sidebar" aria-label="Contatos e perfil">
         <div class="brand-bar">
@@ -123,23 +142,11 @@
               ><span class="label-narrow">Conversas</span>
             </h2>
             <div class="directory-actions">
-              <button
-                type="button"
-                class="icon-button directory-split"
-                data-chat-split
-                aria-pressed="true"
-                aria-label="Conversa ao lado"
-                title="Conversa ao lado"
-              >
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <rect x="3" y="4" width="18" height="16" rx="2.5" />
-                  <path d="M12 4v16M15.5 10l2 2-2 2" />
-                </svg>
-              </button>
               <a
                 href="#contatos"
-                class="icon-button"
+                class="icon-button directory-add"
                 aria-label="Adicionar contato"
+                title="Adicionar contato"
                 >+</a
               >
             </div>
@@ -150,6 +157,10 @@
               data-scope-choice="private"
               aria-pressed="true"
             >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <rect x="5" y="11" width="14" height="10" rx="2" />
+                <path d="M8 11V8a4 4 0 0 1 8 0v3" />
+              </svg>
               Privados
             </button>
             <button
@@ -157,9 +168,21 @@
               data-scope-choice="public"
               aria-pressed="false"
             >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <circle cx="12" cy="12" r="4" />
+                <path d="M16 8v5a3 3 0 0 0 6 0v-1a10 10 0 1 0-4 8" />
+              </svg>
               Públicos
             </button>
           </div>
+          <button type="button" class="directory-search" data-open-search>
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <circle cx="10.5" cy="10.5" r="6.5" />
+              <path d="m16 16 5 5" />
+            </svg>
+            <span>Buscar contatos e mensagens</span>
+            <kbd aria-hidden="true">/</kbd>
+          </button>
           <div class="directory-filters" aria-label="Filtrar conversas">
             <button
               type="button"
@@ -177,17 +200,19 @@
             </button>
             <button
               type="button"
-              data-conversation-filter="favorites"
-              aria-pressed="false"
-            >
-              Favoritos
-            </button>
-            <button
-              type="button"
               data-conversation-filter="groups"
               aria-pressed="false"
             >
               Grupos
+            </button>
+            <button
+              type="button"
+              data-conversation-filter="favorites"
+              aria-pressed="false"
+              aria-label="Favoritos"
+            >
+              <span class="chip-full">Favoritos</span
+              ><span class="chip-short" aria-hidden="true">Fav.</span>
             </button>
             <button
               type="button"
@@ -197,6 +222,18 @@
               Arquivadas
             </button>
           </div>
+          <button
+            type="button"
+            class="archived-row"
+            data-conversation-filter="archived"
+            data-archived-shortcut
+            aria-pressed="false"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M6 3h12v18l-6-4-6 4z" />
+            </svg>
+            Arquivadas
+          </button>
           <details class="directory-tools" data-group-tools hidden>
             <summary>Opções de grupos</summary>
             <div data-group-sidebar></div>
@@ -223,6 +260,20 @@
             tabindex="0"
             aria-label="Mensagens públicas pelo @"
           ></div>
+          <div class="directory-foot">
+            <button
+              type="button"
+              class="split-toggle"
+              data-chat-split
+              aria-pressed="true"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <rect x="3" y="4" width="18" height="16" rx="2.5" />
+                <path d="M12 4v16M15.5 10l2 2-2 2" />
+              </svg>
+              Conversa ao lado
+            </button>
+          </div>
         </section>
         <div class="account">
           <button
@@ -316,7 +367,16 @@
               >Minhas</a
             >
           </nav>
-          <a href="#comunidades" class="feed-panel-open">Tela cheia</a>
+          <a
+            href="#comunidades?view=communities"
+            class="feed-panel-post"
+            data-feed-tab="post"
+            title="Escolha a comunidade onde postar"
+            ><svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M4 20h4L19 9l-4-4L4 16z" />
+              <path d="m13.5 6.5 4 4" /></svg
+            >Postar</a
+          >
           <button
             type="button"
             class="icon-button"

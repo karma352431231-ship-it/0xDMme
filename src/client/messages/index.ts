@@ -287,15 +287,22 @@ export function startMessages(
     const retry = node('[data-message-refresh]');
     if (retry)
       retry.textContent = failed ? 'Tentar novamente' : 'Sincronizar agora';
-    const text = node('[data-message-status]');
-    if (text)
-      text.textContent = busy
-        ? 'Sincronizando…'
-        : message === 'Conversas atualizadas.'
-          ? 'Atualizada'
-          : message;
+    renderChatStatus();
     const directoryStatus = node('[data-directory-status]');
     if (directoryStatus) directoryStatus.textContent = failed ? message : '';
+  }
+  function renderChatStatus(): void {
+    const text = node('[data-message-status]');
+    if (!text) return;
+    const upToDate = !busy && !failed && message === 'Conversas atualizadas.';
+    text.textContent = busy
+      ? 'Sincronizando…'
+      : upToDate
+        ? 'Atualizada'
+        : message;
+    // The desktop workspace hides the strip while everything is up to date.
+    const strip = text.closest<HTMLElement>('.chat-feedback');
+    if (strip) strip.dataset['state'] = upToDate ? 'ok' : 'notice';
   }
   function status(): void {
     renderStatusMessage();

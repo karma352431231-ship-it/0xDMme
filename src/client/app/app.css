@@ -139,25 +139,60 @@
   background: linear-gradient(135deg, #ffffff 50%, #3355f0 50%);
 }
 /* Avatars without a photo: a stable tone derived on the device from the address or group id. */
-:is(.conversation-avatar, .chat-peer-avatar, .contact-avatar)[data-tone] {
+:is(
+  .conversation-avatar,
+  .chat-peer-avatar,
+  .contact-avatar,
+  .rail-avatar
+)[data-tone] {
   color: var(--brand-ink);
 }
-:is(.conversation-avatar, .chat-peer-avatar, .contact-avatar)[data-tone='0'] {
+:is(
+  .conversation-avatar,
+  .chat-peer-avatar,
+  .contact-avatar,
+  .rail-avatar
+)[data-tone='0'] {
   background: linear-gradient(135deg, #2ee6f6, #3b82f6);
 }
-:is(.conversation-avatar, .chat-peer-avatar, .contact-avatar)[data-tone='1'] {
+:is(
+  .conversation-avatar,
+  .chat-peer-avatar,
+  .contact-avatar,
+  .rail-avatar
+)[data-tone='1'] {
   background: linear-gradient(135deg, #3b82f6, #8b5cf6);
 }
-:is(.conversation-avatar, .chat-peer-avatar, .contact-avatar)[data-tone='2'] {
+:is(
+  .conversation-avatar,
+  .chat-peer-avatar,
+  .contact-avatar,
+  .rail-avatar
+)[data-tone='2'] {
   background: linear-gradient(135deg, #8b5cf6, #d946ef);
 }
-:is(.conversation-avatar, .chat-peer-avatar, .contact-avatar)[data-tone='3'] {
+:is(
+  .conversation-avatar,
+  .chat-peer-avatar,
+  .contact-avatar,
+  .rail-avatar
+)[data-tone='3'] {
   background: linear-gradient(135deg, #f59e0b, #ef4444);
 }
-:is(.conversation-avatar, .chat-peer-avatar, .contact-avatar)[data-tone='4'] {
+:is(
+  .conversation-avatar,
+  .chat-peer-avatar,
+  .contact-avatar,
+  .rail-avatar
+)[data-tone='4'] {
   background: linear-gradient(135deg, #10b981, #06b6d4);
 }
-:is(.conversation-avatar, .chat-peer-avatar, .contact-avatar)[data-tone='5'] {
+:is(
+  .conversation-avatar,
+  .chat-peer-avatar,
+  .contact-avatar,
+  .rail-avatar
+)[data-tone='5'] {
   background: linear-gradient(135deg, #64748b, #334155);
 }
 /* === End of theme tokens === */
@@ -166,7 +201,10 @@
 .rail,
 .feed-panel,
 .feed-strip,
-.directory-heading .directory-split,
+.directory-search,
+.archived-row,
+.directory-foot,
+.chip-short,
 .chat-panel .chat-collapse,
 .public-chat,
 .public-chat-bar [data-chat-collapse] {
@@ -187,6 +225,10 @@
   background: var(--surface-2);
 }
 .contact-scope button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
   border: 0;
   border-radius: 8px;
   padding: 7px 0;
@@ -194,6 +236,16 @@
   color: var(--text-muted);
   font-size: var(--fs-small);
   font-weight: 600;
+}
+.contact-scope svg {
+  width: 15px;
+  height: 15px;
+  flex: 0 0 auto;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 .contact-scope button[aria-pressed='true'] {
   background: var(--surface-3);
@@ -271,7 +323,7 @@
 @media (min-width: 1280px) {
   /* The id outranks app.css and community.css, whose rules load after this import. */
   #app-shell {
-    grid-template-columns: 64px 320px minmax(0, 1fr);
+    grid-template-columns: 64px 272px minmax(0, 1fr);
   }
   #app-shell[data-page='comunidades'] {
     grid-template-columns: 64px 260px minmax(0, 1fr);
@@ -329,17 +381,17 @@
   }
   #app-shell[data-page='conversas'][data-layout='all'] {
     grid-template-columns:
-      64px 300px minmax(360px, 1fr)
-      minmax(420px, 1.3fr);
+      64px 272px minmax(360px, 1fr)
+      minmax(440px, 1.4fr);
   }
   #app-shell[data-page='conversas'][data-layout='nochat'] {
-    grid-template-columns: 64px 300px minmax(0, 1fr);
+    grid-template-columns: 64px 272px minmax(0, 1fr);
   }
   .app[data-page='conversas'][data-layout='nochat'] main {
     display: none;
   }
   #app-shell[data-page='conversas'][data-layout='solo'] {
-    grid-template-columns: 64px 300px minmax(0, 1fr) 46px;
+    grid-template-columns: 64px 272px minmax(0, 1fr) 46px;
   }
   .app[data-page='conversas']:not([data-layout='solo']) .feed-panel {
     display: flex;
@@ -350,9 +402,6 @@
     background: var(--bg);
     color: var(--text);
     font-size: var(--fs-body);
-  }
-  .app[data-page='conversas']:not([data-layout='solo']) .directory-split {
-    display: inline-grid;
   }
   .app[data-page='conversas'][data-layout='all']
     :is(.chat-collapse, .public-chat-bar [data-chat-collapse]) {
@@ -395,10 +444,6 @@
   #app-shell[data-page='conversas'][data-layout='all'] footer > * {
     flex: 0 1 auto;
   }
-  .directory-split[aria-pressed='true'] {
-    background: var(--accent-soft);
-    color: var(--text);
-  }
 }
 .feed-panel-heading {
   display: flex;
@@ -430,16 +475,679 @@
   background: var(--surface-3);
   color: var(--text);
 }
-.feed-panel-open {
+.feed-panel-post {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   margin-left: auto;
-  color: var(--accent-text);
-  font-size: var(--fs-small);
+  padding: 6px 12px;
+  border-radius: 99px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.feed-panel-post svg {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 .feed-panel-body {
   flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
   padding: 18px 20px;
+}
+/*
+ * Desktop density of the approved mockup (docs/UI_PAINEIS_E_TEMAS.md, 09/10/2026).
+ * The #app-shell prefix outranks the base rules that load later in this file;
+ * phones and narrow windows keep their own layout.
+ */
+@media (min-width: 1280px) {
+  #app-shell .rail {
+    padding: 14px 0;
+  }
+  #app-shell .rail-logo {
+    display: grid;
+    place-items: center;
+    margin-bottom: 14px;
+  }
+  #app-shell .rail-logo img {
+    width: 38px;
+    height: 38px;
+    border-radius: 11px;
+  }
+  #app-shell .rail-spacer {
+    flex: 1;
+  }
+  #app-shell .rail-test {
+    margin-bottom: 10px;
+    padding: 8px 4px;
+    border: 1px solid color-mix(in srgb, var(--warn) 30%, transparent);
+    border-radius: 6px;
+    background: color-mix(in srgb, var(--warn) 10%, transparent);
+    color: var(--warn);
+    font: 600 9.5px/1 var(--font-mono);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    writing-mode: vertical-rl;
+    transform: rotate(180deg);
+    cursor: help;
+  }
+  #app-shell .rail-profile {
+    display: grid;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+  }
+  #app-shell .rail-profile:is(:hover, [aria-current='page']) {
+    background: var(--accent-soft);
+  }
+  #app-shell .rail-avatar {
+    display: grid;
+    place-items: center;
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    background: var(--surface-3);
+    color: var(--text);
+    font-size: 12px;
+    font-weight: 600;
+  }
+  /* The rail carries the mark, the test notice, Atividade and Perfil. */
+  #app-shell .sidebar > :is(.brand-bar, .account) {
+    display: none;
+  }
+
+  /* Contatos */
+  #app-shell .directory-heading {
+    padding: 16px 16px 10px;
+  }
+  #app-shell .directory-heading h2 {
+    font-size: 16px;
+    font-weight: 600;
+  }
+  #app-shell .directory-add {
+    flex: 0 0 32px;
+    width: 32px;
+    height: 32px;
+    border-radius: 9px;
+    background: var(--accent);
+    color: var(--accent-ink);
+    font-size: 20px;
+    line-height: 1;
+  }
+  #app-shell .directory-add:hover {
+    background: var(--accent-strong);
+  }
+  #app-shell .contact-scope {
+    margin: 0 16px 10px;
+  }
+  #app-shell .contact-scope button {
+    font-size: 12.5px;
+  }
+  #app-shell .directory-search {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: 0 16px 10px;
+    padding: 8px;
+    border: 0;
+    border-radius: 10px;
+    background: var(--surface-2);
+    color: var(--text-faint);
+    font-size: 12.5px;
+    text-align: left;
+    cursor: text;
+  }
+  #app-shell .directory-search:hover {
+    color: var(--text-muted);
+  }
+  #app-shell .directory-search span {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+  #app-shell .directory-search kbd {
+    padding: 3px 4px;
+    border: 1px solid var(--line);
+    border-radius: 5px;
+    color: var(--text-muted);
+    font: 500 10.5px/1 var(--font-mono);
+  }
+  #app-shell :is(.directory-search, .archived-row, .split-toggle) svg {
+    width: 15px;
+    height: 15px;
+    flex: 0 0 auto;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+  #app-shell .directory-filters {
+    gap: 5px;
+    padding: 0 16px 10px;
+  }
+  #app-shell .directory-filters button {
+    padding: 5px 8px;
+    border: 0;
+    border-radius: 99px;
+    background: transparent;
+    box-shadow: inset 0 0 0 1px var(--line);
+    color: var(--text-muted);
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1.3;
+  }
+  #app-shell .directory-filters button[aria-pressed='true'] {
+    background: var(--surface-3);
+    box-shadow: none;
+    color: var(--text);
+  }
+  /* Arquivadas becomes its own row; the chip keeps owning the filter. */
+  #app-shell .directory-filters [data-conversation-filter='archived'],
+  #app-shell .chip-full {
+    display: none;
+  }
+  #app-shell .chip-short {
+    display: inline;
+  }
+  #app-shell .archived-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 0;
+    padding: 8px 16px;
+    border: 0;
+    background: transparent;
+    color: var(--text-muted);
+    font-size: 12.5px;
+    font-weight: 600;
+    text-align: left;
+  }
+  #app-shell .archived-row:hover {
+    color: var(--text);
+  }
+  #app-shell .archived-row[aria-pressed='true'] {
+    color: var(--accent-text);
+  }
+  #app-shell[data-contact-scope='public'] .archived-row {
+    display: none;
+  }
+  #app-shell .directory-scroll {
+    padding: 2px 8px 12px;
+  }
+  #app-shell .chat-contacts {
+    gap: 1px;
+  }
+  #app-shell .conversation-row {
+    gap: 10px;
+    min-height: 54px;
+    padding: 8px;
+    border-radius: 10px;
+  }
+  #app-shell .conversation-item .conversation-row {
+    padding-right: 38px;
+  }
+  #app-shell .conversation-item:is(:hover, :focus-within) {
+    border-radius: 10px;
+  }
+  #app-shell .conversation-row[aria-pressed='true'] {
+    background: var(--surface-3);
+  }
+  #app-shell .conversation-avatar {
+    flex: 0 0 38px;
+    width: 38px;
+    height: 38px;
+    font-size: 13px;
+  }
+  #app-shell .conversation-copy strong {
+    font-size: 13.5px;
+  }
+  #app-shell .conversation-copy small {
+    margin-top: 1px;
+    color: var(--text-muted);
+    font-size: 12.5px;
+    opacity: 1;
+  }
+  #app-shell .conversation-unread {
+    min-width: 18px;
+    height: 18px;
+    border-radius: 99px;
+    font-size: 10.5px;
+  }
+  #app-shell .conversation-menu-trigger {
+    width: 28px;
+    height: 28px;
+    font-size: 18px;
+  }
+  #app-shell .public-directory {
+    padding: 2px 8px 12px;
+  }
+  #app-shell .public-directory .public-row {
+    min-height: 54px;
+  }
+  #app-shell[data-page='conversas'] .directory-foot {
+    display: flex;
+    margin-top: auto;
+    padding: 10px 12px 12px;
+    border-top: 1px solid var(--line);
+  }
+  #app-shell .split-toggle {
+    display: flex;
+    flex: 1;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 8px;
+    border: 0;
+    border-radius: 10px;
+    background: transparent;
+    box-shadow: inset 0 0 0 1px var(--line);
+    color: var(--text-muted);
+    font-size: 12.5px;
+    font-weight: 600;
+  }
+  #app-shell .split-toggle[aria-pressed='true'] {
+    background: var(--accent-soft);
+    box-shadow: inset 0 0 0 1px var(--accent);
+    color: var(--text);
+  }
+
+  /* Conversa: flush column, compact header, bubbles and composer. */
+  #app-shell[data-page='conversas'] main {
+    padding: 0;
+  }
+  #app-shell[data-page='conversas'][data-account='guest'][data-chat-open='false']
+    main {
+    padding: 16px 18px 0;
+  }
+  #app-shell .chat-panel.card {
+    border: 0;
+    border-radius: 0;
+  }
+  #app-shell .chat-panel .chat-feedback {
+    min-height: 26px;
+    padding: 2px 18px;
+    border-radius: 0;
+  }
+  /* Up to date: no strip. Sync, failures and notices still show it. */
+  #app-shell .chat-panel .chat-feedback[data-state='ok'] {
+    display: none;
+  }
+  #app-shell .chat-panel .chat-header {
+    align-items: center;
+    gap: 12px;
+    padding: 12px 18px;
+  }
+  #app-shell .chat-peer-avatar {
+    flex: 0 0 38px;
+    width: 38px;
+    height: 38px;
+    font-size: 13px;
+  }
+  #app-shell .chat-peer h3 {
+    font-size: 15px;
+    font-weight: 600;
+  }
+  #app-shell .chat-panel .chat-peer p {
+    margin-top: 1px;
+    color: var(--text-muted);
+    font-size: 11.5px;
+  }
+  #app-shell .chat-panel .chat-icon {
+    flex: 0 0 32px;
+    width: 32px;
+    height: 32px;
+    padding: 7px;
+    border-radius: 9px;
+  }
+  #app-shell .chat-panel .chat-icon svg {
+    width: 18px;
+    height: 18px;
+  }
+  #app-shell .chat-panel .chat-history {
+    gap: 6px;
+    padding: 18px 22px;
+  }
+  #app-shell .chat-message {
+    max-width: 72%;
+    padding: 8px 12px 6px;
+    border: 0;
+    border-radius: 16px 16px 16px 5px;
+    box-shadow: inset 0 0 0 1px var(--line);
+    font-size: 13.5px;
+  }
+  #app-shell .chat-message.own {
+    border-radius: 16px 16px 5px;
+    box-shadow: none;
+    color: var(--sent-ink);
+  }
+  #app-shell .chat-panel .chat-message p {
+    margin: 0;
+    color: inherit;
+    font-size: 13.5px;
+    line-height: 1.45;
+  }
+  #app-shell .chat-message > :is(strong, small) {
+    font-size: 11.5px;
+  }
+  #app-shell .chat-message .message-meta {
+    margin-top: 2px;
+    font-size: 10.5px;
+    opacity: 0.7;
+  }
+  #app-shell .chat-panel .chat-older {
+    margin-top: 6px;
+    padding: 4px 10px;
+    color: var(--text-muted);
+    font-size: 11px;
+    font-weight: 600;
+  }
+  #app-shell .chat-panel .chat-composer {
+    padding: 12px 18px 16px;
+    border-top: 0;
+    border-radius: 0;
+    background: transparent;
+  }
+  #app-shell .compose-row {
+    gap: 10px;
+    align-items: center;
+  }
+  #app-shell .compose-input {
+    align-items: center;
+    padding: 2px 4px;
+    border-radius: 14px;
+    background: var(--surface-2);
+  }
+  #app-shell .chat-panel .compose-input textarea {
+    min-height: 36px;
+    padding: 8px 4px;
+    font-size: 13.5px;
+  }
+  #app-shell .chat-panel .compose-primary {
+    flex: 0 0 42px;
+    width: 42px;
+    height: 42px;
+    padding: 11px;
+    border-radius: 50%;
+  }
+  /* Mouse users get the bubble's options as a small floating button. */
+  @media (hover: hover) and (pointer: fine) {
+    #app-shell .chat-message .message-actions {
+      top: -12px;
+      right: 8px;
+      z-index: 1;
+    }
+    #app-shell .chat-message .message-actions > .chat-icon {
+      width: 26px;
+      height: 26px;
+      padding: 4px;
+      border: 1px solid var(--line);
+      border-radius: 9px;
+      background: var(--surface-3);
+      color: var(--text);
+    }
+  }
+  /*
+   * Source and license links stay reachable until moving them to Perfil is
+   * confirmed (docs/UI_PAINEIS_E_TEMAS.md); here they are one slim line.
+   */
+  #app-shell[data-page='conversas'] footer {
+    justify-content: flex-start;
+    gap: 2px 14px;
+    padding: 4px 18px 6px;
+    border-top: 1px solid var(--line);
+    color: var(--text-faint);
+    font-size: 11px;
+    line-height: 1.6;
+  }
+  #app-shell[data-page='conversas'] footer > span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  /* Comunidades ao lado */
+  #app-shell .feed-panel-heading {
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 16px 22px 10px;
+    border-bottom: 0;
+  }
+  #app-shell .feed-panel-heading h2 {
+    font-size: 18px;
+    font-weight: 600;
+  }
+  #app-shell .feed-panel-tabs {
+    gap: 4px;
+    padding: 0;
+    background: transparent;
+  }
+  #app-shell .feed-panel-tabs a {
+    padding: 6px 10px;
+    font-size: 12.5px;
+  }
+  #app-shell .feed-panel-post:hover {
+    background: var(--accent-strong);
+    color: var(--accent-ink);
+  }
+  #app-shell .feed-panel-heading .icon-button {
+    flex: 0 0 32px;
+    width: 32px;
+    height: 32px;
+    border-radius: 9px;
+    background: var(--surface-2);
+    color: var(--text);
+  }
+  #app-shell .feed-panel-heading .icon-button svg {
+    width: 18px;
+    height: 18px;
+  }
+  #app-shell .feed-panel-body {
+    position: relative;
+    padding: 0 22px 18px;
+    font-size: 13.5px;
+  }
+  /* Feed and Ranking are named by the tabs; other lists keep their title. */
+  #app-shell
+    .feed-panel:has(
+      .feed-panel-tabs
+        a[aria-current='page']:is(
+          [data-feed-tab='feed'],
+          [data-feed-tab='explore']
+        )
+    )
+    :is(.community-heading, .community-tools > a[href$='view=dms']) {
+    display: none;
+  }
+  #app-shell
+    .feed-panel:has(
+      .feed-panel-tabs
+        a[aria-current='page']:is(
+          [data-feed-tab='feed'],
+          [data-feed-tab='explore']
+        )
+    )
+    .feed-panel-body
+    > .community-tools {
+    position: absolute;
+    top: 0;
+    right: 22px;
+    margin: 0;
+  }
+  #app-shell .feed-panel .community-tools {
+    margin: 0 0 8px;
+  }
+  #app-shell .feed-panel :is(.community-tools > a, .community-more > summary) {
+    min-height: 30px;
+    padding: 6px;
+    border-radius: 9px;
+  }
+  #app-shell .feed-panel .community-more > summary {
+    font-size: 0;
+  }
+  #app-shell .feed-panel .community-heading {
+    margin-bottom: 12px;
+  }
+  #app-shell .feed-panel .community-heading h1 {
+    font-size: 16px;
+    font-weight: 600;
+  }
+  #app-shell .feed-panel .community-feed-filters {
+    gap: 8px;
+    margin: 0 0 12px;
+    padding-right: 44px;
+  }
+  #app-shell .feed-panel .community-feed-scopes {
+    gap: 6px;
+  }
+  #app-shell .feed-panel .community-feed-scopes a {
+    min-height: 0;
+    padding: 5px 10px;
+    border: 0;
+    border-radius: 99px;
+    background: transparent;
+    box-shadow: inset 0 0 0 1px var(--line);
+    color: var(--text-muted);
+    font-size: 12.5px;
+    font-weight: 600;
+  }
+  #app-shell .feed-panel .community-feed-scopes a[aria-current='page'] {
+    background: var(--surface-3);
+    box-shadow: none;
+    color: var(--text);
+  }
+  #app-shell .feed-panel .discovery-menu > summary {
+    min-height: 0;
+    padding: 6px 10px;
+    border-radius: 9px;
+    color: var(--text-muted);
+    font-size: 12.5px;
+  }
+  #app-shell .feed-panel .community-feed {
+    gap: 12px;
+  }
+  #app-shell .feed-panel .community-card {
+    padding: 14px 16px;
+    border-radius: 14px;
+  }
+  #app-shell .feed-panel .community-post-header {
+    gap: 8px;
+    margin-bottom: 8px;
+    font-size: 12.5px;
+  }
+  #app-shell .feed-panel .community-post-header .community-avatar {
+    flex: 0 0 30px;
+    width: 30px;
+    height: 30px;
+    border-radius: 8px;
+    font-size: 11px;
+  }
+  #app-shell .feed-panel .community-post-header .public-avatar-preview {
+    border-radius: 8px;
+  }
+  #app-shell .feed-panel .community-post-byline {
+    font-size: 12.5px;
+  }
+  #app-shell .feed-panel .community-post-follow {
+    min-height: 0;
+    padding: 2px 4px;
+    font-size: 12px;
+    font-weight: 700;
+  }
+  #app-shell .feed-panel .community-card h2 {
+    margin: 0 0 6px;
+    font-size: 15px;
+    line-height: 1.3;
+  }
+  #app-shell .feed-panel .community-card p {
+    margin: 0 0 8px;
+    color: var(--text-muted);
+    font-size: 13.5px;
+    line-height: 1.45;
+  }
+  #app-shell .feed-panel .post-tag {
+    margin: 0 0 8px;
+    padding: 2px 7px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 700;
+  }
+  #app-shell .feed-panel .community-public-media {
+    margin: 8px 0;
+  }
+  #app-shell .feed-panel .community-media-preview {
+    max-height: 260px;
+    border-radius: 10px;
+  }
+  #app-shell .feed-panel .post-actions {
+    gap: 6px;
+    margin-top: 8px;
+  }
+  #app-shell
+    .feed-panel
+    .post-actions
+    :is(.post-action, .post-votes, .post-more > summary) {
+    min-height: 28px;
+    padding: 4px 10px;
+    background: var(--surface-2);
+    color: var(--text-muted);
+    font-size: 12.5px;
+    font-weight: 600;
+  }
+  #app-shell .feed-panel .post-votes :is(button, a) {
+    min-width: 26px;
+    min-height: 28px;
+    padding: 4px;
+  }
+  #app-shell .feed-panel .post-score {
+    color: var(--text);
+  }
+  #app-shell .feed-panel .post-actions .post-more > summary {
+    width: 28px;
+    padding: 4px;
+  }
+  #app-shell .feed-panel .post-actions svg {
+    width: 15px;
+    height: 15px;
+  }
+  /* Counts speak for themselves in the narrow panel; captions stay for screen readers. */
+  #app-shell .feed-panel .post-action-caption {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  #app-shell .feed-panel .post-toolbar:not(.community-feed-filters) {
+    justify-content: center;
+    margin: 14px 0 0;
+  }
+  #app-shell .feed-panel .post-toolbar:not(.community-feed-filters) button {
+    min-height: 0;
+    margin: 0;
+    padding: 6px 12px;
+    border: 0;
+    border-radius: 99px;
+    background: transparent;
+    box-shadow: inset 0 0 0 1px var(--line);
+    color: var(--text-muted);
+    font-size: 12.5px;
+    font-weight: 600;
+  }
 }
 /* The same list is "Contatos" in the desktop panel and "Conversas" as the phone tab. */
 .directory-heading .label-narrow {

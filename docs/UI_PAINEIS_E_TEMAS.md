@@ -130,3 +130,16 @@ A CI recusou a publicação a partir da etapa 3: o manifesto da release chegou a
 - os marcadores vazios `src/client/.gitkeep` e `src/shared/.gitkeep` foram removidos.
 
 **Ponto importante:** com a consolidação, o manifesto ficou exatamente no teto. No mesmo dia o proprietário ampliou o teto para 1024 arquivos ([Git e deploy](GIT_E_DEPLOY.md)); a consolidação foi mantida porque não muda comportamento.
+
+## Ajuste fino ao modelo aprovado — 09/10/2026
+
+Depois da ativação, o proprietário apontou que o desktop não estava igual ao modelo aprovado: elementos grandes demais e espaço ocupado sem necessidade. A correção vale só a partir de 1280 px; tablet e celular ficam como estavam.
+
+- **Trilho:** marca no topo, aviso "Teste" vertical e avatar do Perfil na base. A barra da marca e o bloco de conta da coluna de Contatos saem do desktop largo; foto, wallet e configurações continuam no Perfil.
+- **Contatos (272 px):** "+" compacto, Privados/Públicos com ícones e um campo "Buscar contatos e mensagens", que também abre com a tecla `/` quando ninguém está digitando. Os chips ficam Todos, Não lidas, Grupos e Fav. "Arquivadas" vira linha própria, que aciona o mesmo filtro. Linhas, avatares e o botão "Conversa ao lado", no rodapé da coluna, seguem as medidas do modelo.
+- **Conversa:** coluna sem moldura nem margem, cabeçalho, bolhas e campo de mensagem compactos, e opções da mensagem num botão flutuante ao passar o mouse. A faixa de sincronização some enquanto as conversas estão em dia e volta durante a sincronização, em falhas e avisos.
+- **Comunidades ao lado:** cabeçalho com abas e **Postar**. No Feed e no Ranking, o título repetido e "Mensagens pelo @" saem do painel: as DMs @ ficam em Contatos → Públicos e "Mais opções" vira ícone. Cartões, filtros, ações e "Recarregar do início" ficam compactos, e as legendas das ações seguem para leitores de tela.
+
+**Ponto importante:** os links de código e licenças continuam visíveis numa linha fina sob a conversa, porque mover a oferta de código para o Perfil ainda depende de conferência. O status de conexão e a frase de privacidade ficam só para leitores de tela. A fonte continua Inter; Figtree/Sora seguem pendentes de conferência de licença e tamanho.
+
+Validação: lint, TypeScript, fronteiras, formatação, build e testes unitários passaram. A prévia local com dados fictícios, só na apresentação, conferiu a 1440 px a conversa, o feed com posts sintéticos, o Perfil e o atalho Arquivadas. Também confirmou que 1000 px e 375 px não mudaram.

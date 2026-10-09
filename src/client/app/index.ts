@@ -1,4 +1,4 @@
-import { startAppearance } from '../appearance/index.ts';
+import { paintAvatar, startAppearance } from '../appearance/index.ts';
 import { startPwa } from '../pwa/index.ts';
 import { startAccount } from '../account/index.ts';
 import { startDevices } from '../devices/index.ts';
@@ -209,6 +209,7 @@ const account = startAccount({
       label.textContent = session
         ? session.name || 'Conta conectada'
         : 'Conta não conectada';
+    railAvatar(session);
   },
 });
 // Approval HTML is loaded online and does not install or activate a shell.
@@ -442,6 +443,21 @@ function connection(): void {
     : 'Sem conexão · histórico salvo disponível neste aparelho';
 }
 
+/** Initials on the rail profile link; the photo stays in Perfil. */
+function railAvatar(session: AccountSession | null): void {
+  const avatar = document.querySelector<HTMLElement>('[data-rail-avatar]');
+  if (!avatar) return;
+  if (!session) {
+    avatar.textContent = '#';
+    delete avatar.dataset['tone'];
+    return;
+  }
+  paintAvatar(avatar, {
+    label: session.name || session.address,
+    seed: session.address,
+  });
+}
+
 function loadSessionExtras(accountId: string): void {
   if (sessionExtrasFor === accountId) return;
   sessionExtrasFor = accountId;
@@ -462,8 +478,28 @@ if (!account.approvalPage) {
   messages.mount(conversationContent, element('chat-directory'));
 }
 document
-  .getElementById('open-search')
-  ?.addEventListener('click', () => messages.openSearch());
+  .querySelectorAll('#open-search, [data-open-search]')
+  .forEach((control) => {
+    control.addEventListener('click', () => {
+      messages.openSearch();
+    });
+  });
+// "/" opens the conversation search unless the person is typing somewhere.
+document.addEventListener('keydown', (event) => {
+  const target = event.target;
+  if (
+    event.key !== '/' ||
+    event.ctrlKey ||
+    event.metaKey ||
+    event.altKey ||
+    (target instanceof HTMLElement &&
+      (target.isContentEditable ||
+        ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)))
+  )
+    return;
+  event.preventDefault();
+  messages.openSearch();
+});
 conversationContent.addEventListener('click', (event) => {
   if (
     event.target instanceof Element &&

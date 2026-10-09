@@ -160,6 +160,15 @@ export function startPanels(input: {
   }
   function click(event: MouseEvent): void {
     if (!(event.target instanceof Element)) return;
+    // The "Arquivadas" row mirrors the archived chip, which owns the filter.
+    if (event.target.closest('[data-archived-shortcut]')) {
+      shell
+        .querySelector<HTMLButtonElement>(
+          '.directory-filters [data-conversation-filter="archived"]',
+        )
+        ?.click();
+      return;
+    }
     const control = event.target.closest<HTMLElement>(panelControlSelector);
     if (control) {
       layoutControl(control);
