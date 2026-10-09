@@ -1,0 +1,259 @@
+/* Workspace panels (docs/UI_PAINEIS_E_TEMAS.md): Contatos | Conversa | Feed on wide screens. */
+.rail,
+.feed-panel,
+.feed-strip,
+.directory-heading .directory-split,
+.chat-panel .chat-collapse,
+.public-chat,
+.public-chat-bar [data-chat-collapse] {
+  display: none;
+}
+.directory-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.contact-scope {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2px;
+  margin: 10px 16px 0;
+  padding: 3px;
+  border-radius: 10px;
+  background: var(--surface-2);
+}
+.contact-scope button {
+  border: 0;
+  border-radius: 8px;
+  padding: 7px 0;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: var(--fs-small);
+  font-weight: 600;
+}
+.contact-scope button[aria-pressed='true'] {
+  background: var(--surface-3);
+  color: var(--text);
+}
+.public-directory {
+  display: none;
+}
+.app[data-contact-scope='public']
+  :is(
+    .directory-filters,
+    .directory-tools,
+    .directory-status,
+    .directory-scroll
+  ) {
+  display: none;
+}
+.app[data-contact-scope='public'] .public-directory {
+  display: grid;
+  flex: 1 1 auto;
+  align-content: start;
+  gap: 2px;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 8px;
+}
+.public-directory > p {
+  margin: 0;
+  padding: 8px 14px;
+  color: var(--text-muted);
+  font-size: var(--fs-small);
+}
+.public-directory > a:not(.conversation-row) {
+  padding: 10px 14px;
+  color: var(--accent-text);
+  font-size: var(--fs-small);
+}
+.public-directory .public-row {
+  min-height: 64px;
+  text-decoration: none;
+}
+.public-directory .public-row:hover {
+  background: var(--surface-2);
+}
+.app[data-chat-scope='public'] .conversation-content {
+  display: none;
+}
+.app[data-chat-scope='public'] .public-chat {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+  overflow: hidden;
+}
+.public-chat-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--line);
+  color: var(--text-muted);
+  font-size: var(--fs-small);
+}
+.public-chat-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 14px;
+}
+
+@media (min-width: 1280px) {
+  /* The id outranks app.css and community.css, whose rules load after this import. */
+  #app-shell {
+    grid-template-columns: 64px 320px minmax(0, 1fr);
+  }
+  #app-shell[data-page='comunidades'] {
+    grid-template-columns: 64px 260px minmax(0, 1fr);
+  }
+  .sidebar .area-nav,
+  .app[data-page='comunidades'] .area-nav {
+    display: none;
+  }
+  .rail {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 18px 0;
+    border-right: 1px solid var(--line);
+    background: var(--surface);
+  }
+  .rail-button {
+    position: relative;
+    display: grid;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    border: 0;
+    border-radius: 12px;
+    background: transparent;
+    color: var(--text-muted);
+  }
+  .rail-button svg {
+    width: 20px;
+    height: 20px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+  .rail-button:hover {
+    background: var(--surface-2);
+    color: var(--text);
+  }
+  .rail-button:is([aria-pressed='true'], [aria-current='page']) {
+    background: var(--accent-soft);
+    color: var(--text);
+  }
+  .rail-button:is([aria-pressed='true'], [aria-current='page'])::before {
+    content: '';
+    position: absolute;
+    top: 12px;
+    bottom: 12px;
+    left: -10px;
+    width: 3px;
+    border-radius: 0 3px 3px 0;
+    background: var(--brand-grad);
+  }
+  #app-shell[data-page='conversas'][data-layout='all'] {
+    grid-template-columns:
+      64px 300px minmax(360px, 1fr)
+      minmax(420px, 1.3fr);
+  }
+  #app-shell[data-page='conversas'][data-layout='nochat'] {
+    grid-template-columns: 64px 300px minmax(0, 1fr);
+  }
+  .app[data-page='conversas'][data-layout='nochat'] main {
+    display: none;
+  }
+  #app-shell[data-page='conversas'][data-layout='solo'] {
+    grid-template-columns: 64px 300px minmax(0, 1fr) 46px;
+  }
+  .app[data-page='conversas']:not([data-layout='solo']) .feed-panel {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
+    border-left: 1px solid var(--line);
+    background: var(--bg);
+    color: var(--text);
+    font-size: var(--fs-body);
+  }
+  .app[data-page='conversas']:not([data-layout='solo']) .directory-split {
+    display: inline-grid;
+  }
+  .app[data-page='conversas'][data-layout='all']
+    :is(.chat-collapse, .public-chat-bar [data-chat-collapse]) {
+    display: inline-flex;
+  }
+  .app[data-page='conversas'][data-layout='solo'] .feed-strip {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    padding: 16px 0;
+    border: 0;
+    border-left: 1px solid var(--line);
+    background: var(--surface);
+    color: var(--text-muted);
+    cursor: pointer;
+  }
+  .feed-strip:hover {
+    background: var(--surface-2);
+    color: var(--text);
+  }
+  .feed-strip svg {
+    width: 20px;
+    height: 20px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.8;
+  }
+  .feed-strip span {
+    writing-mode: vertical-rl;
+    font-size: var(--fs-small);
+    font-weight: 600;
+    letter-spacing: 0.04em;
+  }
+  /* The chat column is narrower than the page; let source and license links wrap by item. */
+  #app-shell[data-page='conversas'][data-layout='all'] footer {
+    flex-wrap: wrap;
+    gap: 4px 14px;
+  }
+  #app-shell[data-page='conversas'][data-layout='all'] footer > * {
+    flex: 0 1 auto;
+  }
+  .directory-split[aria-pressed='true'] {
+    background: var(--accent-soft);
+    color: var(--text);
+  }
+}
+.feed-panel-heading {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--line);
+}
+.feed-panel-heading h2 {
+  margin: 0 auto 0 0;
+  font-size: var(--fs-input);
+}
+.feed-panel-open {
+  color: var(--accent-text);
+  font-size: var(--fs-small);
+}
+.feed-panel-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 18px 20px;
+}

@@ -20,6 +20,7 @@ import {
 import type { AccountSession } from '../../shared/account/index.ts';
 import type { AddressBookEntry } from '../../shared/contacts/index.ts';
 import { pages, pageKey } from './pages.ts';
+import { startPanels } from './panels.ts';
 import type { PageKey } from './pages.ts';
 
 function element<T extends HTMLElement>(id: string): T {
@@ -34,6 +35,12 @@ let connectedAccount: AccountSession | null = null;
 const messageReadiness = new MessageReadiness();
 const conversationContent = document.createElement('div');
 conversationContent.className = 'conversation-content';
+// Public @ conversations share the chat column with private ones; static markup only.
+const publicChat = document.createElement('div');
+publicChat.className = 'public-chat community-scope';
+publicChat.innerHTML =
+  '<div class="public-chat-bar"><span>Mensagem pública pelo @</span><button data-chat-collapse class="icon-button" type="button" aria-label="Recolher conversa" title="Recolher conversa"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12H9M13 7l-5 5 5 5M4 5v14"/></svg></button></div><div class="public-chat-body"></div>';
+const publicChatBody = publicChat.lastElementChild as HTMLElement;
 let currentPage = '';
 let currentHash = '';
 let closePublicProfile: (() => void) | null = null;
@@ -44,6 +51,7 @@ function openConversation(): void {
   }
   element('app-shell').dataset['chatOpen'] = 'true';
   element('workspace').scrollTop = 0;
+  panels.privateChatOpened();
 }
 const devices = startDevices({
   changed: async () => {
@@ -79,6 +87,27 @@ const statuses = startStatus(devices, vault.sync);
 const representatives = startRepresentatives(devices, vault.sync, (message) =>
   account.signStatement(message),
 );
+const panels = startPanels({
+  shell: element('app-shell'),
+  feedBody: element('feed-body'),
+  publicChat: publicChatBody,
+  publicDirectory: element('public-directory'),
+  communities: {
+    mountFeed: (container, params) => {
+      communities.mount(container, null, params);
+    },
+    leaveFeed: () => {
+      communities.leave();
+    },
+    openDm: (container, id, local) => {
+      communities.openDm(container, id, local);
+    },
+    closeDm: () => {
+      communities.closeDm();
+    },
+    dmDirectory: (node, valid) => communities.dmDirectory(node, valid),
+  },
+});
 const messages = startMessages(devices, vault.sync, {
   calls,
   playback,
@@ -128,6 +157,7 @@ const account = startAccount({
     representatives.setSession(session);
     publicProfiles.setSession(session);
     communities.setSession(session);
+    panels.sessionChanged();
     connection();
     const label = document.getElementById('account-label');
     if (label)
@@ -188,7 +218,8 @@ function route(): void {
   vault.leave();
   // Templates are static authored content. No user/server input enters HTML.
   element('page-content').innerHTML = page.content;
-  if (key === 'conversas') element('page-content').append(conversationContent);
+  if (key === 'conversas')
+    element('page-content').append(conversationContent, publicChat);
   mountAccountPanels(key);
   mountFeature(key);
   element('workspace').scrollTop = 0;
@@ -204,6 +235,7 @@ function route(): void {
     void pwa?.check();
   });
   pwa?.render();
+  panels.routed(key);
 }
 function renderPageHeader(key: PageKey): void {
   const dm =

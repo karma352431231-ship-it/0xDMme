@@ -9,6 +9,7 @@ const icons = {
   mic: '<rect x="9" y="2" width="6" height="13" rx="3"/><path d="M5 10v2a7 7 0 0 0 14 0v-2M12 19v3M8 22h8"/>',
   send: '<path d="m3 3 18 9-18 9 3-9zM6 12h15"/>',
   close: '<path d="m6 6 12 12M6 18 18 6"/>',
+  collapse: '<path d="M20 12H9M13 7l-5 5 5 5M4 5v14"/>',
 } as const;
 
 export function chatIcon(name: keyof typeof icons): string {
@@ -20,11 +21,16 @@ export function directChat(): string {
     <div class="chat-welcome"><div class="empty-symbol" aria-hidden="true">#</div><h2>Vamos conversar?</h2><p>Escolha uma conversa no menu.</p></div>
     <div class="chat-feedback"><p data-message-status role="status"></p><details class="chat-options"><summary>Conexão</summary><div class="chat-popover"><p data-message-live role="status"></p><button data-message-refresh type="button">Sincronizar agora</button></div></details></div>
     <div class="chat-layout"><section data-direct-conversation class="chat-conversation">
-      <header class="chat-header"><button data-chat-back class="chat-icon chat-mobile-back" type="button" aria-label="Voltar às conversas">${chatIcon('back')}</button><span data-chat-avatar class="chat-peer-avatar" aria-hidden="true">#</span><div class="chat-peer"><h3 data-message-peer></h3><p data-peer-presence></p></div><button data-call-start class="chat-icon" type="button" aria-label="Ligar por voz" title="Ligar por voz">${chatIcon('phone')}</button><details class="chat-options"><summary class="chat-icon" aria-label="Opções da conversa" title="Opções da conversa">${chatIcon('more')}</summary><div class="chat-popover"><details><summary>Autorizações de representantes</summary><div data-representative-chat></div></details><a href="#perfil">Perfil e configurações</a></div></details></header>
+      <header class="chat-header"><button data-chat-back class="chat-icon chat-mobile-back" type="button" aria-label="Voltar às conversas">${chatIcon('back')}</button><span data-chat-avatar class="chat-peer-avatar" aria-hidden="true">#</span><div class="chat-peer"><h3 data-message-peer></h3><p data-peer-presence></p></div><button data-call-start class="chat-icon" type="button" aria-label="Ligar por voz" title="Ligar por voz">${chatIcon('phone')}</button><details class="chat-options"><summary class="chat-icon" aria-label="Opções da conversa" title="Opções da conversa">${chatIcon('more')}</summary><div class="chat-popover"><details><summary>Autorizações de representantes</summary><div data-representative-chat></div></details><a href="#perfil">Perfil e configurações</a></div></details>${chatCollapse()}</header>
       <div class="chat-thread"><p data-message-gate class="chat-gate" role="status"></p><button data-message-older class="chat-older" type="button" hidden>Mensagens anteriores</button><div data-message-history class="chat-history" tabindex="0" aria-label="Mensagens da conversa" hidden></div><ul data-message-pending class="chat-pending" aria-label="Envios pendentes deste aparelho"></ul></div>
       ${chatComposer('message')}
     </section><section data-group-conversation class="chat-conversation" hidden></section></div>
   </article>`;
+}
+
+/** Desktop workspace control; hidden by CSS where the chat column cannot collapse. */
+export function chatCollapse(): string {
+  return `<button data-chat-collapse class="chat-icon chat-collapse" type="button" aria-label="Recolher conversa" title="Recolher conversa">${chatIcon('collapse')}</button>`;
 }
 
 /** Authored markup only. Account names and decrypted text never enter this template. */

@@ -45,25 +45,29 @@
   flex-wrap: wrap;
   color: var(--text-muted);
 }
-.app[data-page='comunidades'] :is(button, input, textarea, select) {
+:is(.app[data-page='comunidades'], .community-scope)
+  :is(button, input, textarea, select) {
   font: inherit;
   color: var(--text);
 }
-.app[data-page='comunidades'] :is(button, select, textarea),
-.app[data-page='comunidades'] input:not([type='checkbox']) {
+:is(.app[data-page='comunidades'], .community-scope)
+  :is(button, select, textarea),
+:is(.app[data-page='comunidades'], .community-scope)
+  input:not([type='checkbox']) {
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--surface);
   min-height: 40px;
   max-width: 100%;
 }
-.app[data-page='comunidades'] :is(button, select) {
+:is(.app[data-page='comunidades'], .community-scope) :is(button, select) {
   padding: 8px 12px;
 }
-.app[data-page='comunidades'] :is(button, a, summary):hover {
+:is(.app[data-page='comunidades'], .community-scope)
+  :is(button, a, summary):hover {
   color: var(--accent);
 }
-.app[data-page='comunidades'] .icon-button {
+:is(.app[data-page='comunidades'], .community-scope) .icon-button {
   background: transparent;
   border: 0;
   padding: 0;
@@ -260,7 +264,7 @@
   font-size: var(--fs-caption);
   color: var(--accent);
 }
-.app[data-page='comunidades'] svg {
+:is(.app[data-page='comunidades'], .community-scope) svg {
   width: 18px;
   height: 18px;
   flex-shrink: 0;
@@ -270,7 +274,7 @@
   stroke-linecap: round;
   stroke-linejoin: round;
 }
-.app[data-page='comunidades'] .icon-button svg {
+:is(.app[data-page='comunidades'], .community-scope) .icon-button svg {
   width: 23px;
   height: 23px;
 }
@@ -280,7 +284,7 @@
   gap: 12px;
   min-width: 0;
 }
-.app[data-page='comunidades'] .community-card {
+:is(.app[data-page='comunidades'], .community-scope) .community-card {
   min-width: 0;
   margin: 0 0 16px;
   border: 1px solid var(--line);
@@ -288,11 +292,15 @@
   background: var(--surface);
   padding: 16px;
 }
-.app[data-page='comunidades'] .community-feed .community-card,
-.app[data-page='comunidades'] .community-post-list .community-card {
+:is(.app[data-page='comunidades'], .community-scope)
+  .community-feed
+  .community-card,
+:is(.app[data-page='comunidades'], .community-scope)
+  .community-post-list
+  .community-card {
   margin: 0;
 }
-.app[data-page='comunidades'] .community-card h2 {
+:is(.app[data-page='comunidades'], .community-scope) .community-card h2 {
   font-size: var(--fs-input);
   font-weight: 600;
   line-height: 1.4;
@@ -301,16 +309,16 @@
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
-.app[data-page='comunidades'] .community-card p {
+:is(.app[data-page='comunidades'], .community-scope) .community-card p {
   font-size: var(--fs-body);
   line-height: 1.6;
   margin: 0 0 12px;
   color: var(--text);
 }
-.app[data-page='comunidades'] .community-card strong {
+:is(.app[data-page='comunidades'], .community-scope) .community-card strong {
   color: inherit;
 }
-.app[data-page='comunidades'] .community-card a {
+:is(.app[data-page='comunidades'], .community-scope) .community-card a {
   color: var(--accent);
 }
 .community-card label {
@@ -370,7 +378,7 @@
   align-items: baseline;
   gap: 4px 10px;
 }
-.app[data-page='comunidades'] .community-post-follow {
+:is(.app[data-page='comunidades'], .community-scope) .community-post-follow {
   margin: 0 0 0 auto;
   flex-shrink: 0;
   padding: 4px 6px;
@@ -380,7 +388,9 @@
   font-size: var(--fs-caption);
   min-height: 32px;
 }
-.app[data-page='comunidades'] .community-post-header .community-post-community {
+:is(.app[data-page='comunidades'], .community-scope)
+  .community-post-header
+  .community-post-community {
   color: var(--text);
   font-weight: 600;
 }
@@ -388,7 +398,7 @@
   color: var(--text-muted);
   font-size: var(--fs-caption);
 }
-.app[data-page='comunidades'] .community-post-byline a {
+:is(.app[data-page='comunidades'], .community-scope) .community-post-byline a {
   color: inherit;
 }
 .post-tag {
@@ -462,7 +472,7 @@
   align-items: center;
   margin-top: 12px;
 }
-.app[data-page='comunidades']
+:is(.app[data-page='comunidades'], .community-scope)
   .post-actions
   :is(.post-action, .post-votes, .post-more > summary) {
   display: inline-flex;
@@ -482,7 +492,9 @@
   gap: 0;
   padding: 0 !important;
 }
-.app[data-page='comunidades'] .post-votes :is(button, a) {
+:is(.app[data-page='comunidades'], .community-scope)
+  .post-votes
+  :is(button, a) {
   display: grid;
   place-items: center;
   background: transparent;
@@ -500,13 +512,17 @@
   font-size: var(--fs-caption);
   font-weight: 600;
 }
-.app[data-page='comunidades'] .post-save[aria-pressed='true'] {
+:is(.app[data-page='comunidades'], .community-scope)
+  .post-save[aria-pressed='true'] {
   color: var(--accent);
 }
 .post-more {
   min-width: 0;
 }
-.app[data-page='comunidades'] .post-actions .post-more > summary {
+:is(.app[data-page='comunidades'], .community-scope)
+  .post-actions
+  .post-more
+  > summary {
   font-size: 0;
   width: 40px;
   padding: 10px;
@@ -575,13 +591,15 @@
   gap: 10px;
   margin: 18px 0;
 }
-.app[data-page='comunidades'] .community-public-media {
+:is(.app[data-page='comunidades'], .community-scope) .community-public-media {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
   margin: 12px 0;
 }
-.app[data-page='comunidades'] .community-public-media figure {
+:is(.app[data-page='comunidades'], .community-scope)
+  .community-public-media
+  figure {
   min-width: 0;
   margin: 0;
   border: 0;
@@ -590,7 +608,9 @@
 .community-public-media figure:only-child {
   grid-column: 1 / -1;
 }
-.app[data-page='comunidades'] .community-public-media button {
+:is(.app[data-page='comunidades'], .community-scope)
+  .community-public-media
+  button {
   display: block;
   width: 100%;
   background: var(--accent-soft);
@@ -600,7 +620,9 @@
   overflow: hidden;
   font-size: 0;
 }
-.app[data-page='comunidades'] .community-public-media .community-media-preview {
+:is(.app[data-page='comunidades'], .community-scope)
+  .community-public-media
+  .community-media-preview {
   display: block;
   width: 100%;
   max-width: 100%;

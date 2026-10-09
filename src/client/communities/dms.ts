@@ -20,6 +20,7 @@ import {
   communityLink,
 } from './elements.ts';
 import { postText } from './post-text.ts';
+import { paintAvatar } from '../identity-display/index.ts';
 
 export function startSocialDmUi(access: VaultAccess, sync: VaultSync) {
   const controller = new SocialDms(access, sync);
@@ -536,19 +537,30 @@ export function startSocialDmUi(access: VaultAccess, sync: VaultSync) {
       container?.replaceChildren();
     },
     canActivate: () => !busy && !recording.active,
+    /** Public @ conversations for the Contatos → Públicos list; handles and states only. */
     async directory(node: HTMLElement, valid: () => boolean): Promise<void> {
-      node.append(communityElement('h2', 'Mensagens pelo @'));
-      communityLink(node, 'Ver todas as DMs', '#comunidades?view=dms');
-      if (!session) return;
+      if (!session) {
+        node.append(
+          communityElement('p', 'Entre pela wallet para ver suas mensagens @.'),
+        );
+        return;
+      }
       try {
         const page = await controller.list(null);
         if (!valid()) return;
-        for (const row of page.items)
-          communityLink(
-            node,
-            `@${row.peer.handle}`,
-            `#comunidades?view=dms&dm=${row.peer.id}`,
+        for (const row of page.items) node.append(directoryRow(row));
+        if (!page.items.length)
+          node.append(
+            communityElement(
+              'p',
+              'Nenhuma conversa @ ainda. Abra um perfil público para mandar mensagem.',
+            ),
           );
+        communityLink(
+          node,
+          'Todas as mensagens @ e pedidos',
+          '#comunidades?view=dms',
+        );
       } catch (error: unknown) {
         if (valid())
           node.append(
@@ -572,6 +584,20 @@ function sameSession(
   );
 }
 
+function directoryRow(row: SocialRelation): HTMLAnchorElement {
+  const link = communityElement('a', '', 'conversation-row public-row');
+  link.href = `#comunidades?view=dms&dm=${row.peer.id}`;
+  const avatar = communityElement('span', '', 'conversation-avatar');
+  avatar.setAttribute('aria-hidden', 'true');
+  paintAvatar(avatar, { label: row.peer.handle, seed: row.peer.id });
+  const copy = communityElement('span', '', 'conversation-copy');
+  copy.append(
+    communityElement('strong', `@${row.peer.handle}`),
+    communityElement('small', relationLabel(row)),
+  );
+  link.append(avatar, copy);
+  return link;
+}
 function relationLabel(row: SocialRelation): string {
   if (row.blocked) return 'Bloqueada';
   return {

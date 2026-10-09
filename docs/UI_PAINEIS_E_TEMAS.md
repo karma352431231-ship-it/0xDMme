@@ -55,3 +55,16 @@ Implementada localmente em 09/10/2026, sem mudança de layout ou de regras:
 Validação: lint, TypeScript, fronteiras, formatação, build e 424 testes unitários passaram, com testes novos para endereço curto, nomes, iniciais e estabilidade da cor. Prévia local sem backend conferiu o selo e Comunidades no desktop, e Comunidades e Perfil em 320 px, sem rolagem horizontal e com a barra inferior cabendo. Lista com contatos reais, bolhas, grupos e chamada não foram vistos com conta nesta etapa. A troca do texto de teste no fixture de integração passa a atingir o título do selo; os testes de integração (PostgreSQL) não foram executados.
 
 Pendente desta etapa, por depender de conferência: mover os links de código e licenças do rodapé para Perfil → Sobre o app.
+
+## Etapa 3 — painéis do desktop
+
+Implementada localmente em 09/10/2026:
+
+- **Trilho** (a partir de 1280 px): Painel completo, Só conversas e Só comunidades. Substitui os botões Conversas/Comunidades da lateral nessa largura; abaixo de 1280 px eles continuam.
+- **Painel completo** em `#conversas`: Contatos | Conversa | Feed. O feed é a mesma área de Comunidades montada num painel (`community-scope`), sem a lista de seguidas. Links de comunidade dentro do painel abrem no próprio painel; **Tela cheia** leva a `#comunidades`.
+- **Recolher e abrir ao lado:** a seta no cabeçalho da conversa (individual, grupo ou @) recolhe a coluna; o botão **Conversa ao lado** no topo de Contatos alterna; abrir qualquer conversa reabre. A seta do feed recolhe as comunidades numa faixa lateral (**Só conversas**), e a faixa reabre. O arranjo fica em `localStorage` (`0xdmme:layout`), só neste aparelho.
+- **Privados | Públicos** no topo de Contatos. Públicos lista as DMs pelo `@` com avatar e estado da relação, e abre a conversa pública na coluna do meio a partir de 701 px, com o aviso de que é uma mensagem pública. Em telas menores o link continua levando à página de DMs. A lista de DMs saiu da lateral de Comunidades; `#comunidades?view=dms` continua funcionando.
+- O módulo de Comunidades passou a montar o feed sem lista lateral e a compartilhar a área de DM: a página de comunidades e a coluna da conversa nunca encerram a DM uma da outra, e sair de Conversas encerra a DM aberta no painel, sem polling escondido.
+- Correção encontrada na conferência: no mobile sem conta, o cartão de login empurrava o chat vazio sobre o rodapé; nesse estado a área passa a rolar.
+
+Validação: lint, TypeScript, fronteiras, formatação, build e 427 testes unitários passaram, incluindo testes novos do arranjo salvo, da reabertura da conversa e da leitura de links de comunidade/DM. Prévia local sem backend conferiu em 1440 px os três arranjos, recolher/reabrir, faixa, Públicos, persistência após recarregar e Só comunidades nos temas Azul e Branco; em 1100 px, o arranjo de duas colunas sem trilho e sem excesso horizontal; no mobile, sem mudança além da correção acima. Conversas, grupos e DMs com conta real ainda não foram conferidos nos painéis; os testes de integração (PostgreSQL) não foram executados.

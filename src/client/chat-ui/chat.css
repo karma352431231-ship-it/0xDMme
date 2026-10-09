@@ -5,6 +5,14 @@
 .app[data-page='conversas'] #page-content {
   min-height: 0;
 }
+/* Visitors also see the login card here; scroll instead of letting the empty chat overlap the footer. */
+.app[data-page='conversas'][data-account='guest'][data-chat-open='false'] main {
+  overflow-y: auto;
+}
+.app[data-page='conversas'][data-account='guest'][data-chat-open='false']
+  #page-content {
+  flex: 0 0 auto;
+}
 .app[data-page='conversas'] footer {
   flex: 0 0 auto;
   padding-top: 8px;

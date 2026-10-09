@@ -3,6 +3,7 @@
 @import '../chat-ui/chat.css';
 @import '../contacts/contacts.css';
 @import './settings.css';
+@import './panels.css';
 
 :root {
   font-family:

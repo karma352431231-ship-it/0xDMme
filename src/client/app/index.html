@@ -18,7 +18,46 @@
   <body>
     <a class="skip" href="#workspace">Ir para o conteúdo</a>
     <div class="app" id="app-shell" data-account="guest" data-chat-open="false">
-      <aside class="sidebar" aria-label="Conversas e perfil">
+      <nav class="rail" aria-label="Organização da tela">
+        <button
+          type="button"
+          class="rail-button"
+          data-layout-mode="all"
+          aria-pressed="false"
+          aria-label="Contatos, conversa e comunidades"
+          title="Contatos, conversa e comunidades"
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <rect x="3" y="4" width="18" height="16" rx="2.5" />
+            <path d="M9 4v16M14 4v16" />
+          </svg>
+        </button>
+        <button
+          type="button"
+          class="rail-button"
+          data-layout-mode="solo"
+          aria-pressed="false"
+          aria-label="Só conversas"
+          title="Só conversas"
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M4 4h16v12H8l-4 4z" />
+          </svg>
+        </button>
+        <a
+          class="rail-button"
+          href="#comunidades"
+          data-route="comunidades"
+          aria-label="Só comunidades"
+          title="Só comunidades"
+          ><svg viewBox="0 0 24 24" aria-hidden="true">
+            <rect x="3" y="3" width="7" height="7" rx="2" />
+            <rect x="14" y="3" width="7" height="7" rx="2" />
+            <rect x="3" y="14" width="7" height="7" rx="2" />
+            <rect x="14" y="14" width="7" height="7" rx="2" /></svg
+        ></a>
+      </nav>
+      <aside class="sidebar" aria-label="Contatos e perfil">
         <div class="brand-bar">
           <a class="brand" href="#conversas"
             ><img class="brand-mark" src="/icon.svg" alt="" /><span
@@ -58,13 +97,44 @@
           aria-label="Contatos e grupos"
         >
           <div class="directory-heading">
-            <h2>Conversas</h2>
-            <a
-              href="#contatos"
-              class="icon-button"
-              aria-label="Adicionar contato"
-              >+</a
+            <h2>Contatos</h2>
+            <div class="directory-actions">
+              <button
+                type="button"
+                class="icon-button directory-split"
+                data-chat-split
+                aria-pressed="true"
+                aria-label="Conversa ao lado"
+                title="Conversa ao lado"
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <rect x="3" y="4" width="18" height="16" rx="2.5" />
+                  <path d="M12 4v16M15.5 10l2 2-2 2" />
+                </svg>
+              </button>
+              <a
+                href="#contatos"
+                class="icon-button"
+                aria-label="Adicionar contato"
+                >+</a
+              >
+            </div>
+          </div>
+          <div class="contact-scope" role="group" aria-label="Tipo de contato">
+            <button
+              type="button"
+              data-contact-scope="private"
+              aria-pressed="true"
             >
+              Privados
+            </button>
+            <button
+              type="button"
+              data-contact-scope="public"
+              aria-pressed="false"
+            >
+              Públicos
+            </button>
           </div>
           <div class="directory-filters" aria-label="Filtrar conversas">
             <button
@@ -123,6 +193,12 @@
               Mais conversas
             </button>
           </div>
+          <div
+            id="public-directory"
+            class="public-directory"
+            tabindex="0"
+            aria-label="Mensagens públicas pelo @"
+          ></div>
         </section>
         <div class="account">
           <button
@@ -200,6 +276,43 @@
           ><span>Conteúdo e segredos pertencem aos seus dispositivos.</span>
         </footer>
       </main>
+      <section
+        id="feed-panel"
+        class="feed-panel community-scope"
+        aria-label="Comunidades ao lado"
+      >
+        <header class="feed-panel-heading">
+          <h2>Comunidades</h2>
+          <a href="#comunidades" class="feed-panel-open">Tela cheia</a>
+          <button
+            type="button"
+            class="icon-button"
+            data-feed-collapse
+            aria-label="Recolher comunidades"
+            title="Recolher comunidades"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M4 12h11M11 7l5 5-5 5M20 5v14" />
+            </svg>
+          </button>
+        </header>
+        <div id="feed-body" class="feed-panel-body"></div>
+      </section>
+      <button
+        type="button"
+        class="feed-strip"
+        data-layout-mode="all"
+        aria-label="Abrir comunidades ao lado"
+        title="Abrir comunidades ao lado"
+      >
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <rect x="3" y="3" width="7" height="7" rx="2" />
+          <rect x="14" y="3" width="7" height="7" rx="2" />
+          <rect x="3" y="14" width="7" height="7" rx="2" />
+          <rect x="14" y="14" width="7" height="7" rx="2" />
+        </svg>
+        <span>Comunidades</span>
+      </button>
       <nav class="mobile-nav" aria-label="Navegação principal">
         <a href="#conversas" data-route="conversas"
           ><svg viewBox="0 0 24 24" aria-hidden="true">

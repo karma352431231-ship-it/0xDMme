@@ -55,6 +55,8 @@ export function startCommunities(access: VaultAccess, sync: VaultSync) {
     cursor: string | null = null,
     sidebarCursor: string | null = null;
   let output: HTMLElement | null = null;
+  // The DM view is shared: the communities page owns it for view=dms, the workspace for its chat column.
+  let dmOwner: 'page' | 'panel' | null = null;
   const publicPhotos = new Map<() => void, HTMLElement>();
   function clearPublicPhotos(container?: HTMLElement | null): void {
     for (const [cleanup, node] of publicPhotos) {
@@ -159,9 +161,6 @@ export function startCommunities(access: VaultAccess, sync: VaultSync) {
       const page = await controller.list('following', sidebarCursor);
       if (old !== generation || !sidebar) return;
       rows(sidebar, page);
-      const dmNode = communityElement('section', '', 'social-dm-directory');
-      sidebar.append(dmNode);
-      await dms.directory(dmNode, () => old === generation && sidebar !== null);
       sidebarCursor = page.next;
       if (page.next)
         communityButton(sidebar, 'Mais comunidades', () => run(directory));
@@ -512,6 +511,7 @@ export function startCommunities(access: VaultAccess, sync: VaultSync) {
     if (view === 'dms') {
       navigation();
       dms.mount(mounted, selectedDm, localDm);
+      dmOwner = 'page';
       return;
     }
     if (view === 'create') {
@@ -562,7 +562,10 @@ export function startCommunities(access: VaultAccess, sync: VaultSync) {
   function leave(): void {
     posts.leave();
     discovery.leave();
-    dms.leave();
+    if (dmOwner === 'page') {
+      dms.leave();
+      dmOwner = null;
+    }
     generation++;
     abort.abort();
     mounted = null;
@@ -572,9 +575,10 @@ export function startCommunities(access: VaultAccess, sync: VaultSync) {
     clearPublicPhotos();
   }
   return {
+    /** `directoryNode` is null when the feed is a workspace panel without the followed list. */
     mount(
       container: HTMLElement,
-      directoryNode: HTMLElement,
+      directoryNode: HTMLElement | null,
       params: URLSearchParams,
     ): void {
       leave();
@@ -617,6 +621,18 @@ export function startCommunities(access: VaultAccess, sync: VaultSync) {
     },
     leave,
     ready,
+    /** Public @ conversations in the workspace chat column, independent of the mounted feed. */
+    openDm(container: HTMLElement, id: string | null, local: boolean): void {
+      dms.mount(container, id, local);
+      dmOwner = 'panel';
+    },
+    closeDm(): void {
+      if (dmOwner !== 'panel') return;
+      dms.leave();
+      dmOwner = null;
+    },
+    dmDirectory: (node: HTMLElement, valid: () => boolean) =>
+      dms.directory(node, valid),
     canActivate: () =>
       !busy &&
       posts.canActivate() &&
