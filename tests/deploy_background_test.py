@@ -40,20 +40,24 @@ class BackgroundTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, 'existing records'):
                 workers.verify_migration(Path('/candidate'), before)
 
-    def test_worker_units_have_independent_restart_and_unchanged_parent_budget(self):
+    def test_worker_units_have_independent_restart_and_uncapped_parent_slice(self):
         root = Path(__file__).resolve().parents[1] / 'infra/staging'
         for role, unit in zip(workers.ROLES, workers.UNITS):
             content = (root / unit).read_text()
             self.assertIn('ExecStart=/usr/bin/node src/server/worker.ts ' + role, content)
-            for line in ('Slice=xdmme-test.slice', 'MemoryMax=160M', 'CPUQuota=10%',
-                         'TasksMax=24', 'Restart=on-failure', 'PrivateNetwork=yes'):
+            for line in ('Slice=xdmme-test.slice', 'MemorySwapMax=0',
+                         'Restart=on-failure', 'PrivateNetwork=yes'):
                 self.assertIn(line, content)
+            for cap in ('CPUQuota=', 'MemoryMax=', 'TasksMax=', 'max-old-space-size'):
+                self.assertNotIn(cap, content)
             self.assertNotIn('Requires=0xdmme-test.service', content)
             self.assertEqual('BindPaths=' in content, role != 'ranking')
+        # Owner decision of 09/10/2026: the slice groups our services without caps;
+        # swap stays off so decrypted content and keys never reach disk.
         parent = (root / 'xdmme-test.slice').read_text()
-        self.assertIn('MemoryMax=768M', parent)
-        self.assertIn('CPUQuota=50%', parent)
-        self.assertIn('TasksMax=128', parent)
+        self.assertIn('MemorySwapMax=0', parent)
+        for cap in ('CPUQuota=', 'MemoryMax=', 'TasksMax=', 'BandwidthMax='):
+            self.assertNotIn(cap, parent)
 
     def test_existing_unit_links_cannot_be_overwritten(self):
         with tempfile.TemporaryDirectory() as directory:

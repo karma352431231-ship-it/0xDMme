@@ -524,7 +524,7 @@ seu identificador e proprietário. URL canônica do `origin`:
    `.local/VPS_SSH_TARGET`.
 4. O Git envia os objetos diretamente por SSH ao repositório bare exclusivo
    `/var/lib/0xdmme/data/git/0xdmme.git`, dentro do armazenamento limitado do
-   ambiente. O recebimento usa a slice própria com limites de recursos e hooks
+   ambiente. O recebimento usa a slice própria (sem tetos de recursos desde 09/10/2026) e hooks
    desativados. Nenhuma credencial do GitHub é copiada para a VPS; não há clone,
    pull, escrita ou instalação nos diretórios do outro projeto.
 
@@ -726,7 +726,7 @@ manifestos e logs ficam em `.local/deployment/`, sem inventário no Git.
 O cache local admite até 16 commits de build, com arquivo de até 16 MB por commit
 e logs de até 64 KB por etapa; exceder esse limite exige revisar os artefatos locais.
 
-Na VPS, o executor usa a slice própria: CPU 10%, memória 192 MB, swap zero,
+Na VPS, o executor usa a slice própria. Desde 09/10/2026, por decisão do proprietário, sem tetos de CPU, memória ou tarefas (ver plano, seção 3); o texto a seguir descreve os limites anteriores. Antes: CPU 10%, memória 192 MB, swap zero,
 32 tarefas, I/O idle, sistema de arquivos protegido e escrita somente no
 armazenamento próprio já limitado a 2 GB. O arquivo de build tem limite de
 16 MB; código, assets e dependências juntos têm orçamento de 128 MB; exigir 256 MB

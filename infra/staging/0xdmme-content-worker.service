@@ -12,17 +12,12 @@ User=xdmme-test
 Group=xdmme-test
 Slice=xdmme-test.slice
 EnvironmentFile=/etc/0xdmme/web.env
-Environment=NODE_OPTIONS=--max-old-space-size=64
 WorkingDirectory=/opt/0xdmme/release
 ExecStart=/usr/bin/node src/server/worker.ts content
 Restart=on-failure
 RestartSec=10
 TimeoutStopSec=15
-CPUQuota=10%
-MemoryMax=160M
 MemorySwapMax=0
-TasksMax=24
-OOMScoreAdjust=600
 UMask=0077
 NoNewPrivileges=yes
 CapabilityBoundingSet=

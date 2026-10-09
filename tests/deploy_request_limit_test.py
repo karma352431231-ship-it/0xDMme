@@ -122,7 +122,9 @@ class RequestLimitTests(unittest.TestCase):
                     self.assertIn('/var/lib/0xdmme/data', writable)
                     self.assertEqual(str(limits.PROXY) in writable, action == 'requests')
                     self.assertEqual('TemporaryFileSystem=/var/log/nginx:rw' in command, action == 'requests')
-                    self.assertIn('MemoryMax=192M', command)
+                    # No resource caps since 09/10/2026; swap stays off and time stays bounded.
+                    self.assertFalse(any(x.startswith(('CPUQuota=', 'MemoryMax=', 'TasksMax=')) for x in command))
+                    self.assertIn('MemorySwapMax=0', command)
                     self.assertIn('RuntimeMaxSec=240', command)
 
 
@@ -143,7 +145,9 @@ class RequestLimitTests(unittest.TestCase):
                     self.assertEqual('TemporaryFileSystem=/tmp:rw,nosuid,nodev,noexec,size=16M' in command, action == 'activate')
                     self.assertEqual('Environment=TMPDIR=/tmp' in command, action == 'activate')
                     self.assertIn('ProtectSystem=strict', command)
-                    self.assertIn('MemoryMax=192M', command)
+                    # No resource caps since 09/10/2026; swap stays off and time stays bounded.
+                    self.assertFalse(any(x.startswith(('CPUQuota=', 'MemoryMax=', 'TasksMax=')) for x in command))
+                    self.assertIn('MemorySwapMax=0', command)
                     self.assertIn('RuntimeMaxSec=240', command)
 
 

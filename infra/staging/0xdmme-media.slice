@@ -1,13 +1,5 @@
 [Unit]
-Description=0xDMme public media processing budget
+Description=0xDMme public media processing (no resource caps; swap off for privacy)
 
 [Slice]
-CPUQuota=400%
-CPUWeight=10
-MemoryHigh=7G
-MemoryMax=8G
 MemorySwapMax=0
-TasksMax=128
-IOWeight=10
-IOReadBandwidthMax=/var/lib/0xdmme/data 16M
-IOWriteBandwidthMax=/var/lib/0xdmme/data 8M

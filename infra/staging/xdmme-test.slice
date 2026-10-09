@@ -1,15 +1,5 @@
 [Unit]
-Description=0xDMme test environment resource budget
+Description=0xDMme test environment (no resource caps; swap off for privacy)
 
 [Slice]
-CPUQuota=50%
-CPUWeight=10
-MemoryHigh=640M
-MemoryMax=768M
 MemorySwapMax=0
-TasksMax=128
-IOWeight=10
-IOReadBandwidthMax=/var/lib/0xdmme/runtime.img 2M
-IOWriteBandwidthMax=/var/lib/0xdmme/runtime.img 2M
-IOReadBandwidthMax=/var/lib/0xdmme/data 2M
-IOWriteBandwidthMax=/var/lib/0xdmme/data 2M

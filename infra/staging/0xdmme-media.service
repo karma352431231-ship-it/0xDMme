@@ -14,18 +14,13 @@ Slice=0xdmme-media.slice
 Environment=HASH_TALK_MEDIA_FFMPEG=/opt/0xdmme-media/ffmpeg
 Environment=HASH_TALK_MEDIA_FFPROBE=/opt/0xdmme-media/ffprobe
 Environment=HASH_TALK_MEDIA_ROOT=/var/lib/0xdmme/data/objects/community-media
-Environment=NODE_OPTIONS=--max-old-space-size=128
 WorkingDirectory=/opt/0xdmme-media
 ExecStart=/usr/bin/node worker.mjs
 Sockets=0xdmme-media.socket
 Restart=on-failure
 RestartSec=10
 TimeoutStopSec=15
-CPUQuota=400%
-MemoryMax=8G
 MemorySwapMax=0
-TasksMax=128
-OOMScoreAdjust=500
 UMask=0077
 NoNewPrivileges=yes
 CapabilityBoundingSet=

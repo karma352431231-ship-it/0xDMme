@@ -63,12 +63,12 @@ def main():
         '/var/lib/0xdmme/data'
     )
     run([*SSH, target, preflight])
-    # Receive Git objects inside our existing resource-limited slice. Hooks are
-    # disabled; the VPS never receives GitHub credentials or runs repository code.
+    # Receive Git objects inside our own slice, without resource caps since
+    # 09/10/2026. Hooks are disabled; the VPS never receives GitHub credentials
+    # or runs repository code.
     receiver = shlex.join([
         'systemd-run', '--quiet', '--pipe', '--wait', '--collect',
         '--unit=0xdmme-git-receive', '--slice=xdmme-test.slice',
-        '-p', 'CPUQuota=10%', '-p', 'MemoryMax=128M', '-p', 'TasksMax=24',
         '-p', 'NoNewPrivileges=yes', '/usr/bin/git',
         '-c', 'core.hooksPath=/dev/null', '-c', 'receive.fsckObjects=true',
         'receive-pack',

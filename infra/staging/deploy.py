@@ -219,9 +219,9 @@ def remote(action, config, target):
     command = shlex.join([
         'systemd-run', '--quiet', '--wait', '--pipe', '--collect',
         '--unit=0xdmme-deploy-' + action + '-' + config['commit'][:12],
-        '--slice=xdmme-test.slice', '-p', 'CPUQuota=10%', '-p', 'MemoryMax=192M',
-        '-p', 'MemorySwapMax=0', '-p', 'TasksMax=32', '-p', 'Nice=19',
-        '-p', 'IOSchedulingClass=idle', '-p', 'NoNewPrivileges=yes',
+        # No CPU/memory/process caps since 09/10/2026 (owner decision); swap stays
+        # off so secrets never reach disk, and the run keeps its time limit.
+        '--slice=xdmme-test.slice', '-p', 'MemorySwapMax=0', '-p', 'NoNewPrivileges=yes',
         '-p', 'ProtectSystem=strict', '-p', 'ProtectHome=yes',
         '-p', 'ReadWritePaths=/var/lib/0xdmme/data' +
         (' ' + str(request_limits.PROXY) if action == 'requests' else ''),
