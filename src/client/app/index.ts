@@ -56,7 +56,7 @@ function openConversation(): void {
   }
   element('app-shell').dataset['chatOpen'] = 'true';
   element('workspace').scrollTop = 0;
-  panels.privateChatOpened();
+  panels?.privateChatOpened();
 }
 const devices = startDevices({
   changed: async () => {
@@ -105,27 +105,6 @@ const statuses = startStatus(devices, vault.sync);
 const representatives = startRepresentatives(devices, vault.sync, (message) =>
   account.signStatement(message),
 );
-const panels = startPanels({
-  shell: element('app-shell'),
-  feedBody: element('feed-body'),
-  publicChat: publicChatBody,
-  publicDirectory: element('public-directory'),
-  communities: {
-    mountFeed: (container, params) => {
-      communities.mount(container, null, params);
-    },
-    leaveFeed: () => {
-      communities.leave();
-    },
-    openDm: (container, id, local) => {
-      communities.openDm(container, id, local);
-    },
-    closeDm: () => {
-      communities.closeDm();
-    },
-    dmDirectory: (node, valid) => communities.dmDirectory(node, valid),
-  },
-});
 const messages = startMessages(devices, vault.sync, {
   calls,
   playback,
@@ -207,7 +186,7 @@ const account = startAccount({
     activity.setSession(session);
     callLog.reset();
     if (!session) sessionExtrasFor = '';
-    panels.sessionChanged();
+    panels?.sessionChanged();
     connection();
     const label = document.getElementById('account-label');
     if (label)
@@ -217,6 +196,31 @@ const account = startAccount({
     railAvatar(session);
   },
 });
+// The standalone wallet document has no workspace panels. Identify it through
+// the account controller before accessing elements exclusive to the app shell.
+const panels = account.approvalPage
+  ? null
+  : startPanels({
+      shell: element('app-shell'),
+      feedBody: element('feed-body'),
+      publicChat: publicChatBody,
+      publicDirectory: element('public-directory'),
+      communities: {
+        mountFeed: (container, params) => {
+          communities.mount(container, null, params);
+        },
+        leaveFeed: () => {
+          communities.leave();
+        },
+        openDm: (container, id, local) => {
+          communities.openDm(container, id, local);
+        },
+        closeDm: () => {
+          communities.closeDm();
+        },
+        dmDirectory: (node, valid) => communities.dmDirectory(node, valid),
+      },
+    });
 // Approval HTML is loaded online and does not install or activate a shell.
 const pwa = account.approvalPage
   ? null
@@ -291,7 +295,8 @@ function route(): void {
     void pwa?.check();
   });
   pwa?.render();
-  panels.routed(key);
+  // The approval route returned above, so workspace panels exist here.
+  panels!.routed(key);
 }
 /** Build-time source and license links live in a template of the shell. */
 function showAboutLinks(): void {
