@@ -123,14 +123,14 @@
           <div class="contact-scope" role="group" aria-label="Tipo de contato">
             <button
               type="button"
-              data-contact-scope="private"
+              data-scope-choice="private"
               aria-pressed="true"
             >
               Privados
             </button>
             <button
               type="button"
-              data-contact-scope="public"
+              data-scope-choice="public"
               aria-pressed="false"
             >
               Públicos
@@ -283,6 +283,15 @@
       >
         <header class="feed-panel-heading">
           <h2>Comunidades</h2>
+          <nav class="feed-panel-tabs" aria-label="Seções das comunidades">
+            <a href="#comunidades?view=feed" data-feed-tab="feed">Feed</a>
+            <a href="#comunidades?view=explore" data-feed-tab="explore"
+              >Ranking</a
+            >
+            <a href="#comunidades?view=communities" data-feed-tab="communities"
+              >Minhas</a
+            >
+          </nav>
           <a href="#comunidades" class="feed-panel-open">Tela cheia</a>
           <button
             type="button"

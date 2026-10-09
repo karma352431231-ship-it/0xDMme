@@ -68,3 +68,18 @@ Implementada localmente em 09/10/2026:
 - Correção encontrada na conferência: no mobile sem conta, o cartão de login empurrava o chat vazio sobre o rodapé; nesse estado a área passa a rolar.
 
 Validação: lint, TypeScript, fronteiras, formatação, build e 427 testes unitários passaram, incluindo testes novos do arranjo salvo, da reabertura da conversa e da leitura de links de comunidade/DM. Prévia local sem backend conferiu em 1440 px os três arranjos, recolher/reabrir, faixa, Públicos, persistência após recarregar e Só comunidades nos temas Azul e Branco; em 1100 px, o arranjo de duas colunas sem trilho e sem excesso horizontal; no mobile, sem mudança além da correção acima. Conversas, grupos e DMs com conta real ainda não foram conferidos nos painéis; os testes de integração (PostgreSQL) não foram executados.
+
+## Etapa 4 — Comunidades
+
+Implementada localmente em 09/10/2026, sem mudar ordenação, filtros válidos ou requisições:
+
+- **Abas no painel:** Feed, Ranking e Minhas no cabeçalho do painel de comunidades do desktop. Abrem dentro do painel, sem sair de Conversas; **Tela cheia** continua levando à página de Comunidades.
+- **Filtros:** os selects nativos de ordem, período e classificação viraram menus compactos (`Recentes ▾`, `Todo o histórico ▾`, `Trending ▾`) no feed geral, no ranking e nos posts de cada comunidade, com os mesmos valores e validação. O bloco recolhível "Ordenar e filtrar" do mobile saiu, porque os menus cabem na largura do celular. O filtro de tag continua nativo, alinhado na mesma linha.
+- **Cabeçalho do feed:** saiu o subtítulo explicativo; o aviso de leitura pública continua.
+- **Ranking em tabela:** posição, comunidade com descrição em uma linha, seguidores, ativos e upvotes em alta, com os mesmos números de antes. Sem histórico completo, o crescimento mostra "em formação" e o texto completo no título. Ordenado por tamanho, mostra só seguidores. No mobile fica apenas o último número da linha.
+- **Comunidade a partir de 1280 px:** posts à esquerda; resumo/sobre (fixo ao rolar) e gestão numa coluna de 320 px à direita. Abaixo disso, a ordem continua em uma coluna.
+- Removidos estilos sem uso: invólucro de filtros, subtítulo, cartão antigo do ranking e lista de DMs da lateral.
+
+**Correção da etapa 3:** o app recebia o atributo `data-contact-scope`, o mesmo usado pelos botões Privados/Públicos. Como o clique procura o controle mais próximo, qualquer clique dentro do app era tratado como troca de escopo e os links de comunidade e de DM @ nunca abriam nos painéis (iam para a página inteira). Os botões passaram a usar `data-scope-choice`; os atributos dos controles ficam centralizados em `layout.ts`, com teste garantindo que nenhum atributo de estado do app coincide com eles. Abas do painel, links dentro do feed e DMs @ na coluna da conversa foram conferidos depois da correção.
+
+Validação: lint, TypeScript, fronteiras, formatação, build e testes unitários passaram. Fixture sintético de comunidades (cópia local atualizada para o formato atual do ranking) conferiu ranking e menus em 1440 px e 390 px sem excesso horizontal; a grade da comunidade foi conferida com a mesma estrutura de elementos; o app real sem backend conferiu abas, links e DMs nos painéis. Com conta real, a página de uma comunidade com resumo e gestão ainda não foi vista.

@@ -42,7 +42,7 @@ import { postText } from './post-text.ts';
 import {
   preferenceControls,
   postVoting,
-  discoverySelect,
+  discoveryMenu,
   feedOrders,
   discoveryPeriods,
 } from './discovery-controls.ts';
@@ -507,7 +507,7 @@ export function startCommunityPosts(controller: Communities) {
     if (!mounted) return;
     const toolbar = el('div', '', 'post-toolbar');
     mounted.append(toolbar);
-    discoverySelect(
+    discoveryMenu(
       toolbar,
       'Ordenar postagens',
       { value: order, options: feedOrders },
@@ -523,7 +523,7 @@ export function startCommunityPosts(controller: Communities) {
         void run(load);
       },
     );
-    discoverySelect(
+    discoveryMenu(
       toolbar,
       'Publicadas no período',
       { value: period, options: discoveryPeriods },

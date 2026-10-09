@@ -111,6 +111,7 @@ export function startCommunities(access: VaultAccess, sync: VaultSync) {
     clearPhoto();
     clearPublicPhotos(mounted);
     mounted.replaceChildren();
+    delete mounted.dataset['communityLayout'];
     communityNavigation(mounted, {
       view,
       selected,
@@ -394,6 +395,8 @@ export function startCommunities(access: VaultAccess, sync: VaultSync) {
   function details(): void {
     if (!mounted || !current) return;
     navigation();
+    // Wide communities page: posts on the left, about and management on the right.
+    mounted.dataset['communityLayout'] = 'detail';
     summary(current);
     const postContainer = communityElement('section', '', 'community-posts');
     mounted.append(postContainer);

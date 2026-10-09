@@ -3,6 +3,8 @@ import { test } from 'node:test';
 import {
   communityTarget,
   layoutPreferenceKey,
+  panelControlAttributes,
+  shellStateAttributes,
   storedLayout,
   toggledChat,
   withChat,
@@ -54,4 +56,14 @@ await test('links de comunidade viram feed ou DM pública sem misturar identidad
   assert.equal(feed?.kind === 'feed' && feed.params.get('post'), 'y');
   assert.equal(communityTarget('#conversas'), null);
   assert.equal(communityTarget('#publico?handle=lia'), null);
+});
+
+await test('estado gravado no app nunca é confundido com um botão de layout', () => {
+  // Regressão: o app recebia data-contact-scope, e todo clique virava troca de escopo.
+  for (const attribute of shellStateAttributes)
+    assert.equal(
+      (panelControlAttributes as readonly string[]).includes(attribute),
+      false,
+      attribute,
+    );
 });

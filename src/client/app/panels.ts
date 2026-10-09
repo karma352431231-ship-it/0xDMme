@@ -1,6 +1,7 @@
 import {
   communityTarget,
   layoutPreferenceKey,
+  panelControlSelector,
   storedLayout,
   toggledChat,
   withChat,
@@ -69,6 +70,7 @@ export function startPanels(input: {
     if (feedVisible() && !feedMounted) {
       feedMounted = true;
       communities.mountFeed(feedBody, feedParams);
+      markFeedTab();
     } else if (!feedVisible() && feedMounted) {
       feedMounted = false;
       communities.leaveFeed();
@@ -78,11 +80,11 @@ export function startPanels(input: {
   function setScope(scope: Scope): void {
     shell.dataset['contactScope'] = scope;
     shell
-      .querySelectorAll<HTMLButtonElement>('[data-contact-scope]')
+      .querySelectorAll<HTMLButtonElement>('[data-scope-choice]')
       .forEach((button) => {
         button.setAttribute(
           'aria-pressed',
-          String(button.dataset['contactScope'] === scope),
+          String(button.dataset['scopeChoice'] === scope),
         );
       });
     if (scope === 'public') void renderPublicDirectory();
@@ -102,9 +104,7 @@ export function startPanels(input: {
   }
   function click(event: MouseEvent): void {
     if (!(event.target instanceof Element)) return;
-    const control = event.target.closest<HTMLElement>(
-      '[data-layout-mode], [data-chat-collapse], [data-chat-split], [data-feed-collapse], [data-contact-scope]',
-    );
+    const control = event.target.closest<HTMLElement>(panelControlSelector);
     if (control) {
       layoutControl(control);
       return;
@@ -122,14 +122,27 @@ export function startPanels(input: {
       openPublic(target.id, target.local);
       return true;
     }
-    if (target?.kind !== 'feed' || !feedMounted || !feedBody.contains(link))
-      return false;
+    const inPanel =
+      feedBody.contains(link) || link.hasAttribute('data-feed-tab');
+    if (target?.kind !== 'feed' || !feedMounted || !inPanel) return false;
     feedParams = target.params;
     communities.mountFeed(feedBody, feedParams);
+    markFeedTab();
     return true;
   }
+  function markFeedTab(): void {
+    const view = feedParams.has('id') ? '' : (feedParams.get('view') ?? 'feed');
+    const tab = view === 'following' ? 'feed' : view;
+    shell
+      .querySelectorAll<HTMLAnchorElement>('[data-feed-tab]')
+      .forEach((link) => {
+        if (link.dataset['feedTab'] === tab)
+          link.setAttribute('aria-current', 'page');
+        else link.removeAttribute('aria-current');
+      });
+  }
   function layoutControl(control: HTMLElement): void {
-    const scope = control.dataset['contactScope'];
+    const scope = control.dataset['scopeChoice'];
     if (scope === 'private' || scope === 'public') {
       setScope(scope);
       return;

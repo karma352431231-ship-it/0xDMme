@@ -244,10 +244,30 @@
   border-bottom: 1px solid var(--line);
 }
 .feed-panel-heading h2 {
-  margin: 0 auto 0 0;
+  margin: 0;
   font-size: var(--fs-input);
 }
+.feed-panel-tabs {
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 10px;
+  background: var(--surface-2);
+}
+.feed-panel-tabs a {
+  padding: 5px 10px;
+  border-radius: 8px;
+  color: var(--text-muted);
+  font-size: var(--fs-small);
+  font-weight: 600;
+  text-decoration: none;
+}
+.feed-panel-tabs a[aria-current='page'] {
+  background: var(--surface-3);
+  color: var(--text);
+}
 .feed-panel-open {
+  margin-left: auto;
   color: var(--accent-text);
   font-size: var(--fs-small);
 }

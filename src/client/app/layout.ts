@@ -4,6 +4,27 @@ export const panelLayouts = ['all', 'nochat', 'solo'] as const;
 /** all: Contatos | Conversa | Feed · nochat: Contatos | Feed · solo: Contatos | Conversa. */
 export type PanelLayout = (typeof panelLayouts)[number];
 
+/** Attributes that mark clickable layout controls. */
+export const panelControlAttributes = [
+  'data-layout-mode',
+  'data-chat-collapse',
+  'data-chat-split',
+  'data-feed-collapse',
+  'data-scope-choice',
+] as const;
+export const panelControlSelector = panelControlAttributes
+  .map((name) => `[${name}]`)
+  .join(', ');
+/**
+ * State written on the app shell. The click handler matches ancestors with
+ * `closest()`, so a shell state attribute must never also mark a control.
+ */
+export const shellStateAttributes = [
+  'data-layout',
+  'data-contact-scope',
+  'data-chat-scope',
+] as const;
+
 type PreferenceStorage = Pick<Storage, 'getItem' | 'setItem'>;
 
 export function storedLayout(storage: PreferenceStorage): PanelLayout {

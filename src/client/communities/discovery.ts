@@ -35,7 +35,7 @@ import {
   showPublicPostMedia,
 } from '../public-media/index.ts';
 import {
-  discoverySelect,
+  discoveryMenu,
   feedOrders,
   discoveryPeriods,
   preferenceControls,
@@ -90,17 +90,9 @@ export function startCommunityDiscovery(controller: Communities) {
   }
   function filters(): void {
     if (!mounted) return;
-    const filterPanel = el('details', '', 'community-filters'),
-      toolbar = el('div', '', 'post-toolbar community-feed-filters'),
-      breakpoint = window.matchMedia('(min-width: 701px)');
+    const toolbar = el('div', '', 'post-toolbar community-feed-filters');
     toolbar.classList.toggle('community-ranking-filters', view === 'explore');
-    filterPanel.append(el('summary', 'Ordenar e filtrar'), toolbar);
-    const adapt = () => {
-      filterPanel.open = breakpoint.matches;
-    };
-    adapt();
-    breakpoint.addEventListener('change', adapt, { signal: abort.signal });
-    mounted.append(filterPanel);
+    mounted.append(toolbar);
     if (view === 'feed' || view === 'following') {
       const scopes = el('nav', '', 'community-feed-scopes');
       scopes.setAttribute('aria-label', 'Escolher feed');
@@ -116,7 +108,7 @@ export function startCommunityDiscovery(controller: Communities) {
     }
     const periodPanel = el('div', '', 'community-ranking-period');
     if (view === 'explore')
-      discoverySelect(
+      discoveryMenu(
         toolbar,
         'Classificar comunidades',
         {
@@ -134,7 +126,7 @@ export function startCommunityDiscovery(controller: Communities) {
         },
       );
     else
-      discoverySelect(
+      discoveryMenu(
         toolbar,
         'Ordenar',
         { value: order, options: feedOrders },
@@ -151,7 +143,7 @@ export function startCommunityDiscovery(controller: Communities) {
       );
     toolbar.append(periodPanel);
     periodPanel.hidden = view === 'explore' && exploreOrder === 'size';
-    discoverySelect(
+    discoveryMenu(
       periodPanel,
       'Período',
       {
@@ -231,45 +223,58 @@ export function startCommunityDiscovery(controller: Communities) {
     if (!list) return;
     const page = explorePage(result);
     after = page.next;
-    for (const {
-      community,
-      participants,
-      upvotes,
-      historyComplete,
-    } of page.items) {
-      const row = card(`${++rankOffset}. ${community.name}`);
-      const avatar = communityAvatar(community.name);
-      row.firstElementChild?.prepend(avatar);
-      row.classList.add('community-explore-card');
-      row.append(
-        el(
-          'p',
-          exploreOrder === 'size'
-            ? `${community.followers} seguidores${community.archived ? ' · Arquivada' : ''}`
-            : `${community.followers} seguidores · ${participants} participantes ativos · +${upvotes} upvotes nos posts em alta`,
-        ),
-        el('p', community.description),
+    for (const item of page.items) {
+      const row = el('li', '', 'ranking-row'),
+        open = el('a', '', 'ranking-link'),
+        avatar = communityAvatar(item.community.name),
+        copy = el('span', '', 'ranking-copy');
+      open.href = `#comunidades?id=${item.community.id}`;
+      copy.append(
+        el('strong', item.community.name),
+        el('small', item.community.description),
       );
-      if (exploreOrder !== 'size' && !historyComplete)
-        row.append(
-          el(
-            'p',
-            'Histórico em formação; crescimento ainda não comparável.',
-            'community-subtitle',
-          ),
-        );
-      link(row, 'Abrir comunidade', `#comunidades?id=${community.id}`);
+      open.append(
+        el('span', String(++rankOffset), 'ranking-position'),
+        avatar,
+        copy,
+        ...rankingStats(item),
+      );
+      row.append(open);
       list.append(row);
-      if (community.avatar)
+      if (item.community.avatar)
         mediaCleanup.add(
           showPublicAvatar(avatar, {
             kind: 'community-photo',
-            target: community.id,
-            reference: community.avatar,
+            target: item.community.id,
+            reference: item.community.avatar,
             signal: abort.signal,
           }),
         );
     }
+  }
+  /** Same figures as before, laid out as columns; growth is never shown as comparable while history forms. */
+  function rankingStats(
+    item: ReturnType<typeof explorePage>['items'][number],
+  ): HTMLElement[] {
+    const number = (value: number) => value.toLocaleString('pt-BR');
+    const stat = (value: string, label: string, className = '') => {
+      const node = el('span', '', `ranking-stat ${className}`.trim());
+      node.append(el('strong', value), el('small', label));
+      return node;
+    };
+    const followers = stat(
+      number(item.community.followers),
+      item.community.archived ? 'seguidores · arquivada' : 'seguidores',
+    );
+    if (exploreOrder === 'size') return [followers];
+    const growth = stat(
+      `+${number(item.upvotes)}`,
+      item.historyComplete ? 'upvotes em alta' : 'em formação',
+      'ranking-growth',
+    );
+    if (!item.historyComplete)
+      growth.title = 'Histórico em formação; crescimento ainda não comparável.';
+    return [followers, stat(number(item.participants), 'ativos'), growth];
   }
   function renderFeed(result: unknown, old: number): void {
     const page = feedPage(result);
@@ -413,17 +418,6 @@ export function startCommunityDiscovery(controller: Communities) {
         link(mounted, 'Entre pelo Perfil para acessar sua lista', '#perfil');
         return;
       }
-      text.append(
-        el(
-          'p',
-          view === 'explore'
-            ? 'Veja comunidades em destaque, as maiores e as que estão começando.'
-            : view === 'feed'
-              ? 'Posts de várias comunidades, inclusive das que você não segue.'
-              : 'Acompanhe e organize suas postagens.',
-          'community-subtitle',
-        ),
-      );
       const label = el(
         'p',
         'Leitura pública · participação com conta',
@@ -440,7 +434,11 @@ export function startCommunityDiscovery(controller: Communities) {
       filters();
       feedback = el('p', '', 'community-feedback');
       feedback.setAttribute('role', 'status');
-      list = el('section', '', 'community-feed');
+      list = el(
+        view === 'explore' ? 'ol' : 'section',
+        '',
+        view === 'explore' ? 'community-ranking' : 'community-feed',
+      );
       paging = el('div', '', 'post-toolbar');
       mounted.append(feedback, list, paging);
       ready();

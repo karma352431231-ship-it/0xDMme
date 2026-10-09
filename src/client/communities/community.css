@@ -110,8 +110,7 @@
   background: var(--accent-soft);
   color: var(--text);
 }
-.community-directory h2,
-.social-dm-directory h2 {
+.community-directory h2 {
   font-size: var(--fs-caption);
   font-weight: 500;
   color: var(--text-muted);
@@ -250,11 +249,6 @@
   font-size: var(--fs-title);
   line-height: 1.2;
   letter-spacing: -0.7px;
-}
-.community-subtitle {
-  margin: 0;
-  color: var(--text-muted);
-  line-height: 1.6;
 }
 .community-public-label {
   display: flex;
@@ -414,11 +408,12 @@
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
-  align-items: end;
+  align-items: center;
   margin: 16px 0;
 }
 .post-toolbar label {
-  display: grid;
+  display: flex;
+  align-items: center;
   gap: 8px;
   min-width: 0;
   font-size: var(--fs-caption);
@@ -428,11 +423,6 @@
   align-items: center;
   gap: 8px;
   margin: 0 0 16px;
-}
-.community-feed-filters label {
-  display: flex;
-  align-items: center;
-  gap: 6px;
 }
 .community-ranking-period {
   display: contents;
@@ -530,9 +520,6 @@
   cursor: pointer;
   line-height: 0;
 }
-.community-filters > summary {
-  display: none;
-}
 .post-more[open] {
   flex-basis: 100%;
 }
@@ -571,20 +558,10 @@
 .community-reply-branch .community-card {
   border-left: 2px solid var(--accent);
 }
-.community-summary h2,
-.community-explore-card h2 {
+.community-summary h2 {
   display: flex;
   align-items: center;
   gap: 10px;
-}
-.social-dm-directory {
-  margin-top: 26px;
-}
-.social-dm-directory a {
-  display: block;
-  padding: 10px 8px;
-  overflow-wrap: anywhere;
-  color: var(--text-muted);
 }
 .social-dm-history {
   display: grid;
@@ -697,9 +674,6 @@
   .community-heading {
     margin-bottom: 16px;
   }
-  .community-subtitle {
-    font-size: var(--fs-caption);
-  }
   .community-public-label {
     display: none;
   }
@@ -723,35 +697,8 @@
   .community-feed-filters {
     gap: 8px;
   }
-  .community-filters {
-    margin-bottom: 14px;
-  }
-  .community-filters > summary {
-    display: inline-flex;
-    align-items: center;
-    min-height: 36px;
-    padding: 8px 10px;
-    border: 1px solid var(--line);
-    border-radius: 8px;
-    background: var(--surface);
-    color: var(--text-muted);
-    cursor: pointer;
-    font-size: var(--fs-caption);
-  }
-  .community-filters[open] > summary {
-    margin-bottom: 12px;
-  }
-  .community-feed-filters label {
-    flex: 1 1 130px;
-    flex-direction: column;
-    align-items: stretch;
-    font-size: var(--fs-caption);
-  }
   .community-feed-scopes {
     flex: 1 0 100%;
-  }
-  .community-ranking-filters label {
-    flex-basis: 100%;
   }
   .community-feed-scopes a {
     min-height: 36px;
@@ -793,5 +740,164 @@
   .app[data-page='comunidades'] .post-votes :is(button, a) {
     min-width: 44px;
     min-height: 44px;
+  }
+}
+
+/* Compact order/period menus (feed, ranking and community posts). */
+.discovery-menu {
+  position: relative;
+}
+.discovery-menu > summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 6px 12px;
+  border-radius: 10px;
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: var(--fs-small);
+  font-weight: 600;
+  list-style: none;
+  cursor: pointer;
+}
+.discovery-menu > summary::-webkit-details-marker {
+  display: none;
+}
+.discovery-menu > summary::after {
+  content: '▾';
+  color: var(--text-muted);
+}
+.discovery-menu-options {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 6px);
+  left: 0;
+  display: grid;
+  min-width: 180px;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: 0 12px 32px var(--shadow);
+}
+.discovery-menu-options button {
+  padding: 9px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  font-size: var(--fs-small);
+}
+.discovery-menu-options button:hover,
+.discovery-menu-options button[aria-pressed='true'] {
+  background: var(--accent-soft);
+}
+/* Ranking as a table: position, community, then figures in fixed columns. */
+.community-ranking {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+  overflow: hidden;
+}
+.ranking-row + .ranking-row {
+  border-top: 1px solid var(--line);
+}
+.ranking-link {
+  display: grid;
+  grid-template-columns: 28px 40px minmax(0, 1fr) repeat(3, minmax(64px, auto));
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  color: var(--text);
+  text-decoration: none;
+}
+.ranking-link:hover {
+  background: var(--surface-2);
+}
+.ranking-position {
+  color: var(--text-faint);
+  font-family: var(--font-mono);
+  font-size: var(--fs-small);
+  text-align: center;
+}
+.ranking-copy {
+  display: grid;
+  min-width: 0;
+}
+.ranking-copy strong,
+.ranking-copy small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ranking-copy small,
+.ranking-stat small {
+  color: var(--text-muted);
+  font-size: var(--fs-caption);
+}
+.ranking-stat {
+  display: grid;
+  justify-items: end;
+  font-variant-numeric: tabular-nums;
+}
+.ranking-growth strong {
+  color: var(--ok);
+}
+.community-ranking > .community-empty {
+  margin: 0;
+  border: 0;
+}
+
+/* Wide communities page: about and management beside the posts. */
+@media (min-width: 1280px) {
+  .app[data-page='comunidades'] [data-community-layout='detail'] {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 320px;
+    align-items: start;
+    gap: 0 24px;
+  }
+  .app[data-page='comunidades'] [data-community-layout='detail'] > * {
+    grid-column: 1;
+  }
+  .app[data-page='comunidades']
+    [data-community-layout='detail']
+    > :is(.community-tools, .community-feedback) {
+    grid-column: 1 / -1;
+  }
+  .app[data-page='comunidades']
+    [data-community-layout='detail']
+    > .community-summary {
+    position: sticky;
+    top: 0;
+    grid-column: 2;
+    grid-row: 3;
+  }
+  .app[data-page='comunidades']
+    [data-community-layout='detail']
+    > .community-posts {
+    grid-row: 3 / span 3;
+  }
+  .app[data-page='comunidades']
+    [data-community-layout='detail']
+    > .community-management {
+    grid-column: 2;
+    grid-row: 4;
+  }
+}
+@media (max-width: 700px) {
+  .ranking-link {
+    grid-template-columns: 22px 36px minmax(0, 1fr) auto;
+    gap: 10px;
+    padding: 12px;
+  }
+  /* Phones keep the last figure: growth, or followers when ranking by size. */
+  .ranking-stat:not(:last-child) {
+    display: none;
   }
 }

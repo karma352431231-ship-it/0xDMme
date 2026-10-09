@@ -109,25 +109,47 @@ export function postVoting(
       controls.append(el('span', String(post.score), 'post-score'));
   }
 }
-export function discoverySelect(
+/** Compact menu for order/period choices; same values and validation as before. */
+export function discoveryMenu(
   container: HTMLElement,
   label: string,
   selection: { value: string; options: readonly (readonly [string, string])[] },
   changed: (value: string) => void,
-): HTMLSelectElement {
-  const wrap = el('label', label),
-    select = el('select');
-  select.setAttribute('aria-label', label);
+): HTMLDetailsElement {
+  const menu = el('details', '', 'discovery-menu'),
+    summary = el('summary'),
+    value = el('span', '', 'discovery-menu-value'),
+    options = el('div', '', 'discovery-menu-options');
+  options.setAttribute('role', 'group');
+  options.setAttribute('aria-label', label);
+  summary.append(value);
+  menu.append(summary, options);
+  let current = selection.value;
+  const show = () => {
+    const title =
+      selection.options.find(([key]) => key === current)?.[1] ?? current;
+    value.textContent = title;
+    summary.setAttribute('aria-label', `${label}: ${title}`);
+    options.querySelectorAll('button').forEach((node) => {
+      node.setAttribute('aria-pressed', String(node.value === current));
+    });
+  };
   for (const [key, title] of selection.options) {
-    const option = el('option', title);
+    const option = el('button', title);
+    option.type = 'button';
     option.value = key;
-    select.append(option);
+    option.addEventListener('click', () => {
+      menu.open = false;
+      if (key === current) return;
+      current = key;
+      show();
+      changed(key);
+    });
+    options.append(option);
   }
-  select.value = selection.value;
-  select.addEventListener('change', () => changed(select.value));
-  wrap.append(select);
-  container.append(wrap);
-  return select;
+  show();
+  container.append(menu);
+  return menu;
 }
 export const feedOrders = [
   ['recent', 'Recentes'],
