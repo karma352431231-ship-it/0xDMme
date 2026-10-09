@@ -1,6 +1,6 @@
 # Contatos — revisão solicitada em 07/10/2026
 
-Em 09/10/2026, [painéis e temas](UI_PAINEIS_E_TEMAS.md) move pedidos para Atividade e agenda, bloqueados e Meu convite para Perfil → Contatos, na etapa 6. As regras abaixo continuam.
+Em 09/10/2026, [painéis e temas](UI_PAINEIS_E_TEMAS.md) tirou Contatos da barra mobile: a tela abre por Perfil → Contatos, agenda e convite e pelo + da lista; pedidos recebidos também aparecem na Atividade. As regras abaixo continuam.
 
 O proprietário pediu uma interface de contatos mais clara, com menos texto e ações dispersas. A implementação mantém a identidade visual do menu lateral e do chat, sem alterar as regras de contato ou descoberta.
 

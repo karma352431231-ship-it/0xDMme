@@ -107,3 +107,13 @@ Implementado conforme a escolha do proprietário (plano, seção 5.11):
 - A Atividade ganhou a seção **Chamadas perdidas** e soma essas chamadas no contador.
 
 Limitação aceita: só registra chamadas que tocaram com algum aparelho aberto e logado. Validação: testes de junção entre aparelhos, chamada atendida em outro aparelho, retenção, limpeza e recusa de registro malformado. Detecção ao vivo com duas contas reais não foi conferida.
+
+## Etapa 6 — mobile
+
+Implementada localmente em 09/10/2026:
+
+- **Barra inferior:** Conversas · Comunidades · Atividade · Perfil, com o contador da Atividade no ícone. O sino do cabeçalho fica só entre 701 e 1279 px.
+- **Conversas** mostra Privados/Públicos no topo da lista; o título da lista é "Conversas" no celular e "Contatos" no painel do desktop. Tocar numa conversa @ no celular abre a página de DMs, como antes.
+- **Contatos sai da barra.** Agenda, bloqueados, Meu convite e pedidos continuam na tela de Contatos, aberta por **Perfil → Contatos, agenda e convite** e pelo **+** da lista (adicionar contato). O módulo de Contatos é montado uma vez por tela e o Perfil já o usa em "Quem pode me encontrar"; por isso o Perfil leva à tela existente em vez de repeti-la. Pedidos recebidos também aparecem na Atividade. Links de convite `#contatos?convite=` continuam iguais.
+
+Validação: lint, TypeScript, fronteiras, formatação, build e testes unitários passaram. Prévia local sem backend conferiu em 390 e 320 px a barra com contador, a lista com Privados/Públicos (estado conectado simulado só na apresentação), o atalho do Perfil e a tela de Contatos, sem excesso horizontal. Toque físico em Android/iPhone continua pendente, como nas etapas anteriores.

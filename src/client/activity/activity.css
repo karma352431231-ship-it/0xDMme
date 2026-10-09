@@ -150,6 +150,17 @@
   }
 }
 @media (max-width: 700px) {
+  /* The bottom bar carries Atividade on phones. */
+  .brand-bar .activity-entry {
+    display: none;
+  }
+  .mobile-nav a {
+    position: relative;
+  }
+  .mobile-nav .activity-badge {
+    top: 2px;
+    right: calc(50% - 22px);
+  }
   .activity-row {
     flex-wrap: wrap;
   }

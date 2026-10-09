@@ -9,7 +9,7 @@ ${settingsSection({ id: 'vault', title: 'Cofre e backup', description: 'Uso do a
 ${settingsSection({ id: 'representatives', title: 'Organizações e representantes', description: 'Organizações e autorizações assinadas', content: '<div data-representatives-settings></div>' })}
 ${settingsSection({ id: 'appearance', title: 'Aparência', description: 'Tema Azul, Preto ou Branco', content: '<div data-appearance-settings></div>' })}
 ${settingsSection({ id: 'app', title: 'Aplicativo', description: 'Versão e atualizações', content: '<article class="card"><p id="pwa-state" role="status">Verificando atualização…</p><button id="check-updates" type="button">Verificar atualização</button></article>' })}
-<div class="profile-content-links"><a href="#status">Meu status <span aria-hidden="true">↗</span></a></div></section>`;
+<div class="profile-content-links"><a href="#contatos">Contatos, agenda e convite <span aria-hidden="true">↗</span></a><a href="#status">Meu status <span aria-hidden="true">↗</span></a></div></section>`;
 
 export const pages = {
   conversas: { title: 'Conversas', content: '' },
