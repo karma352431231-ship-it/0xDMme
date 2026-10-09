@@ -123,9 +123,10 @@ export function base64(
     throw new AccountError(400, 'Codificação inválida.');
   let bytes: Uint8Array<ArrayBuffer>;
   try {
-    bytes = Uint8Array.from(atob(encoded), (character) =>
-      character.charCodeAt(0),
-    );
+    const decoded = atob(encoded);
+    bytes = new Uint8Array(decoded.length);
+    for (let index = 0; index < decoded.length; index++)
+      bytes[index] = decoded.charCodeAt(index);
   } catch {
     throw new AccountError(400, 'Codificação inválida.');
   }

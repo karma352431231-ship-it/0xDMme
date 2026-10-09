@@ -67,6 +67,7 @@ import {
 } from '@matrix-org/matrix-sdk-crypto-wasm';
 import { messageApi, backupMessageApi } from '../message-api/index.ts';
 import { MessageIndex } from './index-sync.ts';
+import { VerifiedWindow } from './verified-window.ts';
 import { OfflineIndex } from './offline-index.ts';
 import type { CachedText } from './offline-index.ts';
 import { notifyMessageControls } from '../message-controls/index.ts';
@@ -129,6 +130,7 @@ export class Messages {
   transportPending = false;
   private confirmed: { snapshot: string; views: MessageView[] } | null = null;
   private readonly index = new MessageIndex();
+  private readonly verified = new VerifiedWindow<MessageView>();
   private readonly offlineIndex = new OfflineIndex();
   constructor(
     access: VaultAccess,
@@ -158,6 +160,7 @@ export class Messages {
   }
   close(): void {
     this.confirmed = null;
+    this.verified.clear();
     this.generation++;
     this.visibility.close();
     this.index.reset();
@@ -165,6 +168,7 @@ export class Messages {
   }
   hide(): void {
     this.confirmed = null;
+    this.verified.clear();
     this.visibility.close();
   }
   /** A normal wakeup retains the last verified view, but cannot publish new rows. */
@@ -695,9 +699,12 @@ export class Messages {
             keys: new Map<string, RecoveryKey>(),
           };
           for (const item of window)
-            views.push(await this.readOne(context, item));
+            views.push(
+              this.verified.read(snapshot, item) ??
+                (await this.readOne(context, item)),
+            );
           await indexSearch(a, views);
-          return { views, snapshot, items };
+          return { views, snapshot, items, window };
         } finally {
           machine.close();
         }
@@ -726,9 +733,12 @@ export class Messages {
         )[0]?.sequence ?? this.before;
       this.visibility.stage(token, this.confirmed.views);
       await this.confirmVisible(token, staged.snapshot, generation);
+      this.guard(generation);
+      this.verified.remember(staged.snapshot, staged.window, staged.views);
       this.index.reset();
     } catch (error: unknown) {
       this.confirmed = null;
+      this.verified.clear();
       this.visibility.fail(token);
       throw error;
     }
@@ -1261,6 +1271,7 @@ export class Messages {
       return true;
     } catch (error: unknown) {
       this.confirmed = null;
+      this.verified.clear();
       this.visibility.fail(token);
       throw error;
     }

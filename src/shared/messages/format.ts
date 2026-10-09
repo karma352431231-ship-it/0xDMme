@@ -1,10 +1,4 @@
-import {
-  AccountError,
-  base64,
-  boundedText,
-  encode,
-  uuid,
-} from '../account/index.ts';
+import { AccountError, base64, boundedText, uuid } from '../account/index.ts';
 import { blockLimit } from '../vault/index.ts';
 
 /** Matrix's standard room-key backup; not an exported Olm device identity. */
@@ -14,7 +8,8 @@ export function matrixBase64(value: unknown, bytes: number): string {
     throw new AccountError(400, 'Chave Matrix inválida.');
   const padded = text.padEnd(Math.ceil(text.length / 4) * 4, '=');
   const decoded = base64(padded, bytes);
-  if (decoded.length !== bytes || encode(decoded).replaceAll('=', '') !== text)
+  // base64 already checks the canonical padded encoding. The input forbids '='.
+  if (decoded.length !== bytes)
     throw new AccountError(400, 'Chave Matrix não canônica.');
   return text;
 }
@@ -29,7 +24,7 @@ export function matrixCiphertext(
     text.padEnd(Math.ceil(text.length / 4) * 4, '='),
     maximum,
   );
-  if (!decoded.length || encode(decoded).replaceAll('=', '') !== text)
+  if (!decoded.length)
     throw new AccountError(400, 'Ciphertext Matrix não canônico.');
   return text;
 }

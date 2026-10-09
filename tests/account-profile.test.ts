@@ -11,7 +11,13 @@ import {
   accountSession,
   displayName,
   profileEnvelope,
+  base64,
+  encode,
 } from '../src/shared/account/index.ts';
+import {
+  matrixBase64,
+  matrixCiphertext,
+} from '../src/shared/messages/index.ts';
 import {
   walletBrowserUrl,
   signEvm,
@@ -69,6 +75,41 @@ await test('foto de 3 MB é cifrada como bytes sem reduzir teto por expansão ba
   assert.throws(() =>
     validatePhoto('image/svg+xml', new TextEncoder().encode('<svg/>')),
   );
+});
+
+await test('conversão Base64 conserva limites e codificação canônica, inclusive padding Matrix', () => {
+  for (const values of [[0], [255], [255, 255], [0, 1, 255], [1, 2, 3, 4]]) {
+    const bytes = new Uint8Array(values),
+      encoded = Buffer.from(bytes).toString('base64');
+    assert.equal(encode(bytes), encoded);
+    assert.deepEqual(base64(encoded, bytes.length), bytes);
+    assert.equal(
+      matrixBase64(encoded.replaceAll('=', ''), bytes.length),
+      encoded.replaceAll('=', ''),
+    );
+    assert.equal(
+      matrixCiphertext(encoded.replaceAll('=', ''), bytes.length),
+      encoded.replaceAll('=', ''),
+    );
+    assert.throws(() => base64(encoded, bytes.length - 1));
+  }
+  for (const invalid of [
+    '',
+    'AA',
+    'AA=',
+    'AB==',
+    'AAB=',
+    'A===',
+    '=AAA',
+    'AA==\n',
+    'AA-_',
+    'AA===',
+  ])
+    assert.throws(() => base64(invalid, 32));
+  for (const invalid of ['', 'A', 'AB', 'AAB', 'AA=', 'AA==', 'AA-_']) {
+    assert.throws(() => matrixCiphertext(invalid, 32));
+    assert.throws(() => matrixBase64(invalid, 1));
+  }
 });
 
 await test('fronteiras rejeitam sessão com autorização inventada e nomes de controle', () => {

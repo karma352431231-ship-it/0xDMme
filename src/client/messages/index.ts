@@ -102,6 +102,7 @@ export function startMessages(
   let remoteMore = true,
     archivedMore = true;
   let failed = false;
+  let maintenance: Promise<void> | null = null;
   let settingsHost: HTMLElement | null = null;
   let pushSettings: ReturnType<typeof mountPushSettings> | null = null;
   let message = 'Entre e autorize este aparelho para conversar.';
@@ -174,6 +175,7 @@ export function startMessages(
   const updates = new LiveUpdates({
     available: () =>
       !busy &&
+      maintenance === null &&
       connected() &&
       !!session &&
       navigator.onLine &&
@@ -357,6 +359,9 @@ export function startMessages(
     const current = generation;
     status();
     try {
+      // A click during presence maintenance is accepted and serialized, not dropped.
+      await maintenance;
+      if (current !== generation) return;
       await work();
       if (current !== generation) return;
       if (navigator.onLine)
@@ -382,6 +387,24 @@ export function startMessages(
       }
       updates.resume();
     }
+  }
+  async function maintainPresence(): Promise<void> {
+    if (busy || maintenance) return;
+    const current = generation;
+    maintenance = dailyTick()
+      .catch((error: unknown) => {
+        if (current !== generation) return;
+        message =
+          error instanceof Error
+            ? error.message
+            : 'Não foi possível atualizar a presença.';
+        if (!busy) status();
+      })
+      .finally(() => {
+        maintenance = null;
+        updates.resume();
+      });
+    await maintenance;
   }
   function conversationVisible(selector = '.chat-panel'): boolean {
     return (
@@ -1120,6 +1143,7 @@ export function startMessages(
     attachments.clearSelection();
     voice.cancel();
     recordingPeer = null;
+    await renderPending();
     if (navigator.onLine) {
       await controller.sendPending();
       await synchronizeVisible();
@@ -1164,16 +1188,26 @@ export function startMessages(
   }
   async function dailyTick(): Promise<void> {
     if (!session || !navigator.onLine) return;
+    const current = generation;
     await pushSettings?.refresh();
     await daily.configure(preferences());
     await daily.heartbeat(document.visibilityState === 'visible');
-    if (!connected()) return;
-    const old = states;
-    states = await daily.states(peers.map((p) => p.accountId));
+    if (current !== generation || !connected()) return;
+    const old = states,
+      next = await daily.states(peers.map((p) => p.accountId));
+    if (current !== generation) return;
+    await silenceArchived(next);
+    if (current !== generation) return;
+    states = next;
+    alertUnread(old);
+    renderContacts(peers);
+    await markVisibleRead();
+  }
+  async function silenceArchived(next: Map<string, PeerState>): Promise<void> {
     for (const peer of peers) {
-      const state = states.get(peer.accountId);
+      const state = next.get(peer.accountId);
       if (!state || peer.localOnly) continue;
-      states.set(
+      next.set(
         peer.accountId,
         await daily.keepArchivedSilent(
           peer.accountId,
@@ -1182,9 +1216,6 @@ export function startMessages(
         ),
       );
     }
-    alertUnread(old);
-    renderContacts(peers);
-    await markVisibleRead();
   }
   function alertUnread(old: Map<string, PeerState>): void {
     for (const [id, state] of states)
@@ -1359,33 +1390,58 @@ export function startMessages(
     if (conversationVisible('[data-group-conversation]'))
       await groups.resumePending();
   }
-  const timer = setInterval(() => {
+  function canMaintain(): boolean {
+    return (
+      !busy &&
+      maintenance === null &&
+      !!session &&
+      navigator.onLine &&
+      document.visibilityState === 'visible'
+    );
+  }
+  async function periodicMessages(): Promise<void> {
+    await groupTick();
     if (
-      busy ||
-      !session ||
-      !navigator.onLine ||
-      document.visibilityState !== 'visible'
+      !conversationVisible('[data-direct-conversation]') ||
+      !selected ||
+      selected.localOnly
     )
       return;
-    void run(async () => {
-      await dailyTick();
-      await groupTick();
-      if (
-        !conversationVisible('[data-direct-conversation]') ||
-        !selected ||
-        selected.localOnly
-      )
-        return;
-      await resumePending();
-      if (!live.connected && (await controller.probe())) {
-        if (!conversationVisible('[data-direct-conversation]')) return;
-        await controller.synchronize();
-        await controller.savePins();
-      }
-    });
+    await resumePending();
+    if (!live.connected && (await controller.probe())) {
+      if (!conversationVisible('[data-direct-conversation]')) return;
+      await controller.synchronize();
+      await controller.savePins();
+    }
+  }
+  async function periodicTick(): Promise<void> {
+    if (!canMaintain()) return;
+    const current = generation;
+    try {
+      await maintainPresence();
+      if (current !== generation || !canMaintain()) return;
+      if (!(await periodicMessageWork())) return;
+      if (current !== generation) return;
+      await run(periodicMessages);
+    } catch (error: unknown) {
+      if (current !== generation) return;
+      message =
+        error instanceof Error
+          ? error.message
+          : 'Não foi possível conferir os envios pendentes.';
+      status();
+    }
+  }
+  async function periodicMessageWork(): Promise<boolean> {
+    if (!live.connected || conversationVisible('[data-group-conversation]'))
+      return true;
+    return (await controller.pending()).length > 0;
+  }
+  const timer = setInterval(() => {
+    void periodicTick();
   }, 30000);
   window.addEventListener('0xdmme-profile-preferences', () => {
-    if (!busy && session && navigator.onLine) void run(dailyTick);
+    if (!busy && session && navigator.onLine) void maintainPresence();
   });
   window.addEventListener('pagehide', (event) => {
     updates.clear();
@@ -1483,6 +1539,10 @@ export function startMessages(
   }
   function bindMessageControls(): void {
     bind('[data-message-refresh]', () => {
+      if (live.connected) {
+        void run(refreshChanges);
+        return;
+      }
       if (session && navigator.onLine) live.retry();
       void run(refresh);
     });
