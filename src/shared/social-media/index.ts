@@ -1,7 +1,7 @@
 import { AccountError } from '../account/index.ts';
 import { animatedAttachmentContent } from '../attachments/index.ts';
 import type { AttachmentContent } from '../attachments/index.ts';
-import { imageShape, metadataFree } from '../image-inspection/index.ts';
+import { imageShape } from '../image-inspection/index.ts';
 import { prepareGif } from '../gif-inspection/index.ts';
 import { validateVoice } from '../voice/index.ts';
 export type SocialMedia = 'photo' | 'gif' | 'voice';
@@ -33,6 +33,7 @@ export function socialAttachment(
     throw new Error('Foto de DM inválida.');
   return content;
 }
+/** Chat originals may retain metadata; format, size and allocation bounds remain mandatory. */
 export function checkSocialBytes(
   content: AttachmentContent,
   declared: SocialMedia,
@@ -46,14 +47,9 @@ export function checkSocialBytes(
     return;
   }
   if (declared === 'gif') {
-    const clean = prepareGif(bytes);
-    if (clean.length !== bytes.length)
-      throw new Error('GIF recebido conserva metadados.');
+    prepareGif(bytes).fill(0);
     return;
   }
-  if (
-    imageShape(bytes).type !== content.type ||
-    !metadataFree(bytes, content.type)
-  )
-    throw new Error('Foto recebida inválida ou com metadados.');
+  if (imageShape(bytes).type !== content.type)
+    throw new Error('Foto recebida inválida.');
 }

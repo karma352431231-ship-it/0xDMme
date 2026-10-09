@@ -58,7 +58,6 @@ import type { Peer, AddressBookEntry } from '../../shared/contacts/index.ts';
 import type { VaultAccess } from '../vault-authority/index.ts';
 import type { VaultSync } from '../vault-sync/index.ts';
 import { Contacts } from '../contacts/index.ts';
-import { profileCard } from '../message-profile/index.ts';
 import { Messages, receivedState } from './controller.ts';
 import type { MessageView } from './controller.ts';
 type ConversationPeer = Peer & { localOnly?: boolean };
@@ -543,7 +542,6 @@ export function startMessages(
       selected?.name || selected?.address || 'Selecione um contato aprovado'
     );
   }
-  const urls: string[] = [];
   function renderHistory(update: HistoryUpdate = 'history'): void {
     const history = node('[data-message-history]');
     if (!history) return;
@@ -557,7 +555,7 @@ export function startMessages(
         'Sincronizando mensagens… O histórico abre após conferir as atualizações e exclusões.';
     }
     const older = node('[data-message-older]');
-    if (older) older.hidden = rows === null || rows.length === 0;
+    if (older) older.hidden = dailyViews(rows ?? []).length === 0;
     renderPeer();
     restoreScroll();
     composerStatus();
@@ -568,7 +566,6 @@ export function startMessages(
   ): void {
     if (update === 'history') {
       attachments.clearMedia();
-      for (const url of urls.splice(0)) URL.revokeObjectURL(url);
       history.replaceChildren();
       for (const view of dailyViews(rows ?? []))
         history.append(renderMessage(view));
@@ -705,23 +702,6 @@ export function startMessages(
         load: (v, thumb) => controller.media(v, thumb),
         run,
       });
-    } else if (view.kind === 'profile') {
-      const card = profileCard(JSON.parse(view.text) as unknown);
-      text.textContent = card.name
-        ? `Perfil de ${card.name}`
-        : 'Perfil compartilhado';
-      if (card.photo) {
-        const img = document.createElement('img'),
-          url = URL.createObjectURL(
-            new Blob([card.photo.bytes], { type: card.photo.type }),
-          );
-        urls.push(url);
-        img.src = url;
-        img.alt = 'Foto compartilhada pelo contato';
-        img.width = 96;
-        img.height = 96;
-        article.append(img);
-      }
     } else if (
       !options.representatives?.renderCard(
         article,

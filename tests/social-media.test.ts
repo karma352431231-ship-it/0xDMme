@@ -76,7 +76,7 @@ await test('backup de DM/GIF usa SDK real, reabre separado do chat por wallet e 
     'gif',
   );
   checkSocialBytes(content, 'gif', gif());
-  assert.throws(() => checkSocialBytes(content, 'gif', gif(true)));
+  assert.throws(() => checkSocialBytes(content, 'gif', gif(true)), /Tamanho/);
   const row: BackupRecord = {
     type: 'dm-message',
     id: crypto.randomUUID(),
@@ -152,6 +152,28 @@ await test('backup de DM/GIF usa SDK real, reabre separado do chat por wallet e 
   assert.throws(() =>
     socialAttachment({ ...content, type: 'image/png' }, 'gif'),
   );
+});
+await test('GIF original de DM conserva comentários sem reduzir a validação de quadros ou integridade', async () => {
+  const original = gif(true),
+    sealed = await sealFile(original),
+    content = socialAttachment(
+      {
+        version: 1,
+        name: 'original.gif',
+        type: 'image/gif',
+        caption: '',
+        image: true,
+        file: sealed.file,
+        thumbnail: null,
+      },
+      'gif',
+    );
+  assert.doesNotThrow(() => checkSocialBytes(content, 'gif', original));
+  const huge = original.slice();
+  huge[6] = 255;
+  huge[7] = 255;
+  assert.throws(() => checkSocialBytes(content, 'gif', huge), /GIF/);
+  assert.deepEqual(await openFile(sealed.file, sealed.bytes), original);
 });
 
 await test('exportação reúne cópias de DM uma vez, preserva mídia e recusa hashes divergentes', async (t) => {

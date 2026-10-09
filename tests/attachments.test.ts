@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { Attachment } from '@matrix-org/matrix-sdk-crypto-wasm';
+import { checkSocialBytes } from '../src/shared/social-media/index.ts';
 import { openFile, sealFile } from '../src/client/attachment-crypto/index.ts';
 import {
   attachmentContent,
@@ -14,6 +15,7 @@ import {
   imageShape,
   metadataFree,
   stripEncodedMetadata,
+  prepareOriginal,
 } from '../src/client/attachment-images/index.ts';
 await test('anexo de 3 MB usa SDK real, mantém tamanho verificável e rejeita adulteração e segredo errado', async () => {
   const bytes = new Uint8Array(fileLimit).fill(71),
@@ -90,6 +92,66 @@ function png(
   bytes.set(new TextEncoder().encode('IEND'), 49);
   return bytes;
 }
+await test('imagem original conserva bytes e metadados, dispensa miniatura e reconhece 12 MP sem reencodar', async () => {
+  const bytes = png(4000, 3000, 'eXIf'),
+    file = new File([bytes], 'camera.png', {
+      type: 'application/octet-stream',
+    }),
+    selected = await prepareOriginal(file);
+  assert.deepEqual(selected.bytes, bytes);
+  assert.equal(selected.name, 'camera.png');
+  assert.equal(selected.type, 'image/png');
+  assert.equal(selected.image, true);
+  assert.equal(selected.thumbnail, null);
+  assert.equal(metadataFree(selected.bytes, selected.type), false);
+  const sealed = await sealFile(selected.bytes);
+  assert.doesNotThrow(() =>
+    checkSocialBytes(
+      attachmentContent({
+        version: 1,
+        name: selected.name,
+        type: selected.type,
+        caption: '',
+        image: true,
+        file: sealed.file,
+        thumbnail: null,
+      }),
+      'photo',
+      selected.bytes,
+    ),
+  );
+  const generic = await prepareOriginal(
+    new File(['original'], 'arquivo.txt', { type: 'text/plain' }),
+  );
+  assert.equal(generic.image, false);
+  assert.equal(new TextDecoder().decode(generic.bytes), 'original');
+});
+await test('original acima de 3 MB é recusado antes da leitura; teto exato e formatos sem prévia conservam os bytes', async () => {
+  let reads = 0;
+  const oversized = {
+    size: fileLimit + 1,
+    arrayBuffer: () => {
+      reads++;
+      return Promise.resolve(new ArrayBuffer(0));
+    },
+  };
+  await assert.rejects(prepareOriginal(oversized as File), /limite de 3 MB/);
+  assert.equal(reads, 0);
+  const exact = await prepareOriginal(
+    new File([new Uint8Array(fileLimit)], 'teto.bin'),
+  );
+  assert.equal(exact.bytes.length, fileLimit);
+  const oversizedPixels = png(50000, 50000);
+  const original = await prepareOriginal(
+    new File([oversizedPixels], 'pixels.png', { type: 'image/png' }),
+  );
+  assert.equal(original.image, false);
+  assert.deepEqual(original.bytes, oversizedPixels);
+  await assert.rejects(
+    prepareOriginal(new File([new Uint8Array([1])], 'video.mp4')),
+    /vídeo/,
+  );
+});
 await test('limite de pixels vem antes de decodificar e metadados privados impedem promessa de remoção', () => {
   assert.equal(imageShape(png(320, 200)).type, 'image/png');
   assert.throws(() => imageShape(png(50000, 50000)), /pixels/);

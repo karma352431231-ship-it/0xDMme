@@ -9,7 +9,6 @@ const template = `<article class="card public-profile-card"><h2>Perfil público<
 <p>Seu @ será visível na web. Wallet, nome e foto privados não são incluídos neste perfil.</p>
 <div data-public-create><label>@ público<input data-public-input type="text" minlength="3" maxlength="31" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="seu_nome"></label>
 <p>3–30 letras sem acento, números ou _. Seu @ é único e fixo enquanto a conta existir.</p>
-<label class="public-consent"><input data-public-consent type="checkbox">Quero criar este perfil público com um @ fixo.</label>
 <button type="button" class="primary" data-public-action="create">Criar perfil público</button></div>
 <div data-public-owned hidden><div class="public-avatar-placeholder" data-public-placeholder aria-hidden="true">@</div><img class="public-avatar-preview" data-public-avatar alt="Prévia da sua foto pública, ainda restrita" hidden>
 <p><strong data-public-own-handle></strong></p><a data-public-link>Ver perfil público</a>
@@ -145,10 +144,8 @@ export function startPublicProfile(access: VaultAccess) {
     }
     node('[data-public-action="create"]')?.addEventListener('click', () => {
       const handle = node<HTMLInputElement>('[data-public-input]')?.value ?? '';
-      const consent =
-        node<HTMLInputElement>('[data-public-consent]')?.checked === true;
       void run(async () => {
-        await controller.create(handle, consent);
+        await controller.create(handle, true);
         status = 'Perfil público criado. Seu @ é fixo.';
       });
     });

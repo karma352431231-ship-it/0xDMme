@@ -19,12 +19,12 @@ export type DailyView<T> = T & {
   edited: boolean;
   reactions: string[];
 };
-/** Authenticated actions never become independent bubbles or overwrite another author's text. */
+/** Profile cards are identity metadata; authenticated actions never become bubbles. */
 export function dailyViews<T extends DailyRow>(
   rows: readonly T[],
 ): DailyView<T>[] {
   const base = rows
-    .filter((row) => !row.relation)
+    .filter((row) => !row.relation && row.kind !== 'profile')
     .map((row) => ({
       ...row,
       content: rowContent(row),

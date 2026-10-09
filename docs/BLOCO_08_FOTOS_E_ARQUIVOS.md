@@ -2,7 +2,11 @@
 
 Implementação local autorizada em 03/10/2026. O proprietário escolheu as recomendações 1A, 2A e 3A e delegou escolhas rotineiras dentro dos contratos existentes. Também autorizou continuar a implementação após compactação de contexto. A entrega mantém o motor Matrix 18.9.0, as cotas e a identidade do armazenamento existentes; não adiciona dependências ou serviços externos.
 
-## Experiência aprovada
+## Experiência atual
+
+O [ajuste de chats solicitado em 09/10/2026](CHAT_ORIGINAIS_E_PREVIAS.md) substitui a escolha de otimização e o carregamento integral por toque: enviar sempre o original até 3 MB, mostrar imagens compatíveis automaticamente no histórico verificado e manter cartões de perfil fora da linha de mensagens. Autorização, cifras, cache, recuperação e exclusão permanecem. As regras abaixo registram a experiência histórica de 03/10/2026; processamento de fotos fora do chat conserva seus contratos específicos.
+
+## Experiência histórica de 03/10/2026
 
 - Foto otimizada por padrão, com prévia local antes de enviar. JPEG, PNG e WebP estáticos são decodificados e reencodados no aparelho; metadados privados do resultado são removidos e verificados. PNG conserva transparência; JPEG/WebP viram JPEG. Não se promete fidelidade sem perda. Outros formatos podem seguir como arquivo original.
 - Arquivo original de até **3.000.000 bytes**, preservando os bytes e avisando sobre GPS/EXIF e outros metadados. Selecionar ou preparar um arquivo não envia nada. Legenda é opcional, limitada a 4.000 caracteres e cifrada com o descritor.
@@ -18,7 +22,7 @@ As referências públicas são vinculadas à assinatura do pacote e conferidas c
 
 A integração reutiliza a [API de anexos do SDK Matrix](https://matrix-org.github.io/matrix-sdk-crypto-wasm/classes/Attachment.html). O processamento 2D separado usa uma API disponibilizada pelo [WebKit no Safari 16.4](https://webkit.org/blog/13966/webkit-features-in-safari-16-4/), compatível com o alvo do build; documentação de suporte não substitui validação física de memória, armazenamento e ciclo de vida no iPhone.
 
-O arquivo precisa estar integralmente durável antes da aceitação da mensagem. O descritor e suas chaves ficam recuperáveis desde a aceitação pelos arquivos de leitura do bloco 07; um aparelho novo não precisa esperar que um aparelho antigo volte. Abrir o histórico conserva o download sob demanda.
+O arquivo precisa estar integralmente durável antes da aceitação da mensagem. O descritor e suas chaves ficam recuperáveis desde a aceitação pelos arquivos de leitura do bloco 07; um aparelho novo não precisa esperar que um aparelho antigo volte. Desde o ajuste de 09/10/2026, imagens compatíveis carregam automaticamente na conversa verificada; arquivos genéricos e áudio continuam sob demanda.
 
 A confirmação por aparelho atesta recebimento verificado e gravação do **pacote/descritor**, sem afirmar que a mídia completa foi baixada ou lida. As referências individuais do bloco 07 continuam independentes. Resolver essas referências não remove o anexo aceito: sua cópia cifrada recuperável permanece no cofre até exclusão explícita.
 

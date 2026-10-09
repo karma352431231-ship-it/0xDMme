@@ -117,6 +117,35 @@ export interface PreparedPhoto {
   type: string;
   name: string;
 }
+/** Unpreviewable formats/pixel budgets remain downloadable originals, never active content. */
+export function originalImageType(bytes: Uint8Array): string | null {
+  try {
+    return imageShape(bytes).type;
+  } catch {
+    return null;
+  }
+}
+export async function prepareOriginal(file: File) {
+  if (!file.size || file.size > fileLimit)
+    throw new Error(
+      'Arquivo vazio ou acima do limite de 3 MB. Escolha outro arquivo.',
+    );
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  try {
+    assertFileAllowed(file.name, file.type, bytes);
+    const imageType = originalImageType(bytes);
+    return {
+      bytes,
+      name: safeFilename(file.name),
+      type: imageType ?? (file.type || 'application/octet-stream'),
+      image: imageType !== null,
+      thumbnail: null,
+    };
+  } catch (error: unknown) {
+    bytes.fill(0);
+    throw error;
+  }
+}
 function dimensions(
   width: number,
   height: number,

@@ -201,6 +201,18 @@
 .chat-message p {
   white-space: pre-wrap;
 }
+.chat-attachment-preview {
+  max-width: 360px;
+}
+.chat-attachment-preview img {
+  display: block;
+  max-width: 100%;
+  max-height: 420px;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  border-radius: 8px;
+}
 .chat-panel .chat-history {
   flex: 1;
   min-height: 0;
@@ -381,10 +393,6 @@
 }
 .chat-panel .compose-primary:hover {
   background: var(--accent-strong);
-}
-.attach-options .chat-popover {
-  top: auto;
-  bottom: calc(100% + 12px);
 }
 .chat-panel .compose-notice {
   margin: 0;

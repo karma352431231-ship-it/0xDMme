@@ -1,16 +1,10 @@
-import { attachmentContent } from '../../shared/attachments/index.ts';
 import type { AttachmentContent } from '../../shared/attachments/index.ts';
 import { VoicePlayback } from '../voice-playback/index.ts';
 import { voiceDuration } from '../../shared/voice/index.ts';
 import { prepareAttachment } from '../attachments/index.ts';
 import type { AttachmentSelection } from '../attachments/index.ts';
-import { decodeDailyText } from '../../shared/daily/index.ts';
-interface MediaView {
-  archived?: boolean;
-  id: string;
-  text: string;
-  peer: string;
-}
+import { renderMedia } from './media.ts';
+import type { MediaView } from './media.ts';
 export class AttachmentUi {
   private readonly playback: VoicePlayback;
   private readonly changed: () => void;
@@ -75,10 +69,7 @@ export class AttachmentUi {
       void run(async () => {
         this.clearSelection();
         const generation = this.selectionGeneration,
-          photo =
-            host.querySelector<HTMLSelectElement>('[data-attachment-mode]')
-              ?.value !== 'file',
-          value = await prepareAttachment(file, photo);
+          value = await prepareAttachment(file, false);
         if (generation !== this.selectionGeneration || !host.isConnected) {
           value.bytes.fill(0);
           value.thumbnail?.fill(0);
@@ -117,7 +108,7 @@ export class AttachmentUi {
       area.replaceChildren(label, listen);
       return;
     }
-    label.textContent = `${value.name} · ${(value.bytes.length / 1_000_000).toFixed(2)} MB. ${value.image ? 'Foto otimizada: pode perder detalhes; metadados privados removidos.' : 'Original: bytes preservados; pode conter GPS/EXIF ou outros metadados.'} Clique em Enviar para compartilhar.`;
+    label.textContent = `${value.name} · ${(value.bytes.length / 1_000_000).toFixed(2)} MB. Original preservado; pode conter GPS/EXIF ou outros metadados. Clique em Enviar para compartilhar.`;
     area.replaceChildren(label);
     if (value.image) {
       const image = document.createElement('img');
@@ -125,7 +116,7 @@ export class AttachmentUi {
         new Blob([value.bytes], { type: value.type }),
       );
       image.src = this.previewUrl;
-      image.alt = 'Prévia local da foto otimizada';
+      image.alt = 'Prévia local da imagem original';
       area.append(image);
     }
   }
@@ -137,83 +128,16 @@ export class AttachmentUi {
     load: (view: V, thumbnail: boolean) => Promise<Uint8Array<ArrayBuffer>>;
     run: (work: () => Promise<void>) => Promise<void>;
   }): void {
-    const content =
-        input.content ??
-        attachmentContent(JSON.parse(input.view.text) as unknown),
-      token = this.generation,
-      info = document.createElement('p'),
-      preview = document.createElement('div'),
-      button = document.createElement('button');
-    const caption = decodeDailyText(content.caption).text;
-    info.textContent = `${content.voice ? 'Mensagem de voz · ' + voiceDuration(content.voice) : content.name} · ${(content.file.ref.bytes / 1_000_000).toFixed(2)} MB${caption ? ` · ${caption}` : ''}`;
-    button.type = 'button';
-    button.textContent = content.voice
-      ? 'Carregar áudio para ouvir'
-      : content.image
-        ? 'Carregar foto completa'
-        : 'Baixar arquivo original';
-    input.article.append(info, preview, button);
-    const current = () =>
-      token === this.generation && input.article.isConnected;
-    const saveNotice =
-      input.saveNotice ??
-      'A cópia salva fica fora do cofre e da exclusão bilateral. Abra arquivos somente se confiar na origem.';
-    const fetchMedia = async (thumbnail: boolean) => {
-      if (!current()) return;
-      const bytes = await input.load(input.view, thumbnail);
-      if (!current()) {
-        bytes.fill(0);
-        return;
-      }
-      if (content.voice && !thumbnail) {
-        try {
-          this.playback.show({
-            bytes,
-            voice: content.voice,
-            id: input.view.id,
-            peer: playbackPeer(input.view),
-          });
-        } finally {
-          bytes.fill(0);
-        }
-        return;
-      }
-      const type = thumbnail
-          ? 'image/png'
-          : content.image
-            ? content.type
-            : 'application/octet-stream',
-        url = URL.createObjectURL(new Blob([bytes], { type }));
-      bytes.fill(0);
-      this.urls.push(url);
-      if (content.image || thumbnail) {
-        const image = document.createElement('img');
-        image.src = url;
-        image.alt = content.name;
-        preview.replaceChildren(image);
-      }
-      if (!thumbnail) {
-        button.hidden = true;
-        const save = document.createElement('a');
-        save.href = url;
-        save.download = content.name;
-        save.textContent = 'Salvar no aparelho';
-        input.article.append(save);
-        const warning = document.createElement('small');
-        warning.textContent = saveNotice;
-        input.article.append(warning);
-      }
-    };
-    button.addEventListener('click', () => {
-      void input.run(() => this.enqueue(() => fetchMedia(false)));
+    const token = this.generation;
+    renderMedia({
+      ...input,
+      playback: this.playback,
+      current: () => token === this.generation && input.article.isConnected,
+      retain: (url) => {
+        this.urls.push(url);
+      },
+      enqueue: (work) => this.enqueue(work),
     });
-    if (content.thumbnail) {
-      void this.enqueue(() => fetchMedia(true)).catch(() => {
-        if (!current()) return;
-        preview.textContent =
-          'Miniatura indisponível. Sincronize ou toque para tentar carregar a foto.';
-      });
-    }
   }
   private enqueue(work: () => Promise<void>): Promise<void> {
     if (this.queued >= 18)
@@ -225,8 +149,4 @@ export class AttachmentUi {
       this.queued--;
     });
   }
-}
-
-function playbackPeer(view: MediaView): string | null {
-  return view.archived ? null : view.peer;
 }

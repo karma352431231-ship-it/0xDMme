@@ -45,12 +45,11 @@ export function chatComposer(scope: 'message' | 'group'): string {
       <div class="compose-input">
         <button data-${scope}-emoji class="chat-icon" type="button" aria-label="Escolher emoji" title="Escolher emoji">${chatIcon('emoji')}</button>
         <textarea data-${scope}-text rows="1" aria-label="Mensagem" placeholder="Mensagem…"></textarea>
-        <details class="chat-options attach-options"><summary class="chat-icon" aria-label="Anexar foto ou arquivo" title="Anexar foto ou arquivo">${chatIcon('clip')}</summary><div class="chat-popover"><button data-chat-attachment="photo" type="button">Foto otimizada</button><button data-chat-attachment="file" type="button">Arquivo original · até 3 MB</button><p>Vídeos ainda não são aceitos.</p></div></details>
+        <button data-chat-attachment type="button" class="chat-icon" aria-label="Anexar foto ou arquivo" title="Anexar foto ou arquivo · até 3 MB">${chatIcon('clip')}</button>
       </div>
       <button data-voice-record class="chat-icon compose-primary" type="button" aria-label="Gravar mensagem de voz" title="Gravar voz">${chatIcon('mic')}</button>
       <button data-compose-send class="chat-icon compose-primary" type="submit" aria-label="Enviar mensagem" title="Enviar" hidden>${chatIcon('send')}</button>
     </div>
-    <select data-attachment-mode aria-label="Modo do anexo" hidden><option value="photo">Foto otimizada</option><option value="file">Arquivo original</option></select>
     <input data-attachment-file type="file" aria-label="Foto ou arquivo" hidden>
   </form>`;
 }
@@ -120,17 +119,10 @@ export function bindChatComposer(form: HTMLElement, changed: () => void): void {
     .querySelectorAll<HTMLButtonElement>('[data-chat-attachment]')
     .forEach((button) => {
       button.addEventListener('click', () => {
-        const mode = form.querySelector<HTMLSelectElement>(
-          '[data-attachment-mode]',
-        );
         const file = form.querySelector<HTMLInputElement>(
           '[data-attachment-file]',
         );
-        if (!mode || !file || file.disabled) return;
-        mode.value = button.dataset['chatAttachment'] ?? 'photo';
-        file.accept =
-          mode.value === 'photo' ? 'image/png,image/jpeg,image/webp' : '';
-        button.closest('details')?.removeAttribute('open');
+        if (!file || file.disabled) return;
         file.click();
       });
     });

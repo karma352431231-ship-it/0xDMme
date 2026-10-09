@@ -48,18 +48,13 @@ export async function prepareAttachment(
     return { ...prepared, image: true };
   }
   if (!file.size || file.size > fileLimit)
-    throw new Error('Arquivo original deve ter até 3 MB.');
-  const result = await attachmentWork<{ bytes: Uint8Array<ArrayBuffer> }>({
+    throw new Error(
+      'Arquivo vazio ou acima do limite de 3 MB. Escolha outro arquivo.',
+    );
+  return attachmentWork<AttachmentSelection>({
     operation: 'original',
     file,
   });
-  return {
-    ...result,
-    name: file.name.slice(0, 160),
-    type: file.type || 'application/octet-stream',
-    image: false,
-    thumbnail: null,
-  };
 }
 function name(message: string, id: string, index: number): string {
   return `attachment:${message}:${id}:${index}`;

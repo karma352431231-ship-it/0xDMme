@@ -41,6 +41,20 @@ const relation = {
   author: original.author,
   type: 'edit' as const,
 };
+await test('cartões de perfil atualizam a identidade sem criar mensagens em uma conversa nova', () => {
+  const card = {
+    ...original,
+    id: crypto.randomUUID(),
+    kind: 'profile',
+    text: JSON.stringify({ name: 'Teste 1', revision: 1, photo: null }),
+  };
+  assert.deepEqual(dailyViews([card]), []);
+  assert.deepEqual(
+    dailyViews([card, original]).map((row) => row.id),
+    [original.id],
+  );
+  assert.equal(card.text.includes('Teste 1'), true);
+});
 await test('reação admite um emoji composto e variantes; rejeita texto, múltiplos emojis e controles; última reação substitui a anterior', () => {
   const variants = [
     '🦋',

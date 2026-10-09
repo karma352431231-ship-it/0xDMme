@@ -6,6 +6,7 @@ import type {
   VaultAuthority,
 } from '../src/client/vault-authority/index.ts';
 import { PublicProfiles } from '../src/client/public-profile/controller.ts';
+import { startPublicProfile } from '../src/client/public-profile/index.ts';
 import { publicModerationNotice } from '../src/shared/public-moderation/index.ts';
 
 function session(): AccountSession {
@@ -48,6 +49,45 @@ const result = () => ({
   profile: { id: crypto.randomUUID(), handle: 'sintetico', avatar: null },
   revision: 1,
   pendingAvatar: null,
+});
+await test('criar @ pelo botão confirma o perfil público sem caixa de seleção adicional', async (t) => {
+  const own = session();
+  let click = () => {};
+  const button = {
+    addEventListener: (_event: string, listener: () => void) => {
+      click = listener;
+    },
+    disabled: false,
+  };
+  const host = {
+    innerHTML: '',
+    querySelector: (selector: string) => {
+      if (selector === '[data-public-action="create"]') return button;
+      if (selector === '[data-public-input]') return { value: '@sintetico' };
+      return null;
+    },
+    querySelectorAll: () => [],
+  };
+  const requests: { handle: string; consent: boolean }[] = [];
+  t.mock.method(PublicProfiles.prototype, 'refresh', async () => {});
+  t.mock.method(
+    PublicProfiles.prototype,
+    'create',
+    (handle: string, consent: boolean) => {
+      requests.push({ handle, consent });
+      return Promise.resolve();
+    },
+  );
+  const ui = startPublicProfile(
+    access(own, () => Promise.resolve('assinatura-sintetica')),
+  );
+  ui.mount(host as unknown as HTMLElement);
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  click();
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  assert.deepEqual(requests, [{ handle: '@sintetico', consent: true }]);
+  assert.equal(host.innerHTML.includes('data-public-consent'), false);
+  ui.leave();
 });
 await test('análises anteriores substituem a página sem acumular avisos; cursor é assinado e sessão limpa a navegação', async (t) => {
   const own = session(),

@@ -2011,8 +2011,7 @@ footer {
   gap: 8px;
   margin: 14px 0;
 }
-.profile-settings label:has(input[type='checkbox']),
-.public-profile-card .public-consent {
+.profile-settings label:has(input[type='checkbox']) {
   display: flex;
   align-items: center;
 }

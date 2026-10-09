@@ -1,9 +1,10 @@
 import { openFile, sealFile } from '../attachment-crypto/index.ts';
 import {
-  assertFileAllowed,
   imageShape,
   preparePhoto,
+  prepareOriginal,
 } from '../attachment-images/index.ts';
+import { thumbnailLimit } from '../../shared/attachments/index.ts';
 import type { PrivateFile } from '../../shared/attachments/index.ts';
 interface Scope {
   addEventListener(
@@ -29,14 +30,14 @@ async function run(data: Request): Promise<unknown> {
   if (data.operation === 'seal') return sealFile(data.bytes, data.maximum);
   if (data.operation === 'open') {
     const bytes = await openFile(data.file, data.bytes, data.maximum);
-    if (data.image) imageShape(bytes, 4_194_304);
+    if (data.image)
+      imageShape(
+        bytes,
+        data.maximum === thumbnailLimit ? 4_194_304 : 24_000_000,
+      );
     return { bytes };
   }
-  if (!data.file.size || data.file.size > 3_000_000)
-    throw new Error('Arquivo deve ter até 3 MB.');
-  const bytes = new Uint8Array(await data.file.arrayBuffer());
-  assertFileAllowed(data.file.name, data.file.type, bytes);
-  return { bytes };
+  return prepareOriginal(data.file);
 }
 scope.addEventListener('message', (event) => {
   void run(event.data)
