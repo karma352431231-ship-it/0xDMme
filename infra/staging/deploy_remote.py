@@ -1,6 +1,7 @@
 """Bounded release activation. Access/inventory arrive through private stdin."""
 
 import base64
+from contextlib import contextmanager
 import fcntl
 import hashlib
 import io
@@ -8,6 +9,7 @@ import json
 import os
 from pathlib import Path, PurePosixPath
 import re
+import resource
 import shutil
 import subprocess
 import sys
@@ -22,6 +24,26 @@ UNIT = '0xdmme-test.service'
 ORIGIN = 'https://0xdmme.app'
 MAX_ARCHIVE = 16 * 1024 * 1024
 MAX_RELEASE = 128 * 1024 * 1024
+MEASUREMENTS = {}
+
+
+@contextmanager
+def measured(stage):
+    """Only fixed phase labels and elapsed/CPU seconds enter private deploy logs."""
+    def cpu():
+        own = resource.getrusage(resource.RUSAGE_SELF)
+        children = resource.getrusage(resource.RUSAGE_CHILDREN)
+        return own.ru_utime + own.ru_stime + children.ru_utime + children.ru_stime
+    started, used = time.monotonic(), cpu()
+    try:
+        yield
+    finally:
+        value = MEASUREMENTS.setdefault(stage, {'calls': 0, 'seconds': 0, 'cpu_seconds': 0})
+        value['calls'] += 1
+        value['seconds'] = round(value['seconds'] + time.monotonic() - started, 3)
+        value['cpu_seconds'] = round(value['cpu_seconds'] + cpu() - used, 3)
+
+
 # The previous release already used all 512 manifest entries. Only these two
 # owner-requested HTTP modules are additional entries; unrelated growth still
 # fails. Archive, extraction, manifest-byte and runtime budgets stay unchanged.
@@ -674,8 +696,10 @@ def prepare(config, work):
         extract(archive, candidate, ['src', 'infra', 'package.json', 'package-lock.json', '.nvmrc'])
     with tarfile.open(work / 'build.tar.gz') as archive:
         extract(archive, candidate, ['dist'])
-    public_sources.reconstruct(config, candidate, DATA / 'git/0xdmme.git')
-    actual = {str(p.relative_to(candidate)): digest(p) for p in candidate.rglob('*') if p.is_file()}
+    with measured('corresponding_sources'):
+        public_sources.reconstruct(config, candidate, DATA / 'git/0xdmme.git')
+    with measured('candidate_hashes'):
+        actual = {str(p.relative_to(candidate)): digest(p) for p in candidate.rglob('*') if p.is_file()}
     if actual != config['files']:
         raise RuntimeError('Git source/build manifest mismatch.')
     compatibility(candidate, DATA / 'release')
@@ -689,8 +713,10 @@ def prepare(config, work):
             size += path.stat().st_size
         if count > 4096 or size > MAX_RELEASE:
             raise RuntimeError('Runtime dependency budget exceeded.')
-    shutil.copytree(dependencies, candidate / 'node_modules', symlinks=True)
-    runtime.install(candidate)
+    with measured('runtime_copy'):
+        shutil.copytree(dependencies, candidate / 'node_modules', symlinks=True)
+    with measured('runtime_install'):
+        runtime.install(candidate)
     if (candidate / 'dist/runtime').exists():
         run(['/usr/bin/node', '-e',
              "const p=require(process.argv[1]); if(typeof p.sendNotification!=='function') process.exit(1);",
@@ -925,12 +951,33 @@ def activate_database(config, work, candidate, transition):
 
 
 def activate(config, work):
-    before = preflight(config)
+    with measured('preflight'):
+        before = preflight(config)
     if not work.is_dir() or work.is_symlink() or (work / 'result.json').exists():
         raise RuntimeError('Deployment workspace unavailable/already used.')
     if digest(work / 'build.tar.gz') != config['archive_sha256']:
         raise RuntimeError('Uploaded archive changed.')
-    candidate = prepare(config, work)
+    receipt(work, {'status': 'preparing', 'commit': config['commit']})
+    try:
+        with measured('prepare'):
+            candidate = prepare(config, work)
+    except BaseException:
+        verified = False
+        workers_ready = False
+        try:
+            preservation(config['baseline'])
+            healthy()
+            verified = own_state() == before
+            if verified:
+                if (DATA / 'background-units').exists():
+                    import deploy_background
+                    workers_ready = deploy_background.ready()
+                else:
+                    workers_ready = True
+        finally:
+            receipt(work, {'status': 'failed', 'commit': config['commit'], 'code_only': True,
+                           'phase': 'prepare', 'rollback_verified': verified, 'workers_ready': workers_ready})
+        raise
     preservation(config['baseline'])
     if own_state() != before:
         raise RuntimeError('Own configuration/database service changed.')
@@ -960,24 +1007,33 @@ def activate(config, work):
     background = None
     if (DATA / 'background-units').exists():
         import deploy_background as background
-        background.verify_current(config)
-        background.stop()
     def verify():
-        wait_ready(config['files'])
+        with measured('public_readiness'):
+            wait_ready(config['files'])
         if background:
-            background.start()
+            with measured('workers_start'):
+                background.start()
         preservation(config['baseline'])
         if own_state() != before:
             raise RuntimeError('Own configuration/database service changed.')
     try:
-        exchange(candidate, work / 'previous', verify)
-    except BaseException as error:
         if background:
+            background.verify_current(config)
             background.stop()
-            if isinstance(error, ActivationFailed) and error.rollback_verified:
-                background.start()
-        receipt(work, {'status': 'failed', 'commit': config['commit'],
-                       'rollback_verified': isinstance(error, ActivationFailed) and error.rollback_verified})
+        with measured('exchange_and_verify'):
+            exchange(candidate, work / 'previous', verify)
+    except BaseException as error:
+        rolled_back = isinstance(error, ActivationFailed) and error.rollback_verified
+        workers_ready = not background
+        try:
+            if background:
+                background.stop()
+                if rolled_back:
+                    background.start()
+                    workers_ready = True
+        finally:
+            receipt(work, {'status': 'failed', 'commit': config['commit'], 'code_only': True,
+                           'rollback_verified': rolled_back, 'workers_ready': workers_ready})
         raise
     result = {'status': 'published', 'commit': config['commit'],
               'public_build_verified': True, 'preservation_checks_passed': True,
@@ -1032,7 +1088,54 @@ def retain_migration_backup(work, old):
             os.close(fd)
 
 
-def prune_completed(current):
+def verified_code_failure(work, state):
+    """Only unpublished code with a verified live rollback can be reclaimed."""
+    if (state.get('status') != 'failed' or state.get('code_only') is not True
+            or state.get('rollback_verified') is not True or state.get('workers_ready') is not True
+            or state.get('commit') != work.name[len('deployment-'):]):
+        return False
+    names = set(p.name for p in work.iterdir())
+    if (work.stat().st_uid != os.geteuid() or not {'build.tar.gz', 'result.json'}.issubset(names)
+            or not names.issubset({'build.tar.gz', 'result.json', 'candidate'})
+            or any(p.is_symlink() for p in work.iterdir())):
+        raise RuntimeError('Failed code artifact requires manual review.')
+    return True
+
+
+def retain_failure_receipt(state):
+    """Keep 16 small failure records; local builds and pushed Git remain recoverable."""
+    if not re.fullmatch(r'[a-f0-9]{40}', state.get('commit', '')):
+        raise RuntimeError('Failure receipt commit differs.')
+    directory = DATA / 'release-failures'
+    if directory.is_symlink():
+        raise RuntimeError('Failure receipt path requires review.')
+    directory.mkdir(exist_ok=True, mode=0o700)
+    records = []
+    for path in directory.iterdir():
+        if (path.is_symlink() or not path.is_file() or path.stat().st_uid != os.geteuid()
+                or not re.fullmatch(r'[a-f0-9]{40}\.json', path.name) or path.stat().st_size > 16384):
+            raise RuntimeError('Failure receipt inventory requires review.')
+        records.append(path)
+        if len(records) > 16:
+            raise RuntimeError('Failure receipt budget exceeded.')
+    destination = directory / (state['commit'] + '.json')
+    encoded = json.dumps(state).encode()
+    if len(encoded) > 16384:
+        raise RuntimeError('Failure receipt budget requires review.')
+    if destination.exists():
+        if destination.read_bytes() != encoded:
+            raise RuntimeError('Failure receipt collision requires review.')
+        return
+    for path in sorted(records, key=lambda p:p.stat().st_mtime_ns)[:max(0, len(records) - 15)]:
+        path.unlink()
+    descriptor = os.open(destination, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+    with os.fdopen(descriptor, 'wb') as handle:
+        handle.write(encoded)
+        handle.flush()
+        os.fsync(handle.fileno())
+
+
+def prune_completed(current, dry_run=False):
     # Only workspaces made by this command; the current workspace keeps the previous release.
     transitions = []
     for work in DATA.glob('deployment-*'):
@@ -1047,6 +1150,7 @@ def prune_completed(current):
     # Preserve the newest transition's full rollback until another publication
     # has succeeded. Historical data backups never enter the code-workspace cap.
     newest = max(transitions, key=lambda entry:entry[0])[1] if transitions else None
+    removed = 0
     for work in DATA.glob('deployment-*'):
         if work == current or work.is_symlink() or not work.is_dir():
             continue
@@ -1056,11 +1160,19 @@ def prune_completed(current):
         if not marker.is_file() or marker.is_symlink():
             continue
         old = json.loads(marker.read_text())
+        if verified_code_failure(work, old):
+            if not dry_run:
+                retain_failure_receipt(old)
+                shutil.rmtree(work)
+            removed += 1
+            continue
         if old.get('status') != 'published' or old.get('commit') != work.name[len('deployment-'):]:
             continue
         if old.get('private_backup_retained') is True:
             if work != newest:
-                retain_migration_backup(work, old)
+                if not dry_run:
+                    retain_migration_backup(work, old)
+                removed += 1
             continue
         if work.stat().st_uid != os.geteuid() or set(p.name for p in work.iterdir()) != {'build.tar.gz', 'previous', 'result.json'}:
             raise RuntimeError('Old deployment workspace requires manual review; new release remains active.')
@@ -1070,7 +1182,16 @@ def prune_completed(current):
         allowed = {'src', 'infra', 'dist', 'node_modules', 'package.json', 'package-lock.json', '.nvmrc'}
         if not set(p.name for p in previous.iterdir()).issubset(allowed):
             raise RuntimeError('Old rollback contents require manual review; new release remains active.')
-        shutil.rmtree(work)
+        if not dry_run:
+            shutil.rmtree(work)
+        removed += 1
+    return removed
+
+
+def retention_capacity(current):
+    reclaimable = prune_completed(current, dry_run=True)
+    if len(list(DATA.glob('deployment-*'))) - reclaimable >= 3:
+        raise RuntimeError('Deployment retention budget reached; review own old artifacts before upload.')
 
 
 def main():
@@ -1085,7 +1206,8 @@ def main():
     action = sys.argv[1]
     work = DATA / ('deployment-' + config['commit'])
     if action == 'check':
-        preflight(config)
+        with measured('preflight'):
+            preflight(config)
         marker = work / 'result.json'
         if marker.is_file() and not marker.is_symlink():
             state = json.loads(marker.read_text())
@@ -1101,13 +1223,16 @@ def main():
                         if not deploy_background.ready():
                             raise RuntimeError('Previously published background workers are not ready.')
                     return {'preflight_passed': True, 'already_active': True, 'commit': config['commit']}
+        retention_capacity(work)
         return {'preflight_passed': True, 'activated': False}
     if action not in ['receive', 'activate', 'requests']:
         raise RuntimeError('Invalid deployment action.')
     fd = os.open(DATA / 'deployment.lock', os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
     with os.fdopen(fd, 'w') as lock:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        preflight(config)
+        if action != 'activate':
+            with measured('preflight'):
+                preflight(config)
         if action == 'requests':
             import deploy_request_limit as request_limits
             if 'request_limit' not in config:
@@ -1140,9 +1265,21 @@ def main():
         return activate(config, work)
 
 
+def execute():
+    MEASUREMENTS.clear()
+    try:
+        with measured('total'):
+            result = main()
+    except BaseException as error:
+        print(json.dumps({'deployment_failure': transition_failure('execution', error),
+                          'timings': MEASUREMENTS}), file=sys.stderr, flush=True)
+        raise
+    return dict(result, timings=MEASUREMENTS)
+
+
 if __name__ == '__main__':
     try:
-        print(json.dumps(main()))
+        print(json.dumps(execute()))
     except Exception as error:
         print(json.dumps({'deployment_failed': True, 'error_type': type(error).__name__,
                           'message': str(error) if isinstance(error, RuntimeError)

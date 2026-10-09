@@ -1,5 +1,15 @@
 # 0xDMme — Git e envio à VPS
 
+## Agilidade do deploy — correção solicitada em 09/10/2026
+
+O proprietário pediu corrigir a demora recorrente da publicação. Reutilizar o comando existente, mantendo build no Mac, CI integral do commit exato, preservação, orçamento e rollback. Os jobs de check e integração passam a executar em paralelo; todos precisam aprovar o workflow para liberar a ativação. Não remover testes nem alterar runners, dependências, banco ou serviços compartilhados.
+
+O check remoto passa a verificar a capacidade de retenção antes do upload, sem apagar artefatos. No recebimento, o executor pode liberar código temporário de tentativas anteriores explicitamente marcadas como falhas de código com rollback e workers verificados. Manter os 16 recibos compactos mais recentes; Git enviado e builds locais conservam a recuperação das fontes. Tentativas ambíguas, rollback incompleto, dados/backups e a tentativa atual continuam fora dessa limpeza. O limite de três workspaces permanece. Falhas de preparação e falhas durante a recuperação dos workers deixam recibo, sem simular sucesso.
+
+A ativação faz uma única conferência inicial sob o lock próprio, seguida das verificações de preservação já exigidas antes/depois da troca. O comando registra duração e CPU de fases fixas nos logs privados de `.local/`, inclusive em falha. Esses tempos permitem investigar preparo, runtime, prontidão pública e workers sem coletar conteúdo, credenciais ou dados de usuários. Não afirmar redução da ativação real sem medi-la; esta revisão não aumenta recursos da VPS.
+
+**Ponto importante:** a limpeza automática atinge somente artefatos temporários de código cuja recuperação foi confirmada. Não remove histórico, objetos aceitos ou backups do banco, nem permite ativação com CI reprovada.
+
 ## Correção de latência do chat — ativação autorizada em 09/10/2026
 
 O proprietário pediu envio e ativação do fix de latência medido, com fontes iniciais em `f5f10ce`. Usar `npm run deploy:staging` em checkout limpo/enviado e CI integral do commit final, com build no Mac, preservação, limites e rollback do executor existente. As alterações pessoais no checkout original ficam fora da release.

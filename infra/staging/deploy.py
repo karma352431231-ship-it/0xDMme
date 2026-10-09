@@ -195,7 +195,7 @@ def remote(action, config, target):
         modules.append('m=types.ModuleType(' + repr(name) + ');sys.modules[' + repr(name) +
                        ']=m;exec(' + repr(path.read_text()) + ',m.__dict__)')
     code = ('import sys,types,json;' + ';'.join(modules) +
-            ';print(json.dumps(sys.modules["deploy_remote"].main()))')
+            ';print(json.dumps(sys.modules["deploy_remote"].execute()))')
     worker_paths = []
     if action == 'activate' and 'src/server/worker.ts' in config['files']:
         worker_paths = ['-p', 'ReadWritePaths=/var/lib/0xdmme/data /etc/systemd/system/0xdmme-test.service.d',

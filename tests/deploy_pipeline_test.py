@@ -1122,9 +1122,120 @@ class CommunitiesDeploymentTests(AttachmentDeploymentTests):
             work = Path(directory); candidate = work/'candidate'; self.migrations(candidate)
             (work/'build.tar.gz').write_bytes(b'fixture')
             with patch.object(remote, 'preflight', return_value={}), patch.object(remote, 'prepare', return_value=candidate), patch.object(remote, 'preservation'), patch.object(remote, 'own_state', return_value={}), patch.object(remote, 'database_files', side_effect=lambda path: {'new':'hash'} if path == candidate else {'old':'hash'}), patch.object(remote, 'activate_communities', return_value={'published':True}) as activate, patch.object(remote, 'activate_attachments') as wrong:
-                result = remote.activate({'archive_sha256':remote.digest(work/'build.tar.gz'),'baseline':{}}, work)
+                result = remote.activate(dict(manifest(), archive_sha256=remote.digest(work/'build.tar.gz'), baseline={}), work)
             self.assertEqual(result, {'published':True})
             activate.assert_called_once(); wrong.assert_not_called()
+
+
+class FailedCodeRetentionTests(unittest.TestCase):
+    def failed(self, root, commit='a' * 40):
+        work = root / ('deployment-' + commit); work.mkdir()
+        (work / 'build.tar.gz').write_bytes(b'code artifact')
+        (work / 'candidate').mkdir(); (work / 'candidate/code.ts').write_text('unpublished code')
+        state = dict(status='failed', commit=commit, code_only=True,
+                     rollback_verified=True, workers_ready=True)
+        (work / 'result.json').write_text(json.dumps(state))
+        return work, state
+
+    def test_verified_failed_code_frees_slot_and_retains_receipt_without_touching_live_data(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory); work, state = self.failed(root)
+            (root / 'release').mkdir(); (root / 'release/live').write_text('active')
+            (root / 'objects').mkdir(); (root / 'objects/accepted').write_text('preserve')
+            with patch.object(remote, 'DATA', root):
+                remote.prune_completed(root / ('deployment-' + 'b' * 40))
+            self.assertFalse(work.exists())
+            self.assertEqual(json.loads((root / 'release-failures' / ('a' * 40 + '.json')).read_text()), state)
+            self.assertEqual((root / 'release/live').read_text(), 'active')
+            self.assertEqual((root / 'objects/accepted').read_text(), 'preserve')
+
+    def test_dry_run_checks_capacity_without_deleting_any_artifact(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory); failed, _ = self.failed(root)
+            for commit in ['b' * 40, 'c' * 40]: (root / ('deployment-' + commit)).mkdir()
+            with patch.object(remote, 'DATA', root):
+                remote.retention_capacity(root / ('deployment-' + 'd' * 40))
+            self.assertTrue(failed.is_dir()); self.assertFalse((root / 'release-failures').exists())
+            (failed / 'result.json').write_text('{"status":"activating"}')
+            with patch.object(remote, 'DATA', root), self.assertRaisesRegex(RuntimeError, 'before upload'):
+                remote.retention_capacity(root / ('deployment-' + 'd' * 40))
+            self.assertTrue(failed.is_dir())
+
+    def test_unverified_failures_and_data_backups_are_never_reclaimed(self):
+        for invalid in ['rollback', 'workers', 'database.dump', 'objects-backup']:
+            with self.subTest(invalid=invalid), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory); work, state = self.failed(root)
+                if invalid == 'rollback': state['rollback_verified'] = False
+                elif invalid == 'workers': state['workers_ready'] = False
+                elif invalid == 'database.dump': (work / invalid).write_text('preserve database')
+                else: (work / invalid).mkdir()
+                (work / 'result.json').write_text(json.dumps(state))
+                with patch.object(remote, 'DATA', root):
+                    if invalid in ['rollback', 'workers']:
+                        self.assertEqual(remote.prune_completed(root / ('deployment-' + 'b' * 40)), 0)
+                    else:
+                        with self.assertRaisesRegex(RuntimeError, 'manual review'):
+                            remote.prune_completed(root / ('deployment-' + 'b' * 40))
+                self.assertTrue(work.exists()); self.assertFalse((root / 'release-failures').exists())
+
+    def test_worker_recovery_failure_still_records_failed_attempt_and_blocks_cleanup(self):
+        import deploy_background as workers
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory); work = root / ('deployment-' + 'a' * 40); work.mkdir()
+            (root / 'background-units').mkdir(); (work / 'build.tar.gz').write_bytes(b'code')
+            candidate = work / 'candidate'; candidate.mkdir()
+            config = dict(manifest(), baseline={}, archive_sha256=remote.digest(work / 'build.tar.gz'))
+            with (patch.object(remote, 'DATA', root), patch.object(remote, 'preflight', return_value={}),
+                  patch.object(remote, 'prepare', return_value=candidate), patch.object(remote, 'preservation'),
+                  patch.object(remote, 'own_state', return_value={}), patch.object(remote, 'database_files', return_value={}),
+                  patch.object(remote, 'exchange', side_effect=remote.ActivationFailed(True)),
+                  patch.object(workers, 'verify_current'), patch.object(workers, 'stop'),
+                  patch.object(workers, 'start', side_effect=RuntimeError('worker recovery failed'))):
+                with self.assertRaisesRegex(RuntimeError, 'worker recovery failed'):
+                    remote.activate(config, work)
+            state = json.loads((work / 'result.json').read_text())
+            self.assertEqual(state['status'], 'failed'); self.assertTrue(state['rollback_verified'])
+            self.assertFalse(state['workers_ready'])
+            self.assertFalse(remote.verified_code_failure(work, state))
+
+    def test_failure_records_are_bounded_and_idempotent_for_retrying_artifact_cleanup(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            with patch.object(remote, 'DATA', root):
+                for number in range(18):
+                    commit = f'{number:040x}'; state = dict(status='failed', commit=commit)
+                    remote.retain_failure_receipt(state)
+                remote.retain_failure_receipt(state)
+            records = list((root / 'release-failures').iterdir())
+            self.assertEqual(len(records), 16)
+            self.assertTrue((root / 'release-failures' / (commit + '.json')).exists())
+
+    def test_preparation_failure_records_recovery_before_any_release_exchange(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory); work = root / ('deployment-' + 'a' * 40); work.mkdir()
+            (work / 'build.tar.gz').write_bytes(b'code')
+            config = dict(manifest(), baseline={}, archive_sha256=remote.digest(work / 'build.tar.gz'))
+            with (patch.object(remote, 'DATA', root), patch.object(remote, 'preflight', return_value={}),
+                  patch.object(remote, 'prepare', side_effect=RuntimeError('prepare failed')),
+                  patch.object(remote, 'preservation'), patch.object(remote, 'healthy'),
+                  patch.object(remote, 'own_state', return_value={}), patch.object(remote, 'exchange') as exchange):
+                with self.assertRaisesRegex(RuntimeError, 'prepare failed'): remote.activate(config, work)
+            exchange.assert_not_called()
+            state = json.loads((work / 'result.json').read_text())
+            self.assertEqual(state['phase'], 'prepare'); self.assertTrue(state['rollback_verified'])
+            self.assertTrue(remote.verified_code_failure(work, state))
+
+    def test_phase_diagnostics_report_failure_without_private_arguments_or_output(self):
+        error = subprocess.CalledProcessError(2, ['private-command', 'private-argument'],
+                                             stderr=b'private-credential private-content')
+        output = io.StringIO()
+        with patch.object(remote, 'main', side_effect=error), patch.object(remote.sys, 'stderr', output):
+            with self.assertRaises(subprocess.CalledProcessError): remote.execute()
+        report = json.loads(output.getvalue())
+        self.assertEqual(report['deployment_failure']['exit_code'], 2)
+        self.assertEqual(report['timings']['total']['calls'], 1)
+        self.assertGreaterEqual(report['timings']['total']['seconds'], 0)
+        self.assertNotIn('private-', output.getvalue())
 
 
 class HistoricalBackupRetentionTests(unittest.TestCase):
