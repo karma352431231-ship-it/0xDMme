@@ -7,11 +7,7 @@ import {
   resetHistoryPosition,
   updateMessageStates,
 } from '../chat-ui/index.ts';
-import {
-  displayName,
-  paintAvatar,
-  shortAddress,
-} from '../identity-display/index.ts';
+import { displayName, paintAvatar, shortAddress } from '../appearance/index.ts';
 import type { HistoryUpdate } from '../message-visibility/index.ts';
 import { mountPushSettings } from '../push-settings/index.ts';
 import { notificationSettings } from './settings.ts';

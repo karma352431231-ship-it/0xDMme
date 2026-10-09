@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { bindSettingsSections } from '../src/client/app/settings.ts';
+import { bindSettingsSections } from '../src/client/app/pages.ts';
 
 await test('categorias abrem uma por vez e notificam o fechamento de aparelhos', () => {
   const account = Object.assign(new EventTarget(), {

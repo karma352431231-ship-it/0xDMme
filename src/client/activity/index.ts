@@ -1,9 +1,5 @@
 import type { AccountSession } from '../../shared/account/index.ts';
-import {
-  displayName,
-  paintAvatar,
-  shortAddress,
-} from '../identity-display/index.ts';
+import { displayName, paintAvatar, shortAddress } from '../appearance/index.ts';
 
 /**
  * Atividade (docs/UI_PAINEIS_E_TEMAS.md): one place for items the app already

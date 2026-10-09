@@ -117,3 +117,16 @@ Implementada localmente em 09/10/2026:
 - **Contatos sai da barra.** Agenda, bloqueados, Meu convite e pedidos continuam na tela de Contatos, aberta por **Perfil → Contatos, agenda e convite** e pelo **+** da lista (adicionar contato). O módulo de Contatos é montado uma vez por tela e o Perfil já o usa em "Quem pode me encontrar"; por isso o Perfil leva à tela existente em vez de repeti-la. Pedidos recebidos também aparecem na Atividade. Links de convite `#contatos?convite=` continuam iguais.
 
 Validação: lint, TypeScript, fronteiras, formatação, build e testes unitários passaram. Prévia local sem backend conferiu em 390 e 320 px a barra com contador, a lista com Privados/Públicos (estado conectado simulado só na apresentação), o atalho do Perfil e a tela de Contatos, sem excesso horizontal. Toque físico em Android/iPhone continua pendente, como nas etapas anteriores.
+
+## Orçamento do manifesto de publicação — 09/10/2026
+
+A CI recusou a publicação a partir da etapa 3: o manifesto da release chegou a 549 arquivos para um teto de 540 no executor, porque a versão anterior já estava no limite e o redesign criou 9 arquivos. Seguindo o precedente de `574d678`, o executor não foi ampliado; os arquivos novos foram reunidos em módulos existentes da mesma responsabilidade, sem mudar comportamento:
+
+- tokens dos temas (antes `app/theme.css`), painéis (`app/panels.css`) e Atividade (`activity/activity.css`) ficam em `app/app.css`, logo após as importações, na mesma ordem de cascata. Os tokens ficam num bloco marcado; o teste de cores literais ignora só esse bloco;
+- arranjo dos painéis (antes `app/layout.ts`) fica em `app/panels.ts`;
+- exibição de nomes, endereços e avatares (antes `identity-display`) fica em `appearance`;
+- registro de chamadas perdidas (antes `call-log`) fica em `calls/controller.ts`, exportado por `calls/index.ts`;
+- seções do Perfil (antes `app/settings.ts`) ficam em `app/pages.ts`;
+- os marcadores vazios `src/client/.gitkeep` e `src/shared/.gitkeep` foram removidos.
+
+**Ponto importante:** o manifesto volta a ficar exatamente no teto. Qualquer arquivo novo em `src`, `infra` ou `dist` fará a publicação falhar de novo; ampliar o teto do executor é uma decisão separada do proprietário.

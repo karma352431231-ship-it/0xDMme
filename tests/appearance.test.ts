@@ -51,13 +51,13 @@ await test('componentes usam somente tokens de tema, sem cores literais', async 
   const base = new URL('../src/client/', import.meta.url);
   const offenders: string[] = [];
   for (const entry of await readdir(base, { recursive: true })) {
-    if (!entry.endsWith('.css') || entry.endsWith('theme.css')) continue;
+    if (!entry.endsWith('.css')) continue;
     // The isolated crypto lab keeps its own light/dark palette outside the app shell.
     if (entry.includes('crypto-probe')) continue;
-    const css = (await readFile(new URL(entry, base), 'utf8')).replace(
-      /\/\*[\s\S]*?\*\//gu,
-      '',
-    );
+    // Theme tokens live in one marked block of app.css; everything else must use them.
+    const css = (await readFile(new URL(entry, base), 'utf8'))
+      .replace(/\/\* === Theme tokens[\s\S]*?End of theme tokens === \*\//u, '')
+      .replace(/\/\*[\s\S]*?\*\//gu, '');
     for (const match of css.matchAll(
       /#[0-9a-f]{3,8}\b|:\s*(?:white|black)\s*;|rgba?\(/giu,
     ))

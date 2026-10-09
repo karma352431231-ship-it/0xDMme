@@ -1,4 +1,4 @@
-import { displayName, paintAvatar } from '../identity-display/index.ts';
+import { displayName, paintAvatar } from '../appearance/index.ts';
 export interface DirectoryMenu {
   update: (entries: readonly ConversationEntry[]) => void;
   bind: (

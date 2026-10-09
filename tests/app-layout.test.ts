@@ -8,7 +8,7 @@ import {
   storedLayout,
   toggledChat,
   withChat,
-} from '../src/client/app/layout.ts';
+} from '../src/client/app/panels.ts';
 
 await test('arranjo salvo no aparelho volta para o painel completo quando inválido ou ilegível', () => {
   const cases: [string | null | Error, string][] = [

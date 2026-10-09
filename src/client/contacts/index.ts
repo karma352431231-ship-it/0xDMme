@@ -29,7 +29,7 @@ import {
   searchContacts,
   selectContactTab,
 } from './view.ts';
-import { shortAddress } from '../identity-display/index.ts';
+import { shortAddress } from '../appearance/index.ts';
 export function startContacts(
   access: VaultAccess,
   sync: VaultSync,

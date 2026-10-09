@@ -8,7 +8,17 @@ import {
 } from '../notification-sound/index.ts';
 import { VoiceCalls } from './controller.ts';
 import type { CallHistory, CallUiState } from './controller.ts';
-export { VoiceCalls } from './controller.ts';
+export {
+  VoiceCalls,
+  CallLog,
+  callLogLifetime,
+  callLogLimit,
+  emptyCallLog,
+  mergeCallLogs,
+  parseCallLog,
+  visibleMissedCalls,
+} from './controller.ts';
+export type { CallLogValue, MissedCall } from './controller.ts';
 export { VoiceConnection, iceConfiguration } from './rtc.ts';
 export { CallSecurity } from './security.ts';
 export { verifyCallDescription } from './security.ts';

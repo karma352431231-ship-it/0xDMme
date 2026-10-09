@@ -20,7 +20,7 @@ import {
   communityLink,
 } from './elements.ts';
 import { postText } from './post-text.ts';
-import { paintAvatar } from '../identity-display/index.ts';
+import { paintAvatar } from '../appearance/index.ts';
 
 export function startSocialDmUi(access: VaultAccess, sync: VaultSync) {
   const controller = new SocialDms(access, sync);

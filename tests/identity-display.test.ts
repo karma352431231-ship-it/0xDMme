@@ -5,7 +5,7 @@ import {
   avatarTone,
   displayName,
   shortAddress,
-} from '../src/client/identity-display/index.ts';
+} from '../src/client/appearance/index.ts';
 
 const evm = '0xbff0cfec02510766e10c40c3bf3420eac1367867';
 const solana = '7K52aYt9kq1Lr3wDcPq8sXv6mN2bJ4hF5EcxLhQz9TfA';

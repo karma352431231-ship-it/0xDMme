@@ -2,7 +2,6 @@ import { startAppearance } from '../appearance/index.ts';
 import { startPwa } from '../pwa/index.ts';
 import { startAccount } from '../account/index.ts';
 import { startDevices } from '../devices/index.ts';
-import { bindSettingsSections } from './settings.ts';
 import { MessageReadiness } from '../message-live/index.ts';
 import { startBackups } from '../backups/index.ts';
 import { startVault } from '../vault-ui/index.ts';
@@ -11,7 +10,7 @@ import { startStatus } from '../status/index.ts';
 import { startRepresentatives } from '../representatives/index.ts';
 import { startContacts } from '../contacts/index.ts';
 import { VoicePlayback } from '../voice-playback/index.ts';
-import { startCalls } from '../calls/index.ts';
+import { CallLog, startCalls } from '../calls/index.ts';
 import { startCommunities } from '../communities/index.ts';
 import {
   startPublicProfile,
@@ -19,10 +18,9 @@ import {
 } from '../public-profile/index.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
 import type { AddressBookEntry } from '../../shared/contacts/index.ts';
-import { pages, pageKey } from './pages.ts';
+import { bindSettingsSections, pages, pageKey } from './pages.ts';
 import { startPanels } from './panels.ts';
 import { startActivity } from '../activity/index.ts';
-import { CallLog } from '../call-log/index.ts';
 import type { PageKey } from './pages.ts';
 
 function element<T extends HTMLElement>(id: string): T {

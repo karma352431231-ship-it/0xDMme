@@ -1,4 +1,4 @@
-import { paintAvatar } from '../identity-display/index.ts';
+import { paintAvatar } from '../appearance/index.ts';
 import {
   chatIcon,
   chatCollapse,

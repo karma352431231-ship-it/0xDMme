@@ -7,7 +7,7 @@ import {
   mergeCallLogs,
   parseCallLog,
   visibleMissedCalls,
-} from '../src/client/call-log/index.ts';
+} from '../src/client/calls/index.ts';
 
 const now = 10 * callLogLifetime;
 const id = () => crypto.randomUUID();
