@@ -152,5 +152,65 @@ class BackgroundTests(unittest.TestCase):
                 sleep.assert_not_called()
 
 
+class UncappedWorkerTransitionTests(unittest.TestCase):
+    """Option A of 09/10/2026: only the pinned capped release may differ from installed units."""
+
+    def setUp(self):
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        root = Path(temporary.name).resolve()
+        self.data, self.system = root / 'data', root / 'system'
+        self.units = self.data / 'background-units'
+        self.release = self.data / 'release/infra/staging'
+        for path in [self.units, self.release, self.system]:
+            path.mkdir(parents=True)
+        dropin = root / '40-background.conf'
+        dropin.write_text('background mode')
+        self.config = {'files': {'infra/staging/0xdmme-background.conf': base.digest(dropin)}}
+        self.old = {unit: 'capped ' + unit for unit in workers.UNITS}
+        pinned = {unit: base.hashlib.sha256(text.encode()).hexdigest() for unit, text in self.old.items()}
+        for unit in workers.UNITS:
+            (self.units / unit).write_text('uncapped ' + unit)
+            (self.system / unit).symlink_to(self.units / unit)
+            (self.release / unit).write_text(self.old[unit])
+            self.config['files']['infra/staging/' + unit] = base.digest(self.units / unit)
+        system = self.system
+        self.patches = [
+            patch.object(base, 'DATA', self.data),
+            patch.object(workers, 'UNIT_ROOT', self.units),
+            patch.object(workers, 'DROPIN', dropin),
+            patch.object(workers, 'UNCAPPED_FROM', pinned),
+            patch.object(workers, 'Path', lambda value: system if value == '/etc/systemd/system' else Path(value)),
+        ]
+        for item in self.patches:
+            item.start()
+            self.addCleanup(item.stop)
+
+    def test_pinned_capped_release_with_installed_candidate_units_is_accepted(self):
+        workers.verify_current(self.config)
+
+    def test_release_units_already_equal_to_installed_are_accepted(self):
+        for unit in workers.UNITS:
+            (self.release / unit).write_text('uncapped ' + unit)
+        workers.verify_current(self.config)
+
+    def test_unpinned_release_content_is_refused(self):
+        (self.release / workers.UNITS[0]).write_text('unreviewed release unit')
+        with self.assertRaisesRegex(RuntimeError, 'without infrastructure review'):
+            workers.verify_current(self.config)
+
+    def test_installed_unit_must_match_the_candidate(self):
+        (self.units / workers.UNITS[1]).write_text('edited on the server')
+        with self.assertRaisesRegex(RuntimeError, 'without infrastructure review'):
+            workers.verify_current(self.config)
+
+    def test_regular_file_instead_of_link_is_refused(self):
+        link = self.system / workers.UNITS[2]
+        link.unlink()
+        link.write_text('uncapped ' + workers.UNITS[2])
+        with self.assertRaisesRegex(RuntimeError, 'link differs'):
+            workers.verify_current(self.config)
+
+
 if __name__ == '__main__':
     unittest.main()

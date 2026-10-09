@@ -14,6 +14,15 @@ ROLES = ('ranking', 'content', 'public')
 UNITS = tuple('0xdmme-' + role + '-worker.service' for role in ROLES)
 UNIT_ROOT = base.DATA / 'background-units'
 DROPIN = Path('/etc/systemd/system/0xdmme-test.service.d/40-background.conf')
+# Owner decision of 09/10/2026 (option A): worker resource caps were removed on
+# the VPS ahead of a release. Only the live release b1aa82c may still carry these
+# exact capped units; the installed units must already match the candidate.
+# Once that release is replaced, installed == released again and this is unused.
+UNCAPPED_FROM = {
+    '0xdmme-ranking-worker.service': '2e6925f74fc5ed5a1efc76697a0e404d1c2b754f7e5772bb61d116914fa3c2da',
+    '0xdmme-content-worker.service': '5de8559dc3a48dbd91aaee248541e35b6659144d38ae12a5be2e2076f90f6c8f',
+    '0xdmme-public-worker.service': '77137ee4dc92f89679c66f2f3649938edd391273d6a6b7a5aa75c9c3c0b5390f',
+}
 OLD_TABLES = base.COMMUNITIES_TABLES + base.COMMUNITIES_NEW_TABLES
 NEW_TABLES = ('community_ranking_settings', 'community_ranking_state',
               'community_upvote_deltas', 'community_ranking_generations',
@@ -174,6 +183,9 @@ def verify_current(config):
         path = Path('/etc/systemd/system') / unit
         if not path.is_symlink() or path.resolve() != UNIT_ROOT / unit:
             raise RuntimeError('Own worker unit link differs.')
-        if (base.digest(path) != base.digest(source / 'infra/staging' / unit)
-                or base.digest(path) != config['files']['infra/staging/' + unit]):
+        installed = base.digest(path)
+        released = base.digest(source / 'infra/staging' / unit)
+        if installed != config['files']['infra/staging/' + unit]:
+            raise RuntimeError('Own worker unit changed without infrastructure review.')
+        if released != installed and released != UNCAPPED_FROM.get(unit):
             raise RuntimeError('Own worker unit changed without infrastructure review.')

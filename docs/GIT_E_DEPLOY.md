@@ -6,6 +6,10 @@ O proprietário pediu ampliar o teto de arquivos por release, que impedia o app 
 
 Na mesma data, o pool de conexões do app subiu de 4 para 16 (web) e de 1 para 4 (cada worker), acompanhando `max_connections` 64. Como o app executa migrações ao iniciar, o executor só aceita código de banco revisado: a primeira ativação foi recusada antes de trocar a release e o par exato `b1aa82c` → `68831a5` (somente `src/server/database/index.ts`) passou a constar das revisões fixadas, sem SQL ou migração.
 
+A segunda tentativa foi recusada pela conferência dos workers. Ao retirar os tetos, os três arquivos de worker em `/etc/systemd/system` haviam sido substituídos por arquivos comuns, quando deveriam ser links para `background-units/`; além disso, a conferência exige arquivo instalado = release no ar = candidata, o que não fecha quando os units mudam. O proprietário escolheu a opção A: os links foram restaurados com o conteúdo sem tetos, e o executor aceita esta transição única somente se a release no ar ainda tiver o conteúdo exato com tetos de `b1aa82c` (hashes fixados em `deploy_background.py`) e o instalado já for igual ao da candidata. Depois dessa release a conferência normal volta a valer.
+
+**Ponto importante:** a tentativa recusada antes da troca parou os workers e, por desenho, não os religou. Ranking, conteúdo e mídia pública ficaram parados de 06:26 a 16:13 (horário de Brasília) de 09/10/2026, até serem iniciados manualmente; site e chat continuaram respondendo. Uma falha anterior à troca deve ser seguida de conferência e religamento dos workers.
+
 ## Agilidade do deploy — correção solicitada em 09/10/2026
 
 O proprietário pediu corrigir a demora recorrente da publicação. Reutilizar o comando existente, mantendo build no Mac, CI integral do commit exato, preservação, orçamento e rollback. Os jobs de check e integração passam a executar em paralelo; todos precisam aprovar o workflow para liberar a ativação. Não remover testes nem alterar runners, dependências, banco ou serviços compartilhados.
