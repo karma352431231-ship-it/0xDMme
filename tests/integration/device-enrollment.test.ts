@@ -180,17 +180,25 @@ await test('vinculação sem wallet, uso único, autorização automática e con
       signature: await sign(target.signing, linkProof(code)),
       proof,
     };
+  const startedAt = Date.now();
   const joined = await Promise.all([
     post('enrollment-join', input),
     post('enrollment-join', input),
   ]);
   assert.deepEqual(joined.map((r) => r.status).sort(), [200, 409]);
   const result = joined.find((r) => r.status === 200)!;
+  assert.match(
+    result.headers.get('set-cookie') ?? '',
+    /; Max-Age=13824000(?:;|$)/u,
+  );
   const token = result.headers
     .get('set-cookie')
     ?.match(/hash-talk-session=([a-f0-9]{64})/u)?.[1];
   assert.ok(token);
   const session = accountSession(await result.json());
+  const lifetime = 160 * 24 * 60 * 60 * 1000;
+  assert.ok(Date.parse(session.expiresAt) >= startedAt + lifetime);
+  assert.ok(Date.parse(session.expiresAt) <= Date.now() + lifetime);
   assert.equal(session.accountId, accountId);
   assert.equal(session.walletConfirmed, false);
   await assert.rejects(account.rename(token, { name: 'Antes de autorizar' }));

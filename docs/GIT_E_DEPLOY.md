@@ -1,5 +1,26 @@
 # 0xDMme — Git e envio à VPS
 
+## Sessões de 160 dias — autorização de 08/10/2026
+
+O proprietário escolheu 160 dias para novas sessões e pediu envio e ativação
+na VPS. O [contrato de duração](BLOCO_03_CONTA_E_PERFIL.md#duração-da-sessão--08102026)
+vale para login direto, confirmação mobile e vinculação. Ajustes nos timers
+do navegador e do SSE preservam o prazo completo, inclusive além de 24,8 dias.
+Sessões antigas conservam a validade emitida; não executar migração ou renovação.
+
+Usar `npm run deploy:staging` em checkout limpo do commit enviado, com CI
+integral exata e build preparado no Mac. Banco, migrações, dependências, Node,
+executor e infraestrutura permanecem iguais ao predecessor. O executor mantém
+os checks de preservação, limites, rollback e reinício dos serviços próprios
+conforme a entrega vigente dos workers. Preservar os serviços compartilhados e
+as alterações pessoais no checkout original; acesso, artefatos e evidências
+operacionais ficam exclusivamente em `.local/`.
+
+**Ponto importante:** o prazo normal passa a 160 dias apenas para novas sessões
+emitidas pela release atualizada. Logout, revogação, substituição da sessão,
+perda de cookie e eventos já observados da wallet continuam podendo encerrar
+o acesso antes. A publicação não estabelece um teste físico de 160 dias.
+
 ## Conversa visível e exclusão prioritária — 08/10/2026
 
 Continuação do fix de chat que o proprietário pediu corrigir, enviar e ativar.

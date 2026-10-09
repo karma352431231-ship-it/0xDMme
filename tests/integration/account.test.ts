@@ -92,6 +92,12 @@ async function authenticate(
 function unauthorized(error: unknown): boolean {
   return error instanceof AccountError && error.status === 401;
 }
+function assertSessionLifetime(expiresAt: string, startedAt: number): void {
+  const lifetime = 160 * 24 * 60 * 60 * 1000;
+  const deadline = Date.parse(expiresAt);
+  assert.ok(deadline >= startedAt + lifetime);
+  assert.ok(deadline <= Date.now() + lifetime);
+}
 
 // fetch fixes Sec-Fetch-Mode to cors; real document navigation uses navigate.
 function navigateEntry(path: string, cookie = ''): Promise<Response> {
@@ -182,6 +188,7 @@ await test('Autenticação e perfil persistentes', async (t) => {
       const signer = wallet();
       const challenge = await requestChallenge(signer);
       const signature = await signer.signMessage(challenge.message);
+      const startedAt = Date.now();
       const attempts = await Promise.allSettled([
         service.login({ id: challenge.id, signature }, challenge.browserToken),
         service.login({ id: challenge.id, signature }, challenge.browserToken),
@@ -195,6 +202,11 @@ await test('Autenticação e perfil persistentes', async (t) => {
       );
       const login = fulfilled[0];
       assert.ok(login && login.status === 'fulfilled');
+      assertSessionLifetime(login.value.session.expiresAt, startedAt);
+      assert.equal(
+        (await service.session(login.value.sessionToken)).expiresAt,
+        login.value.session.expiresAt,
+      );
       assert.equal(login.value.session.historyAuthorized, false);
       assert.equal(login.value.session.deviceState, 'pending');
       assert.equal(login.value.session.profileRevision, 0);
@@ -576,11 +588,13 @@ await test('Autenticação e perfil persistentes', async (t) => {
         ),
         unauthorized,
       );
+      const startedAt = Date.now();
       const logged = await service.login(
         { id: challenge.id, signature },
         challenge.browserToken,
       );
       assert.equal(logged.session.ecosystem, 'solana');
+      assertSessionLifetime(logged.session.expiresAt, startedAt);
       assert.equal(logged.session.address, address);
       assert.equal(logged.session.historyAuthorized, false);
       await assert.rejects(
@@ -950,15 +964,20 @@ await test('Autenticação e perfil persistentes', async (t) => {
       const denied = await post('handoff-confirm', input, walletCookie);
       assert.equal(denied.status, 401);
       await denied.text();
+      const startedAt = Date.now();
       const accepted = await post('handoff-confirm', input, originalCookie);
       assert.equal(accepted.status, 200);
-      const session = (await accepted.json()) as { historyAuthorized: boolean };
+      const session = (await accepted.json()) as {
+        historyAuthorized: boolean;
+        expiresAt: string;
+      };
       assert.equal(session.historyAuthorized, false);
-      assert.ok(
-        accepted.headers
-          .getSetCookie()
-          .some((item) => item.startsWith('hash-talk-session=')),
-      );
+      assertSessionLifetime(session.expiresAt, startedAt);
+      const sessionCookie = accepted.headers
+        .getSetCookie()
+        .find((item) => item.startsWith('hash-talk-session='));
+      assert.ok(sessionCookie);
+      assert.match(sessionCookie, /; Max-Age=13824000(?:;|$)/u);
     },
   );
 
@@ -1005,6 +1024,7 @@ await test('Autenticação e perfil persistentes', async (t) => {
       const challengeCookie = challengeResponse.headers.get('set-cookie');
       assert.ok(challengeCookie);
       assert.match(challengeCookie, /HttpOnly; SameSite=Strict/);
+      const startedAt = Date.now();
       const loginResponse = await fetch(`${origin}/api/account/login`, {
         method: 'POST',
         headers: { ...headers, Cookie: challengeCookie.split(';')[0] ?? '' },
@@ -1017,12 +1037,15 @@ await test('Autenticação e perfil persistentes', async (t) => {
       const login = (await loginResponse.json()) as {
         csrf: string;
         historyAuthorized: boolean;
+        expiresAt: string;
       };
+      assertSessionLifetime(login.expiresAt, startedAt);
       assert.equal(login.historyAuthorized, false);
       const sessionCookie = loginResponse.headers
         .getSetCookie()
         .find((item) => item.startsWith('hash-talk-session='));
       assert.ok(sessionCookie);
+      assert.match(sessionCookie, /; Max-Age=13824000(?:;|$)/u);
       const authenticatedHeaders = {
         ...headers,
         Cookie: sessionCookie.split(';')[0] ?? '',

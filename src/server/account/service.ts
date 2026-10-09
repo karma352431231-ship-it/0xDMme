@@ -32,7 +32,7 @@ import { LoginOpening } from './opening.ts';
 import type { WalletRecovery } from '../../shared/wallet-recovery/index.ts';
 
 export const challengeSeconds = 300;
-export const sessionSeconds = 43_200;
+export const sessionSeconds = 160 * 24 * 60 * 60;
 
 export function tokenHash(token: string): string {
   return createHash('sha256').update(token).digest('hex');

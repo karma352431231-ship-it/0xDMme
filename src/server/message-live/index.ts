@@ -42,7 +42,7 @@ export class MessageLive {
       pending: false,
       timer: null,
       expiry: setTimeout(
-        () => this.invalidate(stream, 'ended'),
+        () => this.expire(stream),
         Math.min(remaining, 2_147_483_647),
       ),
     };
@@ -59,6 +59,20 @@ export class MessageLive {
     response.once('close', () => this.remove(stream));
     response.once('error', () => this.remove(stream));
     this.write(stream, 'event: ready\ndata: {}\n\n');
+  }
+  private expire(stream: Stream): void {
+    if (!this.has(stream)) return;
+    const remaining = Date.parse(stream.session.expiresAt) - Date.now();
+    if (remaining <= 0) {
+      this.invalidate(stream, 'ended');
+      return;
+    }
+    // Reaching the timer limit does not expire a longer-lived session.
+    stream.expiry = setTimeout(
+      () => this.expire(stream),
+      Math.min(remaining, 2_147_483_647),
+    );
+    stream.expiry.unref();
   }
   private has(stream: Stream): boolean {
     return this.streams.get(stream.session.accountId)?.has(stream) === true;

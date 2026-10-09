@@ -104,9 +104,13 @@ function scope(options: {
         listeners.delete(event);
       },
     },
-    setTimeout(callback: () => void) {
+    setTimeout(callback: () => void, delay = 0) {
       const id = ++timerId;
-      timers.set(id, callback);
+      // Browsers cannot represent a timeout above the signed 32-bit limit.
+      timers.set(id, {
+        callback,
+        delay: delay > 2_147_483_647 ? 1 : delay,
+      });
       return id;
     },
     clearTimeout(id: number) {
@@ -123,7 +127,7 @@ function scope(options: {
       documentRemoved = true;
     },
   };
-  const timers = new Map<number, () => void>();
+  const timers = new Map<number, { callback: () => void; delay: number }>();
   let timerId = 0;
   const button = Object.assign(new EventTarget(), {
     dataset: { wallet: 'MetaMask' },
@@ -345,12 +349,55 @@ function scope(options: {
     click: () => button.dispatchEvent(new Event('click')),
     changed: () => listeners.get('accountsChanged')?.(),
     expire: () => {
-      for (const callback of [...timers.values()]) callback();
+      for (const timer of [...timers.values()]) timer.callback();
+    },
+    nextTimer: () => {
+      const next = [...timers.entries()].sort(
+        (a, b) => a[1].delay - b[1].delay,
+      )[0];
+      assert.ok(next);
+      timers.delete(next[0]);
+      return next[1];
     },
     resume: () => window.dispatchEvent(new Event('focus')),
     dispose: () => window.dispatchEvent(new Event('pagehide')),
   };
 }
+
+await test('sessão de 160 dias permanece conectada entre timers e expira apenas no prazo completo', async () => {
+  const clock = { now: Date.now() };
+  const lifetime = 160 * 24 * 60 * 60 * 1000;
+  const expiresAt = clock.now + lifetime;
+  const restored = deferred<Response>();
+  const browser = scope({
+    clock,
+    sessionResponse: restored.promise,
+    privateKey: () => Promise.resolve(null),
+  });
+  restored.resolve(
+    Response.json({
+      ...browser.session,
+      expiresAt: new Date(expiresAt).toISOString(),
+    }),
+  );
+  await tick();
+  assert.equal(browser.attributes.get('data-connected'), 'true');
+  for (let step = 0; step < 10 && clock.now < expiresAt; step++) {
+    const timer = browser.nextTimer();
+    assert.ok(timer.delay > 0 && timer.delay <= 2_147_483_647);
+    clock.now += timer.delay;
+    assert.ok(clock.now <= expiresAt);
+    timer.callback();
+    assert.equal(
+      browser.attributes.get('data-connected'),
+      clock.now < expiresAt ? 'true' : 'false',
+    );
+  }
+  assert.equal(clock.now, expiresAt);
+  assert.equal(browser.attributes.get('data-connected'), 'false');
+  assert.match(browser.status.textContent, /Sessão expirada/u);
+  browser.dispose();
+});
 
 await test('restaurar sessão abre somente chaves locais; novo login pode solicitar a wallet', async () => {
   const modes: string[] = [];

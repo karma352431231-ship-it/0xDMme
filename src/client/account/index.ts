@@ -545,18 +545,26 @@ export function startAccount(options: {
     if (value) localStorage.setItem('hash-talk:login-device', value.deviceId);
     pickerOpen = false;
     window.clearTimeout(expiryTimer);
-    if (value)
-      expiryTimer = window.setTimeout(
-        () => {
-          epoch++;
-          clearPrivate();
-          setSession(null);
-          status = 'Sessão expirada. Entre novamente.';
-          render();
-        },
-        Math.max(0, Date.parse(value.expiresAt) - Date.now()),
-      );
+    if (value) scheduleSessionExpiry(value);
     options.changed(value);
+  }
+  function scheduleSessionExpiry(value: AccountSession): void {
+    const remaining = Math.max(0, Date.parse(value.expiresAt) - Date.now());
+    // A 160-day session exceeds the maximum delay of a single browser timer.
+    expiryTimer = window.setTimeout(
+      () => {
+        if (Date.parse(value.expiresAt) > Date.now()) {
+          scheduleSessionExpiry(value);
+          return;
+        }
+        epoch++;
+        clearPrivate();
+        setSession(null);
+        status = 'Sessão expirada. Entre novamente.';
+        render();
+      },
+      Math.min(remaining, 2_147_483_647),
+    );
   }
   function renderPhoto(): void {
     if (photoUrl) URL.revokeObjectURL(photoUrl);

@@ -45,6 +45,31 @@ function response() {
 function turn(): Promise<void> {
   return new Promise((resolve) => setImmediate(resolve));
 }
+await test('SSE de sessão de 160 dias não encerra entre timers e respeita a expiração completa', (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout', 'Date'], now: Date.now() });
+  const lifetime = 160 * 24 * 60 * 60 * 1000;
+  const live = new MessageLive(new DatabaseChanges());
+  t.after(() => live.close());
+  const target = response();
+  live.open({
+    session: {
+      ...session(),
+      expiresAt: new Date(Date.now() + lifetime).toISOString(),
+    },
+    response: target.output,
+    validate: () => Promise.resolve(true),
+  });
+  let remaining = lifetime;
+  while (remaining > 1) {
+    const delay = Math.min(remaining - 1, 2_147_483_647);
+    t.mock.timers.tick(delay);
+    remaining -= delay;
+    assert.doesNotMatch(target.text(), /event: ended/u);
+  }
+  t.mock.timers.tick(1);
+  assert.match(target.text(), /event: ended/u);
+});
+
 await test('avisos próximos geram uma sondagem; reconexão exige refresh e não pode ser rebaixada por changed', (t) => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
   const applied: string[] = [];
