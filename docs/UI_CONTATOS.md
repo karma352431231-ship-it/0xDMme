@@ -12,6 +12,8 @@ A identificação usa apenas o endereço informado, sem RPC, consulta à blockch
 
 Validação local: 19 testes direcionados de contatos, ciclo da UI, normalização e wallets passaram, assim como lint, tipos estritos, fronteiras, formatação e build. A regressão do formulário falhou antes da mudança e passou ao identificar o endereço sem seletor; cobre salvar/solicitar EVM e Solana e impedir ambas as operações para endereço inválido. Seis fluxos de formulário em Chromium com API/cofre fictícios, em 320, 390 e 1440 px, confirmaram a identificação, o salvamento, a solicitação e a ausência de erro JavaScript ou excesso horizontal. Esses ensaios não substituem teclado/câmera e aceite físico mobile.
 
+A [CI integral de `12f6936`](https://github.com/karma352431231-ship-it/0xDMme/actions/runs/38001650650) passou. A primeira ativação restaurou o código anterior depois de falhas de inicialização do worker de mídia pública; o limite de partidas impediu sua recuperação imediata. A conferência posterior confirmou fontes anteriores, saúde, configurações e processo do banco preservados. Os três workers foram iniciados com a mesma release restaurada e suas reservas foram verificadas, sem alterar configurações ou reiniciar serviços compartilhados. A causa das falhas iniciais não foi estabelecida. Preservar o registro da falha e exigir nova CI integral antes da tentativa em workspace separado pelo executor existente; acesso e evidências ficam em `.local/`.
+
 **Ponto importante:** a identificação automática evita selecionar EVM para uma wallet Solana; permitir descoberta continua apenas habilitando o pedido, que exige aceite do destinatário.
 
 ## Organização da tela
