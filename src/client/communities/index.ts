@@ -636,6 +636,22 @@ export function startCommunities(access: VaultAccess, sync: VaultSync) {
     },
     dmDirectory: (node: HTMLElement, valid: () => boolean) =>
       dms.directory(node, valid),
+    /** Unread replies for Atividade; the same notices as “Respostas ao seu conteúdo”. */
+    async unreadReplies(): Promise<
+      readonly { reply: string; community: string; createdAt: string }[]
+    > {
+      const page = replyNotificationPage(
+        await controller.request('post-notifications', { after: null }),
+      );
+      return page.items.filter((item) => !item.read);
+    },
+    async markRepliesRead(replies: readonly string[]): Promise<void> {
+      await controller.request('post-notifications-read', { replies });
+    },
+    /** Pending community transfers, as listed in Comunidades → Transferências. */
+    async pendingTransfers(): Promise<readonly Community[]> {
+      return (await controller.list('invitations', null)).items;
+    },
     canActivate: () =>
       !busy &&
       posts.canActivate() &&

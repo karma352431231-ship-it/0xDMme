@@ -694,6 +694,15 @@ export function startContacts(
   }
   return {
     ready,
+    /** Received requests for Atividade; same signed API and checks as Contatos → Solicitações. */
+    async incomingRequests(): Promise<readonly Peer[]> {
+      await contacts.refresh();
+      return (await contacts.list('incoming')).items;
+    },
+    async respondRequest(accountId: string, accept: boolean): Promise<void> {
+      await contacts.respond(accountId, accept);
+      if (mounted?.isConnected) await refresh();
+    },
     showContact(contact: AddressBookEntry): void {
       resetEditor();
       prepared = contact;

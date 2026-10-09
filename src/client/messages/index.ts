@@ -86,6 +86,8 @@ export function startMessages(
   const agenda = new ContactDirectory(sync),
     menu = new ConversationMenu();
   const emojiPicker = new EmojiPicker();
+  // Accounts with an active status, from the status list the app already loads.
+  let statusAuthors: ReadonlySet<string> = new Set();
   let peers: ConversationPeer[] = [],
     states = new Map<string, PeerState>(),
     directoryFilter: ConversationFilter = 'all';
@@ -912,6 +914,7 @@ export function startMessages(
       detail: contactLabel(peer, settingsId),
       kind: 'contact',
       seed: peer.address,
+      status: statusAuthors.has(peer.accountId),
       searchText: `${contact.alias} ${peer.name} ${peer.address}`,
       selected: selected?.accountId === peer.accountId,
       hidden: contact.removed,
@@ -1692,6 +1695,13 @@ export function startMessages(
     if (direct) direct.hidden = !!groups.selected;
   }
   return {
+    groupInvites: () => groups.invites(),
+    respondGroupInvite: (id: string, accept: boolean) =>
+      groups.respondInvite(id, accept),
+    statusesChanged(authors: ReadonlySet<string>): void {
+      statusAuthors = authors;
+      renderContacts(peers);
+    },
     async openContact(peer: Peer): Promise<void> {
       if (busy)
         throw new Error(

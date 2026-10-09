@@ -4,6 +4,7 @@
 @import '../contacts/contacts.css';
 @import './settings.css';
 @import './panels.css';
+@import '../activity/activity.css';
 
 :root {
   font-family:

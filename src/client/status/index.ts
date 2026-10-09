@@ -439,6 +439,16 @@ export function startStatus(access: VaultAccess, sync: VaultSync) {
     ready(): void {
       if (host?.isConnected && !busy) void run(refresh);
     },
+    /** Authors in the first status page, for the rings in the conversation list. */
+    async activeAuthors(): Promise<ReadonlySet<string>> {
+      await controller.refresh();
+      const now = Date.now();
+      return new Set(
+        controller.items
+          .filter((item) => item.expiresAt > now)
+          .map((item) => item.author),
+      );
+    },
     liveConnection(value: boolean): void {
       connected = value;
     },

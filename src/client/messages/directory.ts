@@ -21,6 +21,8 @@ export interface ConversationEntry {
   kind: 'contact' | 'group';
   /** Wallet address for contacts, so the avatar tone matches Contatos; defaults to the id. */
   seed?: string;
+  /** Shows the status ring; the row still opens the conversation. */
+  status?: boolean;
   searchText: string;
   selected: boolean;
   open: () => void;
@@ -72,6 +74,10 @@ export function conversationButton(
   avatar.className = `conversation-avatar ${entry.kind}`;
   avatar.setAttribute('aria-hidden', 'true');
   paintAvatar(avatar, { label: entry.title, seed: entry.seed ?? entry.id });
+  if (entry.status) {
+    avatar.classList.add('has-status');
+    avatar.title = 'Status ativo';
+  }
   const text = document.createElement('span');
   text.className = 'conversation-copy';
   const title = document.createElement('strong');

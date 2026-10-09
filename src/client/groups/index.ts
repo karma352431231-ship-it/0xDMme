@@ -789,6 +789,25 @@ export function startGroups(
       return voice.active || !!attachments.selected?.voice;
     },
     listLabel,
+    /** Invitations and ownership offers for Atividade, named as in the group tools. */
+    async invites(): Promise<
+      readonly { id: string; kind: 'invite' | 'transfer'; actor: string }[]
+    > {
+      await controller.refreshIncoming();
+      return controller.incoming.map((consent) => ({
+        id: consent.id,
+        kind: consent.kind,
+        actor: name(consent.actor),
+      }));
+    },
+    async respondInvite(id: string, accept: boolean): Promise<void> {
+      const consent = controller.incoming.find((item) => item.id === id);
+      if (!consent) throw new Error('Este convite não está mais disponível.');
+      await controller.respond(consent, accept);
+      if (accept) await refresh();
+      await controller.refreshIncoming();
+      renderIncoming();
+    },
     unread: (id: string) => states.get(id)?.unread ?? 0,
     search: (query: string, after: string | null) =>
       controller.search(query, after),

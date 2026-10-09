@@ -1,0 +1,160 @@
+/* Atividade: one list of pending items, grouped by kind (docs/UI_PAINEIS_E_TEMAS.md). */
+.app[data-page='atividade'] .page-heading {
+  display: none;
+}
+.app[data-page='atividade'] main {
+  padding: 24px clamp(16px, 3vw, 40px);
+}
+.activity {
+  display: grid;
+  gap: 18px;
+  max-width: 760px;
+}
+.activity-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.activity-heading h2 {
+  margin: 0;
+  font-size: var(--fs-title);
+}
+.activity-heading button,
+.activity-actions button {
+  min-height: 36px;
+  padding: 7px 14px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: var(--fs-small);
+  font-weight: 600;
+}
+.activity-actions button.primary {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+.activity-feedback:empty {
+  display: none;
+}
+.activity-feedback,
+.activity-empty {
+  margin: 0;
+  color: var(--text-muted);
+}
+.activity-group {
+  display: grid;
+  gap: 10px;
+}
+.activity-group h3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--fs-caption);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.activity-count {
+  min-width: 20px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--brand-grad);
+  color: var(--brand-ink);
+  text-align: center;
+  letter-spacing: 0;
+}
+.activity-problem {
+  margin: 0;
+  color: var(--warn);
+  font-size: var(--fs-small);
+}
+.activity-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+}
+.activity-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+}
+.activity-row + .activity-row {
+  border-top: 1px solid var(--line);
+}
+.activity-copy {
+  display: grid;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.activity-copy strong {
+  overflow-wrap: anywhere;
+}
+.activity-copy small {
+  color: var(--text-muted);
+  font-size: var(--fs-caption);
+}
+.activity-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+.activity-link {
+  color: var(--accent-text);
+  font-weight: 600;
+}
+.activity-badge {
+  position: absolute;
+  top: 4px;
+  right: 2px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--brand-grad);
+  color: var(--brand-ink);
+  font-size: var(--fs-caption);
+  font-weight: 700;
+  line-height: 18px;
+  text-align: center;
+}
+.activity-entry {
+  position: relative;
+}
+.activity-entry svg {
+  width: 22px;
+  height: 22px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+/* Status ring around the avatar of a contact with an active status. */
+.conversation-avatar.has-status {
+  box-shadow:
+    0 0 0 2px var(--surface),
+    0 0 0 4px var(--accent);
+}
+@media (min-width: 1280px) {
+  .brand-bar .activity-entry {
+    display: none;
+  }
+}
+@media (max-width: 700px) {
+  .activity-row {
+    flex-wrap: wrap;
+  }
+  .activity-actions {
+    flex-basis: 100%;
+    justify-content: flex-start;
+  }
+}

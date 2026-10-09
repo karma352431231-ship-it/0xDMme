@@ -21,6 +21,7 @@ import type { AccountSession } from '../../shared/account/index.ts';
 import type { AddressBookEntry } from '../../shared/contacts/index.ts';
 import { pages, pageKey } from './pages.ts';
 import { startPanels } from './panels.ts';
+import { startActivity } from '../activity/index.ts';
 import type { PageKey } from './pages.ts';
 
 function element<T extends HTMLElement>(id: string): T {
@@ -130,6 +131,29 @@ const messages = startMessages(devices, vault.sync, {
   sharedProfile: () => account.sharedProfile(),
   preferences: () => account.privacyPreferences(),
 });
+const activity = startActivity(
+  {
+    requests: () => contacts.incomingRequests(),
+    respondRequest: (id, accept) => contacts.respondRequest(id, accept),
+    groupInvites: () => messages.groupInvites(),
+    respondGroupInvite: (id, accept) => messages.respondGroupInvite(id, accept),
+    replies: () => communities.unreadReplies(),
+    markRepliesRead: (ids) => communities.markRepliesRead(ids),
+    transfers: () => communities.pendingTransfers(),
+  },
+  {
+    countChanged: (count) => {
+      document
+        .querySelectorAll<HTMLElement>('[data-activity-count]')
+        .forEach((badge) => {
+          badge.hidden = count === 0;
+          badge.textContent = count > 99 ? '99+' : String(count);
+        });
+    },
+  },
+);
+// Activity and status rings load once per authorized session, never on a timer.
+let sessionExtrasFor = '';
 const account = startAccount({
   mobileOpening: true,
   privacyChanged: (preferences) => messages.applyPrivacy(preferences),
@@ -157,6 +181,8 @@ const account = startAccount({
     representatives.setSession(session);
     publicProfiles.setSession(session);
     communities.setSession(session);
+    activity.setSession(session);
+    if (!session) sessionExtrasFor = '';
     panels.sessionChanged();
     connection();
     const label = document.getElementById('account-label');
@@ -181,8 +207,11 @@ const pwa = account.approvalPage
         !calls.active() &&
         statuses.canActivate() &&
         representatives.canActivate() &&
-        socialCanActivate(),
+        extrasCanActivate(),
     });
+function extrasCanActivate(): boolean {
+  return activity.canActivate() && socialCanActivate();
+}
 function socialCanActivate(): boolean {
   return publicProfiles.canActivate() && communities.canActivate();
 }
@@ -214,6 +243,7 @@ function route(): void {
   communities.leave();
   closePublicProfile?.();
   closePublicProfile = null;
+  activity.leave();
   backups.leave();
   vault.leave();
   // Templates are static authored content. No user/server input enters HTML.
@@ -280,6 +310,18 @@ function mountProfileSettings(content: HTMLElement): void {
     '[data-device-settings]',
   );
   if (deviceSettings) devices.mount(deviceSettings);
+  const vaultSettings = content.querySelector<HTMLElement>(
+    '[data-vault-settings]',
+  );
+  if (vaultSettings) mountVault(vaultSettings);
+}
+/** Same vault and backup cards as #cofre, now also inside Perfil → Cofre e backup. */
+function mountVault(container: HTMLElement): void {
+  vault.mount(container);
+  const backupContainer = document.createElement('div');
+  backupContainer.className = 'backup-card';
+  container.after(backupContainer);
+  backups.mount(backupContainer);
 }
 
 function mountFeature(key: PageKey): void {
@@ -295,6 +337,7 @@ function mountFeature(key: PageKey): void {
       new URLSearchParams(location.hash.split('?')[1] ?? ''),
     );
   if (key === 'conversas') messages.ready();
+  mountActivity(key, content);
   if (key === 'perfil')
     bindSettingsSections(content, (id) => {
       if (id === 'devices') devices.stopCamera();
@@ -307,13 +350,7 @@ function mountFeature(key: PageKey): void {
   const vaultContainer = content.querySelector<HTMLElement>(
     '[data-vault-container]',
   );
-  if (key === 'cofre' && vaultContainer) {
-    vault.mount(vaultContainer);
-    const backupContainer = document.createElement('div');
-    backupContainer.className = 'backup-card';
-    vaultContainer.after(backupContainer);
-    backups.mount(backupContainer);
-  }
+  if (key === 'cofre' && vaultContainer) mountVault(vaultContainer);
 }
 function mountPublicProfiles(content: HTMLElement): void {
   const own = content.querySelector<HTMLElement>(
@@ -326,6 +363,11 @@ function mountPublicProfiles(content: HTMLElement): void {
       view,
       new URLSearchParams(location.hash.split('?')[1] ?? '').get('handle'),
     );
+}
+
+function mountActivity(key: PageKey, content: HTMLElement): void {
+  const container = content.querySelector<HTMLElement>('[data-activity]');
+  if (key === 'atividade' && container) activity.mount(container);
 }
 
 function mountStatusFeature(key: PageKey, content: HTMLElement): void {
@@ -365,6 +407,7 @@ function connection(): void {
     contacts.ready();
     statuses.ready();
     void vault.ready();
+    loadSessionExtras(connectedAccount.accountId);
   }
   element('connection').textContent = navigator.onLine
     ? connectedAccount
@@ -373,6 +416,21 @@ function connection(): void {
         : 'Sessão conectada · abertura da conta em Perfil → Aparelhos'
       : 'Conexão disponível · nenhuma conta conectada'
     : 'Sem conexão · histórico salvo disponível neste aparelho';
+}
+
+function loadSessionExtras(accountId: string): void {
+  if (sessionExtrasFor === accountId) return;
+  sessionExtrasFor = accountId;
+  void activity.refresh();
+  // Rings are decoration: if the status list fails, the list simply shows none.
+  statuses
+    .activeAuthors()
+    .then((authors) => {
+      messages.statusesChanged(authors);
+    })
+    .catch(() => {
+      messages.statusesChanged(new Set());
+    });
 }
 
 if (!account.approvalPage) {

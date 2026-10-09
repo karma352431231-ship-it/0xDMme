@@ -83,3 +83,16 @@ Implementada localmente em 09/10/2026, sem mudar ordenação, filtros válidos o
 **Correção da etapa 3:** o app recebia o atributo `data-contact-scope`, o mesmo usado pelos botões Privados/Públicos. Como o clique procura o controle mais próximo, qualquer clique dentro do app era tratado como troca de escopo e os links de comunidade e de DM @ nunca abriam nos painéis (iam para a página inteira). Os botões passaram a usar `data-scope-choice`; os atributos dos controles ficam centralizados em `layout.ts`, com teste garantindo que nenhum atributo de estado do app coincide com eles. Abas do painel, links dentro do feed e DMs @ na coluna da conversa foram conferidos depois da correção.
 
 Validação: lint, TypeScript, fronteiras, formatação, build e testes unitários passaram. Fixture sintético de comunidades (cópia local atualizada para o formato atual do ranking) conferiu ranking e menus em 1440 px e 390 px sem excesso horizontal; a grade da comunidade foi conferida com a mesma estrutura de elementos; o app real sem backend conferiu abas, links e DMs nos painéis. Com conta real, a página de uma comunidade com resumo e gestão ainda não foi vista.
+
+## Etapa 5 — Atividade, status e cofre
+
+Implementada localmente em 09/10/2026:
+
+- **Atividade** (`#atividade`): pedidos de conversa recebidos, convites e ofertas de propriedade de grupo, respostas não lidas nas comunidades e transferências de comunidade pendentes. Cada seção lê a mesma API do lugar original (Contatos → Solicitações, ferramentas de grupos, Respostas ao seu conteúdo, Transferências) e usa as mesmas ações: aceitar/recusar pedido, entrar/aceitar propriedade/recusar convite, marcar respostas como lidas. Não há tabela, notificação ou dado novo no servidor.
+- **Carga:** ao abrir a Atividade e uma vez por sessão autorizada, para o contador. Não há consulta periódica. Uma fonte com erro mostra o aviso na própria seção, sem esconder as demais.
+- **Acesso:** item com contador no trilho (a partir de 1280 px) e sino no cabeçalho em telas menores. A barra mobile fica para a etapa 6.
+- **Chamadas perdidas não entraram.** O app não registra chamadas não atendidas em nenhum lugar; incluí-las exige guardar dado novo e passa por revisão separada.
+- **Anel de status:** contatos com status ativo na primeira página da lista de status ganham um anel no avatar da lista de conversas. A lista é lida uma vez por sessão autorizada; se falhar, a lista simplesmente fica sem anéis. Tocar no contato continua abrindo a conversa; os status seguem em Perfil → Meu status.
+- **Cofre e backup** virou uma categoria do Perfil com os mesmos cartões de uso, backup, validação e reset; `#cofre` continua funcionando e o link avulso saiu. O medidor de uso no topo do Perfil não foi feito.
+
+Validação: lint, TypeScript, fronteiras, formatação, build e testes unitários passaram, com testes novos para a soma do contador, o isolamento de falha entre fontes e a ausência de leitura sem sessão. Prévia local sem backend conferiu a Atividade sem conta, o contador no trilho, o sino oculto quando há trilho e a categoria Cofre e backup. Pedidos, convites, respostas, transferências e anéis com dados reais não foram conferidos; os testes de integração (PostgreSQL) não foram executados.

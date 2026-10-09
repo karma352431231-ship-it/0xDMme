@@ -46,6 +46,7 @@ const authored = [
   'src/client/chat-ui',
   'src/client/appearance',
   'src/client/identity-display',
+  'src/client/activity',
   'src/client/message-search',
   'src/client/message-status',
   'src/client/notification-sound',
