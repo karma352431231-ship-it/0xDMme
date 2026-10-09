@@ -6,6 +6,8 @@ O proprietário pediu envio e ativação do fix de latência medido, com fontes 
 
 A primeira CI aprovou os 410 testes da aplicação e recusou o manifesto de publicação por uma entrada além do teto vigente. A janela verificada passa a residir no módulo existente do índice de mensagens, mantendo comportamento, contratos e limites; não ampliar o executor nem criar outro script de deploy. Banco, migrações, dependências, Node, infraestrutura e sessões de 160 dias permanecem iguais ao predecessor `506c187`. Ativar somente os serviços próprios conforme a publicação vigente dos workers. Acesso e evidências operacionais exclusivamente em `.local/`.
 
+A CI integral de `574d678` passou. A primeira ativação restaurou a release anterior após uma falha de conexão na consulta de prontidão dos workers; a conferência posterior confirmou fontes anteriores, saúde, configurações e processo do banco preservados, com a mesma consulta aprovada dentro e fora do sandbox. A causa da falha de conexão não foi estabelecida. O executor existente passa a repetir somente saída 2 do `psql` dentro dos mesmos 30 segundos já previstos para adquirir as três reservas. [Esse código indica falha de conexão](https://www.postgresql.org/docs/16/app-psql.html#APP-PSQL-EXIT-STATUS); outros erros propagam imediatamente e falha persistente impede a publicação. Não alterar serviços, limites, credenciais, consultas ou schema. Exigir regressões e nova CI integral antes de uma nova ativação em workspace separado; preservar a tentativa anterior para diagnóstico.
+
 **Ponto importante:** os ganhos do fix foram medidos no laboratório local. Publicação e hash conferidos no site não substituem a medição física de envio nos aparelhos do proprietário.
 
 ## Sessões de 160 dias — autorização de 08/10/2026

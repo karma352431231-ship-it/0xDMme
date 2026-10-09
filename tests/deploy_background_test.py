@@ -1,6 +1,7 @@
 """Own worker guards and migration preservation; no SSH/system services."""
 import json
 from pathlib import Path
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -108,6 +109,42 @@ class BackgroundTests(unittest.TestCase):
         with patch.object(base, 'run') as run, patch.object(workers, 'ready', return_value=True):
             workers.start()
         run.assert_called_once_with(['systemctl', 'start', *workers.UNITS])
+
+    def test_start_waits_for_leases_after_transient_psql_connection_failure(self):
+        failure = subprocess.CalledProcessError(2, ['/usr/lib/postgresql/16/bin/psql'])
+        clock = {'seconds': 0}
+        def sleep(seconds): clock['seconds'] += seconds
+        with (patch.object(base, 'run') as command,
+              patch.object(workers, 'ready', side_effect=[failure, True]),
+              patch.object(workers.time, 'monotonic', side_effect=lambda: clock['seconds']),
+              patch.object(workers.time, 'sleep', side_effect=sleep)):
+            workers.start()
+        command.assert_called_once_with(['systemctl', 'start', *workers.UNITS])
+        self.assertEqual(clock['seconds'], 1)
+
+    def test_persistent_connection_failure_does_not_publish_without_leases(self):
+        failure = subprocess.CalledProcessError(2, ['/usr/lib/postgresql/16/bin/psql'])
+        clock = {'seconds': 0}
+        def sleep(seconds): clock['seconds'] += seconds
+        with (patch.object(base, 'run'), patch.object(workers, 'ready', side_effect=failure),
+              patch.object(workers.time, 'monotonic', side_effect=lambda: clock['seconds']),
+              patch.object(workers.time, 'sleep', side_effect=sleep)):
+            with self.assertRaisesRegex(RuntimeError, 'all three leases'):
+                workers.start()
+        self.assertEqual(clock['seconds'], 30)
+
+    def test_start_does_not_retry_other_probe_failures(self):
+        for code, command in [(1, ['/usr/lib/postgresql/16/bin/psql']),
+                              (3, ['/usr/lib/postgresql/16/bin/psql']),
+                              (2, ['/usr/bin/node'])]:
+            with self.subTest(code=code, command=command):
+                failure = subprocess.CalledProcessError(code, command)
+                with (patch.object(base, 'run'),
+                      patch.object(workers, 'ready', side_effect=failure),
+                      patch.object(workers.time, 'sleep') as sleep):
+                    with self.assertRaises(subprocess.CalledProcessError):
+                        workers.start()
+                sleep.assert_not_called()
 
 
 if __name__ == '__main__':

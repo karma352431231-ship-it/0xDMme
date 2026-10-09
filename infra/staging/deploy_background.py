@@ -2,6 +2,7 @@
 
 import os
 from pathlib import Path
+import subprocess
 import time
 
 import deploy_remote as base
@@ -94,8 +95,15 @@ def start():
     # Readiness includes each exclusive PostgreSQL lease, not merely a live PID.
     deadline = time.monotonic() + 30
     while time.monotonic() < deadline:
-        if ready():
-            return
+        try:
+            if ready():
+                return
+        except subprocess.CalledProcessError as error:
+            # psql exit 2 is a lost/failed connection, not a verified lease.
+            # Keep waiting within the existing deadline; other failures propagate.
+            if (error.returncode != 2 or not isinstance(error.cmd, (list, tuple))
+                    or '/usr/lib/postgresql/16/bin/psql' not in error.cmd):
+                raise
         time.sleep(1)
     raise RuntimeError('Background workers did not acquire all three leases.')
 
