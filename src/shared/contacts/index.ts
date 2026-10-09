@@ -22,6 +22,14 @@ export interface WalletContact {
   ecosystem: Ecosystem;
   address: string;
 }
+/** Exact EVM and Solana address formats are disjoint; discovery needs no RPC. */
+export function walletContactFromAddress(value: string): WalletContact {
+  const address = value.trim();
+  return walletContact({
+    ecosystem: address.startsWith('0x') ? 'evm' : 'solana',
+    address,
+  });
+}
 export function walletContact(value: unknown): WalletContact {
   const data = object(value);
   keys(data, ['ecosystem', 'address']);
@@ -34,7 +42,7 @@ export function walletContact(value: unknown): WalletContact {
   } catch {
     throw new AccountError(
       400,
-      'Wallet inválida. Confira o ecossistema e o endereço completo.',
+      'Wallet inválida. Confira o endereço completo EVM ou Solana.',
     );
   }
 }

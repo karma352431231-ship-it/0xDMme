@@ -4,6 +4,18 @@ Em 09/10/2026, [painéis e temas](UI_PAINEIS_E_TEMAS.md) tirou Contatos da barra
 
 O proprietário pediu uma interface de contatos mais clara, com menos texto e ações dispersas. A implementação mantém a identidade visual do menu lateral e do chat, sem alterar as regras de contato ou descoberta.
 
+## Ecossistema automático no formulário — 09/10/2026
+
+O proprietário confirmou que a mensagem “Wallet inválida” ocorreu ao selecionar EVM para um endereço Solana e pediu remover essa escolha. O formulário de contato passa a pedir somente o endereço completo e o apelido opcional. Ao salvar ou solicitar conversa, o cliente identifica EVM pelo endereço `0x` com 40 dígitos hexadecimais, ou Solana pelo endereço Base58 canônico que representa 32 bytes. A validação existente continua obrigatória; não consultar o servidor nem salvar endereço inválido. EVM permanece normalizado e Solana conserva maiúsculas/minúsculas; espaços externos de colagem são removidos.
+
+A identificação usa apenas o endereço informado, sem RPC, consulta à blockchain ou serviço externo. Agenda e API conservam o campo de ecossistema validado; editar, reabrir e restaurar rascunhos usam o mesmo endereço. A UI final, a escolha de ecossistema no login, descoberta escolhida pelo destinatário, consentimento, bloqueios e formatos cifrados permanecem.
+
+Validação local: 19 testes direcionados de contatos, ciclo da UI, normalização e wallets passaram, assim como lint, tipos estritos, fronteiras, formatação e build. A regressão do formulário falhou antes da mudança e passou ao identificar o endereço sem seletor; cobre salvar/solicitar EVM e Solana e impedir ambas as operações para endereço inválido. Seis fluxos de formulário em Chromium com API/cofre fictícios, em 320, 390 e 1440 px, confirmaram a identificação, o salvamento, a solicitação e a ausência de erro JavaScript ou excesso horizontal. Esses ensaios não substituem teclado/câmera e aceite físico mobile.
+
+**Ponto importante:** a identificação automática evita selecionar EVM para uma wallet Solana; permitir descoberta continua apenas habilitando o pedido, que exige aceite do destinatário.
+
+## Organização da tela
+
 - Contatos liberados aparecem em linhas com nome, wallet abreviada e ação **Conversar**. Nome e endereço completos ficam nas opções da linha; nomes continuam sendo informações escolhidas pelo usuário.
 - Solicitações ficam em uma aba, com Recebidas, Enviadas e Recusadas. Aceitar/Recusar são ações explícitas; cancelar um pedido fica no menu. O contador representa pedidos recebidos da página carregada, não um total global inventado.
 - Agenda particular e Bloqueados têm suas próprias listas. Versões da agenda, remoções e conflitos continuam conferidos pelo cofre; abrir/editar e resolver conflitos seguem os contratos existentes. Não apresentar todos os registros como contatos autorizados.

@@ -361,6 +361,7 @@ Após as alterações visuais dessa entrega, o proprietário confirmou em 09/10/
 
 - Login/logout por wallet, perfil, foto e descoberta por endereço conforme privacidade.
 - Convites, pedidos de conversa, aceitar/rejeitar, bloquear/desbloquear.
+- Em 09/10/2026, o proprietário pediu retirar a escolha manual EVM/Solana ao adicionar contatos: identificar o ecossistema pelo endereço completo validado, tanto ao salvar na agenda quanto ao solicitar conversa. A escolha de ecossistema no login e os formatos de conta/API permanecem; [contrato do formulário](docs/UI_CONTATOS.md#ecossistema-automático-no-formulário--09102026).
 - Apelidos privados, busca local de contatos e conversas.
 - Texto, respostas, reações, edição, encaminhamento e exclusão com semântica definida.
 - Fotos, arquivos, áudio gravado e figurinhas, conforme seleção de escopo. Vídeos reproduzíveis ficam fora da versão inicial do mensageiro privado; a aprovação de vídeos na camada pública está na seção 6.4.

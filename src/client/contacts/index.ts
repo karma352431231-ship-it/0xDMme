@@ -4,7 +4,7 @@ import {
   discoveryMode,
   invitationLink,
   readInvitation,
-  walletContact,
+  walletContactFromAddress,
 } from '../../shared/contacts/index.ts';
 import type {
   AddressBookEntry,
@@ -269,7 +269,6 @@ export function startContacts(
       : undefined;
     const c = editing.contact;
     for (const [selector, v] of [
-      ['[data-book-network]', c.ecosystem],
       ['[data-book-address]', c.address],
       ['[data-book-alias]', c.alias],
     ]) {
@@ -292,7 +291,7 @@ export function startContacts(
     openEditor('wallet');
   }
   function referenceContact(
-    wallet: AddressBookEntry | ReturnType<typeof walletContact>,
+    wallet: AddressBookEntry | ReturnType<typeof walletContactFromAddress>,
   ): AddressBookEntry | null {
     if (editing) return editing.contact;
     return prepared && walletKey(prepared) === walletKey(wallet)
@@ -300,10 +299,7 @@ export function startContacts(
       : null;
   }
   function draft(): AddressBookEntry {
-    const wallet = walletContact({
-      ecosystem: value('[data-book-network]'),
-      address: value('[data-book-address]').trim(),
-    });
+    const wallet = walletContactFromAddress(value('[data-book-address]'));
     const reference = referenceContact(wallet);
     return addressBookEntry({
       version: 1,
@@ -332,10 +328,7 @@ export function startContacts(
   }
   async function discover(): Promise<void> {
     found = await contacts.discover(
-      walletContact({
-        ecosystem: value('[data-book-network]'),
-        address: value('[data-book-address]').trim(),
-      }),
+      walletContactFromAddress(value('[data-book-address]')),
     );
     text(
       '[data-contact-discovery]',
@@ -490,10 +483,8 @@ export function startContacts(
   }
   async function selectPeer(contact: Peer): Promise<void> {
     resetEditor();
-    const n = node<HTMLSelectElement>('[data-book-network]'),
-      a = node<HTMLInputElement>('[data-book-address]'),
+    const a = node<HTMLInputElement>('[data-book-address]'),
       alias = node<HTMLInputElement>('[data-book-alias]');
-    if (n) n.value = contact.ecosystem;
     if (a) a.value = contact.address;
     if (alias) alias.value = contact.name;
     status = 'Confira o apelido particular e salve explicitamente na agenda.';
@@ -707,7 +698,6 @@ export function startContacts(
       resetEditor();
       prepared = contact;
       for (const [selector, value] of [
-        ['[data-book-network]', contact.ecosystem],
         ['[data-book-address]', contact.address],
         ['[data-book-alias]', contact.alias],
       ]) {
@@ -741,7 +731,6 @@ export function startContacts(
       mode: 'contacts' | 'settings' = 'contacts',
     ): void {
       const formValues = [
-        '[data-book-network]',
         '[data-book-address]',
         '[data-book-alias]',
         '[data-book-search]',

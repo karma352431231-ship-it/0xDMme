@@ -8,6 +8,7 @@ import {
   invitationLink,
   readInvitation,
   walletContact,
+  walletContactFromAddress,
 } from '../src/shared/contacts/index.ts';
 import { readQrPayload, qrMatrix } from '../src/client/device-qr/index.ts';
 import { walletEntity } from '../src/client/contacts/agenda.ts';
@@ -62,6 +63,36 @@ await test('agenda normaliza EVM, separa ecossistemas e não aceita carteiras ma
   assert.throws(() => addressBookEntry({ ...entry, alias: 'apelido\nextra' }));
   assert.equal(await walletEntity(entry), await walletEntity(wallet));
   assert.notEqual(await walletEntity(entry), await walletEntity(solana));
+});
+await test('endereço completo identifica o ecossistema com a mesma validação canônica e preserva Solana', () => {
+  const addresses = [
+    wallet,
+    {
+      ecosystem: 'solana' as const,
+      address: base58.encode(new Uint8Array(32).fill(17)),
+    },
+    {
+      ecosystem: 'solana' as const,
+      address: base58.encode(new Uint8Array(32)),
+    },
+  ];
+  for (const contact of addresses)
+    assert.deepEqual(walletContactFromAddress(` ${contact.address} `), contact);
+  assert.deepEqual(walletContactFromAddress('0x' + 'aAbBcCdDeE'.repeat(4)), {
+    ecosystem: 'evm',
+    address: '0x' + 'aabbccddee'.repeat(4),
+  });
+  for (const invalid of [
+    '',
+    '0xabc',
+    wallet.address + 'a',
+    '0x' + 'g'.repeat(40),
+    base58.encode(new Uint8Array(31).fill(17)),
+    base58.encode(new Uint8Array(33).fill(17)),
+    'O'.repeat(44),
+    'So111111…11112',
+  ])
+    assert.throws(() => walletContactFromAddress(invalid), /Wallet inválida/u);
 });
 await test('convite fica no fragmento, não autoriza dispositivo e rejeita origem/campos/QR indevidos', () => {
   const invite = { owner: accountId, token: 'a'.repeat(64) };
