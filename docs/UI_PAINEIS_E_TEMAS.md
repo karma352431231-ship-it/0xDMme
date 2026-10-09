@@ -176,4 +176,17 @@ Pedido do proprietário: configurações do desktop e todo o mobile iguais ao mo
   - Comunidades ganha abas segmentadas e uma linha de filtros, que quebra em duas para os menus não serem cortados.
   - O Perfil não tem barra superior. Ele mostra identidade, Cofre e uma lista agrupada em que cada categoria abre como tela própria, com "‹" para voltar.
 
-**Ponto importante:** a fileira de status ("Seu status", contatos com anel) do modelo mobile não entrou. Ela exige ligar os dados de Status à lista de Conversas, que é outra tarefa. O anel de status nos avatares continua. Os filtros Tudo/Pedidos/Respostas da Atividade também não entraram, porque a Atividade já agrupa por tipo.
+**Ponto importante:** a fileira de status e os filtros da Atividade foram feitos logo depois, na seção abaixo.
+
+## Fila de status e filtros da Atividade — 09/10/2026
+
+Pedido do proprietário:
+
+- **Fila de status (Conversas, celular, em Privados):** "Seu status" e os contatos aprovados com status ativo, com anel no degradê da marca.
+  - Usa a mesma lista de autores que já colore os anéis dos avatares, sem rota, tabela ou dado novo no servidor.
+  - A lista é atualizada ao abrir a sessão e ao voltar para Conversas, no máximo uma vez por minuto.
+  - Tocar num contato abre `#status?autor=…`, e a tela de Status abre o status ativo mais novo dele. "Seu status" leva à publicação ou ao seu status ativo.
+  - Contatos removidos e grupos não entram na fila.
+- **Atividade:** filtros **Tudo | Pedidos | Respostas**. Pedidos reúne o que espera resposta: pedidos de conversa, convites de grupo e transferências de comunidade. Respostas mostra as respostas nas comunidades. Chamadas perdidas aparecem em Tudo. O filtro volta para Tudo ao trocar de conta.
+
+Validação: testes do mapeamento dos filtros e da regra de quem entra na fila, mais a prévia a 390 px com nomes fictícios.

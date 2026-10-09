@@ -32,6 +32,28 @@ export interface ActivitySources {
 }
 
 type Loaded<T> = { items: readonly T[]; problem: string };
+
+export type ActivityFilter = 'all' | 'requests' | 'replies';
+export type ActivityGroup =
+  'requests' | 'calls' | 'invites' | 'replies' | 'transfers';
+const groupOrder: readonly ActivityGroup[] = [
+  'requests',
+  'calls',
+  'invites',
+  'replies',
+  'transfers',
+];
+/**
+ * Tudo shows every group. Pedidos are the items waiting for an answer
+ * (conversation, group invite, community transfer); Respostas are community replies.
+ */
+export function activityGroups(
+  filter: ActivityFilter,
+): readonly ActivityGroup[] {
+  if (filter === 'requests') return ['requests', 'invites', 'transfers'];
+  if (filter === 'replies') return ['replies'];
+  return groupOrder;
+}
 type Item<
   K extends
     'requests' | 'groupInvites' | 'replies' | 'transfers' | 'missedCalls',
@@ -88,6 +110,7 @@ export function startActivity(
   let generation = 0;
   let busy = false;
   let feedback = '';
+  let filter: ActivityFilter = 'all';
 
   function count(): number {
     return (
@@ -292,42 +315,81 @@ export function startActivity(
       );
       return;
     }
-    const replyIds = snapshot.replies.items.map((item) => item.reply);
-    const groups = [
-      section('Pedidos de conversa', snapshot.requests, requestRows()),
-      section(
-        'Chamadas perdidas',
-        snapshot.calls,
-        callRows(),
-        snapshot.calls.items.length
-          ? button(
-              'Limpar',
-              () => sources.clearMissedCalls(),
-              'Chamadas perdidas removidas da lista em todos os aparelhos.',
-            )
-          : undefined,
-      ),
-      section('Convites de grupo', snapshot.invites, inviteRows()),
-      section(
-        'Respostas nas comunidades',
-        snapshot.replies,
-        replyRows(),
-        replyIds.length
-          ? button(
-              'Marcar como lidas',
-              () => sources.markRepliesRead(replyIds),
-              'Respostas marcadas como lidas.',
-            )
-          : undefined,
-      ),
-      section(
-        'Transferências de comunidade',
-        snapshot.transfers,
-        transferRows(),
-      ),
-    ].filter((node): node is HTMLElement => node !== null);
+    status.before(filters());
+    const shown = activityGroups(filter);
+    const groups = groupSections()
+      .filter(([group]) => shown.includes(group))
+      .map(([, node]) => node)
+      .filter((node): node is HTMLElement => node !== null);
     if (groups.length) host.append(...groups);
     else host.append(element('p', 'Nada novo por aqui.', 'activity-empty'));
+  }
+  function filters(): HTMLElement {
+    const nav = element('nav', '', 'activity-filters');
+    nav.setAttribute('aria-label', 'Filtrar atividade');
+    for (const [key, label] of [
+      ['all', 'Tudo'],
+      ['requests', 'Pedidos'],
+      ['replies', 'Respostas'],
+    ] as const) {
+      const choice = element('button', label);
+      choice.type = 'button';
+      choice.setAttribute('aria-pressed', String(filter === key));
+      choice.addEventListener('click', () => {
+        filter = key;
+        render();
+      });
+      nav.append(choice);
+    }
+    return nav;
+  }
+  function groupSections(): [ActivityGroup, HTMLElement | null][] {
+    const replyIds = snapshot.replies.items.map((item) => item.reply);
+    return [
+      [
+        'requests',
+        section('Pedidos de conversa', snapshot.requests, requestRows()),
+      ],
+      [
+        'calls',
+        section(
+          'Chamadas perdidas',
+          snapshot.calls,
+          callRows(),
+          snapshot.calls.items.length
+            ? button(
+                'Limpar',
+                () => sources.clearMissedCalls(),
+                'Chamadas perdidas removidas da lista em todos os aparelhos.',
+              )
+            : undefined,
+        ),
+      ],
+      ['invites', section('Convites de grupo', snapshot.invites, inviteRows())],
+      [
+        'replies',
+        section(
+          'Respostas nas comunidades',
+          snapshot.replies,
+          replyRows(),
+          replyIds.length
+            ? button(
+                'Marcar como lidas',
+                () => sources.markRepliesRead(replyIds),
+                'Respostas marcadas como lidas.',
+              )
+            : undefined,
+        ),
+      ],
+      [
+        'transfers',
+        section(
+          'Transferências de comunidade',
+          snapshot.transfers,
+          transferRows(),
+        ),
+      ],
+    ];
   }
   return {
     /** Loads once per call: opening the page or a new authorized session. */
@@ -351,6 +413,7 @@ export function startActivity(
       generation++;
       snapshot = empty();
       feedback = '';
+      filter = 'all';
       options.countChanged(0);
       render();
     },

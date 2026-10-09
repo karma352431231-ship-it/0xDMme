@@ -158,6 +158,21 @@ export function startStatus(access: VaultAccess, sync: VaultSync) {
     }
     if (!items.length) list.textContent = 'Nenhum status ativo nesta página.';
   }
+  async function openNewest(author: string): Promise<void> {
+    const item = controller.items.find(
+      (candidate) =>
+        candidate.author === author &&
+        statusIsActive({ publishedAt: candidate.publishedAt, now: Date.now() }),
+    );
+    if (!item) {
+      notice = 'Esse status já expirou ou não está nesta página.';
+      return;
+    }
+    clearOpened();
+    view = await controller.open(item.id);
+    renderOpened();
+    notice = 'Status aberto.';
+  }
   function renderOpened(): void {
     const container = node('[data-status-open]');
     if (!container || !view) return;
@@ -467,13 +482,18 @@ export function startStatus(access: VaultAccess, sync: VaultSync) {
     },
     leave,
     canActivate: () => !busy && !selection && !controller.pending,
-    mount(container: HTMLElement): void {
+    /** `author` opens that contact's newest active status (from the status row). */
+    mount(container: HTMLElement, author: string | null = null): void {
       host = container;
       container.innerHTML = `<article class="card status-card"><h2>Status</h2><p data-status-notice role="status"></p><button data-status-refresh type="button">Atualizar</button><div data-status-list></div><button data-status-more type="button" hidden>Mais status</button><section data-status-open aria-live="polite"></section></article><article class="card status-card"><h2>Seu próximo status</h2><form data-status-compose><label>Texto ou legenda<textarea data-status-text rows="3"></textarea></label><button data-status-emoji type="button">Escolher emoji</button><label>Foto<input data-status-file type="file" accept="image/*"></label><div data-status-preview></div><button data-status-clear-photo type="button">Remover foto</button><button data-status-publish class="primary" type="submit">Publicar status</button><button data-status-cancel type="button" hidden>Cancelar publicação pendente</button></form><p>Texto e foto desaparecem após 24 horas e ficam fora dos backups.</p><details><summary>Quem pode ver seus próximos status</summary><p>Todos os contatos aprovados podem ver por padrão. Desmarque quem você deseja excluir. Novos contatos entram nas próximas publicações.</p><p data-status-privacy-conflict hidden></p><div data-status-audience></div><button data-status-more-contacts type="button" hidden>Mais contatos</button><button data-status-save-audience type="button">Salvar privacidade</button></details></article>`;
       bindControls();
       renderList();
       status();
-      if (session && navigator.onLine) void run(refresh);
+      if (session && navigator.onLine)
+        void run(async () => {
+          await refresh();
+          if (author) await openNewest(author);
+        });
     },
   };
 }

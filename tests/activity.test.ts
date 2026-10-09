@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { startActivity } from '../src/client/activity/index.ts';
+import { activityGroups, startActivity } from '../src/client/activity/index.ts';
 import type { ActivitySources } from '../src/client/activity/index.ts';
 import type { AccountSession } from '../src/shared/account/index.ts';
 
@@ -65,4 +65,13 @@ await test('sem sessão nada é lido e trocar de conta zera o contador', async (
   await activity.refresh();
   activity.setSession({ ...session, accountId: 'b' });
   assert.equal(counts.at(-1), 0);
+});
+
+await test('filtros: Pedidos reúne o que espera resposta e Respostas só as respostas das comunidades', () => {
+  for (const [filter, groups] of [
+    ['all', ['requests', 'calls', 'invites', 'replies', 'transfers']],
+    ['requests', ['requests', 'invites', 'transfers']],
+    ['replies', ['replies']],
+  ] as const)
+    assert.deepEqual(activityGroups(filter), groups);
 });

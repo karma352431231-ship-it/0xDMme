@@ -2954,8 +2954,30 @@ footer {
  * named in the top bar, compact lists and bubbles, a floating action for the
  * screen's main task and a quiet bottom bar.
  */
-.mobile-title {
+.mobile-title,
+.status-strip {
   display: none;
+}
+/* Atividade: Tudo | Pedidos | Respostas. */
+.activity-filters {
+  display: flex;
+  gap: 6px;
+  margin: 12px 0 4px;
+}
+.activity-filters button {
+  padding: 6px 12px;
+  border: 0;
+  border-radius: 99px;
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--line);
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 600;
+}
+.activity-filters button[aria-pressed='true'] {
+  background: var(--surface-3);
+  box-shadow: none;
+  color: var(--text);
 }
 @media (max-width: 700px) {
   #app-shell .brand-bar {
@@ -3126,6 +3148,64 @@ footer {
     color: var(--text-muted);
     font-size: 13px;
     opacity: 1;
+  }
+
+  /* Status row: "Seu status" and contacts with an active status. */
+  #app-shell .status-strip {
+    display: flex;
+    gap: 14px;
+    padding: 2px 16px 12px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  #app-shell .status-strip::-webkit-scrollbar {
+    display: none;
+  }
+  #app-shell[data-contact-scope='public'] .status-strip {
+    display: none;
+  }
+  .status-tile {
+    display: grid;
+    flex: 0 0 58px;
+    justify-items: center;
+    gap: 5px;
+    min-width: 0;
+    color: var(--text-muted);
+    font-size: 11px;
+    text-decoration: none;
+  }
+  .status-tile-name {
+    max-width: 58px;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+  .status-ring {
+    display: grid;
+    place-items: center;
+    width: 52px;
+    height: 52px;
+    padding: 4px;
+    border-radius: 50%;
+  }
+  .status-ring.active {
+    background: var(--brand-grad);
+  }
+  .status-ring.own:not(.active) {
+    border: 1.5px dashed var(--text-faint);
+  }
+  #app-shell .status-ring .conversation-avatar {
+    flex: none;
+    width: 100%;
+    height: 100%;
+    font-size: 14px;
+    box-shadow: 0 0 0 2px var(--bg);
+  }
+  #app-shell .status-ring.own .conversation-avatar {
+    background: transparent;
+    box-shadow: none;
+    color: var(--text-muted);
+    font-size: 22px;
   }
 
   /* Conversa aberta */

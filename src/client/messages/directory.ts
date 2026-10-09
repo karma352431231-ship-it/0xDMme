@@ -132,3 +132,70 @@ export function renderDirectory(
     'Suas conversas aparecem aqui depois de adicionar um contato ou entrar em um grupo.';
   host.append(empty);
 }
+
+/** Contacts whose status is active, newest list order; the row only links to Status. */
+export function statusAuthors(
+  entries: readonly ConversationEntry[],
+): ConversationEntry[] {
+  return entries.filter(
+    (entry) => entry.kind === 'contact' && entry.status && !entry.hidden,
+  );
+}
+
+/** "Seu status" plus each contact with an active status, as in the mockup. */
+export function renderStatusStrip(
+  host: HTMLElement,
+  input: {
+    /** Own account id while its status is active; null shows "publish". */
+    ownActive: string | null;
+    authors: readonly ConversationEntry[];
+  },
+): void {
+  const own = statusTile(
+    input.ownActive
+      ? `#status?autor=${encodeURIComponent(input.ownActive)}`
+      : '#status',
+    'Seu status',
+    null,
+  );
+  own
+    .querySelector('.status-ring')
+    ?.classList.toggle('active', !!input.ownActive);
+  host.replaceChildren(
+    own,
+    ...input.authors.map((entry) =>
+      statusTile(
+        `#status?autor=${encodeURIComponent(entry.id)}`,
+        displayName(entry.title),
+        { label: entry.title, seed: entry.seed ?? entry.id },
+      ),
+    ),
+  );
+}
+
+function statusTile(
+  href: string,
+  label: string,
+  avatar: { label: string; seed: string } | null,
+): HTMLAnchorElement {
+  const tile = document.createElement('a');
+  tile.className = 'status-tile';
+  tile.href = href;
+  const ring = document.createElement('span');
+  ring.className = avatar ? 'status-ring active' : 'status-ring own';
+  ring.setAttribute('aria-hidden', 'true');
+  const face = document.createElement('span');
+  face.className = 'conversation-avatar';
+  if (avatar) paintAvatar(face, avatar);
+  else face.textContent = '+';
+  ring.append(face);
+  const name = document.createElement('span');
+  name.className = 'status-tile-name';
+  name.textContent = label;
+  tile.append(ring, name);
+  tile.setAttribute(
+    'aria-label',
+    avatar ? `Ver status de ${label}` : 'Seu status: publicar ou ver',
+  );
+  return tile;
+}

@@ -13,7 +13,12 @@ import { mountPushSettings } from '../push-settings/index.ts';
 import { notificationSettings } from './settings.ts';
 import { ConversationSearch } from './search.ts';
 import type { SearchPage } from './search.ts';
-import { renderDirectory, filteredConversations } from './directory.ts';
+import {
+  renderDirectory,
+  filteredConversations,
+  renderStatusStrip,
+  statusAuthors as activeStatusAuthors,
+} from './directory.ts';
 import type {
   ConversationEntry,
   ConversationAction,
@@ -1018,6 +1023,15 @@ export function startMessages(
         .map(savedEntry),
       ...groupEntries(),
     ];
+    const strip = node('[data-status-strip]');
+    if (strip)
+      renderStatusStrip(strip, {
+        ownActive:
+          session && statusAuthors.has(session.accountId)
+            ? session.accountId
+            : null,
+        authors: activeStatusAuthors(entries),
+      });
     const sorted = filteredConversations(entries, directoryFilter);
     renderDirectory(list, sorted, {
       menu,

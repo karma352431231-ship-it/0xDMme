@@ -372,7 +372,10 @@ function mountFeature(key: PageKey): void {
       element('community-directory'),
       new URLSearchParams(location.hash.split('?')[1] ?? ''),
     );
-  if (key === 'conversas') messages.ready();
+  if (key === 'conversas') {
+    messages.ready();
+    refreshStatusAuthors();
+  }
   mountActivity(key, content);
   if (key === 'perfil')
     startSettingsCategories(
@@ -413,7 +416,11 @@ function mountStatusFeature(key: PageKey, content: HTMLElement): void {
   const container = content.querySelector<HTMLElement>(
     '[data-status-container]',
   );
-  if (key === 'status' && container) statuses.mount(container);
+  if (key === 'status' && container)
+    statuses.mount(
+      container,
+      new URLSearchParams(location.hash.split('?')[1] ?? '').get('autor'),
+    );
 }
 
 function mountAccountPanels(key: PageKey): void {
@@ -481,7 +488,15 @@ function loadSessionExtras(accountId: string): void {
   if (sessionExtrasFor === accountId) return;
   sessionExtrasFor = accountId;
   void activity.refresh();
-  // Rings are decoration: if the status list fails, the list simply shows none.
+  refreshStatusAuthors(true);
+}
+let statusAuthorsAt = 0;
+/** Rings and the status row; at most once a minute when returning to Conversas. */
+function refreshStatusAuthors(force = false): void {
+  if (!connectedAccount || !devices.authorized()) return;
+  if (!force && Date.now() - statusAuthorsAt < 60_000) return;
+  statusAuthorsAt = Date.now();
+  // Decoration: if the status list fails, the list simply shows none.
   statuses
     .activeAuthors()
     .then((authors) => {

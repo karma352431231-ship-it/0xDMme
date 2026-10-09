@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import {
   matchingConversations,
   filteredConversations,
+  statusAuthors,
 } from '../src/client/messages/directory.ts';
 import type { ConversationEntry } from '../src/client/messages/directory.ts';
 import {
@@ -279,5 +280,31 @@ await test('pesquisa não publica conteúdo após mudança de sessão e recusa c
   await assert.rejects(
     searchGroupCopies({ ...context, after: '{"group":"a","before":-1}' }),
     /Página de busca inválida/u,
+  );
+});
+
+await test('fila de status mostra só contatos com status ativo, sem removidos nem grupos', () => {
+  const base = {
+    detail: '',
+    searchText: '',
+    selected: false,
+    open: () => undefined,
+  };
+  const entries: ConversationEntry[] = [
+    { ...base, id: 'ana', title: 'Ana', kind: 'contact', status: true },
+    { ...base, id: 'bia', title: 'Bia', kind: 'contact', status: false },
+    {
+      ...base,
+      id: 'removido',
+      title: 'Removido',
+      kind: 'contact',
+      status: true,
+      hidden: true,
+    },
+    { ...base, id: 'grupo', title: 'Grupo', kind: 'group', status: true },
+  ];
+  assert.deepEqual(
+    statusAuthors(entries).map((entry) => entry.id),
+    ['ana'],
   );
 });
