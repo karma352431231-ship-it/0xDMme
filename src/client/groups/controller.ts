@@ -13,7 +13,7 @@ import {
 } from '../../shared/groups/index.ts';
 import type { GroupConsent, GroupEvent } from '../../shared/groups/index.ts';
 import { attachmentContent } from '../../shared/attachments/index.ts';
-import { backupMessageApi } from '../message-api/index.ts';
+import { backupMessageApi, messageApi } from '../message-api/index.ts';
 import {
   PeerIdentity,
   readDirectories,
@@ -59,6 +59,13 @@ interface GroupContext {
   api: AttachmentApi;
   governance: GroupGovernance;
 }
+interface GroupPrefetch {
+  after: string | null;
+  groups: GroupEvent[];
+  before: number | null;
+  listed: boolean;
+  complete: boolean;
+}
 export class GroupController {
   private readonly retry = new GroupRetry();
   private readonly access: VaultAccess;
@@ -66,6 +73,14 @@ export class GroupController {
   private readonly identities: PeerIdentity;
   private session: AccountSession | null = null;
   private generation = 0;
+  private prefetchAbort: AbortController | null = null;
+  private prefetch: GroupPrefetch = {
+    after: null,
+    groups: [],
+    before: null,
+    listed: false,
+    complete: false,
+  };
   entries: GroupSummary[] = [];
   incoming: GroupConsent[] = [];
   next: string | null = null;
@@ -105,12 +120,15 @@ export class GroupController {
     this.session = session;
   }
   close(): void {
+    this.pauseSynchronization();
+    this.resetSynchronization();
     this.generation++;
     this.selected = null;
     this.views = [];
     this.before = null;
   }
   hide(): void {
+    this.pauseSynchronization();
     this.generation++;
     this.views = [];
   }
@@ -179,6 +197,7 @@ export class GroupController {
     );
   }
   async refresh(more = false): Promise<void> {
+    if (!more) this.resetSynchronization();
     if (!navigator.onLine) return this.refreshLocal(more);
     if (more && this.remoteNext === null) return this.refreshLocal(true, true);
     await this.identities.load();
@@ -344,6 +363,125 @@ export class GroupController {
         ]
       : items;
     this.incomingNext = page['next'] === null ? null : uuid(page['next']);
+  }
+  pauseSynchronization(): void {
+    this.prefetchAbort?.abort();
+  }
+  private resetSynchronization(): void {
+    this.prefetch = {
+      after: null,
+      groups: [],
+      before: null,
+      listed: false,
+      complete: false,
+    };
+  }
+  /** Prepares every authorized group without selecting it or marking it read. */
+  async synchronizeAll(signal: AbortSignal): Promise<boolean> {
+    if (this.prefetch.complete) return false;
+    const generation = this.generation,
+      abort = new AbortController();
+    this.prefetchAbort = abort;
+    const combined = AbortSignal.any([signal, abort.signal]);
+    const guard = () => {
+      combined.throwIfAborted();
+      this.guard(generation);
+    };
+    const progress = this.prefetch;
+    try {
+      const more = await this.access.withVault(false, async (authority) => {
+        guard();
+        if (authority.session.accountId !== this.session?.accountId)
+          throw new Error('Conta alterada.');
+        const api = (op: string, payload: Record<string, unknown>) =>
+          messageApi(authority, op, payload, { guard, signal: combined });
+        if (!(await this.loadPrefetchGroups(progress, api))) return false;
+        const governance = new GroupGovernance(this.identities, api, authority);
+        await this.prefetchGroupPage(
+          { authority, api, governance, guard },
+          progress,
+        );
+        return true;
+      });
+      guard();
+      await this.identities.save(guard);
+      guard();
+      return more;
+    } finally {
+      if (this.prefetchAbort === abort) this.prefetchAbort = null;
+    }
+  }
+  private async loadPrefetchGroups(
+    progress: GroupPrefetch,
+    api: AttachmentApi,
+  ): Promise<boolean> {
+    if (progress.groups.length) return true;
+    if (progress.listed && progress.after === null) {
+      progress.complete = true;
+      return false;
+    }
+    const { groups, next } = this.prefetchGroupList(
+      await api('group-list', { after: progress.after }),
+      progress.after,
+    );
+    progress.groups = groups;
+    progress.after = next;
+    progress.listed = true;
+    progress.complete = !groups.length && next === null;
+    return !progress.complete;
+  }
+  private prefetchGroupList(
+    value: unknown,
+    after: string | null,
+  ): { groups: GroupEvent[]; next: string | null } {
+    const page = object(value);
+    if (!Array.isArray(page['items']) || page['items'].length > 16)
+      throw new Error('Lista de grupos inválida.');
+    const groups = page['items'].map((input) => groupEvent(input));
+    const next = page['next'] === null ? null : uuid(page['next']);
+    if (next !== null && (next === after || !groups.length))
+      throw new Error('Paginação de grupos divergente.');
+    return { groups, next };
+  }
+  private async prefetchGroupPage(
+    c: GroupContext & { guard: () => void },
+    progress: GroupPrefetch,
+  ): Promise<void> {
+    const group = await c.governance.verify(progress.groups[0]!.groupId);
+    const raw = object(
+      await c.api('group-message-recent', {
+        groupId: group.state.groupId,
+        head: group.head,
+        before: progress.before,
+      }),
+    );
+    await this.machine(c, async (machine) => {
+      const page = await readGroupPage(
+        { ...c, group, machine, identities: this.identities },
+        raw,
+      );
+      c.guard();
+      if (page.receipts.length)
+        await c.api('group-message-received', {
+          groupId: group.state.groupId,
+          head: group.head,
+          items: page.receipts,
+        });
+    });
+    await this.confirm(c.api, group);
+    c.guard();
+    const before =
+      raw['next'] === null
+        ? null
+        : integer(raw['next'], Number.MAX_SAFE_INTEGER);
+    if (
+      before !== null &&
+      progress.before !== null &&
+      before >= progress.before
+    )
+      throw new Error('Paginação de grupo divergente.');
+    progress.before = before;
+    if (before === null) progress.groups.shift();
   }
   async open(groupId: string, older = false, localOnly = false): Promise<void> {
     if (!navigator.onLine || localOnly) return this.openLocal(groupId, older);

@@ -6,8 +6,14 @@ export async function messageApi(
   authority: VaultAuthority,
   operation: string,
   payload: Record<string, unknown>,
-  guard: () => void,
+  control: (() => void) | { guard: () => void; signal: AbortSignal },
 ): Promise<unknown> {
+  const guard = typeof control === 'function' ? control : control.guard;
+  const timeout = AbortSignal.timeout(15000);
+  const signal =
+    typeof control === 'function'
+      ? timeout
+      : AbortSignal.any([timeout, control.signal]);
   guard();
   const options = await prepareMessageRequest(authority, operation, payload);
   guard();
@@ -16,7 +22,7 @@ export async function messageApi(
     `/api/account/messages/${operation}`,
     {
       ...options,
-      signal: AbortSignal.timeout(15000),
+      signal,
     },
   );
   const data = await readApiJson(response, `messages/${operation}`);

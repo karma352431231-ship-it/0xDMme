@@ -168,3 +168,47 @@ await test('cliente de mensagens não perde HTTP 429 nem contorna sua guarda; r�
   assert.equal(error.operation, 'api');
   assert.equal(error.message.includes('ticket'), false);
 });
+
+await test('ação do usuário cancela a rede de preparação e preserva a guarda de autorização', async (t) => {
+  const abort = new AbortController();
+  let started!: () => void;
+  const entered = new Promise<void>((resolve) => {
+    started = resolve;
+  });
+  t.mock.method(
+    globalThis,
+    'fetch',
+    (_path: string, options: RequestInit) =>
+      new Promise<Response>((_resolve, reject) => {
+        assert.ok(options.signal);
+        options.signal.addEventListener(
+          'abort',
+          () => reject(options.signal?.reason as Error),
+          { once: true },
+        );
+        started();
+      }),
+  );
+  const authority = {
+    session: {
+      accountId: crypto.randomUUID(),
+      deviceId: crypto.randomUUID(),
+      csrf: 'sintético',
+    },
+    directory: 'sintético',
+    sign: () => Promise.resolve('sintético'),
+  } as unknown as VaultAuthority;
+  const pending = messageApi(
+    authority,
+    'page',
+    {},
+    { guard: () => {}, signal: abort.signal },
+  );
+  await entered;
+  abort.abort();
+  await assert.rejects(
+    pending,
+    (error: unknown) =>
+      error instanceof ApiResponseError && error.failure === 'cancelled',
+  );
+});

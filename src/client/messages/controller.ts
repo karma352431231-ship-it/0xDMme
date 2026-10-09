@@ -66,7 +66,15 @@ import {
   DecryptionErrorCode,
 } from '@matrix-org/matrix-sdk-crypto-wasm';
 import { messageApi, backupMessageApi } from '../message-api/index.ts';
-import { MessageIndex, VerifiedWindow } from './index-sync.ts';
+import {
+  MessageIndex,
+  VerifiedWindow,
+  MessagePrefetch,
+  assertMessagePage,
+  messagePeer,
+  verifiedReceipt,
+  verifiedReceiptHash,
+} from './index-sync.ts';
 import { OfflineIndex } from './offline-index.ts';
 import type { CachedText } from './offline-index.ts';
 import { notifyMessageControls } from '../message-controls/index.ts';
@@ -75,6 +83,7 @@ import {
   peerHistory,
   verifyDeletion,
   indexedPacket,
+  assertPacketIdentity,
   assertRemovalIdentity,
 } from './history.ts';
 import type { MessageItem } from './history.ts';
@@ -103,12 +112,20 @@ interface Outbox {
   transferStarted?: boolean;
 }
 interface ProfileCache {
+  verification?: LocalCipher;
   id: string;
   peer: string;
   own: boolean;
   sequence: number;
   hash: string;
   draft: LocalCipher[];
+}
+function markReceived(
+  items: MessageItem[],
+  receipts: { id: string; hash: string }[],
+): void {
+  const received = new Set(receipts.map((receipt) => receipt.id));
+  for (const item of items) if (received.has(item.id)) item.status = 'received';
 }
 /** Authority serializes SDK/IDB mutations across tabs; views are published only after the final server check. */
 export class Messages {
@@ -129,6 +146,8 @@ export class Messages {
   transportPending = false;
   private confirmed: { snapshot: string; views: MessageView[] } | null = null;
   private readonly index = new MessageIndex();
+  private readonly prefetch = new MessagePrefetch();
+  private prefetchAbort: AbortController | null = null;
   private readonly verified = new VerifiedWindow<MessageView>();
   private readonly offlineIndex = new OfflineIndex();
   constructor(
@@ -158,6 +177,8 @@ export class Messages {
     this.session = session;
   }
   close(): void {
+    this.pauseSynchronization();
+    this.prefetch.reset();
     this.confirmed = null;
     this.verified.clear();
     this.generation++;
@@ -166,6 +187,8 @@ export class Messages {
     this.offlineIndex.reset();
   }
   hide(): void {
+    this.pauseSynchronization();
+    this.index.reset();
     this.confirmed = null;
     this.verified.clear();
     this.visibility.close();
@@ -175,7 +198,12 @@ export class Messages {
     this.visibility.hint();
   }
   select(peer: string | null, older = false): void {
-    this.close();
+    this.pauseSynchronization();
+    this.confirmed = null;
+    this.verified.clear();
+    this.generation++;
+    this.visibility.close();
+    this.offlineIndex.reset();
     this.selected = peer;
     this.before = older ? this.oldest : null;
   }
@@ -186,10 +214,10 @@ export class Messages {
   private async machine(
     a: VaultAuthority,
     generation: number,
-  ): Promise<MessageCrypto> {
-    return openMessageMachine(a, (op, data) =>
+    api = (op: string, data: Record<string, unknown>) =>
       messageApi(a, op, data, () => this.guard(generation)),
-    );
+  ): Promise<MessageCrypto> {
+    return openMessageMachine(a, api);
   }
   private async recoverable(
     a: VaultAuthority,
@@ -236,11 +264,15 @@ export class Messages {
     await this.identities.save();
   }
   private async history(
-    a: VaultAuthority,
-    generation: number,
+    c: {
+      a: VaultAuthority;
+      generation: number;
+      api?: (op: string, data: Record<string, unknown>) => Promise<unknown>;
+    },
     account: string,
     through: number | null,
   ) {
+    const { a, generation } = c;
     if (account === a.session.accountId) {
       await verifyHistory(a.events, account);
       return a.events;
@@ -249,7 +281,7 @@ export class Messages {
     if (through !== null && cached && cached.length >= through)
       return cached.slice(0, through);
     const history = await peerHistory(
-      (op, d) => messageApi(a, op, d, () => this.guard(generation)),
+      c.api ?? ((op, d) => messageApi(a, op, d, () => this.guard(generation))),
       account,
       through,
       this.identities.get(account),
@@ -453,6 +485,12 @@ export class Messages {
     if (kind === 'attachment') attachmentContent(JSON.parse(text) as unknown);
     if (kind !== 'profile') return [await sealLocal(a, id, text)];
     profileCard(JSON.parse(text) as unknown);
+    return this.sealProfileChunks(a, text);
+  }
+  private async sealProfileChunks(
+    a: VaultAuthority,
+    text: string,
+  ): Promise<LocalCipher[]> {
     const chunks: LocalCipher[] = [];
     for (let after = 0; after < text.length; after += 1_500_000)
       chunks.push(
@@ -507,7 +545,7 @@ export class Messages {
         null,
       );
       for (const peer of new Set(page.items.map((row) => row.value.peer)))
-        await this.history(a, generation, peer, null);
+        await this.history({ a, generation }, peer, null);
     });
     await this.savePins();
     this.guard(generation);
@@ -545,7 +583,7 @@ export class Messages {
       await this.retainOutbox(a, value);
       return;
     }
-    const history = await this.history(a, generation, value.peer, null),
+    const history = await this.history({ a, generation }, value.peer, null),
       last = history.at(-1);
     if (!last) throw new Error('Diretório do contato ausente.');
     if (
@@ -678,35 +716,39 @@ export class Messages {
           }),
           48,
         ).items;
-        const machine = await this.machine(a, generation);
-        try {
-          await machine.prepare(a);
-          await this.receive(a, machine, generation);
-          const window = [...items, ...related],
-            views: MessageView[] = [];
-          const context = {
-            a,
-            generation,
-            api,
-            snapshot,
-            machine,
-            window,
-            histories: new Map<
-              string,
-              Awaited<ReturnType<Messages['history']>>
-            >(),
-            keys: new Map<string, RecoveryKey>(),
-          };
-          for (const item of window)
-            views.push(
-              this.verified.read(snapshot, item) ??
-                (await this.readOne(context, item)),
-            );
-          await indexSearch(a, views);
-          return { views, snapshot, items, window };
-        } finally {
-          machine.close();
+        const window = [...items, ...related],
+          views: MessageView[] = [],
+          missing: MessageItem[] = [];
+        for (const item of window) {
+          const cached =
+            this.verified.read(snapshot, item) ??
+            (await this.readCached(a, snapshot, item));
+          if (cached) views.push(cached);
+          else missing.push(item);
         }
+        if (missing.length) {
+          const machine = await this.machine(a, generation);
+          try {
+            await machine.prepare(a);
+            await this.receive(a, machine, generation);
+            const fetched = await this.readBatch({
+              a,
+              generation,
+              api,
+              snapshot,
+              machine,
+              items: missing,
+              skipUnavailable: false,
+            });
+            views.push(...fetched.values());
+          } finally {
+            machine.close();
+          }
+        }
+        const byId = new Map(views.map((view) => [view.id, view]));
+        const ordered = window.map((item) => byId.get(item.id)!);
+        await indexSearch(a, ordered);
+        return { views: ordered, snapshot, items, window };
       });
       await this.savePins();
       this.guard(generation);
@@ -734,8 +776,8 @@ export class Messages {
       await this.confirmVisible(token, staged.snapshot, generation);
       this.guard(generation);
       this.verified.remember(staged.snapshot, staged.window, staged.views);
-      this.index.reset();
     } catch (error: unknown) {
+      this.index.reset();
       this.confirmed = null;
       this.verified.clear();
       this.visibility.fail(token);
@@ -838,12 +880,18 @@ export class Messages {
   }): Promise<MessageItem[]> {
     return this.index.read({
       ...c,
+      account: c.a.session.accountId,
       before: this.before,
       deleted: (item) => this.indexItem(c, item),
     });
   }
   private async indexItem(
-    c: { a: VaultAuthority; generation: number; selected: string | null },
+    c: {
+      a: VaultAuthority;
+      generation: number;
+      selected: string | null;
+      api?: (op: string, data: Record<string, unknown>) => Promise<unknown>;
+    },
     item: MessageItem,
   ): Promise<void> {
     if (item.deleted) {
@@ -865,13 +913,13 @@ export class Messages {
         );
       } else {
         const history = await this.history(
-          c.a,
-          c.generation,
+          c,
           item.deletion_account ?? item.sender,
           Number(item.deletion?.payload['revision']),
         );
         await verifyDeletion(item, history);
       }
+      if (item.kind === 'profile') await this.preserveProfilePointer(c.a, item);
       await localDelete(c.a.session.accountId, `cache:${item.id}`);
       await localDelete(c.a.session.accountId, `search:${item.id}`);
       await localDelete(c.a.session.accountId, `profile:${item.id}`);
@@ -904,7 +952,7 @@ export class Messages {
         author: item.sender,
         sequence: item.sequence,
         id: item.id,
-        peer: this.selected ?? '',
+        peer: messagePeer(c.a.session.accountId, item),
         own: item.sender === c.a.session.accountId,
         text: 'Entrega suspensa: é necessário novo consentimento.',
         state: 'Suspensa',
@@ -931,11 +979,11 @@ export class Messages {
         await api('object', { id: item.id, snapshot }),
         item,
       );
+    assertPacketIdentity(packet, item);
     let history = c.histories.get(packet.sender);
     if (!history) {
       history = await this.history(
-        a,
-        c.generation,
+        c,
         packet.sender,
         Math.max(
           ...c.window
@@ -975,19 +1023,27 @@ export class Messages {
       peer,
       own,
       item,
+      snapshot,
     });
     if (c.acknowledge) await c.acknowledge(packet.id, item.hash);
     else await api('acknowledge', { id: packet.id, hash: item.hash });
+    return this.viewFromItem(a, item, text);
+  }
+  private viewFromItem(
+    a: VaultAuthority,
+    item: MessageItem,
+    text: string,
+  ): MessageView {
     return {
-      kind: packet.kind,
-      ...(packet.relation ? { relation: packet.relation } : {}),
-      sequence: item.sequence,
-      author: packet.sender,
-      id: packet.id,
-      peer,
-      own,
-      text,
+      kind: item.kind,
+      ...(item.relation ? { relation: item.relation } : {}),
+      id: item.id,
       hash: item.hash,
+      author: item.sender,
+      sequence: item.sequence,
+      peer: messagePeer(a.session.accountId, item),
+      own: item.sender === a.session.accountId,
+      text,
       state: item.queue_active
         ? 'Aceita · entrega por aparelho pendente'
         : 'Recebida e preservada',
@@ -1032,15 +1088,22 @@ export class Messages {
     peer: string;
     own: boolean;
     item: MessageItem;
+    snapshot: unknown;
   }): Promise<void> {
     const { a, packet, text, peer, own, item } = c;
+    const verification = await sealLocal(
+      a,
+      packet.id,
+      verifiedReceipt(c.snapshot, item, await digest(text)),
+    );
     if (packet.kind === 'profile') {
       profileCard(JSON.parse(text) as unknown);
-      const draft = await this.sealDraft(a, packet.id, text, 'profile');
+      const draft = await this.sealProfileChunks(a, text);
       await localPut(
         a.session.accountId,
         `profile:${packet.id}`,
         {
+          verification,
           id: packet.id,
           peer,
           own,
@@ -1048,14 +1111,11 @@ export class Messages {
           hash: item.hash,
           draft,
         } satisfies ProfileCache,
-        draft.reduce((bytes, chunk) => bytes + chunk.bytes.length, 0) + 512,
+        draft.reduce((bytes, chunk) => bytes + chunk.bytes.length, 0) +
+          verification.bytes.length +
+          512,
       );
-      await localPut(
-        a.session.accountId,
-        `profile-current:${peer}:${own}`,
-        packet.id,
-        512,
-      );
+      await this.preserveProfilePointer(a, item);
       return;
     }
     if (packet.kind === 'attachment')
@@ -1066,6 +1126,7 @@ export class Messages {
       `cache:${packet.id}`,
       {
         ...cipher,
+        verification,
         peer,
         own,
         kind: packet.kind,
@@ -1073,19 +1134,37 @@ export class Messages {
         sequence: item.sequence,
         hash: item.hash,
       },
-      cipher.bytes.length + 512,
+      cipher.bytes.length + verification.bytes.length + 512,
     );
+  }
+  private async preserveProfilePointer(
+    a: VaultAuthority,
+    item: MessageItem,
+  ): Promise<void> {
+    const own = item.sender === a.session.accountId,
+      peer = messagePeer(a.session.accountId, item),
+      name = `profile-current:${peer}:${own}`;
+    const previous = await localGet<string>(a.session.accountId, name);
+    const old = previous
+      ? await localGet<ProfileCache>(a.session.accountId, `profile:${previous}`)
+      : null;
+    const tombstone = `profile-tombstone:${peer}:${own}`;
+    const removed = await localGet<number>(a.session.accountId, tombstone);
+    if (Math.max(old?.sequence ?? 0, removed ?? 0) >= item.sequence) return;
+    if (item.deleted)
+      await localPut(a.session.accountId, tombstone, item.sequence, 512);
+    await localPut(a.session.accountId, name, item.id, 512);
   }
   private async receive(
     a: VaultAuthority,
     machine: MessageCrypto,
     generation: number,
+    api = (op: string, data: Record<string, unknown>) =>
+      messageApi(a, op, data, () => this.guard(generation)),
   ): Promise<void> {
     this.transportPending = false;
     for (let batch = 0; batch < 16; batch++) {
-      const raw = object(
-          await messageApi(a, 'matrix-inbox', {}, () => this.guard(generation)),
-        ),
+      const raw = object(await api('matrix-inbox', {})),
         items = raw['items'];
       if (!Array.isArray(items) || items.length > 16)
         throw new Error('Caixa Olm inválida.');
@@ -1100,14 +1179,9 @@ export class Messages {
         this.transportPending = true;
         return;
       }
-      await messageApi(
-        a,
-        'matrix-received',
-        {
-          sequences: received.map((index) => object(items[index])['sequence']),
-        },
-        () => this.guard(generation),
-      );
+      await api('matrix-received', {
+        sequences: received.map((index) => object(items[index])['sequence']),
+      });
       for (const index of received)
         await localDelete(
           scope,
@@ -1156,67 +1230,217 @@ export class Messages {
       backupMessageApi(a, 'snapshot', {}, () => {}),
     );
   }
+  private async readCached(
+    a: VaultAuthority,
+    snapshot: unknown,
+    item: MessageItem,
+  ): Promise<MessageView | null> {
+    if (item.deleted || item.status !== 'received') return null;
+    const cached = await this.cachedCipherText(a, item);
+    if (!cached) return null;
+    const hash = verifiedReceiptHash(
+      await openLocal(a, cached.verification),
+      snapshot,
+      item,
+    );
+    if (hash === null) return null;
+    if ((await digest(cached.text)) !== hash)
+      throw new Error('Conteúdo local divergente do pacote verificado.');
+    return this.viewFromItem(a, item, cached.text);
+  }
+  private async cachedCipherText(
+    a: VaultAuthority,
+    item: MessageItem,
+  ): Promise<{ text: string; verification: LocalCipher } | null> {
+    if (item.kind === 'profile') {
+      const row = await localGet<ProfileCache>(
+        a.session.accountId,
+        `profile:${item.id}`,
+      );
+      if (!row?.verification) return null;
+      return {
+        text: (
+          await Promise.all(row.draft.map((chunk) => openLocal(a, chunk)))
+        ).join(''),
+        verification: row.verification,
+      };
+    }
+    const row = await localGet<CachedText>(
+      a.session.accountId,
+      `cache:${item.id}`,
+    );
+    return row?.verification
+      ? { text: await openLocal(a, row), verification: row.verification }
+      : null;
+  }
+  private async readBatch(c: {
+    a: VaultAuthority;
+    generation: number;
+    api: (op: string, data: Record<string, unknown>) => Promise<unknown>;
+    snapshot: unknown;
+    machine: MessageCrypto;
+    items: MessageItem[];
+    skipUnavailable: boolean;
+    guard?: () => void;
+    consume?: (views: MessageView[]) => Promise<void>;
+  }): Promise<Map<string, MessageView>> {
+    const views = new Map<string, MessageView>(),
+      histories = new Map<string, Awaited<ReturnType<Messages['history']>>>(),
+      keys = new Map<string, RecoveryKey>();
+    // The existing export transport bounds both count (32) and ciphertext bytes.
+    let remaining = c.items;
+    while (remaining.length) {
+      const ids = remaining.slice(0, 32).map((item) => item.id);
+      const response = readBackupWindow(
+        await c.api('backup-window', { ids, snapshot: c.snapshot }),
+        ids,
+      );
+      for (const [id, key] of response.keys) keys.set(id, key);
+      const api = (
+        op: string,
+        data: Record<string, unknown>,
+      ): Promise<unknown> => {
+        c.guard?.();
+        this.guard(c.generation);
+        if (op !== 'object') return c.api(op, data);
+        const id = String(data['id']);
+        if (response.packets.has(id))
+          return Promise.resolve(response.packets.get(id));
+        const status = response.unavailable.get(id);
+        return Promise.reject(
+          new AccountError(
+            status ?? 410,
+            'Mensagem indisponível sob a autorização atual.',
+          ),
+        );
+      };
+      const receipts: { id: string; hash: string }[] = [];
+      const context = {
+        ...c,
+        api,
+        window: c.items,
+        histories,
+        keys,
+        acknowledge: (id: string, hash: string) => {
+          receipts.push({ id, hash });
+          return Promise.resolve();
+        },
+      };
+      const batchViews: MessageView[] = [];
+      for (const item of remaining.slice(0, response.count)) {
+        c.guard?.();
+        this.guard(c.generation);
+        if (c.skipUnavailable && !response.packets.has(item.id)) continue;
+        batchViews.push(await this.readOne(context, item));
+      }
+      if (receipts.length) {
+        await c.api('backup-ack', { items: receipts, snapshot: c.snapshot });
+        markReceived(c.items, receipts);
+      }
+      if (c.consume) await c.consume(batchViews);
+      else for (const view of batchViews) views.set(view.id, view);
+      remaining = remaining.slice(response.count);
+    }
+    return views;
+  }
   async backupBatch(items: MessageItem[]): Promise<Map<string, MessageView>> {
     if (!items.length) return new Map();
     if (items.length > 32) throw new Error('Lote de backup excedido.');
     const generation = this.generation;
     return this.access.withVault(false, async (a) => {
-      const guard = () => this.guard(generation);
-      const api = (op: string, d: Record<string, unknown>) =>
-        backupMessageApi(a, op, d, guard);
+      const api = (op: string, data: Record<string, unknown>) =>
+        backupMessageApi(a, op, data, () => this.guard(generation));
       const snapshot = await api('snapshot', {}),
-        machine = await this.machine(a, generation);
-      const views = new Map<string, MessageView>(),
-        histories = new Map<string, Awaited<ReturnType<Messages['history']>>>(),
-        keys = new Map<string, RecoveryKey>();
-      const acknowledgements: { id: string; hash: string }[] = [];
+        machine = await this.machine(a, generation, api);
       try {
-        let remaining = items;
-        while (remaining.length) {
-          const response = readBackupWindow(
-            await api('backup-window', {
-              ids: remaining.map((i) => i.id),
-              snapshot,
-            }),
-            remaining.map((i) => i.id),
-          );
-          for (const [id, key] of response.keys) keys.set(id, key);
-          const packets = response.packets;
-          const localApi = (
-            op: string,
-            d: Record<string, unknown>,
-          ): Promise<unknown> =>
-            op === 'object' && packets.has(String(d['id']))
-              ? Promise.resolve(packets.get(String(d['id'])))
-              : api(op, d);
-          const context = {
-            a,
-            generation,
-            api: localApi,
-            snapshot,
-            machine,
-            window: items,
-            histories,
-            keys,
-            acknowledge: (id: string, hash: string) => {
-              acknowledgements.push({ id, hash });
-              return Promise.resolve();
-            },
-          };
-          for (const item of remaining
-            .slice(0, response.count)
-            .filter((i) => packets.has(i.id))) {
-            guard();
-            views.set(item.id, await this.readPacket(context, item));
-          }
-          remaining = remaining.slice(response.count);
-        }
-        await api('backup-ack', { items: acknowledgements, snapshot });
-        return views;
+        return await this.readBatch({
+          a,
+          generation,
+          api,
+          snapshot,
+          machine,
+          items,
+          skipUnavailable: true,
+        });
       } finally {
         machine.close();
       }
     });
+  }
+  pauseSynchronization(): void {
+    this.prefetchAbort?.abort();
+  }
+  /** One global page per idle turn; user actions abort its network requests.
+   * No views/read receipts are published, and the SDK lock is released each turn. */
+  async synchronizeAll(signal: AbortSignal): Promise<boolean> {
+    const generation = this.generation,
+      abort = new AbortController();
+    this.prefetchAbort = abort;
+    const combined = AbortSignal.any([signal, abort.signal]);
+    const guard = () => {
+      combined.throwIfAborted();
+      this.guard(generation);
+    };
+    try {
+      const more = await this.access.withVault(false, async (a) => {
+        guard();
+        if (a.session.accountId !== this.session?.accountId)
+          throw new Error('Conta alterada.');
+        const api = (op: string, data: Record<string, unknown>) =>
+          messageApi(a, op, data, { guard, signal: combined });
+        const snapshot = await api('snapshot', {}),
+          after = this.prefetch.cursor(snapshot);
+        if (after === null) return false;
+        const page = messageItems(await api('page', { snapshot, after }));
+        assertMessagePage(page, after);
+        const missing: MessageItem[] = [];
+        for (const item of page.items) {
+          guard();
+          if (item.deleted)
+            await this.indexItem({ a, generation, selected: null, api }, item);
+          else if (!(await this.readCached(a, snapshot, item)))
+            missing.push(item);
+        }
+        if (missing.length) {
+          const machine = await this.machine(a, generation, api);
+          try {
+            await machine.prepare(a);
+            await this.receive(a, machine, generation, api);
+            await this.readBatch({
+              a,
+              generation,
+              api,
+              snapshot,
+              machine,
+              items: missing,
+              skipUnavailable: true,
+              guard,
+              consume: (views) => indexSearch(a, views),
+            });
+            guard();
+          } finally {
+            machine.close();
+          }
+        }
+        await api('confirm', { snapshot });
+        guard();
+        this.prefetch.commit(snapshot, page);
+        this.index.rememberConfirmedPage({
+          snapshot,
+          account: a.session.accountId,
+          selected: this.selected,
+          after,
+          page,
+        });
+        return page.next !== null;
+      });
+      guard();
+      await this.identities.save(guard);
+      guard();
+      return more;
+    } finally {
+      if (this.prefetchAbort === abort) this.prefetchAbort = null;
+    }
   }
   async backupMedia(
     view: MessageView,

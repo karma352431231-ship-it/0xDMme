@@ -103,6 +103,13 @@ export function startMessages(
     archivedMore = true;
   let failed = false;
   let maintenance: Promise<void> | null = null;
+  let preloadTimer: ReturnType<typeof setTimeout> | null = null;
+  let preloadAbort: AbortController | null = null;
+  let preloadRunning = false;
+  let preloadGroups = false;
+  let preloadRetryAt = 0;
+  let preloadDirectPending = true;
+  let preloadGroupsPending = true;
   let settingsHost: HTMLElement | null = null;
   let pushSettings: ReturnType<typeof mountPushSettings> | null = null;
   let message = 'Entre e autorize este aparelho para conversar.';
@@ -230,6 +237,7 @@ export function startMessages(
       groups.suspend(event === 'revoked' || event === 'ended');
   }
   function hideLiveHistory(event: LiveEvent): void {
+    stopPreload();
     if (event === 'revoked' || event === 'ended') {
       voice.cancel();
       attachments.clearSelection();
@@ -354,6 +362,7 @@ export function startMessages(
   }
   async function run(work: () => Promise<void>): Promise<void> {
     if (busy) return;
+    stopPreload();
     busy = true;
     failed = false;
     const current = generation;
@@ -386,11 +395,91 @@ export function startMessages(
         status();
       }
       updates.resume();
+      schedulePreload();
     }
+  }
+  function stopPreload(): void {
+    if (preloadTimer !== null) clearTimeout(preloadTimer);
+    preloadTimer = null;
+    preloadAbort?.abort();
+    controller.pauseSynchronization();
+    groups.pauseSynchronization();
+  }
+  function schedulePreload(delay = 1000): void {
+    if (preloadRunning || preloadTimer !== null || !canPreload()) return;
+    preloadDirectPending = true;
+    preloadGroupsPending = true;
+    preloadTimer = setTimeout(
+      () => {
+        preloadTimer = null;
+        void preloadHistory();
+      },
+      Math.max(delay, preloadRetryAt - Date.now()),
+    );
+  }
+  function canPreload(): boolean {
+    return (
+      !busy &&
+      maintenance === null &&
+      connected() &&
+      !!session &&
+      navigator.onLine &&
+      document.visibilityState === 'visible'
+    );
+  }
+  async function preloadHistory(): Promise<void> {
+    if (!canPreload() || preloadRunning) return;
+    preloadRunning = true;
+    const abort = new AbortController(),
+      current = generation;
+    preloadAbort = abort;
+    try {
+      if (preloadGroups && preloadGroupsPending)
+        preloadGroupsPending = await groups.synchronizeAll(abort.signal);
+      else preloadDirectPending = await controller.synchronizeAll(abort.signal);
+      preloadGroups =
+        preloadGroupsPending && (!preloadGroups || !preloadDirectPending);
+    } catch (error: unknown) {
+      preloadFailure(error, abort, current);
+    } finally {
+      preloadRunning = false;
+      if (preloadAbort === abort) preloadAbort = null;
+      continuePreload(current);
+    }
+  }
+  function preloadFailure(
+    error: unknown,
+    abort: AbortController,
+    current: number,
+  ): void {
+    if (abort.signal.aborted || current !== generation) return;
+    message =
+      error instanceof Error
+        ? error.message
+        : 'Não foi possível preparar o histórico das conversas.';
+    status();
+    preloadRetryAt = Date.now() + 61000;
+  }
+  function continuePreload(current: number): void {
+    if (
+      current !== generation ||
+      !canPreload() ||
+      !(preloadDirectPending || preloadGroupsPending)
+    )
+      return;
+    // Keep each completed branch complete until a foreground/live update.
+    preloadTimer = setTimeout(
+      () => {
+        preloadTimer = null;
+        void preloadHistory();
+      },
+      Math.max(1000, preloadRetryAt - Date.now()),
+    );
   }
   async function maintainPresence(): Promise<void> {
     if (busy || maintenance) return;
     const current = generation;
+    stopPreload();
     maintenance = dailyTick()
       .catch((error: unknown) => {
         if (current !== generation) return;
@@ -403,6 +492,7 @@ export function startMessages(
       .finally(() => {
         maintenance = null;
         updates.resume();
+        schedulePreload();
       });
     await maintenance;
   }
@@ -1310,6 +1400,7 @@ export function startMessages(
     return result;
   }
   function suspend(): void {
+    stopPreload();
     menu.close();
     emojiPicker.close();
     controller.close();

@@ -1,7 +1,13 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { VerifiedWindow } from '../src/client/messages/index-sync.ts';
+import {
+  VerifiedWindow,
+  verifiedReceipt,
+  verifiedReceiptHash,
+  MessagePrefetch,
+} from '../src/client/messages/index-sync.ts';
 import type { MessageItem } from '../src/client/messages/history.ts';
+import { assertPacketIdentity } from '../src/client/messages/history.ts';
 
 const snapshot = { revision: 1, directory: 'a'.repeat(64), contacts: 1 };
 const item: MessageItem = {
@@ -90,4 +96,100 @@ await test('limpeza e substituição descartam a janela anterior; conteúdo susp
     /excedida/,
   );
   assert.equal(cache.read(snapshot, received), null);
+});
+
+await test('cópia cifrada de outra conversa ou após recarga só serve com pacote, autoridade e recibo atuais', () => {
+  const payloadHash = 'e'.repeat(64);
+  const sealed = verifiedReceipt(snapshot, item, payloadHash);
+  const received = { ...item, status: 'received' as const };
+  assert.equal(
+    verifiedReceiptHash(sealed, { ...snapshot, revision: 2 }, received),
+    payloadHash,
+  );
+  for (const status of ['pending', 'revoked', null] as const)
+    assert.equal(
+      verifiedReceiptHash(sealed, snapshot, { ...item, status }),
+      null,
+    );
+  for (const change of [{ contacts: 2 }, { directory: 'c'.repeat(64) }])
+    assert.equal(
+      verifiedReceiptHash(sealed, { ...snapshot, ...change }, received),
+      null,
+    );
+  for (const change of [
+    { deleted: true },
+    { id: crypto.randomUUID() },
+    { hash: 'd'.repeat(64) },
+    { recipient: crypto.randomUUID() },
+    { sender_revision: 2 },
+    { kind: 'profile' as const },
+    { sequence: 2 },
+    {
+      relation: {
+        type: 'edit' as const,
+        id: item.id,
+        hash: item.hash,
+        author: item.sender,
+      },
+    },
+  ])
+    assert.equal(
+      verifiedReceiptHash(sealed, snapshot, { ...received, ...change }),
+      null,
+    );
+  assert.throws(
+    () => verifiedReceiptHash('{}', snapshot, received),
+    /inválida/,
+  );
+});
+
+await test('preparação global retoma página interrompida e reinicia ao mudar snapshot, sem saltar páginas inválidas', () => {
+  const prefetch = new MessagePrefetch(),
+    first = { items: [item], next: 1 };
+  assert.equal(prefetch.cursor(snapshot), 0);
+  assert.equal(prefetch.cursor(snapshot), 0);
+  assert.throws(
+    () => prefetch.commit(snapshot, { ...first, next: 2 }),
+    /Paginação/,
+  );
+  assert.equal(prefetch.cursor(snapshot), 0);
+  prefetch.commit(snapshot, first);
+  assert.equal(prefetch.cursor(snapshot), 1);
+  prefetch.commit(snapshot, { items: [], next: null });
+  assert.equal(prefetch.cursor(snapshot), null);
+  assert.equal(prefetch.cursor({ ...snapshot, revision: 2 }), 0);
+  assert.throws(() => prefetch.commit(snapshot, first), /alterada/);
+  prefetch.reset();
+  assert.equal(prefetch.cursor(snapshot), 0);
+});
+
+await test('índice não pode atribuir outro autor, destinatário, tipo ou revisão ao pacote autenticado', () => {
+  const packet = {
+    kind: item.kind,
+    sender: item.sender,
+    recipient: item.recipient,
+    senderRevision: item.sender_revision,
+    recipientRevision: item.recipient_revision,
+  };
+  assert.doesNotThrow(() => assertPacketIdentity(packet, item));
+  const changes: Partial<MessageItem>[] = [
+    { sender: item.recipient },
+    { recipient: item.sender },
+    { kind: 'profile' },
+    { sender_revision: 2 },
+    { recipient_revision: 2 },
+    {
+      relation: {
+        type: 'edit',
+        id: item.id,
+        hash: item.hash,
+        author: item.sender,
+      },
+    },
+  ];
+  for (const change of changes)
+    assert.throws(
+      () => assertPacketIdentity(packet, { ...item, ...change }),
+      /divergente do índice/,
+    );
 });

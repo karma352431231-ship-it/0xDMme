@@ -15,7 +15,8 @@ export function readBackupWindow(value: unknown, ids: readonly string[]) {
   )
     throw new Error('Lote de backup inválido.');
   const keys = new Map<string, RecoveryKey>(),
-    packets = new Map<string, unknown>();
+    packets = new Map<string, unknown>(),
+    unavailable = new Map<string, number>();
   for (const value of recovery) {
     const key = recoveryKey(value);
     if (keys.has(key.id)) throw new Error('Chave duplicada.');
@@ -24,8 +25,9 @@ export function readBackupWindow(value: unknown, ids: readonly string[]) {
   for (let i = 0; i < raw.length; i++) {
     const row = readRow(raw[i], ids[i]!);
     if (row['unavailable'] === undefined) packets.set(ids[i]!, row['packet']);
+    else unavailable.set(ids[i]!, Number(row['unavailable']));
   }
-  return { keys, packets, count: raw.length };
+  return { keys, packets, unavailable, count: raw.length };
 }
 
 function readRow(value: unknown, id: string): Record<string, unknown> {

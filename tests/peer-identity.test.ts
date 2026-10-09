@@ -154,3 +154,29 @@ await test('diretórios de grupo usam lotes limitados e recusam repetição ou c
     /incompletos/u,
   );
 });
+
+await test('preparação cede entre gravações de identidades sem perder o pin já preservado', async () => {
+  const peers = await Promise.all([groupParticipant(), groupParticipant()]);
+  const abort = new AbortController();
+  let writes = 0;
+  const identity = new PeerIdentity({
+    complete: true,
+    currentHeads: () => new Map(),
+    isRemoved: () => false,
+    refresh: () => Promise.resolve(),
+    open: () => Promise.reject(new Error('Sem leitura neste teste.')),
+    save: () => {
+      writes++;
+      abort.abort();
+      return Promise.resolve();
+    },
+  });
+  for (const peer of peers)
+    await identity.remember(peer.accountId, [peer.directory]);
+  await assert.rejects(identity.save(() => abort.signal.throwIfAborted()));
+  assert.equal(writes, 1);
+  await identity.save();
+  assert.equal(writes, 2);
+  for (const peer of peers)
+    assert.equal(identity.get(peer.accountId)?.directory, peer.head);
+});

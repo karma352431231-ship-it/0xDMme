@@ -180,9 +180,10 @@ export class PeerIdentity {
     await this.remember(input.account, events);
     return events;
   }
-  async save(): Promise<void> {
+  async save(continueWork?: () => void): Promise<void> {
     const generation = this.generation;
     for (const [accountId, pin] of this.pending) {
+      continueWork?.();
       this.guard(generation);
       const previous = [...this.sync.currentHeads().values()]
         .flat()

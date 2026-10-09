@@ -790,6 +790,8 @@ export function startGroups(
     search: (query: string, after: string | null) =>
       controller.search(query, after),
     refresh,
+    synchronizeAll: (signal: AbortSignal) => controller.synchronizeAll(signal),
+    pauseSynchronization: () => controller.pauseSynchronization(),
     resumePending,
     open,
     status,

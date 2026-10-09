@@ -2,6 +2,7 @@ import { localPage } from '../message-storage/index.ts';
 import type { LocalCipher } from '../message-storage/index.ts';
 import type { MessageRelation } from '../../shared/daily/index.ts';
 export type CachedText = LocalCipher & {
+  verification?: LocalCipher;
   relation?: MessageRelation;
   peer: string;
   sequence: number;

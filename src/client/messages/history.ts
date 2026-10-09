@@ -70,6 +70,39 @@ export async function indexedPacket(
     throw new Error('Mensagem divergente do índice.');
   return packet;
 }
+/** The signed packet hash is checked first; index metadata must also describe
+ * that packet before it can be sealed for later online reuse. */
+export function assertPacketIdentity(
+  packet: Pick<
+    MessagePacket,
+    | 'kind'
+    | 'sender'
+    | 'recipient'
+    | 'senderRevision'
+    | 'recipientRevision'
+    | 'relation'
+  >,
+  item: MessageItem,
+): void {
+  const fields = [
+    packet.kind,
+    packet.sender,
+    packet.recipient,
+    packet.senderRevision,
+    packet.recipientRevision,
+    packet.relation ?? null,
+  ];
+  const indexed = [
+    item.kind,
+    item.sender,
+    item.recipient,
+    item.sender_revision,
+    item.recipient_revision,
+    item.relation ?? null,
+  ];
+  if (canonical(fields) !== canonical(indexed))
+    throw new Error('Identidade da mensagem divergente do índice.');
+}
 export type { Api } from '../peer-identity/index.ts';
 export { peerHistory } from '../peer-identity/index.ts';
 export function messageItems(
