@@ -22,6 +22,7 @@ import type { AddressBookEntry } from '../../shared/contacts/index.ts';
 import { pages, pageKey } from './pages.ts';
 import { startPanels } from './panels.ts';
 import { startActivity } from '../activity/index.ts';
+import { CallLog } from '../call-log/index.ts';
 import type { PageKey } from './pages.ts';
 
 function element<T extends HTMLElement>(id: string): T {
@@ -68,12 +69,25 @@ const vault = startVault(devices);
 const publicProfiles = startPublicProfile(devices);
 const communities = startCommunities(devices, vault.sync);
 const playback = new VoicePlayback();
+const callLog = new CallLog(vault.sync);
 const calls = startCalls({
   access: devices,
   sync: vault.sync,
   playback,
   before: () => messages.prepareCall(),
   label: (peer) => messages.callLabel(peer),
+  history: {
+    // A failed vault write keeps the call pending in memory, still listed and retried.
+    missed: (call) => {
+      void callLog
+        .recordMissed(call)
+        .catch(() => undefined)
+        .finally(() => activity.refresh());
+    },
+    answered: (id) => {
+      void callLog.recordAnswered(id).catch(() => undefined);
+    },
+  },
 });
 const backups = startBackups(devices, vault.sync, playback, {
   reminder: () => account.backupReminder(),
@@ -140,6 +154,12 @@ const activity = startActivity(
     replies: () => communities.unreadReplies(),
     markRepliesRead: (ids) => communities.markRepliesRead(ids),
     transfers: () => communities.pendingTransfers(),
+    missedCalls: async () =>
+      (await callLog.missed()).map((call) => ({
+        ...call,
+        label: messages.callLabel(call.peer),
+      })),
+    clearMissedCalls: () => callLog.clear(),
   },
   {
     countChanged: (count) => {
@@ -182,6 +202,7 @@ const account = startAccount({
     publicProfiles.setSession(session);
     communities.setSession(session);
     activity.setSession(session);
+    callLog.reset();
     if (!session) sessionExtrasFor = '';
     panels.sessionChanged();
     connection();

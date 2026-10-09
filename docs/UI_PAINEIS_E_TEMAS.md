@@ -91,8 +91,19 @@ Implementada localmente em 09/10/2026:
 - **Atividade** (`#atividade`): pedidos de conversa recebidos, convites e ofertas de propriedade de grupo, respostas não lidas nas comunidades e transferências de comunidade pendentes. Cada seção lê a mesma API do lugar original (Contatos → Solicitações, ferramentas de grupos, Respostas ao seu conteúdo, Transferências) e usa as mesmas ações: aceitar/recusar pedido, entrar/aceitar propriedade/recusar convite, marcar respostas como lidas. Não há tabela, notificação ou dado novo no servidor.
 - **Carga:** ao abrir a Atividade e uma vez por sessão autorizada, para o contador. Não há consulta periódica. Uma fonte com erro mostra o aviso na própria seção, sem esconder as demais.
 - **Acesso:** item com contador no trilho (a partir de 1280 px) e sino no cabeçalho em telas menores. A barra mobile fica para a etapa 6.
-- **Chamadas perdidas não entraram.** O app não registra chamadas não atendidas em nenhum lugar; incluí-las exige guardar dado novo e passa por revisão separada.
+- **Chamadas perdidas:** inicialmente fora, porque o app não as registrava. Em 09/10/2026 o proprietário escolheu guardá-las no cofre cifrado (ver plano, seção 5.11); implementação registrada abaixo.
 - **Anel de status:** contatos com status ativo na primeira página da lista de status ganham um anel no avatar da lista de conversas. A lista é lida uma vez por sessão autorizada; se falhar, a lista simplesmente fica sem anéis. Tocar no contato continua abrindo a conversa; os status seguem em Perfil → Meu status.
 - **Cofre e backup** virou uma categoria do Perfil com os mesmos cartões de uso, backup, validação e reset; `#cofre` continua funcionando e o link avulso saiu. Logo abaixo da identidade, no topo do Perfil, um medidor compacto mostra o uso (por exemplo, 312 MB de 1 GB) com a mesma consulta do cartão, sem pedido extra; fica oculto sem conta.
 
 Validação: lint, TypeScript, fronteiras, formatação, build e testes unitários passaram, com testes novos para a soma do contador, o isolamento de falha entre fontes e a ausência de leitura sem sessão. Prévia local sem backend conferiu a Atividade sem conta, o contador no trilho, o sino oculto quando há trilho e a categoria Cofre e backup. Pedidos, convites, respostas, transferências e anéis com dados reais não foram conferidos; os testes de integração (PostgreSQL) não foram executados.
+
+### Chamadas perdidas no cofre — 09/10/2026
+
+Implementado conforme a escolha do proprietário (plano, seção 5.11):
+
+- `src/client/call-log` guarda no cofre cifrado um registro `settings` com entidade e rótulo próprios ("Chamadas perdidas"), lido pelos aparelhos da conta. Versões antigas do app filtram por rótulo e ignoram o registro; o servidor recebe só blocos opacos. Sem migração ou mudança no servidor.
+- O controlador de chamadas avisa quando uma chamada **recebida** some enquanto ainda tocava neste aparelho (não atendida nem recusada aqui) e quando este aparelho **atende**. Como o servidor não diferencia "atendida em outro aparelho" de "desligou", cada aparelho grava o que viu e a lista descarta chamadas marcadas como atendidas em qualquer aparelho.
+- Retenção: últimas 50 de cada tipo, até 30 dias; **Limpar** na Atividade remove a lista em todos os aparelhos. Versões concorrentes se juntam ao gravar (todas as versões atuais viram pais). Se a gravação falhar, a chamada fica pendente na memória, continua listada e é regravada na próxima escrita.
+- A Atividade ganhou a seção **Chamadas perdidas** e soma essas chamadas no contador.
+
+Limitação aceita: só registra chamadas que tocaram com algum aparelho aberto e logado. Validação: testes de junção entre aparelhos, chamada atendida em outro aparelho, retenção, limpeza e recusa de registro malformado. Detecção ao vivo com duas contas reais não foi conferida.

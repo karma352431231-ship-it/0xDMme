@@ -25,12 +25,18 @@ export interface CallUiState {
   enabled: boolean;
   connected: boolean;
 }
+/** Optional record of unanswered incoming calls; failures never affect the call itself. */
+export interface CallHistory {
+  missed: (call: { id: string; peer: string; at: number }) => void;
+  answered: (id: string) => void;
+}
 export class VoiceCalls {
   private readonly transport: CallTransport;
   private readonly security: CallSecurity;
   private readonly playback: VoicePlayback;
   private readonly before: () => void;
   private readonly publish: (state: CallUiState) => void;
+  private readonly history: CallHistory | null;
   private session: AccountSession | null = null;
   private timer: ReturnType<typeof setTimeout> | null = null;
   private readonly watchdog: ReturnType<typeof setInterval>;
@@ -65,12 +71,14 @@ export class VoiceCalls {
     playback: VoicePlayback;
     before: () => void;
     publish: (state: CallUiState) => void;
+    history?: CallHistory;
   }) {
     this.transport = new CallTransport(options.access);
     this.security = new CallSecurity(options.access, options.sync);
     this.playback = options.playback;
     this.before = options.before;
     this.publish = options.publish;
+    this.history = options.history ?? null;
     this.watchdog = setInterval(() => this.watch(), 1000);
   }
   get active(): boolean {
@@ -196,6 +204,7 @@ export class VoiceCalls {
       this.guard(g);
       const accepted = await this.transport.request('accept', { id: call.id });
       this.guard(g);
+      this.history?.answered(call.id);
       this.call = callSnapshot({ ...this.snapshot, call: accepted }).call;
       const config = iceConfiguration(
         await this.transport.request('turn', { id: call.id }),
@@ -353,6 +362,14 @@ export class VoiceCalls {
   }
   private idleSnapshot(): void {
     if (this.call) {
+      // An incoming call that stopped ringing here was not answered or declined
+      // on this device; another device's "answered" mark removes it later.
+      if (!this.call.caller && this.call.phase === 'ringing')
+        this.history?.missed({
+          id: this.call.id,
+          peer: this.call.peer,
+          at: Date.now(),
+        });
       this.clear('Chamada encerrada ou indisponível.');
       return;
     }

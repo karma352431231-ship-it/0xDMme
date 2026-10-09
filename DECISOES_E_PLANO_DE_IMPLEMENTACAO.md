@@ -344,6 +344,8 @@ O proprietário declarou que a interface atual é uma base de MVP e aprovou a pr
 - Pré-requisitos: fontes novas só após conferência de licença/tamanho e distribuição local; mover links de código/licenças do rodapé exige confirmar a acessibilidade da oferta de código; horário e prévia só com dados do histórico local.
 - Ordem: (1) tokens e temas sem mudar layout; (2) limpeza de ruído; (3) painéis do desktop; (4) Comunidades; (5) Atividade, status e cofre; (6) navegação mobile com teste físico. Detalhes e registro de cada etapa em [painéis e temas](docs/UI_PAINEIS_E_TEMAS.md).
 
+- **Chamadas perdidas — decisão do proprietário em 09/10/2026:** o app não registrava chamadas não atendidas. Entre guardar só na abertura, só no aparelho, no cofre ou no servidor, o proprietário escolheu o **cofre cifrado**, visível em todos os aparelhos da conta. Registro de configuração existente (`settings`) com entidade e rótulo próprios, para que versões antigas do app o ignorem; o servidor guarda apenas blocos opacos, sem quem ligou ou quando, e não há migração. Retenção: últimas 50 chamadas, até 30 dias, e o usuário pode limpar a lista. Conta na cota do cofre e entra no backup cifrado. Limitação aceita: só registra chamadas que tocaram com algum aparelho aberto e logado; com o app fechado não há registro. Registro no servidor foi descartado por expor metadado legível.
+
 **Ponto importante:** a revisão muda a apresentação e o lugar de acesso, não as proteções. DMs pelo `@` continuam E2EE e separadas da identidade privada; preferências de tema/layout não vão ao servidor. Implementação local não ativa a revisão na VPS nem substitui aceite físico.
 
 ## 6. Escopo funcional

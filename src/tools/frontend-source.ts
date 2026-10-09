@@ -47,6 +47,7 @@ const authored = [
   'src/client/appearance',
   'src/client/identity-display',
   'src/client/activity',
+  'src/client/call-log',
   'src/client/message-search',
   'src/client/message-status',
   'src/client/notification-sound',

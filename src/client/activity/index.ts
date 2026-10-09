@@ -29,17 +29,24 @@ export interface ActivitySources {
   >;
   markRepliesRead: (replies: readonly string[]) => Promise<void>;
   transfers: () => Promise<readonly { id: string; name: string }[]>;
+  missedCalls: () => Promise<
+    readonly { id: string; peer: string; label: string; at: number }[]
+  >;
+  clearMissedCalls: () => Promise<void>;
 }
 
 type Loaded<T> = { items: readonly T[]; problem: string };
-type Item<K extends 'requests' | 'groupInvites' | 'replies' | 'transfers'> =
-  Awaited<ReturnType<ActivitySources[K]>>[number];
+type Item<
+  K extends
+    'requests' | 'groupInvites' | 'replies' | 'transfers' | 'missedCalls',
+> = Awaited<ReturnType<ActivitySources[K]>>[number];
 
 interface Snapshot {
   requests: Loaded<Item<'requests'>>;
   invites: Loaded<Item<'groupInvites'>>;
   replies: Loaded<Item<'replies'>>;
   transfers: Loaded<Item<'transfers'>>;
+  calls: Loaded<Item<'missedCalls'>>;
 }
 
 function empty(): Snapshot {
@@ -48,6 +55,7 @@ function empty(): Snapshot {
     invites: { items: [], problem: '' },
     replies: { items: [], problem: '' },
     transfers: { items: [], problem: '' },
+    calls: { items: [], problem: '' },
   };
 }
 
@@ -90,20 +98,22 @@ export function startActivity(
       snapshot.requests.items.length +
       snapshot.invites.items.length +
       snapshot.replies.items.length +
-      snapshot.transfers.items.length
+      snapshot.transfers.items.length +
+      snapshot.calls.items.length
     );
   }
   async function refresh(): Promise<void> {
     if (!session) return;
     const old = ++generation;
-    const [requests, invites, replies, transfers] = await Promise.all([
+    const [requests, invites, replies, transfers, calls] = await Promise.all([
       load(sources.requests),
       load(sources.groupInvites),
       load(sources.replies),
       load(sources.transfers),
+      load(sources.missedCalls),
     ]);
     if (old !== generation) return;
-    snapshot = { requests, invites, replies, transfers };
+    snapshot = { requests, invites, replies, transfers, calls };
     options.countChanged(count());
     render();
   }
@@ -255,6 +265,16 @@ export function startActivity(
       }),
     );
   }
+  function callRows(): HTMLElement[] {
+    return snapshot.calls.items.map((call) =>
+      row({
+        avatar: { label: call.label, seed: call.peer },
+        title: displayName(call.label),
+        detail: `Chamada de voz não atendida · ${new Date(call.at).toLocaleString('pt-BR')}`,
+        actions: [],
+      }),
+    );
+  }
   function render(): void {
     if (!host) return;
     const heading = element('header', '', 'activity-heading');
@@ -279,6 +299,18 @@ export function startActivity(
     const replyIds = snapshot.replies.items.map((item) => item.reply);
     const groups = [
       section('Pedidos de conversa', snapshot.requests, requestRows()),
+      section(
+        'Chamadas perdidas',
+        snapshot.calls,
+        callRows(),
+        snapshot.calls.items.length
+          ? button(
+              'Limpar',
+              () => sources.clearMissedCalls(),
+              'Chamadas perdidas removidas da lista em todos os aparelhos.',
+            )
+          : undefined,
+      ),
       section('Convites de grupo', snapshot.invites, inviteRows()),
       section(
         'Respostas nas comunidades',

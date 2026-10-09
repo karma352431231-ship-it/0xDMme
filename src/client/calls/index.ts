@@ -7,7 +7,7 @@ import {
   soundPreferenceKey,
 } from '../notification-sound/index.ts';
 import { VoiceCalls } from './controller.ts';
-import type { CallUiState } from './controller.ts';
+import type { CallHistory, CallUiState } from './controller.ts';
 export { VoiceCalls } from './controller.ts';
 export { VoiceConnection, iceConfiguration } from './rtc.ts';
 export { CallSecurity } from './security.ts';
@@ -19,6 +19,7 @@ export function startCalls(options: {
   playback: VoicePlayback;
   before: () => void;
   label: (peer: string) => string;
+  history?: CallHistory;
 }) {
   let state: CallUiState | null = null;
   let settings: HTMLElement | null = null;

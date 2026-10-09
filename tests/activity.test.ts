@@ -20,6 +20,8 @@ function sources(overrides: Partial<ActivitySources> = {}): ActivitySources {
       ]),
     markRepliesRead: () => Promise.resolve(),
     transfers: () => Promise.resolve([]),
+    missedCalls: () => Promise.resolve([]),
+    clearMissedCalls: () => Promise.resolve(),
     ...overrides,
   };
 }
