@@ -15,8 +15,9 @@ class BackgroundTests(unittest.TestCase):
     def test_new_sources_are_exact_paths_and_keep_archive_budget(self):
         from deploy_pipeline_test import manifest
         value = manifest()
-        value['files'].update({'src/f' + str(i) + '.ts': 'a' * 64 for i in range(511)})
         value['files'].update({p: 'a' * 64 for p in base.BACKGROUND_SOURCE_FILES})
+        missing = base.MAX_MANIFEST_FILES - len(value['files'])
+        value['files'].update({'src/f' + str(i) + '.ts': 'a' * 64 for i in range(missing)})
         base.validate(value)
         value['files']['infra/unreviewed.service'] = 'a' * 64
         with self.assertRaisesRegex(RuntimeError, 'manifest size'):

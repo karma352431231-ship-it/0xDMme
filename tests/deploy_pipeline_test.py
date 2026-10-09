@@ -62,19 +62,12 @@ class DeploymentTests(unittest.TestCase):
                 'timeout':False, 'exit_code':1, 'category':category})
             self.assertNotIn('private-', json.dumps(failure))
 
-    def test_manifest_extra_entries_are_only_the_two_http_diagnostic_modules(self):
+    def test_manifest_size_is_bounded_at_the_reviewed_limit(self):
         value = manifest()
-        value['files'].update({'src/fixture-' + str(i) + '.ts': 'a' * 64 for i in range(511)})
+        missing = remote.MAX_MANIFEST_FILES - len(value['files'])
+        value['files'].update({'src/fixture-' + str(i) + '.ts': 'a' * 64 for i in range(missing)})
         remote.validate(value)
-        for path in remote.REQUEST_DIAGNOSTIC_FILES:
-            value['files'][path] = 'a' * 64
-            remote.validate(value)
-        self.assertEqual(len(value['files']), 514)
-        value['files']['src/unreviewed-extra.ts'] = 'a' * 64
-        with self.assertRaisesRegex(RuntimeError, 'manifest size'):
-            remote.validate(value)
-        for path in remote.REQUEST_DIAGNOSTIC_FILES:
-            value['files'].pop(path)
+        value['files']['src/one-too-many.ts'] = 'a' * 64
         with self.assertRaisesRegex(RuntimeError, 'manifest size'):
             remote.validate(value)
 
@@ -94,10 +87,6 @@ class DeploymentTests(unittest.TestCase):
         value['files'].update({'src/fixture-' + str(i) + '.ts': 'a' * 64 for i in range(511)})
         value['files'].update({path: 'a' * 64 for path in remote.RANKING_SOURCE_FILES})
         remote.validate(value)
-        value['files']['src/unreviewed-ranking-extra.ts'] = 'a' * 64
-        with self.assertRaisesRegex(RuntimeError, 'manifest size'):
-            remote.validate(value)
-        value['files'].pop('src/unreviewed-ranking-extra.ts')
         value['archive_bytes'] = remote.MAX_ARCHIVE + 1
         with self.assertRaisesRegex(RuntimeError, 'Archive budget'):
             remote.validate(value)

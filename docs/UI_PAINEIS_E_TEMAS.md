@@ -129,4 +129,4 @@ A CI recusou a publicação a partir da etapa 3: o manifesto da release chegou a
 - seções do Perfil (antes `app/settings.ts`) ficam em `app/pages.ts`;
 - os marcadores vazios `src/client/.gitkeep` e `src/shared/.gitkeep` foram removidos.
 
-**Ponto importante:** o manifesto volta a ficar exatamente no teto. Qualquer arquivo novo em `src`, `infra` ou `dist` fará a publicação falhar de novo; ampliar o teto do executor é uma decisão separada do proprietário.
+**Ponto importante:** com a consolidação, o manifesto ficou exatamente no teto. No mesmo dia o proprietário ampliou o teto para 1024 arquivos ([Git e deploy](GIT_E_DEPLOY.md)); a consolidação foi mantida porque não muda comportamento.

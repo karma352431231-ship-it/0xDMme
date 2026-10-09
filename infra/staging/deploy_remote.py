@@ -44,9 +44,11 @@ def measured(stage):
         value['cpu_seconds'] = round(value['cpu_seconds'] + cpu() - used, 3)
 
 
-# The previous release already used all 512 manifest entries. Only these two
-# owner-requested HTTP modules are additional entries; unrelated growth still
-# fails. Archive, extraction, manifest-byte and runtime budgets stay unchanged.
+# Manifest entries per release. Raised from 512 (plus reviewed extras) to 1024 on
+# 09/10/2026 by the owner: the app outgrew it. It still rejects runaway packages
+# such as node_modules; archive, extraction and runtime budgets are unchanged.
+MAX_MANIFEST_FILES = 1024
+# Paths reviewed for earlier transitions; kept because other checks name them.
 REQUEST_DIAGNOSTIC_FILES = frozenset([
     'src/client/api-response/index.ts', 'infra/staging/deploy_request_limit.py',
 ])
@@ -180,8 +182,7 @@ def validate(config):
     if not re.fullmatch(r'codex/[A-Za-z0-9][A-Za-z0-9._/-]*', config['branch']):
         raise RuntimeError('Invalid branch.')
     files = config['files']
-    extra = REQUEST_DIAGNOSTIC_FILES | RANKING_SOURCE_FILES | BACKGROUND_SOURCE_FILES
-    if not 1 <= len(files) <= 512 + len(set(files) & extra):
+    if not 1 <= len(files) <= MAX_MANIFEST_FILES:
         raise RuntimeError('Invalid release manifest size.')
     for name, value in files.items():
         parts = PurePosixPath(name).parts

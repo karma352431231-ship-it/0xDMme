@@ -213,7 +213,8 @@ export class Database {
     this.workSignals = new WorkSignals(connectionString, this.changes);
     this.pool = new pg.Pool({
       connectionString,
-      max: role === 'worker' ? 1 : 4,
+      // Sized with postgresql.conf max_connections (64): web 16, each worker 4.
+      max: role === 'worker' ? 4 : 16,
       connectionTimeoutMillis: 3_000,
       idleTimeoutMillis: 10_000,
       query_timeout: 5_000,
