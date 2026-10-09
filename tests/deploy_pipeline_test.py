@@ -31,6 +31,27 @@ def manifest():
 
 
 class DeploymentTests(unittest.TestCase):
+    def test_executor_transport_handles_large_quoted_sources_without_oversized_shell_argument(self):
+        names = ['deploy_sources', 'deploy_runtime', 'deploy_remote', 'deploy_blocks45',
+                 'deploy_request_limit', 'deploy_background']
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory); (root / 'infra/staging').mkdir(parents=True)
+            config = {'files': {}}
+            for name in names:
+                path = root / 'infra/staging' / (name + '.py')
+                source = ("# quoted '\" transport fixture\n" * 700)
+                if name == 'deploy_remote': source += "def execute(): return {'restored': True}\n"
+                path.write_text(source)
+                config['files'][str(path.relative_to(root))] = remote.digest(path)
+            with patch.object(deploy, 'ROOT', root):
+                code = deploy.executor_code(config)
+            result = subprocess.run([sys.executable, '-c', code], capture_output=True, check=True)
+            self.assertEqual(json.loads(result.stdout), {'restored': True})
+            self.assertLess(len(code.encode()), 64 * 1024)
+            path.write_text('tampered after review')
+            with patch.object(deploy, 'ROOT', root), self.assertRaisesRegex(RuntimeError, 'changed after'):
+                deploy.executor_code(config)
+
     def test_transition_diagnostics_classify_failures_without_private_details(self):
         for detail, category in [(b'statement timeout', 'statement-timeout'),
                                  (b'Read-only file system', 'read-only-filesystem')]:

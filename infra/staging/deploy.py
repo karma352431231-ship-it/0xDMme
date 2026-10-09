@@ -15,6 +15,7 @@ import tarfile
 import tempfile
 import urllib.parse
 import urllib.request
+import zlib
 
 from deploy_remote import digest, validate
 import deploy_sources as public_sources
@@ -186,16 +187,26 @@ def private_inputs():
     return target, baseline
 
 
-def remote(action, config, target):
+def executor_code(config):
     modules = []
     for name in ['deploy_sources', 'deploy_runtime', 'deploy_remote', 'deploy_blocks45', 'deploy_request_limit', 'deploy_background']:
         path = ROOT / 'infra/staging' / (name + '.py')
         if digest(path) != config['files'].get('infra/staging/' + name + '.py'):
             raise RuntimeError('Deployment executor changed after the reviewed commit.')
-        modules.append('m=types.ModuleType(' + repr(name) + ');sys.modules[' + repr(name) +
-                       ']=m;exec(' + repr(path.read_text()) + ',m.__dict__)')
-    code = ('import sys,types,json;' + ';'.join(modules) +
-            ';print(json.dumps(sys.modules["deploy_remote"].execute()))')
+        modules.append([name, path.read_text()])
+    raw = json.dumps(modules).encode()
+    if len(raw) > 256 * 1024:
+        raise RuntimeError('Deployment executor source budget exceeded.')
+    packed = base64.b64encode(zlib.compress(raw)).decode()
+    return ('import sys,types,json,base64,zlib\n'
+            'modules=json.loads(zlib.decompress(base64.b64decode(' + repr(packed) + ')))\n'
+            'for name,source in modules:\n'
+            ' m=types.ModuleType(name);sys.modules[name]=m;exec(source,m.__dict__)\n'
+            'print(json.dumps(sys.modules["deploy_remote"].execute()))')
+
+
+def remote(action, config, target):
+    code = executor_code(config)
     worker_paths = []
     if action == 'activate' and 'src/server/worker.ts' in config['files']:
         worker_paths = ['-p', 'ReadWritePaths=/var/lib/0xdmme/data /etc/systemd/system/0xdmme-test.service.d',
@@ -216,6 +227,8 @@ def remote(action, config, target):
         (' ' + str(request_limits.PROXY) if action == 'requests' else ''),
         '-p', 'RuntimeMaxSec=240',
         *proxy_properties, *worker_paths, '/usr/bin/python3', '-c', code, action])
+    if len(command.encode()) > 64 * 1024:
+        raise RuntimeError('Deployment SSH command budget exceeded before connecting.')
     result = subprocess.run(['ssh', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=10',
                              '-o', 'StrictHostKeyChecking=yes', target, command],
                             input=json.dumps(config).encode(), capture_output=True, timeout=250)

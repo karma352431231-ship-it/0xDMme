@@ -8,6 +8,8 @@ O check remoto passa a verificar a capacidade de retenção antes do upload, sem
 
 A ativação faz uma única conferência inicial sob o lock próprio, seguida das verificações de preservação já exigidas antes/depois da troca. O comando registra duração e CPU de fases fixas nos logs privados de `.local/`, inclusive em falha. Esses tempos permitem investigar preparo, runtime, prontidão pública e workers sem coletar conteúdo, credenciais ou dados de usuários. Não afirmar redução da ativação real sem medi-la; esta revisão não aumenta recursos da VPS.
 
+O código dos módulos do executor viaja compactado no argumento do SSH, depois da conferência de cada hash no manifesto; configuração e acesso permanecem separados. Validar restauração integral e limitar o comando a 64 KiB antes de conectar. Essa correção evita o limite de argumento do shell encontrado no primeiro check da revisão, sem outro script, dependência ou arquivo executável na VPS.
+
 **Ponto importante:** a limpeza automática atinge somente artefatos temporários de código cuja recuperação foi confirmada. Não remove histórico, objetos aceitos ou backups do banco, nem permite ativação com CI reprovada.
 
 ## Correção de latência do chat — ativação autorizada em 09/10/2026
