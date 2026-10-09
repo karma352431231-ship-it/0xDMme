@@ -156,3 +156,24 @@ Decisão do proprietário no mesmo dia:
   - Os cartões ficam compactos, com a tag na linha das ações.
   - Sem a coluna de ranking à direita do modelo, a pedido do proprietário.
   - Avatares de comunidade passam a ser quadrados arredondados com iniciais e tom estável em todas as larguras.
+
+## Perfil e mobile no padrão do modelo — 09/10/2026
+
+Pedido do proprietário: configurações do desktop e todo o mobile iguais ao modelo aprovado.
+
+- **Perfil no desktop (≥1280 px):** a coluna de Contatos dá lugar ao Perfil, com uma coluna de 300 px à esquerda e a categoria aberta à direita.
+  - A coluna mostra avatar, nome, endereço curto, Copiar wallet e Sair, os atalhos **Editar perfil**, **Meu status** e **Contatos**, o medidor do Cofre e a lista de categorias.
+  - As categorias usam as próprias seções do Perfil. A lista é montada a partir delas, sem duplicar conteúdo, e sempre há uma aberta.
+  - O módulo de conta continua dono da sua marcação. O layout usa `display: contents`, sem mover elementos.
+- **Interruptores** substituem as caixas de seleção das preferências do Perfil, em todas as larguras.
+- **"Quem pode me encontrar"** passa a se chamar **Privacidade** e mantém o subtítulo.
+- **Endereço curto:** o Perfil mostra a forma curta (`EVM · 0x80c3…cf71`). O endereço completo continua no título e em Copiar wallet.
+- **Mobile:**
+  - A barra superior mostra o nome da tela (Conversas, Comunidades, Atividade) com o aviso "Teste" pequeno, sem a marca. A lupa aparece só em Conversas.
+  - A barra inferior marca a aba ativa pela cor.
+  - "+" (Conversas) e **Postar** (Comunidades) viram botões flutuantes.
+  - Os chips ficam como no desktop, com "Fav." e a linha Arquivadas. Linhas, bolhas e compositor ficaram compactos.
+  - Comunidades ganha abas segmentadas e uma linha de filtros, que quebra em duas para os menus não serem cortados.
+  - O Perfil não tem barra superior. Ele mostra identidade, Cofre e uma lista agrupada em que cada categoria abre como tela própria, com "‹" para voltar.
+
+**Ponto importante:** a fileira de status ("Seu status", contatos com anel) do modelo mobile não entrou. Ela exige ligar os dados de Status à lista de Conversas, que é outra tarefa. O anel de status nos avatares continua. Os filtros Tudo/Pedidos/Respostas da Atividade também não entraram, porque a Atividade já agrupa por tipo.

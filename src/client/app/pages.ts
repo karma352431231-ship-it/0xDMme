@@ -24,11 +24,14 @@ export function settingsSection(input: {
   return `<details class="settings-section" data-settings-section="${input.id}"><summary><span class="settings-icon" aria-hidden="true"><svg viewBox="0 0 24 24">${icons[input.id]}</svg></span><span><strong>${input.title}</strong><small>${input.description}</small></span><span class="settings-chevron" aria-hidden="true">⌄</span></summary><div class="settings-body">${input.content}</div></details>`;
 }
 
+/** Wide screens show one category beside the list, as in the approved mockup. */
+const wideSettings = '(min-width: 1280px)';
+
 /** Keep widgets mounted and drafts intact when another category is opened. */
 export function bindSettingsSections(
   host: HTMLElement,
   collapsed: (id: string) => void,
-): void {
+): HTMLDetailsElement[] {
   const sections = [
     ...host.querySelectorAll<HTMLDetailsElement>('[data-settings-section]'),
   ];
@@ -40,10 +43,74 @@ export function bindSettingsSections(
       }
       for (const other of sections) if (other !== section) other.open = false;
     });
+  return sections;
+}
+
+/** Category list, shortcuts and the always-open category of the wide layout. */
+export function startSettingsCategories(
+  host: HTMLElement,
+  sections: readonly HTMLDetailsElement[],
+): void {
+  const categories = categoryList(host, sections);
+  const wide = (): boolean => matchMedia(wideSettings).matches;
+  for (const section of sections) {
+    section.addEventListener('toggle', categories.sync);
+    // Beside the list the open category is the page itself; it closes on phones.
+    section.querySelector('summary')?.addEventListener('click', (event) => {
+      if (wide() && section.open) event.preventDefault();
+    });
+  }
+  host
+    .querySelectorAll<HTMLElement>('[data-open-section]')
+    .forEach((control) => {
+      control.addEventListener('click', () => {
+        const target = sections.find(
+          (section) =>
+            section.dataset['settingsSection'] ===
+            control.dataset['openSection'],
+        );
+        if (target) target.open = true;
+      });
+    });
+  if (wide() && !sections.some((section) => section.open))
+    categories.first?.click();
+}
+
+/** Category buttons for the wide layout, built from each section's own summary. */
+function categoryList(
+  host: HTMLElement,
+  sections: readonly HTMLDetailsElement[],
+): { first: HTMLButtonElement | null; sync: () => void } {
+  const nav = document.createElement('nav');
+  nav.className = 'profile-categories';
+  nav.setAttribute('aria-label', 'Categorias de configurações');
+  const buttons = new Map<HTMLDetailsElement, HTMLButtonElement>();
+  for (const section of sections) {
+    if (section.dataset['settingsSection'] === 'account') continue;
+    const summary = section.querySelector('summary');
+    const icon = summary?.querySelector('.settings-icon');
+    const copy = summary?.querySelector('span:nth-child(2)');
+    if (!icon || !copy) continue;
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.append(icon.cloneNode(true), copy.cloneNode(true));
+    button.addEventListener('click', () => {
+      section.open = true;
+    });
+    buttons.set(section, button);
+    nav.append(button);
+  }
+  host.querySelector('.profile-settings')?.before(nav);
+  const sync = (): void => {
+    for (const [section, button] of buttons)
+      if (section.open) button.setAttribute('aria-current', 'true');
+      else button.removeAttribute('aria-current');
+  };
+  return { first: buttons.values().next().value ?? null, sync };
 }
 
 const profileContent = `<section class="profile-settings" aria-label="Configurações da conta"><h2>Configurações</h2><p class="settings-intro">Abra a categoria que você quer ajustar.</p>
-${settingsSection({ id: 'privacy', title: 'Quem pode me encontrar', description: 'Solicitações por wallet ou convite', content: '<div data-contact-settings-container></div>' })}
+${settingsSection({ id: 'privacy', title: 'Privacidade', description: 'Quem pode me encontrar', content: '<div data-contact-settings-container></div>' })}
 ${settingsSection({ id: 'profile', title: 'Perfil público', description: 'Seu @ e sua foto nas comunidades', content: '<div data-public-profile-settings></div>' })}
 ${settingsSection({ id: 'alerts', title: 'Notificações e chamadas', description: 'Push, sons e silêncio das conversas', content: '<div data-daily-settings></div><div data-call-settings></div>' })}
 ${settingsSection({ id: 'devices', title: 'Aparelhos', description: 'Vincular, recuperar e gerenciar acessos', content: '<div data-device-settings></div>' })}
@@ -51,7 +118,7 @@ ${settingsSection({ id: 'vault', title: 'Cofre e backup', description: 'Uso do a
 ${settingsSection({ id: 'representatives', title: 'Organizações e representantes', description: 'Organizações e autorizações assinadas', content: '<div data-representatives-settings></div>' })}
 ${settingsSection({ id: 'appearance', title: 'Aparência', description: 'Tema Azul, Preto ou Branco', content: '<div data-appearance-settings></div>' })}
 ${settingsSection({ id: 'app', title: 'Sobre o app', description: 'Versão, atualizações, código e licenças', content: '<article class="card"><p id="pwa-state" role="status">Verificando atualização…</p><button id="check-updates" type="button">Verificar atualização</button></article><nav class="about-app-links" aria-label="Código e licenças" data-about-links></nav>' })}
-<div class="profile-content-links"><a href="#contatos">Contatos, agenda e convite <span aria-hidden="true">↗</span></a><a href="#status">Meu status <span aria-hidden="true">↗</span></a></div></section>`;
+<div class="profile-content-links"><button type="button" data-open-section="account">Editar perfil</button><a href="#status">Meu status</a><a href="#contatos">Contatos</a></div></section>`;
 
 export const pages = {
   conversas: { title: 'Conversas', content: '' },

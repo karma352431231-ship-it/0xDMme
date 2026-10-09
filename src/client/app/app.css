@@ -1119,6 +1119,7 @@
     color: var(--text);
   }
   #app-shell .feed-panel .post-actions .post-more > summary {
+    font-size: 0;
     width: 28px;
     padding: 4px;
   }
@@ -2946,4 +2947,278 @@ footer {
 .community-post fieldset {
   min-width: 0;
   overflow-wrap: anywhere;
+}
+
+/*
+ * Phones as in the approved mockup (docs/UI_PAINEIS_E_TEMAS.md): each screen is
+ * named in the top bar, compact lists and bubbles, a floating action for the
+ * screen's main task and a quiet bottom bar.
+ */
+.mobile-title {
+  display: none;
+}
+@media (max-width: 700px) {
+  #app-shell .brand-bar {
+    gap: 10px;
+    padding: max(12px, env(safe-area-inset-top)) 16px 10px;
+  }
+  #app-shell .brand {
+    display: none;
+  }
+  #app-shell .mobile-title {
+    display: block;
+    color: var(--text);
+    font: 700 22px/1.1 var(--font-display);
+  }
+  #app-shell .brand-bar .test-badge {
+    padding: 2px 7px;
+    font-size: 10px;
+  }
+  #app-shell:not([data-page='conversas']) #open-search {
+    display: none;
+  }
+  #app-shell .brand-bar .icon-button {
+    flex-basis: 40px;
+    width: 40px;
+    height: 40px;
+  }
+  #app-shell:not([data-page='perfil']) .page-heading {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  /* Bottom bar: the active tab is told by color, without a pill. */
+  #app-shell .mobile-nav {
+    padding: 6px 4px max(10px, env(safe-area-inset-bottom));
+  }
+  #app-shell .mobile-nav a {
+    gap: 3px;
+    padding: 4px 2px;
+    color: var(--text-faint);
+    font-size: 11px;
+    font-weight: 600;
+  }
+  #app-shell .mobile-nav a[aria-current='page'] {
+    background: transparent;
+    color: var(--text);
+  }
+  #app-shell .mobile-nav a[aria-current='page'] svg {
+    color: var(--accent);
+  }
+  #app-shell .mobile-nav svg {
+    width: 22px;
+    height: 22px;
+  }
+
+  /* Conversas */
+  #app-shell .directory-heading {
+    height: 0;
+    padding: 0;
+  }
+  #app-shell .directory-heading h2 {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  #app-shell .directory-add {
+    position: fixed;
+    right: 16px;
+    bottom: calc(82px + env(safe-area-inset-bottom));
+    z-index: 20;
+    width: 54px;
+    height: 54px;
+    border-radius: 17px;
+    background: var(--brand-grad);
+    color: var(--brand-ink);
+    font-size: 28px;
+    box-shadow: 0 10px 24px -8px var(--shadow);
+  }
+  #app-shell .contact-scope {
+    margin: 2px 16px 10px;
+  }
+  #app-shell .contact-scope button {
+    padding: 8px 0;
+    font-size: 13.5px;
+  }
+  #app-shell .directory-filters {
+    gap: 6px;
+    padding: 0 16px 10px;
+    scrollbar-width: none;
+  }
+  #app-shell .directory-filters::-webkit-scrollbar {
+    display: none;
+  }
+  #app-shell .directory-filters button {
+    padding: 6px 12px;
+    border: 0;
+    border-radius: 99px;
+    background: transparent;
+    box-shadow: inset 0 0 0 1px var(--line);
+    color: var(--text-muted);
+    font-size: 13px;
+    font-weight: 600;
+  }
+  #app-shell .directory-filters button[aria-pressed='true'] {
+    background: var(--surface-3);
+    box-shadow: none;
+    color: var(--text);
+  }
+  #app-shell .directory-filters [data-conversation-filter='archived'],
+  #app-shell .chip-full {
+    display: none;
+  }
+  #app-shell .chip-short {
+    display: inline;
+  }
+  #app-shell .archived-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 18px 8px;
+    border: 0;
+    background: transparent;
+    color: var(--text-muted);
+    font-size: 13px;
+    font-weight: 600;
+  }
+  #app-shell .archived-row svg {
+    width: 16px;
+    height: 16px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.8;
+  }
+  #app-shell .archived-row[aria-pressed='true'] {
+    color: var(--accent-text);
+  }
+  #app-shell[data-contact-scope='public'] .archived-row {
+    display: none;
+  }
+  #app-shell .directory-scroll {
+    padding: 0 8px 96px;
+  }
+  #app-shell .chat-contacts {
+    gap: 1px;
+  }
+  #app-shell .conversation-row {
+    gap: 12px;
+    min-height: 62px;
+    padding: 8px;
+    border-radius: 12px;
+  }
+  #app-shell .conversation-avatar {
+    flex: 0 0 44px;
+    width: 44px;
+    height: 44px;
+    font-size: 14px;
+  }
+  #app-shell .conversation-copy strong {
+    font-size: 15px;
+  }
+  #app-shell .conversation-copy small {
+    margin-top: 2px;
+    color: var(--text-muted);
+    font-size: 13px;
+    opacity: 1;
+  }
+
+  /* Conversa aberta */
+  #app-shell .chat-panel .chat-feedback[data-state='ok'] {
+    display: none;
+  }
+  #app-shell .chat-panel .chat-header {
+    align-items: center;
+    gap: 8px;
+    padding: max(8px, env(safe-area-inset-top)) 10px 8px;
+  }
+  #app-shell .chat-peer-avatar {
+    flex: 0 0 34px;
+    width: 34px;
+    height: 34px;
+    font-size: 12px;
+  }
+  #app-shell .chat-peer h3 {
+    font-size: 15px;
+    font-weight: 600;
+  }
+  #app-shell .chat-panel .chat-peer p {
+    margin-top: 1px;
+    color: var(--text-muted);
+    font: 11px/1.3 var(--font-mono);
+  }
+  #app-shell .chat-panel .chat-history {
+    gap: 6px;
+    padding: 14px 12px;
+  }
+  #app-shell .chat-message {
+    max-width: 82%;
+    padding: 8px 46px 6px 12px;
+    border: 0;
+    border-radius: 16px 16px 16px 5px;
+    box-shadow: inset 0 0 0 1px var(--line);
+  }
+  #app-shell .chat-message.own {
+    border-radius: 16px 16px 5px;
+    box-shadow: none;
+    color: var(--sent-ink);
+  }
+  #app-shell .chat-panel .chat-message p {
+    margin: 0;
+    color: inherit;
+    font-size: 15px;
+    line-height: 1.45;
+  }
+  #app-shell .chat-message .message-meta {
+    margin-top: 2px;
+    font-size: 11px;
+    opacity: 0.7;
+  }
+  #app-shell .chat-panel .chat-older {
+    padding: 4px 10px;
+    color: var(--text-muted);
+    font-size: 11.5px;
+    font-weight: 600;
+  }
+  #app-shell .chat-panel .chat-composer {
+    padding: 8px 10px max(10px, env(safe-area-inset-bottom));
+    border-top: 0;
+    background: transparent;
+  }
+  #app-shell .compose-input {
+    align-items: center;
+    padding: 2px 4px;
+    border-radius: 16px;
+    background: var(--surface-2);
+  }
+  #app-shell .chat-panel .compose-primary {
+    flex: 0 0 46px;
+    width: 46px;
+    height: 46px;
+    padding: 11px;
+    border-radius: 50%;
+  }
+
+  /* Atividade */
+  #app-shell .activity-heading h2 {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  #app-shell .activity-heading {
+    justify-content: flex-end;
+  }
+  #app-shell .activity-heading button {
+    min-height: 32px;
+    padding: 5px 12px;
+    font-size: 12.5px;
+  }
 }

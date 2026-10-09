@@ -20,6 +20,7 @@ import { createPendingApproval } from './pending-approval.ts';
 import { serverApproval } from './server-approval.ts';
 import { takeApprovalDocument } from './approval-document.ts';
 import { canonicalAddress } from '../../shared/wallet-identity/index.ts';
+import { shortAddress } from '../appearance/index.ts';
 import {
   approvalDocumentUrl,
   approvalEntryUrl,
@@ -635,7 +636,10 @@ export function startAccount(options: {
     });
     node<HTMLImageElement>('[data-photo-preview]')?.removeAttribute('src');
     const address = node('[data-account-address]');
-    if (address) address.textContent = '';
+    if (address) {
+      address.textContent = '';
+      address.removeAttribute('title');
+    }
     const identity = node('[data-account-id]');
     if (identity) identity.textContent = '';
     const name = node('[data-profile-name]');
@@ -659,8 +663,12 @@ export function startAccount(options: {
     const label = node('[data-profile-name]');
     if (label) label.textContent = current.name || 'Minha conta';
     const address = node('[data-account-address]');
-    if (address)
-      address.textContent = `Wallet ${current.ecosystem === 'evm' ? 'EVM' : 'Solana'}: ${current.address}`;
+    if (address) {
+      // Short form on screen; the full address stays in the title and in Copiar.
+      const network = current.ecosystem === 'evm' ? 'EVM' : 'Solana';
+      address.textContent = `${network} · ${shortAddress(current.address)}`;
+      address.title = `Wallet ${network}: ${current.address}`;
+    }
     const identity = node('[data-account-id]');
     if (identity) identity.textContent = `Conta: ${current.accountId}`;
   }

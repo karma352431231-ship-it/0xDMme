@@ -18,7 +18,12 @@ import {
 } from '../public-profile/index.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
 import type { AddressBookEntry } from '../../shared/contacts/index.ts';
-import { bindSettingsSections, pages, pageKey } from './pages.ts';
+import {
+  bindSettingsSections,
+  pages,
+  pageKey,
+  startSettingsCategories,
+} from './pages.ts';
 import { startPanels } from './panels.ts';
 import { startActivity } from '../activity/index.ts';
 import type { PageKey } from './pages.ts';
@@ -302,6 +307,9 @@ function renderPageHeader(key: PageKey): void {
       'dms';
   const title = dm ? 'Mensagens pelo @' : pages[key].title;
   element('page-title').textContent = title;
+  // Phones name the screen in the top bar (the page heading is read, not shown).
+  const mobileTitle = document.querySelector('[data-mobile-title]');
+  if (mobileTitle) mobileTitle.textContent = title;
   element('breadcrumb').textContent = title.toLocaleUpperCase('pt-BR');
   element('page-phase').textContent = dm
     ? 'DMs individuais · E2EE'
@@ -367,9 +375,12 @@ function mountFeature(key: PageKey): void {
   if (key === 'conversas') messages.ready();
   mountActivity(key, content);
   if (key === 'perfil')
-    bindSettingsSections(content, (id) => {
-      if (id === 'devices') devices.stopCamera();
-    });
+    startSettingsCategories(
+      content,
+      bindSettingsSections(content, (id) => {
+        if (id === 'devices') devices.stopCamera();
+      }),
+    );
   mountStatusFeature(key, content);
   const contactContainer = content.querySelector<HTMLElement>(
     '[data-contacts-container]',
