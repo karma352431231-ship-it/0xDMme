@@ -323,3 +323,7 @@ Pedido do proprietário:
 - A página pública mostra a descrição abaixo do nome, também no perfil compacto do painel.
 
 **Ponto importante:** a foto ou o banner em análise aparecem na prévia do dono antes de serem públicos, e nenhum aviso diz que estão em análise. Visitantes continuam vendo só o que foi aprovado.
+
+## Perfil volta à última categoria — 10/10/2026
+
+Pedido do proprietário: ao recarregar a página do Perfil, a categoria aberta por último (Privacidade, Perfil público, Aparelhos…) volta aberta, em vez de sempre voltar para Privacidade. A escolha fica só neste navegador (`localStorage`, chave `0xdmme:settings-section`), como o arranjo dos painéis; sem armazenamento disponível, o Perfil abre como antes.
