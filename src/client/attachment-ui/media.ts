@@ -34,17 +34,69 @@ function displayType(bytes: Uint8Array, content: AttachmentContent): string {
   if (content.image && content.type === 'image/gif') return 'image/gif';
   return originalImageType(bytes) ?? 'application/octet-stream';
 }
-function showImage(preview: HTMLElement, url: string, name: string): void {
+const defaultSaveNotice =
+  'A cópia salva fica fora do cofre e da exclusão bilateral. Abra arquivos somente se confiar na origem.';
+/** Images are only their content in the bubble; saving lives in the viewer. */
+function showImage(
+  preview: HTMLElement,
+  url: string,
+  input: { name: string; saveNotice: string },
+): void {
+  const open = document.createElement('button');
+  open.type = 'button';
+  open.className = 'chat-image-open';
+  open.setAttribute('aria-label', `Ampliar imagem ${input.name}`);
   const image = document.createElement('img');
   image.src = url;
-  image.alt = name;
+  image.alt = input.name;
   image.loading = 'lazy';
   image.decoding = 'async';
   image.addEventListener('error', () => {
     preview.textContent =
       'Não foi possível exibir a imagem. Você pode salvar o arquivo original.';
   });
-  preview.replaceChildren(image);
+  open.append(image);
+  open.addEventListener('click', () => {
+    openImageViewer(url, input);
+  });
+  preview.replaceChildren(open);
+}
+/** Full-size view of a decrypted image; the Blob URL stays owned by the chat. */
+function openImageViewer(
+  url: string,
+  input: { name: string; saveNotice: string },
+): void {
+  const viewer = document.createElement('dialog');
+  viewer.className = 'media-viewer';
+  viewer.setAttribute('aria-label', input.name);
+  const image = document.createElement('img');
+  image.src = url;
+  image.alt = input.name;
+  const bar = document.createElement('div');
+  bar.className = 'media-viewer-bar';
+  const save = document.createElement('a');
+  save.href = url;
+  save.download = input.name;
+  save.textContent = 'Salvar no aparelho';
+  const close = document.createElement('button');
+  close.type = 'button';
+  close.textContent = 'Fechar';
+  close.addEventListener('click', () => {
+    viewer.close();
+  });
+  const notice = document.createElement('small');
+  notice.textContent = input.saveNotice;
+  bar.append(save, notice, close);
+  viewer.append(image, bar);
+  // A click on the backdrop or the image closes; the bar keeps its controls.
+  viewer.addEventListener('click', (event) => {
+    if (!bar.contains(event.target as Node)) viewer.close();
+  });
+  viewer.addEventListener('close', () => {
+    viewer.remove();
+  });
+  document.body.append(viewer);
+  viewer.showModal();
 }
 function offerSave<V extends MediaView>(
   input: MediaInput<V>,
@@ -56,10 +108,18 @@ function offerSave<V extends MediaView>(
   save.download = name;
   save.textContent = 'Salvar no aparelho';
   const warning = document.createElement('small');
-  warning.textContent =
-    input.saveNotice ??
-    'A cópia salva fica fora do cofre e da exclusão bilateral. Abra arquivos somente se confiar na origem.';
+  warning.textContent = input.saveNotice ?? defaultSaveNotice;
   input.article.append(save, warning);
+}
+/** Images show only their content and the sender's caption, if any. */
+function mediaInfo(content: AttachmentContent, image: boolean): string {
+  const caption = decodeDailyText(content.caption).text;
+  if (image) return caption;
+  const label = content.voice
+    ? `Mensagem de voz · ${voiceDuration(content.voice)}`
+    : content.name;
+  const size = `${(content.file.ref.bytes / 1_000_000).toFixed(2)} MB`;
+  return `${label} · ${size}${caption ? ` · ${caption}` : ''}`;
 }
 /** The owner supplies generation checks, serial admission and Blob cleanup. */
 export function renderMedia<V extends MediaView>(input: MediaInput<V>): void {
@@ -70,8 +130,8 @@ export function renderMedia<V extends MediaView>(input: MediaInput<V>): void {
     info = document.createElement('p'),
     preview = document.createElement('div'),
     button = document.createElement('button');
-  const caption = decodeDailyText(content.caption).text;
-  info.textContent = `${content.voice ? 'Mensagem de voz · ' + voiceDuration(content.voice) : content.name} · ${(content.file.ref.bytes / 1_000_000).toFixed(2)} MB${caption ? ` · ${caption}` : ''}`;
+  info.textContent = mediaInfo(content, image);
+  info.hidden = !info.textContent;
   preview.className = 'chat-attachment-preview';
   button.type = 'button';
   button.textContent = content.voice
@@ -79,7 +139,8 @@ export function renderMedia<V extends MediaView>(input: MediaInput<V>): void {
     : image
       ? 'Carregar imagem'
       : 'Baixar arquivo original';
-  input.article.append(info, preview, button);
+  input.article.append(...(image ? [preview, info] : [info, preview]), button);
+  button.hidden = image;
   let pending = false;
   async function fetchMedia(): Promise<void> {
     if (!input.current()) return;
@@ -100,12 +161,17 @@ export function renderMedia<V extends MediaView>(input: MediaInput<V>): void {
           : 'application/octet-stream',
         url = URL.createObjectURL(new Blob([bytes], { type }));
       input.retain(url);
-      if (type !== 'application/octet-stream')
-        showImage(preview, url, content.name);
-      else if (image)
+      button.hidden = true;
+      if (type !== 'application/octet-stream') {
+        showImage(preview, url, {
+          name: content.name,
+          saveNotice: input.saveNotice ?? defaultSaveNotice,
+        });
+        return;
+      }
+      if (image)
         preview.textContent =
           'Prévia indisponível para esta imagem. O arquivo original está preservado.';
-      button.hidden = true;
       offerSave(input, url, content.name);
     } finally {
       bytes.fill(0);
@@ -135,6 +201,7 @@ export function renderMedia<V extends MediaView>(input: MediaInput<V>): void {
         preview.textContent =
           'Imagem indisponível. Conecte ou toque para tentar novamente.';
         button.textContent = 'Tentar carregar imagem';
+        button.hidden = false;
       });
   }
 }

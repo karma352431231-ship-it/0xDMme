@@ -43,7 +43,7 @@ import { dailyViews } from '../daily-text/index.ts';
 import type { DailyView } from '../daily-text/index.ts';
 import { messageActions } from '../message-actions/index.ts';
 import { observeMessageControls } from '../message-controls/index.ts';
-import { messageChecks } from '../message-status/index.ts';
+import { checksIcon, messageChecks } from '../message-status/index.ts';
 import { EmojiPicker, emojiIntoComposer, emojiText } from '../emoji/index.ts';
 import {
   NotificationSound,
@@ -603,15 +603,11 @@ export function startMessages(
     const detail = document.createElement('small');
     detail.className = 'message-meta';
     const checks = messageChecks({ ...view, read: readIds.has(view.id) });
-    if (checks) {
-      const icon = document.createElement('span');
-      icon.className = `message-checks ${checks.color}`;
-      icon.textContent = checks.text;
-      icon.setAttribute('role', 'img');
-      icon.setAttribute('aria-label', checks.label);
-      icon.title = `${checks.label}. ${view.state}`;
-      detail.append(icon);
-    } else if (view.state === receivedState) detail.title = view.state;
+    if (checks)
+      detail.append(
+        checksIcon({ ...checks, label: `${checks.label}. ${view.state}` }),
+      );
+    else if (view.state === receivedState) detail.title = view.state;
     else detail.textContent = view.state;
     if (view.edited)
       detail.prepend(detail.childNodes.length ? 'Editada · ' : 'Editada');

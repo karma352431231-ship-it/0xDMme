@@ -28,18 +28,29 @@ class MediaNode {
     this.children = nodes;
     this.textContent = '';
   }
+  readonly attributes = new Map<string, string>();
+  setAttribute(name: string, value: string): void {
+    this.attributes.set(name, value);
+  }
   addEventListener(event: string, callback: () => void): void {
     this.listeners.set(event, callback);
   }
   click(): void {
     this.listeners.get('click')?.();
   }
+  showModal(): void {}
+  close(): void {}
+  remove(): void {}
+  contains(): boolean {
+    return false;
+  }
 }
 function environment(t: TestContext) {
   const previous = Object.getOwnPropertyDescriptor(globalThis, 'document');
+  const body = new MediaNode('body');
   Object.defineProperty(globalThis, 'document', {
     configurable: true,
-    value: { createElement: (tag: string) => new MediaNode(tag) },
+    value: { createElement: (tag: string) => new MediaNode(tag), body },
   });
   t.after(() => {
     if (previous) Object.defineProperty(globalThis, 'document', previous);
@@ -62,7 +73,7 @@ function environment(t: TestContext) {
     } as unknown as VoicePlayback,
     () => {},
   );
-  return { ui, blobs, revoked };
+  return { ui, blobs, revoked, body };
 }
 function content(type = 'image/png', image = false): AttachmentContent {
   return {
@@ -95,6 +106,13 @@ function png(): Uint8Array<ArrayBuffer> {
   bytes.set(new TextEncoder().encode('IEND'), 49);
   return bytes;
 }
+/** The save link inside the image viewer opened on the fake document body. */
+function viewerSaveLink(body: MediaNode): MediaNode | undefined {
+  const bar = body.children[0]?.children.find(
+    (node) => node.className === 'media-viewer-bar',
+  );
+  return bar?.children.find((node) => node.tag === 'a');
+}
 const flush = () => new Promise<void>((resolve) => setImmediate(resolve));
 function render(
   ui: AttachmentUi,
@@ -116,12 +134,14 @@ function render(
   });
   return {
     article,
-    preview: article.children[1]!,
-    button: article.children[2]!,
+    preview: article.children.find(
+      (node) => node.className === 'chat-attachment-preview',
+    )!,
+    button: article.children.find((node) => node.tag === 'button')!,
   };
 }
 await test('imagem antiga enviada como arquivo aparece automaticamente e mantém o original para salvar', async (t) => {
-  const { ui, blobs, revoked } = environment(t),
+  const { ui, blobs, revoked, body } = environment(t),
     bytes = png(),
     original = bytes.slice();
   let loads = 0;
@@ -131,8 +151,11 @@ await test('imagem antiga enviada como arquivo aparece automaticamente e mantém
   });
   await flush();
   assert.equal(loads, 1);
-  assert.equal(preview.children[0]?.tag, 'img');
-  assert.equal(preview.children[0]?.src, 'blob:synthetic-1');
+  // The bubble shows only the image; it opens the viewer that offers saving.
+  const open = preview.children[0];
+  assert.equal(open?.tag, 'button');
+  assert.equal(open?.children[0]?.tag, 'img');
+  assert.equal(open?.children[0]?.src, 'blob:synthetic-1');
   assert.equal(blobs[0]?.type, 'image/png');
   assert.deepEqual(new Uint8Array(await blobs[0].arrayBuffer()), original);
   assert.equal(
@@ -141,9 +164,13 @@ await test('imagem antiga enviada como arquivo aparece automaticamente e mantém
   );
   assert.equal(button.hidden, true);
   assert.equal(
-    article.children.find((node) => node.tag === 'a')?.download,
-    'foto.png',
+    article.children.some((node) => node.tag === 'a'),
+    false,
   );
+  open?.click();
+  const save = viewerSaveLink(body);
+  assert.equal(save?.download, 'foto.png');
+  assert.equal(save?.href, 'blob:synthetic-1');
   ui.clearMedia();
   assert.deepEqual(revoked, ['blob:synthetic-1']);
 });
@@ -203,5 +230,5 @@ await test('falha automática permite uma tentativa explícita, sem duplicar dow
   await flush();
   assert.equal(loads, 2);
   assert.equal(blobs.length, 1);
-  assert.equal(preview.children[0]?.tag, 'img');
+  assert.equal(preview.children[0]?.children[0]?.tag, 'img');
 });

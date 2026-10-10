@@ -22,7 +22,7 @@ import type { VoicePlayback } from '../voice-playback/index.ts';
 import { VoiceRecording } from '../voice-recording/index.ts';
 import { AttachmentUi } from '../attachment-ui/index.ts';
 import { EmojiPicker, emojiIntoComposer, emojiText } from '../emoji/index.ts';
-import { messageChecks } from '../message-status/index.ts';
+import { checksIcon, messageChecks } from '../message-status/index.ts';
 import type { Daily, PeerState } from '../daily/index.ts';
 import { GroupController } from './controller.ts';
 import type { GroupSummary } from './controller.ts';
@@ -277,17 +277,14 @@ export function startGroups(
     if (checks) {
       const state = document.createElement('small');
       state.className = 'message-meta';
-      const icon = document.createElement('span');
-      icon.textContent = checks.text;
-      icon.className = `message-checks ${checks.color}`;
-      icon.setAttribute(
-        'aria-label',
-        view.read
-          ? 'Vista pelos destinatários com confirmação de leitura'
-          : checks.label,
+      state.append(
+        checksIcon({
+          ...checks,
+          label: view.read
+            ? 'Vista pelos destinatários com confirmação de leitura'
+            : checks.label,
+        }),
       );
-      icon.title = icon.getAttribute('aria-label') ?? '';
-      state.append(icon);
       article.append(state);
     }
     if (view.localOnly) {

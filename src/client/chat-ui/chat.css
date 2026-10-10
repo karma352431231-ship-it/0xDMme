@@ -539,3 +539,85 @@
     width: calc(100vw - 24px);
   }
 }
+
+/* Images are the content of their bubble; a click opens the viewer. */
+.chat-image-open {
+  display: block;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 12px;
+  overflow: hidden;
+  background: transparent;
+  cursor: zoom-in;
+}
+.chat-image-open img {
+  border-radius: 12px;
+}
+#app-shell .chat-message:has(.chat-image-open) {
+  padding: 4px;
+}
+.chat-message:has(.chat-image-open) > :is(p, .message-meta) {
+  margin-inline: 8px;
+}
+.chat-message:has(.chat-image-open) > .message-meta {
+  margin-block: 4px 2px;
+}
+.media-viewer {
+  width: 100vw;
+  max-width: none;
+  height: 100dvh;
+  max-height: none;
+  margin: 0;
+  padding: 16px;
+  border: 0;
+  background: transparent;
+}
+.media-viewer[open] {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+.media-viewer::backdrop {
+  background: var(--media-backdrop);
+  opacity: 0.92;
+}
+.media-viewer img {
+  max-width: min(100%, 1400px);
+  max-height: calc(100dvh - 120px);
+  object-fit: contain;
+  border-radius: 10px;
+  cursor: zoom-out;
+}
+.media-viewer-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px 14px;
+  max-width: min(100%, 720px);
+  padding: 10px 14px;
+  border-radius: 14px;
+  background: var(--surface);
+  color: var(--text);
+}
+.media-viewer-bar a {
+  color: var(--accent-text);
+  font-weight: 600;
+}
+.media-viewer-bar small {
+  flex: 1 1 260px;
+  color: var(--text-muted);
+  font-size: var(--fs-caption);
+}
+.media-viewer-bar button {
+  padding: 6px 14px;
+  border: 0;
+  border-radius: 99px;
+  background: var(--surface-3);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}

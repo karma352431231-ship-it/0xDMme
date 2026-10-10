@@ -208,3 +208,16 @@ Pedido do proprietário: abrir um post clicando nele, com hierarquia clara entre
 - As legendas das ações (comentários, visualizações, Salvar) ficam só para leitores de tela também nas telas largas. "Opções da postagem" vira o botão discreto "Opções" na linha de ações.
 
 Sem mudança de API, servidor ou moderação. Validação: lint, TypeScript, testes unitários e uma prévia local com respostas aninhadas fictícias a 1440 e 390 px.
+
+## Imagens, marcação de entrega e painel de emojis — 09/10/2026
+
+Pedido do proprietário:
+
+- **Imagem só com o conteúdo:** fotos e GIFs no chat não mostram mais nome e tamanho em cima nem "Salvar no aparelho" embaixo; a legenda escrita por quem enviou continua. Clicar na imagem abre um visualizador em tela cheia, que fecha pelo fundo, pela imagem, por Esc ou por **Fechar**. **Salvar no aparelho** e o aviso de que a cópia salva fica fora do cofre ficam nesse visualizador. Arquivos e áudio mantêm a linha de informação.
+- **Marcação de entrega em SVG**, com cerca de 11 px de altura: um traço quando o servidor aceitou, dois quando um aparelho do destinatário recebeu e na cor de leitura quando visualizada, se a confirmação de leitura estiver ativa. A regra de `messageChecks` não mudou; vale para conversas 1-1 e grupos.
+- **Painel de emojis menor** (360 × 420 px), aberto junto ao botão; no celular, uma folha que sobe de baixo.
+  - No topo ficam a busca e o tom de pele em ícone; logo abaixo, **Recentes**.
+  - As categorias viram ícones numa barra embaixo, e a lista carrega mais conforme rola, sem botões de página.
+  - Busca, tons, catálogo e desenhos continuam os mesmos. Os recentes continuam só na memória da sessão, como decidido em 03/10.
+
+**GIFs de catálogo externo** (Klipy/GIPHY) não entraram: dependem de uma decisão do proprietário sobre privacidade, termos e custo (plano, "GIFs por arquivo; integração com catálogo externo somente após avaliar privacidade e custos").
