@@ -248,3 +248,118 @@
     font-size: 13px;
   }
 }
+/*
+ * Compact profile in the feed panel beside the chat: one column, a short
+ * banner, a smaller photo and the summary above the activity. The id
+ * outranks the panel's generic community control style.
+ */
+#feed-panel .public-profile-header {
+  margin-bottom: 14px;
+  border-radius: 16px;
+}
+#feed-panel .public-profile-banner {
+  height: 96px;
+}
+#feed-panel .public-profile-identity {
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  padding: 0 14px 14px;
+}
+#feed-panel .public-profile-avatar {
+  flex-basis: 68px;
+  align-self: flex-start;
+  width: 68px;
+  height: 68px;
+  margin-top: -24px;
+  border-width: 4px;
+  font-size: 26px;
+}
+#feed-panel .public-profile-title {
+  flex: 1;
+  padding-top: 10px;
+}
+#feed-panel .public-profile-title h1 {
+  font-size: 20px;
+}
+#feed-panel .public-profile-title p {
+  margin-top: 2px;
+  font-size: 13px;
+}
+#feed-panel .public-profile-actions {
+  width: 100%;
+  margin-left: 0;
+  padding-top: 4px;
+  gap: 8px;
+}
+#feed-panel .public-profile-actions :is(a, button) {
+  margin: 0;
+  border-radius: 999px;
+  padding: 7px 14px;
+  font-size: 13px;
+}
+#feed-panel .public-profile-layout {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 14px;
+}
+#feed-panel .public-profile-about {
+  grid-row: 1;
+  padding: 14px 16px;
+  border-radius: 14px;
+}
+#feed-panel .public-profile-about h2 {
+  margin: 0 0 10px;
+  font-size: 13px;
+}
+#feed-panel .public-profile-metrics {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 12px;
+}
+#feed-panel .public-profile-metrics dd {
+  margin-bottom: 2px;
+  font-size: 14px;
+}
+#feed-panel .public-profile-metrics dt {
+  font-size: 11px;
+}
+#feed-panel .public-profile-communities {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  margin-top: 12px;
+  padding-top: 12px;
+}
+#feed-panel .public-profile-communities h2 {
+  width: 100%;
+  margin: 0;
+}
+#feed-panel .public-profile-communities a {
+  padding: 2px 0;
+  font-size: 13px;
+}
+#feed-panel .public-profile-tabs {
+  gap: 4px;
+  margin-bottom: 10px;
+  padding-bottom: 10px;
+}
+#feed-panel .public-profile-tabs button {
+  padding: 7px 12px;
+  font-size: 13px;
+}
+#feed-panel .public-profile-actions button {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+#feed-panel .public-profile-actions button[aria-pressed='true'] {
+  background: var(--surface-2);
+  color: var(--text);
+}
+#feed-panel .public-profile-tabs button {
+  border-color: transparent;
+  background: transparent;
+  color: var(--text-muted);
+}
+#feed-panel .public-profile-tabs button[aria-current='true'] {
+  background: var(--surface-3);
+  color: var(--text);
+}

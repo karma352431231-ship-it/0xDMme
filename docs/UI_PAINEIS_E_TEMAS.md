@@ -302,3 +302,12 @@ Pedido do proprietário:
 - **Prévia:** o mesmo player da bolha, a lixeira e o aviso curto "Não enviado · some se a página recarregar". Nada é enviado sem tocar em Enviar.
 
 **Ponto importante:** o envio continua sempre explícito. Soltar o dedo nunca envia: só abre a prévia. As mensagens pelo `@` usam o novo player nas bolhas, mas os botões de gravação delas ficaram como estavam.
+
+## Comunidade em página cheia e perfil no painel — 10/10/2026
+
+Pedido do proprietário:
+
+- **Comunidade em página cheia:** na aba Comunidades isolada, o topo da comunidade usa a escala do perfil público: banner alto (até 230px), foto de 112px sobre a borda, nome grande e botão maior. No painel ao lado do chat e no celular o topo continua compacto.
+- **Perfil no painel:** no modo dividido (chat à esquerda, feed à direita), clicar num `@autor` no feed, no topo de uma comunidade ou numa DM pública abre o perfil público no painel da direita, sem sair da conversa. A versão compacta tem uma coluna, banner curto, foto de 68px, "Sobre" acima da atividade e botões menores. Links do perfil continuam no painel ("Comunidades" abre a comunidade, "Solicitar DM" abre a DM na coluna do chat). As abas do painel voltam ao feed. Fora do modo dividido, o link abre a página cheia como antes.
+
+**Ponto importante:** o perfil no painel usa as mesmas leituras públicas sem cookies e o mesmo seguir com sessão assinada da página cheia; só muda onde aparece.

@@ -1736,6 +1736,57 @@
   color: var(--warn);
   font-size: 13px;
 }
+/*
+ * The isolated Comunidades page uses the public profile scale: a tall
+ * banner, a large photo over its edge and a large name. The feed panel
+ * beside the chat keeps the compact hero above.
+ */
+@media (min-width: 701px) {
+  #app-shell [data-communities] .community-hero {
+    border-radius: 20px;
+  }
+  #app-shell [data-communities] .community-banner {
+    height: clamp(140px, 19vw, 230px);
+  }
+  #app-shell [data-communities] .community-hero-head {
+    gap: 12px 20px;
+    padding: 0 28px;
+  }
+  #app-shell [data-communities] .community-hero-head .community-avatar {
+    flex-basis: 112px;
+    width: 112px;
+    height: 112px;
+    margin-top: -40px;
+    border-width: 5px;
+    border-radius: 32px;
+    font-size: 40px;
+  }
+  #app-shell [data-communities] .community-hero-title {
+    padding-top: 16px;
+  }
+  #app-shell [data-communities] .community-hero-title h1 {
+    font-size: clamp(24px, 3vw, 34px);
+  }
+  #app-shell [data-communities] .community-hero-meta {
+    margin-top: 8px;
+    font-size: 14px;
+  }
+  #app-shell [data-communities] .community-hero .community-follow {
+    margin-top: 16px;
+    padding: 10px 22px;
+    font-size: 15px;
+  }
+  #app-shell [data-communities] .community-hero-description {
+    padding: 18px 28px 0;
+    font-size: 17px;
+  }
+  #app-shell [data-communities] .community-hero .community-info {
+    padding: 12px 28px 22px;
+  }
+  #app-shell [data-communities] .community-hero-notice {
+    padding: 0 28px 16px;
+  }
+}
 /* The page reads top to bottom: hero, then posts; no side column. */
 #app-shell [data-community-layout='detail'] {
   display: block;

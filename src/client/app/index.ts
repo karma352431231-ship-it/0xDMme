@@ -234,6 +234,8 @@ const panels = account.approvalPage
           communities.closeDm();
         },
         dmDirectory: (node, valid) => communities.dmDirectory(node, valid),
+        showProfile: (container, handle) =>
+          publicProfiles.show(container, handle),
       },
     });
 // Approval HTML is loaded online and does not install or activate a shell.

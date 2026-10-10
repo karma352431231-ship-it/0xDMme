@@ -48,13 +48,18 @@ export function toggledChat(layout: PanelLayout): PanelLayout {
 
 export type CommunityTarget =
   | { kind: 'dm'; id: string | null; local: boolean }
-  | { kind: 'feed'; params: URLSearchParams };
+  | { kind: 'feed'; params: URLSearchParams }
+  | { kind: 'profile'; handle: string };
 
-/** Reads in-app community links so panels can open them without leaving the workspace. */
+/** Reads in-app community and public profile links so panels can open them without leaving the workspace. */
 export function communityTarget(href: string): CommunityTarget | null {
   const [path, query = ''] = href.split('?');
-  if (path !== '#comunidades') return null;
   const params = new URLSearchParams(query);
+  if (path === '#publico') {
+    const handle = params.get('handle');
+    return handle ? { kind: 'profile', handle } : null;
+  }
+  if (path !== '#comunidades') return null;
   if (params.get('view') === 'dms')
     return {
       kind: 'dm',
@@ -71,6 +76,8 @@ export interface PanelCommunities {
   openDm: (container: HTMLElement, id: string | null, local: boolean) => void;
   closeDm: () => void;
   dmDirectory: (node: HTMLElement, valid: () => boolean) => Promise<void>;
+  /** Compact public profile in the feed panel; returns its closer. */
+  showProfile: (container: HTMLElement, handle: string) => () => void;
 }
 
 type Scope = 'private' | 'public';
@@ -93,6 +100,7 @@ export function startPanels(input: {
   let page = '';
   let feedMounted = false;
   let feedParams = new URLSearchParams('view=feed');
+  let closeProfile: (() => void) | null = null;
   let directoryGeneration = 0;
 
   function save(next: PanelLayout): void {
@@ -125,13 +133,30 @@ export function startPanels(input: {
       });
     if (feedVisible() && !feedMounted) {
       feedMounted = true;
-      communities.mountFeed(feedBody, feedParams);
-      markFeedTab();
+      showFeed(feedParams);
     } else if (!feedVisible() && feedMounted) {
       feedMounted = false;
+      leaveProfile();
       communities.leaveFeed();
       feedBody.replaceChildren();
     }
+  }
+  function leaveProfile(): void {
+    closeProfile?.();
+    closeProfile = null;
+  }
+  function showFeed(params: URLSearchParams): void {
+    leaveProfile();
+    feedParams = params;
+    communities.mountFeed(feedBody, params);
+    markFeedTab();
+  }
+  /** The profile replaces the feed in the panel; the chat column stays as it is. */
+  function showProfile(handle: string): void {
+    leaveProfile();
+    communities.leaveFeed();
+    closeProfile = communities.showProfile(feedBody, handle);
+    markFeedTab(null);
   }
   function setScope(scope: Scope): void {
     shell.dataset['contactScope'] = scope;
@@ -175,7 +200,7 @@ export function startPanels(input: {
       return;
     }
     const link = event.target.closest<HTMLAnchorElement>(
-      'a[href^="#comunidades"]',
+      'a[href^="#comunidades"], a[href^="#publico"]',
     );
     if (link && page === 'conversas' && openInPanel(link))
       event.preventDefault();
@@ -183,20 +208,31 @@ export function startPanels(input: {
   /** Keeps community links inside the workspace instead of leaving the chat. */
   function openInPanel(link: HTMLAnchorElement): boolean {
     const target = communityTarget(link.getAttribute('href') ?? '');
-    if (target?.kind === 'dm' && split.matches) {
-      openPublic(target.id, target.local);
+    if (!target) return false;
+    if (target.kind === 'dm') return openDmInPanel(target);
+    if (!feedMounted) return false;
+    // A profile opens beside the chat from the feed or from a public DM.
+    if (target.kind === 'profile') {
+      showProfile(target.handle);
       return true;
     }
-    const inPanel =
-      feedBody.contains(link) || link.hasAttribute('data-feed-tab');
-    if (target?.kind !== 'feed' || !feedMounted || !inPanel) return false;
-    feedParams = target.params;
-    communities.mountFeed(feedBody, feedParams);
-    markFeedTab();
+    if (!feedBody.contains(link) && !link.hasAttribute('data-feed-tab'))
+      return false;
+    showFeed(target.params);
     return true;
   }
-  function markFeedTab(): void {
-    const view = feedParams.has('id') ? '' : (feedParams.get('view') ?? 'feed');
+  function openDmInPanel(target: {
+    id: string | null;
+    local: boolean;
+  }): boolean {
+    if (!split.matches) return false;
+    openPublic(target.id, target.local);
+    return true;
+  }
+  /** `null` marks no tab: the panel shows a profile, not a feed section. */
+  function markFeedTab(params: URLSearchParams | null = feedParams): void {
+    const view =
+      !params || params.has('id') ? '' : (params.get('view') ?? 'feed');
     const tab = view === 'following' ? 'feed' : view;
     shell
       .querySelectorAll<HTMLAnchorElement>('[data-feed-tab]')
@@ -230,6 +266,7 @@ export function startPanels(input: {
     routed(next: string): void {
       page = next;
       feedMounted = false;
+      leaveProfile();
       if (page !== 'conversas' && shell.dataset['chatScope'] === 'public') {
         // A hidden public chat must not keep polling after leaving the workspace.
         communities.closeDm();
