@@ -11,6 +11,7 @@ import re
 import shlex
 import shutil
 import subprocess
+import sys
 import tarfile
 import tempfile
 import urllib.parse
@@ -21,6 +22,7 @@ from deploy_remote import digest, validate
 import deploy_sources as public_sources
 import deploy_runtime as runtime
 import deploy_request_limit as request_limits
+from deploy_python import ensure_python314
 
 ROOT = Path(__file__).resolve().parents[2]
 OWNER = 'karma352431231-ship-it'
@@ -269,7 +271,7 @@ def main():
         config['request_limit'] = json.loads(review.read_text())
         request_limits.validate(config['request_limit'])
     # Existing source-sync contract checks clean tree, canonical remote and exact SHA.
-    run(['python3', 'infra/staging/sync-git.py'], timeout=150)
+    run([sys.executable, 'infra/staging/sync-git.py'], timeout=150)
     checked = remote('check', config, target)
     print(json.dumps(checked), flush=True)
     if args.check:
@@ -290,6 +292,7 @@ def main():
 
 if __name__ == '__main__':
     try:
+        ensure_python314(__file__)
         main()
     except Exception as error:
         print(json.dumps({'deployment_failed': True, 'error_type': type(error).__name__,

@@ -684,6 +684,15 @@ reutilizável, mantendo o build no Mac/ambiente de desenvolvimento. Publicar:
 npm run deploy:staging
 ```
 
+Desde 10/10/2026, por solicitação do proprietário, os modos `prepare`, `check` e
+`staging` selecionam automaticamente Python **3.14** no ambiente de desenvolvimento.
+Se `python3` iniciar outra versão (como o 3.9 do Xcode encontrado pelo npm), o executor
+confere `python3.14` no `PATH` e nas instalações padrão Homebrew/python.org e se
+reinicia com a versão verificada, conservando diretório, ambiente e opções. A
+sincronização de fontes usa esse mesmo interpretador. A seleção ocorre antes de
+Git, CI, build ou SSH; se o 3.14 estiver ausente ou não iniciar, o comando para com
+uma mensagem explícita. Não instala ferramentas nem altera o Python da VPS.
+
 Antes de chamar: revisar, commitar e dar push da branch `codex/`; aguardar sucesso
 do workflow `check.yml` para esse commit. O comando recusa árvore suja, remoto
 diferente, commit não enviado, CI pendente/falha ou executor alterado. Consulta
