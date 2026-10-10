@@ -58,15 +58,26 @@ export async function loadWebAssets(): Promise<ReadonlyMap<string, WebAsset>> {
   return assets;
 }
 
+/**
+ * The app shell alone may reach the GIF catalog (KLIPY, owner decision of
+ * 09/10/2026): its API and its media host. Every other response stays same-origin.
+ */
+const gifCatalog = {
+  media: ' https://static.klipy.com',
+  connect: ' https://api.klipy.com',
+};
+function contentPolicy(
+  scriptSources: string,
+  external = { media: '', connect: '' },
+): string {
+  return `default-src 'none'; script-src ${scriptSources}; style-src 'self'; img-src 'self' blob:${external.media}; media-src blob:${external.media}; font-src 'self'; connect-src 'self'${external.connect}; worker-src 'self'; manifest-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'`;
+}
 function securityHeaders(
   response: ServerResponse,
   scriptSources = "'self'",
 ): void {
   response.setHeader('Cache-Control', 'no-store');
-  response.setHeader(
-    'Content-Security-Policy',
-    `default-src 'none'; script-src ${scriptSources}; style-src 'self'; img-src 'self' blob:; media-src blob:; font-src 'self'; connect-src 'self'; worker-src 'self'; manifest-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'`,
-  );
+  response.setHeader('Content-Security-Policy', contentPolicy(scriptSources));
   response.setHeader('X-Content-Type-Options', 'nosniff');
   response.setHeader('Referrer-Policy', 'no-referrer');
   response.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
@@ -89,11 +100,16 @@ function sendPublicAsset(
   // Errors, APIs and wallet approval retain the default policy.
   if ((nativeProbe || appShell) && entry?.type.startsWith('text/html'))
     securityHeaders(response, "'self' 'wasm-unsafe-eval'");
-  if (appShell && entry?.type.startsWith('text/html'))
+  if (appShell && entry?.type.startsWith('text/html')) {
+    response.setHeader(
+      'Content-Security-Policy',
+      contentPolicy("'self' 'wasm-unsafe-eval'", gifCatalog),
+    );
     response.setHeader(
       'Permissions-Policy',
       'camera=(self), microphone=(self), geolocation=(), payment=()',
     );
+  }
   attachmentWorkerPolicy(request, response, entry);
   sendAsset(request, response, entry);
 }

@@ -44,6 +44,12 @@ import type { DailyView } from '../daily-text/index.ts';
 import { messageActions } from '../message-actions/index.ts';
 import { observeMessageControls } from '../message-controls/index.ts';
 import { checksIcon, messageChecks } from '../message-status/index.ts';
+import {
+  GifSearch,
+  gifMessageUrl,
+  mountGifPane,
+  renderGif,
+} from '../gif-search/index.ts';
 import { EmojiPicker, emojiIntoComposer, emojiText } from '../emoji/index.ts';
 import {
   NotificationSound,
@@ -88,6 +94,7 @@ export function startMessages(
   const emojiPicker = new EmojiPicker();
   // Accounts with an active status, from the status list the app already loads.
   let statusAuthors: ReadonlySet<string> = new Set();
+  const gifs = new GifSearch();
   let peers: ConversationPeer[] = [],
     states = new Map<string, PeerState>(),
     directoryFilter: ConversationFilter = 'all';
@@ -698,6 +705,8 @@ export function startMessages(
         load: (v, thumb) => controller.media(v, thumb),
         run,
       });
+    } else if (gifMessageUrl(view.content.text)) {
+      renderGif(text, gifMessageUrl(view.content.text) ?? '');
     } else if (
       !options.representatives?.renderCard(
         article,
@@ -1258,6 +1267,28 @@ export function startMessages(
     }
     await dailyTick();
   }
+  /** GIF tab of the composer's emoji panel; a chosen GIF is sent at once. */
+  function gifPane(host: HTMLElement, close: () => void): void {
+    mountGifPane(host, gifs, (url) => {
+      close();
+      void run(() => sendGif(url));
+    });
+  }
+  /** The message carries only the KLIPY link, inside the usual E2EE text. */
+  async function sendGif(url: string): Promise<void> {
+    if (!selected || selected.localOnly)
+      throw new Error('Escolha um contato autorizado para enviar o GIF.');
+    if (!gifMessageUrl(url)) throw new Error('GIF inválido.');
+    await controller.compose(
+      selected.accountId,
+      encodeDailyText({ text: url, reply: null, forwarded: false }),
+    );
+    await renderPending();
+    if (navigator.onLine) {
+      await controller.sendPending();
+      await synchronizeVisible();
+    }
+  }
   async function saveComposition(peer: string, text: string): Promise<void> {
     if (composing?.mode === 'edit') {
       if (attachments.selected)
@@ -1602,7 +1633,7 @@ export function startMessages(
       const input = node<HTMLTextAreaElement>('[data-message-text]'),
         anchor = node('[data-message-emoji]');
       if (!input || !anchor) return;
-      void emojiIntoComposer(emojiPicker, anchor, input).catch(() => {
+      void emojiIntoComposer(emojiPicker, anchor, input, gifPane).catch(() => {
         message = 'Não foi possível abrir o painel de emojis.';
         status();
       });

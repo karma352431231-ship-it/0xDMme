@@ -621,3 +621,21 @@
   font: inherit;
   cursor: pointer;
 }
+
+/* GIFs from the catalog: only the looping clip, like images. */
+.chat-gif {
+  margin: 0;
+  line-height: 0;
+}
+.chat-gif :is(video, img) {
+  display: block;
+  max-width: min(100%, 300px);
+  max-height: 300px;
+  border-radius: 12px;
+}
+#app-shell .chat-message:has(.chat-gif) {
+  padding: 4px;
+}
+#app-shell .chat-message:has(.chat-gif) > .message-meta {
+  margin: 4px 8px 2px;
+}

@@ -351,6 +351,11 @@ Após as alterações visuais dessa entrega, o proprietário confirmou em 09/10/
   - **Fontes:** Figtree (texto) e Sora (títulos), OFL-1.1, em arquivos do próprio app. O mono continua do sistema.
   - **Rodapé:** sai de todas as telas do app. "Código e licenças", "Desenhos e licenças dos emojis" e "Fontes do motor de mensagens" ficam em **Perfil → Sobre o app**. O Perfil abre sem conta, então a oferta de código continua livre de cadastro.
   - **Comunidades:** a aba isolada segue o modelo aprovado, **sem a coluna de ranking à direita**. O Ranking fica na navegação lateral.
+- **GIFs de catálogo — decisão do proprietário em 09/10/2026:** aba GIF no painel de emojis do compositor das conversas 1-1, com o catálogo do **KLIPY** (o mesmo do Discord desde a desativação da API do Tenor). Escolhida a opção pelo link, depois de apresentados os metadados expostos e os termos.
+  - O navegador consulta o KLIPY diretamente: termos buscados, IP dos aparelhos e GIFs exibidos chegam ao KLIPY, inclusive no aparelho de quem recebe. A mensagem continua E2EE e leva só o link da mídia.
+  - Não há identificador de usuário nem referência do site, e não há anúncios. A atribuição "Search KLIPY"/"Powered by KLIPY" é exibida, como os termos exigem.
+  - Os termos proíbem guardar o conteúdo, por isso não há cópia no cofre nem proxy de mídia. O serviço web continua sem saída para a internet; a chave pública vem de `HASH_TALK_KLIPY_API_KEY`, e sem ela a aba não aparece.
+  - Ativar exige pôr a chave na configuração do nosso serviço na VPS. A chave de produção (sem limite de 100 chamadas/hora) depende de pedido do proprietário no painel do KLIPY.
 - Ordem: (1) tokens e temas sem mudar layout; (2) limpeza de ruído; (3) painéis do desktop; (4) Comunidades; (5) Atividade, status e cofre; (6) navegação mobile com teste físico. Detalhes e registro de cada etapa em [painéis e temas](docs/UI_PAINEIS_E_TEMAS.md).
 
 - **Chamadas perdidas — decisão do proprietário em 09/10/2026:** o app não registrava chamadas não atendidas. Entre guardar só na abertura, só no aparelho, no cofre ou no servidor, o proprietário escolheu o **cofre cifrado**, visível em todos os aparelhos da conta. Registro de configuração existente (`settings`) com entidade e rótulo próprios, para que versões antigas do app o ignorem; o servidor guarda apenas blocos opacos, sem quem ligou ou quando, e não há migração. Retenção: últimas 50 chamadas, até 30 dias, e o usuário pode limpar a lista. Conta na cota do cofre e entra no backup cifrado. Limitação aceita: só registra chamadas que tocaram com algum aparelho aberto e logado; com o app fechado não há registro. Registro no servidor foi descartado por expor metadado legível.
@@ -367,7 +372,7 @@ Após as alterações visuais dessa entrega, o proprietário confirmou em 09/10/
 - Apelidos privados, busca local de contatos e conversas.
 - Texto, respostas, reações, edição, encaminhamento e exclusão com semântica definida.
 - Fotos, arquivos, áudio gravado e figurinhas, conforme seleção de escopo. Vídeos reproduzíveis ficam fora da versão inicial do mensageiro privado; a aprovação de vídeos na camada pública está na seção 6.4.
-- GIFs por arquivo; integração com catálogo externo somente após avaliar privacidade e custos.
+- GIFs por arquivo; catálogo externo pelo KLIPY conforme a decisão de 09/10/2026 na seção 5.11.
 - Grupos, administradores, convites, saída/remoção e controle de participação.
 - Status de texto e foto para contatos aprovados, com exclusões por perfil e duração de 24 horas; fora dos backups. Vídeo somente em etapa posterior.
 - Arquivar, fixar, marcar não lida, indicadores de envio/entrega e leitura opcional.

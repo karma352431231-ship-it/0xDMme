@@ -162,6 +162,7 @@ try {
       ...(config.walletConnectProjectId
         ? { walletConnectProjectId: config.walletConnectProjectId }
         : {}),
+      ...(config.gifSearchKey ? { gifSearchKey: config.gifSearchKey } : {}),
     }),
   });
   await new Promise<void>((resolve, reject) => {

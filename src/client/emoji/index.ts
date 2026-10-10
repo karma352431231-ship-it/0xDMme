@@ -60,14 +60,21 @@ export class EmojiPicker {
   private resolve: ((emoji: string | null) => void) | null = null;
   private anchor: HTMLElement | null = null;
 
-  choose(anchor: HTMLElement): Promise<string | null> {
+  /**
+   * `gifPane` adds the GIF tab (composer only); it mounts its own content and
+   * calls `close` when a GIF was chosen. Reactions keep the emoji panel alone.
+   */
+  choose(
+    anchor: HTMLElement,
+    gifPane?: (host: HTMLElement, close: () => void) => void,
+  ): Promise<string | null> {
     this.finish(null);
     this.anchor = anchor;
     const dialog = document.createElement('dialog');
     dialog.className = 'emoji-picker';
     dialog.setAttribute('aria-label', 'Escolher emoji');
     // Authored markup only; emoji names enter through textContent/attributes.
-    dialog.innerHTML = `<div class="emoji-top"><label class="emoji-search"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></svg><span class="visually-hidden">Buscar emoji</span><input type="search" maxlength="128" autocomplete="off" data-query placeholder="Buscar emoji"></label><label class="emoji-tone"><span class="visually-hidden">Tom de pele</span><select data-tone></select></label><button type="button" class="emoji-close" data-close aria-label="Fechar painel de emojis">×</button></div><section class="emoji-recent" data-recent-section hidden><h3>Recentes</h3><div class="emoji-recent-row" data-recent></div></section><h3 class="emoji-section-title" data-section-title></h3><div data-grid class="emoji-grid" role="listbox" aria-label="Emojis"></div><p data-result class="emoji-empty" role="status"></p><button type="button" class="emoji-custom" data-custom hidden>Usar emoji digitado</button><nav class="emoji-dock" data-dock aria-label="Categorias de emoji"></nav><small class="emoji-credit" data-art role="status">Carregando desenhos…</small>`;
+    dialog.innerHTML = `<nav class="picker-modes" data-modes hidden aria-label="Emoji ou GIF"><button type="button" data-mode="emoji" aria-pressed="true">Emoji</button><button type="button" data-mode="gif" aria-pressed="false">GIF</button></nav><div class="gif-pane" data-gif-pane hidden></div><div class="emoji-top"><label class="emoji-search"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></svg><span class="visually-hidden">Buscar emoji</span><input type="search" maxlength="128" autocomplete="off" data-query placeholder="Buscar emoji"></label><label class="emoji-tone"><span class="visually-hidden">Tom de pele</span><select data-tone></select></label><button type="button" class="emoji-close" data-close aria-label="Fechar painel de emojis">×</button></div><section class="emoji-recent" data-recent-section hidden><h3>Recentes</h3><div class="emoji-recent-row" data-recent></div></section><h3 class="emoji-section-title" data-section-title></h3><div data-grid class="emoji-grid" role="listbox" aria-label="Emojis"></div><p data-result class="emoji-empty" role="status"></p><button type="button" class="emoji-custom" data-custom hidden>Usar emoji digitado</button><nav class="emoji-dock" data-dock aria-label="Categorias de emoji"></nav><small class="emoji-credit" data-art role="status">Carregando desenhos…</small>`;
     this.dialog = dialog;
     document.body.append(dialog);
     const promise = new Promise<string | null>((resolve) => {
@@ -95,6 +102,7 @@ export class EmojiPicker {
       this.finish(null);
       throw error;
     }
+    if (gifPane) this.modes(dialog, gifPane);
     place(dialog, anchor);
     element<HTMLInputElement>(dialog, '[data-query]').focus();
     void artwork
@@ -113,6 +121,31 @@ export class EmojiPicker {
   }
   close(): void {
     this.finish(null);
+  }
+  private modes(
+    dialog: HTMLDialogElement,
+    gifPane: (host: HTMLElement, close: () => void) => void,
+  ): void {
+    const modes = element(dialog, '[data-modes]'),
+      pane = element(dialog, '[data-gif-pane]');
+    modes.hidden = false;
+    let mounted = false;
+    modes.querySelectorAll<HTMLButtonElement>('[data-mode]').forEach((tab) => {
+      tab.addEventListener('click', () => {
+        const gif = tab.dataset['mode'] === 'gif';
+        dialog.dataset['mode'] = gif ? 'gif' : 'emoji';
+        modes
+          .querySelectorAll('[data-mode]')
+          .forEach((other) =>
+            other.setAttribute('aria-pressed', String(other === tab)),
+          );
+        pane.hidden = !gif;
+        if (gif && !mounted) {
+          mounted = true;
+          gifPane(pane, () => this.finish(null));
+        }
+      });
+    });
   }
   reset(): void {
     this.recent = [];
@@ -263,11 +296,12 @@ export async function emojiIntoComposer(
   picker: EmojiPicker,
   anchor: HTMLElement,
   input: HTMLTextAreaElement,
+  gifPane?: (host: HTMLElement, close: () => void) => void,
 ): Promise<void> {
   const start = input.selectionStart,
     end = input.selectionEnd,
     original = input.value;
-  const emoji = await picker.choose(anchor);
+  const emoji = await picker.choose(anchor, gifPane);
   if (!emoji || !input.isConnected || input.value !== original) return;
   const inserted = insertEmoji(original, start, end, emoji);
   input.value = inserted.text;

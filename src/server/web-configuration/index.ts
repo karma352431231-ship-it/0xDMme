@@ -10,6 +10,8 @@ export interface WebConfiguration {
   objectDirectory: string;
   accountCapacityBytes: number;
   walletConnectProjectId?: string;
+  /** KLIPY key for the GIF tab (owner decision 09/10/2026); absent disables it. */
+  gifSearchKey?: string;
 }
 
 function validateDatabase(databaseUrl: string): URL {
@@ -88,7 +90,17 @@ export function readWebConfiguration(
     databaseUrl,
     objectDirectory: objectDirectory(environment, staging),
     ...accountConfiguration(environment),
+    ...gifConfiguration(environment),
   };
+}
+function gifConfiguration(
+  environment: Readonly<Record<string, string | undefined>>,
+): Pick<WebConfiguration, 'gifSearchKey'> {
+  const key = environment['HASH_TALK_KLIPY_API_KEY'];
+  if (key === undefined || key === '') return {};
+  if (!/^[A-Za-z0-9]{32,128}$/u.test(key))
+    throw new Error('Chave KLIPY inválida.');
+  return { gifSearchKey: key };
 }
 function accountConfiguration(
   environment: Readonly<Record<string, string | undefined>>,

@@ -35,6 +35,7 @@ const authored = [
   'src/client/representatives',
   'src/shared/representatives',
   'src/client/emoji',
+  'src/client/gif-search',
   'src/tools/frontend-emoji.ts',
   'vendor/emoji/README.md',
   'vendor/emoji/LICENSE-GRAPHICS.txt',

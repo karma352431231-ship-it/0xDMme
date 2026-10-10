@@ -143,6 +143,8 @@ export function createAccountHandler(options: {
   service: AccountService;
   origin: string;
   walletConnectProjectId?: string;
+  /** Public by nature: the browser uses it to call KLIPY directly. */
+  gifSearchKey?: string;
   approvalDocument?: Uint8Array;
   recoveryDocument?: Uint8Array;
   devices?: DeviceService;
@@ -698,6 +700,17 @@ export function createAccountHandler(options: {
       active--;
     }
   }
+  /** Public, unauthenticated client settings. */
+  function publicConfiguration() {
+    const gifSearch = options.gifSearchKey
+      ? { provider: 'klipy', key: options.gifSearchKey }
+      : null;
+    return {
+      walletConnection: 'native',
+      ecosystems: ['evm', 'solana'],
+      gifSearch,
+    };
+  }
   async function get(
     request: IncomingMessage,
     response: ServerResponse,
@@ -707,10 +720,7 @@ export function createAccountHandler(options: {
     if (await approvalGet(request, response)) return;
     if (recoveryGet(request, response)) return;
     if (request.url === '/api/account/config') {
-      send(response, 200, {
-        walletConnection: 'native',
-        ecosystems: ['evm', 'solana'],
-      });
+      send(response, 200, publicConfiguration());
       return;
     }
     if (request.url === '/api/account/handoff-status') {

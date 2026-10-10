@@ -480,17 +480,19 @@ await test('servidor recusa origem, mutação, traversal e dados privados; saúd
     String(page.headers['content-security-policy']),
     /frame-ancestors 'none'/,
   );
+  // The app shell may reach only the approved GIF catalog (KLIPY API and media).
+  const shellPolicy = String(page.headers['content-security-policy']);
+  assert.doesNotMatch(shellPolicy, /'unsafe-eval'|'unsafe-inline'/u);
+  assert.deepEqual(
+    [...new Set(shellPolicy.match(/https:\/\/[^\s;]+/gu))].sort(),
+    ['https://api.klipy.com', 'https://static.klipy.com'],
+  );
+  assert.match(shellPolicy, /script-src 'self' 'wasm-unsafe-eval';/u);
+  assert.match(shellPolicy, /media-src blob: https:\/\/static\.klipy\.com;/u);
+  assert.match(shellPolicy, /connect-src 'self' https:\/\/api\.klipy\.com;/u);
   assert.doesNotMatch(
-    String(page.headers['content-security-policy']),
-    /'unsafe-eval'|'unsafe-inline'|https:/u,
-  );
-  assert.match(
-    String(page.headers['content-security-policy']),
-    /script-src 'self' 'wasm-unsafe-eval';/u,
-  );
-  assert.match(
-    String(page.headers['content-security-policy']),
-    /media-src blob:;/u,
+    String((await get('/wallet.html')).headers['content-security-policy']),
+    /https:/u,
   );
   const voiceWorklet = [...assets.keys()].find((path) =>
     path.startsWith('/voice-worklet-'),

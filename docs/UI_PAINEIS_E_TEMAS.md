@@ -220,4 +220,20 @@ Pedido do proprietário:
   - As categorias viram ícones numa barra embaixo, e a lista carrega mais conforme rola, sem botões de página.
   - Busca, tons, catálogo e desenhos continuam os mesmos. Os recentes continuam só na memória da sessão, como decidido em 03/10.
 
-**GIFs de catálogo externo** (Klipy/GIPHY) não entraram: dependem de uma decisão do proprietário sobre privacidade, termos e custo (plano, "GIFs por arquivo; integração com catálogo externo somente após avaliar privacidade e custos").
+**GIFs de catálogo:** feitos logo depois, na seção abaixo, conforme a decisão do proprietário.
+
+## Aba GIF (KLIPY) — 10/10/2026
+
+Decisão do proprietário de 09/10/2026, registrada na seção 5.11 do plano.
+
+- **Onde:** o painel de emojis do compositor das conversas 1-1 ganha **Emoji | GIF**. As reações continuam só com emoji.
+- **Uso:** a aba abre com os GIFs em alta; a busca espera 450 ms após a digitação e carrega mais conforme rola. Um toque envia o GIF na hora como mensagem própria.
+- **O que vai na mensagem:** só o link da mídia (`https://static.klipy.com/ii/…mp4`), dentro do texto E2EE de sempre. Quem recebe vê o clipe em loop, sem som e sem legenda. Versões antigas do app mostram o link.
+- **Privacidade:** o navegador consulta `api.klipy.com` direto, sem identificador de usuário, cookies ou referência. O IP, os termos buscados e os GIFs vistos chegam ao KLIPY. A política de segurança libera esses dois endereços só na página do app; as demais continuam fechadas a origens externas.
+- **Validação:** a resposta do KLIPY é validada. Apenas mídias `https://static.klipy.com/ii/…` em mp4, webp ou gif passam, e itens fora do formato são descartados.
+- **Chave:** vem de `HASH_TALK_KLIPY_API_KEY` pela configuração pública `/api/account/config`. Sem a chave, a aba não aparece. A chave de teste do proprietário fica só em `.local/KLIPY_API_KEY`.
+- **Atribuição:** "Search KLIPY" no campo e "Powered by KLIPY" no rodapé da aba.
+
+Limitações: grupos e DMs pelo `@` ainda não enviam GIF de catálogo. A chave de teste permite 100 chamadas por hora para todo o servidor. Ativar na VPS exige colocar a chave na configuração do nosso serviço.
+
+Validação: testes de validação da resposta, da detecção de mensagem-GIF, da chave e da política de segurança. Uma prévia local com a chave de teste conferiu em alta, busca, envio e reprodução do GIF.
