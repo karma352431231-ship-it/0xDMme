@@ -6,12 +6,14 @@ import {
   profileFollow,
   profileBanner,
   profileActivityFilter,
+  profileDescriptionText,
 } from '../src/shared/profile-social/index.ts';
 import { feedPage } from '../src/shared/community-discovery/index.ts';
 
 const profile = { id: crypto.randomUUID(), handle: 'sintetico', avatar: null };
 const summary = {
   profile,
+  description: 'Texto público 🙂',
   banner: null,
   createdAt: null,
   conversations: 0,
@@ -134,4 +136,25 @@ await test('resposta no perfil exige comunidade, raiz e pai corretos; raiz exclu
       }),
     AccountError,
   );
+});
+await test('descrição do perfil aceita texto e emoji, normaliza quebras e recusa controles ocultos', () => {
+  for (const [input, expected] of [
+    ['  Olá 👋🏽  ', 'Olá 👋🏽'],
+    ['a\r\nb', 'a\nb'],
+    ['a\n\n\n\nb', 'a\n\nb'],
+    ['a\tb', 'a b'],
+    ['família 👨‍👩‍👧', 'família 👨‍👩‍👧'],
+    ['🙂'.repeat(280), '🙂'.repeat(280)],
+    ['', ''],
+  ] as const)
+    assert.equal(profileDescriptionText(input), expected);
+  for (const input of [
+    '🙂'.repeat(281),
+    'a\nb\nc\nd\ne\nf',
+    'texto\u202Einvertido',
+    'zero\u200Bwidth',
+    'sino\u0007',
+    42,
+  ])
+    assert.throws(() => profileDescriptionText(input), AccountError);
 });

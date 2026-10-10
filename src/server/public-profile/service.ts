@@ -22,11 +22,13 @@ import type {
 } from '../database/index.ts';
 import type { PublicModerationNotice } from '../../shared/public-moderation/index.ts';
 import { postCount } from '../../shared/community-posts/index.ts';
+import { profileDescriptionText } from '../../shared/profile-social/index.ts';
 type PublicProfileResponse =
   | Awaited<ReturnType<PublicProfileStore['state']>>
   | PublicModerationNotice[]
   | PublicModerationNotice
   | Awaited<ReturnType<PublicProfileStore['banners']['state']>>
+  | Awaited<ReturnType<PublicProfileStore['descriptions']['state']>>
   | Awaited<ReturnType<ProfileSocialStore['operate']>>;
 export class PublicProfileService {
   private readonly store: PublicProfileStore;
@@ -92,6 +94,8 @@ export class PublicProfileService {
         'avatar',
         'banner-state',
         'banner',
+        'description-state',
+        'description',
         'follow-state',
         'follow',
         'moderation-notices',
@@ -128,6 +132,8 @@ export class PublicProfileService {
       ['follow', 'follow-state', 'banner', 'banner-state'].includes(operation)
     )
       return this.socialOperation(operation, authority, data);
+    if (operation === 'description-state' || operation === 'description')
+      return this.descriptionOperation(operation, authority, data);
     if (operation === 'moderation-notices') {
       keys(data, ['after']);
       return this.store.moderationNotices(
@@ -160,6 +166,22 @@ export class PublicProfileService {
       authority,
       profileRevision(data['revision']),
       pendingPublicAvatar(data['avatar']),
+    );
+  }
+  private descriptionOperation(
+    operation: 'description-state' | 'description',
+    authority: ContactAuthority,
+    data: Record<string, unknown>,
+  ) {
+    if (operation === 'description-state') {
+      keys(data, []);
+      return this.store.descriptions.state(authority);
+    }
+    keys(data, ['revision', 'description']);
+    return this.store.descriptions.replace(
+      authority,
+      postCount(data['revision']),
+      profileDescriptionText(data['description']),
     );
   }
   private socialOperation(

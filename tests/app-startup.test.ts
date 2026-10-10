@@ -22,7 +22,7 @@ const featureExports: Record<string, string[]> = {
   'voice-playback': ['VoicePlayback'],
   calls: ['CallLog', 'startCalls'],
   communities: ['startCommunities'],
-  'public-profile': ['startPublicProfile', 'showPublicProfile'],
+  'public-profile': ['startPublicProfile'],
   activity: ['startActivity'],
   'external-media': ['ExternalMediaConsent'],
   'file-drop': ['keepPageOnStrayDrop'],

@@ -7,6 +7,7 @@ import { publicAvatarPath } from '../../shared/public-media/index.ts';
 import type { ContactAuthority, ContactStore } from './contacts.ts';
 import { assertContentCapacity } from './vault-quota.ts';
 import { ProfileBanners } from './profile-banners.ts';
+import { ProfileDescriptions } from './profile-descriptions.ts';
 import type {
   PublicModerationStore,
   PublicModerationSubject,
@@ -51,6 +52,7 @@ function sameAvatar(
 }
 export class PublicProfileStore {
   readonly banners: ProfileBanners;
+  readonly descriptions: ProfileDescriptions;
   private readonly pool: pg.Pool;
   private readonly authority: ContactStore;
   private readonly capacity: number;
@@ -68,6 +70,11 @@ export class PublicProfileStore {
     this.banners = new ProfileBanners({
       pool,
       moderation,
+      authority,
+      capacity,
+      identity: (client, account) => this.identity(client, account),
+    });
+    this.descriptions = new ProfileDescriptions({
       authority,
       capacity,
       identity: (client, account) => this.identity(client, account),

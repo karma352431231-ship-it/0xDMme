@@ -148,6 +148,7 @@ const migrations = [
   '050-video-post-publication-review.sql',
   '051-public-profile-social.sql',
   '052-profile-conversation-index.sql',
+  '053-public-profile-descriptions.sql',
 ];
 
 export interface MaintenanceSnapshot {

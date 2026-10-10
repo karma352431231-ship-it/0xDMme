@@ -43,6 +43,7 @@ export class ProfileSocialStore {
       conversations: string;
       communities: string;
       followers: string;
+      description: string | null;
     }>(
       `WITH eligible AS (SELECT p.* FROM hash_talk.community_posts p
         WHERE p.author=$1 AND NOT p.deleted AND p.active_removal IS NULL
@@ -53,7 +54,8 @@ export class ProfileSocialStore {
         (SELECT count(*) FROM eligible e WHERE e.parent_id IS NULL AND EXISTS(
           SELECT 1 FROM hash_talk.community_posts r WHERE r.root_id=e.id AND r.author<>$1 AND NOT r.deleted AND r.active_removal IS NULL)) AS conversations,
         (SELECT count(*) FROM hash_talk.community_follows WHERE profile_id=$1) AS communities,
-        (SELECT count(*) FROM hash_talk.public_profile_follows WHERE target=$1 AND following) AS followers
+        (SELECT count(*) FROM hash_talk.public_profile_follows WHERE target=$1 AND following) AS followers,
+        (SELECT description FROM hash_talk.public_profile_descriptions WHERE profile_id=$1) AS description
        FROM hash_talk.public_profiles WHERE id=$1`,
       [profile.id],
     );
@@ -61,6 +63,7 @@ export class ProfileSocialStore {
     if (!row) throw new AccountError(404, 'Perfil público indisponível.');
     return {
       profile,
+      description: row.description ?? '',
       createdAt: row.created_at?.toISOString() ?? null,
       banner: await this.options.profiles.banners.reference(profile.id),
       posts: Number(row.posts),

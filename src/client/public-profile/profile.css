@@ -189,12 +189,14 @@
   padding: 32px 0;
   color: var(--text-muted);
 }
-.public-banner-prepared {
-  width: 100%;
-  max-height: 170px;
-  object-fit: contain;
-  background: var(--surface-2);
-  border-radius: 12px;
+/* Owner-written description on the public page; plain text with line breaks. */
+.public-profile-description {
+  margin: 0;
+  padding: 0 28px 22px;
+  font-size: 15px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 @media (max-width: 900px) {
   .public-profile-layout {
@@ -362,4 +364,203 @@
 #feed-panel .public-profile-tabs button[aria-current='true'] {
   background: var(--surface-3);
   color: var(--text);
+}
+
+/*
+ * Settings: the owner edits the profile where it is seen. Banner and photo
+ * are buttons; the card's generic button style is outranked here.
+ */
+.public-profile-card .profile-editor {
+  margin: 4px 0 14px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--surface);
+}
+.profile-editor-banner {
+  position: relative;
+  height: clamp(110px, 16vw, 180px);
+  background: var(--surface-3);
+}
+.public-profile-card .profile-editor .profile-editor-pick {
+  display: block;
+  position: relative;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+}
+.profile-editor-pick img {
+  display: block;
+  width: 100%;
+  max-width: none;
+  height: 100%;
+  border: 0;
+  object-fit: cover;
+}
+.profile-editor-hint {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: var(--overlay);
+  font-weight: 600;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.profile-editor-pick:is(:hover, :focus-visible) .profile-editor-hint,
+.profile-editor-pick:has(img[hidden]) .profile-editor-hint {
+  opacity: 1;
+}
+.profile-editor-pick:has(img[hidden]) .profile-editor-hint {
+  background: transparent;
+  color: var(--text-muted);
+}
+.profile-editor-identity {
+  display: flex;
+  align-items: flex-end;
+  gap: 16px;
+  padding: 0 20px;
+}
+.profile-editor-avatar {
+  position: relative;
+  flex: 0 0 96px;
+  width: 96px;
+  height: 96px;
+  margin-top: -36px;
+}
+.public-profile-card
+  .profile-editor
+  .profile-editor-avatar
+  .profile-editor-pick {
+  border: 5px solid var(--surface);
+  border-radius: 50%;
+  background: var(--surface-2);
+  font-size: 34px;
+}
+.profile-editor-avatar [data-avatar-slot] {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+}
+.profile-editor-avatar [data-avatar-slot] img {
+  border-radius: 50%;
+}
+.profile-editor-avatar .profile-editor-pick:is(:hover, :focus-visible)::after {
+  content: 'Trocar';
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--overlay);
+  font-size: 13px;
+  font-weight: 600;
+}
+.public-profile-card .profile-editor .profile-editor-remove {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--overlay);
+  color: var(--text);
+}
+.public-profile-card
+  .profile-editor
+  .profile-editor-avatar
+  .profile-editor-remove {
+  top: auto;
+  right: -4px;
+  bottom: 0;
+  width: 28px;
+  height: 28px;
+}
+.public-profile-card .profile-editor .profile-editor-remove[hidden] {
+  display: none;
+}
+.profile-editor-remove svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.profile-editor-title {
+  min-width: 0;
+  padding-bottom: 6px;
+}
+.profile-editor-title h3 {
+  margin: 0;
+  font: 700 22px/1.2 var(--font-display);
+  overflow-wrap: anywhere;
+}
+.profile-editor-title a {
+  font-size: 14px;
+}
+.public-profile-card .profile-editor .profile-editor-description {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 16px 20px 18px;
+}
+.profile-editor-description > span {
+  color: var(--text-muted);
+  font-size: 13px;
+}
+.profile-editor-description textarea {
+  width: 100%;
+  min-height: 72px;
+  padding: 10px 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+  background: var(--surface-2);
+  color: var(--text);
+  font: inherit;
+  resize: vertical;
+}
+.profile-editor-description small {
+  justify-self: end;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+.profile-editor-description small[data-over='true'] {
+  color: var(--danger);
+}
+#feed-panel .public-profile-description {
+  padding: 0 14px 14px;
+  font-size: 14px;
+}
+@media (max-width: 520px) {
+  .public-profile-description {
+    padding: 0 16px 18px;
+  }
+  .profile-editor-identity {
+    gap: 12px;
+    padding: 0 14px;
+  }
+  .profile-editor-avatar {
+    flex-basis: 76px;
+    width: 76px;
+    height: 76px;
+    margin-top: -28px;
+  }
+  .public-profile-card .profile-editor .profile-editor-description {
+    padding: 14px;
+  }
 }

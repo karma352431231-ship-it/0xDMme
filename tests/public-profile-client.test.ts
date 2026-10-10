@@ -6,8 +6,12 @@ import type {
   VaultAuthority,
 } from '../src/client/vault-authority/index.ts';
 import { PublicProfiles } from '../src/client/public-profile/controller.ts';
-import { startPublicProfile } from '../src/client/public-profile/index.ts';
+import {
+  blockingNotices,
+  startPublicProfile,
+} from '../src/client/public-profile/index.ts';
 import { publicModerationNotice } from '../src/shared/public-moderation/index.ts';
+import type { PublicModerationNotice } from '../src/shared/public-moderation/index.ts';
 import { ExternalMediaConsent } from '../src/client/external-media/index.ts';
 
 function session(): AccountSession {
@@ -105,81 +109,22 @@ await test('criar @ aguarda a escolha de mídia externa, sem caixa adicional par
   assert.equal(privacy.permitted('video'), false);
   ui.leave();
 });
-await test('configurações mostram o perfil público na própria seção com leitura anônima e cancelamento ao sair', async (t) => {
-  const own = session(),
-    profile = result(),
-    label = { textContent: '' },
-    status = { textContent: '' },
-    links: { href: string; textContent: string }[] = [];
-  const preview = {
-    innerHTML: '',
-    querySelector: (selector: string) => {
-      if (selector === '[data-public-handle]') return label;
-      if (selector === '[data-public-status]') return status;
-      if (selector === 'article')
-        return {
-          append: (link: { href: string; textContent: string }) =>
-            links.push(link),
-        };
-      return null;
-    },
-  };
-  const host = {
-    innerHTML: '',
-    querySelector: (selector: string) =>
-      selector === '[data-public-preview]' ? preview : null,
-    querySelectorAll: () => [],
-  };
-  t.mock.method(
-    PublicProfiles.prototype,
-    'refresh',
-    function (this: PublicProfiles) {
-      this.profile = profile;
-      return Promise.resolve();
-    },
+await test('configurações só avisam quando a análise mantém o arquivo fora do público', () => {
+  const shown = [
+    'rejected',
+    'held',
+    'failed',
+    'discarding',
+    'expired',
+  ] as const;
+  const hidden = ['pending', 'analyzing', 'approved', 'removed'] as const;
+  const notices = [...hidden, ...shown].map(
+    (status) => ({ id: status, status }) as unknown as PublicModerationNotice,
   );
-  t.mock.method(PublicProfiles.prototype, 'refreshModeration', async () => {});
-  const requests: RequestInit[] = [];
-  t.mock.method(globalThis, 'fetch', (url: string, init: RequestInit) => {
-    assert.equal(url, '/api/public-profiles/sintetico');
-    requests.push(init);
-    return Promise.resolve(Response.json(profile.profile));
-  });
-  const originalDocument = Object.getOwnPropertyDescriptor(
-    globalThis,
-    'document',
+  assert.deepEqual(
+    blockingNotices(notices).map((notice) => notice.status),
+    [...shown],
   );
-  Object.defineProperty(globalThis, 'document', {
-    configurable: true,
-    value: { createElement: () => ({ href: '', textContent: '' }) },
-  });
-  t.after(() => {
-    if (originalDocument)
-      Object.defineProperty(globalThis, 'document', originalDocument);
-    else Reflect.deleteProperty(globalThis, 'document');
-  });
-  const ui = startPublicProfile(
-    access(own, () => Promise.resolve('assinatura-sintetica')),
-    new ExternalMediaConsent({
-      profile: () => Promise.resolve(true),
-      storage: null,
-    }),
-  );
-  ui.mount(host as unknown as HTMLElement);
-  await new Promise<void>((resolve) => setImmediate(resolve));
-  assert.equal(host.innerHTML.includes('data-public-link'), false);
-  assert.equal(host.innerHTML.includes('data-public-preview'), true);
-  assert.equal(label.textContent, '@sintetico');
-  assert.equal(status.textContent, 'Identidade pública do 0xDMme.');
-  assert.equal(requests.length, 1);
-  assert.equal(requests[0]!.credentials, 'omit');
-  assert.equal(requests[0]!.body, undefined);
-  assert.equal(
-    links[0]!.href,
-    `#comunidades?view=dms&dm=${profile.profile.id}`,
-  );
-  ui.leave();
-  assert.equal(requests[0]!.signal!.aborted, true);
 });
 await test('análises anteriores substituem a página sem acumular avisos; cursor é assinado e sessão limpa a navegação', async (t) => {
   const own = session(),

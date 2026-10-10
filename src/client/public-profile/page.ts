@@ -137,6 +137,11 @@ export function showProfilePage(
     );
     identity.append(avatar, title, actions);
     header.append(banner, identity);
+    // Owner-written plain text: textContent only, never markup or links.
+    if (summary.description)
+      header.append(
+        element('p', summary.description, 'public-profile-description'),
+      );
     const layout = element('div', '', 'public-profile-layout'),
       timeline = element('section', '', 'public-profile-timeline'),
       sidebar = element('aside', '', 'public-profile-about'),

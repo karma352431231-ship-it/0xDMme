@@ -9,6 +9,7 @@ import {
   profileSummary,
   profileFollow,
   profileBanner,
+  profileDescription,
 } from '../../src/shared/profile-social/index.ts';
 import { feedPage } from '../../src/shared/community-discovery/index.ts';
 import { communityPage } from '../../src/shared/communities/index.ts';
@@ -451,6 +452,51 @@ await test('perfil social: métricas, comunidades públicas, follows, feeds e ba
         assert.equal(privatePage.items[0]?.post.id, selfReply);
         assert.equal(privatePage.items[0]?.context, undefined);
       }
+    },
+  );
+  await t.test(
+    'descrição: texto puro público ao salvar, revisão entre aparelhos e limpeza',
+    async () => {
+      assert.equal((await profiles.summary(identity.handle)).description, '');
+      assert.deepEqual(
+        profileDescription(await operate(owner, 'description-state', {})),
+        { revision: 0, description: '' },
+      );
+      const saved = profileDescription(
+        await operate(owner, 'description', {
+          revision: 0,
+          description: '  Olá 👋🏽 família 👨‍👩‍👧\r\n\n\n\nsegunda linha  ',
+        }),
+      );
+      assert.deepEqual(saved, {
+        revision: 1,
+        description: 'Olá 👋🏽 família 👨‍👩‍👧\n\nsegunda linha',
+      });
+      assert.equal(
+        (await profiles.summary(identity.handle)).description,
+        saved.description,
+      );
+      await assert.rejects(
+        operate(owner, 'description', { revision: 0, description: 'outra' }),
+        (error: unknown) =>
+          error instanceof AccountError && error.status === 409,
+      );
+      for (const description of ['x'.repeat(281), 'oculto\u202Etexto'])
+        await assert.rejects(
+          operate(owner, 'description', { revision: 1, description }),
+          (error: unknown) =>
+            error instanceof AccountError && error.status === 400,
+        );
+      assert.deepEqual(
+        profileDescription(
+          await operate(owner, 'description', {
+            revision: 1,
+            description: '',
+          }),
+        ),
+        { revision: 2, description: '' },
+      );
+      assert.equal((await profiles.summary(identity.handle)).description, '');
     },
   );
   await t.test(

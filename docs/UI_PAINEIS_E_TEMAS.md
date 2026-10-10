@@ -311,3 +311,15 @@ Pedido do proprietário:
 - **Perfil no painel:** no modo dividido (chat à esquerda, feed à direita), clicar num `@autor` no feed, no topo de uma comunidade ou numa DM pública abre o perfil público no painel da direita, sem sair da conversa. A versão compacta tem uma coluna, banner curto, foto de 68px, "Sobre" acima da atividade e botões menores. Links do perfil continuam no painel ("Comunidades" abre a comunidade, "Solicitar DM" abre a DM na coluna do chat). As abas do painel voltam ao feed. Fora do modo dividido, o link abre a página cheia como antes.
 
 **Ponto importante:** o perfil no painel usa as mesmas leituras públicas sem cookies e o mesmo seguir com sessão assinada da página cheia; só muda onde aparece.
+
+## Perfil público nas configurações — 10/10/2026
+
+Pedido do proprietário:
+
+- O cartão "Perfil público" virou um editor no formato da página pública: banner, foto sobre a borda, `@`, "Ver meu perfil público" e a descrição.
+- Tocar no banner ou na foto abre a escolha do arquivo; uma lixeira pequena no canto remove.
+- Saíram os botões "Escolher/Remover", os textos de formato e prazo, o cartão separado "Como outras pessoas veem seu perfil" com "Solicitar DM pelo @", "Recarregar perfil público" (volta só como "Tentar de novo" após falha) e as mensagens de sucesso.
+- Avisos de análise só aparecem quando o arquivo fica fora do público. "Mídias externas" continua.
+- A página pública mostra a descrição abaixo do nome, também no perfil compacto do painel.
+
+**Ponto importante:** a foto ou o banner em análise aparecem na prévia do dono antes de serem públicos, e nenhum aviso diz que estão em análise. Visitantes continuam vendo só o que foi aprovado.
