@@ -61,40 +61,46 @@ await test('perfil público: concorrência, consentimento, sessão/aparelho, mí
   const accounts: string[] = [];
   const addresses: string[] = [];
   const publicOwners = new Set<string>();
-  await db.migrate();
-  await inspector.connect();
   const moderation = new PublicModerationService({
     profiles: db.publicProfiles,
     communities: db.communities,
   });
+  let connected = false;
   t.after(async () => {
-    await host.close();
-    await moderation.close();
-    await inspector.query(
-      'DELETE FROM hash_talk.public_moderation WHERE owner=ANY($1::uuid[])',
-      [[...publicOwners]],
-    );
-    for (const table of [
-      'device_events',
-      'device_directories',
-      'login_sessions',
-      'login_devices',
-    ])
+    try {
+      // Setup can fail before listen: always release database handles and keep its error.
+      if (host.server.listening) await host.close();
+      await moderation.close();
+      if (!connected) return;
       await inspector.query(
-        `DELETE FROM hash_talk.${table} WHERE account_id=ANY($1::uuid[])`,
+        'DELETE FROM hash_talk.public_moderation WHERE owner=ANY($1::uuid[])',
+        [[...publicOwners]],
+      );
+      for (const table of [
+        'device_events',
+        'device_directories',
+        'login_sessions',
+        'login_devices',
+      ])
+        await inspector.query(
+          `DELETE FROM hash_talk.${table} WHERE account_id=ANY($1::uuid[])`,
+          [accounts],
+        );
+      await inspector.query(
+        'DELETE FROM hash_talk.accounts WHERE id=ANY($1::uuid[])',
         [accounts],
       );
-    await inspector.query(
-      'DELETE FROM hash_talk.accounts WHERE id=ANY($1::uuid[])',
-      [accounts],
-    );
-    await inspector.query(
-      'DELETE FROM hash_talk.login_challenges WHERE address=ANY($1::text[])',
-      [addresses],
-    );
-    await inspector.end();
-    await db.close();
+      await inspector.query(
+        'DELETE FROM hash_talk.login_challenges WHERE address=ANY($1::text[])',
+        [addresses],
+      );
+    } finally {
+      await Promise.all([inspector.end(), db.close()]);
+    }
   });
+  await db.migrate();
+  await inspector.connect();
+  connected = true;
   await new Promise<void>((resolve, reject) => {
     host.server.once('error', reject);
     host.server.listen(45118, '127.0.0.1', resolve);
