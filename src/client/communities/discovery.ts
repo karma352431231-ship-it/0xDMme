@@ -22,6 +22,8 @@ import {
   communityLink as link,
 } from './elements.ts';
 import { postText } from './post-text.ts';
+import { showExternalVideos } from '../external-video/index.ts';
+import type { ExternalMediaConsent } from '../external-media/index.ts';
 import { postViews } from './post-views.ts';
 import {
   communityAvatar,
@@ -43,7 +45,10 @@ import {
   postVoting,
 } from './discovery-controls.ts';
 
-export function startCommunityDiscovery(controller: Communities) {
+export function startCommunityDiscovery(
+  controller: Communities,
+  privacy: ExternalMediaConsent,
+) {
   let mounted: HTMLElement | null = null,
     list: HTMLElement | null = null,
     paging: HTMLElement | null = null,
@@ -361,6 +366,9 @@ export function startCommunityDiscovery(controller: Communities) {
   function postContent(row: HTMLElement, post: CommunityPost): void {
     if (post.status === 'visible') {
       row.append(postText(post.text));
+      mediaCleanup.add(
+        showExternalVideos(row, post.text, { privacy, signal: abort.signal }),
+      );
       postTagLink(row, post);
       if (post.media?.length)
         mediaCleanup.add(showPublicPostMedia(row, post.media, abort.signal));

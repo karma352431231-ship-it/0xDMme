@@ -4,6 +4,7 @@ import { preparePhoto } from '../attachment-images/index.ts';
 import { PublicProfiles } from './controller.ts';
 import { renderModeration } from './moderation.ts';
 import { showPublicProfile } from './viewer.ts';
+import type { ExternalMediaConsent } from '../external-media/index.ts';
 export { showPublicProfile } from './viewer.ts';
 
 const template = `<article class="card public-profile-card"><h2>Perfil público</h2>
@@ -18,13 +19,18 @@ const template = `<article class="card public-profile-card"><h2>Perfil público<
 <section aria-label="Prévia do perfil público"><h3>Como outras pessoas veem seu perfil</h3><div data-public-preview></div></section></div>
 <section data-public-moderation aria-label="Análises dos seus arquivos públicos"></section>
 <div><button type="button" data-public-action="moderation-latest" hidden>Análises mais recentes</button><button type="button" data-public-action="moderation-older" hidden>Análises anteriores</button></div>
+<p data-external-media-status role="status"></p><button type="button" data-public-action="external-media">Mídias externas</button>
 <p data-public-status role="status">Conecte e autorize seu aparelho para gerenciar o perfil público.</p><button type="button" data-public-action="reload">Recarregar perfil público</button></article>`;
 
-export function startPublicProfile(access: VaultAccess) {
+export function startPublicProfile(
+  access: VaultAccess,
+  privacy: ExternalMediaConsent,
+) {
   const controller = new PublicProfiles(access);
   let mounted: HTMLElement | null = null,
     busy = false,
     generation = 0;
+  let consentAbort = new AbortController();
   let status =
     'Conecte e autorize seu aparelho para gerenciar o perfil público.';
   let photoUrl: string | null = null;
@@ -64,6 +70,8 @@ export function startPublicProfile(access: VaultAccess) {
     if (label) label.textContent = own ? `@${own.profile.handle}` : '';
   }
   function renderControls(): void {
+    const mediaStatus = node('[data-external-media-status]');
+    if (mediaStatus) mediaStatus.textContent = privacy.description();
     const output = node('[data-public-status]');
     if (output) output.textContent = status;
     mounted?.querySelectorAll<HTMLButtonElement>('button').forEach((button) => {
@@ -144,6 +152,8 @@ export function startPublicProfile(access: VaultAccess) {
     });
   }
   function mount(container: HTMLElement): void {
+    consentAbort.abort();
+    consentAbort = new AbortController();
     clearPreview();
     mounted = container;
     generation++;
@@ -166,10 +176,20 @@ export function startPublicProfile(access: VaultAccess) {
     node('[data-public-action="create"]')?.addEventListener('click', () => {
       const handle = node<HTMLInputElement>('[data-public-input]')?.value ?? '';
       void run(async () => {
+        const choice = await privacy.beforeCreate(consentAbort.signal);
+        if (choice === null) return;
         await controller.create(handle, true);
+        privacy.created(choice);
         status = 'Perfil público criado. Seu @ é fixo.';
       });
     });
+    node('[data-public-action="external-media"]')?.addEventListener(
+      'click',
+      () => {
+        void run(() => privacy.configure(consentAbort.signal));
+      },
+    );
+    privacy.subscribe(renderControls, consentAbort.signal);
     node('[data-public-action="choose"]')?.addEventListener('click', () => {
       node<HTMLInputElement>('[data-public-file]')?.click();
     });
@@ -206,6 +226,7 @@ export function startPublicProfile(access: VaultAccess) {
     ready();
   }
   function leave(): void {
+    consentAbort.abort();
     clearPreview();
     mounted = null;
     generation++;
@@ -216,6 +237,9 @@ export function startPublicProfile(access: VaultAccess) {
     leave,
     ready,
     canActivate: () => !busy,
+    async exists(): Promise<boolean> {
+      return controller.exists();
+    },
     setSession(session: AccountSession | null): void {
       if (!controller.setSession(session)) return;
       generation++;

@@ -6,6 +6,8 @@
  * No user identifier is sent and the page sends no referrer. The key comes from
  * the server configuration; without it the GIF tab is simply absent.
  */
+import { externalMediaGate } from '../external-media/index.ts';
+import type { ExternalMediaConsent } from '../external-media/index.ts';
 export interface GifResult {
   id: string;
   title: string;
@@ -89,14 +91,26 @@ export function parseGifPage(value: unknown): GifPage {
 
 export class GifSearch {
   private key: Promise<string | null> | null = null;
+  private readonly consent: () => Promise<boolean>;
+  private readonly context: () => AbortSignal;
+  constructor(consent: () => Promise<boolean>, context: () => AbortSignal) {
+    this.consent = consent;
+    this.context = context;
+  }
 
   /** Whether the server configured a KLIPY key; read once per page load. */
   available(): Promise<boolean> {
     return this.apiKey().then((key) => key !== null);
   }
   async page(input: { query: string; page: number }): Promise<GifPage> {
+    const active = this.context();
+    if (!(await this.consent()))
+      throw new Error('Permita GIFs externos no Perfil para usar o KLIPY.');
     const key = await this.apiKey();
     if (!key) throw new Error('GIFs indisponíveis neste servidor.');
+    active.throwIfAborted();
+    if (!(await this.consent())) throw new Error('Permissão de GIFs retirada.');
+    active.throwIfAborted();
     const query = input.query.trim().slice(0, 100);
     const params = new URLSearchParams({
       page: String(input.page),
@@ -110,11 +124,14 @@ export class GifSearch {
         credentials: 'omit',
         referrerPolicy: 'no-referrer',
         cache: 'no-store',
-        signal: AbortSignal.timeout(8000),
+        signal: AbortSignal.any([active, AbortSignal.timeout(8000)]),
       },
     );
     if (!response.ok) throw new Error('Busca de GIFs indisponível agora.');
-    return parseGifPage(await response.json());
+    const page = parseGifPage(await response.json());
+    active.throwIfAborted();
+    if (!(await this.consent())) throw new Error('Permissão de GIFs retirada.');
+    return page;
   }
   private apiKey(): Promise<string | null> {
     this.key ??= fetch('/api/account/config', {
@@ -133,6 +150,36 @@ export class GifSearch {
       });
     return this.key;
   }
+}
+
+/** Receiving a GIF requires the reader's own choice, never the sender's. */
+export function showExternalGif(
+  host: HTMLElement,
+  url: string,
+  options: {
+    privacy: ExternalMediaConsent;
+    signal: AbortSignal;
+  },
+): () => void {
+  if (!gifMessageUrl(url)) return () => undefined;
+  const link = document.createElement('a');
+  link.href = url;
+  link.textContent = 'GIF do KLIPY';
+  link.target = '_blank';
+  link.rel = 'noopener noreferrer';
+  host.append(link);
+  const stop = externalMediaGate(host, {
+    consent: options.privacy,
+    kind: 'gifs',
+    signal: options.signal,
+    label: 'Mostrar GIF do KLIPY',
+    automatic: true,
+    render: (target) => renderGif(target, url),
+  });
+  return () => {
+    stop();
+    link.remove();
+  };
 }
 
 /** The GIF itself, without caption; a muted loop like the rest of the chat. */
@@ -184,7 +231,7 @@ export function mountGifPane(
     status.textContent = grid.children.length ? '' : 'Nenhum GIF encontrado.';
   };
   const load = async (fresh: boolean): Promise<void> => {
-    if (loading && !fresh) return;
+    if (!canLoad(fresh)) return;
     const current = fresh ? ++generation : generation;
     if (fresh) {
       page = 1;
@@ -201,6 +248,9 @@ export function mountGifPane(
       if (current === generation) loading = false;
     }
   };
+  function canLoad(fresh: boolean): boolean {
+    return host.isConnected && !host.hidden && (!loading || fresh);
+  }
   query.addEventListener('input', () => {
     clearTimeout(timer);
     // A short pause keeps the shared request budget for real searches.

@@ -48,8 +48,12 @@ import {
   GifSearch,
   gifMessageUrl,
   mountGifPane,
-  renderGif,
+  showExternalGif,
 } from '../gif-search/index.ts';
+import { showExternalVideos } from '../external-video/index.ts';
+import { externalVideoIds } from '../../shared/external-video/index.ts';
+import type { ExternalMediaConsent } from '../external-media/index.ts';
+import { ExternalTextHistory } from '../external-media/index.ts';
 import { EmojiPicker, emojiIntoComposer, emojiText } from '../emoji/index.ts';
 import {
   NotificationSound,
@@ -71,6 +75,7 @@ export function startMessages(
   access: VaultAccess,
   sync: VaultSync,
   options: {
+    externalMedia?: ExternalMediaConsent;
     calls?: { start: (peer: string) => Promise<void>; active: () => boolean };
     playback: VoicePlayback;
     openConversation: () => void;
@@ -94,7 +99,18 @@ export function startMessages(
   const emojiPicker = new EmojiPicker();
   // Accounts with an active status, from the status list the app already loads.
   let statusAuthors: ReadonlySet<string> = new Set();
-  const gifs = new GifSearch();
+  let externalAbort = new AbortController();
+  const externalRows = new ExternalTextHistory();
+  const gifs = new GifSearch(
+    () =>
+      options.externalMedia?.authorize('gifs', externalAbort.signal) ??
+      Promise.resolve(false),
+    () =>
+      AbortSignal.any([
+        externalAbort.signal,
+        ...(options.externalMedia ? [options.externalMedia.signal] : []),
+      ]),
+  );
   let peers: ConversationPeer[] = [],
     states = new Map<string, PeerState>(),
     directoryFilter: ConversationFilter = 'all';
@@ -206,6 +222,7 @@ export function startMessages(
     },
   });
   const groups = startGroups(access, sync, {
+    externalMedia: options.externalMedia,
     playback,
     daily,
     run,
@@ -573,9 +590,20 @@ export function startMessages(
   ): void {
     if (update === 'history') {
       attachments.clearMedia();
-      history.replaceChildren();
-      for (const view of dailyViews(rows ?? []))
-        history.append(renderMessage(view));
+      externalRows.render(
+        history,
+        dailyViews(rows ?? []).map((view) => ({
+          id: view.id,
+          key:
+            view.kind === 'text' &&
+            externalVideoIds(view.content.text).length > 0
+              ? JSON.stringify([view.content, view.reactions, view.archived])
+              : null,
+          render: (signal) => renderMessage(view, signal),
+        })),
+        externalAbort.signal,
+      );
+      renderMessageStates();
     } else if (rows !== null) renderMessageStates();
   }
   function renderMessageStates(): void {
@@ -645,7 +673,10 @@ export function startMessages(
       article.append(reactions);
     }
   }
-  function renderMessage(view: DailyView<MessageView>): HTMLElement {
+  function renderMessage(
+    view: DailyView<MessageView>,
+    mediaSignal: AbortSignal,
+  ): HTMLElement {
     const article = document.createElement('article');
     article.className = view.own ? 'chat-message own' : 'chat-message';
     article.dataset['message'] = view.id;
@@ -656,7 +687,12 @@ export function startMessages(
         : `Mensagem recebida de ${peerLabel()}`,
     );
     const text = document.createElement('p');
-    renderContent(article, text, view);
+    renderContent(article, text, view, mediaSignal);
+    if (view.kind === 'text' && options.externalMedia)
+      showExternalVideos(article, view.content.text, {
+        privacy: options.externalMedia,
+        signal: mediaSignal,
+      });
     const detail = messageState(view);
     renderAnnotations(view, article);
     article.append(text, detail);
@@ -697,6 +733,7 @@ export function startMessages(
     article: HTMLElement,
     text: HTMLElement,
     view: DailyView<MessageView>,
+    mediaSignal: AbortSignal,
   ): void {
     if (view.kind === 'attachment') {
       attachments.render({
@@ -705,9 +742,9 @@ export function startMessages(
         load: (v, thumb) => controller.media(v, thumb),
         run,
       });
-    } else if (gifMessageUrl(view.content.text)) {
-      renderGif(text, gifMessageUrl(view.content.text) ?? '');
-    } else if (
+    } else if (gifMessageUrl(view.content.text))
+      renderCatalogGif(text, view.content.text, mediaSignal);
+    else if (
       !options.representatives?.renderCard(
         article,
         view.content.text,
@@ -717,6 +754,17 @@ export function startMessages(
       )
     )
       emojiText(text, view.content.text);
+  }
+  function renderCatalogGif(
+    text: HTMLElement,
+    value: string,
+    mediaSignal: AbortSignal,
+  ): void {
+    if (!options.externalMedia) return emojiText(text, value);
+    showExternalGif(text, gifMessageUrl(value) ?? '', {
+      privacy: options.externalMedia,
+      signal: mediaSignal,
+    });
   }
   function compositionText(view: MessageView): string {
     return (
@@ -1758,6 +1806,9 @@ export function startMessages(
         return;
       }
       generation++;
+      externalRows.clear();
+      externalAbort.abort();
+      externalAbort = new AbortController();
       agenda.clear();
       menu.reset();
       directoryFilter = 'all';
@@ -1803,6 +1854,9 @@ export function startMessages(
       !attachments.selected?.voice &&
       groups.canActivate(),
     leave(): void {
+      externalAbort.abort();
+      externalRows.clear();
+      externalAbort = new AbortController();
       suspend();
       groups.leave();
       if (voice.active)

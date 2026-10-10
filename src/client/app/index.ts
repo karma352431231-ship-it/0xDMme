@@ -26,6 +26,7 @@ import {
 } from './pages.ts';
 import { startPanels } from './panels.ts';
 import { startActivity } from '../activity/index.ts';
+import { ExternalMediaConsent } from '../external-media/index.ts';
 import type { PageKey } from './pages.ts';
 
 function element<T extends HTMLElement>(id: string): T {
@@ -69,8 +70,14 @@ const devices = startDevices({
   confirmWallet: () => account.confirmWallet(),
 });
 const vault = startVault(devices);
-const publicProfiles = startPublicProfile(devices);
-const communities = startCommunities(devices, vault.sync);
+const externalMedia = new ExternalMediaConsent({
+  profile: () => publicProfiles.exists(),
+});
+window.addEventListener('storage', (event) =>
+  externalMedia.storageChanged(event.key),
+);
+const publicProfiles = startPublicProfile(devices, externalMedia);
+const communities = startCommunities(devices, vault.sync, externalMedia);
 const playback = new VoicePlayback();
 const callLog = new CallLog(vault.sync);
 const calls = startCalls({
@@ -106,6 +113,7 @@ const representatives = startRepresentatives(devices, vault.sync, (message) =>
   account.signStatement(message),
 );
 const messages = startMessages(devices, vault.sync, {
+  externalMedia,
   calls,
   playback,
   openConversation,
@@ -175,6 +183,7 @@ const account = startAccount({
     }
     devices.setSession(session);
     vault.setSession(session);
+    externalMedia.setSession(session);
     backups.setSession(session);
     contacts.setSession(session);
     messages.setSession(session);

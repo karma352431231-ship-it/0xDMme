@@ -21,6 +21,16 @@ Aceite físico de teclado, câmera, QR, push e wallets permanece separado; evid�
 
 A seção Perfil público mostra também como o perfil aparece para visitantes, sem exigir navegação pelo link “Ver perfil público”. A prévia reutiliza a leitura pública anônima e exibe apenas o @ e a foto já aprovada; a foto preparada restrita continua separada nos controles do proprietário. A página pública compartilhável e a solicitação de DM pelo @ permanecem disponíveis. Recarregar atualiza a prévia; sair ou trocar de conta cancela a leitura e libera suas imagens temporárias.
 
+## Consentimento de mídia externa — 10/10/2026
+
+Antes de criar o `@`, o aviso oferece permitir GIFs/players externos ou manter somente links, sem obrigar a permissão para criar o perfil. A escolha geral vale por conta neste navegador, em comunidades, DMs pelo `@`, conversas e grupos privados; outros aparelhos pedem escolha própria. “Mídias externas”, na seção Perfil público, permite revisar a decisão. Contas existentes recebem o aviso antes do primeiro carregamento. Recusa e revogação impedem novas buscas/prévias e retiram players carregados, inclusive após mudanças da escolha em outra aba.
+
+Visitantes e contas sem `@` não carregam players de vídeo externo. GIFs do KLIPY têm aviso específico antes de buscar ou carregar o item recebido, sem pressupor consentimento do remetente. Vídeos próprios do app seguem seu contrato de publicação/moderação; este aviso não os envia a provedores externos. O player integrado é YouTube, somente após toque, com identificação limitada à origem do app. Provedores ainda não integrados continuam como links. Não tratar consentimento como garantia de moderação do catálogo público de GIFs nem como anonimato perante o serviço.
+
+**Ponto importante:** o aviso explica IP, buscas, dados do navegador/cookies e reprodução; não promete que o provedor seja incapaz de correlacionar acessos. O app mantém E2EE e não envia wallet, chaves ou histórico de conversas ao provedor.
+
 **Ponto importante:** visualizar o candidato nas configurações não aprova sua publicação. A ativação da análise tem validação própria no [documento da moderação](MODERACAO_AUTOMATICA_COMUNIDADES.md).
 
 Validação da prévia: os seis testes do cliente passaram, incluindo leitura anônima, apresentação no mesmo painel e cancelamento ao sair. A conferência no navegador em 320, 390 e 1.280 px, com dados sintéticos, verificou que o candidato privado não aparece na prévia pública, a foto aprovada é decodificada após recarregar, a página compartilhável ainda funciona e não há overflow horizontal ou erros de página. Isso não concede aprovação real a nenhuma foto nem valida a precisão do detector.
+
+Publicada em 09/10/2026 no commit `41f93e2f32c3170000165ac36ed2acb61e5cbdbc`, depois da [CI integral aprovada](https://github.com/karma352431231-ship-it/0xDMme/actions/runs/38012493553), pelo executor existente `npm run deploy:staging` em checkout isolado e limpo. Conferidos build público, preservação e retorno dos workers; rollback conservado. A publicação da prévia não ativou a análise de fotos.

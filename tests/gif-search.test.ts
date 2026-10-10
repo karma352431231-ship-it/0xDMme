@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { gifMessageUrl, parseGifPage } from '../src/client/gif-search/index.ts';
+import {
+  GifSearch,
+  gifMessageUrl,
+  parseGifPage,
+} from '../src/client/gif-search/index.ts';
 import { readWebConfiguration } from '../src/server/web-configuration/index.ts';
 
 const host =
@@ -20,6 +24,22 @@ function item(overrides: Record<string, unknown> = {}) {
     ...overrides,
   };
 }
+await test('recusar o aviso KLIPY impede inclusive busca e prévias de terceiros', async (t) => {
+  let requests = 0;
+  t.mock.method(globalThis, 'fetch', () => {
+    requests++;
+    return Promise.resolve(Response.json({}));
+  });
+  const search = new GifSearch(
+    () => Promise.resolve(false),
+    () => new AbortController().signal,
+  );
+  await assert.rejects(
+    search.page({ query: 'sintético', page: 1 }),
+    /Permita GIFs/u,
+  );
+  assert.equal(requests, 0);
+});
 
 await test('página do KLIPY vira prévia e clipe validados; o resto é descartado', () => {
   const page = parseGifPage({

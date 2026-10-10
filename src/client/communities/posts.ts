@@ -39,6 +39,8 @@ import {
   replyForm,
 } from './post-forms.ts';
 import { postText } from './post-text.ts';
+import { showExternalVideos } from '../external-video/index.ts';
+import type { ExternalMediaConsent } from '../external-media/index.ts';
 import {
   preferenceControls,
   postVoting,
@@ -54,7 +56,10 @@ import type {
   FeedOrder,
   DiscoveryPeriod,
 } from '../../shared/community-discovery/index.ts';
-export function startCommunityPosts(controller: Communities) {
+export function startCommunityPosts(
+  controller: Communities,
+  privacy: ExternalMediaConsent,
+) {
   let mounted: HTMLElement | null = null,
     management: HTMLElement | null = null,
     community = '',
@@ -393,6 +398,10 @@ export function startCommunityPosts(controller: Communities) {
     if (state) restrictedContent(node, state);
     if (value.status !== 'visible') return;
     if (value.text) node.append(postText(value.text));
+    mediaCleanup.set(
+      showExternalVideos(node, value.text, { privacy, signal: abort.signal }),
+      node,
+    );
     postTagLink(node, value);
     if (value.media?.length)
       mediaCleanup.set(

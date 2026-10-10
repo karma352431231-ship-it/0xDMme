@@ -26,17 +26,22 @@ import { startCommunityDiscovery } from './discovery.ts';
 import { startSocialDmUi } from './dms.ts';
 import type { VaultSync } from '../vault-sync/index.ts';
 import { showPublicAvatar } from '../public-media/index.ts';
+import type { ExternalMediaConsent } from '../external-media/index.ts';
 import { communityAvatar, openPostFromCard } from './presentation.ts';
 import {
   communityDirectoryNavigation,
   communityNavigation,
 } from './navigation.ts';
 
-export function startCommunities(access: VaultAccess, sync: VaultSync) {
-  const dms = startSocialDmUi(access, sync);
+export function startCommunities(
+  access: VaultAccess,
+  sync: VaultSync,
+  privacy: ExternalMediaConsent,
+) {
+  const dms = startSocialDmUi(access, sync, privacy);
   const controller = new Communities(access);
-  const posts = startCommunityPosts(controller);
-  const discovery = startCommunityDiscovery(controller);
+  const posts = startCommunityPosts(controller, privacy);
+  const discovery = startCommunityDiscovery(controller, privacy);
   document.addEventListener('click', openPostFromCard);
   let mounted: HTMLElement | null = null,
     sidebar: HTMLElement | null = null,

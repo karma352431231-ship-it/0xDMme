@@ -3112,6 +3112,45 @@ footer {
   display: block;
   color: var(--accent);
 }
+.community-external-videos {
+  display: grid;
+  gap: 1rem;
+  min-width: 0;
+}
+.community-external-videos section {
+  display: grid;
+  gap: 0.5rem;
+  width: 100%;
+  max-width: 40rem;
+}
+.community-external-videos iframe {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  min-height: 200px;
+  border: 0;
+  border-radius: var(--radius-md, 0.75rem);
+}
+.external-media-gate {
+  display: grid;
+  gap: 0.5rem;
+  min-width: 0;
+}
+.external-media-consent {
+  width: min(32rem, calc(100vw - 2rem));
+  max-height: calc(100dvh - 2rem);
+  overflow: auto;
+  margin: auto;
+  padding: 1.5rem;
+  color: var(--text);
+  background: var(--surface);
+}
+.external-media-consent::backdrop {
+  background: var(--overlay);
+}
+.external-media-consent .settings-actions {
+  margin-top: 1rem;
+}
 .post-composer fieldset,
 .community-post fieldset {
   min-width: 0;

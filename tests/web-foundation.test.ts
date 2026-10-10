@@ -480,16 +480,21 @@ await test('servidor recusa origem, mutação, traversal e dados privados; saúd
     String(page.headers['content-security-policy']),
     /frame-ancestors 'none'/,
   );
-  // The app shell may reach only the approved GIF catalog (KLIPY API and media).
+  // Only the app shell may reach KLIPY and the opt-in YouTube player.
   const shellPolicy = String(page.headers['content-security-policy']);
   assert.doesNotMatch(shellPolicy, /'unsafe-eval'|'unsafe-inline'/u);
   assert.deepEqual(
     [...new Set(shellPolicy.match(/https:\/\/[^\s;]+/gu))].sort(),
-    ['https://api.klipy.com', 'https://static.klipy.com'],
+    [
+      'https://api.klipy.com',
+      'https://static.klipy.com',
+      'https://www.youtube-nocookie.com',
+    ],
   );
   assert.match(shellPolicy, /script-src 'self' 'wasm-unsafe-eval';/u);
   assert.match(shellPolicy, /media-src blob: https:\/\/static\.klipy\.com;/u);
   assert.match(shellPolicy, /connect-src 'self' https:\/\/api\.klipy\.com;/u);
+  assert.match(shellPolicy, /frame-src https:\/\/www\.youtube-nocookie\.com;/u);
   assert.doesNotMatch(
     String((await get('/wallet.html')).headers['content-security-policy']),
     /https:/u,

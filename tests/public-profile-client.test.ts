@@ -8,6 +8,7 @@ import type {
 import { PublicProfiles } from '../src/client/public-profile/controller.ts';
 import { startPublicProfile } from '../src/client/public-profile/index.ts';
 import { publicModerationNotice } from '../src/shared/public-moderation/index.ts';
+import { ExternalMediaConsent } from '../src/client/external-media/index.ts';
 
 function session(): AccountSession {
   return {
@@ -50,7 +51,7 @@ const result = () => ({
   revision: 1,
   pendingAvatar: null,
 });
-await test('criar @ pelo botão confirma o perfil público sem caixa de seleção adicional', async (t) => {
+await test('criar @ aguarda a escolha de mídia externa, sem caixa adicional para o nome', async (t) => {
   const own = session();
   let click = () => {};
   const button = {
@@ -78,15 +79,30 @@ await test('criar @ pelo botão confirma o perfil público sem caixa de seleçã
       return Promise.resolve();
     },
   );
+  let choose: (choice: boolean | null) => void = () => {};
+  const privacy = new ExternalMediaConsent({
+    profile: () => Promise.resolve(false),
+    storage: null,
+    prompt: () =>
+      new Promise((resolve) => {
+        choose = resolve;
+      }),
+  });
+  privacy.setSession(own);
   const ui = startPublicProfile(
     access(own, () => Promise.resolve('assinatura-sintetica')),
+    privacy,
   );
   ui.mount(host as unknown as HTMLElement);
   await new Promise<void>((resolve) => setImmediate(resolve));
   click();
   await new Promise<void>((resolve) => setImmediate(resolve));
+  assert.deepEqual(requests, []);
+  choose(false);
+  await new Promise<void>((resolve) => setImmediate(resolve));
   assert.deepEqual(requests, [{ handle: '@sintetico', consent: true }]);
   assert.equal(host.innerHTML.includes('data-public-consent'), false);
+  assert.equal(privacy.permitted('video'), false);
   ui.leave();
 });
 await test('configurações mostram o perfil público na própria seção com leitura anônima e cancelamento ao sair', async (t) => {
@@ -144,6 +160,10 @@ await test('configurações mostram o perfil público na própria seção com le
   });
   const ui = startPublicProfile(
     access(own, () => Promise.resolve('assinatura-sintetica')),
+    new ExternalMediaConsent({
+      profile: () => Promise.resolve(true),
+      storage: null,
+    }),
   );
   ui.mount(host as unknown as HTMLElement);
   await new Promise<void>((resolve) => setImmediate(resolve));

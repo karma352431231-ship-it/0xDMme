@@ -22,6 +22,11 @@ import type { VoicePlayback } from '../voice-playback/index.ts';
 import { VoiceRecording } from '../voice-recording/index.ts';
 import { AttachmentUi } from '../attachment-ui/index.ts';
 import { EmojiPicker, emojiIntoComposer, emojiText } from '../emoji/index.ts';
+import { showExternalVideos } from '../external-video/index.ts';
+import { externalVideoIds } from '../../shared/external-video/index.ts';
+import { showExternalGif, gifMessageUrl } from '../gif-search/index.ts';
+import type { ExternalMediaConsent } from '../external-media/index.ts';
+import { ExternalTextHistory } from '../external-media/index.ts';
 import { checksIcon, messageChecks } from '../message-status/index.ts';
 import type { Daily, PeerState } from '../daily/index.ts';
 import { GroupController } from './controller.ts';
@@ -30,6 +35,7 @@ import type { GroupView } from './reader.ts';
 export type { GroupSummary, GroupView };
 export { GroupBackups } from './backup.ts';
 interface GroupOptions {
+  externalMedia?: ExternalMediaConsent | undefined;
   playback: VoicePlayback;
   daily: Daily;
   run: (work: () => Promise<void>) => Promise<void>;
@@ -61,6 +67,8 @@ export function startGroups(
   let states = new Map<string, PeerState>(),
     creating = false;
   let vault: Awaited<ReturnType<GroupController['vault']>> | null = null;
+  let externalAbort = new AbortController();
+  const externalRows = new ExternalTextHistory();
   const voice = new VoiceRecording({
     changed: () => voiceStatus(),
     completed: (selection) => {
@@ -238,13 +246,29 @@ export function startGroups(
     const history = node('[data-group-history]');
     if (!history) return;
     const restoreScroll = historyPosition(history);
-    history.replaceChildren();
-    for (const view of controller.views) renderView(history, view);
+    externalRows.render(
+      history,
+      controller.views.map((view) => ({
+        id: view.id,
+        key:
+          view.kind === 'text' && externalVideoIds(view.text).length > 0
+            ? JSON.stringify([view.text, view.localOnly, view.sender])
+            : null,
+        render: (signal) => renderView(view, signal),
+      })),
+      externalAbort.signal,
+    );
+    for (const view of controller.views) {
+      const row = history.querySelector<HTMLElement>(
+        `[data-group-message="${view.id}"]`,
+      );
+      if (row) renderDelivery(row, view);
+    }
     restoreScroll();
     const older = node('[data-group-older]');
     if (older) older.hidden = controller.before === null;
   }
-  function renderView(history: HTMLElement, view: GroupView): void {
+  function renderView(view: GroupView, mediaSignal: AbortSignal): HTMLElement {
     const article = document.createElement('article');
     article.className = view.own ? 'chat-message own' : 'chat-message';
     article.dataset['groupMessage'] = view.id;
@@ -267,8 +291,19 @@ export function startGroups(
     } else {
       const text = document.createElement('p');
       emojiText(text, view.text);
+      renderExternal(article, text, view.text, mediaSignal);
       article.append(text);
     }
+    renderDelivery(article, view);
+    if (view.localOnly) {
+      const local = document.createElement('small');
+      local.textContent = 'Cópia local · conteúdo indisponível no cofre remoto';
+      article.append(local);
+    }
+    return article;
+  }
+  function renderDelivery(article: HTMLElement, view: GroupView): void {
+    article.querySelector('.message-meta')?.remove();
     const checks = messageChecks({
       own: view.own,
       ...(view.delivery ? { delivery: view.delivery } : {}),
@@ -287,12 +322,24 @@ export function startGroups(
       );
       article.append(state);
     }
-    if (view.localOnly) {
-      const local = document.createElement('small');
-      local.textContent = 'Cópia local · conteúdo indisponível no cofre remoto';
-      article.append(local);
+  }
+  function renderExternal(
+    article: HTMLElement,
+    text: HTMLElement,
+    value: string,
+    mediaSignal: AbortSignal,
+  ): void {
+    if (!options.externalMedia) return;
+    const settings = {
+      privacy: options.externalMedia,
+      signal: mediaSignal,
+    };
+    const gif = gifMessageUrl(value);
+    if (gif) {
+      text.replaceChildren();
+      showExternalGif(text, gif, settings);
     }
-    history.append(article);
+    showExternalVideos(article, value, settings);
   }
   function render(): void {
     const group = controller.selected;
@@ -741,6 +788,9 @@ export function startGroups(
     if (host) host.hidden = true;
   }
   function leave(): void {
+    externalRows.clear();
+    externalAbort.abort();
+    externalAbort = new AbortController();
     if (voice.active)
       void voice.stop(
         'Navegação interrompeu a gravação. Confira o trecho ao voltar.',
@@ -825,6 +875,9 @@ export function startGroups(
         return;
       }
       session = value;
+      externalRows.clear();
+      externalAbort.abort();
+      externalAbort = new AbortController();
       controller.setSession(value);
       voice.cancel();
       attachments.clearSelection();

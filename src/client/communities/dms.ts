@@ -21,8 +21,14 @@ import {
 } from './elements.ts';
 import { postText } from './post-text.ts';
 import { paintAvatar } from '../appearance/index.ts';
+import { showExternalVideos } from '../external-video/index.ts';
+import type { ExternalMediaConsent } from '../external-media/index.ts';
 
-export function startSocialDmUi(access: VaultAccess, sync: VaultSync) {
+export function startSocialDmUi(
+  access: VaultAccess,
+  sync: VaultSync,
+  privacy: ExternalMediaConsent,
+) {
   const controller = new SocialDms(access, sync);
   const playback = new VoicePlayback(),
     mediaUi = new AttachmentUi(playback, () => {});
@@ -95,6 +101,19 @@ export function startSocialDmUi(access: VaultAccess, sync: VaultSync) {
     messageId: string = crypto.randomUUID();
   let ownProfile: string | null = null;
   let localOnly = false;
+  let externalAbort = new AbortController();
+  let currentCard: HTMLElement | null = null,
+    cardKey = '';
+  const textRows = new Map<
+    string,
+    { text: string; row: HTMLElement; stop: () => void }
+  >();
+  function clearExternal(): void {
+    externalAbort.abort();
+    externalAbort = new AbortController();
+    textRows.clear();
+    currentCard = null;
+  }
   function feedback(error: unknown): void {
     if (output)
       output.textContent =
@@ -121,6 +140,23 @@ export function startSocialDmUi(access: VaultAccess, sync: VaultSync) {
   }
   function card(title: string): HTMLElement {
     if (!container) throw new Error('DM encerrada.');
+    const key = `${peer}:${before}:${localOnly}`;
+    if (
+      peer &&
+      currentCard &&
+      cardKey === key &&
+      container.contains(currentCard)
+    ) {
+      for (const child of [...currentCard.children])
+        if (!child.classList.contains('social-dm-history')) child.remove();
+      currentCard.prepend(communityElement('h2', title));
+      output = communityElement('p', '', 'community-feedback');
+      output.setAttribute('role', 'status');
+      currentCard.append(output);
+      return currentCard;
+    }
+    clearExternal();
+    cardKey = key;
     container.replaceChildren();
     const navigation = communityElement('nav', '', 'community-tabs');
     navigation.setAttribute('aria-label', 'Mensagens pelo @');
@@ -133,6 +169,7 @@ export function startSocialDmUi(access: VaultAccess, sync: VaultSync) {
       communityLink(navigation, 'Lista de mensagens', '#comunidades?view=dms');
     container.append(navigation);
     const node = communityCard(title);
+    currentCard = node;
     container.append(node);
     output = communityElement('p', '', 'community-feedback');
     output.setAttribute('role', 'status');
@@ -440,11 +477,21 @@ export function startSocialDmUi(access: VaultAccess, sync: VaultSync) {
     page: Awaited<ReturnType<SocialDms['cached']>>;
     localMedia: boolean;
   }): void {
-    const { node, selected, page } = input;
+    const { node, page } = input;
     mediaUi.clearMedia();
-    const history = communityElement('section', '', 'social-dm-history');
-    node.append(history);
+    const history =
+      node.querySelector<HTMLElement>('.social-dm-history') ??
+      communityElement('section', '', 'social-dm-history');
+    if (!history.parentElement) node.append(history);
+    pruneTextRows(history, page);
+    let cursor = history.firstChild;
     for (const item of [...page.items].reverse()) {
+      const held = textRows.get(item.id);
+      if (held?.text === item.text) {
+        cursor = held.row.nextSibling;
+        continue;
+      }
+      cursor = removeTextRow(item.id, cursor);
       const row = communityElement('article', '', 'card');
       row.append(
         communityElement(
@@ -453,21 +500,9 @@ export function startSocialDmUi(access: VaultAccess, sync: VaultSync) {
         ),
         ...(item.kind === 'text' ? [postText(item.text)] : []),
       );
-      history.append(row);
-      if (item.kind === 'attachment' && item.media)
-        mediaUi.render({
-          article: row,
-          view: { ...item, peer: selected, archived: input.localMedia },
-          saveNotice:
-            'A cópia salva fica fora do cofre e da limpeza pessoal. Abra arquivos somente se confiar na origem.',
-          content: socialAttachment(
-            JSON.parse(item.text) as unknown,
-            item.media,
-          ),
-          load: (view, thumbnail) =>
-            controller.media(item, thumbnail, false, input.localMedia),
-          run,
-        });
+      history.insertBefore(row, cursor);
+      retainTextRow(row, item);
+      renderAttachment(row, item, input);
     }
     if (!page.items.length)
       history.append(communityElement('p', 'Nenhuma mensagem nesta página.'));
@@ -479,7 +514,66 @@ export function startSocialDmUi(access: VaultAccess, sync: VaultSync) {
         }),
       );
   }
+  function renderAttachment(
+    row: HTMLElement,
+    item: DmPage['items'][number],
+    input: {
+      selected: string;
+      localMedia: boolean;
+    },
+  ): void {
+    if (item.kind !== 'attachment' || !item.media) return;
+    mediaUi.render({
+      article: row,
+      view: { ...item, peer: input.selected, archived: input.localMedia },
+      saveNotice:
+        'A cópia salva fica fora do cofre e da limpeza pessoal. Abra arquivos somente se confiar na origem.',
+      content: socialAttachment(JSON.parse(item.text) as unknown, item.media),
+      load: (_view, thumbnail) =>
+        controller.media(item, thumbnail, false, input.localMedia),
+      run,
+    });
+  }
+  type DmPage = Awaited<ReturnType<SocialDms['cached']>>;
+  function pruneTextRows(history: HTMLElement, page: DmPage): void {
+    const ids = new Set(
+      page.items.filter((item) => item.kind === 'text').map((item) => item.id),
+    );
+    for (const [id, held] of textRows)
+      if (!ids.has(id)) {
+        held.stop();
+        held.row.remove();
+        textRows.delete(id);
+      }
+    for (const child of [...history.children])
+      if (!child.hasAttribute('data-social-text')) child.remove();
+  }
+  function removeTextRow(
+    id: string,
+    cursor: ChildNode | null,
+  ): ChildNode | null {
+    const held = textRows.get(id);
+    if (!held) return cursor;
+    if (cursor === held.row) cursor = held.row.nextSibling;
+    held.stop();
+    held.row.remove();
+    textRows.delete(id);
+    return cursor;
+  }
+  function retainTextRow(
+    row: HTMLElement,
+    item: DmPage['items'][number],
+  ): void {
+    if (item.kind !== 'text') return;
+    row.dataset['socialText'] = item.id;
+    const stop = showExternalVideos(row, item.text, {
+      privacy,
+      signal: externalAbort.signal,
+    });
+    textRows.set(item.id, { text: item.text, row, stop });
+  }
   function leave(): void {
+    clearExternal();
     live.stop();
     if (fallback) clearInterval(fallback);
     fallback = null;
@@ -524,6 +618,7 @@ export function startSocialDmUi(access: VaultAccess, sync: VaultSync) {
     leave,
     setSession(value: AccountSession | null): void {
       if (sameSession(value, session)) return;
+      clearExternal();
       live.stop();
       if (fallback) clearInterval(fallback);
       fallback = null;

@@ -117,6 +117,9 @@ export class PublicProfiles {
   async refresh(): Promise<void> {
     await this.request('state', {});
   }
+  async exists(): Promise<boolean> {
+    return ownPublicProfile(await this.perform('state', {})) !== null;
+  }
   async create(handle: string, consent: boolean): Promise<void> {
     if (!consent) throw new Error('Confirme a criação do perfil público.');
     await this.request('create', {
