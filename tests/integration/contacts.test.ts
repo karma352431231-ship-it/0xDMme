@@ -33,8 +33,6 @@ await test('contatos persistentes: descoberta, consentimento, bloqueio, ausênci
     throw new Error('Banco exclusivo de testes necessário.');
   const database = new Database(config.databaseUrl),
     inspector = new pg.Client({ connectionString: config.databaseUrl });
-  await database.migrate();
-  await inspector.connect();
   const origin = 'http://127.0.0.1:45118',
     account = new AccountService({ store: database.authentication, origin }),
     devices = new DeviceService(database.devices),
@@ -51,36 +49,46 @@ await test('contatos persistentes: descoberta, consentimento, bloqueio, ausênci
       contacts,
     }),
   });
-  await new Promise<void>((resolve) =>
-    host.server.listen(45118, '127.0.0.1', resolve),
-  );
   const ids: string[] = [];
   t.after(async () => {
-    await host.close();
-    await inspector.query('BEGIN');
-    await inspector.query(
-      'DELETE FROM hash_talk.contact_relations WHERE lo=ANY($1::uuid[]) OR hi=ANY($1::uuid[])',
-      [ids],
-    );
-    for (const table of [
-      'contact_blocks',
-      'contact_controls',
-      'device_events',
-      'device_directories',
-      'login_sessions',
-      'login_devices',
-    ])
+    try {
+      if (host.server.listening) await host.close();
+      if (ids.length === 0) return;
+      await inspector.query('BEGIN');
       await inspector.query(
-        `DELETE FROM hash_talk.${table} WHERE account_id=ANY($1::uuid[])`,
+        'DELETE FROM hash_talk.contact_relations WHERE lo=ANY($1::uuid[]) OR hi=ANY($1::uuid[])',
         [ids],
       );
-    await inspector.query(
-      'DELETE FROM hash_talk.accounts WHERE id=ANY($1::uuid[])',
-      [ids],
-    );
-    await inspector.query('COMMIT');
-    await inspector.end();
-    await database.close();
+      for (const table of [
+        'contact_blocks',
+        'contact_controls',
+        'device_events',
+        'device_directories',
+        'login_sessions',
+        'login_devices',
+      ])
+        await inspector.query(
+          `DELETE FROM hash_talk.${table} WHERE account_id=ANY($1::uuid[])`,
+          [ids],
+        );
+      await inspector.query(
+        'DELETE FROM hash_talk.accounts WHERE id=ANY($1::uuid[])',
+        [ids],
+      );
+      await inspector.query('COMMIT');
+    } finally {
+      await Promise.all([inspector.end(), database.close()]);
+    }
+  });
+  // Register teardown before setup so its failures cannot keep the runner open.
+  await database.migrate();
+  await inspector.connect();
+  await new Promise<void>((resolve, reject) => {
+    host.server.once('error', reject);
+    host.server.listen(45118, '127.0.0.1', () => {
+      host.server.off('error', reject);
+      resolve();
+    });
   });
   async function create(authorized = true, wallet = Wallet.createRandom()) {
     const challenge = await account.challenge({
