@@ -973,8 +973,12 @@ await test('mídia das comunidades: cadeia real, autorização, vínculo atômic
         await media.clean();
         assert.equal((await fetch(publicOrigin + path)).status, 404);
       } finally {
-        await publicHost.close();
-        await accepted.close();
+        try {
+          // A failed listen must remain the reported error, rather than its cleanup.
+          if (publicHost.server.listening) await publicHost.close();
+        } finally {
+          await accepted.close();
+        }
       }
     },
   );

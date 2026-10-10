@@ -47,6 +47,37 @@ await test('aplicar o tema marca a raiz e a cor da barra do navegador', () => {
   assert.equal(meta.content, '#f4f6fb');
 });
 
+function literalColors(source: string): string[] {
+  // Selectors such as #feed-panel are identifiers, even when they start with hex digits.
+  const css = source
+    .replace(/\/\* === Theme tokens[\s\S]*?End of theme tokens === \*\//u, '')
+    .replace(/\/\*[\s\S]*?\*\//gu, '');
+  return [
+    ...css.matchAll(/(?<=[{;])\s*[\w-]+\s*:\s*([^;{}]*)(?=;|\})/gu),
+  ].flatMap((declaration) =>
+    [
+      ...declaration[1]!.matchAll(
+        /#[0-9a-f]{3,8}\b|\b(?:white|black)\b|rgba?\(/giu,
+      ),
+    ].map((match) => match[0]),
+  );
+}
+
+await test('verificação de cores distingue seletores de valores e examina regras aninhadas', () => {
+  assert.deepEqual(
+    literalColors(
+      '#feed-panel, #fff { color: var(--text); background: transparent; }',
+    ),
+    [],
+  );
+  assert.deepEqual(
+    literalColors(
+      '@media (width < 600px) { #feed-panel { color: #fff; background: linear-gradient(#123456, rgba(0, 0, 0, .5)); border: 1px solid black; } }',
+    ),
+    ['#fff', '#123456', 'rgba(', 'black'],
+  );
+});
+
 await test('componentes usam somente tokens de tema, sem cores literais', async () => {
   const base = new URL('../src/client/', import.meta.url);
   const offenders: string[] = [];
@@ -55,13 +86,10 @@ await test('componentes usam somente tokens de tema, sem cores literais', async 
     // The isolated crypto lab keeps its own light/dark palette outside the app shell.
     if (entry.includes('crypto-probe')) continue;
     // Theme tokens live in one marked block of app.css; everything else must use them.
-    const css = (await readFile(new URL(entry, base), 'utf8'))
-      .replace(/\/\* === Theme tokens[\s\S]*?End of theme tokens === \*\//u, '')
-      .replace(/\/\*[\s\S]*?\*\//gu, '');
-    for (const match of css.matchAll(
-      /#[0-9a-f]{3,8}\b|:\s*(?:white|black)\s*;|rgba?\(/giu,
+    for (const color of literalColors(
+      await readFile(new URL(entry, base), 'utf8'),
     ))
-      offenders.push(`${entry}: ${match[0]}`);
+      offenders.push(`${entry}: ${color}`);
   }
   assert.deepEqual(offenders, []);
 });
