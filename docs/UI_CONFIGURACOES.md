@@ -16,3 +16,11 @@ Validação local: lint sem avisos, tipos estritos, limites de módulos, formata
 Revisão no navegador com conta fictícia em 1280, 390 e 320 px: sem rolagem horizontal, campos de 16 px e botões mobile de pelo menos 44 px. Conferidos abertura por teclado, uma categoria aberta por vez, rascunho ao alternar e ao usar o alias `#configuracoes`, salvar nome/preferências/visibilidade e preferências de push, alternar sons e acesso às demais categorias. Meu convite abre sem criar um link; criação, cópia, troca, revogação, QR gerado e fechamento por Escape foram conferidos. A câmera é encerrada pelo contrato de fechamento de Aparelhos; captura e leitura reais continuam no aceite físico.
 
 Aceite físico de teclado, câmera, QR, push e wallets permanece separado; evidências exclusivamente em `.local/`. Envio das fontes e resultado da CI são informados na entrega, sem implicar ativação da UI.
+
+## Prévia pública na mesma seção — solicitada em 09/10/2026
+
+A seção Perfil público mostra também como o perfil aparece para visitantes, sem exigir navegação pelo link “Ver perfil público”. A prévia reutiliza a leitura pública anônima e exibe apenas o @ e a foto já aprovada; a foto preparada restrita continua separada nos controles do proprietário. A página pública compartilhável e a solicitação de DM pelo @ permanecem disponíveis. Recarregar atualiza a prévia; sair ou trocar de conta cancela a leitura e libera suas imagens temporárias.
+
+**Ponto importante:** visualizar o candidato nas configurações não aprova sua publicação. A ativação da análise tem validação própria no [documento da moderação](MODERACAO_AUTOMATICA_COMUNIDADES.md).
+
+Validação da prévia: os seis testes do cliente passaram, incluindo leitura anônima, apresentação no mesmo painel e cancelamento ao sair. A conferência no navegador em 320, 390 e 1.280 px, com dados sintéticos, verificou que o candidato privado não aparece na prévia pública, a foto aprovada é decodificada após recarregar, a página compartilhável ainda funciona e não há overflow horizontal ou erros de página. Isso não concede aprovação real a nenhuma foto nem valida a precisão do detector.

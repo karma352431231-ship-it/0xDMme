@@ -89,6 +89,78 @@ await test('criar @ pelo botão confirma o perfil público sem caixa de seleçã
   assert.equal(host.innerHTML.includes('data-public-consent'), false);
   ui.leave();
 });
+await test('configurações mostram o perfil público na própria seção com leitura anônima e cancelamento ao sair', async (t) => {
+  const own = session(),
+    profile = result(),
+    label = { textContent: '' },
+    status = { textContent: '' },
+    links: { href: string; textContent: string }[] = [];
+  const preview = {
+    innerHTML: '',
+    querySelector: (selector: string) => {
+      if (selector === '[data-public-handle]') return label;
+      if (selector === '[data-public-status]') return status;
+      if (selector === 'article')
+        return {
+          append: (link: { href: string; textContent: string }) =>
+            links.push(link),
+        };
+      return null;
+    },
+  };
+  const host = {
+    innerHTML: '',
+    querySelector: (selector: string) =>
+      selector === '[data-public-preview]' ? preview : null,
+    querySelectorAll: () => [],
+  };
+  t.mock.method(
+    PublicProfiles.prototype,
+    'refresh',
+    function (this: PublicProfiles) {
+      this.profile = profile;
+      return Promise.resolve();
+    },
+  );
+  t.mock.method(PublicProfiles.prototype, 'refreshModeration', async () => {});
+  const requests: RequestInit[] = [];
+  t.mock.method(globalThis, 'fetch', (url: string, init: RequestInit) => {
+    assert.equal(url, '/api/public-profiles/sintetico');
+    requests.push(init);
+    return Promise.resolve(Response.json(profile.profile));
+  });
+  const originalDocument = Object.getOwnPropertyDescriptor(
+    globalThis,
+    'document',
+  );
+  Object.defineProperty(globalThis, 'document', {
+    configurable: true,
+    value: { createElement: () => ({ href: '', textContent: '' }) },
+  });
+  t.after(() => {
+    if (originalDocument)
+      Object.defineProperty(globalThis, 'document', originalDocument);
+    else Reflect.deleteProperty(globalThis, 'document');
+  });
+  const ui = startPublicProfile(
+    access(own, () => Promise.resolve('assinatura-sintetica')),
+  );
+  ui.mount(host as unknown as HTMLElement);
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  assert.equal(host.innerHTML.includes('data-public-link'), false);
+  assert.equal(host.innerHTML.includes('data-public-preview'), true);
+  assert.equal(label.textContent, '@sintetico');
+  assert.equal(status.textContent, 'Identidade pública do 0xDMme.');
+  assert.equal(requests.length, 1);
+  assert.equal(requests[0]!.credentials, 'omit');
+  assert.equal(requests[0]!.body, undefined);
+  assert.equal(
+    links[0]!.href,
+    `#comunidades?view=dms&dm=${profile.profile.id}`,
+  );
+  ui.leave();
+  assert.equal(requests[0]!.signal!.aborted, true);
+});
 await test('análises anteriores substituem a página sem acumular avisos; cursor é assinado e sessão limpa a navegação', async (t) => {
   const own = session(),
     controller = new PublicProfiles(

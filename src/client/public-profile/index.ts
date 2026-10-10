@@ -3,6 +3,7 @@ import type { VaultAccess } from '../vault-authority/index.ts';
 import { preparePhoto } from '../attachment-images/index.ts';
 import { PublicProfiles } from './controller.ts';
 import { renderModeration } from './moderation.ts';
+import { showPublicProfile } from './viewer.ts';
 export { showPublicProfile } from './viewer.ts';
 
 const template = `<article class="card public-profile-card"><h2>Perfil público</h2>
@@ -11,9 +12,10 @@ const template = `<article class="card public-profile-card"><h2>Perfil público<
 <p>3–30 letras sem acento, números ou _. Seu @ é único e fixo enquanto a conta existir.</p>
 <button type="button" class="primary" data-public-action="create">Criar perfil público</button></div>
 <div data-public-owned hidden><div class="public-avatar-placeholder" data-public-placeholder aria-hidden="true">@</div><img class="public-avatar-preview" data-public-avatar alt="Prévia da sua foto pública, ainda restrita" hidden>
-<p><strong data-public-own-handle></strong></p><a data-public-link>Ver perfil público</a>
+<p><strong data-public-own-handle></strong></p>
 <p>A foto pública é separada e fica restrita a você até a análise. Sem aprovação, é descartada em até sete dias.</p><details class="settings-help"><summary>Formatos e preparo da foto</summary><p>PNG, JPEG e WebP, até 3 MB, preparados neste aparelho sem metadados.</p></details>
-<div class="settings-actions"><input data-public-file type="file" accept="image/png,image/jpeg,image/webp" hidden><button type="button" data-public-action="choose">Escolher foto pública</button><button type="button" data-public-action="remove">Remover foto preparada</button></div></div>
+<div class="settings-actions"><input data-public-file type="file" accept="image/png,image/jpeg,image/webp" hidden><button type="button" data-public-action="choose">Escolher foto pública</button><button type="button" data-public-action="remove">Remover foto preparada</button></div>
+<section aria-label="Prévia do perfil público"><h3>Como outras pessoas veem seu perfil</h3><div data-public-preview></div></section></div>
 <section data-public-moderation aria-label="Análises dos seus arquivos públicos"></section>
 <div><button type="button" data-public-action="moderation-latest" hidden>Análises mais recentes</button><button type="button" data-public-action="moderation-older" hidden>Análises anteriores</button></div>
 <p data-public-status role="status">Conecte e autorize seu aparelho para gerenciar o perfil público.</p><button type="button" data-public-action="reload">Recarregar perfil público</button></article>`;
@@ -26,12 +28,31 @@ export function startPublicProfile(access: VaultAccess) {
   let status =
     'Conecte e autorize seu aparelho para gerenciar o perfil público.';
   let photoUrl: string | null = null;
+  let previewKey = '',
+    stopPreview: (() => void) | null = null;
   function node<T extends HTMLElement>(selector: string): T | null {
     return mounted?.querySelector<T>(selector) ?? null;
   }
   function clearPhoto(): void {
     if (photoUrl) URL.revokeObjectURL(photoUrl);
     photoUrl = null;
+  }
+  function clearPreview(): void {
+    stopPreview?.();
+    stopPreview = null;
+    previewKey = '';
+    const preview = node('[data-public-preview]');
+    if (preview) preview.innerHTML = '';
+  }
+  function renderPreview(): void {
+    const own = controller.profile,
+      preview = node('[data-public-preview]');
+    if (!own || !preview || busy) return;
+    const key = `${own.profile.id}:${own.revision}:${own.profile.avatar ?? ''}`;
+    if (previewKey === key) return;
+    clearPreview();
+    previewKey = key;
+    stopPreview = showPublicProfile(preview, own.profile.handle);
   }
   function renderIdentity(): void {
     const own = controller.profile;
@@ -41,9 +62,6 @@ export function startPublicProfile(access: VaultAccess) {
     if (owned) owned.hidden = own === null;
     const label = node('[data-public-own-handle]');
     if (label) label.textContent = own ? `@${own.profile.handle}` : '';
-    const link = node<HTMLAnchorElement>('[data-public-link]');
-    if (link && own)
-      link.href = `#publico?handle=${encodeURIComponent(own.profile.handle)}`;
   }
   function renderControls(): void {
     const output = node('[data-public-status]');
@@ -83,6 +101,7 @@ export function startPublicProfile(access: VaultAccess) {
     renderIdentity();
     renderControls();
     renderPhoto();
+    renderPreview();
     renderModeration(node('[data-public-moderation]'), {
       notices: controller.notices,
       busy,
@@ -118,12 +137,14 @@ export function startPublicProfile(access: VaultAccess) {
     void run(async () => {
       await controller.refresh();
       if (controller.profile) await controller.refreshModeration();
+      clearPreview();
       status = controller.profile
         ? 'Perfil público restaurado.'
         : 'Você ainda não criou um perfil público.';
     });
   }
   function mount(container: HTMLElement): void {
+    clearPreview();
     mounted = container;
     generation++;
     container.innerHTML = template;
@@ -185,6 +206,7 @@ export function startPublicProfile(access: VaultAccess) {
     ready();
   }
   function leave(): void {
+    clearPreview();
     mounted = null;
     generation++;
     clearPhoto();
@@ -198,6 +220,7 @@ export function startPublicProfile(access: VaultAccess) {
       if (!controller.setSession(session)) return;
       generation++;
       clearPhoto();
+      clearPreview();
       status =
         'Conecte e autorize seu aparelho para gerenciar o perfil público.';
       render();
