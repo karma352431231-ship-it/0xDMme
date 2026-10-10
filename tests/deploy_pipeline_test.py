@@ -1037,6 +1037,23 @@ class DatabasePoolCodeTests(CommunityFeedCodeTests):
         }
 
 
+class ActivityPreviewCodeTests(CommunityFeedCodeTests):
+    def setUp(self):
+        super().setUp()
+        for relative in ['communities.ts', 'community-discovery.ts']:
+            (self.candidate / 'src/server/database' / relative).write_bytes(
+                (self.live / 'src/server/database' / relative).read_bytes())
+        for relative, before, after in [
+                ('community-posts.ts', 'reply notices', 'reply notices with readMany preview'),
+                ('community-interactions.ts', 'notice rows', 'notice rows with empty preview')]:
+            (self.live / 'src/server/database' / relative).write_text(before)
+            (self.candidate / 'src/server/database' / relative).write_text(after)
+        self.exports = {
+            remote.ACTIVITY_PREVIEW_BEFORE: self.export(self.live),
+            remote.ACTIVITY_PREVIEW_REVIEWED: self.export(self.candidate),
+        }
+
+
 class CallsDeploymentTests(AttachmentDeploymentTests):
     count = 27
     previous_count = 25

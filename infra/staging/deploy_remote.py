@@ -162,6 +162,11 @@ MESSAGE_REMOVAL_REVIEWED = '260719297084c8d8f74fb117dcacd42e7530be6a'
 # migration or other database module changes.
 POOL_SIZE_BEFORE = 'b1aa82c092e16650baebad8b2f522bcb837b48f5'
 POOL_SIZE_REVIEWED = '68831a56089d26c2de8c129a47eda9be6ac0b5a5'
+# Owner activation request of 10/10/2026: reply notices carry a preview read
+# through the existing public post projection (readMany). Only these two read
+# modules change; no SQL, migration or executor change.
+ACTIVITY_PREVIEW_BEFORE = '9a3170dd3815689d7d547d117824a92f66283d3b'
+ACTIVITY_PREVIEW_REVIEWED = '0bb7b9dddbd84fe8c033b2ae04dec93a2f97fade'
 COMMUNITIES_TABLES = CALLS_TABLES + CALLS_NEW_TABLES
 COMMUNITIES_NEW_TABLES = ('public_profiles', 'communities', 'community_follows',
     'community_moderators', 'community_sanctions', 'community_reports',
@@ -341,6 +346,8 @@ def database_code_reviewed(candidate, live):
         ({'backups.ts', 'changes.ts', 'contacts.ts', 'messages.ts'},
          MESSAGE_REMOVAL_BEFORE, MESSAGE_REMOVAL_REVIEWED),
         ({'index.ts'}, POOL_SIZE_BEFORE, POOL_SIZE_REVIEWED),
+        ({'community-interactions.ts', 'community-posts.ts'},
+         ACTIVITY_PREVIEW_BEFORE, ACTIVITY_PREVIEW_REVIEWED),
     ]
     selected = next((review for review in reviews if changed == review[0]), None)
     if selected is None:
