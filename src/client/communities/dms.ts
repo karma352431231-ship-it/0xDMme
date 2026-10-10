@@ -20,6 +20,9 @@ import {
   communityLink,
 } from './elements.ts';
 import { postText } from './post-text.ts';
+import { communityIcon } from './presentation.ts';
+import { dropFilesInto } from '../file-drop/index.ts';
+import { showToast } from '../toast/index.ts';
 import { paintAvatar } from '../appearance/index.ts';
 import { showExternalVideos } from '../external-video/index.ts';
 import type { ExternalMediaConsent } from '../external-media/index.ts';
@@ -420,15 +423,33 @@ export function startSocialDmUi(
     });
     const image = communityElement('input');
     image.type = 'file';
+    image.hidden = true;
     image.accept = 'image/png,image/jpeg,image/webp,image/gif';
     image.setAttribute('aria-label', 'Foto ou GIF para esta DM');
-    node.append(image);
+    const attach = communityElement('button', '', 'media-picker-button');
+    attach.type = 'button';
+    attach.setAttribute('aria-label', 'Anexar foto ou GIF');
+    attach.title = 'Anexar foto ou GIF';
+    attach.append(communityIcon('clip'));
+    attach.addEventListener('click', () => {
+      image.click();
+    });
+    node.append(image, attach);
+    dropFilesInto(node, image);
     image.addEventListener('change', () => {
       const file = image.files?.[0];
       image.value = '';
       if (!file) return;
       void run(async () => {
-        const prepared = await prepareSocialImage(file);
+        const prepared = await prepareSocialImage(file).catch(
+          (error: unknown) => {
+            showToast(
+              error instanceof Error ? error.message : 'Imagem inválida.',
+            );
+            return null;
+          },
+        );
+        if (!prepared) return;
         try {
           await controller.stageMedia(
             selected,

@@ -19,6 +19,8 @@ import type {
   CommunityMediaState,
 } from '../../shared/community-media/index.ts';
 import { prepareAttachment } from '../attachments/index.ts';
+import { dropFilesInto } from '../file-drop/index.ts';
+import { showToast } from '../toast/index.ts';
 
 export interface CommunityMediaAccess {
   community: string;
@@ -187,50 +189,62 @@ export async function uploadCommunityMedia(
   }
   return result;
 }
+const clipIcon =
+  '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m20 11-8.5 8.5a5 5 0 0 1-7-7L13 4a3.5 3.5 0 0 1 5 5l-8.5 8.5a2 2 0 0 1-3-3L14 7"/></svg>';
+function selectionSummary(files: readonly File[]): string {
+  if (files.length > 1) return `${files.length} arquivos`;
+  return files[0]?.name ?? '';
+}
+/**
+ * Photos, GIFs or a video for a post or reply: only the clip button, a short
+ * summary of the choice and a drop zone on the whole form. Limit refusals
+ * appear as a notice at the bottom of the screen.
+ */
 export function mediaEditor(
   container: HTMLElement,
   ids: string[],
   access: CommunityMediaAccess,
 ): () => Promise<string[]> {
-  const field = document.createElement('fieldset'),
-    legend = document.createElement('legend');
-  legend.textContent = 'Fotos, GIFs ou vídeo';
-  const info = document.createElement('p');
-  info.textContent =
-    'Até 4 fotos (3 MB preparadas), 3 GIFs (10 MB cada, 20 s) ou 1 vídeo (100 MB original, 60 s). Sem mistura. Resolução/FPS podem ser reduzidos. A mídia fica restrita até a liberação da moderação. Arquivos sem aprovação são descartados em até sete dias; uploads sem postagem expiram em 24 horas. Consulte a análise e conteste em Perfil.';
-  const label = document.createElement('label');
-  label.textContent = ids.length
-    ? 'Substituir os arquivos'
-    : 'Escolher arquivos';
+  const field = document.createElement('div');
+  field.className = 'media-picker';
   const input = document.createElement('input');
   input.type = 'file';
   input.multiple = true;
+  input.hidden = true;
   input.accept =
     'image/png,image/jpeg,image/webp,image/gif,video/mp4,video/quicktime,video/webm';
-  label.append(input);
-  const status = document.createElement('p');
+  const pick = document.createElement('button');
+  pick.type = 'button';
+  pick.className = 'media-picker-button';
+  pick.innerHTML = clipIcon;
+  pick.setAttribute('aria-label', 'Anexar fotos, GIFs ou vídeo');
+  pick.title = 'Até 4 fotos, 3 GIFs ou 1 vídeo';
+  const summary = document.createElement('span');
+  summary.className = 'media-picker-summary';
+  const status = document.createElement('small');
   status.setAttribute('role', 'status');
   const remove = document.createElement('input');
   remove.type = 'checkbox';
   const removeLabel = document.createElement('label');
-  removeLabel.append(
-    remove,
-    document.createTextNode('Remover a mídia atual ao salvar'),
-  );
-  field.append(legend, info, label, status);
+  removeLabel.append(remove, document.createTextNode('Remover a mídia atual'));
+  field.append(input, pick, summary, status);
   if (ids.length) field.append(removeLabel);
   container.append(field);
+  dropFilesInto(container, input);
+  pick.addEventListener('click', () => {
+    input.click();
+  });
   let prepared: string[] | null = null;
   input.addEventListener('change', () => {
     prepared = null;
+    status.textContent = '';
     try {
       validateMediaSelection(Array.from(input.files ?? []));
-      status.textContent = `${input.files?.length ?? 0} arquivo(s) selecionado(s).`;
     } catch (error: unknown) {
       input.value = '';
-      status.textContent =
-        error instanceof Error ? error.message : 'Seleção inválida.';
+      showToast(error instanceof Error ? error.message : 'Seleção inválida.');
     }
+    summary.textContent = selectionSummary(Array.from(input.files ?? []));
   });
   return async () => {
     const files = Array.from(input.files ?? []);
@@ -239,8 +253,7 @@ export function mediaEditor(
     prepared ??= await uploadCommunityMedia(access, files, (text) => {
       if (access.valid() && field.isConnected) status.textContent = text;
     });
-    status.textContent =
-      'Arquivos preparados. Permanecem restritos até a moderação.';
+    status.textContent = '';
     return prepared;
   };
 }

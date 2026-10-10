@@ -1,5 +1,6 @@
 import { paintAvatar, startAppearance } from '../appearance/index.ts';
 import { startPwa } from '../pwa/index.ts';
+import { keepPageOnStrayDrop } from '../file-drop/index.ts';
 import { startAccount } from '../account/index.ts';
 import { startDevices } from '../devices/index.ts';
 import { MessageReadiness } from '../message-live/index.ts';
@@ -35,6 +36,8 @@ function element<T extends HTMLElement>(id: string): T {
   return result as T;
 }
 
+// A file dropped outside a composer must not navigate away from the app.
+keepPageOnStrayDrop();
 // Theme first, so the first render already uses the saved device choice.
 const appearance = startAppearance();
 let connectedAccount: AccountSession | null = null;

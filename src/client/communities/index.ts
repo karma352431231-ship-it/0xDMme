@@ -123,18 +123,29 @@ export function startCommunities(
       view,
       selected,
       signedIn: session !== null,
+      manage:
+        selected &&
+        state?.community.id === selected &&
+        state.role !== 'participant'
+          ? selected
+          : null,
     });
     output = communityElement('p', '', 'community-feedback');
     output.setAttribute('role', 'status');
     mounted.append(output);
   }
-  function rows(container: HTMLElement, page: CommunityPage): void {
+  /** `manage` opens each community's settings screen (managed list). */
+  function rows(
+    container: HTMLElement,
+    page: CommunityPage,
+    target: 'page' | 'manage' = 'page',
+  ): void {
     for (const item of page.items) {
       const row = communityElement('div', '', 'community-row');
       const a = communityElement('a', '', 'community-row-link'),
         avatar = communityAvatar(item.name),
         copy = communityElement('span', '', 'community-row-copy');
-      a.href = `#comunidades?id=${item.id}`;
+      a.href = `#comunidades?id=${item.id}${target === 'manage' ? '&view=manage' : ''}`;
       if (item.id === selected) a.setAttribute('aria-current', 'page');
       copy.append(
         communityElement('strong', item.name),
@@ -268,7 +279,7 @@ export function startCommunities(
         communityLink(links, label, `#comunidades?view=${key}`);
       card.append(links);
     }
-    rows(card, page);
+    rows(card, page, view === 'managed' ? 'manage' : 'page');
     cursor = page.next;
     if (page.next) communityButton(card, 'Próxima página', () => run(listing));
     communityButton(card, 'Recarregar lista', () => {
@@ -337,14 +348,6 @@ export function startCommunities(
     const avatar = communityAvatar(value.name);
     const banner = communityElement('div', '', 'community-banner');
     banner.dataset['tone'] = avatar.dataset['tone'] ?? '0';
-    if (state && state.role !== 'participant') {
-      communityLink(
-        banner,
-        'Gerenciar comunidade',
-        `#comunidades?id=${value.id}&view=manage`,
-      );
-      banner.lastElementChild?.classList.add('community-manage-link');
-    }
     const head = communityElement('div', '', 'community-hero-head');
     const title = communityElement('div', '', 'community-hero-title');
     title.append(

@@ -1,3 +1,5 @@
+import { dropFilesInto } from '../file-drop/index.ts';
+import { showToast } from '../toast/index.ts';
 import type { AttachmentContent } from '../../shared/attachments/index.ts';
 import { VoicePlayback } from '../voice-playback/index.ts';
 import { voiceDuration } from '../../shared/voice/index.ts';
@@ -63,13 +65,24 @@ export class AttachmentUi {
     const input = host.querySelector<HTMLInputElement>(
       '[data-attachment-file]',
     );
+    // Dropping a file anywhere on the conversation works like the clip.
+    if (input) dropFilesInto(host, input);
     input?.addEventListener('change', () => {
       const file = input.files?.[0];
       if (!file) return;
       void run(async () => {
         this.clearSelection();
         const generation = this.selectionGeneration,
-          value = await prepareAttachment(file, false);
+          value = await prepareAttachment(file, false).catch(
+            (error: unknown) => {
+              input.value = '';
+              showToast(
+                error instanceof Error ? error.message : 'Arquivo inválido.',
+              );
+              return null;
+            },
+          );
+        if (!value) return;
         if (generation !== this.selectionGeneration || !host.isConnected) {
           value.bytes.fill(0);
           value.thumbnail?.fill(0);

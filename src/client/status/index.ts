@@ -1,3 +1,4 @@
+import { dropFilesInto } from '../file-drop/index.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
 import type { Peer } from '../../shared/contacts/index.ts';
 import { attachmentContent } from '../../shared/attachments/index.ts';
@@ -303,6 +304,13 @@ export function startStatus(access: VaultAccess, sync: VaultSync) {
     node(selector)?.addEventListener('click', action);
   }
   function bindControls(): void {
+    const photo = node<HTMLInputElement>('[data-status-file]'),
+      compose = node<HTMLFormElement>('[data-status-compose]');
+    node('[data-status-attach]')?.addEventListener('click', () =>
+      photo?.click(),
+    );
+    // Dropping a photo on the form works like the clip.
+    if (photo && compose) dropFilesInto(compose, photo);
     node<HTMLFormElement>('[data-status-compose]')?.addEventListener(
       'submit',
       (event) => {
@@ -485,7 +493,7 @@ export function startStatus(access: VaultAccess, sync: VaultSync) {
     /** `author` opens that contact's newest active status (from the status row). */
     mount(container: HTMLElement, author: string | null = null): void {
       host = container;
-      container.innerHTML = `<article class="card status-card"><h2>Status</h2><p data-status-notice role="status"></p><button data-status-refresh type="button">Atualizar</button><div data-status-list></div><button data-status-more type="button" hidden>Mais status</button><section data-status-open aria-live="polite"></section></article><article class="card status-card"><h2>Seu próximo status</h2><form data-status-compose><label>Texto ou legenda<textarea data-status-text rows="3"></textarea></label><button data-status-emoji type="button">Escolher emoji</button><label>Foto<input data-status-file type="file" accept="image/*"></label><div data-status-preview></div><button data-status-clear-photo type="button">Remover foto</button><button data-status-publish class="primary" type="submit">Publicar status</button><button data-status-cancel type="button" hidden>Cancelar publicação pendente</button></form><p>Texto e foto desaparecem após 24 horas e ficam fora dos backups.</p><details><summary>Quem pode ver seus próximos status</summary><p>Todos os contatos aprovados podem ver por padrão. Desmarque quem você deseja excluir. Novos contatos entram nas próximas publicações.</p><p data-status-privacy-conflict hidden></p><div data-status-audience></div><button data-status-more-contacts type="button" hidden>Mais contatos</button><button data-status-save-audience type="button">Salvar privacidade</button></details></article>`;
+      container.innerHTML = `<article class="card status-card"><h2>Status</h2><p data-status-notice role="status"></p><button data-status-refresh type="button">Atualizar</button><div data-status-list></div><button data-status-more type="button" hidden>Mais status</button><section data-status-open aria-live="polite"></section></article><article class="card status-card"><h2>Seu próximo status</h2><form data-status-compose><label>Texto ou legenda<textarea data-status-text rows="3"></textarea></label><button data-status-emoji type="button">Escolher emoji</button><input data-status-file type="file" accept="image/*" hidden aria-label="Foto do status"><button data-status-attach type="button" class="media-picker-button" aria-label="Anexar foto" title="Anexar foto"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m20 11-8.5 8.5a5 5 0 0 1-7-7L13 4a3.5 3.5 0 0 1 5 5l-8.5 8.5a2 2 0 0 1-3-3L14 7"/></svg></button><div data-status-preview></div><button data-status-clear-photo type="button">Remover foto</button><button data-status-publish class="primary" type="submit">Publicar status</button><button data-status-cancel type="button" hidden>Cancelar publicação pendente</button></form><p>Texto e foto desaparecem após 24 horas e ficam fora dos backups.</p><details><summary>Quem pode ver seus próximos status</summary><p>Todos os contatos aprovados podem ver por padrão. Desmarque quem você deseja excluir. Novos contatos entram nas próximas publicações.</p><p data-status-privacy-conflict hidden></p><div data-status-audience></div><button data-status-more-contacts type="button" hidden>Mais contatos</button><button data-status-save-audience type="button">Salvar privacidade</button></details></article>`;
       bindControls();
       renderList();
       status();

@@ -3531,3 +3531,88 @@ footer {
     font-size: 12.5px;
   }
 }
+
+/* Bottom-center notice for refused files and limits (toast module). */
+.app-toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(24px + env(safe-area-inset-bottom));
+  z-index: 200;
+  max-width: min(520px, calc(100vw - 32px));
+  padding: 12px 18px;
+  border: 1px solid var(--line-strong);
+  border-radius: 14px;
+  background: var(--surface-3);
+  color: var(--text);
+  box-shadow: 0 14px 40px var(--shadow);
+  font-size: 14px;
+  line-height: 1.45;
+  text-align: center;
+  transform: translateX(-50%);
+}
+.app-toast[hidden] {
+  display: none;
+}
+@media (max-width: 700px) {
+  .app-toast {
+    bottom: calc(84px + env(safe-area-inset-bottom));
+  }
+}
+/* Attachments: the clip alone; a short summary of the choice beside it. */
+.media-picker {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  margin: 8px 0 0;
+}
+#app-shell .media-picker-button {
+  display: inline-grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.app .media-picker-button:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+.media-picker-button svg {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.media-picker-summary {
+  max-width: 240px;
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: 13px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.media-picker small:empty,
+.media-picker-summary:empty {
+  display: none;
+}
+.media-picker label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-size: 13px;
+}
+/* A file being dragged over a place that accepts it. */
+[data-dropping='true'] {
+  outline: 2px dashed var(--accent);
+  outline-offset: -4px;
+}

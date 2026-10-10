@@ -25,6 +25,7 @@ const featureExports: Record<string, string[]> = {
   'public-profile': ['startPublicProfile', 'showPublicProfile'],
   activity: ['startActivity'],
   'external-media': ['ExternalMediaConsent'],
+  'file-drop': ['keepPageOnStrayDrop'],
 };
 const bundle = await build({
   entryPoints: ['src/client/app/index.ts'],
@@ -136,6 +137,7 @@ async function page(approval: boolean, userAgent: string) {
       }
     },
     VoicePlayback: class {},
+    keepPageOnStrayDrop: () => {},
     ExternalMediaConsent: class {
       setSession(): void {}
       storageChanged(): void {}

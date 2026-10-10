@@ -3,7 +3,13 @@ import { iconLabel } from './presentation.ts';
 
 export function communityNavigation(
   container: HTMLElement,
-  options: { view: string; selected: string | null; signedIn: boolean },
+  options: {
+    view: string;
+    selected: string | null;
+    signedIn: boolean;
+    /** Community whose settings the person may open (owner or moderator). */
+    manage?: string | null;
+  },
 ): void {
   const active = options.selected ? 'communities' : options.view;
   document
@@ -28,6 +34,12 @@ export function communityNavigation(
   menu.append(summary);
   const choices = el('nav');
   choices.setAttribute('aria-label', 'Listas e gestão de comunidades');
+  if (options.manage)
+    link(
+      choices,
+      'Gerenciar esta comunidade',
+      `#comunidades?id=${options.manage}&view=manage`,
+    );
   for (const [key, title] of [
     ['communities', 'Minhas comunidades'],
     ['following', 'Feed de seguidos'],

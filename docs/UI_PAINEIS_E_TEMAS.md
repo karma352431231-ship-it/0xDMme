@@ -271,3 +271,17 @@ Pedido do proprietário: usar a logo do 0xDMme no canto superior esquerdo e na a
 - **GIF carregado:** aparece sozinho, sem balão, borda ou espaçamento e sem o rótulo "GIF do KLIPY". A marcação de entrega fica logo abaixo. O consentimento para mídia externa continua o mesmo: enquanto o GIF não é permitido ou não carregou, o link segue visível.
 - **Atribuição do KLIPY:** fica só no painel de GIFs ("Search KLIPY" e "Powered by KLIPY"), como no Discord. Nas mensagens não há marca d'água.
 - **Marcação dupla:** dois traços inteiros lado a lado, com o segundo começando depois da perna longa do primeiro, para não parecer um traço só.
+
+## Clipe, arrastar e soltar, aviso de limites e gestão pelo menu — 10/10/2026
+
+Pedido do proprietário:
+
+- **Só o clipe:**
+  - O seletor de mídia de posts e respostas perdeu a descrição longa e o "Escolher arquivos"; ficaram o clipe, um resumo curto da escolha e, ao editar, "Remover a mídia atual".
+  - Mensagens pelo `@` e foto do status também passaram a usar o clipe. Chat e perfil público já usavam botão.
+- **Aviso de limites:** quando a escolha passa de um limite, um aviso aparece na parte de baixo, no centro da tela, por 6 segundos, e é lido por leitores de tela. Vale para posts e respostas (4 fotos, 3 GIFs ou 1 vídeo, sem mistura, tamanhos), anexo do chat (3 MB) e imagem das mensagens pelo `@`. Os limites e as validações são os mesmos de antes.
+- **Arrastar e soltar** em todo lugar que aceita arquivo: conversas 1-1 e grupos, mensagens pelo `@`, posts, respostas e status. O arquivo solto passa pelo mesmo campo do clipe, com as mesmas validações; um campo desativado (por exemplo, durante gravação de voz) recusa. Fora dessas áreas, soltar um arquivo não troca a página do app.
+- **Gerenciar comunidade:** o link saiu do banner. Dentro de uma comunidade que a pessoa gerencia, o menu "⋯" mostra **Gerenciar esta comunidade**, que abre a tela de configuração dela (nome, descrição, regras, foto, tags e governança). Na lista "Comunidades que você gerencia", cada comunidade abre direto essa tela.
+- **Topo da comunidade:** só a foto sobrepõe o banner; nome, seguidores e "Seguir/Seguindo" ficam abaixo dele.
+
+**Ponto importante:** o texto sobre análise da mídia, prazos de descarte e contestação deixou de aparecer junto ao seletor. As regras não mudaram, e a análise e a contestação continuam no Perfil.
