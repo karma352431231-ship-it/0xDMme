@@ -1,7 +1,7 @@
 import { attachmentContent } from '../../shared/attachments/index.ts';
 import type { AttachmentContent } from '../../shared/attachments/index.ts';
+import type { VoiceMetadata } from '../../shared/voice/index.ts';
 import { decodeDailyText } from '../../shared/daily/index.ts';
-import { voiceDuration } from '../../shared/voice/index.ts';
 import { originalImageType } from '../attachment-images/index.ts';
 import type { VoicePlayback } from '../voice-playback/index.ts';
 
@@ -115,18 +115,53 @@ function offerSave<V extends MediaView>(
 function mediaInfo(content: AttachmentContent, image: boolean): string {
   const caption = decodeDailyText(content.caption).text;
   if (image) return caption;
-  const label = content.voice
-    ? `Mensagem de voz · ${voiceDuration(content.voice)}`
-    : content.name;
   const size = `${(content.file.ref.bytes / 1_000_000).toFixed(2)} MB`;
-  return `${label} · ${size}${caption ? ` · ${caption}` : ''}`;
+  return `${content.name} · ${size}${caption ? ` · ${caption}` : ''}`;
+}
+/** A voice is its player; decryption and download wait for the first play. */
+function renderVoice<V extends MediaView>(
+  input: MediaInput<V>,
+  content: AttachmentContent,
+  voice: VoiceMetadata,
+): void {
+  const { view } = input;
+  const play = async (): Promise<void> => {
+    if (!input.current()) return;
+    const bytes = await input.load(view, false);
+    try {
+      if (!input.current()) return;
+      input.playback.play({
+        bytes,
+        voice,
+        id: view.id,
+        peer: view.archived ? null : view.peer,
+      });
+    } finally {
+      bytes.fill(0);
+    }
+  };
+  input.article.append(
+    input.playback.element({
+      id: view.id,
+      voice,
+      load: () => input.run(() => input.enqueue(play)),
+    }),
+  );
+  const caption = decodeDailyText(content.caption).text;
+  if (!caption) return;
+  const text = document.createElement('p');
+  text.textContent = caption;
+  input.article.append(text);
 }
 /** The owner supplies generation checks, serial admission and Blob cleanup. */
 export function renderMedia<V extends MediaView>(input: MediaInput<V>): void {
   const content =
-      input.content ??
-      attachmentContent(JSON.parse(input.view.text) as unknown),
-    image = !content.voice && imageCandidate(content),
+    input.content ?? attachmentContent(JSON.parse(input.view.text) as unknown);
+  if (content.voice) {
+    renderVoice(input, content, content.voice);
+    return;
+  }
+  const image = imageCandidate(content),
     info = document.createElement('p'),
     preview = document.createElement('div'),
     button = document.createElement('button');
@@ -134,11 +169,7 @@ export function renderMedia<V extends MediaView>(input: MediaInput<V>): void {
   info.hidden = !info.textContent;
   preview.className = 'chat-attachment-preview';
   button.type = 'button';
-  button.textContent = content.voice
-    ? 'Carregar áudio para ouvir'
-    : image
-      ? 'Carregar imagem'
-      : 'Baixar arquivo original';
+  button.textContent = image ? 'Carregar imagem' : 'Baixar arquivo original';
   input.article.append(...(image ? [preview, info] : [info, preview]), button);
   button.hidden = image;
   let pending = false;
@@ -147,15 +178,6 @@ export function renderMedia<V extends MediaView>(input: MediaInput<V>): void {
     const bytes = await input.load(input.view, false);
     try {
       if (!input.current()) return;
-      if (content.voice) {
-        input.playback.show({
-          bytes,
-          voice: content.voice,
-          id: input.view.id,
-          peer: input.view.archived ? null : input.view.peer,
-        });
-        return;
-      }
       const type = image
           ? displayType(bytes, content)
           : 'application/octet-stream',

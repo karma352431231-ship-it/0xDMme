@@ -1,9 +1,5 @@
 import type { VoiceMetadata } from '../../shared/voice/index.ts';
-import {
-  voiceRate,
-  voiceSamples,
-  voiceDuration,
-} from '../../shared/voice/index.ts';
+import { voiceRate, voiceSamples } from '../../shared/voice/index.ts';
 import { voiceWav } from '../voice-audio/index.ts';
 import type { AttachmentSelection } from '../attachments/index.ts';
 import { BrowserCapture } from './capture.ts';
@@ -123,9 +119,8 @@ export class VoiceRecording {
         'O microfone parou de produzir áudio. Confira o trecho preservado.',
       );
   }
-  async stop(
-    notice = 'Gravação parada. Confira a prévia antes de enviar.',
-  ): Promise<void> {
+  /** A deliberate stop needs no notice; the preview itself is the review. */
+  async stop(notice = ''): Promise<void> {
     if (!this.active || this.state.phase === 'stopping') return;
     if (this.state.phase === 'requesting' && !this.samples) {
       this.cancel();
@@ -184,7 +179,7 @@ export class VoiceRecording {
     });
     this.update(
       'idle',
-      `${notice} ${voiceDuration(voice)}. Nenhum áudio foi enviado automaticamente.`,
+      notice ? `${notice} Nenhum áudio foi enviado automaticamente.` : '',
     );
   }
   cancel(): void {

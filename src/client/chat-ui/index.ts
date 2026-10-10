@@ -9,8 +9,12 @@ const icons = {
   mic: '<rect x="9" y="2" width="6" height="13" rx="3"/><path d="M5 10v2a7 7 0 0 0 14 0v-2M12 19v3M8 22h8"/>',
   send: '<path d="m3 3 18 9-18 9 3-9zM6 12h15"/>',
   close: '<path d="m6 6 12 12M6 18 18 6"/>',
+  trash: '<path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/>',
+  stop: '<rect x="7" y="7" width="10" height="10" rx="2"/>',
   collapse: '<path d="M20 12H9M13 7l-5 5 5 5M4 5v14"/>',
 } as const;
+
+export { bindRecordGesture, showRecording } from './voice.ts';
 
 export function chatIcon(name: keyof typeof icons): string {
   return `<svg viewBox="0 0 24 24" aria-hidden="true">${icons[name]}</svg>`;
@@ -38,9 +42,9 @@ export function chatComposer(scope: 'message' | 'group'): string {
   const form = scope === 'message' ? 'message-form' : 'group-compose';
   return `<form data-${form} class="chat-composer">
     ${scope === 'message' ? `<div data-compose-bar class="compose-context" hidden><p data-compose-context></p><button data-compose-cancel class="chat-icon" type="button" aria-label="Cancelar resposta ou edição">${chatIcon('close')}</button></div>` : ''}
-    <div class="compose-preview"><div data-attachment-preview></div><button data-attachment-clear type="button" hidden>Remover prévia</button></div>
+    <div class="compose-preview"><div data-attachment-preview></div><button data-attachment-clear class="chat-icon" type="button" aria-label="Remover anexo" title="Remover anexo" hidden>${chatIcon('trash')}</button></div>
     <p data-voice-status class="compose-notice" role="status"></p>
-    <div class="voice-controls"><button data-voice-stop type="button" hidden>Parar e conferir</button><button data-voice-cancel type="button" hidden>Cancelar gravação</button></div>
+    <div class="voice-recorder"><button data-voice-cancel class="chat-icon" type="button" aria-label="Cancelar gravação" title="Cancelar gravação" hidden>${chatIcon('trash')}</button><span class="voice-rec-dot" aria-hidden="true"></span><span data-voice-clock class="voice-rec-clock">0:00</span><span class="voice-rec-limit">/ 1:30</span><span class="voice-rec-hint">Solte para conferir</span><button data-voice-stop class="chat-icon compose-primary" type="button" aria-label="Parar e conferir" title="Parar e conferir" hidden>${chatIcon('stop')}</button></div>
     <div class="compose-row">
       <div class="compose-input">
         <button data-${scope}-emoji class="chat-icon" type="button" aria-label="Escolher emoji" title="Escolher emoji">${chatIcon('emoji')}</button>

@@ -1993,7 +1993,7 @@ footer {
     max-width: calc(100vw - 32px);
     z-index: 50;
   }
-  #voice-playbacks {
+  .voice-dock {
     bottom: 90px;
   }
 }
@@ -3011,22 +3011,46 @@ footer {
   }
 }
 
-#voice-playbacks {
+/* While the playing voice has no visible bubble, this dock keeps its controls. */
+.voice-dock {
   position: fixed;
   bottom: 1rem;
   right: 1rem;
   z-index: 40;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: min(20rem, calc(100vw - 2rem));
+  padding: 8px 8px 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 8px 24px var(--shadow);
+}
+.voice-dock .voice-message {
+  flex: 1;
+  min-width: 0;
+}
+.voice-dock .voice-dock-close {
   display: grid;
-  gap: 0.5rem;
-  width: min(24rem, calc(100vw - 2rem));
+  flex: none;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-muted);
 }
-.voice-player {
-  margin: 0;
-}
-.voice-player audio {
-  display: block;
-  width: 100%;
-  margin-bottom: 0.5rem;
+.voice-dock-close svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
 }
 .account #account-profile-feedback:empty {
   display: none;
@@ -3050,7 +3074,7 @@ footer {
   .conversation-row {
     border-radius: 8px;
   }
-  #voice-playbacks {
+  .voice-dock {
     bottom: 90px;
   }
 }

@@ -401,8 +401,7 @@
   line-height: 1.5;
 }
 .compose-notice:empty,
-.compose-preview:has([data-attachment-preview]:empty),
-.voice-controls:not(:has(button:not([hidden]))) {
+.compose-preview:has([data-attachment-preview]:empty) {
   display: none;
 }
 .compose-context {
@@ -425,12 +424,23 @@
   text-overflow: ellipsis;
 }
 .compose-preview {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   max-height: 200px;
   overflow-y: auto;
   border: 1px solid var(--line);
-  border-radius: 12px;
-  padding: 10px;
+  border-radius: 24px;
+  padding: 6px 6px 6px 12px;
   background: var(--surface);
+}
+.compose-preview [data-attachment-preview] {
+  flex: 1;
+  min-width: 0;
+}
+.chat-panel .compose-preview p {
+  margin: 0;
+  font-size: var(--fs-caption);
 }
 .compose-preview img {
   max-height: 110px;
@@ -540,7 +550,8 @@
   }
 }
 
-/* Images are the content of their bubble; a click opens the viewer. */
+/* An image stands alone like a GIF: no bubble, no frame; a click opens the viewer. */
+.chat-panel .chat-image-open,
 .chat-image-open {
   display: block;
   margin: 0;
@@ -555,13 +566,18 @@
   border-radius: 12px;
 }
 #app-shell .chat-message:has(.chat-image-open) {
-  padding: 4px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
 }
-.chat-message:has(.chat-image-open) > :is(p, .message-meta) {
-  margin-inline: 8px;
+#app-shell .chat-panel .chat-message:has(.chat-image-open) > p {
+  margin: 6px 4px 0;
+  color: var(--text);
 }
-.chat-message:has(.chat-image-open) > .message-meta {
-  margin-block: 4px 2px;
+#app-shell .chat-message:has(.chat-image-open) > .message-meta {
+  margin: 4px 4px 0;
+  color: var(--text-muted);
 }
 .media-viewer {
   width: 100vw;
@@ -647,4 +663,156 @@
 #app-shell .chat-message:has(.chat-gif :is(video, img)) > .message-meta {
   margin: 4px 4px 0;
   color: var(--text-muted);
+}
+
+/* Voice: one round play control, a slim seek bar and the time, like a bubble line. */
+.voice-message {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: min(230px, 58vw);
+  padding: 2px 0;
+}
+.voice-message .voice-toggle {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--accent-ink);
+  cursor: pointer;
+}
+.chat-message.own .voice-message .voice-toggle {
+  background: var(--sent-ink);
+  color: var(--sent);
+}
+.voice-toggle svg {
+  width: 18px;
+  height: 18px;
+  fill: currentColor;
+  stroke: none;
+}
+.voice-message[data-state='loading'] .voice-toggle {
+  opacity: 0.6;
+  cursor: progress;
+}
+/* Outranks the generic chat field style; a range here is a bare seek bar. */
+.voice-message input.voice-progress[type='range'] {
+  flex: 1;
+  min-width: 70px;
+  height: 4px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background:
+    linear-gradient(currentColor, currentColor) 0 / var(--progress, 0%) 100%
+      no-repeat,
+    color-mix(in srgb, currentColor 28%, transparent);
+  color: inherit;
+  appearance: none;
+  cursor: pointer;
+}
+.voice-progress:disabled {
+  cursor: default;
+}
+.voice-progress::-webkit-slider-thumb {
+  width: 12px;
+  height: 12px;
+  border: 0;
+  border-radius: 50%;
+  background: currentColor;
+  appearance: none;
+}
+.voice-progress::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border: 0;
+  border-radius: 50%;
+  background: currentColor;
+}
+.voice-progress:disabled::-webkit-slider-thumb {
+  visibility: hidden;
+}
+.voice-progress:disabled::-moz-range-thumb {
+  visibility: hidden;
+}
+.voice-time {
+  flex: none;
+  min-width: 34px;
+  font: 12px/1 var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  opacity: 0.8;
+}
+.compose-preview .voice-message {
+  min-width: 0;
+}
+.chat-panel .compose-preview .voice-preview-note {
+  margin-top: 2px;
+  padding-left: 48px;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+/* Recording replaces the composer row with one bar: discard, clock, stop. */
+.voice-recorder {
+  display: none;
+  align-items: center;
+  gap: 10px;
+  min-height: 48px;
+  padding: 0 0 0 4px;
+}
+.chat-composer[data-recording='true'] .voice-recorder {
+  display: flex;
+}
+.chat-composer[data-recording='true'] .compose-row {
+  display: none;
+}
+.voice-rec-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--danger);
+  animation: voice-rec-pulse 1.2s ease-in-out infinite;
+}
+.voice-rec-clock {
+  font: 15px/1 var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+.voice-rec-limit {
+  flex: 1;
+  color: var(--text-muted);
+  font: 12px/1 var(--font-mono);
+}
+.voice-rec-hint {
+  display: none;
+  color: var(--text-muted);
+  font-size: var(--fs-caption);
+}
+.chat-composer[data-voice-hold='true'] .voice-rec-hint {
+  display: inline;
+}
+.chat-panel .voice-recorder [data-voice-stop] {
+  margin-left: auto;
+}
+.chat-panel [data-voice-record] {
+  touch-action: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+@keyframes voice-rec-pulse {
+  50% {
+    opacity: 0.25;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .voice-rec-dot {
+    animation: none;
+  }
 }

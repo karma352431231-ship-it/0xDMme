@@ -2,7 +2,6 @@ import { dropFilesInto } from '../file-drop/index.ts';
 import { showToast } from '../toast/index.ts';
 import type { AttachmentContent } from '../../shared/attachments/index.ts';
 import { VoicePlayback } from '../voice-playback/index.ts';
-import { voiceDuration } from '../../shared/voice/index.ts';
 import { prepareAttachment } from '../attachments/index.ts';
 import type { AttachmentSelection } from '../attachments/index.ts';
 import { renderMedia } from './media.ts';
@@ -35,7 +34,15 @@ export class AttachmentUi {
     if (this.previewUrl) URL.revokeObjectURL(this.previewUrl);
     this.previewUrl = null;
   }
+  private previewId(): string {
+    return `voice-preview:${this.selectionGeneration}`;
+  }
   clearSelection(): void {
+    // A discarded voice preview must not keep playing from the dock.
+    if (this.selection?.voice) this.playback.release(this.previewId());
+    this.discard();
+  }
+  private discard(): void {
     this.selectionGeneration++;
     this.selection?.bytes.fill(0);
     this.selection?.thumbnail?.fill(0);
@@ -106,19 +113,22 @@ export class AttachmentUi {
     if (!area) return;
     const label = document.createElement('p');
     if (value.voice) {
-      label.textContent = `Prévia de voz · ${voiceDuration(value.voice)} · ${(value.bytes.length / 1_000_000).toFixed(2)} MB. Ainda não enviada; fica somente na memória até Enviar. Fechar/recarregar a página perde esta prévia.`;
-      const listen = document.createElement('button');
-      listen.type = 'button';
-      listen.textContent = 'Ouvir prévia';
-      listen.addEventListener('click', () =>
-        this.playback.show({
-          bytes: value.bytes,
-          voice: value.voice!,
-          id: 'voice-preview:' + this.selectionGeneration,
-          peer,
+      const voice = value.voice,
+        id = this.previewId();
+      // Recorded audio lives only in this page's memory until Enviar.
+      label.className = 'voice-preview-note';
+      label.textContent = 'Não enviado · some se a página recarregar';
+      area.replaceChildren(
+        this.playback.element({
+          id,
+          voice,
+          load: () => {
+            this.playback.play({ bytes: value.bytes, voice, id, peer });
+            return Promise.resolve();
+          },
         }),
+        label,
       );
-      area.replaceChildren(label, listen);
       return;
     }
     label.textContent = `${value.name} · ${(value.bytes.length / 1_000_000).toFixed(2)} MB. Original preservado; pode conter GPS/EXIF ou outros metadados. Clique em Enviar para compartilhar.`;

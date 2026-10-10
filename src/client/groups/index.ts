@@ -7,6 +7,8 @@ import {
   updateChatComposer,
   historyPosition,
   resetHistoryPosition,
+  bindRecordGesture,
+  showRecording,
 } from '../chat-ui/index.ts';
 import {
   groupTextQuota,
@@ -15,7 +17,6 @@ import {
 import type { AccountSession } from '../../shared/account/index.ts';
 import type { Peer } from '../../shared/contacts/index.ts';
 import { groupManager } from '../../shared/groups/index.ts';
-import { voiceDuration, voiceRate } from '../../shared/voice/index.ts';
 import type { VaultAccess } from '../vault-authority/index.ts';
 import type { VaultSync } from '../vault-sync/index.ts';
 import type { VoicePlayback } from '../voice-playback/index.ts';
@@ -96,13 +97,7 @@ export function startGroups(
   }
   function voiceStatus(): void {
     composerStatus();
-    const label = node('[data-voice-status]');
-    if (label)
-      label.textContent =
-        voice.state.notice +
-        (voice.active
-          ? ` ${voiceDuration({ samples: voice.state.samples, sampleRate: voiceRate })} / 1:30`
-          : '');
+    showRecording(node('[data-group-compose]'), voice.state);
     voiceControls();
   }
   function voiceControls(): void {
@@ -664,9 +659,15 @@ export function startGroups(
         status();
       });
     });
-    bind('[data-voice-record]', () => {
-      if (!options.isBusy() && !voice.active && !attachments.selected)
-        void voice.start();
+    bindRecordGesture(node('[data-voice-record]'), {
+      start: () => {
+        if (!options.isBusy() && !voice.active && !attachments.selected)
+          void voice.start();
+      },
+      // Releasing before the microphone opens keeps recording hands-free.
+      release: () => {
+        if (voice.state.phase === 'recording') void voice.stop();
+      },
     });
     bind('[data-voice-stop]', () => void voice.stop());
     bind('[data-voice-cancel]', () => voice.cancel());

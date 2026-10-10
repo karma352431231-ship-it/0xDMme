@@ -45,7 +45,7 @@ class MediaNode {
     return false;
   }
 }
-function environment(t: TestContext) {
+function environment(t: TestContext, playback?: Partial<VoicePlayback>) {
   const previous = Object.getOwnPropertyDescriptor(globalThis, 'document');
   const body = new MediaNode('body');
   Object.defineProperty(globalThis, 'document', {
@@ -66,11 +66,11 @@ function environment(t: TestContext) {
     revoked.push(url);
   });
   const ui = new AttachmentUi(
-    {
-      show: () => {
+    (playback ?? {
+      play: () => {
         throw new Error('Áudio não deve tocar automaticamente.');
       },
-    } as unknown as VoicePlayback,
+    }) as unknown as VoicePlayback,
     () => {},
   );
   return { ui, blobs, revoked, body };
@@ -231,4 +231,42 @@ await test('falha automática permite uma tentativa explícita, sem duplicar dow
   assert.equal(loads, 2);
   assert.equal(blobs.length, 1);
   assert.equal(preview.children[0]?.children[0]?.tag, 'img');
+});
+
+await test('mensagem de voz mostra só o player e baixa o áudio somente ao tocar', async (t) => {
+  const players: { load: () => Promise<void> }[] = [],
+    played: number[][] = [];
+  const { ui } = environment(t, {
+    element: (input) => {
+      players.push(input);
+      return new MediaNode('div') as unknown as HTMLElement;
+    },
+    play: (input) => {
+      played.push([...input.bytes]);
+    },
+  });
+  const bytes = new Uint8Array([1, 2, 3]);
+  let loads = 0;
+  const { article } = render(
+    ui,
+    () => {
+      loads++;
+      return Promise.resolve(bytes);
+    },
+    {
+      ...content('audio/wav'),
+      name: 'mensagem-de-voz.wav',
+      voice: { samples: 16000, sampleRate: 16000 },
+    },
+  );
+  await flush();
+  assert.equal(loads, 0);
+  assert.deepEqual(
+    article.children.map((node) => node.tag),
+    ['div'],
+  );
+  await players[0]?.load();
+  assert.equal(loads, 1);
+  assert.deepEqual(played, [[1, 2, 3]]);
+  assert.ok(bytes.every((value) => value === 0));
 });

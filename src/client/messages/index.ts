@@ -6,6 +6,8 @@ import {
   historyPosition,
   resetHistoryPosition,
   updateMessageStates,
+  bindRecordGesture,
+  showRecording,
 } from '../chat-ui/index.ts';
 import { displayName, paintAvatar, shortAddress } from '../appearance/index.ts';
 import type { HistoryUpdate } from '../message-visibility/index.ts';
@@ -32,7 +34,6 @@ import { startGroups } from '../groups/index.ts';
 import type { startRepresentatives } from '../representatives/index.ts';
 import type { VoicePlayback } from '../voice-playback/index.ts';
 import { VoiceRecording } from '../voice-recording/index.ts';
-import { voiceDuration, voiceRate } from '../../shared/voice/index.ts';
 import { AttachmentUi } from '../attachment-ui/index.ts';
 import type { LiveEvent } from '../message-live/index.ts';
 import { LiveMessages, LiveUpdates } from '../message-live/index.ts';
@@ -156,13 +157,7 @@ export function startMessages(
     },
   });
   function voiceStatus(): void {
-    const notice = node('[data-voice-status]');
-    if (notice)
-      notice.textContent =
-        voice.state.notice +
-        (voice.active && voice.state.samples
-          ? ` ${voiceDuration({ samples: voice.state.samples, sampleRate: voiceRate })} / 1:30`
-          : '');
+    showRecording(node('[data-message-form]'), voice.state);
     composerStatus();
     voiceButtons();
     voiceFiles();
@@ -1705,18 +1700,24 @@ export function startMessages(
       if (!selected || selected.localOnly || !options.calls) return;
       void options.calls.start(selected.accountId);
     });
-    bind('[data-voice-record]', () => {
-      if (
-        busy ||
-        voice.active ||
-        attachments.selected ||
-        !selected ||
-        !session ||
-        options.calls?.active()
-      )
-        return;
-      recordingPeer = selected.accountId;
-      void voice.start();
+    bindRecordGesture(node('[data-voice-record]'), {
+      start: () => {
+        if (
+          busy ||
+          voice.active ||
+          attachments.selected ||
+          !selected ||
+          !session ||
+          options.calls?.active()
+        )
+          return;
+        recordingPeer = selected.accountId;
+        void voice.start();
+      },
+      // Releasing before the microphone opens keeps recording hands-free.
+      release: () => {
+        if (voice.state.phase === 'recording') void voice.stop();
+      },
     });
     bind('[data-voice-stop]', () => {
       void voice.stop();

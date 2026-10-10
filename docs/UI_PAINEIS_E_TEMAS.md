@@ -285,3 +285,20 @@ Pedido do proprietário:
 - **Topo da comunidade:** só a foto sobrepõe o banner; nome, seguidores e "Seguir/Seguindo" ficam abaixo dele.
 
 **Ponto importante:** o texto sobre análise da mídia, prazos de descarte e contestação deixou de aparecer junto ao seletor. As regras não mudaram, e a análise e a contestação continuam no Perfil.
+
+## Foto sem moldura e novo áudio — 10/10/2026
+
+Pedido do proprietário:
+
+- **Foto sozinha:** imagem no chat aparece sem balão e sem moldura, como o GIF. A moldura escura vinha do estilo genérico de botão do chat aplicado ao botão que amplia a foto. Hora e marcação ficam abaixo da foto.
+- **Mensagem de voz:** a bolha mostra só um play redondo, uma barra de posição e o tempo; não mostra mais tamanho em MB nem "Carregar áudio para ouvir". O primeiro toque baixa, decripta e toca; durante a reprodução, a mesma bolha pausa e permite arrastar a posição. Se a bolha sair da tela enquanto toca (troca de conversa, mensagem retirada), aparece um mini-player flutuante com pausa, posição e fechar.
+- **Gravação:** durante a gravação, a linha de digitação dá lugar a uma barra com lixeira (cancelar), ponto vermelho, tempo `0:05 / 1:30` e botão de parar (parar e conferir). As duas funções antigas continuam.
+- **Gestos no celular:**
+  - segurar o microfone grava, e soltar para e abre a prévia;
+  - toque duplo grava sem segurar, e a parada é pelo botão da barra;
+  - toque simples mostra a dica "Segure para gravar ou toque duas vezes.".
+  - No desktop, o clique continua iniciando a gravação.
+  - Se o dedo soltar antes de o microfone abrir (primeira permissão), a gravação continua sem segurar.
+- **Prévia:** o mesmo player da bolha, a lixeira e o aviso curto "Não enviado · some se a página recarregar". Nada é enviado sem tocar em Enviar.
+
+**Ponto importante:** o envio continua sempre explícito. Soltar o dedo nunca envia: só abre a prévia. As mensagens pelo `@` usam o novo player nas bolhas, mas os botões de gravação delas ficaram como estavam.
