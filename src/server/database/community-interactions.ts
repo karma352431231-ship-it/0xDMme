@@ -133,6 +133,8 @@ export async function replyNotifications(
       community: row.community,
       createdAt: row.created_at.toISOString(),
       read: row.read,
+      // Filled by the post store, which owns the public post projection.
+      preview: null,
     })),
     next:
       rows.rows.length > communityPageSize && last

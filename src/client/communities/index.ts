@@ -22,6 +22,7 @@ import {
 import { mountCommunityGovernance } from './governance.ts';
 import { startCommunityPosts } from './posts.ts';
 import { replyNotificationPage } from '../../shared/community-posts/index.ts';
+import type { ReplyNotification } from '../../shared/community-posts/index.ts';
 import { startCommunityDiscovery } from './discovery.ts';
 import { startSocialDmUi } from './dms.ts';
 import type { VaultSync } from '../vault-sync/index.ts';
@@ -718,9 +719,7 @@ export function startCommunities(
     dmDirectory: (node: HTMLElement, valid: () => boolean) =>
       dms.directory(node, valid),
     /** Unread replies for Atividade; the same notices as “Respostas ao seu conteúdo”. */
-    async unreadReplies(): Promise<
-      readonly { reply: string; community: string; createdAt: string }[]
-    > {
+    async unreadReplies(): Promise<readonly ReplyNotification[]> {
       const page = replyNotificationPage(
         await controller.request('post-notifications', { after: null }),
       );

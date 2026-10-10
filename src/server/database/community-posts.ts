@@ -11,8 +11,13 @@ import {
   communityCursor,
   communityPageSize,
 } from '../../shared/communities/index.ts';
-import { postContent, postCursor } from '../../shared/community-posts/index.ts';
+import {
+  postContent,
+  postCursor,
+  replyPreview,
+} from '../../shared/community-posts/index.ts';
 import type {
+  ReplyNotificationPage,
   CommunityPost,
   PostContent,
   PostPage,
@@ -230,6 +235,27 @@ export class CommunityPostStore {
     );
     const lookup = await this.lookups(client, found.rows);
     return found.rows.map((row) => this.view(row, lookup));
+  }
+  /** One bounded read with the same privacy rules as any public post view. */
+  private async withPreviews(
+    client: Pick<pg.PoolClient, 'query'>,
+    page: ReplyNotificationPage,
+  ): Promise<ReplyNotificationPage> {
+    const posts = new Map(
+      (
+        await this.readMany(
+          client,
+          page.items.map((item) => item.reply),
+        )
+      ).map((post) => [post.id, post]),
+    );
+    return {
+      ...page,
+      items: page.items.map((item) => ({
+        ...item,
+        preview: replyPreview(posts.get(item.reply)),
+      })),
+    };
   }
   async tags(community: string, after: string | null) {
     return communityTagPage(this.pool, { community, after, all: false });
@@ -517,10 +543,12 @@ export class CommunityPostStore {
     authority: ContactAuthority,
     data: Record<string, unknown>,
   ): Promise<unknown> {
-    if (
-      operation === 'post-notifications' ||
-      operation === 'post-notifications-read'
-    )
+    if (operation === 'post-notifications')
+      return this.communities.withActor(authority, async (context) => {
+        const page = await replyNotifications(context, operation, data);
+        return 'items' in page ? this.withPreviews(context.client, page) : page;
+      });
+    if (operation === 'post-notifications-read')
       return this.communities.withActor(authority, (context) =>
         replyNotifications(context, operation, data),
       );

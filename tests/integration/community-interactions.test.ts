@@ -179,6 +179,11 @@ await test('corte 5: árvore, votos e avisos diretos com autorização e persist
       );
       assert.equal((await communities.post(community, root)).replies, 1);
       assert.equal((await notices(owner)).items.length, 1);
+      // Atividade shows who answered and what, from the public projection.
+      const preview = (await notices(owner)).items[0]?.preview;
+      assert.equal(preview?.status, 'visible');
+      assert.equal(preview?.text, 'Resposta sintética');
+      assert.equal(typeof preview?.author, 'string');
       assert.equal((await notices(author)).items.length, 0);
       const jobs = await db.daily.jobs();
       const job = jobs.find(

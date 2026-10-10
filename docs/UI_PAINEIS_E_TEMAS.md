@@ -248,3 +248,11 @@ Pedido do proprietário:
 - **Gerenciar comunidade:** dono e moderadores veem o link no canto superior direito do banner. Ele abre uma tela isolada (`#comunidades?id=…&view=manage`) com nome, descrição e regras, foto, tags e as ferramentas de governança. Participantes continuam com "Participação e denúncias" na página.
 
 **Ponto importante:** o banner é gerado a partir da cor da comunidade. Um banner enviado pelo dono seria mídia pública nova, com envio, armazenamento, migração e passagem pela moderação automática. Fica para decisão do proprietário.
+
+## Respostas visíveis na Atividade — 10/10/2026
+
+Pedido do proprietário: a Atividade mostra direto o que foi respondido, sem precisar abrir.
+
+- Cada resposta mostra o avatar e "**@pessoa respondeu**", o começo do texto em contraste total (até 3 linhas) e o horário relativo; **Abrir** leva ao post aberto.
+- O servidor anexa a prévia à mesma consulta de avisos, por uma leitura em lote limitada ao tamanho da página e com as mesmas regras de qualquer post público. Respostas removidas pela moderação ou excluídas não trazem autor nem texto, e a validação compartilhada recusa uma prévia oculta que traga esses dados.
+- A prévia leva até 280 caracteres. Uma resposta só com mídia aparece como "Enviou uma mídia".

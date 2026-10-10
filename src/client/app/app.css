@@ -1272,6 +1272,20 @@
 .activity-copy strong {
   overflow-wrap: anywhere;
 }
+/* The reply itself, readable at a glance; the full thread opens with Abrir. */
+.activity-quote {
+  display: -webkit-box;
+  margin: 4px 0;
+  overflow: hidden;
+  color: var(--text);
+  font-size: 14.5px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+}
 .activity-copy small {
   color: var(--text-muted);
   font-size: var(--fs-caption);

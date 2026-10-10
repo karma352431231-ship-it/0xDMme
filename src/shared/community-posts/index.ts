@@ -7,7 +7,7 @@ import {
   communityText,
 } from '../communities/index.ts';
 import { communityMediaIds } from '../community-media/index.ts';
-import { publicProfile } from '../public-profile/index.ts';
+import { publicHandle, publicProfile } from '../public-profile/index.ts';
 import type { PublicProfile } from '../public-profile/index.ts';
 import { publicPostMedia } from '../public-media/index.ts';
 import type { PublicPostMedia } from '../public-media/index.ts';
@@ -304,12 +304,59 @@ function postTree(data: Record<string, unknown>) {
     throw new AccountError(400, 'Resposta não admite título/tag.');
   return { parent, root };
 }
+/**
+ * What Atividade shows of a reply without opening it: the public author and
+ * the start of the text. Removed or deleted replies carry no author or text.
+ */
+export interface ReplyPreview {
+  author: string | null;
+  text: string;
+  media: boolean;
+  status: 'visible' | 'removed' | 'deleted';
+}
+export const replyPreviewLength = 280;
 export interface ReplyNotification {
   reply: string;
   post: string;
   community: string;
   createdAt: string;
   read: boolean;
+  preview: ReplyPreview | null;
+}
+export function replyPreview(
+  post: CommunityPost | undefined,
+): ReplyPreview | null {
+  if (!post) return null;
+  if (post.status !== 'visible')
+    return { author: null, text: '', media: false, status: post.status };
+  return {
+    author: post.author?.handle ?? null,
+    text: (post.text || post.title).slice(0, replyPreviewLength),
+    media: !!post.media?.length,
+    status: 'visible',
+  };
+}
+function previewStatus(value: unknown): ReplyPreview['status'] {
+  if (value === 'visible' || value === 'removed' || value === 'deleted')
+    return value;
+  throw new AccountError(400, 'Prévia de resposta inválida.');
+}
+function previewText(value: unknown): string {
+  if (typeof value === 'string' && value.length <= replyPreviewLength)
+    return value;
+  throw new AccountError(400, 'Prévia de resposta inválida.');
+}
+function parseReplyPreview(value: unknown): ReplyPreview | null {
+  if (value === null) return null;
+  const data = object(value);
+  keys(data, ['author', 'text', 'media', 'status']);
+  const status = previewStatus(data['status']),
+    text = previewText(data['text']),
+    author = data['author'] === null ? null : publicHandle(data['author']);
+  // Hidden replies never carry who wrote them or what they said.
+  if (status !== 'visible' && (author !== null || text !== ''))
+    throw new AccountError(400, 'Prévia de resposta inválida.');
+  return { author, text, media: communityBoolean(data['media']), status };
 }
 export interface ReplyNotificationPage {
   items: ReplyNotification[];
@@ -321,13 +368,14 @@ export function replyNotificationPage(value: unknown): ReplyNotificationPage {
   return {
     items: communityArray(data['items']).map((value) => {
       const row = object(value);
-      keys(row, ['reply', 'post', 'community', 'createdAt', 'read']);
+      keys(row, ['reply', 'post', 'community', 'createdAt', 'read', 'preview']);
       return {
         reply: uuid(row['reply']),
         post: uuid(row['post']),
         community: uuid(row['community']),
         createdAt: postTime(row['createdAt']),
         read: communityBoolean(row['read']),
+        preview: parseReplyPreview(row['preview']),
       };
     }),
     next: postCursor(data['next']),

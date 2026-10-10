@@ -106,7 +106,7 @@ await test('links são navegação HTTP(S) explícita; esquemas executáveis, cr
     assert.equal(postLink(link), null);
 });
 await test('árvore, votos privados e avisos recusam referências incoerentes ou dados fora do contrato', async () => {
-  const { postVote, replyNotificationPage } =
+  const { postVote, replyNotificationPage, replyPreview } =
     await import('../src/shared/community-posts/index.ts');
   const value = post();
   for (const patch of [
@@ -137,10 +137,34 @@ await test('árvore, votos privados e avisos recusam referências incoerentes ou
     community: id(),
     createdAt: time,
     read: false,
+    preview: {
+      author: 'ana',
+      text: 'Concordo!',
+      media: false,
+      status: 'visible',
+    },
   };
   assert.deepEqual(replyNotificationPage({ items: [item], next: null }).items, [
     item,
   ]);
+  // A hidden reply may not carry its author or text in the preview.
+  for (const preview of [
+    { author: 'ana', text: '', media: false, status: 'removed' },
+    { author: null, text: 'segredo', media: false, status: 'deleted' },
+    { author: null, text: 'x'.repeat(281), media: false, status: 'visible' },
+  ])
+    assert.throws(
+      () =>
+        replyNotificationPage({ items: [{ ...item, preview }], next: null }),
+      AccountError,
+    );
+  assert.deepEqual(replyPreview({ ...value, status: 'removed' }), {
+    author: null,
+    text: '',
+    media: false,
+    status: 'removed',
+  });
+  assert.equal(replyPreview(undefined), null);
   assert.throws(
     () =>
       replyNotificationPage({

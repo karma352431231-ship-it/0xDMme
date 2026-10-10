@@ -21,7 +21,18 @@ export interface ActivitySources {
   >;
   respondGroupInvite: (id: string, accept: boolean) => Promise<void>;
   replies: () => Promise<
-    readonly { reply: string; community: string; createdAt: string }[]
+    readonly {
+      reply: string;
+      community: string;
+      createdAt: string;
+      /** Author and start of the reply, already filtered by public visibility. */
+      preview: {
+        author: string | null;
+        text: string;
+        media: boolean;
+        status: 'visible' | 'removed' | 'deleted';
+      } | null;
+    }[]
   >;
   markRepliesRead: (replies: readonly string[]) => Promise<void>;
   transfers: () => Promise<readonly { id: string; name: string }[]>;
@@ -89,6 +100,30 @@ async function load<T>(read: () => Promise<readonly T[]>): Promise<Loaded<T>> {
   }
 }
 
+/** The reply itself, or why it cannot be shown. */
+export function replyQuote(
+  preview: {
+    text: string;
+    media: boolean;
+    status: 'visible' | 'removed' | 'deleted';
+  } | null,
+): string {
+  if (!preview) return '';
+  if (preview.status === 'deleted') return 'Resposta excluída pelo autor.';
+  if (preview.status === 'removed') return 'Resposta ocultada pela moderação.';
+  if (preview.text) return preview.text;
+  return preview.media ? 'Enviou uma mídia.' : '';
+}
+function relativeTime(iso: string): string {
+  const minutes = Math.max(
+    0,
+    Math.floor((Date.now() - Date.parse(iso)) / 60_000),
+  );
+  if (minutes < 1) return 'agora';
+  if (minutes < 60) return `há ${minutes} min`;
+  if (minutes < 1440) return `há ${Math.floor(minutes / 60)} h`;
+  return new Date(iso).toLocaleDateString('pt-BR');
+}
 function element<K extends keyof HTMLElementTagNameMap>(
   tag: K,
   text = '',
@@ -190,6 +225,8 @@ export function startActivity(
   function row(input: {
     avatar?: { label: string; seed: string };
     title: string;
+    /** Content shown in full contrast between the title and the detail. */
+    quote?: string;
     detail: string;
     actions: HTMLElement[];
   }): HTMLLIElement {
@@ -201,7 +238,9 @@ export function startActivity(
       item.append(avatar);
     }
     const copy = element('div', '', 'activity-copy');
-    copy.append(element('strong', input.title), element('small', input.detail));
+    copy.append(element('strong', input.title));
+    if (input.quote) copy.append(element('p', input.quote, 'activity-quote'));
+    copy.append(element('small', input.detail));
     const actions = element('div', '', 'activity-actions');
     actions.append(...input.actions);
     item.append(copy, actions);
@@ -264,15 +303,25 @@ export function startActivity(
     );
   }
   function replyRows(): HTMLElement[] {
-    return snapshot.replies.items.map((reply) =>
-      row({
-        title: 'Nova resposta ao seu conteúdo',
-        detail: new Date(reply.createdAt).toLocaleString('pt-BR'),
+    return snapshot.replies.items.map((reply) => {
+      const preview = reply.preview;
+      return row({
+        ...(preview?.author
+          ? { avatar: { label: preview.author, seed: preview.author } }
+          : {}),
+        title: preview?.author
+          ? `@${preview.author} respondeu`
+          : 'Nova resposta ao seu conteúdo',
+        quote: replyQuote(preview),
+        detail: relativeTime(reply.createdAt),
         actions: [
-          link('Ver', `#comunidades?id=${reply.community}&post=${reply.reply}`),
+          link(
+            'Abrir',
+            `#comunidades?id=${reply.community}&post=${reply.reply}`,
+          ),
         ],
-      }),
-    );
+      });
+    });
   }
   function transferRows(): HTMLElement[] {
     return snapshot.transfers.items.map((community) =>

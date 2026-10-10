@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { activityGroups, startActivity } from '../src/client/activity/index.ts';
+import {
+  activityGroups,
+  replyQuote,
+  startActivity,
+} from '../src/client/activity/index.ts';
 import type { ActivitySources } from '../src/client/activity/index.ts';
 import type { AccountSession } from '../src/shared/account/index.ts';
 
@@ -16,7 +20,12 @@ function sources(overrides: Partial<ActivitySources> = {}): ActivitySources {
     respondGroupInvite: () => Promise.resolve(),
     replies: () =>
       Promise.resolve([
-        { reply: 'r', community: 'c', createdAt: '2026-10-09T10:00:00Z' },
+        {
+          reply: 'r',
+          community: 'c',
+          createdAt: '2026-10-09T10:00:00Z',
+          preview: null,
+        },
       ]),
     markRepliesRead: () => Promise.resolve(),
     transfers: () => Promise.resolve([]),
@@ -74,4 +83,21 @@ await test('filtros: Pedidos reúne o que espera resposta e Respostas só as res
     ['replies', ['replies']],
   ] as const)
     assert.deepEqual(activityGroups(filter), groups);
+});
+
+await test('resposta aparece direto na Atividade; ocultas e excluídas não mostram texto', () => {
+  for (const [preview, expected] of [
+    [null, ''],
+    [{ text: 'Concordo!', media: false, status: 'visible' }, 'Concordo!'],
+    [{ text: '', media: true, status: 'visible' }, 'Enviou uma mídia.'],
+    [
+      { text: '', media: false, status: 'removed' },
+      'Resposta ocultada pela moderação.',
+    ],
+    [
+      { text: '', media: false, status: 'deleted' },
+      'Resposta excluída pelo autor.',
+    ],
+  ] as const)
+    assert.equal(replyQuote(preview), expected);
 });
