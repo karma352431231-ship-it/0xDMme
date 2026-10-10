@@ -84,6 +84,7 @@ function messageBodyLimit(url: string): number {
 function bodyLimit(url: string | undefined): number {
   if (
     url === '/api/account/public-profile/avatar' ||
+    url === '/api/account/public-profile/banner' ||
     url === '/api/account/communities/photo'
   )
     return Math.ceil(publicAvatarLimit / 3) * 4 + 4096;

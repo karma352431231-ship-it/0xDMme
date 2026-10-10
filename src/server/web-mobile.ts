@@ -75,6 +75,7 @@ try {
   const publicProfiles = new PublicProfileService(
     database.publicProfiles,
     database.devices,
+    database.profileSocial,
   );
   const communityMedia = new CommunityMediaService({
     store: database.communityMedia,
@@ -103,8 +104,9 @@ try {
         config.objectDirectory,
       ),
     ),
-    publicProfiles: createPublicProfileHandler((handle) =>
-      publicProfiles.read(handle),
+    publicProfiles: createPublicProfileHandler(
+      (handle) => publicProfiles.read(handle),
+      publicProfiles,
     ),
     communities: createCommunityHandler({
       origin: mobile.origin,

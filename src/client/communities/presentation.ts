@@ -106,12 +106,17 @@ export function postHeader(
 }
 function authorAvatar(post: CommunityPost): HTMLElement {
   const label = post.author?.handle ?? '?';
-  const avatar = el('span', '', 'community-avatar person');
+  const avatar = post.author
+    ? el('a', '', 'community-avatar person')
+    : el('span', '', 'community-avatar person');
+  if (avatar instanceof HTMLAnchorElement && post.author) {
+    avatar.href = `#publico?handle=${encodeURIComponent(post.author.handle)}`;
+    avatar.setAttribute('aria-label', `Abrir perfil de @${post.author.handle}`);
+  } else avatar.setAttribute('aria-hidden', 'true');
   avatar.append(
     el('span', avatarInitials(label) || '?', 'community-avatar-initial'),
   );
   avatar.dataset['tone'] = avatarTone(label);
-  avatar.setAttribute('aria-hidden', 'true');
   return avatar;
 }
 export function postComments(

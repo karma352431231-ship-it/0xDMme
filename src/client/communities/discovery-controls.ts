@@ -152,6 +152,7 @@ export function discoveryMenu(
   return menu;
 }
 export const feedOrders = [
+  ['mixed', 'Destaques'],
   ['recent', 'Recentes'],
   ['votes', 'Mais votados'],
   ['replies', 'Mais comentados'],

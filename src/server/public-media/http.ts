@@ -4,7 +4,7 @@ import { publicMediaPath } from '../../shared/public-media/index.ts';
 import type { PublicMediaService } from './service.ts';
 
 function publicRoute(url: string): {
-  kind: 'avatar' | 'community-photo' | 'post-media';
+  kind: 'avatar' | 'profile-banner' | 'community-photo' | 'post-media';
   target: string;
   review: string;
   thumbnail: boolean;
@@ -13,7 +13,10 @@ function publicRoute(url: string): {
     kind = parts[3];
   if (
     ![6, 7].includes(parts.length) ||
-    (kind !== 'avatar' && kind !== 'community-photo' && kind !== 'post-media')
+    (kind !== 'avatar' &&
+      kind !== 'profile-banner' &&
+      kind !== 'community-photo' &&
+      kind !== 'post-media')
   )
     throw new AccountError(404, 'Mídia pública indisponível.');
   const target = uuid(parts[4]),
@@ -25,7 +28,7 @@ function publicRoute(url: string): {
 function requireCanonicalRoute(input: {
   url: string;
   parts: string[];
-  kind: 'avatar' | 'community-photo' | 'post-media';
+  kind: 'avatar' | 'profile-banner' | 'community-photo' | 'post-media';
   target: string;
   review: string;
   thumbnail: boolean;

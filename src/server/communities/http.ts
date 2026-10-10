@@ -165,7 +165,7 @@ export function createCommunityHandler(read: {
         await read.feed(
           feedFilter({
             scope: 'all',
-            order: query.get('order') ?? 'recent',
+            order: query.get('order') ?? 'mixed',
             period: query.get('period') ?? 'all',
             community: query.get('community'),
             tag: query.get('tag'),

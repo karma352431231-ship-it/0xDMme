@@ -18,23 +18,47 @@ import type {
   ContactAuthority,
   DeviceStore,
   PublicProfileStore,
+  ProfileSocialStore,
 } from '../database/index.ts';
 import type { PublicModerationNotice } from '../../shared/public-moderation/index.ts';
+import { postCount } from '../../shared/community-posts/index.ts';
 type PublicProfileResponse =
   | Awaited<ReturnType<PublicProfileStore['state']>>
   | PublicModerationNotice[]
-  | PublicModerationNotice;
+  | PublicModerationNotice
+  | Awaited<ReturnType<PublicProfileStore['banners']['state']>>
+  | Awaited<ReturnType<ProfileSocialStore['operate']>>;
 export class PublicProfileService {
   private readonly store: PublicProfileStore;
   private readonly devices: DeviceStore;
-  constructor(store: PublicProfileStore, devices: DeviceStore) {
+  private readonly social: ProfileSocialStore | undefined;
+  constructor(
+    store: PublicProfileStore,
+    devices: DeviceStore,
+    social?: ProfileSocialStore,
+  ) {
     this.store = store;
     this.devices = devices;
+    this.social = social;
   }
   async read(handle: unknown) {
     const profile = await this.store.read(publicHandle(handle));
     if (!profile) throw new AccountError(404, 'Perfil público indisponível.');
     return profile;
+  }
+  private pages(): ProfileSocialStore {
+    if (!this.social)
+      throw new AccountError(503, 'Página pública indisponível.');
+    return this.social;
+  }
+  summary(handle: string) {
+    return this.pages().summary(publicHandle(handle));
+  }
+  memberships(handle: string, after: string | null) {
+    return this.pages().memberships(publicHandle(handle), after);
+  }
+  activity(handle: string, tab: string, after: string | null) {
+    return this.pages().activity(publicHandle(handle), tab, after);
   }
   operate(
     operation: 'state' | 'create' | 'avatar',
@@ -66,6 +90,10 @@ export class PublicProfileService {
         'state',
         'create',
         'avatar',
+        'banner-state',
+        'banner',
+        'follow-state',
+        'follow',
         'moderation-notices',
         'moderation-appeal',
       ].includes(operation)
@@ -96,6 +124,10 @@ export class PublicProfileService {
     authority: ContactAuthority,
     data: Record<string, unknown>,
   ) {
+    if (
+      ['follow', 'follow-state', 'banner', 'banner-state'].includes(operation)
+    )
+      return this.socialOperation(operation, authority, data);
     if (operation === 'moderation-notices') {
       keys(data, ['after']);
       return this.store.moderationNotices(
@@ -128,6 +160,24 @@ export class PublicProfileService {
       authority,
       profileRevision(data['revision']),
       pendingPublicAvatar(data['avatar']),
+    );
+  }
+  private socialOperation(
+    operation: string,
+    authority: ContactAuthority,
+    data: Record<string, unknown>,
+  ) {
+    if (operation === 'follow' || operation === 'follow-state')
+      return this.pages().operate(operation, authority, data);
+    if (operation === 'banner-state') {
+      keys(data, []);
+      return this.store.banners.state(authority);
+    }
+    keys(data, ['revision', 'banner']);
+    return this.store.banners.replace(
+      authority,
+      postCount(data['revision']),
+      pendingPublicAvatar(data['banner']),
     );
   }
 }

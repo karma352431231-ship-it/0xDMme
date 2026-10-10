@@ -4,6 +4,8 @@ Estado: plano consolidado em 10 cortes; cortes 1–9 implementados localmente. P
 
 ## Decisões do proprietário
 
+**Atualização em 10/10/2026:** a lista de comunidades seguidas passa a ser pública no perfil individual por escolha explícita do proprietário, incluindo comunidades sem posts/respostas desse perfil. A privacidade de seguidos descrita nos cortes históricos abaixo foi substituída somente para comunidades; novas relações de seguir perfis, salvos, ocultos e posições de votos não se tornam listas públicas. Perfil, métricas, banner e composição dos feeds no [contrato atualizado](PERFIL_PUBLICO_E_FEEDS.md).
+
 - Preservar Conversas com a tela existente, contatos e grupos privados; Comunidades é uma área separada.
 - Perfil e Configurações formam uma única tela no desktop/mobile: foto, nome, wallet e demais dados da própria conta no topo; configurações existentes logo abaixo. Não obrigar outra navegação para configurar. Informações privadas dessa tela pertencem ao dono autenticado e não compõem o perfil público por `@`.
 - Na área Comunidades, a coluna esquerda mostra comunidades seguidas, DMs pelo `@`, Feed geral e Ranking (Explorar no contrato histórico). A prévia social apresentada na conversa foi aceita como base inicial. O uso de “MVP” refere-se a essa base visual, sem reduzir os requisitos já aprovados da V1 privada.

@@ -6,6 +6,7 @@ import type { PendingPublicAvatar } from '../../shared/public-avatar/index.ts';
 import { publicAvatarPath } from '../../shared/public-media/index.ts';
 import type { ContactAuthority, ContactStore } from './contacts.ts';
 import { assertContentCapacity } from './vault-quota.ts';
+import { ProfileBanners } from './profile-banners.ts';
 import type {
   PublicModerationStore,
   PublicModerationSubject,
@@ -49,6 +50,7 @@ function sameAvatar(
   return avatar !== null && row.pendingAvatar.equals(avatar.bytes);
 }
 export class PublicProfileStore {
+  readonly banners: ProfileBanners;
   private readonly pool: pg.Pool;
   private readonly authority: ContactStore;
   private readonly capacity: number;
@@ -63,6 +65,13 @@ export class PublicProfileStore {
     this.authority = authority;
     this.capacity = capacity;
     this.moderation = moderation;
+    this.banners = new ProfileBanners({
+      pool,
+      moderation,
+      authority,
+      capacity,
+      identity: (client, account) => this.identity(client, account),
+    });
   }
   async read(handle: string): Promise<PublicProfile | null> {
     const result = await this.pool.query<ProfileRow>(
@@ -255,6 +264,7 @@ export class PublicProfileStore {
   async moderationCandidate(
     job: PublicModerationSubject,
   ): Promise<PendingPublicAvatar | null> {
+    if (job.kind === 'profile-banner') return this.banners.candidate(job);
     if (job.kind !== 'avatar' || job.target !== job.owner) return null;
     const result = await this.pool.query<ProfileRow>(
       `SELECT ${ownColumns} FROM hash_talk.public_profiles WHERE id=$1 AND pending_review=$2`,
@@ -283,8 +293,13 @@ export class PublicProfileStore {
       return null;
     return this.moderationCandidate(subject);
   }
+  releasedBanner(target: string, review: string) {
+    return this.banners.released(target, review);
+  }
   /** Lock order matches avatar replacement: target first, review second. */
   async bindPolicy(client: pg.PoolClient, job: PublicModerationSubject) {
+    if (job.kind === 'profile-banner')
+      return this.banners.bindPolicy(client, job);
     if (job.kind !== 'avatar' || job.target !== job.owner) return null;
     const found = await client.query<ProfileRow>(
       `SELECT ${publicColumns} FROM hash_talk.public_profiles WHERE id=$1 FOR UPDATE`,
@@ -305,6 +320,7 @@ export class PublicProfileStore {
     };
   }
   async bindModeration(client: pg.PoolClient, job: PublicModerationSubject) {
+    if (job.kind === 'profile-banner') return this.banners.bind(client, job);
     if (job.kind !== 'avatar' || job.target !== job.owner) return null;
     const result = await client.query<ProfileRow>(
       `SELECT ${ownColumns} FROM hash_talk.public_profiles WHERE id=$1 FOR UPDATE`,
@@ -344,6 +360,7 @@ export class PublicProfileStore {
     };
   }
   async collectModeration(signal: AbortSignal): Promise<number> {
+    const banners = await this.banners.collect(signal);
     await this.moderation.expired('avatar');
     const reviews = await this.moderation.discarding('avatar');
     for (const review of reviews) {
@@ -352,9 +369,14 @@ export class PublicProfileStore {
         this.bindCollection(client, subject),
       );
     }
-    return reviews.length;
+    return reviews.length + banners;
   }
-  nextModerationCollection(): Promise<number | null> {
-    return this.moderation.nextCollection('avatar');
+  async nextModerationCollection(): Promise<number | null> {
+    const next = await Promise.all([
+      this.moderation.nextCollection('avatar'),
+      this.banners.nextCollection(),
+    ]);
+    const times = next.filter((time): time is number => time !== null);
+    return times.length ? Math.min(...times) : null;
   }
 }

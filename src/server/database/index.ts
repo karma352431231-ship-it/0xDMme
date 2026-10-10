@@ -22,6 +22,8 @@ export { DatabaseChanges };
 export type { CommittedChange } from './changes.ts';
 import { AuthenticationStore } from './authentication.ts';
 import { PublicProfileStore } from './public-profile.ts';
+import { ProfileSocialStore } from './profile-social.ts';
+export type { ProfileSocialStore } from './profile-social.ts';
 export type { PublicProfileStore } from './public-profile.ts';
 import { PublicModerationStore } from './public-moderation.ts';
 import type { PublicModerationAcceptedModel } from './public-moderation.ts';
@@ -143,6 +145,9 @@ const migrations = [
   '047-ranking-cache-budget.sql',
   '048-community-post-views.sql',
   '049-maintenance-work-signals.sql',
+  '050-video-post-publication-review.sql',
+  '051-public-profile-social.sql',
+  '052-profile-conversation-index.sql',
 ];
 
 export interface MaintenanceSnapshot {
@@ -173,6 +178,7 @@ export class Database {
   readonly changes = new DatabaseChanges();
   readonly authentication: AuthenticationStore;
   readonly publicProfiles: PublicProfileStore;
+  readonly profileSocial: ProfileSocialStore;
   readonly publicModeration: PublicModerationStore;
   readonly communities: CommunityStore;
   readonly communityPosts: CommunityPostStore;
@@ -304,6 +310,13 @@ export class Database {
       ranking: this.communityRanking,
       communities: this.communities,
       posts: (client, ids) => this.communityPosts.readMany(client, ids),
+      capacity: contentCapacity,
+    });
+    this.profileSocial = new ProfileSocialStore({
+      pool: this.pool,
+      profiles: this.publicProfiles,
+      communities: this.communities,
+      discovery: this.communityDiscovery,
       capacity: contentCapacity,
     });
     this.representatives = new RepresentativeStore(

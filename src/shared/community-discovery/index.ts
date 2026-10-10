@@ -15,7 +15,7 @@ import {
 } from '../community-posts/index.ts';
 import type { CommunityPost } from '../community-posts/index.ts';
 
-export type FeedOrder = 'recent' | 'votes' | 'replies';
+export type FeedOrder = 'mixed' | 'recent' | 'votes' | 'replies';
 export type DiscoveryPeriod = 'day' | 'week' | 'month' | 'all';
 export type FeedScope = 'all' | 'following' | 'saved' | 'hidden';
 export interface FeedFilter {
@@ -39,6 +39,7 @@ export interface RankCursor {
 export interface FeedEntry {
   post: CommunityPost;
   community: { id: string; name: string; avatar?: string | null };
+  context?: { root: CommunityPost; parent: CommunityPost };
 }
 export interface FeedPage {
   items: FeedEntry[];
@@ -74,7 +75,12 @@ export function discoveryPeriod(value: unknown): DiscoveryPeriod {
   return value;
 }
 export function feedOrder(value: unknown): FeedOrder {
-  if (value !== 'recent' && value !== 'votes' && value !== 'replies')
+  if (
+    value !== 'mixed' &&
+    value !== 'recent' &&
+    value !== 'votes' &&
+    value !== 'replies'
+  )
     throw new AccountError(400, 'Ordenação inválida.');
   return value;
 }
@@ -156,7 +162,12 @@ export function feedPage(value: unknown): FeedPage {
     items: communityArray(data['items']).map((value) => {
       const row = object(value),
         group = object(row['community']);
-      keys(row, ['post', 'community']);
+      keys(
+        row,
+        Object.hasOwn(row, 'context')
+          ? ['post', 'community', 'context']
+          : ['post', 'community'],
+      );
       keys(
         group,
         Object.hasOwn(group, 'avatar')
@@ -169,6 +180,9 @@ export function feedPage(value: unknown): FeedPage {
         throw new AccountError(400, 'Comunidade do feed inválida.');
       return {
         post,
+        ...(Object.hasOwn(row, 'context')
+          ? { context: feedContext(row['context'], post) }
+          : {}),
         community: {
           id,
           name: communityText(group['name'], 100),
@@ -178,6 +192,22 @@ export function feedPage(value: unknown): FeedPage {
     }),
     next: nextCursor(data['next']),
   };
+}
+function feedContext(value: unknown, post: CommunityPost) {
+  const data = object(value);
+  keys(data, ['root', 'parent']);
+  const root = communityPost(data['root']),
+    parent = communityPost(data['parent']);
+  if (
+    root.id !== post.root ||
+    parent.id !== post.parent ||
+    root.community !== post.community ||
+    parent.community !== post.community ||
+    root.parent !== null ||
+    root.status !== 'visible'
+  )
+    throw new AccountError(400, 'Contexto da resposta inválido.');
+  return { root, parent };
 }
 export function explorePage(value: unknown): ExplorePage {
   const data = object(value);

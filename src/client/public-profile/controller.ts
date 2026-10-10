@@ -23,6 +23,9 @@ export class PublicProfiles {
   constructor(access: VaultAccess) {
     this.access = access;
   }
+  hasSession(): boolean {
+    return this.session !== null;
+  }
   setSession(session: AccountSession | null): boolean {
     if (
       session?.csrf === this.session?.csrf &&
@@ -46,7 +49,7 @@ export class PublicProfiles {
     if (generation !== this.generation) throw new Error('Sessão alterada.');
     this.profile = ownPublicProfile(data);
   }
-  private async perform(
+  async perform(
     operation: string,
     payload: Record<string, unknown>,
   ): Promise<unknown> {

@@ -1,5 +1,59 @@
 # 0xDMme — Git e envio à VPS
 
+## Página pública individual — publicação autorizada em 10/10/2026
+
+A publicação anterior ativou `8a793e32e2cfaa7cc0b97b1195f30802f389c09d` e conservou
+o leitor público antigo. A página individual, follows, banner e composição dos
+feeds estavam em alterações locais. A conferência HTTP da preparação encontrou
+a rota compacta disponível e `/page`, `/activity` e `/communities` ausentes.
+O proprietário autorizou registrar e aplicar as migrações 050–052 no banco
+próprio e publicar a página após a CI integral passar, com backup verificado
+e pausa temporária do web e dos três workers próprios.
+
+A proposta mantém `npm run deploy:staging`, build no Mac, checkout limpo/enviado
+e CI integral do commit final. O módulo interno `deploy_profile_social.py`
+recusa a transição enquanto `REVIEWED` não identificar o commit de aplicação
+revisto. O predecessor fica fixado em `8a793e3`, com comparação integral das
+fontes e das 49 migrações já aplicadas, mesmos pacotes/Node e mesmos units.
+
+Fontes de aplicação fixadas em `8781914293edae254a855c49222b7136d5e3eba4`.
+O commit seguinte registra essa referência no executor e esta documentação;
+a publicação exige CI integral do commit final integrado.
+
+O banco próprio passa de 49 para 52 migrações. A 050 é preparação de schema do
+trabalho paralelo de moderação: acrescenta fase e aviso, com todos os registros
+existentes em `before` e aviso nulo. Sua inclusão preserva a numeração/checksums
+já usados localmente. As regras de vídeo em desenvolvimento ficam fora desta
+release. A 051 acrescenta data do perfil público para futuras criações, follows,
+banner e índices; a 052 acrescenta o índice de conversas. Perfis antigos mantêm
+data desconhecida, e as duas tabelas novas começam vazias.
+
+Antes de backup/migração, parar o web e os três workers próprios, conferindo
+seus PIDs. Usar o backup privado existente, com restauração ensaiada antes da
+troca. Comparar todas as linhas antigas, objetos, ledger de capacidade e
+checksums; conferir separadamente os defaults, índices e tabelas novas.
+Reabrir o web e depois os workers, exigindo saúde, assets exatos, três reservas
+PostgreSQL e preservação das configurações/processos registrados. PostgreSQL
+e serviços compartilhados continuam rodando; nenhum pacote, unit ou scanner
+novo faz parte da proposta.
+
+Falha antes da reabertura permite retorno verificado do banco/release e dos
+workers anteriores. Depois da reabertura, conservar as novas escritas, parar
+nossos escritores e exigir revisão. A conferência prévia de somente leitura
+encontrou 49 migrações, 83 tabelas de dados, workers prontos e backup dentro do
+orçamento existente. Evidências e acesso ficam exclusivamente em `.local/`.
+
+Passaram 160 testes do executor, incluindo interrupção parcial dos workers,
+retorno anterior à abertura e falha de prontidão dos workers após abrir.
+Os testes simulam serviços e backup; a restauração real permanece obrigatória
+durante a manutenção autorizada. A aplicação passou 18 testes unitários,
+27 integrações em banco exclusivo e as verificações estáticas/build locais.
+
+**Ponto importante:** a autorização específica inclui o SQL de preparação 050
+e a transição 049→052. O site fica temporariamente indisponível durante a
+manutenção. Banner continua restrito até a análise aceita já exigida pelo
+produto. A imagem de prévia usa dados fictícios e não comprova publicação.
+
 ## Teto do manifesto ampliado — 09/10/2026
 
 O proprietário pediu ampliar o teto de arquivos por release, que impedia o app de crescer (a publicação do redesign precisou juntar arquivos para caber). O executor passa a aceitar até 1024 entradas (`MAX_MANIFEST_FILES` em `deploy_remote.py`), no lugar de 512 mais conjuntos revisados. O teto continua barrando pacotes descontrolados; orçamentos de arquivo, extração e runtime não mudaram.

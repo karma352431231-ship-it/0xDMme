@@ -12,14 +12,16 @@ import type { PendingPublicAvatar } from '../../shared/public-avatar/index.ts';
 /** Read only the current released bytes; a public URI never bypasses the global gate. */
 export class PublicMediaService {
   private readonly stores: {
-    profiles: Pick<PublicProfileStore, 'releasedAvatar'>;
+    profiles: Pick<PublicProfileStore, 'releasedAvatar'> &
+      Partial<Pick<PublicProfileStore, 'releasedBanner'>>;
     communities: Pick<CommunityStore, 'releasedPhoto'>;
     media?: Pick<CommunityMediaStore, 'releasedMedia'>;
   };
   private readonly files: CommunityMediaFiles | null;
   constructor(
     stores: {
-      profiles: Pick<PublicProfileStore, 'releasedAvatar'>;
+      profiles: Pick<PublicProfileStore, 'releasedAvatar'> &
+        Partial<Pick<PublicProfileStore, 'releasedBanner'>>;
       communities: Pick<CommunityStore, 'releasedPhoto'>;
       media?: Pick<CommunityMediaStore, 'releasedMedia'>;
     },
@@ -34,9 +36,12 @@ export class PublicMediaService {
     review: string,
   ): Promise<PendingPublicAvatar> {
     const read = () =>
-      kind === 'avatar'
-        ? this.stores.profiles.releasedAvatar(target, review)
-        : this.stores.communities.releasedPhoto(target, review);
+      kind === 'profile-banner'
+        ? (this.stores.profiles.releasedBanner?.(target, review) ??
+          Promise.resolve(null))
+        : kind === 'avatar'
+          ? this.stores.profiles.releasedAvatar(target, review)
+          : this.stores.communities.releasedPhoto(target, review);
     const content = await read();
     if (!content || !(await read()))
       throw new AccountError(404, 'Mídia pública indisponível.');
