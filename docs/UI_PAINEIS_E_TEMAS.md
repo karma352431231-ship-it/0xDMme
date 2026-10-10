@@ -265,3 +265,9 @@ Pedido do proprietário: usar a logo do 0xDMme no canto superior esquerdo e na a
 - `icon-192.png` e `icon-512.png` (ícone instalado e manifesto) foram gerados do PNG 512 do finalista. Eles usam paleta de 256 cores e não levam metadados.
 - A paleta é necessária porque o pacote "Código e licenças" tem teto de 2 MiB e os PNGs em cores completas o ultrapassavam. A diferença visual é imperceptível.
 - Quem já tem o app aberto vê a logo nova depois de "Atualizar agora", porque o service worker guarda os ícones da versão anterior.
+
+## GIF sem balão e marcação dupla legível — 10/10/2026
+
+- **GIF carregado:** aparece sozinho, sem balão, borda ou espaçamento e sem o rótulo "GIF do KLIPY". A marcação de entrega fica logo abaixo. O consentimento para mídia externa continua o mesmo: enquanto o GIF não é permitido ou não carregou, o link segue visível.
+- **Atribuição do KLIPY:** fica só no painel de GIFs ("Search KLIPY" e "Powered by KLIPY"), como no Discord. Nas mensagens não há marca d'água.
+- **Marcação dupla:** dois traços inteiros lado a lado, com o segundo começando depois da perna longa do primeiro, para não parecer um traço só.

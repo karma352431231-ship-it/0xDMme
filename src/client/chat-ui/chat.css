@@ -633,9 +633,18 @@
   max-height: 300px;
   border-radius: 12px;
 }
-#app-shell .chat-message:has(.chat-gif) {
-  padding: 4px;
+/* A loaded GIF stands alone: no bubble, no provider label; ticks under it. */
+#app-shell .chat-message:has(.chat-gif :is(video, img)) {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
 }
-#app-shell .chat-message:has(.chat-gif) > .message-meta {
-  margin: 4px 8px 2px;
+.chat-message p:has(.chat-gif :is(video, img)) > a,
+.chat-message:has(.chat-gif :is(video, img)) .external-media-gate small:empty {
+  display: none;
+}
+#app-shell .chat-message:has(.chat-gif :is(video, img)) > .message-meta {
+  margin: 4px 4px 0;
+  color: var(--text-muted);
 }
