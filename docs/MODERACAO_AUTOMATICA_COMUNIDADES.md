@@ -341,7 +341,15 @@ Nos onze arquivos novos, a mediana foi aproximadamente `0,251 s` e o máximo `0,
 
 **Ponto importante:** o bloqueio confirmado é a retenção indevida de controles neutros, além da cobertura de precisão ainda insuficiente. A avaliação não aprova relaxar a política, liberar arquivos pela pontuação isolada ou ativar a moderação só porque a inferência de fotos foi rápida.
 
+## Correção delimitada autorizada posteriormente — 10/10/2026
+
+O proprietário autorizou seguir com a correção objetiva dos controles vazios/uniformes, sem nova rodada de imagens voluntárias nem troca de modelos/limiares. A rodada congelada acima permanece encerrada e seus resultados ficam preservados. A correção usa evidência exata de todos os pixels na resolução preparada original, antes da redução/crop; os 54 controles neutros passaram e nenhuma decisão dos 30 arquivos públicos existentes mudou. A implementação e os testes foram isolados das outras sessões. [Contrato, validação e limites de integração](MODERACAO_PIXELS_NEUTROS.md). O componente não estabelece aceitação do detector sexual nem está conectado ao scanner publicado; a moderação permanece desativada.
+
 ## Aceite necessário depois da escolha
+
+A rodada congelada reprovada continua encerrada. Depois da correção neutra e da nova recalibração de poses, o proprietário autorizou implementar o detector correspondente no aplicativo. A conexão fica condicionada ao hash privado aceito e não ativa o serviço por consequência; a instalação isolada, medição na VPS e aceite operacional continuam pendentes. O código implementa também a análise posterior dos vídeos aprovada acima, sem expor vídeos provisórios com inventário vazio. [Contrato e validação da integração posterior](INTEGRACAO_MODERACAO_POSES.md).
+
+A prioridade posterior em poses abriu uma nova recalibração autorizada, isolada em `codex/moderation-poses`, sem reabrir a rodada congelada anterior ou solicitar imagens voluntárias. Ela resolveu as cinco retenções permitidas conhecidas e conferiu quatro controles novos de poses/exercícios; não houve liberação proibida observada. Referências, limites e pendências de integração ficam em [MODERACAO_POSES.md](MODERACAO_POSES.md). A regra artística vigente permanece, sem nova exigência de pesquisa de pinturas de IA por consequência.
 
 - Fixar versões/hashes, avisos, origem dos pesos e dependências; validar runtime sem tráfego externo, CPU/RAM/processos e encerramento por prazo.
 - Calibrar permitidos/proibidos/incertos com dados sintéticos representativos ou corpus explicitamente autorizado, separado do treinamento. Cobrir real/IA/desenho, roupa permitida e exposição/atos proibidos; registrar erros e limites sem usar conteúdo privado ou de comunidades reais por conveniência.

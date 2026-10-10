@@ -37,8 +37,14 @@ export function renderModeration(
       title = document.createElement('strong'),
       status = document.createElement('p');
     title.textContent = kinds[notice.kind];
-    status.textContent = labels[notice.status];
+    status.textContent = moderationLabel(notice);
     article.append(title, status);
+    if (notice.warning) {
+      const warning = document.createElement('p');
+      warning.textContent =
+        'Advertência registrada: seu vídeo foi removido do público por conteúdo impróprio.';
+      article.append(warning);
+    }
     if (notice.appeal) {
       const appeal = document.createElement('p');
       appeal.textContent = `Contestação: ${notice.appeal}`;
@@ -55,12 +61,23 @@ export function renderModeration(
       )
     ) {
       const deadline = document.createElement('p');
-      deadline.textContent = `Sem aprovação, o arquivo será descartado até ${new Date(notice.expiresAt).toLocaleString('pt-BR')}.`;
+      const date = new Date(notice.expiresAt).toLocaleString('pt-BR');
+      deadline.textContent = notice.afterPublication
+        ? `Sem aprovação até ${date}, o vídeo deixa de ficar público e o arquivo será descartado.`
+        : `Sem aprovação, o arquivo será descartado até ${date}.`;
       article.append(deadline);
     }
     if (canAppeal(notice)) article.append(appealForm(notice, options));
     container.append(article);
   }
+}
+function moderationLabel(notice: PublicModerationNotice): string {
+  if (
+    notice.afterPublication &&
+    ['pending', 'analyzing'].includes(notice.status)
+  )
+    return 'Vídeo enviado. Análise em segundo plano pendente.';
+  return labels[notice.status];
 }
 function canAppeal(notice: PublicModerationNotice): boolean {
   return (

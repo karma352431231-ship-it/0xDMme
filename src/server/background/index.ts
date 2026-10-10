@@ -1,17 +1,13 @@
 import type { Database } from '../database/index.ts';
 import { CommunityRankingService } from '../community-ranking/index.ts';
 import { ContentMaintenance } from '../content-maintenance/index.ts';
-import { PublicMaintenance } from '../public-maintenance/index.ts';
 import { ObjectStore } from '../object-store/index.ts';
 import {
   RepresentativeService,
   DnsDomainResolver,
 } from '../representatives/index.ts';
-import {
-  PublicModerationWorker,
-  publicModerationBinding,
-  publicModerationRetargeting,
-} from '../public-moderation/index.ts';
+import type { PoseModerationConfiguration } from '../public-moderation/index.ts';
+import { publicBackgroundWorker } from './public-worker.ts';
 
 export interface BackgroundWorker {
   start: () => void;
@@ -33,6 +29,7 @@ export async function createBackgroundWorker(
     directory: string;
     origin: string;
     keepAlive?: boolean;
+    moderation?: PoseModerationConfiguration | null;
   },
 ): Promise<BackgroundWorker> {
   const { db, directory, origin, keepAlive = false } = options;
@@ -54,30 +51,12 @@ export async function createBackgroundWorker(
       { keepAlive },
     );
   }
-  const collectors = new PublicMaintenance(db, directory, { keepAlive });
-  const policy = publicModerationRetargeting(db);
-  const moderation = new PublicModerationWorker({
-    queue: db.publicModeration,
-    bind: publicModerationBinding(db),
-    runner: null,
-    upgradePolicy: () => db.publicModeration.upgrade(policy),
-    signals: db.workSignals,
+  return publicBackgroundWorker({
+    db,
+    directory,
     keepAlive,
+    moderation: options.moderation ?? null,
   });
-  return {
-    start: () => {
-      collectors.start();
-      moderation.start();
-    },
-    close: async () => {
-      const results = await Promise.allSettled([
-        collectors.close(),
-        moderation.close(),
-      ]);
-      if (results.some((result) => result.status === 'rejected'))
-        throw new Error('Coleta pública não encerrou.');
-    },
-  };
 }
 export async function embeddedBackground(
   options: Parameters<typeof createBackgroundWorker>[1],

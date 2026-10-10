@@ -57,6 +57,24 @@ await test('aviso ao autor não admite identidades privadas, scores ou bytes de 
     decision: null,
   };
   assert.deepEqual(publicModerationNotice(notice), notice);
+  assert.deepEqual(
+    publicModerationNotice({
+      ...notice,
+      afterPublication: true,
+      warning: true,
+    }),
+    { ...notice, afterPublication: true, warning: true },
+  );
+  for (const flags of [
+    { warning: true },
+    { afterPublication: true, kind: 'avatar' },
+    { afterPublication: 'true' },
+    { afterPublication: true, warning: 1 },
+  ])
+    assert.throws(
+      () => publicModerationNotice({ ...notice, ...flags }),
+      AccountError,
+    );
   for (const field of ['accountId', 'wallet', 'deviceId', 'bytes', 'scores'])
     assert.throws(
       () => publicModerationNotice({ ...notice, [field]: 'restrito' }),

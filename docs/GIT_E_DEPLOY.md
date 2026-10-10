@@ -75,6 +75,30 @@ e a transição 049→052. O site fica temporariamente indisponível durante a
 manutenção. Banner continua restrito até a análise aceita já exigida pelo
 produto. A imagem de prévia usa dados fictícios e não comprova publicação.
 
+## Detector de poses — ativação condicionada em 10/10/2026
+
+O proprietário pediu ativar a integração e autorizou instalar, validar e ativar
+o runtime privado revisado somente se passar. A revisão de código fixa a árvore
+inteira de banco do predecessor `2ac00f9` e das fontes `5a54ddb`; apenas
+`community-media.ts`, `public-moderation.ts` e `vault-quota.ts` diferem.
+As 52 migrações, executor de migrações, pacotes npm e Node permanecem iguais.
+Não executar migração para esta transição. A integração incorpora também as
+alterações concluídas do branch principal antes da publicação.
+
+Usar `npm run deploy:staging`, build no Mac, checkout limpo/enviado e CI integral
+do commit final. A autorização separada do runtime cobre somente a área própria,
+as versões/pesos fixados e configuração de web/worker público, sem instalação
+global. Antes de aceitar o hash, validar execução nativa no isolamento, controles
+licenciados existentes, todos os frames dentro do prazo vigente e preservação.
+Falha mantém a análise desativada; não ampliar prazo nem alterar política para
+obter aprovação. Guardar acesso, manifestos e evidências exclusivamente em
+`.local/`, com rollback limitado às adições próprias. O [contrato de integração](INTEGRACAO_MODERACAO_POSES.md)
+registra as versões, limites e a retenção observada no controle de IA convertido.
+
+**Ponto importante:** publicar o código não aceita automaticamente o detector.
+Vídeos liberados durante a análise podem ser vistos/copiados antes da remoção;
+DMs E2EE não entram no scanner.
+
 ## Teto do manifesto ampliado — 09/10/2026
 
 O proprietário pediu ampliar o teto de arquivos por release, que impedia o app de crescer (a publicação do redesign precisou juntar arquivos para caber). O executor passa a aceitar até 1024 entradas (`MAX_MANIFEST_FILES` em `deploy_remote.py`), no lugar de 512 mais conjuntos revisados. O teto continua barrando pacotes descontrolados; orçamentos de arquivo, extração e runtime não mudaram.
