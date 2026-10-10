@@ -190,3 +190,21 @@ Pedido do proprietário:
 - **Atividade:** filtros **Tudo | Pedidos | Respostas**. Pedidos reúne o que espera resposta: pedidos de conversa, convites de grupo e transferências de comunidade. Respostas mostra as respostas nas comunidades. Chamadas perdidas aparecem em Tudo. O filtro volta para Tudo ao trocar de conta.
 
 Validação: testes do mapeamento dos filtros e da regra de quem entra na fila, mais a prévia a 390 px com nomes fictícios.
+
+## Post em foco e respostas em fio — 09/10/2026
+
+Pedido do proprietário: abrir um post clicando nele, com hierarquia clara entre o post, as respostas e as respostas das respostas.
+
+- **Clique no cartão:** em qualquer feed (página de Comunidades, painel ao lado e lista de posts de uma comunidade), clicar no cartão abre o post, como o link de comentários. Botões, links, mídia, menus e texto selecionado mantêm o próprio comportamento.
+- **Post em foco:** com um post aberto, saem o cartão da comunidade, a gestão e a criação de postagem.
+  - No topo fica "← nome da comunidade"; depois o post com borda e título maiores e texto em contraste total.
+  - Em seguida vêm **Escrever uma resposta** e **Respostas (n)**.
+  - Funciona igual no painel ao lado, que já abre o post na mesma área.
+- **Respostas em fio:** sem cartão próprio, com divisória entre elas e avatar menor.
+  - O título fixo "Resposta" saiu. Ele aparecia em destaque e deixava o texto da resposta cinza; agora o texto é o conteúdo em destaque, e o título só aparece se a resposta tiver um.
+  - Respostas de respostas ficam recuadas com uma linha guia. "Ver N respostas" some quando não há mais páginas.
+  - Na terceira camada aparece "Continuar este fio →".
+  - Uma resposta aberta sozinha mostra "↑ Resposta anterior" e "Postagem original" acima dela.
+- As legendas das ações (comentários, visualizações, Salvar) ficam só para leitores de tela também nas telas largas. "Opções da postagem" vira o botão discreto "Opções" na linha de ações.
+
+Sem mudança de API, servidor ou moderação. Validação: lint, TypeScript, testes unitários e uma prévia local com respostas aninhadas fictícias a 1440 e 390 px.

@@ -551,9 +551,7 @@
   color: var(--text-muted);
   cursor: pointer;
 }
-.community-reply-branch .community-card {
-  border-left: 2px solid var(--accent);
-}
+
 .community-summary h2 {
   display: flex;
   align-items: center;
@@ -1451,4 +1449,198 @@
     color: var(--text-muted);
     font-size: 13px;
   }
+}
+
+/*
+ * Post focus (docs/UI_PAINEIS_E_TEMAS.md): a clicked post takes the timeline.
+ * The post leads, its replies read as a thread, and replies to replies hang
+ * from a guide line. The reply text is the content, so it gets full contrast.
+ */
+.community-post:not(.community-reply, .community-post-focus) {
+  cursor: pointer;
+}
+.community-post:not(.community-reply, .community-post-focus):hover {
+  border-color: var(--line-strong);
+}
+.community-post-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 14px;
+  color: var(--text);
+  font-size: 15px;
+  font-weight: 600;
+  text-decoration: none;
+}
+.community-post-back .community-avatar {
+  flex: 0 0 28px;
+  width: 28px;
+  height: 28px;
+  font-size: 11px;
+}
+.community-post-back-arrow {
+  color: var(--text-muted);
+  font-size: 18px;
+}
+#app-shell .community-card.community-post-focus {
+  padding: 20px 22px;
+  border-color: var(--line-strong);
+  border-radius: 16px;
+  background: var(--surface);
+}
+#app-shell .community-card.community-post-focus > h2 {
+  margin: 4px 0 10px;
+  font: 700 22px/1.25 var(--font-display);
+}
+#app-shell
+  .community-card:is(.community-post-focus, .community-reply)
+  :is(p, .community-text) {
+  color: var(--text);
+}
+#app-shell .community-card.community-post-focus .community-text {
+  font-size: 16px;
+  line-height: 1.6;
+}
+.post-context {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  margin: 0 0 10px;
+  font-size: 12.5px;
+}
+#app-shell .post-context a {
+  color: var(--text-muted);
+}
+#app-shell .post-context a:hover {
+  color: var(--accent-text);
+}
+#app-shell .reply-composer {
+  margin: 14px 0 0;
+  padding: 0;
+  border-radius: 14px;
+}
+#app-shell .reply-composer > summary {
+  padding: 14px 16px;
+  color: var(--text-muted);
+  font-weight: 600;
+  cursor: text;
+}
+#app-shell .reply-composer[open] {
+  padding: 0 16px 16px;
+}
+#app-shell .reply-composer[open] > summary {
+  padding: 14px 0 6px;
+}
+.community-thread-heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 24px 0 6px;
+  font: 600 16px/1.3 var(--font-display);
+}
+.community-thread {
+  display: grid;
+}
+.community-thread-empty {
+  color: var(--text-muted);
+}
+/* Replies: no card of their own, a divider between them, a guide line when nested. */
+#app-shell .community-card.community-reply {
+  margin: 0;
+  padding: 14px 0 6px;
+  border: 0;
+  border-top: 1px solid var(--line);
+  border-radius: 0;
+  background: transparent;
+}
+#app-shell .community-thread > .community-reply:first-child {
+  border-top: 0;
+}
+#app-shell .community-reply .community-post-header {
+  gap: 8px;
+  margin-bottom: 6px;
+  font-size: 13px;
+}
+#app-shell .community-reply .community-post-header .community-avatar {
+  flex: 0 0 24px;
+  width: 24px;
+  height: 24px;
+  font-size: 10px;
+}
+#app-shell .community-card.community-reply > h2 {
+  margin: 0 0 4px;
+  font-size: 14px;
+}
+#app-shell .community-reply .community-text {
+  margin: 0 0 6px;
+  font-size: 15px;
+  line-height: 1.55;
+}
+#app-shell
+  .community-reply
+  .post-actions
+  :is(.post-action, .post-votes, .post-more > summary, button) {
+  min-height: 30px;
+  padding: 3px 9px;
+  background: transparent;
+  font-size: 12.5px;
+}
+#app-shell .community-reply .post-votes :is(button, a) {
+  min-width: 28px;
+  min-height: 30px;
+  padding: 3px;
+}
+.community-reply-branch {
+  margin: 4px 0 0 11px;
+  padding-left: 14px;
+  border-left: 2px solid var(--line);
+}
+.community-reply-branch:empty {
+  display: none;
+}
+#app-shell .community-reply-branch > .community-reply:first-child {
+  border-top: 0;
+}
+/* Post options open from a quiet button in the action row. */
+#app-shell .post-actions > button:not(.post-action) {
+  min-height: 30px;
+  margin: 0;
+  padding: 4px 10px;
+  border: 0;
+  border-radius: 99px;
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--line);
+  color: var(--text-muted);
+  font-size: 12.5px;
+}
+.post-options:empty {
+  display: none;
+}
+#app-shell .community-reply > button {
+  min-height: 0;
+  margin: 0 0 4px;
+  padding: 4px 0;
+  border: 0;
+  background: transparent;
+  color: var(--accent-text);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+/* Counts speak for themselves on wide screens; captions stay for screen readers. */
+#app-shell .post-actions .post-action-caption {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+#app-shell .community-reply .post-actions .post-more > summary {
+  width: 30px;
+  padding: 3px;
+  font-size: 0;
+}
+/* The way back is the community link above the post. */
+[data-community-layout='post'] > .community-tools > a:not(:has(svg)) {
+  display: none;
 }

@@ -175,9 +175,8 @@ export function startCommunityPosts(controller: Communities) {
     depth = 0,
   ): void {
     if (!container) return;
-    const node = card(value.parent ? 'Resposta' : value.title || 'Postagem');
+    const node = postCard(value);
     node.dataset['postId'] = value.id;
-    node.classList.add('community-post');
     container.append(node);
     if (identity) {
       const avatar = postHeader(node, value, identity);
@@ -193,7 +192,7 @@ export function startCommunityPosts(controller: Communities) {
         );
     }
     rowContent(node, value, privateState);
-    rowMeta(node, value);
+    rowMeta(node, value, depth);
     const toolbar = el('div', '', 'post-actions');
     node.append(toolbar);
     voting(toolbar, value);
@@ -211,9 +210,9 @@ export function startCommunityPosts(controller: Communities) {
         await load();
       },
     });
-    const options = el('div');
-    node.append(options);
-    button(node, 'Opções da postagem', () =>
+    const options = el('div', '', 'post-options');
+    toolbar.after(options);
+    button(toolbar, 'Opções', () =>
       run(async () => {
         const old = generation,
           state = postState(
@@ -237,6 +236,21 @@ export function startCommunityPosts(controller: Communities) {
         postActions(options, state, tagSource(), actions());
       }),
     );
+    toolbar.lastElementChild?.setAttribute('aria-label', 'Opções da postagem');
+  }
+  /**
+   * Replies have no title of their own: their text is the content. The opened
+   * post is the focus of the page; replies under it read as a thread.
+   */
+  function postCard(value: CommunityPost): HTMLElement {
+    const node = value.parent
+      ? el('article', '', 'card community-card')
+      : card(value.title || 'Postagem');
+    if (value.parent && value.title) node.append(el('h2', value.title));
+    node.classList.add('community-post');
+    if (value.id === selected) node.classList.add('community-post-focus');
+    else if (value.parent) node.classList.add('community-reply');
+    return node;
   }
   function branch(
     container: HTMLElement,
@@ -247,33 +261,33 @@ export function startCommunityPosts(controller: Communities) {
     if (!selected || parent.id === selected || !parent.replies || depth >= 3)
       return;
     const children = el('section', '', 'community-reply-branch');
-    container.append(children);
     let cursor: string | null = null;
-    button(container, `Ver respostas (${parent.replies})`, () =>
-      run(async () => {
-        const old = generation,
-          page = postPage(
-            await communityRead(
-              `/api/communities/${community}/posts/${parent.id}/replies${cursor ? '?after=' + encodeURIComponent(cursor) : ''}`,
-              signal(),
-            ),
-          );
-        if (old !== generation) return;
-        clearMedia(children);
-        children.replaceChildren(
-          el('h3', 'Respostas diretas a este comentário'),
-        );
-        for (const reply of page.items) row(reply, null, children, depth + 1);
-        cursor = page.next;
-        if (page.next)
-          children.append(
-            el(
-              'p',
-              'Há mais respostas. Use o botão novamente para a próxima página.',
-            ),
-          );
-      }),
+    button(
+      container,
+      parent.replies === 1
+        ? 'Ver 1 resposta'
+        : `Ver ${parent.replies} respostas`,
+      () =>
+        run(async () => {
+          const old = generation,
+            page = postPage(
+              await communityRead(
+                `/api/communities/${community}/posts/${parent.id}/replies${cursor ? '?after=' + encodeURIComponent(cursor) : ''}`,
+                signal(),
+              ),
+            );
+          if (old !== generation) return;
+          clearMedia(children);
+          children.replaceChildren();
+          for (const reply of page.items) row(reply, null, children, depth + 1);
+          cursor = page.next;
+          // The button stays only while another page of replies exists.
+          more.textContent = 'Ver mais respostas';
+          more.hidden = !page.next;
+        }),
     );
+    const more = container.lastElementChild as HTMLButtonElement;
+    container.append(children);
   }
   function voting(node: HTMLElement, value: CommunityPost): void {
     if (own && !own.canPost && value.status === 'visible') {
@@ -302,8 +316,8 @@ export function startCommunityPosts(controller: Communities) {
   }
   function replyComposer(container: HTMLElement, parent: CommunityPost): void {
     if (!own?.canPost || parent.status !== 'visible') return;
-    const form = el('details', '', 'card community-card');
-    form.append(el('summary', 'Responder diretamente'));
+    const form = el('details', '', 'card community-card reply-composer');
+    form.append(el('summary', 'Escrever uma resposta'));
     container.append(form);
     const content = replyForm(
       form,
@@ -339,12 +353,19 @@ export function startCommunityPosts(controller: Communities) {
       ),
     );
     if (old !== generation || !list) return;
-    list.append(el('h3', 'Respostas diretas'));
-    if (!page.items.length)
-      list.append(el('p', 'Ainda não há respostas diretas.'));
-    for (const reply of page.items) row(reply);
-    after = page.next;
     replyComposer(list, value);
+    const heading = el('h3', 'Respostas', 'community-thread-heading');
+    if (value.replies)
+      heading.append(el('span', String(value.replies), 'activity-count'));
+    const replies = el('section', '', 'community-thread');
+    replies.setAttribute('aria-label', 'Respostas a esta postagem');
+    list.append(heading, replies);
+    if (!page.items.length)
+      replies.append(
+        el('p', 'Ainda não há respostas.', 'community-thread-empty'),
+      );
+    for (const reply of page.items) row(reply, null, replies);
+    after = page.next;
     paging();
   }
   function restrictedContent(node: HTMLElement, state: PostState): void {
@@ -380,28 +401,31 @@ export function startCommunityPosts(controller: Communities) {
       );
     else if (!value.text) node.append(el('p', 'Mídia aguardando liberação.'));
   }
-  function rowMeta(node: HTMLElement, value: CommunityPost): void {
+  function rowMeta(
+    node: HTMLElement,
+    value: CommunityPost,
+    depth: number,
+  ): void {
     if (!value.parent) return;
-    const nav = el('nav', '', 'post-toolbar');
-    nav.setAttribute('aria-label', 'Navegação da resposta ou postagem');
-    node.append(nav);
-    if (value.parent) {
-      link(
-        nav,
-        'Resposta anterior',
-        `#comunidades?id=${community}&post=${value.parent}`,
-      );
-      link(
-        nav,
-        'Postagem original',
-        `#comunidades?id=${community}&post=${value.root}`,
-      );
+    const nav = el('nav', '', 'post-context');
+    nav.setAttribute('aria-label', 'Navegação da resposta');
+    const post = (id: string | null) =>
+      `#comunidades?id=${community}&post=${id}`;
+    if (value.id === selected) {
+      // An opened reply shows where it came from, above its own thread.
+      link(nav, '↑ Resposta anterior', post(value.parent));
+      if (value.root !== value.parent)
+        link(nav, 'Postagem original', post(value.root));
+      node.prepend(nav);
+      return;
     }
+    if (selected && !(depth >= 3 && value.replies)) return;
     link(
       nav,
-      value.parent ? 'Abrir resposta e sua árvore' : 'Abrir postagem',
-      `#comunidades?id=${community}&post=${value.id}`,
+      selected ? 'Continuar este fio →' : 'Abrir resposta e sua árvore',
+      post(value.id),
     );
+    node.append(nav);
   }
   async function load(): Promise<void> {
     clearMedia();
@@ -477,7 +501,8 @@ export function startCommunityPosts(controller: Communities) {
     );
   }
   function composer(): void {
-    if (!mounted || !own?.canPost) return;
+    // An opened post answers through its own reply box.
+    if (!mounted || !own?.canPost || selected) return;
     const form = el('details', '', 'card community-card post-composer');
     form.append(el('summary', 'Criar postagem'));
     mounted.append(form);

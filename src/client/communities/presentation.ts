@@ -118,3 +118,24 @@ export function postTagLink(node: HTMLElement, post: CommunityPost): void {
   );
   node.lastElementChild?.classList.add('post-tag');
 }
+
+/**
+ * Clicking a feed card opens the post, as its comments link does (the side
+ * panel intercepts that link). Controls, media and selected text keep their own
+ * behavior; the focused post and the replies under it are not shortcuts.
+ */
+export function openPostFromCard(event: MouseEvent): void {
+  if (event.defaultPrevented || !(event.target instanceof Element)) return;
+  const card = event.target.closest<HTMLElement>('.community-post');
+  if (!card || card.matches('.community-reply, .community-post-focus')) return;
+  if (
+    event.target.closest(
+      'a, button, summary, details, input, textarea, select, label, video, audio, img, form',
+    )
+  )
+    return;
+  if (window.getSelection()?.toString()) return;
+  card
+    .querySelector<HTMLAnchorElement>(':scope > .post-actions a.post-comments')
+    ?.click();
+}

@@ -26,7 +26,7 @@ import { startCommunityDiscovery } from './discovery.ts';
 import { startSocialDmUi } from './dms.ts';
 import type { VaultSync } from '../vault-sync/index.ts';
 import { showPublicAvatar } from '../public-media/index.ts';
-import { communityAvatar } from './presentation.ts';
+import { communityAvatar, openPostFromCard } from './presentation.ts';
 import {
   communityDirectoryNavigation,
   communityNavigation,
@@ -37,6 +37,7 @@ export function startCommunities(access: VaultAccess, sync: VaultSync) {
   const controller = new Communities(access);
   const posts = startCommunityPosts(controller);
   const discovery = startCommunityDiscovery(controller);
+  document.addEventListener('click', openPostFromCard);
   let mounted: HTMLElement | null = null,
     sidebar: HTMLElement | null = null,
     session: AccountSession | null = null;
@@ -392,9 +393,37 @@ export function startCommunities(access: VaultAccess, sync: VaultSync) {
         card.append(communityElement('p', `Resposta: ${s.decision}`));
     }
   }
+  /** A post takes the whole timeline: way back, the post, then its replies. */
+  function postFocus(value: Community, post: string): void {
+    if (!mounted) return;
+    mounted.dataset['communityLayout'] = 'post';
+    const back = communityElement('a', '', 'community-post-back');
+    back.href = `#comunidades?id=${value.id}`;
+    const avatar = communityAvatar(value.name);
+    back.append(
+      communityElement('span', '←', 'community-post-back-arrow'),
+      avatar,
+      communityElement('span', value.name),
+    );
+    mounted.append(back);
+    publicPhoto(avatar, value);
+    const postContainer = communityElement('section', '', 'community-posts');
+    mounted.append(postContainer);
+    posts.mount(postContainer, {
+      community: value.id,
+      identity: value,
+      state,
+      post,
+      tag: selectedTag,
+    });
+  }
   function details(): void {
     if (!mounted || !current) return;
     navigation();
+    if (selectedPost) {
+      postFocus(current, selectedPost);
+      return;
+    }
     // Wide communities page: posts on the left, about and management on the right.
     mounted.dataset['communityLayout'] = 'detail';
     summary(current);
