@@ -1,5 +1,26 @@
 # 0xDMme — Git e envio à VPS
 
+## Descrição do perfil — migração 053 autorizada em 10/10/2026
+
+O proprietário autorizou ativar a edição do perfil no lugar e aplicar a migração
+053, que cria `public_profile_descriptions` (texto do dono, revisão e cobrança
+própria, gatilho de uso). Nenhuma tabela existente muda.
+
+O módulo interno `deploy_profile_description.py` segue o molde do
+`deploy_profile_social.py`: predecessor fixado na release publicada
+`2ac00f98698d384cff2a2f9d6937093e552d276b` (52 migrações) e fontes de aplicação
+fixadas em `6008df54f32072a8a8639040174a249ef50281d3`, com comparação integral
+das fontes, das 52 migrações já aplicadas, pacotes/Node e units dos workers.
+O snapshot compara todas as linhas das tabelas existentes, o ledger de
+capacidade e os checksums; depois confere a tabela nova vazia e seu gatilho de
+uso. Web e workers próprios param durante o backup/migração e voltam em seguida,
+com o mesmo retorno verificado da transição anterior. O deploy roda de uma
+worktree limpa no commit integrado e enviado, sem tocar na pasta de trabalho.
+
+**Ponto importante:** o site fica indisponível por alguns segundos durante a
+manutenção. Passaram 164 testes do executor, incluindo os da revisão exata, da
+preservação e da escolha da transição por número de migrações.
+
 ## Página pública individual — publicação autorizada em 10/10/2026
 
 A publicação anterior ativou `8a793e32e2cfaa7cc0b97b1195f30802f389c09d` e conservou

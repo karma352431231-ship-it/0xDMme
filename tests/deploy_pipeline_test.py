@@ -33,7 +33,8 @@ def manifest():
 class DeploymentTests(unittest.TestCase):
     def test_executor_transport_handles_large_quoted_sources_without_oversized_shell_argument(self):
         names = ['deploy_sources', 'deploy_runtime', 'deploy_remote', 'deploy_blocks45',
-                 'deploy_request_limit', 'deploy_background', 'deploy_profile_social']
+                 'deploy_request_limit', 'deploy_background', 'deploy_profile_social',
+                 'deploy_profile_description']
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory); (root / 'infra/staging').mkdir(parents=True)
             config = {'files': {}}
