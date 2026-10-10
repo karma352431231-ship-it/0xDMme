@@ -77,7 +77,7 @@ export class PublicModerationService {
       const photos = await this.stores.communities.collectModeration(
         this.stop.signal,
       );
-      remaining = avatars === 32 || photos === 32;
+      remaining = avatars >= 32 || photos >= 32;
       if (remaining)
         await new Promise<void>((resolve) => setImmediate(resolve));
     }

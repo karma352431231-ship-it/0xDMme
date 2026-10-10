@@ -214,6 +214,10 @@ await test('corte 6: feeds públicos, descoberta e referências privadas', async
         communities.feed({ ...baseline, order: 'votes' }, first.next),
         bad(400),
       );
+      const personal = await feed(reader);
+      assert.ok(personal.next);
+      await assert.rejects(feed(stranger, baseline, personal.next), bad(400));
+      await assert.rejects(communities.feed(baseline, personal.next), bad(400));
       assert.ok(
         (
           await communities.feed({ ...baseline, community: null }, null)

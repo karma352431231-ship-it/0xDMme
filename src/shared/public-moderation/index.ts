@@ -11,7 +11,8 @@ export const publicModerationPolicy = '0xdmme-public-explicit-v2';
 export type PublicModerationPolicyVersion =
   '0xdmme-public-explicit-v1' | typeof publicModerationPolicy;
 export const publicModerationRetentionMs = 7 * 24 * 60 * 60 * 1_000;
-export type PublicModerationKind = 'avatar' | 'community-photo' | 'post-media';
+export type PublicModerationKind =
+  'avatar' | 'profile-banner' | 'community-photo' | 'post-media';
 export type PublicModerationStatus =
   | 'pending'
   | 'analyzing'
@@ -35,6 +36,7 @@ export interface PublicModerationNotice {
 export function publicModerationKind(value: unknown): PublicModerationKind {
   if (
     value !== 'avatar' &&
+    value !== 'profile-banner' &&
     value !== 'community-photo' &&
     value !== 'post-media'
   )

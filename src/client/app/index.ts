@@ -13,10 +13,7 @@ import { startContacts } from '../contacts/index.ts';
 import { VoicePlayback } from '../voice-playback/index.ts';
 import { CallLog, startCalls } from '../calls/index.ts';
 import { startCommunities } from '../communities/index.ts';
-import {
-  startPublicProfile,
-  showPublicProfile,
-} from '../public-profile/index.ts';
+import { startPublicProfile } from '../public-profile/index.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
 import type { AddressBookEntry } from '../../shared/contacts/index.ts';
 import {
@@ -424,7 +421,7 @@ function mountPublicProfiles(content: HTMLElement): void {
   if (own) publicProfiles.mount(own);
   const view = content.querySelector<HTMLElement>('[data-public-profile-view]');
   if (view)
-    closePublicProfile = showPublicProfile(
+    closePublicProfile = publicProfiles.show(
       view,
       new URLSearchParams(location.hash.split('?')[1] ?? '').get('handle'),
     );

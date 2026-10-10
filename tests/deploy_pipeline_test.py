@@ -33,7 +33,7 @@ def manifest():
 class DeploymentTests(unittest.TestCase):
     def test_executor_transport_handles_large_quoted_sources_without_oversized_shell_argument(self):
         names = ['deploy_sources', 'deploy_runtime', 'deploy_remote', 'deploy_blocks45',
-                 'deploy_request_limit', 'deploy_background']
+                 'deploy_request_limit', 'deploy_background', 'deploy_profile_social']
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory); (root / 'infra/staging').mkdir(parents=True)
             config = {'files': {}}
@@ -632,7 +632,7 @@ class AttachmentDeploymentTests(unittest.TestCase):
                     snapshot.assert_called_once_with(remote.ATTACHMENT_TABLES)
                     self.assertEqual(len(remote.ATTACHMENT_TABLES),22)
 
-    def check_activation(self, failure):
+    def check_activation(self, failure, existing_workers=False):
         with tempfile.TemporaryDirectory() as directory, ExitStack() as stack:
             root = Path(directory); live = root / 'release'; live.mkdir(); (live / 'version').write_text('old')
             work = root / 'deployment'; work.mkdir(); candidate = work / 'candidate'; candidate.mkdir()
@@ -640,7 +640,9 @@ class AttachmentDeploymentTests(unittest.TestCase):
             config = {'commit':'a'*40, 'baseline':{}, 'files':{}}
             before = {'tables':{'message_packets':'preserved'}, 'versions':[{'version':n} for n in range(1,(self.previous_count or self.count - 1) + 1)]}
             state = {'value':before}
+            workers = {'active': True}
             def migrate(_):
+                if existing_workers: self.assertFalse(workers['active'])
                 state['value'] = dict(before, versions=[{'version':self.count}])
                 if failure == 'migration': raise RuntimeError('failed before opening')
             def restore(*_, **kwargs): state['value'] = before
@@ -659,6 +661,27 @@ class AttachmentDeploymentTests(unittest.TestCase):
             returned = stack.enter_context(patch.object(backups,'restore',side_effect=restore))
             ready = stack.enter_context(patch.object(remote,'wait_ready',side_effect=RuntimeError('failed after opening') if failure=='opened' else None))
             activate = getattr(remote,self.activate_name)
+            if existing_workers:
+                stop_attempts = 0
+                def start_workers():
+                    workers['active'] = True
+                    if failure == 'worker-start': raise RuntimeError('worker readiness failed')
+                def stop_workers():
+                    nonlocal stop_attempts
+                    stop_attempts += 1
+                    workers['active'] = False
+                    if failure == 'worker-stop' and stop_attempts == 1:
+                        raise RuntimeError('partial worker stop failed')
+                def activate(config, work, candidate, before_state):
+                    return remote.activate_database(config, work, candidate, {
+                        'before_state': before_state,
+                        'review': getattr(remote, self.review_name),
+                        'snapshot': getattr(remote, self.snapshot_name),
+                        'versions': self.previous_count or self.count - 1,
+                        'verify': getattr(remote, self.verify_name),
+                        'stop_existing': stop_workers,
+                        'resume_existing': start_workers, 'start': start_workers,
+                    })
             if failure:
                 with self.assertRaises(RuntimeError): activate(config,work,candidate,{})
             else: activate(config,work,candidate,{})
@@ -671,16 +694,24 @@ class AttachmentDeploymentTests(unittest.TestCase):
                 returned.assert_called_once_with(work,before,'backup-hash',snapshot=getattr(remote,self.snapshot_name))
                 self.assertTrue(receipt['rollback_verified']); self.assertEqual(state['value'],before)
                 self.assertEqual((live / 'version').read_text(),'old')
-            elif failure == 'opened':
-                self.assertEqual(receipt['failure']['phase'], 'opening-web')
+            elif failure in ('opened', 'worker-start'):
+                self.assertEqual(receipt['failure']['phase'], 'opening-web' if failure == 'opened' else 'starting-workers')
                 returned.assert_not_called(); self.assertTrue(receipt['new_state_preserved'])
                 self.assertFalse(receipt['rollback_verified']); self.assertEqual(commands[-1],['systemctl','stop',remote.UNIT])
                 self.assertEqual((live / 'version').read_text(),'new')
+            elif failure == 'worker-stop':
+                self.assertEqual(receipt['failure']['phase'], 'stopping')
+                returned.assert_not_called(); self.assertTrue(receipt['rollback_verified'])
+                self.assertEqual(state['value'], before)
+                self.assertEqual((live / 'version').read_text(), 'old')
+                backups.backup.assert_not_called(); backups.migrate.assert_not_called()
             else:
                 returned.assert_not_called(); self.assertEqual(receipt['status'],'published')
                 self.assertTrue(receipt['private_backup_retained']); self.assertEqual((live / 'version').read_text(),'new')
                 ready.assert_called_once_with(config['files'])
             self.assertTrue((work / 'objects-backup').is_dir())
+            if existing_workers:
+                self.assertEqual(workers['active'], failure not in ('opened', 'worker-start'))
 
     def test_success_retains_backup_and_previous_release(self): self.check_activation(None)
     def test_preopening_failure_restores_schema_and_previous_release(self): self.check_activation('migration')

@@ -4,19 +4,21 @@ import { preparePhoto } from '../attachment-images/index.ts';
 import { PublicProfiles } from './controller.ts';
 import { renderModeration } from './moderation.ts';
 import { showPublicProfile } from './viewer.ts';
+import { showProfilePage } from './page.ts';
+import { startBannerEditor } from './banner-editor.ts';
 import type { ExternalMediaConsent } from '../external-media/index.ts';
 export { showPublicProfile } from './viewer.ts';
 
 const template = `<article class="card public-profile-card"><h2>Perfil público</h2>
-<p>Seu @ será visível na web. Wallet, nome e foto privados não são incluídos neste perfil.</p>
+<p>Seu @, atividade pública e todas as comunidades que você segue ficam visíveis na web. Wallet, nome e foto privados não são incluídos neste perfil.</p>
 <div data-public-create><label>@ público<input data-public-input type="text" minlength="3" maxlength="31" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="seu_nome"></label>
 <p>3–30 letras sem acento, números ou _. Seu @ é único e fixo enquanto a conta existir.</p>
 <button type="button" class="primary" data-public-action="create">Criar perfil público</button></div>
 <div data-public-owned hidden><div class="public-avatar-placeholder" data-public-placeholder aria-hidden="true">@</div><img class="public-avatar-preview" data-public-avatar alt="Prévia da sua foto pública, ainda restrita" hidden>
-<p><strong data-public-own-handle></strong></p>
+<p><strong data-public-own-handle></strong></p><a data-public-page>Ver meu perfil público</a>
 <p>A foto pública é separada e fica restrita a você até a análise. Sem aprovação, é descartada em até sete dias.</p><details class="settings-help"><summary>Formatos e preparo da foto</summary><p>PNG, JPEG e WebP, até 3 MB, preparados neste aparelho sem metadados.</p></details>
 <div class="settings-actions"><input data-public-file type="file" accept="image/png,image/jpeg,image/webp" hidden><button type="button" data-public-action="choose">Escolher foto pública</button><button type="button" data-public-action="remove">Remover foto preparada</button></div>
-<section aria-label="Prévia do perfil público"><h3>Como outras pessoas veem seu perfil</h3><div data-public-preview></div></section></div>
+<div data-public-banner></div><section aria-label="Prévia do perfil público"><h3>Como outras pessoas veem seu perfil</h3><div data-public-preview></div></section></div>
 <section data-public-moderation aria-label="Análises dos seus arquivos públicos"></section>
 <div><button type="button" data-public-action="moderation-latest" hidden>Análises mais recentes</button><button type="button" data-public-action="moderation-older" hidden>Análises anteriores</button></div>
 <p data-external-media-status role="status"></p><button type="button" data-public-action="external-media">Mídias externas</button>
@@ -27,6 +29,16 @@ export function startPublicProfile(
   privacy: ExternalMediaConsent,
 ) {
   const controller = new PublicProfiles(access);
+  const banner = startBannerEditor(controller, {
+    run,
+    changed: async (state) => {
+      await controller.refreshModeration();
+      clearPreview();
+      status = state.banner
+        ? 'Banner salvo. A publicação exige aprovação da análise.'
+        : 'Banner removido.';
+    },
+  });
   let mounted: HTMLElement | null = null,
     busy = false,
     generation = 0;
@@ -68,6 +80,9 @@ export function startPublicProfile(
     if (owned) owned.hidden = own === null;
     const label = node('[data-public-own-handle]');
     if (label) label.textContent = own ? `@${own.profile.handle}` : '';
+    const page = node<HTMLAnchorElement>('[data-public-page]');
+    if (page && own)
+      page.href = `#publico?handle=${encodeURIComponent(own.profile.handle)}`;
   }
   function renderControls(): void {
     const mediaStatus = node('[data-external-media-status]');
@@ -77,6 +92,7 @@ export function startPublicProfile(
     mounted?.querySelectorAll<HTMLButtonElement>('button').forEach((button) => {
       button.disabled = busy;
     });
+    banner.disable(busy);
     const remove = node<HTMLButtonElement>('[data-public-action="remove"]');
     if (remove) remove.disabled = busy || !controller.profile?.pendingAvatar;
     const latest = node<HTMLButtonElement>(
@@ -144,6 +160,7 @@ export function startPublicProfile(
     if (!mounted) return;
     void run(async () => {
       await controller.refresh();
+      await banner.refresh();
       if (controller.profile) await controller.refreshModeration();
       clearPreview();
       status = controller.profile
@@ -158,6 +175,7 @@ export function startPublicProfile(
     mounted = container;
     generation++;
     container.innerHTML = template;
+    banner.mount(node('[data-public-banner]'));
     node('[data-public-action="reload"]')?.addEventListener('click', ready);
     for (const [action, cursor] of [
       ['moderation-latest', () => null],
@@ -179,6 +197,7 @@ export function startPublicProfile(
         const choice = await privacy.beforeCreate(consentAbort.signal);
         if (choice === null) return;
         await controller.create(handle, true);
+        await banner.refresh();
         privacy.created(choice);
         status = 'Perfil público criado. Seu @ é fixo.';
       });
@@ -226,6 +245,7 @@ export function startPublicProfile(
     ready();
   }
   function leave(): void {
+    banner.leave();
     consentAbort.abort();
     clearPreview();
     mounted = null;
@@ -233,6 +253,9 @@ export function startPublicProfile(
     clearPhoto();
   }
   return {
+    show(container: HTMLElement, handle: unknown) {
+      return showProfilePage(container, handle, { controller });
+    },
     mount,
     leave,
     ready,
@@ -242,6 +265,7 @@ export function startPublicProfile(
     },
     setSession(session: AccountSession | null): void {
       if (!controller.setSession(session)) return;
+      banner.clear();
       generation++;
       clearPhoto();
       clearPreview();

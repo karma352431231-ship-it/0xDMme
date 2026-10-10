@@ -9,7 +9,7 @@ export function publicModerationBinding(
   database: Database,
 ): PublicModerationBinding {
   return (client, subject) => {
-    if (subject.kind === 'avatar')
+    if (subject.kind === 'avatar' || subject.kind === 'profile-banner')
       return database.publicProfiles.bindModeration(client, subject);
     if (subject.kind === 'community-photo')
       return database.communities.bindModeration(client, subject);
@@ -20,7 +20,7 @@ export function publicModerationRetargeting(
   database: Database,
 ): PublicModerationRetargeting {
   return (client, subject) => {
-    if (subject.kind === 'avatar')
+    if (subject.kind === 'avatar' || subject.kind === 'profile-banner')
       return database.publicProfiles.bindPolicy(client, subject);
     if (subject.kind === 'community-photo')
       return database.communities.bindPolicy(client, subject);

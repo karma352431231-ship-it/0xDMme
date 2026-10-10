@@ -433,6 +433,9 @@ def backup_review(candidate, live):
 
 def database_review(candidate, live):
     count = len(list((candidate / 'src/server/database/migrations').glob('*.sql')))
+    if count == 52:
+        import deploy_profile_social
+        return deploy_profile_social.review(candidate, live)
     if count == 49:
         import deploy_background
         return deploy_background.review(candidate, live)
@@ -881,6 +884,8 @@ def activate_database(config, work, candidate, transition):
     live, previous = DATA / 'release', work / 'previous'
     phase = 'stopping'
     try:
+        if transition.get('stop_existing'):
+            transition['stop_existing']()
         if transition.get('stop') and infrastructure_touched:
             transition['stop']()
         run(['systemctl', 'stop', UNIT])
@@ -933,6 +938,8 @@ def activate_database(config, work, candidate, transition):
             if infrastructure_touched and transition.get('stop'):
                 transition['stop']()
             run(['systemctl', 'stop', UNIT])
+            if transition.get('stop_existing'):
+                transition['stop_existing']()
             if not opened:
                 if checksum is not None and before is not None and snapshot() != before:
                     backups.restore(work, before, checksum, snapshot=snapshot)
@@ -946,6 +953,8 @@ def activate_database(config, work, candidate, transition):
                     transition['uninstall']()
                 run(['systemctl', 'start', UNIT])
                 wait_ready()
+                if transition.get('resume_existing'):
+                    transition['resume_existing']()
                 preservation(config['baseline'])
                 rollback = own_state() == before_state
         except BaseException:
@@ -998,6 +1007,9 @@ def activate(config, work):
     if (database_files(candidate) != database_files(DATA / 'release')
             and not database_code_reviewed(candidate, DATA / 'release')):
         # Any unreviewed database change was rejected by prepare()/compatibility().
+        if len(list((candidate / 'src/server/database/migrations').glob('*.sql'))) == 52:
+            import deploy_profile_social
+            return deploy_profile_social.activate(config, work, candidate, before)
         if len(list((candidate / 'src/server/database/migrations').glob('*.sql'))) == 49:
             import deploy_background
             return deploy_background.activate(config, work, candidate, before)

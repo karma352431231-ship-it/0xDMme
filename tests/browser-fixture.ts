@@ -167,6 +167,7 @@ function fixtureServer(
   const publicProfiles = new PublicProfileService(
     database.publicProfiles,
     database.devices,
+    database.profileSocial,
   );
   const communities = new CommunityService(
     database.communities,
@@ -179,8 +180,9 @@ function fixtureServer(
     assets: testAssets,
     database,
     objects,
-    publicProfiles: createPublicProfileHandler((handle) =>
-      publicProfiles.read(handle),
+    publicProfiles: createPublicProfileHandler(
+      (handle) => publicProfiles.read(handle),
+      publicProfiles,
     ),
     communities: createCommunityHandler({
       origin: testOrigin,

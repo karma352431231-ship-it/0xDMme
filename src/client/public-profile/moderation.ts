@@ -18,6 +18,7 @@ const labels: Record<PublicModerationStatus, string> = {
 };
 const kinds = {
   avatar: 'Foto do perfil',
+  'profile-banner': 'Banner do perfil',
   'community-photo': 'Foto da comunidade',
   'post-media': 'Mídia de post ou resposta',
 };

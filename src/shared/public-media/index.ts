@@ -6,7 +6,7 @@ import {
 } from '../community-media/index.ts';
 import type { CommunityMediaResult } from '../community-media/index.ts';
 
-export type PublicAvatarKind = 'avatar' | 'community-photo';
+export type PublicAvatarKind = 'avatar' | 'profile-banner' | 'community-photo';
 export function publicMediaPath(
   kind: PublicAvatarKind | 'post-media',
   target: string,

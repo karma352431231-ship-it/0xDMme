@@ -449,7 +449,7 @@ export class PublicModerationStore {
     return result.rows.map(notice);
   }
   async nextCollection(
-    kind: 'avatar' | 'community-photo',
+    kind: 'avatar' | 'profile-banner' | 'community-photo',
   ): Promise<number | null> {
     const result = await this.pool.query<{ at: Date | null }>(
       "SELECT min(CASE WHEN status='discarding' THEN clock_timestamp() ELSE expires_at END) AS at FROM hash_talk.public_moderation WHERE kind=$1 AND status NOT IN ('approved','expired','removed')",

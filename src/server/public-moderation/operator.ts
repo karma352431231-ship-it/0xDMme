@@ -27,7 +27,8 @@ export class PublicModerationOperator {
     if (subject.kind === 'post-media')
       preview = await this.mediaPreview(subject);
     else
-      preview = await (subject.kind === 'avatar'
+      preview = await (subject.kind === 'avatar' ||
+      subject.kind === 'profile-banner'
         ? this.database.publicProfiles.moderationCandidate(subject)
         : this.database.communities.moderationCandidate(subject));
     if (

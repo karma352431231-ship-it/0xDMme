@@ -1,4 +1,5 @@
 import type { AccountSession } from '../../shared/account/index.ts';
+export { renderActivityEntry } from './activity-entry.ts';
 import { encode, uuid } from '../../shared/account/index.ts';
 import {
   communityPolicy,

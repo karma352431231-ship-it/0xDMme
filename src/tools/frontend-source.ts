@@ -30,6 +30,7 @@ const authored = [
   'src/shared/communities',
   'src/client/public-profile',
   'src/shared/public-profile',
+  'src/shared/profile-social',
   'src/shared/public-avatar',
   'src/shared/image-inspection',
   'src/client/calls',

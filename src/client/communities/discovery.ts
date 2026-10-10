@@ -26,6 +26,7 @@ import { showExternalVideos } from '../external-video/index.ts';
 import type { ExternalMediaConsent } from '../external-media/index.ts';
 import { postViews } from './post-views.ts';
 import { DiscoverySnapshot } from './discovery-page.ts';
+import { appendReplyContext } from './activity-entry.ts';
 import {
   communityAvatar,
   communityIcon,
@@ -60,7 +61,7 @@ export function startCommunityDiscovery(
     abort = new AbortController();
   let followChanged: () => Promise<void> = () => Promise.resolve();
   let view = 'feed',
-    order: FeedOrder = 'recent',
+    order: FeedOrder = 'mixed',
     period: DiscoveryPeriod = 'all',
     exploreOrder: ExploreFilter['order'] = 'trending',
     after: string | null = null,
@@ -318,6 +319,7 @@ export function startCommunityDiscovery(
       row.dataset['postId'] = post.id;
       row.classList.add('community-post');
       const avatar = postHeader(row, post, entry.community);
+      appendReplyContext(row, entry);
       followControl(row, entry.community, old);
       if (entry.community.avatar)
         mediaCleanup.add(
@@ -442,12 +444,19 @@ export function startCommunityDiscovery(
       view = options.view;
       signedIn = options.signedIn;
       followChanged = options.followChanged ?? (() => Promise.resolve());
-      order = 'recent';
+      const initialOrders: Record<string, FeedOrder> = {
+        feed: 'mixed',
+        following: 'recent',
+        explore: 'recent',
+        saved: 'recent',
+        hidden: 'recent',
+      };
+      order = initialOrders[view]!;
       period = view === 'explore' ? 'day' : 'all';
       exploreOrder = 'trending';
       const titles: Record<string, string> = {
         feed: 'Feed',
-        following: 'Feed das comunidades seguidas',
+        following: 'Seguindo',
         explore: 'Ranking de comunidades',
         saved: 'Suas postagens salvas',
         hidden: 'Conteúdo oculto dos seus feeds',
