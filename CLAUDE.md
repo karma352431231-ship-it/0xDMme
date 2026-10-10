@@ -9,22 +9,30 @@ These instructions apply throughout the repository. The goal is to keep code coh
 - Domain configuration is approved for an isolated test environment on the existing VPS. Preserve its other project. DNS/HTTPS availability does not establish readiness for real chat data; source distribution obligations and pending security/functional acceptance still apply. Keep VPS access, inventory and device/network details exclusively in `.local/`, outside Git.
 - On 01/10/2026, the owner explicitly accepted separate services on the same VPS and a validated graceful Nginx reload. This does not authorize changing the other project's files, services, databases, certificates, firewall rules or dependencies. Do not restart shared services, update system packages or run deployment/install commands in another project's directories. Prepare rollback limited to our additions, compare existing configuration fingerprints and service health before/after, and bound our traffic. On 09/10/2026 the owner removed the CPU, RAM, process and disk I/O caps of our services and executors, since the other project is standalone and not in use; keep swap disabled for privacy. The same day the owner sized the 0xDMme data image to all free disk except 30 GB reserved for the system. Shared host/network risks remain; do not promise zero impact.
 - On 01/10/2026, the owner authorized scoped commits, pushing this project's branch to GitHub and sending source commits to the dedicated VPS Git repository. Preserve the repository's Karma identity without linking it to ohsael or changing global Git credentials. Read VPS access only from `.local/`; never store it in a versioned file or Git remote configuration. Source synchronization does not authorize automatic activation, migrations or changes to shared services. Follow `docs/GIT_E_DEPLOY.md`.
-- On 01/10/2026, the owner approved a reusable, explicitly invoked code deployment command, with the build prepared on the Mac/development machine. This authorizes the documented command for reviewed code releases with passing CI, preservation checks, resource limits and rollback, restarting only `0xdmme-test.service`. A push alone never activates a release. Dependency/Node changes, database migration changes and shared infrastructure changes remain outside this authorization and require their own review and approval. Keep access, baselines, artifacts and operational evidence solely in `.local/`.
+- On 01/10/2026, the owner approved a reusable, explicitly invoked code deployment command, with the build prepared on the Mac/development machine. This authorizes the documented command for reviewed code releases with passing CI, preservation checks, the resource limits currently in force (the 09/10/2026 update above removed the CPU/RAM/process/disk I/O caps; traffic bounds remain) and rollback, restarting only `0xdmme-test.service`. A push alone never activates a release. Dependency/Node changes, database migration changes and shared infrastructure changes remain outside this authorization and require their own review and approval. Keep access, baselines, artifacts and operational evidence solely in `.local/`.
 - For authorized routine VPS code updates, reuse `infra/staging/deploy.py` via `npm run deploy:staging` from a clean, pushed checkout with passing CI; do not create another deployment script.
 
 ## Context and Decisions
 
 - Consult the relevant parts of `DECISOES_E_PLANO_DE_IMPLEMENTACAO.md` before implementing a feature. Distinguish approved decisions, proposals, and open questions; do not turn examples into requirements.
-- The repository is in the planning stage. Do not treat frameworks, scripts, or tools mentioned in the plan as already installed. Inspect the actual state before running commands.
-- Preserve existing changes and keep each change focused on the requested objective. Do not include broad refactoring unrelated to the task.
+- The app is implemented and running in a test environment, but parts of the plan are still pending. Do not treat frameworks, scripts, or tools mentioned in the plan as installed until the repository shows them. Inspect the actual state before running commands.
+- Preserve existing changes and keep each change focused on the requested objective. Do not include broad refactoring unrelated to the task. Focus never justifies worsening structure: a new responsibility goes into its own module even when the request names only the feature (see Files and Modules).
 - Record new decisions in the corresponding document and resolve contradictions introduced by the change. Do not change privacy, retention, cost, or product rules to simplify implementation.
-- - Critically validate requests and assumptions against the repository before implementing. Compare proposals with the existing code, identify conflicts, risks, and false assumptions, and prefer code evidence over user assumptions.
+- Critically validate requests and assumptions against the repository before implementing. Compare proposals with the existing code, identify conflicts, risks, and false assumptions, and prefer code evidence over user assumptions.
 - Investigate missing context first. Ask only when an unresolved ambiguity would materially change behavior, scope, architecture, data, or an irreversible action. Otherwise, state the reasonable assumption and proceed.
 - For requests to answer, review, explain, diagnose, or plan, inspect the relevant materials and report the result without implementing changes unless requested. For requests to change, build, or fix, make the requested in-scope local changes and run relevant non-destructive validation without asking first.
 - Require confirmation for destructive actions, external writes, purchases, or material scope expansion.
 - Before editing, check `git status` and preserve unrelated user changes. If preexisting changes overlap the target and cannot be safely separated, stop and ask how to proceed.
 
-Always include a statement labeled exactly "Ponto importante" for significant changes, feature updates, and other work that may materially affect the bot's behavior. This helps ensure that relevant details and consequences of the applied changes are not overlooked.
+Always include a statement labeled exactly "Ponto importante" for significant changes, feature updates, and other work that may materially affect the app's behavior. This helps ensure that relevant details and consequences of the applied changes are not overlooked.
+
+## Parallel Sessions and Agents
+
+- Two sessions or agents must never edit the same working tree at the same time. Each concurrent task gets its own Git worktree and branch (for example `codex/<task>` or `claude/<task>`), created from the current integration branch. The worktree needs its own `npm ci`; `.local/` is not copied and stays in the main checkout.
+- Split concurrent work by area before starting, and state in each task which files or modules it owns. When two tasks must touch the same hotspot file (see Files and Modules), run them one after the other, or first split the hotspot in a dedicated task.
+- Commit only the files of your own task, staged by explicit path. Never commit, revert, reformat or stash another session's uncommitted changes. When unavoidable work in a shared tree is in progress, stage partial files hunk by hunk and say so in the report.
+- Integrate through merge into the integration branch, then rerun the checks affected by the combined result. A merge conflict is resolved deliberately by reading both sides; never resolve it by taking one side wholesale without checking what the other side changed.
+- Deploy only from the integrated, pushed commit with passing CI, as described in Project Identity. Never deploy from a task branch that is missing another task's merged work.
 
 ## Mandatory Pause for Material Conflicts
 
@@ -38,7 +46,7 @@ Always include a statement labeled exactly "Ponto importante" for significant ch
 
 ## Mandatory Pause After Context Compaction
 
-- **Whenever context is compacted while a coding task or implementation is in progress, immediately pause implementation.**
+- **Whenever context is compacted while a coding task or implementation is in progress, immediately pause implementation.** This covers the task that was in progress at the moment of compaction. A new request the user sends after the compaction is itself permission for that new task; the pause still applies to resuming any earlier unfinished work.
 - Before making any further code changes, review the available task history, current repository state, and relevant diff to reconstruct the objective, work completed, and remaining steps. Read-only inspection is allowed for this review.
 - Summarize what was in progress and explicitly ask the user for permission to resume implementation, explaining that this rule requires the pause.
 - **Do not resume code changes or implementation commands until the user grants explicit permission after that compaction.** Prior authorization to perform the task does not satisfy this requirement. Silence or elapsed time is not permission.
@@ -48,6 +56,10 @@ Always include a statement labeled exactly "Ponto importante" for significant ch
 
 - **Do not impose a line limit per file.** Size is a signal to investigate, not sufficient reason to split code or reject a change.
 - Organize by responsibility and cohesion. Split a file when it mixes independent reasons to change, rules from different domains, or unrelated side effects.
+- **Do not grow a file that already mixes responsibilities.** When a change adds a new responsibility (a new feature area, screen section, data flow or side effect) and the target file already holds several unrelated ones, put the new part in its own module and connect it through a small interface. This is in scope for the requested change. Moving the existing parts out is a separate task (see Hotspots below); do not mix it into the feature change unless the owner asks.
+- A function that encloses many inner functions sharing mutable state (for example a `startX()` closure holding a whole screen) is a module in disguise. Review it as a file: per-function complexity limits do not see its size, and new responsibilities must not be added to it as further inner functions.
+- **Hotspots:** treat a file as a hotspot when it mixes several unrelated responsibilities and is changed by most tasks in an area (as a reference, about 15 or more commits in two weeks), or when a single function encloses roughly 300 lines or more. Do not split a hotspot inside an unrelated task. Report it to the owner with a concrete split proposal (target modules, order, risks, tests needed) and do the split as its own reviewed task, never while another session is editing the same file.
+- Stylesheets follow the same rule. `src/client/app/app.css` holds theme tokens and app-wide layout; each feature area keeps its styles in its own file next to the feature (as `chat-ui/chat.css` and `communities/community.css` already do), imported by `app.css`. Literal colors stay in the theme token block. Override a broader rule by placing the selector in the owning file with the needed specificity; do not append unrelated sections to `app.css`.
 - Do not compress code, remove useful explanations, or create artificial file boundaries just to satisfy metrics.
 - Start with the smallest modular structure that supports the feature. Do not create microservices, generic interfaces, layers, or packages without a concrete need.
 - Avoid concentrating unrelated rules in `utils`, `helpers`, `common`, or a central service that knows the entire system. Shared utilities should have a specific purpose and few dependencies.
@@ -69,7 +81,7 @@ Always include a statement labeled exactly "Ponto importante" for significant ch
 - A function should represent a coherent operation with understandable inputs, output, and side effects. Names should express intent.
 - Prefer early returns and simple control flow. Extract functions around identifiable responsibilities, not line counts.
 - Investigate functions with many branches, nesting levels, parameters, or mutable states. Do not hide complexity in callbacks or helpers without meaningful names.
-- As initial review guidelines, use cyclomatic complexity of 10, nesting depth of 3, and up to 4 parameters. These are starting points for calibrating rules against real code, not limits already configured.
+- ESLint enforces cyclomatic complexity of 10, nesting depth of 3 and up to 4 parameters as blocking errors (`eslint.config.mjs`). Fix violations by extracting functions with a real responsibility, never by raising the limits or suppressing them. These limits apply to each function separately; they do not measure closures or files (see Files and Modules).
 - Functions longer than approximately 60 lines warrant a cohesion review; length alone does not require splitting. Declarative configuration, JSX, and tests need evaluation appropriate to their role.
 - Use parameter objects when they represent related data and make calls clearer, not merely to bypass argument counts.
 - Do not overuse boolean parameters or modes to combine different operations in the same function.
@@ -95,8 +107,8 @@ Always include a statement labeled exactly "Ponto importante" for significant ch
 
 ## Tools and Exceptions
 
-- When creating the JS/TS skeleton, configure ESLint; with TypeScript, use strict mode and rules that use type information. Add dependency/boundary validation and a single formatter compatible with the stack. Do not install tools merely to duplicate existing checks.
-- **Do not enable `max-lines` as a quality gate.** Prioritize complexity, dependencies, correctness, and responsibility reviews.
+- Keep the existing toolchain: ESLint with type information, TypeScript strict mode, dependency-cruiser for boundaries and Prettier as the single formatter. Do not install tools merely to duplicate existing checks.
+- **Do not enable `max-lines` as a quality gate.** Prioritize complexity, dependencies, correctness, and responsibility reviews. A per-function length gate (`max-lines-per-function`) may be proposed only after calibrating it against the current code and listing the functions it would flag; enabling it is a tooling change that needs the owner's approval.
 - Document the thresholds actually adopted. Blocking rules must cause automated checks to fail; do not routinely accumulate ignored warnings.
 - Do not fix failures by adding `any`, `@ts-ignore`, broad lint suppressions, exclusions for authored code directories, or globally increased limits. If a legitimate technical exception exists, make it specific and explain it alongside the code/configuration.
 - Generated code and external dependencies may have their own exclusions; do not move authored logic into those areas to evade rules. Tests and migrations may have specific profiles, without blanket exclusions.
@@ -109,7 +121,7 @@ Always include a statement labeled exactly "Ponto importante" for significant ch
 - Test behavior and invariants: authorization, quotas, delivery, recovery, revocation, and relevant failures. Do not create tests that merely mirror the implementation or chase a coverage percentage.
 - Documentation changes do not require application tests; check consistency, local links, and the diff. For code changes, do not claim checks were performed if they were not run.
 - Before finishing, review the diff for responsibilities, dependencies, duplication, error handling, dead code, secrets, and resource impact. Remove remnants of replaced implementations within the task's scope.
-- Review complexity trends and exceptions at the end of each implementation block. Large files warrant critical review, not automatic fragmentation. Do not accumulate bulky reports or snapshots in the repository.
+- Review complexity trends and exceptions at the end of each implementation block: check whether the change touched a hotspot or grew a file that mixes responsibilities, and mention any hotspot in the final report with the proposal described in Files and Modules. Large files warrant critical review, not automatic fragmentation. Do not accumulate bulky reports or snapshots in the repository.
 - Report what changed, what was verified, and any material limitations. If a check could not run, explain why; do not report it as passed.
 
 ## Testing and validation
