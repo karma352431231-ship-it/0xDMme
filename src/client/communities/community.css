@@ -378,11 +378,18 @@
   font-size: var(--fs-caption);
   min-height: 32px;
 }
+/* Who posted leads; the community name and time follow, quieter. */
+:is(.app[data-page='comunidades'], .community-scope)
+  .community-post-header
+  .community-post-author {
+  color: var(--text);
+  font-weight: 700;
+}
 :is(.app[data-page='comunidades'], .community-scope)
   .community-post-header
   .community-post-community {
-  color: var(--text);
-  font-weight: 600;
+  color: var(--text-muted);
+  font-weight: 500;
 }
 .community-post-byline {
   color: var(--text-muted);
@@ -1514,23 +1521,6 @@
 #app-shell .post-context a:hover {
   color: var(--accent-text);
 }
-#app-shell .reply-composer {
-  margin: 14px 0 0;
-  padding: 0;
-  border-radius: 14px;
-}
-#app-shell .reply-composer > summary {
-  padding: 14px 16px;
-  color: var(--text-muted);
-  font-weight: 600;
-  cursor: text;
-}
-#app-shell .reply-composer[open] {
-  padding: 0 16px 16px;
-}
-#app-shell .reply-composer[open] > summary {
-  padding: 14px 0 6px;
-}
 .community-thread-heading {
   display: flex;
   align-items: center;
@@ -1643,4 +1633,193 @@
 /* The way back is the community link above the post. */
 [data-community-layout='post'] > .community-tools > a:not(:has(svg)) {
   display: none;
+}
+
+/* People are round, communities are rounded squares. */
+.community-avatar.person {
+  border-radius: 50%;
+}
+
+/*
+ * Community hero: banner in the community tone, large photo over its edge,
+ * name, followers and the description first; follow and manage at hand.
+ */
+.community-hero {
+  margin: 0 0 18px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--surface);
+}
+.community-banner {
+  position: relative;
+  height: 150px;
+}
+.community-banner::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to bottom,
+    transparent 45%,
+    color-mix(in srgb, var(--surface) 75%, transparent)
+  );
+}
+#app-shell .community-manage-link {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 1;
+  padding: 7px 14px;
+  border-radius: 99px;
+  background: color-mix(in srgb, var(--bg) 72%, transparent);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+  backdrop-filter: blur(6px);
+}
+.community-hero-head {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px 16px;
+  margin-top: -40px;
+  padding: 0 20px;
+}
+#app-shell .community-hero-head .community-avatar {
+  flex: 0 0 88px;
+  width: 88px;
+  height: 88px;
+  border: 4px solid var(--surface);
+  border-radius: 26px;
+  font-size: 30px;
+}
+.community-hero-title {
+  flex: 1;
+  min-width: 0;
+  padding-bottom: 6px;
+}
+.community-hero-title h1 {
+  margin: 0;
+  overflow-wrap: anywhere;
+  font: 700 24px/1.2 var(--font-display);
+  letter-spacing: 0;
+}
+.community-hero-meta {
+  margin: 4px 0 0;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+#app-shell .community-hero .community-follow {
+  margin: 0 0 8px;
+  padding: 9px 20px;
+  border: 0;
+  border-radius: 99px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 700;
+}
+#app-shell .community-hero .community-follow[aria-pressed='true'] {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--line-strong);
+  color: var(--text);
+}
+#app-shell .community-hero-description {
+  margin: 0;
+  padding: 16px 20px 0;
+  color: var(--text);
+  font-size: 16px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+#app-shell .community-hero .community-info {
+  padding: 10px 20px 16px;
+  font-size: 13.5px;
+}
+#app-shell .community-hero .community-info > summary {
+  color: var(--text-muted);
+}
+.community-hero-notice {
+  margin: 0;
+  padding: 0 20px 14px;
+  color: var(--warn);
+  font-size: 13px;
+}
+/* The page reads top to bottom: hero, then posts; no side column. */
+#app-shell [data-community-layout='detail'] {
+  display: block;
+}
+/* Isolated manage screen. */
+.community-manage {
+  display: grid;
+  gap: 14px;
+}
+.community-manage > h1 {
+  margin: 0 0 4px;
+  font: 700 22px/1.2 var(--font-display);
+}
+#app-shell .community-manage .community-card {
+  margin: 0;
+}
+/* Reply box opened from the comment button. */
+.reply-box {
+  margin: 10px 0 4px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface-2);
+}
+.reply-box[hidden] {
+  display: none;
+}
+.reply-box-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 8px;
+}
+#app-shell .reply-box-actions button {
+  margin: 0;
+  padding: 7px 16px;
+  border: 0;
+  border-radius: 99px;
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--line);
+  color: var(--text);
+  font-weight: 600;
+}
+#app-shell .reply-box-actions button.primary {
+  background: var(--accent);
+  box-shadow: none;
+  color: var(--accent-ink);
+}
+@media (max-width: 700px) {
+  .community-banner {
+    height: 110px;
+  }
+  #app-shell .community-hero-head .community-avatar {
+    flex-basis: 72px;
+    width: 72px;
+    height: 72px;
+    border-radius: 22px;
+    font-size: 24px;
+  }
+  .community-hero-head {
+    margin-top: -32px;
+    padding: 0 14px;
+  }
+  .community-hero-title h1 {
+    font-size: 20px;
+  }
+  #app-shell .community-hero-description {
+    padding: 12px 14px 0;
+    font-size: 15px;
+  }
+  #app-shell .community-hero .community-info {
+    padding: 8px 14px 14px;
+  }
 }

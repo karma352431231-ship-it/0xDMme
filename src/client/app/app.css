@@ -169,7 +169,8 @@
   .chat-peer-avatar,
   .contact-avatar,
   .rail-avatar,
-  .community-avatar
+  .community-avatar,
+  .community-banner
 )[data-tone] {
   color: var(--brand-ink);
 }
@@ -178,7 +179,8 @@
   .chat-peer-avatar,
   .contact-avatar,
   .rail-avatar,
-  .community-avatar
+  .community-avatar,
+  .community-banner
 )[data-tone='0'] {
   background: linear-gradient(135deg, #2ee6f6, #3b82f6);
 }
@@ -187,7 +189,8 @@
   .chat-peer-avatar,
   .contact-avatar,
   .rail-avatar,
-  .community-avatar
+  .community-avatar,
+  .community-banner
 )[data-tone='1'] {
   background: linear-gradient(135deg, #3b82f6, #8b5cf6);
 }
@@ -196,7 +199,8 @@
   .chat-peer-avatar,
   .contact-avatar,
   .rail-avatar,
-  .community-avatar
+  .community-avatar,
+  .community-banner
 )[data-tone='2'] {
   background: linear-gradient(135deg, #8b5cf6, #d946ef);
 }
@@ -205,7 +209,8 @@
   .chat-peer-avatar,
   .contact-avatar,
   .rail-avatar,
-  .community-avatar
+  .community-avatar,
+  .community-banner
 )[data-tone='3'] {
   background: linear-gradient(135deg, #f59e0b, #ef4444);
 }
@@ -214,7 +219,8 @@
   .chat-peer-avatar,
   .contact-avatar,
   .rail-avatar,
-  .community-avatar
+  .community-avatar,
+  .community-banner
 )[data-tone='4'] {
   background: linear-gradient(135deg, #10b981, #06b6d4);
 }
@@ -223,7 +229,8 @@
   .chat-peer-avatar,
   .contact-avatar,
   .rail-avatar,
-  .community-avatar
+  .community-avatar,
+  .community-banner
 )[data-tone='5'] {
   background: linear-gradient(135deg, #64748b, #334155);
 }

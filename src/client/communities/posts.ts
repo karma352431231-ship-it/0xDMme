@@ -4,7 +4,12 @@ import {
   showPublicPostMedia,
   showPublicAvatar,
 } from '../public-media/index.ts';
-import { postHeader, postComments, postTagLink } from './presentation.ts';
+import {
+  communityIcon,
+  postHeader,
+  postComments,
+  postTagLink,
+} from './presentation.ts';
 import { keys, object } from '../../shared/account/index.ts';
 import {
   communityCursor,
@@ -183,25 +188,14 @@ export function startCommunityPosts(
     const node = postCard(value);
     node.dataset['postId'] = value.id;
     container.append(node);
-    if (identity) {
-      const avatar = postHeader(node, value, identity);
-      if (identity.avatar)
-        mediaCleanup.set(
-          showPublicAvatar(avatar, {
-            kind: 'community-photo',
-            target: identity.id,
-            reference: identity.avatar,
-            signal: abort.signal,
-          }),
-          node,
-        );
-    }
+    rowHeader(node, value);
     rowContent(node, value, privateState);
     rowMeta(node, value, depth);
     const toolbar = el('div', '', 'post-actions');
     node.append(toolbar);
     voting(toolbar, value);
-    postComments(toolbar, value);
+    if (selected) replyToggle(toolbar, value);
+    else postComments(toolbar, value);
     mediaCleanup.set(postViews(node, value, toolbar), node);
     branch(node, value, depth);
     if (!own) return;
@@ -242,6 +236,21 @@ export function startCommunityPosts(
       }),
     );
     toolbar.lastElementChild?.setAttribute('aria-label', 'Opções da postagem');
+  }
+  /** Author first, with their public photo when they have one. */
+  function rowHeader(node: HTMLElement, value: CommunityPost): void {
+    if (!identity) return;
+    const avatar = postHeader(node, value, identity, 'community');
+    if (!value.author?.avatar) return;
+    mediaCleanup.set(
+      showPublicAvatar(avatar, {
+        kind: 'avatar',
+        target: value.author.id,
+        reference: value.author.avatar,
+        signal: abort.signal,
+      }),
+      node,
+    );
   }
   /**
    * Replies have no title of their own: their text is the content. The opened
@@ -319,18 +328,55 @@ export function startCommunityPosts(
         : null,
     );
   }
-  function replyComposer(container: HTMLElement, parent: CommunityPost): void {
-    if (!own?.canPost || parent.status !== 'visible') return;
-    const form = el('details', '', 'card community-card reply-composer');
-    form.append(el('summary', 'Escrever uma resposta'));
-    container.append(form);
+  /**
+   * On an opened post the comment button answers: it opens a reply box right
+   * under that post or reply, instead of a reply box always on screen.
+   */
+  function replyToggle(toolbar: HTMLElement, parent: CommunityPost): void {
+    const toggle = el('button', '', 'post-action post-comments');
+    toggle.type = 'button';
+    toggle.append(
+      communityIcon('comment'),
+      el('span', String(parent.replies)),
+      el('span', 'Responder', 'post-action-caption'),
+    );
+    toolbar.append(toggle);
+    if (!own?.canPost || parent.status !== 'visible') {
+      toggle.disabled = true;
+      toggle.title = 'Respostas indisponíveis para sua participação.';
+      return;
+    }
+    toggle.setAttribute('aria-expanded', 'false');
+    let box: HTMLElement | null = null;
+    toggle.addEventListener('click', () => {
+      box ??= replyBox(toolbar, parent, () => toggle.click());
+      box.hidden = !box.hidden;
+      toggle.setAttribute('aria-expanded', String(!box.hidden));
+      if (!box.hidden)
+        box.querySelector<HTMLElement>('textarea, input')?.focus();
+    });
+  }
+  function replyBox(
+    toolbar: HTMLElement,
+    parent: CommunityPost,
+    close: () => void,
+  ): HTMLElement {
+    const box = el('div', '', 'reply-box');
+    box.hidden = true;
+    toolbar.after(box);
     const content = replyForm(
-      form,
+      box,
       { title: '', text: '', tag: null },
       mediaAccess(),
     );
+    const actions = el('div', '', 'reply-box-actions');
+    box.append(actions);
     let id = crypto.randomUUID();
-    button(form, 'Publicar resposta', () =>
+    button(actions, 'Cancelar', () => {
+      close();
+      return Promise.resolve();
+    });
+    button(actions, 'Responder', () =>
       run(async () => {
         const old = generation;
         postState(
@@ -348,6 +394,8 @@ export function startCommunityPosts(
         if (feedback) feedback.textContent = 'Resposta publicada.';
       }),
     );
+    actions.lastElementChild?.classList.add('primary');
+    return box;
   }
   async function thread(value: CommunityPost): Promise<void> {
     const old = generation;
@@ -358,7 +406,6 @@ export function startCommunityPosts(
       ),
     );
     if (old !== generation || !list) return;
-    replyComposer(list, value);
     const heading = el('h3', 'Respostas', 'community-thread-heading');
     if (value.replies)
       heading.append(el('span', String(value.replies), 'activity-count'));
@@ -740,7 +787,18 @@ export function startCommunityPosts(
       shell();
       ready();
     },
-    mountTags,
+    /** Tag management on the isolated manage screen, without the post list. */
+    manageTags(container: HTMLElement, id: string): void {
+      leave();
+      community = id;
+      tags = { items: [], next: null };
+      abort = new AbortController();
+      mountTags(container);
+      // Saves and failures report beside the tags, as on the post list.
+      feedback = el('p', '', 'community-feedback');
+      feedback.setAttribute('role', 'status');
+      container.lastElementChild?.append(feedback);
+    },
     leave,
     canActivate: () => !busy,
   };

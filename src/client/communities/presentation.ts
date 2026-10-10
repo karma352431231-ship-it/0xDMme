@@ -62,34 +62,53 @@ export function relativePostTime(createdAt: string, now = Date.now()): string {
   if (minutes < 1440) return `há ${Math.floor(minutes / 60)} h`;
   return `há ${Math.floor(minutes / 1440)} d`;
 }
+/**
+ * Who posted leads; the community is secondary. Feeds mixing communities show
+ * the community photo and name; inside a community the author's own avatar.
+ */
 export function postHeader(
   node: HTMLElement,
   post: CommunityPost,
   group: { id: string; name: string },
+  context: 'feed' | 'community' = 'feed',
 ): HTMLElement {
   const header = el('div', '', 'community-post-header'),
-    avatar = communityAvatar(group.name),
+    avatar =
+      context === 'feed' ? communityAvatar(group.name) : authorAvatar(post),
     identity = el('div', '', 'community-post-identity');
   header.append(avatar, identity);
-  link(identity, group.name, `#comunidades?id=${group.id}`);
-  identity.lastElementChild?.classList.add('community-post-community');
-  const byline = el('div', '', 'community-post-byline');
-  if (post.author)
+  if (post.author) {
     link(
-      byline,
+      identity,
       `@${post.author.handle}`,
       `#publico?handle=${encodeURIComponent(post.author.handle)}`,
     );
-  else byline.append(el('span', 'Conta removida'));
+    identity.lastElementChild?.classList.add('community-post-author');
+  } else identity.append(el('span', 'Conta removida', 'community-post-author'));
+  const byline = el('div', '', 'community-post-byline');
+  if (context === 'feed') {
+    link(byline, group.name, `#comunidades?id=${group.id}`);
+    byline.lastElementChild?.classList.add('community-post-community');
+  }
   const time = el(
     'time',
-    ` · ${relativePostTime(post.createdAt)}${post.editedAt ? ' · Editado' : ''}`,
+    `${context === 'feed' ? ' · ' : ''}${relativePostTime(post.createdAt)}${post.editedAt ? ' · Editado' : ''}`,
   );
   time.dateTime = post.createdAt;
   time.title = new Date(post.createdAt).toLocaleString('pt-BR');
   byline.append(time);
   identity.append(byline);
   node.prepend(header);
+  return avatar;
+}
+function authorAvatar(post: CommunityPost): HTMLElement {
+  const label = post.author?.handle ?? '?';
+  const avatar = el('span', '', 'community-avatar person');
+  avatar.append(
+    el('span', avatarInitials(label) || '?', 'community-avatar-initial'),
+  );
+  avatar.dataset['tone'] = avatarTone(label);
+  avatar.setAttribute('aria-hidden', 'true');
   return avatar;
 }
 export function postComments(

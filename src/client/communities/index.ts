@@ -324,21 +324,42 @@ export function startCommunities(
       }),
     );
   }
+  /**
+   * The first thing a visitor sees: banner in the community's tone, a large
+   * photo, the name, followers and the description; follow and manage at hand.
+   */
   function summary(value: Community): void {
     if (!mounted) return;
-    const card = communityCard(value.name);
-    mounted.append(card);
+    const hero = communityElement('section', '', 'community-hero');
+    hero.setAttribute('aria-label', `Comunidade ${value.name}`);
+    mounted.append(hero);
     const avatar = communityAvatar(value.name);
-    card.firstElementChild?.prepend(avatar);
-    card.classList.add('community-summary');
-    publicPhoto(avatar, value);
-    card.append(
-      communityElement('p', value.description),
-      communityElement('p', followerLabel(value)),
+    const banner = communityElement('div', '', 'community-banner');
+    banner.dataset['tone'] = avatar.dataset['tone'] ?? '0';
+    if (state && state.role !== 'participant') {
+      communityLink(
+        banner,
+        'Gerenciar comunidade',
+        `#comunidades?id=${value.id}&view=manage`,
+      );
+      banner.lastElementChild?.classList.add('community-manage-link');
+    }
+    const head = communityElement('div', '', 'community-hero-head');
+    const title = communityElement('div', '', 'community-hero-title');
+    title.append(
+      communityElement('h1', value.name),
+      communityElement('p', followerLabel(value), 'community-hero-meta'),
     );
+    head.append(avatar, title);
+    hero.append(banner, head);
+    publicPhoto(avatar, value);
+    if (value.description)
+      hero.append(
+        communityElement('p', value.description, 'community-hero-description'),
+      );
     const info = communityElement('details', '', 'community-info');
     info.append(communityElement('summary', 'Sobre e regras da comunidade'));
-    card.append(info);
+    hero.append(info);
     if (value.owner)
       communityLink(
         info,
@@ -359,28 +380,28 @@ export function startCommunities(
       communityElement('p', communityPolicy),
     );
     if (!state) {
-      communityLink(card, 'Entre pelo Perfil para participar', '#perfil');
+      communityLink(head, 'Entre pelo Perfil para participar', '#perfil');
       return;
     }
-    participant(card, state);
+    participant(head, state);
   }
   function participant(card: HTMLElement, own: CommunityState): void {
-    communityButton(
-      card,
-      own.following ? 'Deixar de seguir' : 'Seguir comunidade',
-      () =>
-        mutate('follow', { id: own.community.id, following: !own.following }),
+    communityButton(card, own.following ? 'Seguindo' : 'Seguir', () =>
+      mutate('follow', { id: own.community.id, following: !own.following }),
     );
-    card.append(
-      communityElement(
-        'p',
-        own.canPost
-          ? 'Participação permitida, mesmo sem seguir.'
-          : own.community.archived
+    const follow = card.lastElementChild;
+    follow?.classList.add('community-follow');
+    follow?.setAttribute('aria-pressed', String(own.following));
+    if (!own.canPost)
+      card.after(
+        communityElement(
+          'p',
+          own.community.archived
             ? 'Participação encerrada: comunidade arquivada.'
             : 'Sua participação está suspensa.',
-      ),
-    );
+          'community-hero-notice',
+        ),
+      );
     if (own.sanction) {
       const s = own.sanction;
       card.append(
@@ -429,6 +450,10 @@ export function startCommunities(
       postFocus(current, selectedPost);
       return;
     }
+    if (view === 'manage' && state && state.role !== 'participant') {
+      manageScreen(current, state);
+      return;
+    }
     // Wide communities page: posts on the left, about and management on the right.
     mounted.dataset['communityLayout'] = 'detail';
     summary(current);
@@ -441,38 +466,60 @@ export function startCommunities(
       post: selectedPost,
       tag: selectedTag,
     });
-    if (!state) return;
-    const own = state;
-    const management = communityElement('details', '', 'community-management');
-    management.append(
-      communityElement(
-        'summary',
-        own.role === 'participant'
-          ? 'Participação e denúncias'
-          : 'Gerenciar comunidade',
-      ),
-    );
-    mounted.append(management);
-    if (own.role !== 'participant') {
-      const card = communityCard('Editar comunidade');
-      management.append(card);
-      const meta = metaForm(card, own.community);
-      communityButton(card, 'Salvar nome, descrição e regras', () =>
-        mutate('edit', {
-          id: own.community.id,
-          revision: own.community.revision,
-          meta: meta(),
-        }),
+    // Owners and moderators manage from the isolated screen (top-right link);
+    // participants keep their sanctions, appeals and reports here.
+    if (state?.role === 'participant') {
+      const management = communityElement(
+        'details',
+        '',
+        'community-management',
       );
-      photo(card, own);
-      posts.mountTags(management);
+      management.append(
+        communityElement('summary', 'Participação e denúncias'),
+      );
+      mounted.append(management);
+      governance(management, state);
     }
-    mountCommunityGovernance(management, own, {
+    communityButton(mounted, 'Recarregar comunidade', () => run(refresh));
+  }
+  /** Isolated settings screen for owners and moderators. */
+  function manageScreen(value: Community, own: CommunityState): void {
+    if (!mounted) return;
+    mounted.dataset['communityLayout'] = 'manage';
+    const back = communityElement('a', '', 'community-post-back');
+    back.href = `#comunidades?id=${value.id}`;
+    const avatar = communityAvatar(value.name);
+    back.append(
+      communityElement('span', '←', 'community-post-back-arrow'),
+      avatar,
+      communityElement('span', value.name),
+    );
+    publicPhoto(avatar, value);
+    const management = communityElement('section', '', 'community-manage');
+    management.append(communityElement('h1', 'Gerenciar comunidade'));
+    mounted.append(back, management);
+    const card = communityCard('Nome, descrição e regras');
+    management.append(card);
+    const meta = metaForm(card, own.community);
+    communityButton(card, 'Salvar nome, descrição e regras', () =>
+      mutate('edit', {
+        id: own.community.id,
+        revision: own.community.revision,
+        meta: meta(),
+      }),
+    );
+    const photoCard = communityCard('Foto da comunidade');
+    management.append(photoCard);
+    photo(photoCard, own);
+    posts.manageTags(management, own.community.id);
+    governance(management, own);
+  }
+  function governance(container: HTMLElement, own: CommunityState): void {
+    mountCommunityGovernance(container, own, {
       mutate,
       query: run,
       request: (operation, data) => controller.request(operation, data),
     });
-    communityButton(mounted, 'Recarregar comunidade', () => run(refresh));
   }
   function photo(card: HTMLElement, own: CommunityState): void {
     card.append(

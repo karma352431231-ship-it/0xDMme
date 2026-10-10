@@ -237,3 +237,14 @@ Decisão do proprietário de 09/10/2026, registrada na seção 5.11 do plano.
 Limitações: grupos e DMs pelo `@` ainda não enviam GIF de catálogo. A chave de teste permite 100 chamadas por hora para todo o servidor. Ativar na VPS exige colocar a chave na configuração do nosso serviço.
 
 Validação: testes de validação da resposta, da detecção de mensagem-GIF, da chave e da política de segurança. Uma prévia local com a chave de teste conferiu em alta, busca, envio e reprodução do GIF.
+
+## Responder pelo botão, autor em destaque e topo da comunidade — 10/10/2026
+
+Pedido do proprietário:
+
+- **Responder:** a caixa fixa "Escrever uma resposta" saiu. No post aberto, o botão de comentários (com a contagem) abre a caixa de resposta logo abaixo daquele post ou daquela resposta, com **Cancelar** e **Responder**, e as respostas vêm logo abaixo do post. Nos feeds, o mesmo botão continua abrindo o post.
+- **Autor em destaque:** o `@` de quem postou aparece primeiro e em destaque. Nos feeds que misturam comunidades, o nome da comunidade e o horário vêm depois, mais discretos. Dentro da comunidade e no post aberto aparecem o avatar da pessoa (redondo, com a foto pública quando houver) e só o horário.
+- **Topo da comunidade:** banner na cor própria da comunidade, foto grande (88 px) sobre a borda do banner, nome, seguidores, botão **Seguir/Seguindo**, descrição em destaque e "Sobre e regras". A página fica em uma coluna: topo e depois posts.
+- **Gerenciar comunidade:** dono e moderadores veem o link no canto superior direito do banner. Ele abre uma tela isolada (`#comunidades?id=…&view=manage`) com nome, descrição e regras, foto, tags e as ferramentas de governança. Participantes continuam com "Participação e denúncias" na página.
+
+**Ponto importante:** o banner é gerado a partir da cor da comunidade. Um banner enviado pelo dono seria mídia pública nova, com envio, armazenamento, migração e passagem pela moderação automática. Fica para decisão do proprietário.
