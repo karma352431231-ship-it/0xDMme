@@ -1344,8 +1344,12 @@ await test('mídia das comunidades: cadeia real, autorização, vínculo atômic
           },
         );
       } finally {
-        await publicHost.close();
-        await accepted.close();
+        try {
+          // A failed listen must remain the reported error, rather than its cleanup.
+          if (publicHost.server.listening) await publicHost.close();
+        } finally {
+          await accepted.close();
+        }
       }
     },
   );

@@ -2,6 +2,16 @@
 
 Direção aprovada pelo proprietário. A página pública por `@` reúne somente identidade e atividade públicas. Publicações continuam dentro de comunidades; o perfil apresenta as mesmas publicações e respostas, sem copiar conteúdo ou criar um mural pessoal independente.
 
+## Interações nas publicações — ajuste de 10/10/2026
+
+O proprietário solicitou votos e respostas diretamente nos cards da atividade, como na comunidade. Reutilizar operações assinadas, compositor com anexos e controles de salvar, ocultar, denunciar e opções da publicação. Responder a uma resposta conserva seu pai direto e sua comunidade. Seguir a comunidade não é requisito para participar; arquivamento, sanções e autorização continuam verificados pelo servidor. Visitantes recebem entrada para autenticação e podem abrir a discussão publicamente.
+
+A sequência visual é **Título → Conteúdo (texto e mídia) → Tag → Ações**, também nos cards do feed e da comunidade. Votos atualizam só o placar/contagem do card, preservando uma resposta em edição. Permissões e estados privados são consultados quando a pessoa usa os controles, sem carregar um estado privado por publicação na leitura inicial. Um envio aceito mantém confirmação e link da resposta mesmo se a rechecagem da contagem falhar. A página bloqueia a atualização automática do app durante operações e rascunhos de resposta.
+
+**Ponto importante:** responder pelo perfil publica na discussão original; não cria uma publicação pessoal nem concede participação por seguir o perfil. A correção não altera banco, migrações, dependências ou infraestrutura.
+
+Revisão de responsabilidades: `activity-posts.ts` concentra os controles dos cards da atividade; `post-reply.ts` é o compositor compartilhado necessário a esta correção. Os closures existentes de `posts.ts` e `discovery.ts` continuam hotspots; a lógica do perfil ficou no módulo novo. Proposta para tarefa separada: extrair primeiro leitura/paginação da árvore para `post-thread.ts` e renderização para `post-card.ts`; depois separar leitura/paginação do feed em `discovery-feed.ts` e ranking em `ranking-view.ts`. Validar gerações/cancelamento, cursores, descarte de mídia e permissões com as integrações e os testes de snapshot. O principal risco é atualizar uma tela antiga ou conservar recursos após sair dela.
+
 ## Perfil e métricas
 
 - Visão geral combina posts e respostas por data; Posts e Respostas filtram esse mesmo histórico. Respostas conservam comunidade, postagem original e destino da resposta. Conteúdo excluído/retirado e respostas cujo original não está visível não compõem atividade ou métricas públicas.

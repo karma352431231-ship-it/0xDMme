@@ -7,6 +7,7 @@ import { showPublicProfile } from './viewer.ts';
 import { showProfilePage } from './page.ts';
 import { startBannerEditor } from './banner-editor.ts';
 import type { ExternalMediaConsent } from '../external-media/index.ts';
+import { ActivityPosts } from '../communities/index.ts';
 export { showPublicProfile } from './viewer.ts';
 
 const template = `<article class="card public-profile-card"><h2>Perfil público</h2>
@@ -29,6 +30,7 @@ export function startPublicProfile(
   privacy: ExternalMediaConsent,
 ) {
   const controller = new PublicProfiles(access);
+  const activity = new ActivityPosts(access, privacy);
   const banner = startBannerEditor(controller, {
     run,
     changed: async (state) => {
@@ -254,16 +256,20 @@ export function startPublicProfile(
   }
   return {
     show(container: HTMLElement, handle: unknown) {
-      return showProfilePage(container, handle, { controller });
+      return showProfilePage(container, handle, {
+        controller,
+        renderEntry: (entry, signal) => activity.render(entry, signal),
+      });
     },
     mount,
     leave,
     ready,
-    canActivate: () => !busy,
+    canActivate: () => !busy && activity.canActivate(),
     async exists(): Promise<boolean> {
       return controller.exists();
     },
     setSession(session: AccountSession | null): void {
+      activity.setSession(session);
       if (!controller.setSession(session)) return;
       banner.clear();
       generation++;

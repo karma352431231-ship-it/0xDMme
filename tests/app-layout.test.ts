@@ -41,7 +41,7 @@ await test('abrir conversa traz a coluna de volta sem reabrir o feed recolhido',
   assert.equal(toggledChat('solo'), 'nochat');
 });
 
-await test('links de comunidade viram feed ou DM pública sem misturar identidades', () => {
+await test('links de comunidade viram feed, DM pública ou perfil sem misturar identidades', () => {
   assert.deepEqual(
     communityTarget('#comunidades?view=dms&dm=abc&history=local'),
     { kind: 'dm', id: 'abc', local: true },
@@ -55,7 +55,11 @@ await test('links de comunidade viram feed ou DM pública sem misturar identidad
   assert.equal(feed?.kind, 'feed');
   assert.equal(feed?.kind === 'feed' && feed.params.get('post'), 'y');
   assert.equal(communityTarget('#conversas'), null);
-  assert.equal(communityTarget('#publico?handle=lia'), null);
+  assert.deepEqual(communityTarget('#publico?handle=lia'), {
+    kind: 'profile',
+    handle: 'lia',
+  });
+  assert.equal(communityTarget('#publico'), null);
 });
 
 await test('estado gravado no app nunca é confundido com um botão de layout', () => {
