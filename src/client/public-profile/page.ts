@@ -13,6 +13,7 @@ import type {
   ProfileFollow,
 } from '../../shared/profile-social/index.ts';
 import { feedPage } from '../../shared/community-discovery/index.ts';
+import type { FeedEntry } from '../../shared/community-discovery/index.ts';
 import { communityPage } from '../../shared/communities/index.ts';
 import { showPublicAvatar } from '../public-media/index.ts';
 import { renderActivityEntry } from '../communities/index.ts';
@@ -61,11 +62,14 @@ function about(host: HTMLElement, summary: ProfileSummary): void {
   host.append(element('h2', 'Sobre'), metrics);
 }
 
-/** Reads omit cookies; only an explicit follow uses signed account access. */
+/** Activity reads omit cookies; explicit social actions use signed account access. */
 export function showProfilePage(
   container: HTMLElement,
   handle: unknown,
-  options: { controller?: PublicProfiles } = {},
+  options: {
+    controller?: PublicProfiles;
+    renderEntry?: (entry: FeedEntry, signal: AbortSignal) => HTMLElement;
+  } = {},
 ): () => void {
   const lifetime = new AbortController();
   let contentAbort = new AbortController(),
@@ -190,7 +194,9 @@ export function showProfilePage(
           ),
         );
       items.replaceChildren(
-        ...response.items.map((entry) => renderActivityEntry(entry, signal)),
+        ...response.items.map((entry) =>
+          (options.renderEntry ?? renderActivityEntry)(entry, signal),
+        ),
       );
       if (!response.items.length)
         items.append(

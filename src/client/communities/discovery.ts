@@ -385,10 +385,10 @@ export function startCommunityDiscovery(
       mediaCleanup.add(
         showExternalVideos(row, post.text, { privacy, signal: abort.signal }),
       );
-      postTagLink(row, post);
       if (post.media?.length)
         mediaCleanup.add(showPublicPostMedia(row, post.media, abort.signal));
       else if (!post.text) row.append(el('p', 'Mídia aguardando liberação.'));
+      postTagLink(row, post);
     } else
       row.append(
         el(

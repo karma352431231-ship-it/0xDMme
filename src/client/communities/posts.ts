@@ -4,12 +4,7 @@ import {
   showPublicPostMedia,
   showPublicAvatar,
 } from '../public-media/index.ts';
-import {
-  communityIcon,
-  postHeader,
-  postComments,
-  postTagLink,
-} from './presentation.ts';
+import { postHeader, postComments, postTagLink } from './presentation.ts';
 import { keys, object } from '../../shared/account/index.ts';
 import {
   communityCursor,
@@ -37,13 +32,9 @@ import {
   communityField as field,
   communityLink as link,
 } from './elements.ts';
-import {
-  postActions,
-  postForm,
-  postTagSelect,
-  replyForm,
-} from './post-forms.ts';
+import { postActions, postForm, postTagSelect } from './post-forms.ts';
 import { postText } from './post-text.ts';
+import { postReply } from './post-reply.ts';
 import { showExternalVideos } from '../external-video/index.ts';
 import type { ExternalMediaConsent } from '../external-media/index.ts';
 import {
@@ -328,74 +319,26 @@ export function startCommunityPosts(
         : null,
     );
   }
-  /**
-   * On an opened post the comment button answers: it opens a reply box right
-   * under that post or reply, instead of a reply box always on screen.
-   */
   function replyToggle(toolbar: HTMLElement, parent: CommunityPost): void {
-    const toggle = el('button', '', 'post-action post-comments');
-    toggle.type = 'button';
-    toggle.append(
-      communityIcon('comment'),
-      el('span', String(parent.replies)),
-      el('span', 'Responder', 'post-action-caption'),
+    const old = generation;
+    postReply(
+      toolbar,
+      parent,
+      own?.canPost
+        ? {
+            controller,
+            run,
+            valid: () => old === generation,
+            canReply: () => Promise.resolve(own?.canPost ?? false),
+            media: mediaAccess(),
+            replied: async () => {
+              after = null;
+              await load();
+              if (feedback) feedback.textContent = 'Resposta publicada.';
+            },
+          }
+        : null,
     );
-    toolbar.append(toggle);
-    if (!own?.canPost || parent.status !== 'visible') {
-      toggle.disabled = true;
-      toggle.title = 'Respostas indisponíveis para sua participação.';
-      return;
-    }
-    toggle.setAttribute('aria-expanded', 'false');
-    let box: HTMLElement | null = null;
-    toggle.addEventListener('click', () => {
-      box ??= replyBox(toolbar, parent, () => toggle.click());
-      box.hidden = !box.hidden;
-      toggle.setAttribute('aria-expanded', String(!box.hidden));
-      if (!box.hidden)
-        box.querySelector<HTMLElement>('textarea, input')?.focus();
-    });
-  }
-  function replyBox(
-    toolbar: HTMLElement,
-    parent: CommunityPost,
-    close: () => void,
-  ): HTMLElement {
-    const box = el('div', '', 'reply-box');
-    box.hidden = true;
-    toolbar.after(box);
-    const content = replyForm(
-      box,
-      { title: '', text: '', tag: null },
-      mediaAccess(),
-    );
-    const actions = el('div', '', 'reply-box-actions');
-    box.append(actions);
-    let id = crypto.randomUUID();
-    button(actions, 'Cancelar', () => {
-      close();
-      return Promise.resolve();
-    });
-    button(actions, 'Responder', () =>
-      run(async () => {
-        const old = generation;
-        postState(
-          await controller.request('reply-create', {
-            id: community,
-            post: id,
-            parent: parent.id,
-            content: await content(),
-          }),
-        );
-        if (old !== generation) return;
-        id = crypto.randomUUID();
-        after = null;
-        await load();
-        if (feedback) feedback.textContent = 'Resposta publicada.';
-      }),
-    );
-    actions.lastElementChild?.classList.add('primary');
-    return box;
   }
   async function thread(value: CommunityPost): Promise<void> {
     const old = generation;
@@ -449,13 +392,13 @@ export function startCommunityPosts(
       showExternalVideos(node, value.text, { privacy, signal: abort.signal }),
       node,
     );
-    postTagLink(node, value);
     if (value.media?.length)
       mediaCleanup.set(
         showPublicPostMedia(node, value.media, abort.signal),
         node,
       );
     else if (!value.text) node.append(el('p', 'Mídia aguardando liberação.'));
+    postTagLink(node, value);
   }
   function rowMeta(
     node: HTMLElement,

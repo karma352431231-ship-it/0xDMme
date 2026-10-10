@@ -1,5 +1,8 @@
 import { communityState } from '../../shared/communities/index.ts';
-import type { CommunityPost } from '../../shared/community-posts/index.ts';
+import type {
+  CommunityPost,
+  PostState,
+} from '../../shared/community-posts/index.ts';
 import type { Communities } from './controller.ts';
 import {
   communityButton as button,
@@ -13,7 +16,7 @@ interface Actions {
   controller: Communities;
   run: (work: () => Promise<void>) => Promise<void>;
   valid: () => boolean;
-  changed: () => Promise<void>;
+  changed: (state?: PostState) => Promise<void>;
 }
 export function preferenceControls(
   container: HTMLElement,
@@ -93,8 +96,8 @@ export function postVoting(
     const node = actions
       ? button(controls, '', () =>
           actions.run(async () => {
-            await togglePostVote(post, position, actions);
-            if (actions.valid()) await actions.changed();
+            const state = await togglePostVote(post, position, actions);
+            if (state && actions.valid()) await actions.changed(state);
           }),
         )
       : el('a');
