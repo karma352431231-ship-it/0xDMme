@@ -347,6 +347,8 @@ O proprietário autorizou seguir com a correção objetiva dos controles vazios/
 
 ## Aceite necessário depois da escolha
 
+A prioridade posterior em poses abriu uma nova recalibração autorizada, isolada em `codex/moderation-poses`, sem reabrir a rodada congelada anterior ou solicitar imagens voluntárias. Ela resolveu as cinco retenções permitidas conhecidas e conferiu quatro controles novos de poses/exercícios; não houve liberação proibida observada. Referências, limites e pendências de integração ficam em [MODERACAO_POSES.md](MODERACAO_POSES.md). A regra artística vigente permanece, sem nova exigência de pesquisa de pinturas de IA por consequência.
+
 - Fixar versões/hashes, avisos, origem dos pesos e dependências; validar runtime sem tráfego externo, CPU/RAM/processos e encerramento por prazo.
 - Calibrar permitidos/proibidos/incertos com dados sintéticos representativos ou corpus explicitamente autorizado, separado do treinamento. Cobrir real/IA/desenho, roupa permitida e exposição/atos proibidos; registrar erros e limites sem usar conteúdo privado ou de comunidades reais por conveniência.
 - Verificar a sequência publicada de GIF/vídeo e a miniatura, inclusive ocorrência breve no meio/fim. Um único frame/capa não atende ao contrato. Medir carga equivalente a três GIFs de 20 s/20 FPS e um vídeo de 60 s/30 FPS, além de fotos e diferentes tamanhos; comparar cobertura e custo, sem chamar benchmark sintético de validação de precisão.
