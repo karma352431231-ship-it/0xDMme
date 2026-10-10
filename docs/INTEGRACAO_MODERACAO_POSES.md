@@ -1,6 +1,8 @@
 # Integração do detector de poses — 10/10/2026
 
-O proprietário pediu implementar a conexão com o aplicativo depois da recalibração de [poses](MODERACAO_POSES.md), mantendo `codex/moderation-poses` em worktree próprio. O branch incorpora também os commits já concluídos do perfil público da integração principal, até `0c8099b`; alterações não commitadas de outra sessão permanecem no checkout principal. A entrega não instala nem ativa o runtime na VPS.
+O proprietário pediu implementar a conexão com o aplicativo depois da recalibração de [poses](MODERACAO_POSES.md), mantendo `codex/moderation-poses` em worktree próprio. O branch incorpora também os commits já concluídos da integração principal, até `2ac00f9`; alterações não commitadas de outra sessão permanecem no checkout principal. A entrega inicial de código não instalou nem ativou o runtime na VPS.
+
+Em seguida, o proprietário autorizou instalar o runtime privado revisado, validar e ativar somente se passar. Reutilizar o Python 3.12 da VPS, sem pacotes globais, com NumPy 2.3.5, ONNX Runtime 1.24.4, Pillow 12.3.0 e dependências transitivas exatas revisadas. Runtime e quatro artefatos fixados ficam na área própria, somente leitura no worker público. A configuração afeta apenas web/worker público; preservar isolamento de rede, swap desativado, demais serviços e dados. Exigir identidade exata, controles licenciados de poses/exercícios, cobertura temporal integral dentro do prazo vigente e preservação antes/depois. O aceite não muda limiares nem elimina os limites de precisão descritos abaixo. Código continua pelo [executor existente](GIT_E_DEPLOY.md), com CI integral do commit integrado.
 
 ## Contrato de execução
 
