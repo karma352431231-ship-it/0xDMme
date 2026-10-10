@@ -341,6 +341,10 @@ Nos onze arquivos novos, a mediana foi aproximadamente `0,251 s` e o máximo `0,
 
 **Ponto importante:** o bloqueio confirmado é a retenção indevida de controles neutros, além da cobertura de precisão ainda insuficiente. A avaliação não aprova relaxar a política, liberar arquivos pela pontuação isolada ou ativar a moderação só porque a inferência de fotos foi rápida.
 
+## Correção delimitada autorizada posteriormente — 10/10/2026
+
+O proprietário autorizou seguir com a correção objetiva dos controles vazios/uniformes, sem nova rodada de imagens voluntárias nem troca de modelos/limiares. A rodada congelada acima permanece encerrada e seus resultados ficam preservados. A correção usa evidência exata de todos os pixels na resolução preparada original, antes da redução/crop; os 54 controles neutros passaram e nenhuma decisão dos 30 arquivos públicos existentes mudou. A implementação e os testes foram isolados das outras sessões. [Contrato, validação e limites de integração](MODERACAO_PIXELS_NEUTROS.md). O componente não estabelece aceitação do detector sexual nem está conectado ao scanner publicado; a moderação permanece desativada.
+
 ## Aceite necessário depois da escolha
 
 - Fixar versões/hashes, avisos, origem dos pesos e dependências; validar runtime sem tráfego externo, CPU/RAM/processos e encerramento por prazo.
