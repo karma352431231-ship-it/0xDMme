@@ -7,9 +7,9 @@ import deploy_blocks45 as backups
 import deploy_background as background
 
 BEFORE = '8a793e32e2cfaa7cc0b97b1195f30802f389c09d'
-# Filled with the reviewed application commit only after the owner approves the
-# inclusion of migration 050 and this specific database transition.
-REVIEWED = 'UNREVIEWED'
+# Owner authorized 050–052, backup, own maintenance and publication after CI on
+# 10/10/2026. Bind the exact reviewed application sources, including SQL 050.
+REVIEWED = '8781914293edae254a855c49222b7136d5e3eba4'
 OLD_TABLES = background.OLD_TABLES + background.NEW_TABLES
 NEW_TABLES = ('public_profile_follows', 'public_profile_banners')
 

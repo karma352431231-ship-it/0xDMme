@@ -16,6 +16,10 @@ recusa a transição enquanto `REVIEWED` não identificar o commit de aplicaçã
 revisto. O predecessor fica fixado em `8a793e3`, com comparação integral das
 fontes e das 49 migrações já aplicadas, mesmos pacotes/Node e mesmos units.
 
+Fontes de aplicação fixadas em `8781914293edae254a855c49222b7136d5e3eba4`.
+O commit seguinte registra essa referência no executor e esta documentação;
+a publicação exige CI integral do commit final integrado.
+
 O banco próprio passa de 49 para 52 migrações. A 050 é preparação de schema do
 trabalho paralelo de moderação: acrescenta fase e aviso, com todos os registros
 existentes em `before` e aviso nulo. Sua inclusão preserva a numeração/checksums
