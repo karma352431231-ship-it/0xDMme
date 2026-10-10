@@ -41,6 +41,7 @@ keepPageOnStrayDrop();
 // Theme first, so the first render already uses the saved device choice.
 const appearance = startAppearance();
 let connectedAccount: AccountSession | null = null;
+let recheckingAccount = false;
 const messageReadiness = new MessageReadiness();
 const conversationContent = document.createElement('div');
 conversationContent.className = 'conversation-content';
@@ -64,9 +65,14 @@ function openConversation(): void {
 }
 const devices = startDevices({
   changed: async () => {
-    await account.refreshPrivate();
-    publicProfiles.ready();
-    communities.ready();
+    // Session and key callbacks also call connection(). Publish panel readiness
+    // once, after the complete device/profile recheck, including dirty profiles.
+    recheckingAccount = true;
+    try {
+      await account.refreshPrivate();
+    } finally {
+      recheckingAccount = false;
+    }
     connection();
   },
   linked: (session) => account.acceptLinkedSession(session),
@@ -463,6 +469,10 @@ function renderApprovalPage(): void {
 }
 
 function connection(): void {
+  if (recheckingAccount) {
+    renderConnection();
+    return;
+  }
   const messagesReady = messageReadiness.update(
     connectedAccount,
     devices.authorized(),
@@ -477,6 +487,9 @@ function connection(): void {
     void vault.ready();
     loadSessionExtras(connectedAccount.accountId);
   }
+  renderConnection();
+}
+function renderConnection(): void {
   element('connection').textContent = navigator.onLine
     ? connectedAccount
       ? devices.authorized()

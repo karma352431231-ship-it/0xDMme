@@ -213,6 +213,7 @@ export function startMessages(
     available: () =>
       !busy &&
       maintenance === null &&
+      !live.connecting &&
       connected() &&
       !!session &&
       navigator.onLine &&
@@ -253,6 +254,7 @@ export function startMessages(
       options.liveState?.(live.connected);
       const label = node('[data-message-live]');
       if (label) label.textContent = live.notice;
+      updates.resume();
     },
     event: (event) => {
       options.liveEvent?.(event);
@@ -970,6 +972,7 @@ export function startMessages(
       menuNote:
         'Remover contato preserva histórico e permissões. Arquivar silencia; desarquivar não retoma alertas automaticamente.',
       open: () => {
+        if (reopenSelectedPeer(peer)) return;
         void run(() => openPeer(peer));
       },
     };
@@ -1095,6 +1098,13 @@ export function startMessages(
       : '';
     const address = shortAddress(peer.address);
     return `${settings.pinned ? '📌 ' : ''}${address}${state && state.mutedUntil > Date.now() ? ' · silenciada' : ''}${conflict}`;
+  }
+  function reopenSelectedPeer(peer: ConversationPeer): boolean {
+    if (selected?.accountId !== peer.accountId || rows === null || failed)
+      return false;
+    showDirectConversation();
+    enterConversation();
+    return true;
   }
   async function openPeer(peer: ConversationPeer): Promise<void> {
     if (
@@ -1657,8 +1667,7 @@ export function startMessages(
     if (event.persisted) {
       if (session && navigator.onLine) live.start();
       suspend();
-      if (mounted?.isConnected && session && navigator.onLine)
-        void run(refresh);
+      if (mounted?.isConnected && session && navigator.onLine) requestRefresh();
     }
   });
   function bind(selector: string, handler: () => void): void {
@@ -1731,7 +1740,7 @@ export function startMessages(
         return;
       }
       if (session && navigator.onLine) live.retry();
-      void run(refresh);
+      requestRefresh();
     });
     bind('[data-message-more-contacts]', () => {
       void run(() =>
@@ -1779,6 +1788,7 @@ export function startMessages(
         throw new Error(
           'Aguarde a atualização das conversas e tente novamente.',
         );
+      if (reopenSelectedPeer(peer)) return;
       await run(() => openPeer(peer));
     },
     async contactSaved(contact: AddressBookEntry): Promise<void> {
@@ -1932,8 +1942,10 @@ export function startMessages(
       renderContacts(peers);
       renderHistory();
       status();
-      if (session && navigator.onLine) void run(refresh);
-      else if (!navigator.onLine) void run(refreshLocalContacts);
+      if (session && navigator.onLine) {
+        live.start();
+        requestRefresh();
+      } else if (!navigator.onLine) void run(refreshLocalContacts);
     },
   };
 }

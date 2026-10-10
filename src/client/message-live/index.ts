@@ -112,6 +112,11 @@ export class LiveMessages {
   private connection: AbortController | null = null;
   private retryTimer: ReturnType<typeof setTimeout> | null = null;
   connected = false;
+  /** A foreground refresh waits for this handshake so ready cannot invalidate
+   * a read started by the same resume. Failure releases the polling fallback. */
+  get connecting(): boolean {
+    return this.wanted && this.connection !== null && !this.connected;
+  }
   notice = 'Atualização imediata disponível após autorizar o aparelho.';
   constructor(options: {
     access: VaultAccess;

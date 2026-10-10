@@ -334,6 +334,132 @@ function access(work: VaultAccess['withVault']): VaultAccess {
     withLocalVault: (_locator, action) => action(authority),
   };
 }
+await test('retomada e ready tardio pedem uma única carga depois do handshake, sem iniciar leitura que seria cancelada', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const original = globalThis.fetch;
+  t.after(() => {
+    globalThis.fetch = original;
+    live.stop();
+    updates.clear();
+  });
+  const applied: string[] = [];
+  const updates = new LiveUpdates({
+    available: () => !live.connecting,
+    run: (update) => applied.push(update),
+  });
+  globalThis.fetch = () =>
+    Promise.resolve(
+      new Response(
+        new ReadableStream({
+          start(controller) {
+            setTimeout(
+              () =>
+                controller.enqueue(
+                  new TextEncoder().encode('event: ready\ndata: {}\n\n'),
+                ),
+              350,
+            );
+          },
+        }),
+        { headers: { 'content-type': 'text/event-stream' } },
+      ),
+    );
+  const live = new LiveMessages({
+    access: access((_offline, work) => work(authority)),
+    changed: () => updates.resume(),
+    event: () => updates.request('refresh'),
+  });
+  live.start();
+  updates.request('refresh');
+  await turn();
+  assert.equal(live.connecting, true);
+  t.mock.timers.tick(150);
+  await turn();
+  assert.deepEqual(applied, []);
+  t.mock.timers.tick(200);
+  await turn();
+  assert.equal(live.connecting, false);
+  assert.equal(live.connected, true);
+  t.mock.timers.tick(150);
+  assert.deepEqual(applied, ['refresh']);
+});
+
+await test('falha do handshake libera a conferência pendente sem depender de ready; suspensão cancela a abertura', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const original = globalThis.fetch;
+  const applied: string[] = [];
+  const updates = new LiveUpdates({
+    available: () => !live.connecting,
+    run: (update) => applied.push(update),
+  });
+  globalThis.fetch = () => Promise.resolve(new Response('{}', { status: 503 }));
+  const live = new LiveMessages({
+    access: access((_offline, work) => work(authority)),
+    changed: () => updates.resume(),
+    event: () => {},
+  });
+  t.after(() => {
+    globalThis.fetch = original;
+    live.stop();
+    updates.clear();
+  });
+  live.start();
+  updates.request('refresh');
+  await turn();
+  assert.equal(live.connecting, false);
+  assert.equal(live.connected, false);
+  t.mock.timers.tick(150);
+  assert.deepEqual(applied, ['refresh']);
+  live.stop();
+  live.start();
+  assert.equal(live.connecting, true);
+  updates.request('refresh');
+  live.stop();
+  updates.clear();
+  await turn();
+  t.mock.timers.tick(150);
+  assert.equal(live.connecting, false);
+  assert.deepEqual(applied, ['refresh']);
+});
+
+await test('handshake sem resposta tem prazo e libera a conferência pendente pelo fallback', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const original = globalThis.fetch;
+  const applied: string[] = [];
+  const updates = new LiveUpdates({
+    available: () => !live.connecting,
+    run: (update) => applied.push(update),
+  });
+  globalThis.fetch = (_input, options) =>
+    new Promise((_resolve, reject) => {
+      options?.signal?.addEventListener('abort', () =>
+        reject(new Error('Handshake interrompido.')),
+      );
+    });
+  const live = new LiveMessages({
+    access: access((_offline, work) => work(authority)),
+    changed: () => updates.resume(),
+    event: () => {},
+  });
+  t.after(() => {
+    globalThis.fetch = original;
+    live.stop();
+    updates.clear();
+  });
+  live.start();
+  updates.request('refresh');
+  await turn();
+  t.mock.timers.tick(14999);
+  await turn();
+  assert.equal(live.connecting, true);
+  assert.deepEqual(applied, []);
+  t.mock.timers.tick(1);
+  await turn();
+  assert.equal(live.connecting, false);
+  t.mock.timers.tick(150);
+  assert.deepEqual(applied, ['refresh']);
+});
+
 await test('stream não mantém trava do cofre; quedas reconectam com ready e três falhas encerram tentativas automáticas', async (t) => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
   const original = globalThis.fetch;

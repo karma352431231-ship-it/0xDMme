@@ -25,6 +25,7 @@ import { postText } from './post-text.ts';
 import { showExternalVideos } from '../external-video/index.ts';
 import type { ExternalMediaConsent } from '../external-media/index.ts';
 import { postViews } from './post-views.ts';
+import { DiscoverySnapshot } from './discovery-page.ts';
 import {
   communityAvatar,
   communityIcon,
@@ -65,6 +66,9 @@ export function startCommunityDiscovery(
     after: string | null = null,
     rankOffset = 0;
   const seen = new Set<string>();
+  const snapshot = new DiscoverySnapshot();
+  let displayedAfter: string | null = null;
+  let displayedRank = 0;
   const mediaCleanup = new Set<() => void>();
   function clearMedia(): void {
     for (const cleanup of mediaCleanup) cleanup();
@@ -85,6 +89,7 @@ export function startCommunityDiscovery(
     try {
       await work();
     } catch (error: unknown) {
+      snapshot.clear();
       if (old === generation && feedback)
         feedback.textContent =
           error instanceof Error ? error.message : 'Feed indisponível.';
@@ -216,13 +221,26 @@ export function startCommunityDiscovery(
   }
   async function load(): Promise<void> {
     const old = generation,
+      requestedAfter = after,
+      requestedRank = rankOffset,
+      requestedQuery = query(),
       result = await read();
     if (old !== generation || !list || !paging) return;
+    const { page, changed } = snapshot.read(view, requestedQuery, result);
+    after = page.value.next;
+    displayedAfter = requestedAfter;
+    displayedRank = requestedRank;
+    if (feedback) feedback.textContent = '';
+    if (!changed) {
+      if (page.kind === 'explore') rankOffset += page.value.items.length;
+      return;
+    }
     clearMedia();
     list.replaceChildren();
     paging.replaceChildren();
-    if (view === 'explore') renderExplore(result);
-    else renderFeed(result, old);
+    seen.clear();
+    if (page.kind === 'explore') renderExplore(page.value);
+    else renderFeed(page.value, old);
     if (!list.children.length)
       list.append(
         el(
@@ -234,10 +252,8 @@ export function startCommunityDiscovery(
     if (after) button(paging, 'Próxima página', () => run(load));
     button(paging, 'Recarregar do início', () => run(reload));
   }
-  function renderExplore(result: unknown): void {
+  function renderExplore(page: ReturnType<typeof explorePage>): void {
     if (!list) return;
-    const page = explorePage(result);
-    after = page.next;
     for (const item of page.items) {
       const row = el('li', '', 'ranking-row'),
         open = el('a', '', 'ranking-link'),
@@ -291,9 +307,7 @@ export function startCommunityDiscovery(
       growth.title = 'Histórico em formação; crescimento ainda não comparável.';
     return [followers, stat(number(item.participants), 'ativos'), growth];
   }
-  function renderFeed(result: unknown, old: number): void {
-    const page = feedPage(result);
-    after = page.next;
+  function renderFeed(page: ReturnType<typeof feedPage>, old: number): void {
     for (const entry of page.items) {
       const post = entry.post;
       if (seen.has(post.id)) continue;
@@ -392,6 +406,14 @@ export function startCommunityDiscovery(
   function ready(): void {
     void run(reload);
   }
+  async function refresh(): Promise<void> {
+    if (!mounted) return;
+    await run(async () => {
+      after = displayedAfter;
+      rankOffset = displayedRank;
+      await load();
+    });
+  }
   function leave(): void {
     clearMedia();
     generation++;
@@ -401,6 +423,9 @@ export function startCommunityDiscovery(
     paging = null;
     feedback = null;
     seen.clear();
+    snapshot.clear();
+    displayedAfter = null;
+    displayedRank = 0;
   }
   return {
     mount(
@@ -462,6 +487,7 @@ export function startCommunityDiscovery(
       ready();
     },
     leave,
+    refresh,
     canActivate: () => !busy,
   };
 }

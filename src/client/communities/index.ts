@@ -62,6 +62,7 @@ export function startCommunities(
     cursor: string | null = null,
     sidebarCursor: string | null = null;
   let output: HTMLElement | null = null;
+  let discoveryMounted = false;
   // The DM view is shared: the communities page owns it for view=dms, the workspace for its chat column.
   let dmOwner: 'page' | 'panel' | null = null;
   const publicPhotos = new Map<() => void, HTMLElement>();
@@ -115,6 +116,7 @@ export function startCommunities(
   }
   function navigation(): void {
     if (!mounted) return;
+    discoveryMounted = false;
     clearPhoto();
     clearPublicPhotos(mounted);
     mounted.replaceChildren();
@@ -594,6 +596,22 @@ export function startCommunities(
   ): Promise<void> {
     return run(() => mutateWork(operation, data));
   }
+  async function refreshDiscovery(container: HTMLElement): Promise<void> {
+    if (discoveryMounted) {
+      await discovery.refresh();
+      return;
+    }
+    navigation();
+    discoveryMounted = true;
+    discovery.mount(container, {
+      view,
+      signedIn: session !== null,
+      followChanged: async () => {
+        sidebarCursor = null;
+        await directory();
+      },
+    });
+  }
   async function refresh(): Promise<void> {
     if (!mounted) return;
     if (view === 'dms') {
@@ -608,15 +626,7 @@ export function startCommunities(
     }
     if (!selected) {
       if (['feed', 'explore', 'following', 'saved', 'hidden'].includes(view)) {
-        navigation();
-        discovery.mount(mounted, {
-          view,
-          signedIn: session !== null,
-          followChanged: async () => {
-            sidebarCursor = null;
-            await directory();
-          },
-        });
+        await refreshDiscovery(mounted);
         return;
       }
       if (view === 'replies') {
@@ -650,6 +660,7 @@ export function startCommunities(
   function leave(): void {
     posts.leave();
     discovery.leave();
+    discoveryMounted = false;
     if (dmOwner === 'page') {
       dms.leave();
       dmOwner = null;
@@ -747,6 +758,7 @@ export function startCommunities(
       generation++;
       posts.leave();
       discovery.leave();
+      discoveryMounted = false;
       state = null;
       current = null;
       sidebarCursor = null;
