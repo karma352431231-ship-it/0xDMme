@@ -256,3 +256,12 @@ Pedido do proprietário: a Atividade mostra direto o que foi respondido, sem pre
 - Cada resposta mostra o avatar e "**@pessoa respondeu**", o começo do texto em contraste total (até 3 linhas) e o horário relativo; **Abrir** leva ao post aberto.
 - O servidor anexa a prévia à mesma consulta de avisos, por uma leitura em lote limitada ao tamanho da página e com as mesmas regras de qualquer post público. Respostas removidas pela moderação ou excluídas não trazem autor nem texto, e a validação compartilhada recusa uma prévia oculta que traga esses dados.
 - A prévia leva até 280 caracteres. Uma resposta só com mídia aparece como "Enviou uma mídia".
+
+## Logo no app e na aba do navegador — 10/10/2026
+
+Pedido do proprietário: usar a logo do 0xDMme no canto superior esquerdo e na aba do navegador. A escolhida é o finalista "os três juntos": balão em contorno com os pontinhos, o `0x` e o selo `1`, sobre fundo navy.
+
+- `src/client/app/icon.svg` virou o SVG original do finalista. Ele aparece na aba (favicon), no trilho do desktop e na marca das telas estreitas.
+- `icon-192.png` e `icon-512.png` (ícone instalado e manifesto) foram gerados do PNG 512 do finalista. Eles usam paleta de 256 cores e não levam metadados.
+- A paleta é necessária porque o pacote "Código e licenças" tem teto de 2 MiB e os PNGs em cores completas o ultrapassavam. A diferença visual é imperceptível.
+- Quem já tem o app aberto vê a logo nova depois de "Atualizar agora", porque o service worker guarda os ícones da versão anterior.
