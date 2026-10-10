@@ -17,7 +17,7 @@ import type { ContactAuthority } from './contacts.ts';
 import type { CommunityStore } from './communities.ts';
 import { requireCommunityParticipation } from './community-authority.ts';
 import type { CommunityContext } from './community-authority.ts';
-import { assertContentCapacity } from './vault-quota.ts';
+import { assertContentCapacity, lockContentUsage } from './vault-quota.ts';
 import type {
   PublicModerationStore,
   PublicModerationSubject,
@@ -389,6 +389,18 @@ export class CommunityMediaStore {
       "UPDATE hash_talk.community_media SET status='attached',post_id=$2 WHERE id=ANY($1::uuid[]) AND post_id IS NULL",
       [input.ids, input.post],
     );
+    for (const row of found.rows) await this.postedVideo(c, row);
+  }
+  private async postedVideo(c: CommunityContext, row: MediaRow): Promise<void> {
+    if (row.post_id !== null) return;
+    const hash = preparedHash(row);
+    if (row.result?.kind !== 'video' || !row.moderation_review || !hash) return;
+    await this.moderation.postedVideo(c.client, {
+      id: row.moderation_review,
+      owner: c.actor.id,
+      target: row.id,
+      contentHash: hash,
+    });
   }
   async garbage(): Promise<string[]> {
     await this.moderation.expired('post-media');
@@ -476,6 +488,15 @@ export class CommunityMediaStore {
         row.moderation_review ? [row.moderation_review] : [],
       ),
     );
+    const provisional = await this.moderation.releasedVideos(
+      client,
+      found.rows
+        .filter((row) => row.result?.kind === 'video')
+        .flatMap((row) =>
+          row.moderation_review ? [row.moderation_review] : [],
+        ),
+    );
+    for (const [id, review] of provisional) released.set(id, review);
     const refs = new Map<string, PublicPostMedia[]>();
     for (const row of found.rows) {
       const review = row.moderation_review
@@ -492,9 +513,16 @@ export class CommunityMediaStore {
     target: string,
     review: string,
   ): Promise<PublicModerationMediaCandidate | null> {
-    const subject = (await this.moderation.released(this.pool, [review])).get(
+    let subject = (await this.moderation.released(this.pool, [review])).get(
       review,
     );
+    let provisional = false;
+    if (!subject) {
+      subject = (await this.moderation.releasedVideos(this.pool, [review])).get(
+        review,
+      );
+      provisional = true;
+    }
     if (!subject || subject.kind !== 'post-media' || subject.target !== target)
       return null;
     const found = await this.pool.query<MediaRow>(
@@ -503,7 +531,11 @@ export class CommunityMediaStore {
       [target],
     );
     const row = found.rows[0];
-    if (!matchesMediaBytes(row, subject)) return null;
+    if (
+      !matchesMediaBytes(row, subject) ||
+      (provisional && row.result.kind !== 'video')
+    )
+      return null;
     return {
       id: row.id,
       result: row.result,
@@ -518,7 +550,7 @@ export class CommunityMediaStore {
       [review.target],
     );
     if (!matchesReview(found.rows[0], review)) return null;
-    // The queue commits the decision. Public projections remain closed until validated.
+    // The queue commits the decision and revokes provisional video access atomically.
     return () => Promise.resolve();
   }
   async bindPolicy(client: pg.PoolClient, review: PublicModerationSubject) {
@@ -559,10 +591,13 @@ export class CommunityMediaStore {
     ).rows.map((r) => r.id);
   }
   async settled(id: string): Promise<void> {
-    await this.pool.query(
-      "UPDATE hash_talk.community_media SET charge=(result->>'bytes')::bigint+(result->>'thumbnailBytes')::bigint+32768 WHERE id=$1 AND status IN ('ready','attached') AND charge<>(result->>'bytes')::bigint+(result->>'thumbnailBytes')::bigint+32768",
-      [id],
-    );
+    await this.transaction(async (client) => {
+      await lockContentUsage(client);
+      await client.query(
+        "UPDATE hash_talk.community_media SET charge=(result->>'bytes')::bigint+(result->>'thumbnailBytes')::bigint+32768 WHERE id=$1 AND status IN ('ready','attached') AND charge<>(result->>'bytes')::bigint+(result->>'thumbnailBytes')::bigint+32768",
+        [id],
+      );
+    });
   }
   async resumeInterrupted(): Promise<void> {
     await this.pool.query(

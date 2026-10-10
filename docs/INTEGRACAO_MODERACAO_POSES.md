@@ -1,0 +1,47 @@
+# Integração do detector de poses — 10/10/2026
+
+O proprietário pediu implementar a conexão com o aplicativo depois da recalibração de [poses](MODERACAO_POSES.md), mantendo `codex/moderation-poses` em worktree próprio. O branch incorpora também os commits já concluídos do perfil público da integração principal, até `0c8099b`; alterações não commitadas de outra sessão permanecem no checkout principal. A entrega não instala nem ativa o runtime na VPS.
+
+## Contrato de execução
+
+`infra/public-moderation/pose_models.json` fixa por SHA-256 os dois modelos ONNX, a matriz de descrições e o preparo Nano já avaliados. A identidade do detector inclui os bytes exatos do manifesto, política/taxonomia, prova neutra, preparo espacial, protocolo Python e scanner/adaptador TypeScript. O interpretador confirma essa identidade na inicialização; trocas de arquivos invalidam a configuração aceita. Não há download automático, seleção por upload ou referência esperada fornecida ao modelo.
+
+O runtime é Python 3.12, NumPy 2.3.5, ONNX Runtime 1.24.4 e Pillow 12.3.0, em CPU com quatro threads de inferência. As sessões ficam carregadas em um subprocesso serial do worker público, sem credenciais de banco ou API no ambiente. Telemetria é desativada e operações de rede auditadas pelo Python são bloqueadas; isso não substitui a validação do isolamento de rede do código nativo na VPS. Os pesos continuam fora do Git, junto do runtime privado. Permanecem as licenças permissivas previamente verificadas: OpenCLIP/pesos declarados MIT e Viddexa Nano Apache-2.0; a recomendação de pesquisa do modelo contextual e a necessidade de validação específica continuam registradas na avaliação, sem promessa de qualificação para uso público.
+
+FFprobe conta a sequência inteira. FFmpeg entrega cada frame RGBA na resolução preparada original e uma visão contextual de 512 px, pareados sem amostragem. O caso comprovadamente neutro usa todos os pixels originais antes de qualquer redução/crop; demais imagens seguem as visões central/completa e os fundos preto/branco quando há transparência. A política e os limiares congelados são preservados. Uma recusa não interrompe a contagem dos frames seguintes. A miniatura é analisada separadamente; o veredito agregado mais restritivo prevalece.
+
+O protocolo aceita até dois frames por chamada, dimensão nativa máxima de 2.048 px por lado, contexto fixo de 512 px e linha limitada a 50.500.000 bytes. Respostas têm limite de 4 KiB, identidade sequencial e cobertura exata do lote. Inicialização tem prazo de 30 segundos, chamada 90 segundos e trabalho o prazo existente de seis minutos, anterior à concessão de dez minutos. Aborto, resposta parcial, processo encerrado ou pixels divergentes não produzem aprovação. Pipes e subprocessos são encerrados antes de finalizar a falha. A fila continua serial, com tentativas/concessões duráveis e sem transação SQL durante inferência. Não armazena frames entre trabalhos.
+
+## Conexão e configuração
+
+`configured-runner.ts` monta o scanner; `background/public-worker.ts` cuida de sua vida junto da manutenção pública. Os pontos de entrada web/mobile/worker passam o modelo aceito ao banco e ao worker. O modo isolado carrega os modelos somente no worker público; o modo de desenvolvimento embutido mantém a mesma interface. Perfil, banner e foto da comunidade usam candidatos restritos; posts usam resultado e miniatura conferidos por hash. O vínculo ao alvo/bytes é revalidado atomicamente ao persistir a decisão.
+
+As três variáveis privadas abaixo precisam estar completas, junto do FFmpeg/ffprobe já configurado:
+
+| Variável                             | Contrato                                                                |
+| ------------------------------------ | ----------------------------------------------------------------------- |
+| `HASH_TALK_MODERATION_ACCEPTED_HASH` | Hash exato de `poseModelIdentity()`, após aceite operacional            |
+| `HASH_TALK_MODERATION_PYTHON`        | Caminho absoluto para o interpretador privado com as versões conferidas |
+| `HASH_TALK_MODERATION_MODELS`        | Diretório absoluto dos quatro arquivos fixados no manifesto             |
+
+Sem as três variáveis, o detector fica desativado e o inventário aceito vazio. Configuração incompleta, hash diferente ou runtime de mídia ausente impede iniciar nessa configuração. A existência do manifesto não concede aceite nem preenche automaticamente a variável. A disponibilização desses caminhos na unidade isolada e a instalação do runtime precisam de revisão própria; esta entrega não altera unidades, dependências ou configuração da VPS.
+
+## Vídeos após a publicação
+
+Um vídeo preparado e anexado ao post pode ficar visível durante `pending/analyzing`, somente com inventário de detector aceito, política vigente, vínculo aos bytes e prazo original ainda válido. Fotos não recebem essa exceção. Recusa revoga a projeção e o download público na mesma transação e registra uma advertência uma vez; retenção incerta ou falha técnica restringe sem advertência. Revisão favorável pelo operador remove a advertência. Atualização de política preserva o prazo original e não reabre conteúdo anteriormente recusado, retido ou com falha.
+
+Os avisos do Perfil distinguem a análise em segundo plano, advertência e contestação. “Removido do público” significa retirar o acesso; os bytes restritos seguem o prazo de até sete dias para contestação/coleta, sem banimentos automáticos ou novo sistema de pontuação. A migração `050`, já presente nos commits incorporados da integração principal, fornece os campos de fase/advertência; não foi criada outra migração nesta tarefa. Falhas de infraestrutura continuam exigindo acompanhamento da fila antes da ativação.
+
+**Ponto importante:** um vídeo pode ser visto e copiado enquanto aguarda análise; a retirada posterior não recolhe essas cópias. DMs privadas e pelo `@` continuam E2EE, fora deste scanner. GIFs do catálogo externo e players com consentimento mantêm seus contratos próprios.
+
+## Validação e limite da entrega
+
+O ensaio real persistente usa o decoder/adaptador do aplicativo e as decisões congeladas de 36 arquivos públicos licenciados. Nove WebPs de pesquisa precisam de preparo PNG sem perda, com igualdade de todos os pixels RGBA conferida antes da inferência; os demais mantêm seus arquivos originais. Um dos 37 originais de pesquisa excede 2.048 px e foi excluído da comparação direta; não se inventou equivalência de uma versão reduzida. Essa é regressão/equivalência do código integrado, não precisão independente. Referências, licenças, arquivos, hash do pipeline e medições ficam em `.local/`.
+
+Os 27 arquivos sem conversão repetiram todas as decisões anteriores. Oito dos nove PNGs preparados repetiram o resultado; um controle de IA antes permitido ficou retido. A comparação estrita com os resultados dos originais, portanto, foi 35/36 e não passou integralmente. A investigação conferiu o mesmo PNG no executor congelado e no integrado: ambos retiveram, com erro máximo de scores contextuais igual a zero. O contexto de 512 px mudou entre a redução do WebP em YUV e do PNG em RGB, apesar da igualdade RGBA na resolução original. Isso é sensibilidade ao preparo, não evidência de uma política ou limiar alterado; a retenção continua uma limitação observada, sem advertência e sem ajuste posterior aos controles. Nenhuma referência proibida foi liberada. Os controles novos de poses/exercício conservaram seus resultados. Essa distinção impede apresentar o ensaio como precisão aprovada ou equivalência entre formatos.
+
+Os testes de protocolo verificam entradas incompletas, IDs, geometrias, alpha, prova neutra anterior à redução, limite de lote, identidade incorreta, falha/aborto e encerramento do processo. Um teste de FFmpeg usa arquivos sintéticos: um pixel diferente preservado no original, transparência/geometria fina e ocorrência restritiva no meio/final de um vídeo inteiro. A integração existente de banco/HTTP passa pelo novo contrato RGBA com todos os frames e miniaturas; também cobre acesso provisório, revogação, advertência idempotente, contestação, prazo, troca de política/modelo/hash e contabilidade concorrente.
+
+O ambiente do Mac não comprova o desempenho da VPS. O conjunto pequeno, em parte usado na calibração, não estabelece taxa futura de erros em poses. Nenhuma nova imagem voluntária foi solicitada ou original vencido restaurado. A aplicação permanece sem análise real ativada até os pré-requisitos operacionais; não é necessário reabrir a calibração para concluir os testes desta integração.
+
+Os módulos novos separam preparo, protocolo, inferência e configuração. `main.ts`/`web-mobile.ts` continuam pontos de composição amplos; esta tarefa acrescenta somente a passagem de configuração. Uma extração própria futura pode separar composição dos serviços, montagem HTTP/WebSocket e encerramento, nessa ordem, com testes de falha de início/encerramento e smoke do servidor. Não fazer essa refatoração simultaneamente às alterações de outra sessão.

@@ -32,6 +32,8 @@ export interface PublicModerationNotice {
   expiresAt: string;
   appeal: string | null;
   decision: string | null;
+  afterPublication?: boolean;
+  warning?: boolean;
 }
 export function publicModerationKind(value: unknown): PublicModerationKind {
   if (
@@ -67,6 +69,27 @@ function instant(value: unknown): string {
 function optionalText(value: unknown, maximum: number): string | null {
   return value === null ? null : boundedText(value, maximum);
 }
+function videoNoticeFlags(
+  data: Record<string, unknown>,
+  kind: PublicModerationKind,
+) {
+  for (const field of ['afterPublication', 'warning'])
+    if (data[field] !== undefined && typeof data[field] !== 'boolean')
+      throw new AccountError(400, 'Aviso de vídeo inválido.');
+  if (
+    (data['afterPublication'] === true && kind !== 'post-media') ||
+    (data['warning'] === true && data['afterPublication'] !== true)
+  )
+    throw new AccountError(400, 'Aviso de vídeo inválido.');
+  return {
+    ...(typeof data['afterPublication'] === 'boolean'
+      ? { afterPublication: data['afterPublication'] }
+      : {}),
+    ...(typeof data['warning'] === 'boolean'
+      ? { warning: data['warning'] }
+      : {}),
+  };
+}
 export function publicModerationNotice(value: unknown): PublicModerationNotice {
   const data = object(value);
   keys(data, [
@@ -78,15 +101,20 @@ export function publicModerationNotice(value: unknown): PublicModerationNotice {
     'expiresAt',
     'appeal',
     'decision',
+    ...['afterPublication', 'warning'].filter((field) =>
+      Object.hasOwn(data, field),
+    ),
   ]);
+  const kind = publicModerationKind(data['kind']);
   return {
     id: uuid(data['id']),
-    kind: publicModerationKind(data['kind']),
+    kind,
     target: uuid(data['target']),
     status: publicModerationStatus(data['status']),
     createdAt: instant(data['createdAt']),
     expiresAt: instant(data['expiresAt']),
     appeal: optionalText(data['appeal'], 2_000),
     decision: optionalText(data['decision'], 1_000),
+    ...videoNoticeFlags(data, kind),
   };
 }

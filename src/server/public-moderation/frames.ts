@@ -1,30 +1,24 @@
-import { spawn } from 'node:child_process';
-import type { ChildProcessWithoutNullStreams } from 'node:child_process';
 import type { Readable } from 'node:stream';
 import { AccountError, object } from '../../shared/account/index.ts';
 import type { MediaRuntime } from '../community-media/index.ts';
+import {
+  pipeProcess,
+  completion,
+  frameDemuxers as demuxers,
+} from './frame-process.ts';
+import { classifyPreparedRgbaFrames } from './prepared-frames.ts';
+import type {
+  FrameVerdict,
+  PreparedFrameInput,
+  PublicFrameDetector,
+  ResizedFrameDetector,
+} from './frame-contract.ts';
+export type {
+  FrameVerdict,
+  PreparedFrameInput,
+  PublicFrameDetector,
+} from './frame-contract.ts';
 
-export type FrameVerdict = 'allow' | 'hold' | 'reject';
-/** A detector's preprocessing and policy must be validated before supplying this interface. */
-export interface PublicFrameDetector {
-  model: { hash: string; runtime: string };
-  size: number;
-  classify(
-    frames: readonly Uint8Array[],
-    signal: AbortSignal,
-  ): Promise<readonly FrameVerdict[]>;
-}
-export interface PreparedFrameInput {
-  bytes: Uint8Array;
-  type: 'image/png' | 'image/jpeg' | 'image/gif' | 'video/mp4';
-  maximumFrames: number;
-}
-const demuxers = {
-  'image/png': 'png_pipe',
-  'image/jpeg': 'jpeg_pipe',
-  'image/gif': 'gif',
-  'video/mp4': 'mov',
-} as const;
 function decoder(
   runtime: MediaRuntime,
   input: PreparedFrameInput,
@@ -73,41 +67,6 @@ function decoder(
     'pipe:1',
   ];
   return pipeProcess(runtime, input, { binary: 'ffmpeg', args, signal });
-}
-function pipeProcess(
-  runtime: MediaRuntime,
-  input: PreparedFrameInput,
-  request: {
-    binary: 'ffmpeg' | 'ffprobe';
-    args: string[];
-    signal: AbortSignal;
-  },
-) {
-  const binary = runtime[request.binary];
-  const child = spawn(
-    runtime.limit ?? binary,
-    runtime.limit
-      ? [
-          '--as=8589934592',
-          '--nproc=128',
-          '--fsize=1048576',
-          '--',
-          binary,
-          ...request.args,
-        ]
-      : request.args,
-    {
-      stdio: ['pipe', 'pipe', 'pipe'],
-      env: { PATH: '/usr/bin:/bin', LANG: 'C' },
-      signal: request.signal,
-      killSignal: 'SIGKILL',
-    },
-  );
-  // Decoder diagnostics can carry media metadata. Never persist or export them.
-  child.stderr.resume();
-  child.stdin.on('error', () => child.kill('SIGKILL'));
-  child.stdin.end(input.bytes);
-  return child;
 }
 async function expectedFrames(
   runtime: MediaRuntime,
@@ -171,16 +130,6 @@ function readFrameCount(output: string, maximum: number): number {
     throw new Error('Sequência excedida ou vazia.');
   return frames;
 }
-/** Resolves only on process close, including spawn/abort errors, so no child escapes its job. */
-function completion(child: ChildProcessWithoutNullStreams): Promise<boolean> {
-  return new Promise((resolve) => {
-    let failed = false;
-    child.once('error', () => {
-      failed = true;
-    });
-    child.once('close', (code) => resolve(!failed && code === 0));
-  });
-}
 function merge(current: FrameVerdict, next: FrameVerdict): FrameVerdict {
   if (current === 'reject' || next === 'reject') return 'reject';
   return current === 'hold' || next === 'hold' ? 'hold' : 'allow';
@@ -192,6 +141,8 @@ export async function classifyPreparedFrames(options: {
   signal: AbortSignal;
 }): Promise<{ frames: number; verdict: FrameVerdict }> {
   const { runtime, input, detector, signal } = options;
+  if ('classifyPrepared' in detector)
+    return classifyPreparedRgbaFrames({ ...options, detector });
   requireFrameInput(input, detector.size);
   signal.throwIfAborted();
   const expected = await expectedFrames(runtime, input, signal);
@@ -215,7 +166,7 @@ export async function classifyPreparedFrames(options: {
 async function scanFrames(
   output: Readable,
   options: {
-    detector: PublicFrameDetector;
+    detector: ResizedFrameDetector;
     signal: AbortSignal;
     expected: number;
   },

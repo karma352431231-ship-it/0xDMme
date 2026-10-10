@@ -1,0 +1,28 @@
+{
+  "runtime": "python3.12-onnxruntime1.24.4-numpy2.3.5-pillow12.3.0-pose-v1",
+  "artifacts": {
+    "context.onnx": "b7fc968428434668a648c2a81ec814884292eaaf4b8bdf7ab996ee98c864658e",
+    "text.npy": "d65275185d1bff4b8b20d1dc2ce1c8710dc89d9fbfaf0c34cd445e157cc34b12",
+    "nano.onnx": "3c59deeabdc2d29295bf8e3ac7abc5aa6c90fa1d76f4c9df198b903e815d170e",
+    "nano-preprocessor.json": "f678895d3b0b6d95f32b0ab9d683c127c69b5f45939f82932cb90eb58bffa51e"
+  },
+  "identityFiles": [
+    "infra/public-moderation/pose_models.json",
+    "infra/public-moderation/pose_taxonomy.json",
+    "infra/public-moderation/fusion_policy.py",
+    "infra/public-moderation/visible_pixels.py",
+    "infra/public-moderation/pose_artifacts.py",
+    "infra/public-moderation/pose_views.py",
+    "infra/public-moderation/pose_runtime.py",
+    "infra/public-moderation/pose_worker.py",
+    "src/server/public-moderation/frame-contract.ts",
+    "src/server/public-moderation/frame-process.ts",
+    "src/server/public-moderation/prepared-frames.ts",
+    "src/server/public-moderation/pose-detector.ts",
+    "src/server/public-moderation/interpreter.ts",
+    "src/server/public-moderation/scanner.ts",
+    "src/server/public-moderation/configuration.ts",
+    "src/server/public-moderation/configured-runner.ts",
+    "src/server/public-moderation/frames.ts"
+  ]
+}

@@ -3,6 +3,7 @@ import {
   createPublicMediaHandler,
 } from './public-media/index.ts';
 import { embeddedBackground } from './background/index.ts';
+import { readPoseModerationConfiguration } from './public-moderation/index.ts';
 import { Database } from './database/index.ts';
 import { AccountService, createAccountHandler } from './account/index.ts';
 import {
@@ -47,7 +48,12 @@ try {
   const recoveryDocument = assets.get('/recovery.html')?.content;
   if (!recoveryDocument) throw new Error('Documento de recuperação ausente.');
   if (!approvalDocument) throw new Error('Documento de aprovação ausente.');
-  database = new Database(config.databaseUrl, config.accountCapacityBytes);
+  const moderation = await readPoseModerationConfiguration(process.env);
+  database = new Database(
+    config.databaseUrl,
+    config.accountCapacityBytes,
+    moderation ? [moderation.model] : [],
+  );
   await database.migrate();
   const objects = new ObjectStore(config.objectDirectory);
   await objects.initialize();
@@ -57,6 +63,7 @@ try {
     db: database,
     directory: config.objectDirectory,
     origin: mobile.origin,
+    moderation,
   });
   const notifications = new NotificationService({
     signals: database.workSignals,

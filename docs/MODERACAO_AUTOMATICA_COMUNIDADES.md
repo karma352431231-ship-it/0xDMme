@@ -347,6 +347,8 @@ O proprietário autorizou seguir com a correção objetiva dos controles vazios/
 
 ## Aceite necessário depois da escolha
 
+A rodada congelada reprovada continua encerrada. Depois da correção neutra e da nova recalibração de poses, o proprietário autorizou implementar o detector correspondente no aplicativo. A conexão fica condicionada ao hash privado aceito e não ativa o serviço por consequência; a instalação isolada, medição na VPS e aceite operacional continuam pendentes. O código implementa também a análise posterior dos vídeos aprovada acima, sem expor vídeos provisórios com inventário vazio. [Contrato e validação da integração posterior](INTEGRACAO_MODERACAO_POSES.md).
+
 A prioridade posterior em poses abriu uma nova recalibração autorizada, isolada em `codex/moderation-poses`, sem reabrir a rodada congelada anterior ou solicitar imagens voluntárias. Ela resolveu as cinco retenções permitidas conhecidas e conferiu quatro controles novos de poses/exercícios; não houve liberação proibida observada. Referências, limites e pendências de integração ficam em [MODERACAO_POSES.md](MODERACAO_POSES.md). A regra artística vigente permanece, sem nova exigência de pesquisa de pinturas de IA por consequência.
 
 - Fixar versões/hashes, avisos, origem dos pesos e dependências; validar runtime sem tráfego externo, CPU/RAM/processos e encerramento por prazo.

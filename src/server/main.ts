@@ -3,6 +3,7 @@ import {
   createPublicMediaHandler,
 } from './public-media/index.ts';
 import { backgroundMode, embeddedBackground } from './background/index.ts';
+import { readPoseModerationConfiguration } from './public-moderation/index.ts';
 import { readWebConfiguration } from './web-configuration/index.ts';
 import { Database } from './database/index.ts';
 import { CommunityMediaService } from './community-media/index.ts';
@@ -44,7 +45,12 @@ try {
   const recoveryDocument = assets.get('/recovery.html')?.content;
   if (!recoveryDocument) throw new Error('Documento de recuperação ausente.');
   if (!approvalDocument) throw new Error('Documento de aprovação ausente.');
-  database = new Database(config.databaseUrl, config.accountCapacityBytes);
+  const moderation = await readPoseModerationConfiguration(process.env);
+  database = new Database(
+    config.databaseUrl,
+    config.accountCapacityBytes,
+    moderation ? [moderation.model] : [],
+  );
   const objects = new ObjectStore(config.objectDirectory);
   await database.migrate();
   await objects.initialize();
@@ -59,6 +65,7 @@ try {
           db: database,
           directory: config.objectDirectory,
           origin: config.origin,
+          moderation,
         })
       : null;
   const notifications = new NotificationService({
