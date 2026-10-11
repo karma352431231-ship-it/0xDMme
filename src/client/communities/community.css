@@ -41,26 +41,28 @@
 .app[data-page='comunidades'] .page-heading {
   display: none;
 }
+/* Generic controls of the communities area; the shared chat keeps its own. */
 :is(.app[data-page='comunidades'], .community-scope)
-  :is(button, input, textarea, select) {
+  :is(button, input, textarea, select):where(:not(.chat-panel *)) {
   font: inherit;
   color: var(--text);
 }
 :is(.app[data-page='comunidades'], .community-scope)
-  :is(button, select, textarea),
+  :is(button, select, textarea):where(:not(.chat-panel *)),
 :is(.app[data-page='comunidades'], .community-scope)
-  input:not([type='checkbox']) {
+  input:not([type='checkbox']):where(:not(.chat-panel *)) {
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--surface);
   min-height: 40px;
   max-width: 100%;
 }
-:is(.app[data-page='comunidades'], .community-scope) :is(button, select) {
+:is(.app[data-page='comunidades'], .community-scope)
+  :is(button, select):where(:not(.chat-panel *)) {
   padding: 8px 12px;
 }
 :is(.app[data-page='comunidades'], .community-scope)
-  :is(button, a, summary):hover {
+  :is(button, a, summary):where(:not(.chat-panel *)):hover {
   color: var(--accent);
 }
 :is(.app[data-page='comunidades'], .community-scope) .icon-button {
@@ -254,7 +256,8 @@
   font-size: var(--fs-caption);
   color: var(--accent);
 }
-:is(.app[data-page='comunidades'], .community-scope) svg {
+:is(.app[data-page='comunidades'], .community-scope)
+  svg:where(:not(.chat-panel *)) {
   width: 18px;
   height: 18px;
   flex-shrink: 0;
@@ -1470,14 +1473,28 @@
   border-color: var(--line-strong);
 }
 .community-post-back {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 14px;
+  font-size: 15px;
+  font-weight: 600;
+}
+.community-post-back a {
+  color: var(--text);
+  text-decoration: none;
+}
+/* The arrow goes back; the photo and name enter the community. */
+.community-post-back-identity {
   display: inline-flex;
   align-items: center;
   gap: 10px;
-  margin: 0 0 14px;
-  color: var(--text);
-  font-size: 15px;
-  font-weight: 600;
-  text-decoration: none;
+  min-width: 0;
+  padding: 4px 8px;
+  border-radius: 10px;
+}
+.community-post-back-identity:hover {
+  background: var(--surface-2);
 }
 .community-post-back .community-avatar {
   flex: 0 0 28px;
@@ -1485,9 +1502,18 @@
   height: 28px;
   font-size: 11px;
 }
-.community-post-back-arrow {
+.community-post-back .community-post-back-arrow {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
   color: var(--text-muted);
   font-size: 18px;
+}
+.community-post-back .community-post-back-arrow:hover {
+  background: var(--surface-2);
+  color: var(--text);
 }
 #app-shell .community-card.community-post-focus {
   padding: 20px 22px;
@@ -1861,5 +1887,363 @@
   }
   #app-shell .community-hero .community-info {
     padding: 8px 14px 14px;
+  }
+}
+
+/* Community posts: the composer reads like a field until it opens. */
+#app-shell .post-composer > summary {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0;
+  color: var(--text-muted);
+  font-weight: 500;
+  list-style: none;
+  cursor: text;
+}
+#app-shell .post-composer > summary::-webkit-details-marker {
+  display: none;
+}
+.post-composer-icon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.post-composer-icon svg {
+  width: 18px;
+  height: 18px;
+}
+.post-composer-prompt {
+  flex: 1;
+  min-width: 0;
+  padding: 10px 16px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface-2);
+}
+#app-shell .post-composer[open] > summary {
+  margin-bottom: 14px;
+}
+#app-shell .post-composer[open] .post-composer-prompt {
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+/* Order and "Meus posts" as tabs; period, tag and hidden posts behind ⋯. */
+.community-post-filters {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 14px;
+}
+.community-post-tabs {
+  display: flex;
+  flex: 1;
+  gap: 4px;
+  min-width: 0;
+  padding: 4px;
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  scrollbar-width: none;
+}
+#app-shell .community-post-tabs button {
+  flex: none;
+  margin: 0;
+  padding: 7px 14px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 13.5px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+#app-shell .community-post-tabs button[aria-pressed='true'] {
+  background: var(--surface-3);
+  color: var(--text);
+}
+.community-post-more {
+  position: relative;
+  flex: none;
+}
+#app-shell .community-post-more > summary {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--text-muted);
+  list-style: none;
+  cursor: pointer;
+}
+#app-shell .community-post-more > summary::-webkit-details-marker {
+  display: none;
+}
+.community-post-more > summary svg {
+  width: 18px;
+  height: 18px;
+}
+.community-post-more-panel {
+  position: absolute;
+  z-index: 25;
+  top: calc(100% + 6px);
+  right: 0;
+  display: grid;
+  gap: 10px;
+  min-width: 240px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: 0 12px 32px var(--shadow);
+}
+.community-post-more-panel .discovery-menu-options {
+  right: 0;
+  left: auto;
+}
+#app-shell .community-post-more-panel > button {
+  margin: 0;
+  text-align: left;
+}
+
+/* A community without posts invites the first one. */
+.community-empty {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  padding: 32px 20px;
+  border: 1px dashed var(--line-strong);
+  border-radius: 16px;
+  text-align: center;
+}
+.community-empty h3 {
+  margin: 0;
+  font: 700 18px/1.3 var(--font-display);
+}
+#app-shell .community-empty p {
+  margin: 0;
+  color: var(--text-muted);
+}
+#app-shell .community-empty button.primary {
+  margin: 6px 0 0;
+  padding: 10px 20px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 700;
+}
+.community-empty h4 {
+  justify-self: stretch;
+  margin: 18px 0 4px;
+  color: var(--text-muted);
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-align: left;
+  text-transform: uppercase;
+}
+.community-empty-suggestions {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  justify-self: stretch;
+  gap: 8px;
+  text-align: left;
+}
+#app-shell .community-empty-suggestions .community-row-link {
+  padding: 10px;
+  border-radius: 12px;
+  background: var(--surface-2);
+}
+
+/*
+ * Community settings: tabs (Geral, Tags, Moderação, Propriedade) show one
+ * group at a time; cards sit side by side on wide screens and stay compact.
+ */
+.community-manage-tabs {
+  display: flex;
+  gap: 4px;
+  margin: 0 0 14px;
+  padding: 4px;
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  scrollbar-width: none;
+}
+#app-shell .community-manage-tabs button {
+  flex: none;
+  margin: 0;
+  padding: 8px 16px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 14px;
+  font-weight: 600;
+}
+#app-shell .community-manage-tabs button[aria-pressed='true'] {
+  background: var(--surface-3);
+  color: var(--text);
+}
+.community-manage-panel {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr));
+  align-items: start;
+  gap: 12px;
+}
+.community-manage-panel[hidden] {
+  display: none;
+}
+#app-shell .community-manage .community-card {
+  margin: 0;
+  padding: 14px 16px;
+  border-radius: 14px;
+}
+#app-shell .community-manage .community-card > h2 {
+  margin: 0 0 8px;
+  font: 700 15px/1.3 var(--font-display);
+}
+#app-shell .community-manage .community-card p {
+  margin: 4px 0 8px;
+  font-size: 13px;
+  line-height: 1.45;
+}
+#app-shell .community-manage label {
+  display: grid;
+  gap: 4px;
+  margin: 6px 0;
+  color: var(--text-muted);
+  font-size: 12.5px;
+}
+#app-shell
+  .community-manage
+  :is(input:not([type='checkbox']), textarea, select) {
+  min-height: 36px;
+  padding: 7px 10px;
+  border-radius: 9px;
+  font-size: 14px;
+}
+#app-shell .community-manage textarea {
+  min-height: 72px;
+}
+#app-shell .community-manage .community-card button {
+  min-height: 0;
+  margin: 4px 6px 2px 0;
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-size: 13px;
+}
+#app-shell .community-manage .community-card button[hidden] {
+  display: none;
+}
+#app-shell .community-manage .community-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  padding: 4px 0;
+}
+#app-shell .community-manage .community-row label {
+  flex: 1;
+  min-width: 140px;
+}
+#app-shell .community-manage .community-row label:has(input[type='checkbox']) {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+#app-shell .community-manage .public-avatar-preview {
+  max-width: 96px;
+  border-radius: 20px;
+}
+.community-hint {
+  color: var(--text-muted);
+}
+
+/*
+ * Public @ conversations use the private chat frame. In the workspace chat
+ * column the frame replaces the old bar; on the Comunidades page it gets a
+ * height of its own, since the page itself scrolls.
+ */
+.public-chat:has(.social-dm-panel) {
+  border: 0;
+  background: transparent;
+}
+.public-chat:has(.social-dm-panel) .public-chat-bar {
+  display: none;
+}
+.public-chat-body:has(> .social-dm-panel) {
+  display: flex;
+  padding: 0;
+  overflow: hidden;
+}
+.app[data-page='comunidades'] .social-dm-panel {
+  height: calc(100dvh - 120px);
+  min-height: 420px;
+}
+.social-dm-panel .chat-history {
+  display: flex;
+  flex-direction: column;
+}
+.dm-request {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  padding: 16px 18px 18px;
+  border-top: 1px solid var(--line);
+  background: var(--surface-2);
+  text-align: center;
+}
+.dm-request[hidden] {
+  display: none;
+}
+.chat-panel .dm-request p {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--fs-small);
+}
+.chat-panel .dm-request button {
+  margin: 0 4px;
+  padding: 9px 20px;
+  border-radius: 999px;
+  font-weight: 600;
+}
+.chat-panel .dm-request button.primary {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+.dm-list {
+  display: grid;
+  align-content: start;
+  gap: 2px;
+  height: 100%;
+  padding: 10px;
+  overflow-y: auto;
+}
+.dm-list-title {
+  margin: 14px 8px 4px;
+  color: var(--text-muted);
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.chat-panel .dm-list .chat-older {
+  justify-self: center;
+}
+@media (max-width: 700px) {
+  .app[data-page='comunidades'] .social-dm-panel {
+    height: calc(100dvh - 170px);
   }
 }

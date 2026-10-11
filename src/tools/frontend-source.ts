@@ -222,14 +222,16 @@ export async function frontendSource(
   const included = new Set(files);
   verifyInputs(root, inputs, included);
   if (included.size > 1024) throw new Error('Quantidade de fontes excedida.');
-  // Portable source bytes only, without machine-specific owner names, ACLs or xattrs.
   // Explicit paths only: no repository-wide archive, shell, .local or backend.
+  // Plain ustar: the same files without per-file extended metadata (macOS
+  // xattrs, ACLs, sub-second times) or machine-specific owner names.
   const { stdout } = await execute(
     'tar',
     [
+      '--format',
+      'ustar',
       '-cf',
       '-',
-      '--format=ustar',
       '--numeric-owner',
       '--no-xattrs',
       '--no-acls',

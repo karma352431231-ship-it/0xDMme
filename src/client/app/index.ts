@@ -268,6 +268,20 @@ function socialCanActivate(): boolean {
   return publicProfiles.canActivate() && communities.canActivate();
 }
 
+/** Every page feature releases its view before the next page mounts. */
+function leaveFeatures(next: PageKey): void {
+  messages.leave();
+  statuses.leave();
+  representatives.leave();
+  publicProfiles.leave();
+  communities.leave();
+  if (next !== 'comunidades') communities.forgetReturn();
+  closePublicProfile?.();
+  closePublicProfile = null;
+  activity.leave();
+  backups.leave();
+  vault.leave();
+}
 function route(): void {
   if (account.approvalPage) {
     renderApprovalPage();
@@ -288,16 +302,7 @@ function route(): void {
   element('app-shell').dataset['page'] = key;
   const page = pages[key];
   renderPageHeader(key);
-  messages.leave();
-  statuses.leave();
-  representatives.leave();
-  publicProfiles.leave();
-  communities.leave();
-  closePublicProfile?.();
-  closePublicProfile = null;
-  activity.leave();
-  backups.leave();
-  vault.leave();
+  leaveFeatures(key);
   // Templates are static authored content. No user/server input enters HTML.
   element('page-content').innerHTML = page.content;
   if (key === 'conversas')

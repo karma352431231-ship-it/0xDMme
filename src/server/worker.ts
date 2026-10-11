@@ -2,6 +2,7 @@ import { Database } from './database/index.ts';
 import { readWebConfiguration } from './web-configuration/index.ts';
 import { createBackgroundWorker } from './background/index.ts';
 import type { BackgroundWorker, BackgroundRole } from './background/index.ts';
+import { readPoseModerationConfiguration } from './public-moderation/index.ts';
 
 let database: Database | undefined;
 let worker: BackgroundWorker | undefined;
@@ -23,10 +24,11 @@ try {
   if (!['ranking', 'content', 'public'].includes(role ?? ''))
     throw new Error('Worker inválido.');
   const config = readWebConfiguration(process.env);
+  const moderation = await readPoseModerationConfiguration(process.env);
   database = new Database(
     config.databaseUrl,
     config.accountCapacityBytes,
-    [],
+    moderation ? [moderation.model] : [],
     'worker',
   );
   await database.verifyMigrations();
@@ -35,6 +37,7 @@ try {
     directory: config.objectDirectory,
     origin: config.origin,
     keepAlive: true,
+    moderation,
   });
   database.workSignals.holdWorker(role as BackgroundRole, () => {
     process.exitCode = 1;

@@ -8,14 +8,16 @@ própria, gatilho de uso). Nenhuma tabela existente muda.
 
 O módulo interno `deploy_profile_description.py` segue o molde do
 `deploy_profile_social.py`: predecessor fixado na release publicada
-`2ac00f98698d384cff2a2f9d6937093e552d276b` (52 migrações) e fontes de aplicação
-fixadas em `6008df54f32072a8a8639040174a249ef50281d3`, com comparação integral
+`000308884e86989fb3dbd9326deb2f6608ef5511` (52 migrações, com a moderação por poses publicada pela outra sessão) e fontes de aplicação
+fixadas no merge `6a4d8e0702dbadeee596a2131f802a5190ec8e9d`, com comparação integral
 das fontes, das 52 migrações já aplicadas, pacotes/Node e units dos workers.
 O snapshot compara todas as linhas das tabelas existentes, o ledger de
 capacidade e os checksums; depois confere a tabela nova vazia e seu gatilho de
 uso. Web e workers próprios param durante o backup/migração e voltam em seguida,
 com o mesmo retorno verificado da transição anterior. O deploy roda de uma
-worktree limpa no commit integrado e enviado, sem tocar na pasta de trabalho.
+worktree limpa, na branch de publicação `codex/publicacao-perfil-moderacao`, que junta
+o perfil/descrição e a moderação por poses já publicada (opção escolhida pelo
+proprietário), sem tocar na pasta de trabalho nem nas branches das sessões.
 
 **Ponto importante:** o site fica indisponível por alguns segundos durante a
 manutenção. Passaram 164 testes do executor, incluindo os da revisão exata, da
@@ -74,6 +76,30 @@ durante a manutenção autorizada. A aplicação passou 18 testes unitários,
 e a transição 049→052. O site fica temporariamente indisponível durante a
 manutenção. Banner continua restrito até a análise aceita já exigida pelo
 produto. A imagem de prévia usa dados fictícios e não comprova publicação.
+
+## Detector de poses — ativação condicionada em 10/10/2026
+
+O proprietário pediu ativar a integração e autorizou instalar, validar e ativar
+o runtime privado revisado somente se passar. A revisão de código fixa a árvore
+inteira de banco do predecessor `2ac00f9` e das fontes `5a54ddb`; apenas
+`community-media.ts`, `public-moderation.ts` e `vault-quota.ts` diferem.
+As 52 migrações, executor de migrações, pacotes npm e Node permanecem iguais.
+Não executar migração para esta transição. A integração incorpora também as
+alterações concluídas do branch principal antes da publicação.
+
+Usar `npm run deploy:staging`, build no Mac, checkout limpo/enviado e CI integral
+do commit final. A autorização separada do runtime cobre somente a área própria,
+as versões/pesos fixados e configuração de web/worker público, sem instalação
+global. Antes de aceitar o hash, validar execução nativa no isolamento, controles
+licenciados existentes, todos os frames dentro do prazo vigente e preservação.
+Falha mantém a análise desativada; não ampliar prazo nem alterar política para
+obter aprovação. Guardar acesso, manifestos e evidências exclusivamente em
+`.local/`, com rollback limitado às adições próprias. O [contrato de integração](INTEGRACAO_MODERACAO_POSES.md)
+registra as versões, limites e a retenção observada no controle de IA convertido.
+
+**Ponto importante:** publicar o código não aceita automaticamente o detector.
+Vídeos liberados durante a análise podem ser vistos/copiados antes da remoção;
+DMs E2EE não entram no scanner.
 
 ## Teto do manifesto ampliado — 09/10/2026
 

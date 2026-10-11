@@ -323,3 +323,43 @@ Pedido do proprietário:
 - A página pública mostra a descrição abaixo do nome, também no perfil compacto do painel.
 
 **Ponto importante:** a foto ou o banner em análise aparecem na prévia do dono antes de serem públicos, e nenhum aviso diz que estão em análise. Visitantes continuam vendo só o que foi aprovado.
+
+## Perfil volta à última categoria — 10/10/2026
+
+Pedido do proprietário: ao recarregar a página do Perfil, a categoria aberta por último (Privacidade, Perfil público, Aparelhos…) volta aberta, em vez de sempre voltar para Privacidade. A escolha fica só neste navegador (`localStorage`, chave `0xdmme:settings-section`), como o arranjo dos painéis; sem armazenamento disponível, o Perfil abre como antes.
+
+## Seta do post volta à origem — 10/10/2026
+
+Pedido do proprietário: no post aberto, a seta voltava sempre para a comunidade, mesmo quando o post foi aberto pelo Feed. Agora a seta volta para a última lista vista em Comunidades (Feed, Explorar, Seguidas, a própria comunidade…), com os mesmos filtros. A foto e o nome da comunidade ao lado da seta viraram um link separado para entrar nela. Sem lista de origem (post aberto pela Atividade, por um link ou depois de outra página do app), a seta leva à comunidade. Vale na página cheia e no painel ao lado do chat.
+
+## Página da comunidade: postar, filtros, vazio e gerenciar — 10/10/2026
+
+Pedido do proprietário (itens 2 a 4 da proposta; a coluna "Sobre" à direita foi recusada):
+
+- **Postar:** "Criar postagem" virou uma caixa com ícone e o campo "Escreva algo para a comunidade…"; ao tocar, o formulário abre embaixo.
+- **Filtros:** a fileira de botões virou abas (Destaques, Recentes, Mais votados, Mais comentados e, com conta, Meus posts) e um menu "⋯" com período, tag e, para quem modera, posts e respostas ocultos.
+- **Comunidade sem posts:** em vez de "Nenhuma postagem nesta lista.", aparece um convite com "Escrever a primeira postagem" (quem pode postar) e até quatro "Outras comunidades em alta", da mesma lista pública do Explorar. Não há dado de comunidades parecidas; as sugestões são as em alta da semana. Listas filtradas (tag, período, meus posts) continuam com a mensagem curta.
+- **Gerenciar:** o menu "⋯" do topo tem só "Gerenciar comunidade", e apenas para dono ou moderador da comunidade aberta; ele abre a tela de configuração dela (nome, descrição, regras, foto, tags e governança). A lista "Gerenciar comunidades" saiu. A tela de configuração não abria antes: a rota recusava `view=manage` e caía na página comum da comunidade.
+
+**Ponto importante:** comunidades ainda não têm banner próprio enviado pelo dono; o banner continua sendo o degradê do tom da comunidade. Enviar banner exige mídia pública nova, migração e análise, como o banner de perfil.
+
+## Gerenciar comunidade em abas e Enter para enviar — 10/10/2026
+
+Pedido do proprietário:
+
+- **Gerenciar comunidade:** a tela virou abas — Geral (nome, descrição, regras e foto), Tags, Moderação (moderadores, suspensão, sanções e denúncias) e, para o dono, Propriedade (transferência e arquivamento). Um grupo por vez, com os cartões lado a lado em telas largas, campos e botões menores. Tags e moderadores carregam sozinhos, sem "Carregar…"; "Mais" só aparece quando há próxima página. A aba aberta continua após salvar.
+- **Enter envia** nas conversas privadas, nos grupos e nas mensagens pelo `@`: texto, foto ou prévia de voz, o mesmo que o botão Enviar enviaria. Shift+Enter quebra a linha. Em teclados de toque, Enter continua quebrando a linha (o botão de enviar fica ao lado); Ctrl/Cmd+Enter envia. Depois de escolher um arquivo com mouse e teclado, o foco volta ao campo, então Enter já envia. Nas mensagens pelo `@`, com o campo vazio, Enter envia a mídia preparada.
+
+## Chat público igual ao privado — 10/10/2026
+
+Pedido do proprietário: as mensagens pelo `@` usam o mesmo quadro do chat privado, na coluna de conversas e na página de Comunidades.
+
+- **Cabeçalho:** foto e `@`, subtítulo com o estado da conversa (no lugar da presença) e menu "⋯" com Ver perfil público, Bloquear/Desbloquear e Recarregar.
+- **Histórico:** bolhas iguais às do privado (enviadas à direita), emojis, GIF do KLIPY, vídeos externos e mídia com o mesmo player; "Mensagens anteriores" no topo.
+- **Compositor:** o mesmo do privado (emoji com aba GIF, clipe, microfone com segurar/toque duplo, barra de gravação, prévia, Enter). Foto, GIF ou voz ficam em memória com prévia até Enviar; o envio prepara e manda a mídia com o texto digitado como legenda. Mídia salva antes neste aparelho aparece como pendente, com envio ou lixeira.
+- **Pedido de conversa:** solicitar, aguardar, aceitar ou recusar aparecem num aviso no lugar do compositor.
+- **Lista de conversas `@`:** linhas iguais às de Conversas, com as cópias deste aparelho embaixo.
+
+As regras genéricas de botão/campo/ícone de Comunidades não se aplicam mais dentro do quadro de chat (`:where(:not(.chat-panel *))`, sem mudar a especificidade do restante).
+
+**Ponto importante:** o servidor das mensagens pelo `@` não tem reações, responder, editar/apagar, confirmação de leitura nem chamadas, e as mensagens não guardam horário; por isso as bolhas públicas não mostram hora nem marcações de entrega. Esses recursos exigem trabalho de protocolo e servidor próprio.

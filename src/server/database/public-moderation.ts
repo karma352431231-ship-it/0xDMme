@@ -72,6 +72,8 @@ interface ReviewRow {
   completed_lease: string | null;
   frames: number | null;
   operator_verdict: 'allow' | 'reject' | null;
+  publication_phase: 'before' | 'after';
+  warned_at: Date | null;
 }
 function sameClaim(row: ReviewRow, job: PublicModerationClaim): boolean {
   return (
@@ -94,6 +96,8 @@ function notice(row: ReviewRow): PublicModerationNotice {
     expiresAt: row.expires_at.toISOString(),
     appeal: row.appeal,
     decision: row.decision,
+    ...(row.publication_phase === 'after' ? { afterPublication: true } : {}),
+    ...(row.warned_at ? { warning: true } : {}),
   };
 }
 function subject(row: ReviewRow): PublicModerationSubject {
@@ -190,6 +194,50 @@ export class PublicModerationStore {
       [
         ids.map(uuid),
         ['0xdmme-public-explicit-v1', publicModerationPolicy],
+        JSON.stringify(this.acceptedModels),
+      ],
+    );
+    return new Map(found.rows.map((row) => [row.id, subject(row)]));
+  }
+  /** Byte owners call this only after attaching a verified video to a post.
+   * It does not bypass the accepted-model gate or alter existing photo rules. */
+  async postedVideo(
+    client: pg.PoolClient,
+    video: { id: string; owner: string; target: string; contentHash: string },
+  ): Promise<void> {
+    await client.query(
+      `UPDATE hash_talk.public_moderation SET publication_phase='after',
+        warned_at=CASE WHEN status='rejected' THEN coalesce(warned_at,now()) ELSE warned_at END
+        WHERE id=$1 AND owner=$2 AND target=$3 AND content_hash=$4 AND kind='post-media'
+          AND publication_phase='before' AND expires_at>now()
+          AND status IN ('pending','analyzing','approved','rejected','held','failed')`,
+      [
+        uuid(video.id),
+        uuid(video.owner),
+        uuid(video.target),
+        fingerprint(video.contentHash),
+      ],
+    );
+  }
+  /** Provisional exposure is video-only at the byte owner's gate, and bounded by
+   * the original deadline. Errors/uncertainty/rejection immediately close it. */
+  async releasedVideos(
+    client: Pick<pg.PoolClient, 'query'>,
+    ids: string[],
+  ): Promise<Map<string, PublicModerationSubject>> {
+    if (ids.length > 256)
+      throw new AccountError(400, 'Página de mídia excedida.');
+    if (!ids.length || !this.acceptedModels.length) return new Map();
+    const found = await client.query<ReviewRow>(
+      `SELECT r.* FROM hash_talk.public_moderation r WHERE r.id=ANY($1::uuid[])
+        AND r.publication_phase='after' AND r.kind='post-media' AND r.policy=$2
+        AND r.status IN ('pending','analyzing') AND r.expires_at>now()
+        AND r.automatic_verdict IS NULL AND (r.model_hash IS NULL OR EXISTS(
+          SELECT 1 FROM jsonb_to_recordset($3::jsonb) AS accepted(hash text,runtime text)
+          WHERE accepted.hash=r.model_hash AND accepted.runtime=r.runtime))`,
+      [
+        ids.map(uuid),
+        publicModerationPolicy,
         JSON.stringify(this.acceptedModels),
       ],
     );
@@ -311,7 +359,10 @@ export class PublicModerationStore {
           ]
         : 'removed';
       await client.query(
-        'UPDATE hash_talk.public_moderation SET status=$2,frames=$3,automatic_verdict=$4,completed_lease=lease,lease=NULL,lease_until=NULL WHERE id=$1',
+        `UPDATE hash_talk.public_moderation SET status=$2,frames=$3,automatic_verdict=$4,
+          completed_lease=lease,lease=NULL,lease_until=NULL,
+          warned_at=CASE WHEN publication_phase='after' AND $2='rejected'
+            THEN coalesce(warned_at,now()) ELSE warned_at END WHERE id=$1`,
         [job.id, status, result.frames, result.verdict],
       );
     });
@@ -355,21 +406,39 @@ export class PublicModerationStore {
           row.expires_at.getTime() <= Date.now()
         )
           return;
-        if (retarget)
-          await this.enqueue(
-            client,
-            {
-              owner: row.owner,
-              kind: row.kind,
-              target: row.target,
-              contentHash: row.content_hash,
-              createdAt: row.created_at,
-            },
-            retarget,
-          );
+        if (retarget) await this.requeue(client, row, retarget);
         await this.remove(client, row.id);
       });
     return found.rows.length;
+  }
+  private async requeue(
+    client: pg.PoolClient,
+    row: ReviewRow,
+    retarget: (review: string) => Promise<void>,
+  ): Promise<void> {
+    const next = await this.enqueue(
+      client,
+      {
+        owner: row.owner,
+        kind: row.kind,
+        target: row.target,
+        contentHash: row.content_hash,
+        createdAt: row.created_at,
+      },
+      retarget,
+    );
+    // A policy update must never reopen bytes already rejected, held or failed.
+    // Only the previous, verified provisional video may keep provisional access.
+    if (
+      row.publication_phase === 'after' &&
+      ['pending', 'analyzing'].includes(row.status)
+    )
+      await this.postedVideo(client, {
+        id: next,
+        owner: row.owner,
+        target: row.target,
+        contentHash: row.content_hash,
+      });
   }
   /** Close byte access at the deadline even while physical collection is unavailable. */
   async retained(
@@ -535,7 +604,9 @@ export class PublicModerationStore {
       if (!apply) throw new Error('Vínculo de análise ausente.');
       await apply(input.verdict);
       const saved = await client.query<ReviewRow>(
-        'UPDATE hash_talk.public_moderation SET status=$2,operator_verdict=$3,decision=$4,reviewed_at=now() WHERE id=$1 RETURNING *',
+        `UPDATE hash_talk.public_moderation SET status=$2,operator_verdict=$3,decision=$4,reviewed_at=now(),
+          warned_at=CASE WHEN publication_phase='after' AND $3='reject' THEN coalesce(warned_at,now())
+            WHEN $3='allow' THEN NULL ELSE warned_at END WHERE id=$1 RETURNING *`,
         [
           id,
           input.verdict === 'allow' ? 'approved' : 'rejected',

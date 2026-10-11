@@ -4,7 +4,13 @@ import {
   showPublicPostMedia,
   showPublicAvatar,
 } from '../public-media/index.ts';
-import { postHeader, postComments, postTagLink } from './presentation.ts';
+import {
+  iconLabel,
+  postHeader,
+  postComments,
+  postTagLink,
+} from './presentation.ts';
+import { emptyCommunity } from './community-empty.ts';
 import { keys, object } from '../../shared/account/index.ts';
 import {
   communityCursor,
@@ -445,9 +451,27 @@ export function startCommunityPosts(
     if (scope !== 'public') await loadPrivate();
     else await loadPublic();
     if (old !== generation || !list) return;
-    if (!list.children.length)
-      list.append(el('p', 'Nenhuma postagem nesta lista.'));
+    if (!list.children.length) empty(list);
     paging();
+  }
+  /** A filtered list says so; an empty community invites its first post. */
+  function empty(host: HTMLElement): void {
+    if (scope !== 'public' || tag || period !== 'all') {
+      host.append(el('p', 'Nenhuma postagem nesta lista.'));
+      return;
+    }
+    emptyCommunity(host, {
+      community,
+      compose: own?.canPost ? openComposer : null,
+      signal: signal(),
+    });
+  }
+  function openComposer(): void {
+    const form = mounted?.querySelector<HTMLDetailsElement>('.post-composer');
+    if (!form) return;
+    form.open = true;
+    form.scrollIntoView({ block: 'nearest' });
+    form.querySelector<HTMLElement>('input, textarea')?.focus();
   }
   async function loadPrivate(): Promise<void> {
     const old = generation;
@@ -502,8 +526,17 @@ export function startCommunityPosts(
   function composer(): void {
     // An opened post answers through its own reply box.
     if (!mounted || !own?.canPost || selected) return;
-    const form = el('details', '', 'card community-card post-composer');
-    form.append(el('summary', 'Criar postagem'));
+    // Closed, it reads like a field; opening it reveals the full form.
+    const form = el('details', '', 'card community-card post-composer'),
+      summary = el('summary'),
+      icon = el('span', '', 'post-composer-icon');
+    iconLabel(icon, 'pencil');
+    summary.append(
+      icon,
+      el('span', 'Escreva algo para a comunidade…', 'post-composer-prompt'),
+    );
+    summary.setAttribute('aria-label', 'Criar postagem');
+    form.append(summary);
     mounted.append(form);
     const content = postForm(
         form,
@@ -527,28 +560,66 @@ export function startCommunityPosts(
       }),
     );
   }
+  /**
+   * Order and "Meus posts" are tabs; period, tag and hidden posts live in a
+   * compact "⋯" menu instead of a row of loose buttons.
+   */
   function filters(): void {
     if (!mounted) return;
-    const toolbar = el('div', '', 'post-toolbar');
-    mounted.append(toolbar);
-    discoveryMenu(
-      toolbar,
-      'Ordenar postagens',
-      { value: order, options: feedOrders },
-      (value) => {
-        order = feedFilter({
-          scope: 'all',
-          order: value,
-          period,
-          community,
-          tag,
-        }).order;
+    const bar = el('div', '', 'community-post-filters');
+    mounted.append(bar);
+    orderTabs(bar);
+    moreFilters(bar);
+  }
+  function orderTabs(bar: HTMLElement): void {
+    const tabs = el('div', '', 'community-post-tabs');
+    tabs.setAttribute('role', 'group');
+    tabs.setAttribute('aria-label', 'Ordenar postagens');
+    const choices: (readonly [string, string])[] = [...feedOrders];
+    if (own) choices.push(['own', 'Meus posts']);
+    const paint = (): void => {
+      tabs.querySelectorAll('button').forEach((node) => {
+        const current =
+          scope === 'public' ? node.value === order : node.value === scope;
+        node.setAttribute('aria-pressed', String(current));
+      });
+    };
+    for (const [value, title] of choices) {
+      const tab = el('button', title);
+      tab.type = 'button';
+      tab.value = value;
+      tab.addEventListener('click', () => {
+        if (value === 'own') scope = 'own';
+        else {
+          scope = 'public';
+          order = feedFilter({
+            scope: 'all',
+            order: value,
+            period,
+            community,
+            tag,
+          }).order;
+        }
         after = null;
+        paint();
         void run(load);
-      },
-    );
+      });
+      tabs.append(tab);
+    }
+    paint();
+    bar.append(tabs);
+  }
+  function moreFilters(bar: HTMLElement): void {
+    const menu = el('details', '', 'community-post-more'),
+      summary = el('summary'),
+      panel = el('div', '', 'community-post-more-panel');
+    iconLabel(summary, 'more');
+    summary.setAttribute('aria-label', 'Mais filtros');
+    summary.title = 'Mais filtros';
+    menu.append(summary, panel);
+    bar.append(menu);
     discoveryMenu(
-      toolbar,
+      panel,
       'Publicadas no período',
       { value: period, options: discoveryPeriods },
       (value) => {
@@ -564,7 +635,7 @@ export function startCommunityPosts(
       },
     );
     const select = postTagSelect(
-      toolbar,
+      panel,
       { value: tag, label: 'Filtrar por tag', empty: 'Todas as tags' },
       tagSource(),
     );
@@ -573,21 +644,14 @@ export function startCommunityPosts(
       after = null;
       void run(load);
     });
-    if (!own) return;
-    for (const [value, title] of [
-      ['public', 'Posts públicos'],
-      ['own', 'Meus posts e respostas'],
-      ['removed', 'Posts e respostas ocultos'],
-    ] as const) {
-      if (value === 'removed' && own.role === 'participant') continue;
-      button(toolbar, title, () =>
-        run(async () => {
-          scope = value;
-          after = null;
-          await load();
-        }),
-      );
-    }
+    if (!own || own.role === 'participant') return;
+    button(panel, 'Posts e respostas ocultos', () =>
+      run(async () => {
+        scope = 'removed';
+        after = null;
+        await load();
+      }),
+    );
   }
   function shell(): void {
     if (!mounted) return;
@@ -645,21 +709,30 @@ export function startCommunityPosts(
         label.value = '';
       }
     });
-    button(section, 'Carregar tags', () =>
-      run(async () => {
-        const old = generation,
-          page = tagPage(
-            await controller.request('tag-list', {
-              id: community,
-              after: cursor,
-            }),
-          );
-        if (old !== generation) return;
-        rows.replaceChildren();
-        for (const value of page.items) tagRow(rows, value);
-        cursor = communityCursor(page.next);
-      }),
-    );
+    // Loads on open, outside the shared queue the screen is drawn in.
+    const load = async (): Promise<void> => {
+      const old = generation,
+        page = tagPage(
+          await controller.request('tag-list', {
+            id: community,
+            after: cursor,
+          }),
+        );
+      if (old !== generation) return;
+      rows.replaceChildren();
+      for (const value of page.items) tagRow(rows, value);
+      if (!page.items.length)
+        rows.append(el('p', 'Nenhuma tag criada.', 'community-hint'));
+      cursor = communityCursor(page.next);
+      more.hidden = cursor === null;
+    };
+    const more = button(section, 'Mais tags', () => run(load));
+    more.hidden = true;
+    void load().catch(() => {
+      rows.replaceChildren(
+        el('p', 'Tags indisponíveis agora.', 'community-hint'),
+      );
+    });
   }
   function tagRow(container: HTMLElement, value: PostTag): void {
     const row = el('div', '', 'community-row'),

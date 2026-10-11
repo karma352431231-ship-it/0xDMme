@@ -1063,6 +1063,34 @@ class MessageRemovalCodeTests(CommunityFeedCodeTests):
                     path.write_bytes(original)
 
 
+class PoseModerationCodeTests(CommunityFeedCodeTests):
+    def setUp(self):
+        super().setUp()
+        for relative in ['communities.ts', 'community-discovery.ts']:
+            (self.candidate / 'src/server/database' / relative).write_bytes(
+                (self.live / 'src/server/database' / relative).read_bytes())
+        for relative in ['community-media.ts', 'public-moderation.ts', 'vault-quota.ts']:
+            (self.live / 'src/server/database' / relative).write_text('existing public review')
+            (self.candidate / 'src/server/database' / relative).write_text('reviewed post-publication video review')
+        self.exports = {
+            remote.POSE_MODERATION_BEFORE: self.export(self.live),
+            remote.POSE_MODERATION_REVIEWED: self.export(self.candidate),
+        }
+
+    def test_each_review_module_requires_exact_reviewed_bytes(self):
+        for relative in ['community-media.ts', 'public-moderation.ts', 'vault-quota.ts']:
+            with self.subTest(path=relative):
+                path = self.candidate / 'src/server/database' / relative
+                original = path.read_bytes()
+                path.write_text('unreviewed authorization change')
+                try:
+                    with (patch.object(backups, 'git_export', side_effect=lambda sha: self.exports[sha]),
+                          self.assertRaises(RuntimeError)):
+                        remote.compatibility(self.candidate, self.live)
+                finally:
+                    path.write_bytes(original)
+
+
 class DatabasePoolCodeTests(CommunityFeedCodeTests):
     def setUp(self):
         super().setUp()

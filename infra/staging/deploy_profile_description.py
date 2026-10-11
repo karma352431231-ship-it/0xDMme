@@ -7,10 +7,11 @@ import deploy_blocks45 as backups
 import deploy_background as background
 import deploy_profile_social as social
 
-BEFORE = '2ac00f98698d384cff2a2f9d6937093e552d276b'
-# Owner authorized migration 053 and its publication after CI on 10/10/2026.
-# Bind the exact reviewed application sources.
-REVIEWED = '6008df54f32072a8a8639040174a249ef50281d3'
+BEFORE = '000308884e86989fb3dbd9326deb2f6608ef5511'
+# Owner authorized migration 053 and its publication after CI on 10/10/2026,
+# joined with the published pose moderation (0003088) in one release branch.
+# Bind the exact reviewed application sources of that merge.
+REVIEWED = '6a4d8e0702dbadeee596a2131f802a5190ec8e9d'
 OLD_TABLES = social.OLD_TABLES + social.NEW_TABLES
 NEW_TABLES = ('public_profile_descriptions',)
 

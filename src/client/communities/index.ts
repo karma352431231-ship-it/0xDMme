@@ -22,6 +22,7 @@ import {
   communityLink,
 } from './elements.ts';
 import { mountCommunityGovernance } from './governance.ts';
+import { manageGroups } from './manage-tabs.ts';
 import { startCommunityPosts } from './posts.ts';
 import { replyNotificationPage } from '../../shared/community-posts/index.ts';
 import type { ReplyNotification } from '../../shared/community-posts/index.ts';
@@ -34,6 +35,8 @@ import { communityAvatar, openPostFromCard } from './presentation.ts';
 import {
   communityDirectoryNavigation,
   communityNavigation,
+  communityView,
+  postReturnTarget,
 } from './navigation.ts';
 
 export function startCommunities(
@@ -55,6 +58,8 @@ export function startCommunities(
     busy = false;
   let abort = new AbortController(),
     photoUrl: string | null = null;
+  // Query of the last list shown (feed, ranking, community…), for the post arrow.
+  let lastList: string | null = null;
   let view = 'feed',
     selectedDm: string | null = null,
     localDm = false,
@@ -138,18 +143,13 @@ export function startCommunities(
     output.setAttribute('role', 'status');
     mounted.append(output);
   }
-  /** `manage` opens each community's settings screen (managed list). */
-  function rows(
-    container: HTMLElement,
-    page: CommunityPage,
-    target: 'page' | 'manage' = 'page',
-  ): void {
+  function rows(container: HTMLElement, page: CommunityPage): void {
     for (const item of page.items) {
       const row = communityElement('div', '', 'community-row');
       const a = communityElement('a', '', 'community-row-link'),
         avatar = communityAvatar(item.name),
         copy = communityElement('span', '', 'community-row-copy');
-      a.href = `#comunidades?id=${item.id}${target === 'manage' ? '&view=manage' : ''}`;
+      a.href = `#comunidades?id=${item.id}`;
       if (item.id === selected) a.setAttribute('aria-current', 'page');
       copy.append(
         communityElement('strong', item.name),
@@ -264,11 +264,9 @@ export function startCommunities(
     if (old !== generation || !mounted) return;
     navigation();
     const card = communityCard(
-      view === 'managed'
-        ? 'Comunidades que você gerencia'
-        : view === 'invitations'
-          ? 'Transferências de comunidades'
-          : 'Minhas comunidades',
+      view === 'invitations'
+        ? 'Transferências de comunidades'
+        : 'Minhas comunidades',
     );
     mounted.append(card);
     if (view === 'communities') {
@@ -283,7 +281,7 @@ export function startCommunities(
         communityLink(links, label, `#comunidades?view=${key}`);
       card.append(links);
     }
-    rows(card, page, view === 'managed' ? 'manage' : 'page');
+    rows(card, page);
     cursor = page.next;
     if (page.next) communityButton(card, 'Próxima página', () => run(listing));
     communityButton(card, 'Recarregar lista', () => {
@@ -427,20 +425,29 @@ export function startCommunities(
         card.append(communityElement('p', `Resposta: ${s.decision}`));
     }
   }
+  /**
+   * The arrow returns to `href`; the community photo and name enter the
+   * community. Both are links, so the feed panel keeps them in place.
+   */
+  function backHeader(value: Community, href: string): HTMLElement {
+    const header = communityElement('div', '', 'community-post-back'),
+      arrow = communityElement('a', '←', 'community-post-back-arrow'),
+      identity = communityElement('a', '', 'community-post-back-identity'),
+      avatar = communityAvatar(value.name);
+    arrow.href = href;
+    arrow.title = 'Voltar';
+    arrow.setAttribute('aria-label', 'Voltar');
+    identity.href = `#comunidades?id=${value.id}`;
+    identity.append(avatar, communityElement('span', value.name));
+    header.append(arrow, identity);
+    publicPhoto(avatar, value);
+    return header;
+  }
   /** A post takes the whole timeline: way back, the post, then its replies. */
   function postFocus(value: Community, post: string): void {
     if (!mounted) return;
     mounted.dataset['communityLayout'] = 'post';
-    const back = communityElement('a', '', 'community-post-back');
-    back.href = `#comunidades?id=${value.id}`;
-    const avatar = communityAvatar(value.name);
-    back.append(
-      communityElement('span', '←', 'community-post-back-arrow'),
-      avatar,
-      communityElement('span', value.name),
-    );
-    mounted.append(back);
-    publicPhoto(avatar, value);
+    mounted.append(backHeader(value, postReturnTarget(lastList, value.id)));
     const postContainer = communityElement('section', '', 'community-posts');
     mounted.append(postContainer);
     posts.mount(postContainer, {
@@ -494,20 +501,18 @@ export function startCommunities(
   function manageScreen(value: Community, own: CommunityState): void {
     if (!mounted) return;
     mounted.dataset['communityLayout'] = 'manage';
-    const back = communityElement('a', '', 'community-post-back');
-    back.href = `#comunidades?id=${value.id}`;
-    const avatar = communityAvatar(value.name);
-    back.append(
-      communityElement('span', '←', 'community-post-back-arrow'),
-      avatar,
-      communityElement('span', value.name),
-    );
-    publicPhoto(avatar, value);
+    const back = backHeader(value, `#comunidades?id=${value.id}`);
     const management = communityElement('section', '', 'community-manage');
     management.append(communityElement('h1', 'Gerenciar comunidade'));
     mounted.append(back, management);
+    const groups = manageGroups(
+      management,
+      own.role === 'owner'
+        ? ['general', 'tags', 'moderation', 'ownership']
+        : ['general', 'tags', 'moderation'],
+    );
     const card = communityCard('Nome, descrição e regras');
-    management.append(card);
+    groups.general.append(card);
     const meta = metaForm(card, own.community);
     communityButton(card, 'Salvar nome, descrição e regras', () =>
       mutate('edit', {
@@ -517,13 +522,17 @@ export function startCommunities(
       }),
     );
     const photoCard = communityCard('Foto da comunidade');
-    management.append(photoCard);
+    groups.general.append(photoCard);
     photo(photoCard, own);
-    posts.manageTags(management, own.community.id);
-    governance(management, own);
+    posts.manageTags(groups.tags, own.community.id);
+    governance(groups.moderation, own, groups.ownership);
   }
-  function governance(container: HTMLElement, own: CommunityState): void {
-    mountCommunityGovernance(container, own, {
+  function governance(
+    container: HTMLElement,
+    own: CommunityState,
+    ownership: HTMLElement = container,
+  ): void {
+    mountCommunityGovernance({ container, ownership }, own, {
       mutate,
       query: run,
       request: (operation, data) => controller.request(operation, data),
@@ -533,7 +542,8 @@ export function startCommunities(
     card.append(
       communityElement(
         'p',
-        'A foto fica restrita aos gestores até a moderação automática. Arquivos ainda não aprovados são descartados em até sete dias. Quem enviou consulta a análise e pode contestar em Perfil.',
+        'Fica visível só para a gestão até a análise automática aprovar.',
+        'community-hint',
       ),
     );
     if (own.pendingPhoto) {
@@ -695,32 +705,23 @@ export function startCommunities(
         selected = params.has('id') ? uuid(params.get('id')) : null;
         selectedPost = params.has('post') ? uuid(params.get('post')) : null;
         selectedTag = params.has('tag') ? uuid(params.get('tag')) : null;
+        // A post opened from a list returns to that list, not to its community.
+        if (!selectedPost) lastList = params.toString();
       } catch {
         selected = null;
         navigation();
         if (output) output.textContent = 'Link de comunidade inválido.';
         return;
       }
-      if (
-        ![
-          'dms',
-          'explore',
-          'feed',
-          'saved',
-          'hidden',
-          'communities',
-          'following',
-          'managed',
-          'invitations',
-          'create',
-          'replies',
-        ].includes(view)
-      )
-        view = 'feed';
+      view = communityView(view, selected);
       navigation();
       ready();
     },
     leave,
+    /** Another app page opened: a post reached from there returns to its community. */
+    forgetReturn(): void {
+      lastList = null;
+    },
     ready,
     /** Public @ conversations in the workspace chat column, independent of the mounted feed. */
     openDm(container: HTMLElement, id: string | null, local: boolean): void {

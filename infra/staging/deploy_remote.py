@@ -167,6 +167,11 @@ POOL_SIZE_REVIEWED = '68831a56089d26c2de8c129a47eda9be6ac0b5a5'
 # modules change; no SQL, migration or executor change.
 ACTIVITY_PREVIEW_BEFORE = '9a3170dd3815689d7d547d117824a92f66283d3b'
 ACTIVITY_PREVIEW_REVIEWED = '0bb7b9dddbd84fe8c033b2ae04dec93a2f97fade'
+# Owner approved activation of the frozen public pose detector on 10/10/2026.
+# Only media visibility, review and capacity accounting code changes. The
+# existing 052 schema, migrations and migration executor remain byte-identical.
+POSE_MODERATION_BEFORE = '2ac00f98698d384cff2a2f9d6937093e552d276b'
+POSE_MODERATION_REVIEWED = '5a54ddbe4a0dbdd91b1965b902dae970f12e646d'
 COMMUNITIES_TABLES = CALLS_TABLES + CALLS_NEW_TABLES
 COMMUNITIES_NEW_TABLES = ('public_profiles', 'communities', 'community_follows',
     'community_moderators', 'community_sanctions', 'community_reports',
@@ -351,6 +356,8 @@ def database_code_reviewed(candidate, live):
         ({'index.ts'}, POOL_SIZE_BEFORE, POOL_SIZE_REVIEWED),
         ({'community-interactions.ts', 'community-posts.ts'},
          ACTIVITY_PREVIEW_BEFORE, ACTIVITY_PREVIEW_REVIEWED),
+        ({'community-media.ts', 'public-moderation.ts', 'vault-quota.ts'},
+         POSE_MODERATION_BEFORE, POSE_MODERATION_REVIEWED),
     ]
     selected = next((review for review in reviews if changed == review[0]), None)
     if selected is None:
