@@ -267,6 +267,9 @@ def own_state():
 
 def fetch(path, expected=None):
     limit = 8 * 1024 * 1024 if path == '/matrix-crypto-18.9.0.wasm' else 2 * 1024 * 1024
+    if re.fullmatch(r'/source-[a-f0-9]{16}\.tar\.gz', path):
+        # Corresponding sources have no per-file cap; the release budget still applies.
+        limit = MAX_RELEASE
     args = ['curl', '--silent', '--fail', '--max-time', '10', '--max-filesize', str(limit)]
     if expected:
         args += ['--header', 'If-None-Match: "' + expected + '"', '--write-out', '\n%{http_code}']

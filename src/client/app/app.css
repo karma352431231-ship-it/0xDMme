@@ -1,6 +1,7 @@
 @import '../communities/community.css';
 @import '../public-profile/profile.css';
 @import '../chat-ui/chat.css';
+@import '../groups/groups.css';
 @import '../contacts/contacts.css';
 @import './settings.css';
 

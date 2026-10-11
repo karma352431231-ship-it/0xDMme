@@ -193,7 +193,7 @@ async function dependencySources(
     preferred = ['dist/modules-esm', 'LICENSE', 'README.md', 'package.json'];
   else return collect(root, path);
   // Preserve preferred sources, metadata/licenses and exact incorporated JS;
-  // omit duplicate distribution builds without increasing the resource caps.
+  // omit duplicate distribution builds while preserving every incorporated input.
   const files: string[] = [];
   for (const source of preferred)
     files.push(...(await collect(root, `${path}/${source}`)));
@@ -222,18 +222,26 @@ export async function frontendSource(
   const included = new Set(files);
   verifyInputs(root, inputs, included);
   if (included.size > 1024) throw new Error('Quantidade de fontes excedida.');
+  // Portable source bytes only, without machine-specific owner names, ACLs or xattrs.
   // Explicit paths only: no repository-wide archive, shell, .local or backend.
   const { stdout } = await execute(
     'tar',
-    ['-cf', '-', '--no-recursion', '-C', root, '--', ...included],
+    [
+      '-cf',
+      '-',
+      '--format=ustar',
+      '--numeric-owner',
+      '--no-xattrs',
+      '--no-acls',
+      '--no-recursion',
+      '-C',
+      root,
+      '--',
+      ...included,
+    ],
     { encoding: 'buffer', maxBuffer: 24 * 1024 * 1024, timeout: 30_000 },
   );
-  const archive = gzipSync(stdout, { level: 9 });
-  if (archive.length > 2 * 1024 * 1024)
-    throw new Error(
-      `Fontes comprimidas (${archive.length} bytes) excedem o teto de 2 MiB.`,
-    );
-  return archive;
+  return gzipSync(stdout, { level: 9 });
 }
 function verifyInputs(
   root: string,

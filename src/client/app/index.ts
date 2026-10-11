@@ -1,3 +1,4 @@
+import { startGroupEntrypoints } from './group-entrypoints.ts';
 import { paintAvatar, startAppearance } from '../appearance/index.ts';
 import { startPwa } from '../pwa/index.ts';
 import { keepPageOnStrayDrop } from '../file-drop/index.ts';
@@ -140,6 +141,11 @@ const messages = startMessages(devices, vault.sync, {
   liveState: (connected) => statuses.liveConnection(connected),
   sharedProfile: () => account.sharedProfile(),
   preferences: () => account.privacyPreferences(),
+});
+const groupEntrypoints = startGroupEntrypoints({
+  available: () => !!connectedAccount && devices.authorized(),
+  create: () => messages.createGroup(),
+  join: (url) => messages.joinGroup(url),
 });
 const activity = startActivity(
   {
@@ -482,6 +488,7 @@ function connection(): void {
     if (messagesReady) messages.ready();
     calls.ready();
     contacts.ready();
+    groupEntrypoints.ready();
     statuses.ready();
     void vault.ready();
     loadSessionExtras(connectedAccount.accountId);

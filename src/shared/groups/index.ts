@@ -9,6 +9,9 @@ import {
 } from '../devices/index.ts';
 import type { DirectoryEvent } from '../devices/index.ts';
 
+import { groupLink, verifyGroupLink } from './links.ts';
+import type { GroupLink } from './links.ts';
+
 export const groupParticipantLimit = 200;
 export const groupPageSize = 16;
 export type GroupRole = 'owner' | 'admin' | 'member';
@@ -38,7 +41,16 @@ export interface GroupEvent {
   revision: number;
   epoch: number;
   previous: string | null;
-  kind: 'create' | 'join' | 'leave' | 'remove' | 'role' | 'transfer' | 'delete';
+  kind:
+    | 'create'
+    | 'join'
+    | 'add'
+    | 'link-join'
+    | 'leave'
+    | 'remove'
+    | 'role'
+    | 'transfer'
+    | 'delete';
   actor: string;
   deviceId: string;
   directory: string;
@@ -47,6 +59,7 @@ export interface GroupEvent {
   owner: string;
   members: GroupMember[];
   consent: GroupConsent | null;
+  link?: GroupLink;
   signature: string;
 }
 function signature(value: unknown): string {
@@ -126,6 +139,7 @@ export function groupEvent(value: unknown): GroupEvent {
     'members',
     'consent',
     'signature',
+    ...(data['kind'] === 'link-join' ? ['link'] : []),
   ]);
   const kind = groupKind(data['kind']);
   if (
@@ -151,21 +165,26 @@ export function groupEvent(value: unknown): GroupEvent {
     consent: data['consent'] === null ? null : groupConsent(data['consent']),
     signature: signature(data['signature']),
   };
+  if (kind === 'link-join') event.link = groupLink(data['link']);
   assertMembers(event);
   return event;
 }
 function groupKind(value: unknown): GroupEvent['kind'] {
   if (
-    value !== 'create' &&
-    value !== 'join' &&
-    value !== 'leave' &&
-    value !== 'remove' &&
-    value !== 'role' &&
-    value !== 'transfer' &&
-    value !== 'delete'
+    ![
+      'create',
+      'join',
+      'add',
+      'link-join',
+      'leave',
+      'remove',
+      'role',
+      'transfer',
+      'delete',
+    ].includes(String(value))
   )
     throw new AccountError(400, 'Alteração de grupo inválida.');
-  return value;
+  return value as GroupEvent['kind'];
 }
 function assertMembers(event: GroupEvent): void {
   const ordered = event.members.map((m) => m.accountId);
@@ -283,6 +302,26 @@ function expectedJoin(previous: GroupEvent, event: GroupEvent): GroupMember[] {
     { accountId: event.actor, role: 'member' as const, joined: event.epoch },
   ];
 }
+function expectedAdmission(
+  previous: GroupEvent,
+  event: GroupEvent,
+): GroupMember[] {
+  const issuer = event.kind === 'add' ? event.actor : event.link?.actor;
+  if (
+    !issuer ||
+    !groupManager(previous, issuer) ||
+    !event.target ||
+    event.consent !== null ||
+    previous.members.some((m) => m.accountId === event.target)
+  )
+    rejectTransition();
+  if (event.kind === 'link-join' && event.target !== event.actor)
+    rejectTransition();
+  return [
+    ...previous.members,
+    { accountId: event.target, role: 'member', joined: event.epoch },
+  ];
+}
 function expectedRemoval(
   previous: GroupEvent,
   event: GroupEvent,
@@ -334,6 +373,18 @@ function expectedTransfer(
     return m;
   });
 }
+function expectedDeletion(
+  previous: GroupEvent,
+  event: GroupEvent,
+): GroupMember[] {
+  if (
+    event.actor !== previous.owner ||
+    event.target !== null ||
+    event.consent !== null
+  )
+    rejectTransition();
+  return [];
+}
 function expectedMembers(
   previous: GroupEvent,
   event: GroupEvent,
@@ -341,6 +392,9 @@ function expectedMembers(
   switch (event.kind) {
     case 'join':
       return expectedJoin(previous, event);
+    case 'add':
+    case 'link-join':
+      return expectedAdmission(previous, event);
     case 'leave':
     case 'remove':
       return expectedRemoval(previous, event);
@@ -349,13 +403,7 @@ function expectedMembers(
     case 'transfer':
       return expectedTransfer(previous, event);
     case 'delete':
-      if (
-        event.actor !== previous.owner ||
-        event.target !== null ||
-        event.consent !== null
-      )
-        rejectTransition();
-      return [];
+      return expectedDeletion(previous, event);
     default:
       return rejectTransition();
   }
@@ -382,28 +430,60 @@ async function assertContinuity(
   if (canonical(event.members) !== canonical(expected)) rejectTransition();
 }
 
+interface TransitionOrigins {
+  actorDirectory: DirectoryEvent;
+  consentDirectory?: DirectoryEvent;
+  targetDirectory?: DirectoryEvent;
+  linkDirectory?: DirectoryEvent;
+  linkAnchor?: GroupEvent;
+}
+async function verifyTransitionLink(
+  event: GroupEvent,
+  input: TransitionOrigins,
+): Promise<void> {
+  if (!event.link) return;
+  const anchor = input.linkAnchor;
+  if (
+    !input.linkDirectory ||
+    !anchor ||
+    anchor.groupId !== event.groupId ||
+    !groupManager(anchor, event.link.actor) ||
+    (await groupEventHash(anchor)) !== event.link.head ||
+    event.link.groupId !== event.groupId
+  )
+    rejectTransition();
+  await verifyGroupLink(event.link, input.linkDirectory);
+}
+async function verifyTransitionConsent(
+  event: GroupEvent,
+  input: TransitionOrigins,
+): Promise<void> {
+  if (!event.consent) return;
+  if (!input.consentDirectory) rejectTransition();
+  await verifyGroupConsent(event.consent, input.consentDirectory);
+  const target = input.targetDirectory ?? input.actorDirectory;
+  if (
+    target.accountId !== event.actor ||
+    target.revision !== event.consent.targetRevision ||
+    (await eventHash(target)) !== event.consent.targetDirectory
+  )
+    rejectTransition();
+}
 export async function verifyGroupTransition(input: {
   previous: GroupEvent | null;
   event: unknown;
   actorDirectory: DirectoryEvent;
   consentDirectory?: DirectoryEvent;
   targetDirectory?: DirectoryEvent;
+  linkDirectory?: DirectoryEvent;
+  linkAnchor?: GroupEvent;
 }): Promise<GroupEvent> {
   const event = groupEvent(input.event),
     previous = input.previous;
   if (!previous) assertGenesis(event);
   else await assertContinuity(previous, event);
-  if (event.consent) {
-    if (!input.consentDirectory) rejectTransition();
-    await verifyGroupConsent(event.consent, input.consentDirectory);
-    const target = input.targetDirectory ?? input.actorDirectory;
-    if (
-      target.accountId !== event.actor ||
-      target.revision !== event.consent.targetRevision ||
-      (await eventHash(target)) !== event.consent.targetDirectory
-    )
-      rejectTransition();
-  }
+  await verifyTransitionConsent(event, input);
+  await verifyTransitionLink(event, input);
   await verify(
     await authorizedSigner(event, input.actorDirectory),
     event.signature,

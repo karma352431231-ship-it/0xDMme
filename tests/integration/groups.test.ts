@@ -45,7 +45,11 @@ import type {
   GroupEvent,
   GroupConsent,
 } from '../../src/shared/groups/index.ts';
-import { sign } from '../../src/shared/devices/index.ts';
+import { groupLinkProof } from '../../src/shared/groups/links.ts';
+import type { GroupLink } from '../../src/shared/groups/links.ts';
+import { GroupAdmission } from '../../src/server/database/group-admission.ts';
+import { groupTextUsage } from '../../src/server/database/group-quota.ts';
+import { sign, digest } from '../../src/shared/devices/index.ts';
 
 await test('governança persistente: criação atômica, convites, transferência, remoção e frequência sobrevivem à exclusão', async (t) => {
   const config = readWebConfiguration(process.env);
@@ -276,6 +280,339 @@ await test('governança persistente: criação atômica, convites, transferênci
     target: owner.accountId,
     accept: true,
   });
+  await t.test(
+    'inclusão direta e link revogável preservam autorização, períodos, bloqueio e cotas',
+    async () => {
+      const admin = await user(),
+        contactUser = await user(),
+        visitor = await user();
+      const first = await event(admin, null);
+      await message(messages, admin, 'group-commit', { event: first });
+      const direct = await event(admin, first, {
+        kind: 'add',
+        target: contactUser.accountId,
+        members: [
+          ...first.members,
+          { accountId: contactUser.accountId, role: 'member', joined: 2 },
+        ],
+      });
+      await assert.rejects(
+        message(messages, admin, 'group-commit', { event: direct }),
+      );
+      await changeContact(contactUser, 'configure', {
+        mode: 'wallet',
+        inviteHash: null,
+      });
+      await changeContact(admin, 'request', {
+        target: contactUser.accountId,
+        invite: null,
+      });
+      await changeContact(contactUser, 'respond', {
+        target: admin.accountId,
+        accept: true,
+      });
+      const adds = await Promise.allSettled([
+        message(messages, admin, 'group-commit', { event: direct }),
+        message(messages, admin, 'group-commit', { event: direct }),
+      ]);
+      assert.ok(adds.every((r) => r.status === 'fulfilled'));
+      assert.equal(
+        (await db.groups.incoming(authority(contactUser), null)).items.length,
+        0,
+      );
+      assert.equal(
+        (await db.groups.current(authority(contactUser), first.groupId)).members
+          .length,
+        2,
+      );
+      assert.equal(
+        (
+          await db.contacts.withMaintenance((client) =>
+            db.groups.allowedPeriods(client, contactUser.accountId, [
+              { groupId: first.groupId, epoch: 1 },
+            ]),
+          )
+        ).size,
+        0,
+      );
+      await assert.rejects(
+        message(messages, contactUser, 'group-commit', {
+          event: await event(contactUser, direct, {
+            kind: 'add',
+            target: visitor.accountId,
+            members: [
+              ...direct.members,
+              { accountId: visitor.accountId, role: 'member', joined: 3 },
+            ],
+          }),
+        }),
+      );
+      const promoted = await event(admin, direct, {
+        kind: 'role',
+        target: contactUser.accountId,
+        members: direct.members.map((m) =>
+          m.accountId === contactUser.accountId ? { ...m, role: 'admin' } : m,
+        ),
+      });
+      await message(messages, admin, 'group-commit', { event: promoted });
+      const token = 'a'.repeat(64),
+        link: GroupLink = {
+          version: 1,
+          id: crypto.randomUUID(),
+          groupId: first.groupId,
+          head: await groupEventHash(promoted),
+          ...fields(contactUser),
+          tokenHash: await digest(token),
+          signature: '',
+        };
+      link.signature = await sign(contactUser.signing, groupLinkProof(link));
+      const quotaBefore = await groupTextUsage(inspector, first.groupId);
+      const noCapacity = new GroupAdmission({
+        groups: db.groups,
+        contacts: db.contacts,
+        devices: db.devices,
+        capacity: 1,
+      });
+      await assert.rejects(
+        noCapacity.publish(authority(contactUser), link),
+        /Capacidade global/u,
+      );
+      assert.equal(
+        await message(messages, admin, 'group-link-current', {
+          groupId: first.groupId,
+          head: await groupEventHash(promoted),
+        }),
+        null,
+      );
+      assert.equal(await groupTextUsage(inspector, first.groupId), quotaBefore);
+      await message(messages, contactUser, 'group-link-publish', { link });
+      assert.equal(
+        await groupTextUsage(inspector, first.groupId),
+        quotaBefore + Buffer.byteLength(JSON.stringify(link)) + 512,
+      );
+      await assert.rejects(
+        message(messages, visitor, 'group-link-publish', { link }),
+      );
+      await assert.rejects(
+        message(messages, visitor, 'group-link-revoke', {
+          groupId: first.groupId,
+          head: await groupEventHash(promoted),
+        }),
+      );
+      await assert.rejects(
+        message(messages, visitor, 'group-history', {
+          groupId: first.groupId,
+          after: 0,
+        }),
+      );
+      await assert.rejects(
+        message(messages, visitor, 'group-link-history', {
+          groupId: first.groupId,
+          after: 0,
+          token: 'b'.repeat(64),
+        }),
+      );
+      const metadata = object(
+        await message(messages, visitor, 'group-link-history', {
+          groupId: first.groupId,
+          after: 0,
+          token,
+        }),
+      );
+      assert.deepEqual(metadata['link'], link);
+      const directories = object(
+        await message(messages, visitor, 'group-link-directory', {
+          groupId: first.groupId,
+          head: await groupEventHash(promoted),
+          token,
+          accounts: [{ accountId: contactUser.accountId, after: 0 }],
+        }),
+      );
+      assert.deepEqual(directories['recovery'], []);
+      await assert.rejects(
+        message(messages, visitor, 'group-profile', {
+          groupId: first.groupId,
+          head: await groupEventHash(promoted),
+        }),
+      );
+      const joined = await event(visitor, promoted, {
+        kind: 'link-join',
+        target: visitor.accountId,
+        link,
+        members: [
+          ...promoted.members,
+          { accountId: visitor.accountId, role: 'member', joined: 4 },
+        ],
+      });
+      await assert.rejects(
+        message(messages, visitor, 'group-commit', { event: joined }),
+      );
+      await assert.rejects(
+        message(messages, visitor, 'group-link-join', {
+          event: joined,
+          token: 'b'.repeat(64),
+        }),
+      );
+      await message(messages, visitor, 'group-link-join', {
+        event: joined,
+        token,
+      });
+      await message(messages, visitor, 'group-link-join', {
+        event: joined,
+        token,
+      });
+      assert.equal(
+        (await db.groups.current(authority(visitor), first.groupId)).members
+          .length,
+        3,
+      );
+      assert.equal(
+        (
+          await db.contacts.withMaintenance((client) =>
+            db.groups.allowedPeriods(client, visitor.accountId, [
+              { groupId: first.groupId, epoch: 3 },
+              { groupId: first.groupId, epoch: 4 },
+            ]),
+          )
+        ).size,
+        1,
+      );
+      const leaving = await event(visitor, joined, {
+        kind: 'leave',
+        target: visitor.accountId,
+        members: joined.members.filter(
+          (m) => m.accountId !== visitor.accountId,
+        ),
+      });
+      delete leaving.link;
+      leaving.signature = await sign(visitor.signing, groupEventProof(leaving));
+      await message(messages, visitor, 'group-commit', { event: leaving });
+      await assert.rejects(
+        message(messages, visitor, 'group-current', { groupId: first.groupId }),
+      );
+      const rejoined = await event(visitor, leaving, {
+        kind: 'link-join',
+        target: visitor.accountId,
+        link,
+        members: [
+          ...leaving.members,
+          { accountId: visitor.accountId, role: 'member', joined: 6 },
+        ],
+      });
+      await message(messages, contactUser, 'group-link-revoke', {
+        groupId: first.groupId,
+        head: await groupEventHash(leaving),
+      });
+      await assert.rejects(
+        message(messages, visitor, 'group-link-join', {
+          event: rejoined,
+          token,
+        }),
+      );
+      await assert.rejects(
+        message(messages, visitor, 'group-link-history', {
+          groupId: first.groupId,
+          after: 0,
+          token,
+        }),
+      );
+      const freshToken = 'c'.repeat(64);
+      const fresh = {
+        ...link,
+        tokenHash: await digest(freshToken),
+        id: crypto.randomUUID(),
+        head: await groupEventHash(leaving),
+        signature: '',
+      };
+      fresh.signature = await sign(contactUser.signing, groupLinkProof(fresh));
+      await message(messages, contactUser, 'group-link-publish', {
+        link: fresh,
+      });
+      const joinedAgain = await event(visitor, leaving, {
+        kind: 'link-join',
+        target: visitor.accountId,
+        link: fresh,
+        members: [
+          ...leaving.members,
+          { accountId: visitor.accountId, role: 'member', joined: 6 },
+        ],
+      });
+      await assert.rejects(
+        message(messages, visitor, 'group-link-join', {
+          event: joinedAgain,
+          token,
+        }),
+      );
+      await message(messages, visitor, 'group-link-join', {
+        event: joinedAgain,
+        token: freshToken,
+      });
+      assert.equal(
+        (
+          await db.contacts.withMaintenance((client) =>
+            db.groups.allowedPeriods(client, visitor.accountId, [
+              { groupId: first.groupId, epoch: 4 },
+              { groupId: first.groupId, epoch: 6 },
+            ]),
+          )
+        ).size,
+        1,
+      );
+      const demoted = await event(admin, joinedAgain, {
+        kind: 'role',
+        target: contactUser.accountId,
+        members: joinedAgain.members.map((m) =>
+          m.accountId === contactUser.accountId ? { ...m, role: 'member' } : m,
+        ),
+      });
+      delete demoted.link;
+      demoted.signature = await sign(admin.signing, groupEventProof(demoted));
+      await message(messages, admin, 'group-commit', { event: demoted });
+      assert.equal(
+        await message(messages, admin, 'group-link-current', {
+          groupId: first.groupId,
+          head: await groupEventHash(demoted),
+        }),
+        null,
+      );
+      const removed = await event(admin, demoted, {
+        kind: 'remove',
+        target: contactUser.accountId,
+        members: demoted.members.filter(
+          (m) => m.accountId !== contactUser.accountId,
+        ),
+      });
+      await message(messages, admin, 'group-commit', { event: removed });
+      await changeContact(admin, 'block', {
+        wallet: { ecosystem: 'evm', address: contactUser.wallet.address },
+        blocked: true,
+      });
+      await assert.rejects(
+        message(messages, admin, 'group-commit', {
+          event: await event(admin, removed, {
+            kind: 'add',
+            target: contactUser.accountId,
+            members: [
+              ...removed.members,
+              {
+                accountId: contactUser.accountId,
+                role: 'member',
+                joined: removed.epoch + 1,
+              },
+            ],
+          }),
+        }),
+      );
+      const formerIssuer = object(
+        await message(messages, visitor, 'group-directory', {
+          groupId: first.groupId,
+          head: await groupEventHash(removed),
+          accounts: [{ accountId: contactUser.accountId, after: 0 }],
+        }),
+      );
+      assert.equal((formerIssuer['directories'] as unknown[]).length, 1);
+    },
+  );
   const first = await event(owner, null);
   assert.deepEqual(await message(messages, owner, 'group-mode'), {
     mode: 'configured',

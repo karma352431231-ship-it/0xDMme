@@ -18,16 +18,21 @@ import type { MessageRecoveryStore } from './message-recovery.ts';
 import { assertContentCapacity } from './vault-quota.ts';
 import { assertGroupTextQuota } from './group-quota.ts';
 
+import type { GroupLink } from '../../shared/groups/links.ts';
+import { GroupAdmission } from './group-admission.ts';
+
 interface GroupRow {
   id: string;
   head: string;
   event: unknown;
+  link?: GroupLink;
 }
 function unavailable(): never {
   throw new AccountError(403, 'Grupo indisponível para esta conta.');
 }
 
 export class GroupStore {
+  readonly admission: GroupAdmission;
   private readonly contacts: ContactStore;
   private readonly devices: DeviceStore;
   private readonly capacity: number;
@@ -42,6 +47,12 @@ export class GroupStore {
     this.devices = devices;
     this.capacity = capacity;
     this.recovery = recovery;
+    this.admission = new GroupAdmission({
+      groups: this,
+      contacts,
+      devices,
+      capacity,
+    });
   }
 
   private async row(
@@ -152,7 +163,7 @@ export class GroupStore {
   }
   async commit(
     authority: ContactAuthority,
-    input: { event: GroupEvent },
+    input: { event: GroupEvent; token?: string },
   ): Promise<{ head: string; status: 'saved' }> {
     const event = groupEvent(input.event),
       hash = await groupEventHash(event);
@@ -165,6 +176,7 @@ export class GroupStore {
     return this.contacts.withMessageAuthority(authority, async (client) => {
       const previous = await this.prepareCommit(client, event, hash);
       if (previous === 'accepted') return { head: hash, status: 'saved' };
+      await this.admission.admit(client, event, input.token);
       if (event.kind === 'create') await this.recordCreation(client, event);
       await this.saveEvent(client, event, hash);
       await assertGroupTextQuota(client, event.groupId);
@@ -181,6 +193,8 @@ export class GroupStore {
     await this.devices.lockDirectories(client, [
       event.actor,
       ...(event.consent ? [event.consent.actor] : []),
+      ...(event.link ? [event.link.actor] : []),
+      ...(event.kind === 'add' && event.target ? [event.target] : []),
     ]);
     const row = await this.row(client, event.groupId);
     if (row?.head === hash) return 'accepted';
@@ -219,6 +233,9 @@ export class GroupStore {
       actorDirectory,
       ...(consentDirectory ? { consentDirectory } : {}),
       ...(targetDirectory ? { targetDirectory } : {}),
+      ...(event.link && previous
+        ? await this.admission.origins(client, previous, event.link)
+        : {}),
     });
   }
   private async checkCreationFrequency(
@@ -314,6 +331,7 @@ export class GroupStore {
       [event.groupId, event.revision, event.epoch, hash, serialized, charge],
     );
     await this.saveMembers(client, event);
+    await this.admission.reconcile(client, event);
     if (event.kind === 'delete')
       await client.query(
         'UPDATE hash_talk.groups SET clearing=true WHERE id=$1',
@@ -484,10 +502,15 @@ export class GroupStore {
   }
   async history(
     authority: ContactAuthority,
-    input: { groupId: string; after: number },
-  ): Promise<{ events: GroupEvent[]; head: string; revision: number }> {
+    input: { groupId: string; after: number; token?: string },
+  ): Promise<{
+    events: GroupEvent[];
+    head: string;
+    revision: number;
+    link?: GroupLink;
+  }> {
     return this.contacts.withMessageAuthority(authority, async (client) => {
-      const row = await this.historyState(client, authority, input.groupId);
+      const row = await this.historyState(client, authority, input);
       const state = groupEvent(row.event);
       const events = await client.query<{ event: unknown }>(
         'SELECT event FROM hash_talk.group_events WHERE group_id=$1 AND revision>$2 ORDER BY revision LIMIT $3',
@@ -497,6 +520,7 @@ export class GroupStore {
         events: events.rows.map((r) => groupEvent(r.event)),
         head: row.head,
         revision: state.revision,
+        ...(row.link ? { link: row.link } : {}),
       };
     });
   }
@@ -532,16 +556,17 @@ export class GroupStore {
       groupId: string;
       head: string;
       accounts: { accountId: string; after: number }[];
+      token?: string;
     },
   ): Promise<unknown> {
     return this.contacts.withMessageAuthority(authority, async (client) => {
-      const row = await this.historyState(client, authority, input.groupId);
+      const row = await this.historyState(client, authority, input);
       if (row.head !== input.head)
         throw new AccountError(409, 'Participação do grupo mudou.');
       const state = groupEvent(row.event),
         current = new Set(state.members.map((m) => m.accountId));
       const historical = await client.query<{ actor: string }>(
-        "SELECT DISTINCT event->>'actor' AS actor FROM hash_talk.group_events WHERE group_id=$1 AND event->>'actor'=ANY($2::text[])",
+        "SELECT DISTINCT x.actor FROM hash_talk.group_events e CROSS JOIN LATERAL (VALUES(e.event->>'actor'),(e.event#>>'{consent,actor}'),(e.event#>>'{link,actor}')) x(actor) WHERE group_id=$1 AND x.actor=ANY($2::text[])",
         [input.groupId, input.accounts.map((r) => r.accountId)],
       );
       const allowed = new Set([
@@ -567,13 +592,19 @@ export class GroupStore {
   private async historyState(
     client: pg.PoolClient,
     authority: ContactAuthority,
-    groupId: string,
+    input: { groupId: string; token?: string },
   ): Promise<GroupRow> {
+    const groupId = input.groupId;
     const row = await this.row(client, groupId);
     if (!row) unavailable();
     const state = groupEvent(row.event),
       account = authority.session.accountId;
-    if (state.members.some((m) => m.accountId === account)) return row;
+    if (!input.token && state.members.some((m) => m.accountId === account))
+      return row;
+    if (input.token) {
+      const link = await this.admission.require(client, state, input.token);
+      return { ...row, link };
+    }
     const invitation = await client.query<{ actor: string }>(
       "SELECT actor FROM hash_talk.group_consents WHERE group_id=$1 AND target=$2 AND kind='invite' LIMIT 1",
       [groupId, account],
@@ -585,6 +616,17 @@ export class GroupStore {
     )
       unavailable();
     return row;
+  }
+  async anchor(
+    client: pg.PoolClient,
+    groupId: string,
+    head: string,
+  ): Promise<GroupEvent | null> {
+    const result = await client.query<{ event: unknown }>(
+      'SELECT event FROM hash_talk.group_events WHERE group_id=$1 AND hash=$2',
+      [groupId, head],
+    );
+    return result.rows[0] ? groupEvent(result.rows[0].event) : null;
   }
   async periods(
     client: pg.PoolClient,

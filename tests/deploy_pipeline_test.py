@@ -531,6 +531,14 @@ class DeploymentTests(unittest.TestCase):
                 self.assertEqual(remote.fetch(path,expected),b'public')
                 args=command.call_args.args[0]
                 self.assertEqual(args[args.index('--max-filesize')+1],str(limit))
+        source = '/source-' + 'a' * 16 + '.tar.gz'
+        content = b'x' * (2 * 1024 * 1024 + 1)
+        with patch.object(remote, 'run', return_value=content + b'\n200') as command:
+            self.assertEqual(remote.fetch(source, expected), content)
+            args = command.call_args.args[0]
+            self.assertEqual(args[args.index('--max-filesize')+1], str(remote.MAX_RELEASE))
+        with patch.object(remote, 'run', return_value=content + b'\n200'), self.assertRaises(RuntimeError):
+            remote.fetch('/asset.bin', expected)
         for body in [b'payload\n304',b'payload\n206',b'no status']:
             with patch.object(remote,'run',return_value=body),self.assertRaises(RuntimeError):
                 remote.fetch('/asset.bin',expected)
