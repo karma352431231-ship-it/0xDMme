@@ -22,6 +22,7 @@ import {
   communityLink,
 } from './elements.ts';
 import { mountCommunityGovernance } from './governance.ts';
+import { manageGroups } from './manage-tabs.ts';
 import { startCommunityPosts } from './posts.ts';
 import { replyNotificationPage } from '../../shared/community-posts/index.ts';
 import type { ReplyNotification } from '../../shared/community-posts/index.ts';
@@ -504,8 +505,14 @@ export function startCommunities(
     const management = communityElement('section', '', 'community-manage');
     management.append(communityElement('h1', 'Gerenciar comunidade'));
     mounted.append(back, management);
+    const groups = manageGroups(
+      management,
+      own.role === 'owner'
+        ? ['general', 'tags', 'moderation', 'ownership']
+        : ['general', 'tags', 'moderation'],
+    );
     const card = communityCard('Nome, descrição e regras');
-    management.append(card);
+    groups.general.append(card);
     const meta = metaForm(card, own.community);
     communityButton(card, 'Salvar nome, descrição e regras', () =>
       mutate('edit', {
@@ -515,13 +522,17 @@ export function startCommunities(
       }),
     );
     const photoCard = communityCard('Foto da comunidade');
-    management.append(photoCard);
+    groups.general.append(photoCard);
     photo(photoCard, own);
-    posts.manageTags(management, own.community.id);
-    governance(management, own);
+    posts.manageTags(groups.tags, own.community.id);
+    governance(groups.moderation, own, groups.ownership);
   }
-  function governance(container: HTMLElement, own: CommunityState): void {
-    mountCommunityGovernance(container, own, {
+  function governance(
+    container: HTMLElement,
+    own: CommunityState,
+    ownership: HTMLElement = container,
+  ): void {
+    mountCommunityGovernance({ container, ownership }, own, {
       mutate,
       query: run,
       request: (operation, data) => controller.request(operation, data),
@@ -531,7 +542,8 @@ export function startCommunities(
     card.append(
       communityElement(
         'p',
-        'A foto fica restrita aos gestores até a moderação automática. Arquivos ainda não aprovados são descartados em até sete dias. Quem enviou consulta a análise e pode contestar em Perfil.',
+        'Fica visível só para a gestão até a análise automática aprovar.',
+        'community-hint',
       ),
     );
     if (own.pendingPhoto) {

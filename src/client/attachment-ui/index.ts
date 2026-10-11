@@ -98,6 +98,9 @@ export class AttachmentUi {
         this.selection = value;
         this.preview(host, value);
         this.changed();
+        // With a physical keyboard, Enter right after choosing a file sends it.
+        if (matchMedia('(pointer: fine)').matches)
+          host.querySelector<HTMLTextAreaElement>('textarea')?.focus();
       });
     });
     host

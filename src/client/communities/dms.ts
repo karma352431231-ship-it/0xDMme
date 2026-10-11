@@ -21,6 +21,7 @@ import {
 } from './elements.ts';
 import { postText } from './post-text.ts';
 import { communityIcon } from './presentation.ts';
+import { sendOnEnter } from '../chat-ui/index.ts';
 import { dropFilesInto } from '../file-drop/index.ts';
 import { showToast } from '../toast/index.ts';
 import { paintAvatar } from '../appearance/index.ts';
@@ -468,7 +469,7 @@ export function startSocialDmUi(
     });
     communityButton(node, 'Gravar áudio', () => recording.start());
     communityButton(node, 'Concluir gravação', () => recording.stop());
-    communityButton(node, 'Enviar mídia preparada', () =>
+    const sendMedia = communityButton(node, 'Enviar mídia preparada', () =>
       run(async () => {
         await controller.sendMedia(selected);
         before = null;
@@ -481,7 +482,7 @@ export function startSocialDmUi(
         if (output) output.textContent = 'Mídia pendente cancelada.';
       }),
     );
-    communityButton(node, 'Enviar mensagem', () =>
+    const sendText = communityButton(node, 'Enviar mensagem', () =>
       run(async () => {
         await controller.send(selected, draft, messageId);
         if (old !== generation) return;
@@ -491,6 +492,10 @@ export function startSocialDmUi(
         await conversation();
       }),
     );
+    // Enter sends the text; with an empty field it sends the prepared media.
+    sendOnEnter(text, () => {
+      (text.value.trim() ? sendText : sendMedia).click();
+    });
   }
   function renderHistory(input: {
     node: HTMLElement;

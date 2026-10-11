@@ -1,3 +1,5 @@
+import { sendOnEnter } from './enter.ts';
+
 const icons = {
   back: '<path d="m14 6-6 6 6 6"/>',
   more: '<circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/>',
@@ -15,6 +17,7 @@ const icons = {
 } as const;
 
 export { bindRecordGesture, showRecording } from './voice.ts';
+export { sendOnEnter } from './enter.ts';
 
 export function chatIcon(name: keyof typeof icons): string {
   return `<svg viewBox="0 0 24 24" aria-hidden="true">${icons[name]}</svg>`;
@@ -111,14 +114,12 @@ export function bindChatComposer(form: HTMLElement, changed: () => void): void {
     changed();
   };
   text?.addEventListener('input', resize);
-  text?.addEventListener('keydown', (event) => {
-    // Touch keyboards keep Enter as a newline; desktop Ctrl/Cmd+Enter sends.
-    if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
-      event.preventDefault();
+  // Text, a photo or a voice preview: Enter sends whatever Enviar would send.
+  if (text)
+    sendOnEnter(text, () => {
       const send = form.querySelector<HTMLButtonElement>('[data-compose-send]');
       if (send && !send.hidden && !send.disabled) send.click();
-    }
-  });
+    });
   form
     .querySelectorAll<HTMLButtonElement>('[data-chat-attachment]')
     .forEach((button) => {

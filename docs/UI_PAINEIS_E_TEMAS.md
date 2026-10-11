@@ -342,3 +342,10 @@ Pedido do proprietário (itens 2 a 4 da proposta; a coluna "Sobre" à direita fo
 - **Gerenciar:** o menu "⋯" do topo tem só "Gerenciar comunidade", e apenas para dono ou moderador da comunidade aberta; ele abre a tela de configuração dela (nome, descrição, regras, foto, tags e governança). A lista "Gerenciar comunidades" saiu. A tela de configuração não abria antes: a rota recusava `view=manage` e caía na página comum da comunidade.
 
 **Ponto importante:** comunidades ainda não têm banner próprio enviado pelo dono; o banner continua sendo o degradê do tom da comunidade. Enviar banner exige mídia pública nova, migração e análise, como o banner de perfil.
+
+## Gerenciar comunidade em abas e Enter para enviar — 10/10/2026
+
+Pedido do proprietário:
+
+- **Gerenciar comunidade:** a tela virou abas — Geral (nome, descrição, regras e foto), Tags, Moderação (moderadores, suspensão, sanções e denúncias) e, para o dono, Propriedade (transferência e arquivamento). Um grupo por vez, com os cartões lado a lado em telas largas, campos e botões menores. Tags e moderadores carregam sozinhos, sem "Carregar…"; "Mais" só aparece quando há próxima página. A aba aberta continua após salvar.
+- **Enter envia** nas conversas privadas, nos grupos e nas mensagens pelo `@`: texto, foto ou prévia de voz, o mesmo que o botão Enviar enviaria. Shift+Enter quebra a linha. Em teclados de toque, Enter continua quebrando a linha (o botão de enviar fica ao lado); Ctrl/Cmd+Enter envia. Depois de escolher um arquivo com mouse e teclado, o foco volta ao campo, então Enter já envia. Nas mensagens pelo `@`, com o campo vazio, Enter envia a mídia preparada.

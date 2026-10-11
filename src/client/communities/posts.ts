@@ -709,21 +709,30 @@ export function startCommunityPosts(
         label.value = '';
       }
     });
-    button(section, 'Carregar tags', () =>
-      run(async () => {
-        const old = generation,
-          page = tagPage(
-            await controller.request('tag-list', {
-              id: community,
-              after: cursor,
-            }),
-          );
-        if (old !== generation) return;
-        rows.replaceChildren();
-        for (const value of page.items) tagRow(rows, value);
-        cursor = communityCursor(page.next);
-      }),
-    );
+    // Loads on open, outside the shared queue the screen is drawn in.
+    const load = async (): Promise<void> => {
+      const old = generation,
+        page = tagPage(
+          await controller.request('tag-list', {
+            id: community,
+            after: cursor,
+          }),
+        );
+      if (old !== generation) return;
+      rows.replaceChildren();
+      for (const value of page.items) tagRow(rows, value);
+      if (!page.items.length)
+        rows.append(el('p', 'Nenhuma tag criada.', 'community-hint'));
+      cursor = communityCursor(page.next);
+      more.hidden = cursor === null;
+    };
+    const more = button(section, 'Mais tags', () => run(load));
+    more.hidden = true;
+    void load().catch(() => {
+      rows.replaceChildren(
+        el('p', 'Tags indisponíveis agora.', 'community-hint'),
+      );
+    });
   }
   function tagRow(container: HTMLElement, value: PostTag): void {
     const row = el('div', '', 'community-row'),
