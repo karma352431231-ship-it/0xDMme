@@ -1,4 +1,7 @@
-import { postReturnTarget } from '../src/client/communities/navigation.ts';
+import {
+  communityView,
+  postReturnTarget,
+} from '../src/client/communities/navigation.ts';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { AccountSession } from '../src/shared/account/index.ts';
@@ -292,4 +295,13 @@ await test('seta do post volta à lista de origem; sem origem, à comunidade', (
     postReturnTarget(null, community),
     `#comunidades?id=${community}`,
   );
+});
+
+await test('rota abre a configuração só com comunidade; telas desconhecidas e lista antiga caem no feed', () => {
+  const id = crypto.randomUUID();
+  assert.equal(communityView('manage', id), 'manage');
+  assert.equal(communityView('manage', null), 'feed');
+  assert.equal(communityView('managed', null), 'feed');
+  assert.equal(communityView('qualquer', id), 'feed');
+  assert.equal(communityView('explore', null), 'explore');
 });

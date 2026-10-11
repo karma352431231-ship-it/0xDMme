@@ -34,6 +34,7 @@ import { communityAvatar, openPostFromCard } from './presentation.ts';
 import {
   communityDirectoryNavigation,
   communityNavigation,
+  communityView,
   postReturnTarget,
 } from './navigation.ts';
 
@@ -141,18 +142,13 @@ export function startCommunities(
     output.setAttribute('role', 'status');
     mounted.append(output);
   }
-  /** `manage` opens each community's settings screen (managed list). */
-  function rows(
-    container: HTMLElement,
-    page: CommunityPage,
-    target: 'page' | 'manage' = 'page',
-  ): void {
+  function rows(container: HTMLElement, page: CommunityPage): void {
     for (const item of page.items) {
       const row = communityElement('div', '', 'community-row');
       const a = communityElement('a', '', 'community-row-link'),
         avatar = communityAvatar(item.name),
         copy = communityElement('span', '', 'community-row-copy');
-      a.href = `#comunidades?id=${item.id}${target === 'manage' ? '&view=manage' : ''}`;
+      a.href = `#comunidades?id=${item.id}`;
       if (item.id === selected) a.setAttribute('aria-current', 'page');
       copy.append(
         communityElement('strong', item.name),
@@ -267,11 +263,9 @@ export function startCommunities(
     if (old !== generation || !mounted) return;
     navigation();
     const card = communityCard(
-      view === 'managed'
-        ? 'Comunidades que você gerencia'
-        : view === 'invitations'
-          ? 'Transferências de comunidades'
-          : 'Minhas comunidades',
+      view === 'invitations'
+        ? 'Transferências de comunidades'
+        : 'Minhas comunidades',
     );
     mounted.append(card);
     if (view === 'communities') {
@@ -286,7 +280,7 @@ export function startCommunities(
         communityLink(links, label, `#comunidades?view=${key}`);
       card.append(links);
     }
-    rows(card, page, view === 'managed' ? 'manage' : 'page');
+    rows(card, page);
     cursor = page.next;
     if (page.next) communityButton(card, 'Próxima página', () => run(listing));
     communityButton(card, 'Recarregar lista', () => {
@@ -707,22 +701,7 @@ export function startCommunities(
         if (output) output.textContent = 'Link de comunidade inválido.';
         return;
       }
-      if (
-        ![
-          'dms',
-          'explore',
-          'feed',
-          'saved',
-          'hidden',
-          'communities',
-          'following',
-          'managed',
-          'invitations',
-          'create',
-          'replies',
-        ].includes(view)
-      )
-        view = 'feed';
+      view = communityView(view, selected);
       navigation();
       ready();
     },

@@ -331,3 +331,14 @@ Pedido do proprietário: ao recarregar a página do Perfil, a categoria aberta p
 ## Seta do post volta à origem — 10/10/2026
 
 Pedido do proprietário: no post aberto, a seta voltava sempre para a comunidade, mesmo quando o post foi aberto pelo Feed. Agora a seta volta para a última lista vista em Comunidades (Feed, Explorar, Seguidas, a própria comunidade…), com os mesmos filtros. A foto e o nome da comunidade ao lado da seta viraram um link separado para entrar nela. Sem lista de origem (post aberto pela Atividade, por um link ou depois de outra página do app), a seta leva à comunidade. Vale na página cheia e no painel ao lado do chat.
+
+## Página da comunidade: postar, filtros, vazio e gerenciar — 10/10/2026
+
+Pedido do proprietário (itens 2 a 4 da proposta; a coluna "Sobre" à direita foi recusada):
+
+- **Postar:** "Criar postagem" virou uma caixa com ícone e o campo "Escreva algo para a comunidade…"; ao tocar, o formulário abre embaixo.
+- **Filtros:** a fileira de botões virou abas (Destaques, Recentes, Mais votados, Mais comentados e, com conta, Meus posts) e um menu "⋯" com período, tag e, para quem modera, posts e respostas ocultos.
+- **Comunidade sem posts:** em vez de "Nenhuma postagem nesta lista.", aparece um convite com "Escrever a primeira postagem" (quem pode postar) e até quatro "Outras comunidades em alta", da mesma lista pública do Explorar. Não há dado de comunidades parecidas; as sugestões são as em alta da semana. Listas filtradas (tag, período, meus posts) continuam com a mensagem curta.
+- **Gerenciar:** o menu "⋯" do topo tem só "Gerenciar comunidade", e apenas para dono ou moderador da comunidade aberta; ele abre a tela de configuração dela (nome, descrição, regras, foto, tags e governança). A lista "Gerenciar comunidades" saiu. A tela de configuração não abria antes: a rota recusava `view=manage` e caía na página comum da comunidade.
+
+**Ponto importante:** comunidades ainda não têm banner próprio enviado pelo dono; o banner continua sendo o degradê do tom da comunidade. Enviar banner exige mídia pública nova, migração e análise, como o banner de perfil.

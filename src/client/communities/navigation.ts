@@ -37,7 +37,7 @@ export function communityNavigation(
   if (options.manage)
     link(
       choices,
-      'Gerenciar esta comunidade',
+      'Gerenciar comunidade',
       `#comunidades?id=${options.manage}&view=manage`,
     );
   for (const [key, title] of [
@@ -46,7 +46,6 @@ export function communityNavigation(
     ['saved', 'Salvos'],
     ['hidden', 'Ocultos'],
     ['replies', 'Respostas ao seu conteúdo'],
-    ['managed', 'Gerenciar comunidades'],
     ['invitations', 'Transferências'],
     ['create', 'Criar comunidade'],
   ] as const) {
@@ -104,4 +103,26 @@ export function postReturnTarget(
   return lastList
     ? `#comunidades?${lastList}`
     : `#comunidades?id=${encodeURIComponent(community)}`;
+}
+
+const communityViews = new Set([
+  'dms',
+  'explore',
+  'feed',
+  'saved',
+  'hidden',
+  'communities',
+  'following',
+  'manage',
+  'invitations',
+  'create',
+  'replies',
+]);
+/**
+ * Known screens only; unknown links fall back to the feed. Settings belong to
+ * one community, so `manage` without a community also opens the feed.
+ */
+export function communityView(view: string, selected: string | null): string {
+  if (!communityViews.has(view)) return 'feed';
+  return view === 'manage' && !selected ? 'feed' : view;
 }
