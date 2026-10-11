@@ -22,17 +22,17 @@ class PostTagsMigrationReviewTests(unittest.TestCase):
         git.assert_not_called()
         database.assert_not_called()
 
-    def test_review_binds_predecessor_54_migrations_and_unchanged_worker_units(self):
+    def test_review_binds_predecessor_55_migrations_and_unchanged_worker_units(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             old, new = root / 'old', root / 'new'
             previous = {'src/main.ts': b'old', 'package.json': b'{}',
                         'package-lock.json': b'lock', '.nvmrc': b'24.14.0'}
             approved = dict(previous, **{'src/main.ts': b'description'})
-            for version in range(1, 55):
+            for version in range(1, 56):
                 name = 'src/server/database/migrations/%03d.sql' % version
                 approved[name] = ('migration %d' % version).encode()
-                if version <= 53: previous[name] = approved[name]
+                if version <= 54: previous[name] = approved[name]
             for folder, files in [(old, previous), (new, approved)]:
                 for name, value in files.items():
                     path = folder / name
@@ -49,7 +49,7 @@ class PostTagsMigrationReviewTests(unittest.TestCase):
                   patch.object(base, 'verify_community_tables')):
                 descriptions.review(new, old)
                 for name in ['src/main.ts', 'src/server/database/migrations/001.sql',
-                             'src/server/database/migrations/053.sql',
+                             'src/server/database/migrations/054.sql',
                              'infra/staging/' + descriptions.background.UNITS[0]]:
                     path = new / name
                     before = path.read_bytes()
@@ -58,15 +58,15 @@ class PostTagsMigrationReviewTests(unittest.TestCase):
                     path.write_bytes(before)
 
     def test_migration_refuses_changed_records_checksums_or_nonempty_table(self):
-        versions = [{'version': value, 'checksum': str(value)} for value in range(1, 55)]
-        before = {'versions': versions[:53], 'tables': {'existing': 'preserved'}}
+        versions = [{'version': value, 'checksum': str(value)} for value in range(1, 56)]
+        before = {'versions': versions[:54], 'tables': {'existing': 'preserved'}}
         after = dict(before, versions=versions)
         with (patch.object(descriptions, 'snapshot', return_value=after),
               patch.object(base, 'attachment_versions', return_value=versions),
               patch.object(base, 'verify_community_tables'),
               patch.object(backups, 'pg', return_value=b't')):
             descriptions.verify_migration(Path('candidate'), before)
-        for invalid in [dict(after, tables={}), dict(after, versions=versions[:53])]:
+        for invalid in [dict(after, tables={}), dict(after, versions=versions[:54])]:
             with (patch.object(descriptions, 'snapshot', return_value=invalid),
                   patch.object(base, 'attachment_versions', return_value=versions),
                   self.assertRaisesRegex(RuntimeError, 'records or checksums')):
@@ -78,12 +78,12 @@ class PostTagsMigrationReviewTests(unittest.TestCase):
               self.assertRaisesRegex(RuntimeError, 'content rule differs')):
             descriptions.verify_migration(Path('candidate'), before)
 
-    def test_dispatch_selects_this_transition_for_54_migrations(self):
+    def test_dispatch_selects_this_transition_for_55_migrations(self):
         with tempfile.TemporaryDirectory() as directory:
             candidate = Path(directory)
             migrations = candidate / 'src/server/database/migrations'
             migrations.mkdir(parents=True)
-            for version in range(1, 55):
+            for version in range(1, 56):
                 (migrations / ('%03d.sql' % version)).write_text('-- fixture')
             with patch.object(descriptions, 'review') as review:
                 base.database_review(candidate, Path('live'))

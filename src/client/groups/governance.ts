@@ -108,9 +108,11 @@ export class GroupGovernance {
   }): Promise<GroupEvent> {
     const accounts = [
       ...new Set(
-        input.page.flatMap((e) =>
-          e.consent ? [e.actor, e.consent.actor] : [e.actor],
-        ),
+        input.page.flatMap((e) => [
+          e.actor,
+          ...(e.consent ? [e.consent.actor] : []),
+          ...(e.link ? [e.link.actor] : []),
+        ]),
       ),
     ];
     const directories = await readDirectories({
@@ -132,6 +134,9 @@ export class GroupGovernance {
         previous,
         event,
         ...this.eventOrigins(event, directories),
+        ...(event.link
+          ? { linkAnchor: await this.checkAnchor(event.link, input.cache) }
+          : {}),
       });
       await input.cache.preserve(previous);
     }
@@ -145,11 +150,20 @@ export class GroupGovernance {
     actorDirectory: DirectoryEvent;
     consentDirectory?: DirectoryEvent;
     targetDirectory?: DirectoryEvent;
+    linkDirectory?: DirectoryEvent;
   } {
     const actorDirectory = this.origin(
       directories.get(event.actor)?.events,
       event.authorityRevision,
     );
+    if (event.link)
+      return {
+        actorDirectory,
+        linkDirectory: this.origin(
+          directories.get(event.link.actor)?.events,
+          event.link.authorityRevision,
+        ),
+      };
     if (!event.consent) return { actorDirectory };
     return {
       actorDirectory,
@@ -172,7 +186,7 @@ export class GroupGovernance {
     return event;
   }
   private async checkAnchor(
-    consent: GroupConsent,
+    consent: Pick<GroupConsent, 'actor' | 'head' | 'groupId'>,
     cache: GroupCache,
   ): Promise<GroupEvent> {
     const anchor = await cache.event(consent.head);

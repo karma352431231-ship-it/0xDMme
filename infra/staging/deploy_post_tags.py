@@ -1,17 +1,18 @@
-"""Review the exact 053→054 community post tags transition through deploy.py only."""
+"""Review the exact 054→055 community post tags transition through deploy.py only."""
 
 import re
 
 import deploy_remote as base
 import deploy_blocks45 as backups
 import deploy_background as background
-import deploy_profile_description as description
+import deploy_group_links as groups
 
-BEFORE = '4486e3aeb5b3742e6ea173fc954b9cff74f36605'
+# The predecessor is the integrated main with migration 054 (private group links).
+BEFORE = '9719676d1ae2bb6a8ed6c8c11fe06b05706e0dbd'
 # Owner chose several tags per post, required title and tag, on 11/10/2026.
 # Bind the exact reviewed application sources.
 REVIEWED = 'UNREVIEWED'
-OLD_TABLES = description.OLD_TABLES + description.NEW_TABLES
+OLD_TABLES = groups.OLD_TABLES + groups.NEW_TABLES
 NEW_TABLES = ('community_post_extra_tags',)
 
 
@@ -20,7 +21,7 @@ def review(candidate, live):
         raise RuntimeError('Post tags transition requires an exact source review.')
     base.reviewed_database(candidate, live, {
         'before': BEFORE, 'reviewed': REVIEWED,
-        'versions': 54, 'previous_versions': 53,
+        'versions': 55, 'previous_versions': 54,
     })
     base.verify_community_tables(OLD_TABLES)
     for unit in background.UNITS:
@@ -29,14 +30,14 @@ def review(candidate, live):
 
 
 def snapshot():
-    # 054 adds an empty table and loosens a check: every existing row, the
+    # 055 adds an empty table and loosens a check: every existing row, the
     # global usage ledger and the migration checksums must stay identical.
     return backups.database_snapshot(OLD_TABLES)
 
 
 def verify_migration(candidate, before):
     after, versions = snapshot(), base.attachment_versions(candidate)
-    if (before['versions'] != versions[:53] or after['versions'] != versions
+    if (before['versions'] != versions[:54] or after['versions'] != versions
             or after['tables'] != before['tables']):
         raise RuntimeError('Post tags migration changed existing records or checksums.')
     base.verify_community_tables(OLD_TABLES + NEW_TABLES)
@@ -57,7 +58,7 @@ def activate(config, work, candidate, before_state):
     background.verify_current(config)
     return base.activate_database(config, work, candidate, {
         'before_state': before_state, 'review': review, 'snapshot': snapshot,
-        'versions': 53, 'verify': verify_migration,
+        'versions': 54, 'verify': verify_migration,
         'stop_existing': background.stop, 'resume_existing': background.start,
         'start': background.start,
     })

@@ -1,5 +1,33 @@
 # 0xDMme — Git e envio à VPS
 
+## Integração na main e grupos privados — autorização de 11/10/2026
+
+O proprietário pediu integrar as branches no caminho principal e ativar na VPS.
+Todos os commits das branches locais/remotas já pertenciam ao histórico de
+`99c7de5`; a integração da `main` é um avanço sem conflitos, preservando as
+alterações ainda não commitadas nas outras worktrees. O comando existente de
+deploy e a sincronização de fontes aceitam agora `main`, além das branches
+`codex/*`, mantendo checkout limpo, commit enviado e CI integral da branch e do
+commit exatos. Um push continua sem ativar o site automaticamente.
+
+A ativação inclui a transição 053→054 dos links de grupos. O módulo interno
+`deploy_group_links.py` fixa o predecessor publicado
+`4486e3aeb5b3742e6ea173fc954b9cff74f36605` e as fontes de aplicação revisadas
+`99c7de5ec0fcfa14d019c30b6503b67bcf523d20`. Confere toda a árvore de fontes,
+pacotes/Node, as 53 migrações anteriores e os units dos workers. A única tabela
+nova é `group_links`, inicialmente vazia, com gatilho habilitado para o contador
+de uso. Todas as linhas anteriores, checksums, ledger e objetos devem permanecer
+iguais. Não há instalação de dependências ou alteração de serviços compartilhados.
+
+Reutilizar `npm run deploy:staging`: parar os escritores próprios, guardar backup
+privado, ensaiar sua restauração, migrar e verificar antes de reabrir o web e os
+workers. Falha antes da reabertura permite retorno verificado; depois dela,
+preservar as novas escritas e exigir revisão. Evidências ficam em `.local/`.
+
+**Ponto importante:** esta autorização inclui a migração 054 e uma breve
+manutenção do app. Publicação só é confirmada após CI e verificações remotas;
+este registro de autorização não comprova uma ativação concluída.
+
 ## Descrição do perfil — migração 053 autorizada em 10/10/2026
 
 O proprietário autorizou ativar a edição do perfil no lugar e aplicar a migração
@@ -906,7 +934,7 @@ O proprietário pediu explicitamente publicação/ativação e aprovou aumentar 
 
 Comando específico: `python3 infra/staging/deploy_blocks67.py --activate`, executado no Mac em checkout limpo do commit exato com CI aprovada. `--check` prepara/sincroniza/verifica sem ativação. O executor aceita somente a aplicação revisada em `8e74bb1` sobre o predecessor `32663bb`, com migrações 010–015; o comando comum continua recusando mudanças de banco e artefatos maiores que 16 MiB.
 
-O Mac prepara o build completo e seu manifesto. O pacote transferido omite somente as 18 partes da fonte preferencial Matrix, já presente no Git dedicado da VPS. O executor copia esses bytes do blob versionado em blocos, sem compilar ou instalar, verificando tamanho, SHA-256 integral e hash de cada parte contra o build do Mac. Todas as fontes permanecem disponíveis na publicação. O pacote mantém teto de 16 MiB e a soma de código/assets/dependências permanece limitada a 128 MiB. Só a verificação HTTP do WASM conhecido admite 8 MiB; as demais respostas conservam 2 MiB.
+O Mac prepara o build completo e seu manifesto. O pacote transferido omite somente as 18 partes da fonte preferencial Matrix, já presente no Git dedicado da VPS. O executor copia esses bytes do blob versionado em blocos, sem compilar ou instalar, verificando tamanho, SHA-256 integral e hash de cada parte contra o build do Mac. Todas as fontes permanecem disponíveis na publicação. O pacote mantém teto de 16 MiB e a soma de código/assets/dependências permanece limitada a 128 MiB. A verificação HTTP do WASM conhecido admite 8 MiB; as demais respostas conservam 2 MiB, exceto o pacote principal `source-<hash>.tar.gz`: em 10/10/2026, o proprietário removeu seu teto individual. A conferência desse pacote usa o orçamento total da release e preserva o prazo e o SHA-256/ETag; não altera serviços compartilhados.
 
 Antes de migrar, parar somente o writer `0xdmme-test.service`, conferir schema 1–9 e preservar hashes das 12 tabelas existentes. Fazer backup privado de até 64 MiB, verificar sua integridade e ensaiar restauração do schema próprio dentro de transação revertida. Após migrar, conferir checksums 1–15, dados anteriores, tabelas novas vazias e contabilidade de bytes. Falha antes de reabrir admite retorno verificado; após reabrir, nunca restaurar automaticamente o banco antigo, pois novos dados podem existir. Guardar backup/versão anterior em workspace próprio para revisão posterior.
 

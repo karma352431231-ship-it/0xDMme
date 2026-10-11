@@ -13,7 +13,7 @@ import {
 } from '../../shared/groups/index.ts';
 import type { GroupConsent, GroupEvent } from '../../shared/groups/index.ts';
 import { attachmentContent } from '../../shared/attachments/index.ts';
-import { backupMessageApi, messageApi } from '../message-api/index.ts';
+import { messageApi } from '../message-api/index.ts';
 import {
   PeerIdentity,
   readDirectories,
@@ -49,15 +49,14 @@ import {
   localGroupViews,
   restoredGroupMedia,
 } from './history.ts';
+import { GroupAdmissions } from './admission.ts';
+import { GroupAuthority } from './authority.ts';
+import type { GroupContext } from './authority.ts';
+
 export interface GroupSummary extends GroupState {
   title: string;
   profileSequence?: number;
   localOnly?: boolean;
-}
-interface GroupContext {
-  authority: VaultAuthority;
-  api: AttachmentApi;
-  governance: GroupGovernance;
 }
 interface GroupPrefetch {
   after: string | null;
@@ -71,6 +70,7 @@ export class GroupController {
   private readonly access: VaultAccess;
   private readonly visible: () => boolean;
   private readonly identities: PeerIdentity;
+  private readonly authority: GroupAuthority;
   private session: AccountSession | null = null;
   private generation = 0;
   private prefetchAbort: AbortController | null = null;
@@ -98,11 +98,17 @@ export class GroupController {
     this.access = access;
     this.visible = visible;
     this.identities = new PeerIdentity(sync);
+    this.authority = new GroupAuthority({
+      access,
+      identities: this.identities,
+      session: () => this.session,
+    });
   }
   setSession(session: AccountSession | null): void {
     const identity = (s: AccountSession | null) =>
       s ? [s.accountId, s.deviceId, s.csrf].join(':') : '';
     if (identity(session) !== identity(this.session)) {
+      this.authority.invalidate();
       this.close();
       this.entries = [];
       this.incoming = [];
@@ -132,26 +138,19 @@ export class GroupController {
     this.generation++;
     this.views = [];
   }
+  revokeAuthority(): void {
+    this.authority.invalidate();
+    this.hide();
+  }
   private guard(generation: number): void {
     if (this.generation !== generation)
       throw new Error('Sessão ou grupo alterado.');
   }
-  private async withAuthority<T>(
+  private withAuthority<T>(
     work: (context: GroupContext) => Promise<T>,
   ): Promise<T> {
     const generation = this.generation;
-    if (!this.session) throw new Error('Entre e autorize este aparelho.');
-    return this.access.withVault(!navigator.onLine, async (authority) => {
-      this.guard(generation);
-      if (authority.session.accountId !== this.session?.accountId)
-        throw new Error('Conta alterada.');
-      const api = (op: string, payload: Record<string, unknown>) =>
-        backupMessageApi(authority, op, payload, () => this.guard(generation));
-      const governance = new GroupGovernance(this.identities, api, authority);
-      const result = await work({ authority, api, governance });
-      this.guard(generation);
-      return result;
-    });
+    return this.authority.run(() => this.guard(generation), work);
   }
   private async machine<T>(
     c: GroupContext,
@@ -617,7 +616,7 @@ export class GroupController {
     this.warning = '';
     await this.identities.load();
     try {
-      await this.withAuthority(async (c) => {
+      await this.authority.mutate(async (c) => {
         const catalog = new GroupCatalog(c.authority),
           pending = await catalog.creation();
         if (pending && pending.title !== checked)
@@ -681,7 +680,7 @@ export class GroupController {
     const selected = this.selected;
     if (!selected) throw new Error('Abra um grupo primeiro.');
     await this.identities.load();
-    await this.withAuthority(async (c) => {
+    await this.authority.mutate(async (c) => {
       const group = await c.governance.verify(selected.state.groupId);
       const event = await changeGroupEvent({
         authority: c.authority,
@@ -701,6 +700,28 @@ export class GroupController {
     )
       throw new Error('Mudança no grupo não confirmada.');
     await new GroupCache(c.authority, event.groupId).preserve(event);
+  }
+  async admission(
+    action: 'add' | 'link' | 'revoke' | 'join',
+    value = '',
+  ): Promise<string | void> {
+    await this.identities.load();
+    const groupId = this.selected?.state.groupId;
+    if (action !== 'join' && !groupId)
+      throw new Error('Abra um grupo primeiro.');
+    const result = await this.authority.mutate(async (c) => {
+      const admission = new GroupAdmissions({
+        ...c,
+        identities: this.identities,
+      });
+      if (action === 'join') return admission.join(value);
+      if (!groupId) throw new Error('Abra um grupo primeiro.');
+      if (action === 'add') return admission.add(groupId, value);
+      if (action === 'link') return admission.link(groupId);
+      return admission.revoke(groupId);
+    });
+    await this.identities.save();
+    return result;
   }
   async propose(target: string, kind: GroupConsent['kind']): Promise<void> {
     const selected = this.selected;
@@ -744,7 +765,7 @@ export class GroupController {
   }
   async respond(consent: GroupConsent, accept: boolean): Promise<void> {
     await this.identities.load();
-    await this.withAuthority(async (c) => {
+    await this.authority.mutate(async (c) => {
       if (!accept) {
         await c.api('group-cancel', { id: consent.id });
         return;

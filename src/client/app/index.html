@@ -144,13 +144,24 @@
               ><span class="label-narrow">Conversas</span>
             </h2>
             <div class="directory-actions">
-              <a
-                href="#contatos"
-                class="icon-button directory-add"
-                aria-label="Adicionar contato"
-                title="Adicionar contato"
-                >+</a
-              >
+              <details class="directory-create-menu">
+                <summary
+                  class="icon-button directory-add"
+                  aria-label="Adicionar contato ou criar grupo"
+                  title="Adicionar contato ou criar grupo"
+                >
+                  +
+                </summary>
+                <div class="directory-create-actions">
+                  <a href="#contatos">Adicionar contato</a>
+                  <button data-private-group-action="create" type="button">
+                    Criar grupo
+                  </button>
+                  <button data-private-group-action="join" type="button">
+                    Entrar por link
+                  </button>
+                </div>
+              </details>
             </div>
           </div>
           <div class="contact-scope" role="group" aria-label="Tipo de contato">

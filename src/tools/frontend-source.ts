@@ -194,7 +194,7 @@ async function dependencySources(
     preferred = ['dist/modules-esm', 'LICENSE', 'README.md', 'package.json'];
   else return collect(root, path);
   // Preserve preferred sources, metadata/licenses and exact incorporated JS;
-  // omit duplicate distribution builds without increasing the resource caps.
+  // omit duplicate distribution builds while preserving every incorporated input.
   const files: string[] = [];
   for (const source of preferred)
     files.push(...(await collect(root, `${path}/${source}`)));
@@ -225,7 +225,7 @@ export async function frontendSource(
   if (included.size > 1024) throw new Error('Quantidade de fontes excedida.');
   // Explicit paths only: no repository-wide archive, shell, .local or backend.
   // Plain ustar: the same files without per-file extended metadata (macOS
-  // xattrs, sub-second times), which compressed poorly and varied by machine.
+  // xattrs, ACLs, sub-second times) or machine-specific owner names.
   const { stdout } = await execute(
     'tar',
     [
@@ -233,6 +233,9 @@ export async function frontendSource(
       'ustar',
       '-cf',
       '-',
+      '--numeric-owner',
+      '--no-xattrs',
+      '--no-acls',
       '--no-recursion',
       '-C',
       root,
@@ -241,12 +244,7 @@ export async function frontendSource(
     ],
     { encoding: 'buffer', maxBuffer: 24 * 1024 * 1024, timeout: 30_000 },
   );
-  const archive = gzipSync(stdout, { level: 9 });
-  if (archive.length > 2 * 1024 * 1024)
-    throw new Error(
-      `Fontes comprimidas (${archive.length} bytes) excedem o teto de 2 MiB.`,
-    );
-  return archive;
+  return gzipSync(stdout, { level: 9 });
 }
 function verifyInputs(
   root: string,

@@ -191,10 +191,14 @@ def digest(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def valid_release_branch(value):
+    return isinstance(value, str) and re.fullmatch(r'(?:main|codex/[A-Za-z0-9][A-Za-z0-9._/-]*)', value) is not None
+
+
 def validate(config):
     if not re.fullmatch(r'[a-f0-9]{40}', config['commit']):
         raise RuntimeError('Invalid commit.')
-    if not re.fullmatch(r'codex/[A-Za-z0-9][A-Za-z0-9._/-]*', config['branch']):
+    if not valid_release_branch(config['branch']):
         raise RuntimeError('Invalid branch.')
     files = config['files']
     if not 1 <= len(files) <= MAX_MANIFEST_FILES:
@@ -272,6 +276,9 @@ def own_state():
 
 def fetch(path, expected=None):
     limit = 8 * 1024 * 1024 if path == '/matrix-crypto-18.9.0.wasm' else 2 * 1024 * 1024
+    if re.fullmatch(r'/source-[a-f0-9]{16}\.tar\.gz', path):
+        # Corresponding sources have no per-file cap; the release budget still applies.
+        limit = MAX_RELEASE
     args = ['curl', '--silent', '--fail', '--max-time', '10', '--max-filesize', str(limit)]
     if expected:
         args += ['--header', 'If-None-Match: "' + expected + '"', '--write-out', '\n%{http_code}']
@@ -440,9 +447,12 @@ def backup_review(candidate, live):
 
 def database_review(candidate, live):
     count = len(list((candidate / 'src/server/database/migrations').glob('*.sql')))
-    if count == 54:
+    if count == 55:
         import deploy_post_tags
         return deploy_post_tags.review(candidate, live)
+    if count == 54:
+        import deploy_group_links
+        return deploy_group_links.review(candidate, live)
     if count == 53:
         import deploy_profile_description
         return deploy_profile_description.review(candidate, live)
@@ -1020,9 +1030,12 @@ def activate(config, work):
     if (database_files(candidate) != database_files(DATA / 'release')
             and not database_code_reviewed(candidate, DATA / 'release')):
         # Any unreviewed database change was rejected by prepare()/compatibility().
-        if len(list((candidate / 'src/server/database/migrations').glob('*.sql'))) == 54:
+        if len(list((candidate / 'src/server/database/migrations').glob('*.sql'))) == 55:
             import deploy_post_tags
             return deploy_post_tags.activate(config, work, candidate, before)
+        if len(list((candidate / 'src/server/database/migrations').glob('*.sql'))) == 54:
+            import deploy_group_links
+            return deploy_group_links.activate(config, work, candidate, before)
         if len(list((candidate / 'src/server/database/migrations').glob('*.sql'))) == 53:
             import deploy_profile_description
             return deploy_profile_description.activate(config, work, candidate, before)

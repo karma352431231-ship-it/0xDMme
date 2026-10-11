@@ -13,6 +13,8 @@ import shlex
 import subprocess
 import sys
 
+from deploy_remote import valid_release_branch
+
 ROOT = Path(__file__).resolve().parents[2]
 OWNER = 'karma352431231-ship-it'
 ORIGIN = f'https://github.com/{OWNER}/0xDMme.git'
@@ -40,8 +42,8 @@ def main():
     if run(['git', 'status', '--porcelain']):
         raise RuntimeError('Commit the reviewed files before synchronizing.')
     branch = run(['git', 'symbolic-ref', '--short', 'HEAD'])
-    if not re.fullmatch(r'codex/[A-Za-z0-9][A-Za-z0-9._/-]*', branch):
-        raise RuntimeError('Only an explicit codex branch can be synchronized.')
+    if not valid_release_branch(branch):
+        raise RuntimeError('Only an explicit main or codex branch can be synchronized.')
     revision = run(['git', 'rev-parse', 'HEAD'])
     remote = run(['git', '-c', f'credential.username={OWNER}', 'ls-remote',
                   '--exit-code', 'origin', f'refs/heads/{branch}'])
