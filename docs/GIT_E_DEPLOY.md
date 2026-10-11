@@ -1,5 +1,13 @@
 # 0xDMme — Git e envio à VPS
 
+## Várias tags por post — migração 055 preparada em 11/10/2026 (não ativada)
+
+O proprietário pediu título obrigatório e de 1 a 5 tags por post, e pediu para deixar a mudança pronta no Git, sem enviar à VPS. A migração 055 cria `community_post_extra_tags` (vazia, cobrança e gatilho de uso) e afrouxa a regra de conteúdo de `community_posts` para título, texto ou mídia; nenhuma linha existente muda.
+
+O módulo `deploy_post_tags.py` revisa a transição 054→055 no molde das anteriores: fontes fixadas em `91cc993a6ae24a443f5d61247e0e1caada3f95e9` e predecessora fixada em `9719676d1ae2bb6a8ed6c8c11fe06b05706e0dbd` (main integrada com a 054 de grupos). Snapshot integral das tabelas existentes, ledger e checksums; depois confere tabela vazia, gatilho, índice e a nova regra de conteúdo.
+
+**Ponto importante:** a ativação de `9719676` registrada em 11/10/2026 00:55 terminou com "Background workers did not acquire all three leases" e serviço próprio parado para revisão; o site voltou a responder depois. Antes de ativar a 055, confirmar qual release e quantas migrações estão de fato no ar e ajustar `BEFORE` se a predecessora não for `9719676`.
+
 ## Integração na main e grupos privados — autorização de 11/10/2026
 
 O proprietário pediu integrar as branches no caminho principal e ativar na VPS.

@@ -11,7 +11,7 @@ import deploy_group_links as groups
 BEFORE = '9719676d1ae2bb6a8ed6c8c11fe06b05706e0dbd'
 # Owner chose several tags per post, required title and tag, on 11/10/2026.
 # Bind the exact reviewed application sources.
-REVIEWED = 'UNREVIEWED'
+REVIEWED = '91cc993a6ae24a443f5d61247e0e1caada3f95e9'
 OLD_TABLES = groups.OLD_TABLES + groups.NEW_TABLES
 NEW_TABLES = ('community_post_extra_tags',)
 
