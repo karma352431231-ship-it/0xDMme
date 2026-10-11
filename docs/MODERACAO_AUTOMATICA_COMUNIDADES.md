@@ -341,6 +341,16 @@ Nos onze arquivos novos, a mediana foi aproximadamente `0,251 s` e o máximo `0,
 
 **Ponto importante:** o bloqueio confirmado é a retenção indevida de controles neutros, além da cobertura de precisão ainda insuficiente. A avaliação não aprova relaxar a política, liberar arquivos pela pontuação isolada ou ativar a moderação só porque a inferência de fotos foi rápida.
 
+## Nova coleta voluntária — 11/10/2026
+
+O proprietário pediu uma rodada de aproximadamente 40–50 imagens, marcadas somente como permitidas ou proibidas, para calibrar os bloqueios indevidos enquanto dorme. Escolheu uma galeria privada com dois botões. Essa solicitação autoriza a nova coleta voluntária, substituindo a restrição de não pedir outra rodada durante o encerramento anterior; não reabre nem altera os resultados daquela rodada.
+
+A ferramenta separada de coleta usa `infra/moderation-evaluation/collection.py` e `collection_server.py`, com a interface em `src/client/moderation-collection`. Recebe vários arquivos selecionados e salva cada original somente ao marcar **Passa** ou **Bloqueia**. Não executa nem exibe inferência durante a marcação. Vincula bytes originais, SHA-256, ID e referência; duplicatas idênticas não multiplicam os casos, referências conflitantes exigem correção explícita. **Concluir envio** fecha a rodada para mudanças e indica que os dados estão disponíveis para calibração. Não cria decisões ou publicações no aplicativo.
+
+O processo é local e restrito a loopback com capacidade privada, sem banco ou acesso às mensagens. Conserva os originais apenas em memória por até 24 horas, com os mesmos limites de 256 casos/512 MiB da galeria experimental e 8 MiB por imagem PNG/JPEG/WebP. Encerramento/reinício perde os originais; o prazo encerra o processo mesmo sem nova visita. As imagens salvas sobrevivem ao recarregamento da aba, enquanto a fila ainda não marcada permanece somente naquela aba. Capacidade de acesso e evidências operacionais ficam em `.local/` do checkout principal; não copiar essa pasta para a worktree.
+
+**Ponto importante:** referências do proprietário servem para medir erros e ajustar critérios, nunca como entrada do detector, lista de permissões por imagem ou treinamento automático de pesos. Separar uma parte dos originais únicos para teste antes de usar o restante no ajuste; imagens iguais ou variações próximas devem permanecer no mesmo grupo. Medir recusas indevidas, liberações indevidas e retenções, além dos controles já existentes e do runtime efetivamente ativo. O conjunto pequeno não comprova precisão universal. Esta coleta não autoriza ativar uma nova política, alterar a retenção do produto ou publicar imagens.
+
 ## Aceite necessário depois da escolha
 
 - Fixar versões/hashes, avisos, origem dos pesos e dependências; validar runtime sem tráfego externo, CPU/RAM/processos e encerramento por prazo.
