@@ -35,7 +35,7 @@ class DeploymentTests(unittest.TestCase):
         names = ['deploy_sources', 'deploy_runtime', 'deploy_remote', 'deploy_blocks45',
                  'deploy_request_limit', 'deploy_background', 'deploy_profile_social',
                  'deploy_profile_description', 'deploy_group_links',
-                 'deploy_post_tags']
+                 'deploy_post_tags', 'deploy_media_worker']
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory); (root / 'infra/staging').mkdir(parents=True)
             config = {'files': {}}
@@ -1415,3 +1415,22 @@ class HistoricalBackupRetentionTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class MediaOutputCodeTests(CommunityFeedCodeTests):
+    def setUp(self):
+        super().setUp()
+        for relative in ['communities.ts', 'community-discovery.ts']:
+            (self.candidate / 'src/server/database' / relative).write_bytes(
+                (self.live / 'src/server/database' / relative).read_bytes())
+        (self.live / 'src/server/database/community-media.ts').write_text('old result reservation')
+        (self.candidate / 'src/server/database/community-media.ts').write_text('reviewed atomic reservation upgrade')
+        self.exports = {
+            remote.MEDIA_OUTPUT_BEFORE:self.export(self.live),
+            remote.MEDIA_OUTPUT_REVIEWED:self.export(self.candidate),
+        }
+
+    def test_unreviewed_reservation_code_is_rejected(self):
+        (self.candidate / 'src/server/database/community-media.ts').write_text('unreviewed quota change')
+        with patch.object(backups,'git_export',side_effect=lambda sha:self.exports[sha]), self.assertRaises(RuntimeError):
+            remote.compatibility(self.candidate,self.live)

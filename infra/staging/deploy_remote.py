@@ -172,6 +172,9 @@ ACTIVITY_PREVIEW_REVIEWED = '0bb7b9dddbd84fe8c033b2ae04dec93a2f97fade'
 # existing 052 schema, migrations and migration executor remain byte-identical.
 POSE_MODERATION_BEFORE = '2ac00f98698d384cff2a2f9d6937093e552d276b'
 POSE_MODERATION_REVIEWED = '5a54ddbe4a0dbdd91b1965b902dae970f12e646d'
+# Owner-approved 11/10/2026 code-only reservation upgrade; all migrations unchanged.
+MEDIA_OUTPUT_BEFORE = 'feff745968330663f956d26faac583d9b3194340'
+MEDIA_OUTPUT_REVIEWED = '5e024bfa606213f6c99760378a82fed68d2699e2'
 COMMUNITIES_TABLES = CALLS_TABLES + CALLS_NEW_TABLES
 COMMUNITIES_NEW_TABLES = ('public_profiles', 'communities', 'community_follows',
     'community_moderators', 'community_sanctions', 'community_reports',
@@ -352,6 +355,7 @@ def database_code_reviewed(candidate, live):
     before, after = database_files(live), database_files(candidate)
     changed = {name for name in set(before) | set(after) if before.get(name) != after.get(name)}
     reviews = [
+        ({'community-media.ts'}, MEDIA_OUTPUT_BEFORE, MEDIA_OUTPUT_REVIEWED),
         ({'communities.ts', 'community-discovery.ts'}, COMMUNITY_FEED_BEFORE, COMMUNITY_FEED_REVIEWED),
         ({'authentication.ts'}, MOBILE_OPENING_BEFORE, MOBILE_OPENING_REVIEWED),
         ({'community-ranking-metrics.ts'}, RANKING_METRICS_BEFORE, RANKING_METRICS_REVIEWED),
@@ -1263,6 +1267,9 @@ def main():
         request_limits.reviewed_path(config['request_limit'])
     action = sys.argv[1]
     work = DATA / ('deployment-' + config['commit'])
+    if 'media_worker' in config:
+        import deploy_media_worker
+        deploy_media_worker.validate_current(config)
     if action == 'check':
         with measured('preflight'):
             preflight(config)
@@ -1320,6 +1327,11 @@ def main():
             with (work / 'build.tar.gz').open('xb') as handle:
                 handle.write(archive)
             return {'uploaded': True, 'activated': False}
+        if 'media_worker' in config:
+            import deploy_media_worker
+            with deploy_media_worker.activation(config, work) as media_proof:
+                result = activate(config, work)
+            return dict(result, media_worker=media_proof)
         return activate(config, work)
 
 
