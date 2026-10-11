@@ -28,7 +28,10 @@ import {
 } from '../../src/server/communities/index.ts';
 import { createWebServer } from '../../src/server/web-host/index.ts';
 import { readWebConfiguration } from '../../src/server/web-configuration/index.ts';
-import { createCommunityAccount } from './community-fixture.ts';
+import {
+  createCommunityAccount,
+  rootPostContent,
+} from './community-fixture.ts';
 import { checkOperatorPreview } from './moderation-operator-fixture.ts';
 import { prepareEvent } from '../../src/client/device-operations/index.ts';
 import { freshKeyring } from '../../src/client/device-operations/index.ts';
@@ -289,11 +292,11 @@ await test('comunidades: criação aberta, privacidade, gestão, sanções, den�
       await owner.operate('post-create', {
         id,
         post: crypto.randomUUID(),
-        content: {
-          title: '',
-          text: 'Texto sintético com foto da comunidade ainda restrita.',
-          tag: null,
-        },
+        content: await rootPostContent(
+          communities,
+          id,
+          'Texto sintético com foto da comunidade ainda restrita.',
+        ),
       });
       const feed = await communities.feed(
         {

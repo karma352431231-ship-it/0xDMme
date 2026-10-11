@@ -110,3 +110,14 @@ export async function createCommunityAccount(options: {
     publicIdentity,
   };
 }
+
+/** A post needs a title and a tag; fixtures use the community's first active tag. */
+export async function rootPostContent(
+  communities: CommunityService,
+  community: string,
+  text: string,
+  title = 'Post sintético',
+) {
+  const tag = (await communities.tags(community, null)).items[0]?.id;
+  return { title, text, tags: tag ? [tag] : [] };
+}

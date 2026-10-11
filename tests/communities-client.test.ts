@@ -150,7 +150,7 @@ function post(): CommunityPost {
     author: null,
     title: 'Teste',
     text: 'Texto público sintético',
-    tag: null,
+    tags: [],
     createdAt: new Date().toISOString(),
     editedAt: null,
     revision: 1,

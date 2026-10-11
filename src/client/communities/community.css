@@ -2247,3 +2247,45 @@
     height: calc(100dvh - 170px);
   }
 }
+
+/* Post tags: every tag as a chip; the author toggles up to five. */
+#app-shell .post-tag-chips {
+  margin: 8px 0;
+  padding: 0;
+  border: 0;
+}
+.post-tag-chips legend {
+  margin: 0 0 8px;
+  padding: 0;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+.post-tag-chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+#app-shell .post-tag-chip-list button {
+  min-height: 0;
+  margin: 0;
+  padding: 6px 14px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+}
+#app-shell .post-tag-chip-list button[aria-pressed='true'] {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+#app-shell .post-tag-chip-list button:disabled {
+  opacity: 0.45;
+}
+.post-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}

@@ -24,6 +24,8 @@ import {
 } from './elements.ts';
 import { mountCommunityGovernance } from './governance.ts';
 import { manageGroups } from './manage-tabs.ts';
+import { communityHoverProvider } from './community-hover.ts';
+import { registerHoverCard } from '../hover-card/index.ts';
 import { startCommunityPosts } from './posts.ts';
 import { replyNotificationPage } from '../../shared/community-posts/index.ts';
 import type { ReplyNotification } from '../../shared/community-posts/index.ts';
@@ -47,6 +49,9 @@ export function startCommunities(
 ) {
   const dms = startSocialDmUi(access, sync, privacy);
   const controller = new Communities(access);
+  registerHoverCard(
+    communityHoverProvider({ controller, signedIn: () => session !== null }),
+  );
   const posts = startCommunityPosts(controller, privacy);
   const discovery = startCommunityDiscovery(controller, privacy);
   document.addEventListener('click', openPostFromCard);
@@ -61,6 +66,8 @@ export function startCommunities(
     photoUrl: string | null = null;
   // Query of the last list shown (feed, ranking, community…), for the post arrow.
   let lastList: string | null = null;
+  // "Postar" passes through the community list and opens the composer there.
+  let composeNext = false;
   let view = 'feed',
     selectedDm: string | null = null,
     localDm = false,
@@ -150,7 +157,7 @@ export function startCommunities(
       const a = communityElement('a', '', 'community-row-link'),
         avatar = communityAvatar(item.name),
         copy = communityElement('span', '', 'community-row-copy');
-      a.href = `#comunidades?id=${item.id}`;
+      a.href = `#comunidades?id=${item.id}${composeNext ? '&compose=1' : ''}`;
       if (item.id === selected) a.setAttribute('aria-current', 'page');
       copy.append(
         communityElement('strong', item.name),
@@ -481,6 +488,7 @@ export function startCommunities(
       state,
       post: selectedPost,
       tag: selectedTag,
+      compose: composeNext,
     });
     // Owners and moderators manage from the isolated screen (top-right link);
     // participants keep their sanctions, appeals and reports here.
@@ -731,6 +739,7 @@ export function startCommunities(
         return;
       }
       view = communityView(view, selected);
+      composeNext = params.get('compose') === '1';
       navigation();
       ready();
     },

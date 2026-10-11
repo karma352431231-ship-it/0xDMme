@@ -25,7 +25,10 @@ import {
 } from '../../src/server/communities/index.ts';
 import { createWebServer } from '../../src/server/web-host/index.ts';
 import { readWebConfiguration } from '../../src/server/web-configuration/index.ts';
-import { createCommunityAccount } from './community-fixture.ts';
+import {
+  createCommunityAccount,
+  rootPostContent,
+} from './community-fixture.ts';
 
 await test('corte 6: feeds públicos, descoberta e referências privadas', async (t) => {
   const config = readWebConfiguration(process.env);
@@ -152,7 +155,13 @@ await test('corte 6: feeds públicos, descoberta e referências privadas', async
       await owner.operate(parent ? 'reply-create' : 'post-create', {
         id: group,
         post: id,
-        content: { title: '', text: 'Texto público sintético', tag: null },
+        content: parent
+          ? { title: '', text: 'Texto público sintético', tags: [] }
+          : await rootPostContent(
+              communities,
+              group,
+              'Texto público sintético',
+            ),
         ...(parent ? { parent } : {}),
       }),
     );
@@ -282,7 +291,8 @@ await test('corte 6: feeds públicos, descoberta e referências privadas', async
         first.next,
       );
       assert.equal(first.items.length + second.items.length, 26);
-      const tag = (await communities.tags(community, null)).items[0]!.id;
+      // Fixture posts carry the first tag; only this post gets the second.
+      const tag = (await communities.tags(community, null)).items[1]!.id;
       const current = postState(
         await owner.operate('post-state', { id: community, post: root }),
       );
@@ -290,7 +300,11 @@ await test('corte 6: feeds públicos, descoberta e referências privadas', async
         id: community,
         post: root,
         revision: current.post.revision,
-        content: { title: '', text: 'Texto público sintético', tag },
+        content: {
+          title: 'Post sintético',
+          text: 'Texto público sintético',
+          tags: [tag],
+        },
       });
       assert.deepEqual(
         (await feed(reader, { ...baseline, tag })).items.map(

@@ -150,6 +150,7 @@ const migrations = [
   '052-profile-conversation-index.sql',
   '053-public-profile-descriptions.sql',
   '054-group-invitation-links.sql',
+  '055-community-post-extra-tags.sql',
 ];
 
 export interface MaintenanceSnapshot {

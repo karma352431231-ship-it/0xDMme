@@ -107,7 +107,7 @@ export class CommunityDiscoveryStore {
       WHERE ($2 IN ('saved','hidden') OR (NOT p.deleted AND p.active_removal IS NULL
         AND (p.root_id IS NULL OR EXISTS(SELECT 1 FROM hash_talk.community_posts root WHERE root.id=p.root_id AND NOT root.deleted AND root.active_removal IS NULL))
         AND (p.parent_id IS NULL OR EXISTS(SELECT 1 FROM hash_talk.public_profile_follows pf WHERE pf.follower=$1 AND pf.target=p.author AND pf.following))))
-      AND ($3::uuid IS NULL OR p.community_id=$3) AND ($4::uuid IS NULL OR p.tag_id=$4)
+      AND ($3::uuid IS NULL OR p.community_id=$3) AND ($4::uuid IS NULL OR p.tag_id=$4 OR EXISTS(SELECT 1 FROM hash_talk.community_post_extra_tags e WHERE e.post_id=p.id AND e.tag_id=$4))
       AND ($5::timestamptz IS NULL OR p.created_at>=$5) AND p.created_at<=$6
       AND ($2<>'following' OR (p.parent_id IS NULL AND EXISTS(SELECT 1 FROM hash_talk.community_follows f WHERE f.profile_id=$1 AND f.community_id=p.community_id))
         OR EXISTS(SELECT 1 FROM hash_talk.public_profile_follows pf WHERE pf.follower=$1 AND pf.target=p.author AND pf.following))

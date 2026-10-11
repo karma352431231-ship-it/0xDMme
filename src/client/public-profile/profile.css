@@ -564,3 +564,24 @@
     padding: 14px;
   }
 }
+.profile-editor-description-foot {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+}
+.public-profile-card .profile-editor .profile-editor-description-foot button {
+  margin: 0;
+  padding: 6px 16px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 600;
+}
+.public-profile-card
+  .profile-editor
+  .profile-editor-description-foot
+  button[hidden] {
+  display: none;
+}

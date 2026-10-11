@@ -46,14 +46,19 @@ await test('mídia pública: conjuntos por post/reply, bytes por arquivo e legen
   }
   const media = crypto.randomUUID();
   assert.equal(
-    postContent({ title: '', text: '', tag: null, media: [media] }).text,
+    postContent({ title: '', text: '', tags: [], media: [media] }).text,
+    '',
+  );
+  // A titled post may have no text; nothing at all is refused.
+  assert.equal(
+    postContent({ title: 'Título', text: '', tags: [], media: [] }).text,
     '',
   );
   assert.throws(() =>
-    postContent({ title: 'Título', text: '', tag: null, media: [] }),
+    postContent({ title: '', text: '', tags: [], media: [] }),
   );
   assert.throws(() =>
-    postContent({ title: '', text: '', tag: null, media: [media, media] }),
+    postContent({ title: '', text: '', tags: [], media: [media, media] }),
   );
 });
 await test('validação efetiva recusa duração excedida, animação disfarçada e resultado fora do contrato', () => {

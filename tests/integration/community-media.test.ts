@@ -98,6 +98,9 @@ await test('mídia das comunidades: cadeia real, autorização, vínculo atômic
     db.communityPosts,
     { media },
   );
+  // Posts need a title and a tag; fixtures use the community's first tag.
+  const firstTag = async (community: string) =>
+    (await communities.tags(community, null)).items[0]!.id;
   const accounts: string[] = [],
     addresses: string[] = [],
     publicOwners: string[] = [],
@@ -436,7 +439,12 @@ await test('mídia das comunidades: cadeia real, autorização, vínculo atômic
   await t.test(
     'post sem legenda, retries e nenhuma referência/URL/miniatura pública',
     async () => {
-      const content = { title: '', text: '', tag: null, media: [input.id] };
+      const content = {
+        title: 'Mídia sintética',
+        text: '',
+        tags: [await firstTag(id)],
+        media: [input.id],
+      };
       const created = postState(
         await author.operate('post-create', { id, post, content }),
       );
@@ -523,7 +531,7 @@ await test('mídia das comunidades: cadeia real, autorização, vínculo atômic
         content: {
           title: '',
           text: '',
-          tag: null,
+          tags: [],
           media: gifs.map((r) => r.id),
         },
       });
@@ -541,9 +549,9 @@ await test('mídia das comunidades: cadeia real, autorização, vínculo atômic
           post,
           revision,
           content: {
-            title: '',
+            title: 'Mídia sintética',
             text: 'Teste',
-            tag: null,
+            tags: [await firstTag(id)],
             media: [input.id, item.id],
           },
         }),
@@ -554,7 +562,12 @@ await test('mídia das comunidades: cadeia real, autorização, vínculo atômic
           id,
           post,
           revision,
-          content: { title: '', text: '', tag: null, media: [item.id] },
+          content: {
+            title: 'Mídia sintética',
+            text: '',
+            tags: [await firstTag(id)],
+            media: [item.id],
+          },
         }),
       );
       await media.clean();
@@ -824,7 +837,7 @@ await test('mídia das comunidades: cadeia real, autorização, vínculo atômic
           content: {
             title: 'Vídeo sintético',
             text: 'Legenda',
-            tag: null,
+            tags: [await firstTag(id)],
             media: [clip.id],
           },
         });
@@ -836,7 +849,7 @@ await test('mídia das comunidades: cadeia real, autorização, vínculo atômic
           content: {
             title: '',
             text: 'Resposta',
-            tag: null,
+            tags: [],
             media: [animation.id],
           },
         });
@@ -1020,7 +1033,7 @@ await test('mídia das comunidades: cadeia real, autorização, vínculo atômic
             content: {
               title: 'Revisão sintética',
               text: '',
-              tag: null,
+              tags: [await firstTag(id)],
               media: [source.id],
             },
           });
@@ -1238,7 +1251,7 @@ await test('mídia das comunidades: cadeia real, autorização, vínculo atômic
               content: {
                 title: 'Foto sintética',
                 text: '',
-                tag: null,
+                tags: [await firstTag(id)],
                 media: [image.id],
               },
             });

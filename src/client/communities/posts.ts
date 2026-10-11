@@ -99,6 +99,7 @@ export function startCommunityPosts(
       signal: abort.signal,
     };
   }
+  let composeOpen = false;
   let order: FeedOrder = 'recent',
     period: DiscoveryPeriod = 'all';
   let feedback: HTMLElement | null = null,
@@ -591,13 +592,16 @@ export function startCommunityPosts(
     summary.setAttribute('aria-label', 'Criar postagem');
     form.append(summary);
     mounted.append(form);
+    form.open = composeOpen;
     const content = postForm(
         form,
-        { title: '', text: '', tag: null },
+        { title: '', text: '', tags: [] },
         tagSource(),
         mediaAccess(),
       ),
       id = crypto.randomUUID();
+    if (composeOpen)
+      queueMicrotask(() => form.querySelector<HTMLElement>('input')?.focus());
     button(form, 'Publicar postagem', () =>
       run(async () => {
         const old = generation;
@@ -871,9 +875,12 @@ export function startCommunityPosts(
         state: CommunityState | null;
         post: string | null;
         tag: string | null;
+        /** Arriving from "Postar": the composer starts open. */
+        compose?: boolean;
       },
     ): void {
       leave();
+      composeOpen = options.compose === true;
       mounted = container;
       community = options.community;
       identity = options.identity;

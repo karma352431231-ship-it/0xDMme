@@ -51,18 +51,71 @@ export async function postTags(
   );
   return new Map(found.rows.map((row) => [row.id, row]));
 }
-export async function requirePostTag(
+/** Every chosen tag must belong to the community and be active, unless the post already had it. */
+export async function requirePostTags(
   context: CommunityContext,
-  id: string | null,
-  previous: string | null = null,
+  ids: readonly string[],
+  previous: readonly string[] = [],
 ): Promise<void> {
-  if (id === null) return;
-  const found = await context.client.query<{ active: boolean }>(
-    'SELECT active FROM hash_talk.community_tags WHERE community_id=$1 AND id=$2',
-    [context.row.id, id],
+  if (!ids.length) return;
+  const found = await context.client.query<{ id: string; active: boolean }>(
+    'SELECT id,active FROM hash_talk.community_tags WHERE community_id=$1 AND id=ANY($2::uuid[])',
+    [context.row.id, ids],
   );
-  if (!found.rows[0] || (!found.rows[0].active && id !== previous))
-    throw new AccountError(400, 'Tag indisponível nesta comunidade.');
+  const known = new Map(found.rows.map((row) => [row.id, row.active]));
+  for (const id of ids)
+    if (!known.has(id) || (!known.get(id) && !previous.includes(id)))
+      throw new AccountError(400, 'Tag indisponível nesta comunidade.');
+}
+/**
+ * A post (not a reply) needs a title, and at least one tag whenever the
+ * community offers any active tag.
+ */
+export async function requireRootContent(
+  context: CommunityContext,
+  value: { title: string; tags: readonly string[] },
+): Promise<void> {
+  if (!value.title.trim())
+    throw new AccountError(400, 'Dê um título à postagem.');
+  if (value.tags.length) return;
+  const offered = await context.client.query(
+    'SELECT 1 FROM hash_talk.community_tags WHERE community_id=$1 AND active LIMIT 1',
+    [context.row.id],
+  );
+  if (offered.rows.length)
+    throw new AccountError(400, 'Escolha pelo menos uma tag.');
+}
+/** Tags after the first, per post and in order (the first lives on the post row). */
+export async function postExtraTags(
+  client: Pick<pg.PoolClient, 'query'>,
+  posts: string[],
+): Promise<Map<string, string[]>> {
+  const result = new Map<string, string[]>();
+  if (!posts.length) return result;
+  const found = await client.query<{ post_id: string; tag_id: string }>(
+    'SELECT post_id,tag_id FROM hash_talk.community_post_extra_tags WHERE post_id=ANY($1::uuid[]) ORDER BY post_id,position',
+    [posts],
+  );
+  for (const row of found.rows)
+    result.set(row.post_id, [...(result.get(row.post_id) ?? []), row.tag_id]);
+  return result;
+}
+/** Replaces the extra tags of a post; an empty list removes them. */
+export async function replaceExtraTags(
+  context: CommunityContext,
+  post: string,
+  extras: readonly string[],
+): Promise<void> {
+  await context.client.query(
+    'DELETE FROM hash_talk.community_post_extra_tags WHERE post_id=$1',
+    [post],
+  );
+  if (!extras.length) return;
+  await context.client.query(
+    `INSERT INTO hash_talk.community_post_extra_tags(community_id,post_id,tag_id,position)
+     SELECT $1,$2,tag,position FROM unnest($3::uuid[]) WITH ORDINALITY AS chosen(tag,position)`,
+    [context.row.id, post, extras],
+  );
 }
 export async function operatePostTag(
   context: CommunityContext,

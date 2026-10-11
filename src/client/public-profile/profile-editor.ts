@@ -11,6 +11,7 @@ import type {
 } from '../../shared/profile-social/index.ts';
 import { preparePhoto } from '../attachment-images/index.ts';
 import { showPublicAvatar } from '../public-media/index.ts';
+import { sendOnEnter } from '../chat-ui/index.ts';
 import type { PublicProfiles } from './controller.ts';
 
 const trash =
@@ -19,7 +20,7 @@ const template = `<div class="profile-editor">
 <div class="profile-editor-banner"><button type="button" class="profile-editor-pick" data-pick="banner" aria-label="Trocar banner"><img alt="" hidden><span class="profile-editor-hint">Trocar banner</span></button><button type="button" class="profile-editor-remove" data-remove="banner" aria-label="Remover banner" title="Remover banner" hidden>${trash}</button></div>
 <div class="profile-editor-identity"><div class="profile-editor-avatar"><button type="button" class="profile-editor-pick" data-pick="avatar" aria-label="Trocar foto"><span data-avatar-slot>@</span></button><button type="button" class="profile-editor-remove" data-remove="avatar" aria-label="Remover foto" title="Remover foto" hidden>${trash}</button></div>
 <div class="profile-editor-title"><h3 data-public-own-handle></h3><a data-public-page>Ver meu perfil público</a></div></div>
-<label class="profile-editor-description"><span>Descrição</span><textarea data-public-description rows="3" placeholder="Conte quem você é. Só texto e emojis."></textarea><small data-description-count></small></label>
+<label class="profile-editor-description"><span>Descrição</span><textarea data-public-description rows="3" placeholder="Conte quem você é. Só texto e emojis."></textarea><span class="profile-editor-description-foot"><small data-description-count></small><button type="button" class="primary" data-description-save hidden>Finalizar</button></span></label>
 <input type="file" data-pick-file accept="image/png,image/jpeg,image/webp" hidden></div>`;
 
 type Target = 'banner' | 'avatar';
@@ -161,6 +162,8 @@ export function startProfileEditor(
     if (old !== generation) return;
     description = saved;
     paintDescription();
+    const finish = node('[data-description-save]');
+    if (finish) finish.hidden = true;
   }
   async function choose(file: File): Promise<void> {
     const old = generation,
@@ -200,10 +203,19 @@ export function startProfileEditor(
       void options.run(() => saveAvatar(null));
     });
     const field = node<HTMLTextAreaElement>('[data-public-description]');
-    field?.addEventListener('input', count);
-    field?.addEventListener('change', () => {
-      void options.run(() => saveDescription(field.value));
+    const finish = node<HTMLButtonElement>('[data-description-save]');
+    const save = (): void => {
+      if (field) void options.run(() => saveDescription(field.value));
+    };
+    field?.addEventListener('input', () => {
+      count();
+      if (finish)
+        finish.hidden = field.value.trim() === description.description;
     });
+    // Enter (or Finalizar) saves; Shift+Enter keeps a new line.
+    if (field) sendOnEnter(field, save);
+    finish?.addEventListener('click', save);
+    field?.addEventListener('change', save);
   }
   return {
     paint,
