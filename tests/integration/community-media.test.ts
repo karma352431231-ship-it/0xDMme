@@ -498,7 +498,8 @@ await test('mídia das comunidades: cadeia real, autorização, vínculo atômic
         author.operate('post-create', {
           id: other,
           post: crypto.randomUUID(),
-          content,
+          // Reach the media ownership gate with valid tags for the target community.
+          content: { ...content, tags: [await firstTag(other)] },
         }),
         bad(403),
       );
