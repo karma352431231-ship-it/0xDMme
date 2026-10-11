@@ -4,20 +4,15 @@ import {
   readApiJson,
 } from '../api-response/index.ts';
 import { publicHandle } from '../../shared/public-profile/index.ts';
-import {
-  profileSummary,
-  profileFollow,
-} from '../../shared/profile-social/index.ts';
-import type {
-  ProfileSummary,
-  ProfileFollow,
-} from '../../shared/profile-social/index.ts';
+import { profileSummary } from '../../shared/profile-social/index.ts';
+import type { ProfileSummary } from '../../shared/profile-social/index.ts';
 import { feedPage } from '../../shared/community-discovery/index.ts';
 import type { FeedEntry } from '../../shared/community-discovery/index.ts';
 import { communityPage } from '../../shared/communities/index.ts';
 import { showPublicAvatar } from '../public-media/index.ts';
 import { renderActivityEntry } from '../communities/index.ts';
 import type { PublicProfiles } from './controller.ts';
+import { followControl } from './follow.ts';
 
 function element<K extends keyof HTMLElementTagNameMap>(
   tag: K,
@@ -175,7 +170,12 @@ export function showProfilePage(
       'Solicitar DM',
       `#comunidades?view=dms&dm=${summary.profile.id}`,
     );
-    void follow(actions, summary).catch(error);
+    void followControl(actions, {
+      controller: options.controller,
+      target: summary.profile.id,
+      signal: lifetime.signal,
+      failed: error,
+    }).catch(error);
     void memberships(null).catch(error);
     void activity(null).catch(error);
     async function activity(after: string | null): Promise<void> {
@@ -252,48 +252,6 @@ export function showProfilePage(
     });
     host.append(button);
     return button;
-  }
-  async function follow(
-    host: HTMLElement,
-    summary: ProfileSummary,
-  ): Promise<void> {
-    const controller = options.controller;
-    if (!controller?.hasSession()) {
-      link(host, 'Entrar para seguir', '#perfil');
-      return;
-    }
-    await controller.refresh();
-    if (lifetime.signal.aborted) return;
-    if (!controller.profile) {
-      link(host, 'Criar perfil para seguir', '#perfil');
-      return;
-    }
-    if (controller.profile?.profile.id === summary.profile.id) {
-      link(host, 'Editar perfil público', '#perfil');
-      return;
-    }
-    let state: ProfileFollow = profileFollow(
-      await controller.perform('follow-state', { target: summary.profile.id }),
-    );
-    if (lifetime.signal.aborted) return;
-    const button = control(
-      host,
-      state.following ? 'Seguindo' : 'Seguir',
-      async () => {
-        state = profileFollow(
-          await controller.perform('follow', {
-            target: summary.profile.id,
-            following: !state.following,
-            revision: state.revision,
-          }),
-        );
-        if (!lifetime.signal.aborted) {
-          button.textContent = state.following ? 'Seguindo' : 'Seguir';
-          button.setAttribute('aria-pressed', String(state.following));
-        }
-      },
-    );
-    button.setAttribute('aria-pressed', String(state.following));
   }
   void load().catch(error);
   return () => {

@@ -67,6 +67,24 @@ export function saveSettingsSection(storage: SectionStorage, id: string): void {
   }
 }
 
+/** `#perfil?secao=<id>` opens that category, e.g. "Editar perfil público". */
+export function requestedSettingsSection(hash: string): string | null {
+  return new URLSearchParams(hash.split('?')[1] ?? '').get('secao');
+}
+/** Opens a category by id; unknown ids leave the page as it is. */
+export function openSettingsSection(
+  host: HTMLElement,
+  id: string | null,
+): void {
+  if (!id) return;
+  const section = [
+    ...host.querySelectorAll<HTMLDetailsElement>('[data-settings-section]'),
+  ].find((node) => node.dataset['settingsSection'] === id);
+  if (!section) return;
+  section.open = true;
+  section.scrollIntoView({ block: 'nearest' });
+}
+
 /** Category list, shortcuts and the always-open category of the wide layout. */
 export function startSettingsCategories(
   host: HTMLElement,
@@ -97,7 +115,9 @@ export function startSettingsCategories(
         if (target) target.open = true;
       });
     });
-  const saved = savedSettingsSection(localStorage);
+  const saved =
+    requestedSettingsSection(location.hash) ??
+    savedSettingsSection(localStorage);
   const last = sections.find(
     (section) => section.dataset['settingsSection'] === saved,
   );

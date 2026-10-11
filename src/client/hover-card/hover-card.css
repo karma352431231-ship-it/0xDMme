@@ -1,0 +1,93 @@
+/* Preview card shown while the mouse rests on a profile or community link. */
+.hover-card {
+  position: fixed;
+  z-index: 60;
+  display: grid;
+  gap: 8px;
+  width: min(300px, calc(100vw - 16px));
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 16px 40px var(--shadow);
+  font-size: 14px;
+}
+.hover-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.hover-card .hover-card-avatar {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  overflow: hidden;
+  border-radius: 16px;
+  background: var(--surface-3);
+  font-size: 20px;
+  font-weight: 700;
+}
+.hover-card .hover-card-avatar.person {
+  border-radius: 50%;
+}
+.hover-card-avatar img {
+  width: 100%;
+  max-width: none;
+  height: 100%;
+  border: 0;
+  border-radius: inherit;
+  object-fit: cover;
+}
+.hover-card-actions:empty {
+  display: none;
+}
+.hover-card-actions :is(button, a) {
+  display: inline-block;
+  margin: 0;
+  padding: 7px 16px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font: 600 13px/1.2 var(--font-body);
+  text-decoration: none;
+  cursor: pointer;
+}
+.hover-card-actions button[aria-pressed='true'],
+.hover-card-actions a {
+  background: transparent;
+  color: var(--text);
+}
+.hover-card .hover-card-title {
+  color: var(--text);
+  font: 700 16px/1.25 var(--font-display);
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+.hover-card .hover-card-title:hover {
+  text-decoration: underline;
+}
+.hover-card-text {
+  display: -webkit-box;
+  margin: 0;
+  overflow: hidden;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+.hover-card-stats {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+.hover-card-error {
+  margin: 0;
+  color: var(--danger);
+  font-size: 12px;
+}

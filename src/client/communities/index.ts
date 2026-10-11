@@ -23,6 +23,8 @@ import {
 } from './elements.ts';
 import { mountCommunityGovernance } from './governance.ts';
 import { manageGroups } from './manage-tabs.ts';
+import { communityHoverProvider } from './community-hover.ts';
+import { registerHoverCard } from '../hover-card/index.ts';
 import { startCommunityPosts } from './posts.ts';
 import { replyNotificationPage } from '../../shared/community-posts/index.ts';
 import type { ReplyNotification } from '../../shared/community-posts/index.ts';
@@ -46,6 +48,9 @@ export function startCommunities(
 ) {
   const dms = startSocialDmUi(access, sync, privacy);
   const controller = new Communities(access);
+  registerHoverCard(
+    communityHoverProvider({ controller, signedIn: () => session !== null }),
+  );
   const posts = startCommunityPosts(controller, privacy);
   const discovery = startCommunityDiscovery(controller, privacy);
   document.addEventListener('click', openPostFromCard);

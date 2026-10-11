@@ -24,10 +24,6 @@ export function communityNavigation(
   const tools = el('nav', '', 'community-tools');
   tools.setAttribute('aria-label', 'Acessos de comunidades');
   if (options.selected) link(tools, '← Feed', '#comunidades?view=feed');
-  if (options.signedIn) {
-    link(tools, 'Mensagens pelo @', '#comunidades?view=dms');
-    iconLabel(tools.lastElementChild as HTMLElement, 'mail');
-  }
   const menu = el('details', '', 'community-more'),
     summary = el('summary', 'Mais opções');
   iconLabel(summary, 'more');

@@ -363,3 +363,15 @@ Pedido do proprietário: as mensagens pelo `@` usam o mesmo quadro do chat priva
 As regras genéricas de botão/campo/ícone de Comunidades não se aplicam mais dentro do quadro de chat (`:where(:not(.chat-panel *))`, sem mudar a especificidade do restante).
 
 **Ponto importante:** o servidor das mensagens pelo `@` não tem reações, responder, editar/apagar, confirmação de leitura nem chamadas, e as mensagens não guardam horário; por isso as bolhas públicas não mostram hora nem marcações de entrega. Esses recursos exigem trabalho de protocolo e servidor próprio.
+
+## Prévia ao passar o mouse, Editar perfil e descrição — 11/10/2026
+
+Pedido do proprietário:
+
+- **Prévia ao passar o mouse** sobre o nome ou a foto de quem postou/respondeu, ou sobre o nome de uma comunidade: um cartão pequeno abre depois de um instante e fecha ao sair, rolar ou apertar Esc; o mouse pode entrar no cartão.
+  - **Perfil:** foto, `@`, descrição (até 3 linhas), seguidores, posts e respostas, e Seguir/Seguindo (ou "Editar perfil público" no próprio perfil; "Entrar para seguir" sem sessão).
+  - **Comunidade:** foto, nome, descrição, seguidores, quem criou e Seguir/Seguindo para quem está conectado.
+  - Leituras públicas sem cookies, guardadas por 60 s para passar de novo sem nova consulta; o "Seguindo" usa a mesma assinatura do aparelho de antes. Telas de toque continuam abrindo a página ao tocar.
+- **"Mensagens pelo @"** saiu do topo de Comunidades (as conversas pelo `@` continuam na coluna de conversas e na aba "Mensagens @").
+- **Editar perfil público** (e "Criar perfil para seguir") abre o Perfil direto na categoria Perfil público (`#perfil?secao=profile`), também quando o Perfil já está aberto.
+- **Descrição do perfil:** Enter salva (Shift+Enter quebra a linha; no celular Enter quebra a linha) e um botão "Finalizar" aparece enquanto há alteração não salva.

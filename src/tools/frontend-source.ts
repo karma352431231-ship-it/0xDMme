@@ -42,6 +42,7 @@ const authored = [
   'src/client/gif-search',
   'src/client/toast',
   'src/client/file-drop',
+  'src/client/hover-card',
   'src/tools/frontend-emoji.ts',
   'vendor/emoji/README.md',
   'vendor/emoji/LICENSE-GRAPHICS.txt',

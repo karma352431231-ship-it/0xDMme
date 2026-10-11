@@ -18,8 +18,10 @@ import type { AccountSession } from '../../shared/account/index.ts';
 import type { AddressBookEntry } from '../../shared/contacts/index.ts';
 import {
   bindSettingsSections,
+  openSettingsSection,
   pages,
   pageKey,
+  requestedSettingsSection,
   startSettingsCategories,
 } from './pages.ts';
 import { startPanels } from './panels.ts';
@@ -289,6 +291,11 @@ function route(): void {
   ) {
     // Account handles wallet-return fragments; keep profile drafts/camera mounted.
     currentHash = location.hash;
+    if (key === 'perfil')
+      openSettingsSection(
+        element('page-content'),
+        requestedSettingsSection(location.hash),
+      );
     return;
   }
   currentPage = key;

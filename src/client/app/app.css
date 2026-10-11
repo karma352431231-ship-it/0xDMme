@@ -3,6 +3,7 @@
 @import '../chat-ui/chat.css';
 @import '../contacts/contacts.css';
 @import './settings.css';
+@import '../hover-card/hover-card.css';
 
 /* === Theme tokens: the only place with literal colors (see tests/appearance.test.ts). === */
 /*
