@@ -41,6 +41,8 @@ Decisão do proprietário: um “pacote de configurações básicas” para quem
 
 **Quando aparece.** Depois que a conta e o aparelho estão prontos (perfil cifrado aberto e cofre carregado), se a conta ainda não tem o registro “Configurações da conta” no cofre. Vale para contas novas e para contas existentes que ainda não passaram pelo assistente. “Agora não” fecha sem mudar nada; o assistente volta na próxima entrada.
 
+**Leitura ao entrar ou recarregar.** Conferir a sincronização antes de decidir que o registro está ausente: o checkpoint local pode estar completo enquanto outro leitor ainda consulta o servidor. Essa leitura preserva o limite de carregamento do cofre e usa a cópia local autorizada sem rede quando o aparelho está offline; falhas de sincronização não contam como configurações ausentes.
+
 **Etapas.** (1) Escolher um ponto de partida; (2) revisar todas as opções, já marcadas; (3) salvar. Os perfis prontos não mexem no tema, nos sons nem no lembrete de backup, que são gosto ou segurança; a revisão parte dos valores atuais.
 
 | Opção                    | Reservado  | Equilibrado       | Social            |

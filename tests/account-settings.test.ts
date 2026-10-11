@@ -157,6 +157,36 @@ await test('cofre guarda um registro por conta e a gravação substitui versões
   assert.equal(await record.load(crypto.randomUUID()), null);
 });
 
+await test('checkpoint local completo não esconde configurações já salvas no servidor', async () => {
+  const account = crypto.randomUUID();
+  const remote = new FakeSync();
+  await new SettingsRecord(remote).save(account, { ...base, theme: 'white' });
+  // VaultSync can finish its local checkpoint before its remote read returns.
+  // A new browser/device must consult the account before offering the wizard.
+  const local = new FakeSync();
+  local.refresh = () => {
+    local.refreshes++;
+    local.entries = new Map(remote.entries);
+    local.sequence = remote.sequence;
+    return Promise.resolve();
+  };
+  assert.equal(local.complete, true);
+  assert.deepEqual(await new SettingsRecord(local).load(account), {
+    ...base,
+    theme: 'white',
+  });
+  assert.equal(local.refreshes, 1);
+});
+
+await test('falha ao consultar um cofre com checkpoint completo não vira configuração ausente', async () => {
+  const sync = new FakeSync();
+  sync.refresh = () => Promise.reject(new Error('Sincronização indisponível.'));
+  await assert.rejects(
+    new SettingsRecord(sync).load(crypto.randomUUID()),
+    /Sincronização indisponível/u,
+  );
+});
+
 await test('conteúdo inválido volta a oferecer as configurações; cofre incompleto não decide', async () => {
   const sync = new FakeSync();
   const record = new SettingsRecord(sync);
@@ -166,12 +196,13 @@ await test('conteúdo inválido volta a oferecer as configurações; cofre incom
   entry!.value = '{"version":1}';
   assert.equal(await record.load(account), null);
   sync.complete = false;
+  const before = sync.refreshes;
   sync.refresh = () => {
     sync.refreshes++;
     return Promise.resolve();
   };
   await assert.rejects(record.load(account), /ainda está carregando/u);
-  assert.equal(sync.refreshes, 6);
+  assert.equal(sync.refreshes - before, 6);
 });
 
 function ports(sync: FakeSync) {

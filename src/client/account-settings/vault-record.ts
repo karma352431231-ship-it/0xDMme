@@ -43,8 +43,13 @@ export class SettingsRecord {
   }
   /** `null` when the account never confirmed Configurações iniciais. */
   async load(accountId: string): Promise<AccountSettings | null> {
-    for (let round = 0; round < refreshRounds && !this.sync.complete; round++)
+    // `complete` describes the local checkpoint, which can be empty while
+    // another reader is still pulling the account's records from the server.
+    // Always synchronize before deciding that the initial setup is missing.
+    for (let round = 0; round < refreshRounds; round++) {
       await this.sync.refresh();
+      if (this.sync.complete) break;
+    }
     if (!this.sync.complete)
       throw new Error('O cofre ainda está carregando as configurações.');
     const newest = (await this.heads(accountId))[0];
