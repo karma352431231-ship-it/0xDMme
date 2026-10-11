@@ -1,6 +1,9 @@
+import { announcePreference } from '../preference-events/index.ts';
+
 /**
- * Appearance (docs/UI_PAINEIS_E_TEMAS.md): the device-only theme choice, which
- * never reaches the server or the vault, and how names and avatars are shown.
+ * Appearance (docs/UI_PAINEIS_E_TEMAS.md): the theme choice and how names and
+ * avatars are shown. The theme is kept on this device; with a connected account,
+ * account-settings copies it to the encrypted vault, never to the server in clear.
  */
 export const themePreferenceKey = '0xdmme:theme';
 
@@ -18,7 +21,7 @@ const browserStorage: PreferenceStorage = {
   setItem: (key, value) => localStorage.setItem(key, value),
 };
 
-function isTheme(value: string | null): value is Theme {
+export function isTheme(value: unknown): value is Theme {
   return themes.some((theme) => theme.id === value);
 }
 
@@ -56,11 +59,40 @@ export function applyTheme(theme: Theme, root: Document = document): void {
 /** Applies the saved choice; call before the first page render to limit the flash of the default theme. */
 export function startAppearance(storage: PreferenceStorage = browserStorage): {
   mount: (container: HTMLElement) => void;
+  current: () => Theme;
+  set: (theme: Theme) => void;
 } {
   let { theme: current, problem } = storedTheme(storage);
+  let mounted: HTMLElement | null = null;
   applyTheme(current);
+  function choose(theme: Theme): void {
+    current = theme;
+    applyTheme(current);
+    try {
+      storage.setItem(themePreferenceKey, current);
+      problem = '';
+    } catch {
+      problem =
+        'Não foi possível salvar neste aparelho. O tema vale até fechar o app.';
+    }
+    const feedback = mounted?.querySelector<HTMLElement>(
+      '.appearance-feedback',
+    );
+    if (feedback) feedback.textContent = problem;
+  }
   return {
+    current: () => current,
+    /** The account's choice arriving from the vault; it is not announced back. */
+    set(theme) {
+      if (theme === current) return;
+      choose(theme);
+      const input = mounted?.querySelector<HTMLInputElement>(
+        `input[name="appearance-theme"][value="${theme}"]`,
+      );
+      if (input) input.checked = true;
+    },
     mount(container) {
+      mounted = container;
       // Static authored markup; labels come only from the constant list above.
       container.innerHTML = `<fieldset class="appearance-options"><legend>Tema</legend>${themes
         .map(
@@ -69,7 +101,7 @@ export function startAppearance(storage: PreferenceStorage = browserStorage): {
         )
         .join(
           '',
-        )}</fieldset><p class="appearance-feedback" role="status"></p><p class="settings-test-note">A escolha fica salva só neste aparelho.</p>`;
+        )}</fieldset><p class="appearance-feedback" role="status"></p><p class="settings-test-note">Com a conta conectada, o tema acompanha a conta nos seus aparelhos.</p>`;
       const feedback = container.querySelector<HTMLElement>(
         '.appearance-feedback',
       );
@@ -78,16 +110,8 @@ export function startAppearance(storage: PreferenceStorage = browserStorage): {
         const input = event.target;
         if (!(input instanceof HTMLInputElement) || !isTheme(input.value))
           return;
-        current = input.value;
-        applyTheme(current);
-        try {
-          storage.setItem(themePreferenceKey, current);
-          problem = '';
-        } catch {
-          problem =
-            'Não foi possível salvar neste aparelho. O tema vale até fechar o app.';
-        }
-        if (feedback) feedback.textContent = problem;
+        choose(input.value);
+        announcePreference({ theme: input.value });
       });
     },
   };

@@ -28,6 +28,7 @@ import {
 import { startPanels } from './panels.ts';
 import { startActivity } from '../activity/index.ts';
 import { ExternalMediaConsent } from '../external-media/index.ts';
+import { startAccountSettings } from './account-settings.ts';
 import type { PageKey } from './pages.ts';
 
 function element<T extends HTMLElement>(id: string): T {
@@ -176,6 +177,18 @@ const activity = startActivity(
     },
   },
 );
+const accountSettings = startAccountSettings({
+  access: devices,
+  sync: vault.sync,
+  appearance,
+  externalMedia,
+  account: {
+    privacyPreferences: () => account.privacyPreferences(),
+    backupReminder: () => account.backupReminder(),
+    savePrivacy: (changes) => account.savePrivacy(changes),
+  },
+  contacts,
+});
 // Activity and status rings load once per authorized session, never on a timer.
 let sessionExtrasFor = '';
 const account = startAccount({
@@ -200,6 +213,7 @@ const account = startAccount({
     externalMedia.setSession(session);
     backups.setSession(session);
     contacts.setSession(session);
+    accountSettings.setSession(session);
     messages.setSession(session);
     calls.setSession(session);
     statuses.setSession(session);
@@ -504,6 +518,7 @@ function connection(): void {
     statuses.ready();
     void vault.ready();
     loadSessionExtras(connectedAccount.accountId);
+    if (!account.approvalPage) accountSettings.ready();
   }
   renderConnection();
 }

@@ -13,6 +13,14 @@
   #page-content {
   flex: 0 0 auto;
 }
+/* Without a wallet or local history there is nothing to chat with: the login
+   card stays alone, without the empty chat, its welcome or its connection bar. */
+.app[data-page='conversas'][data-account='guest']:not(
+    [data-history='available']
+  )
+  :is(.conversation-content, .chat-directory) {
+  display: none;
+}
 .app[data-page='conversas'] ~ .update {
   bottom: 110px;
 }

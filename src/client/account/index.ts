@@ -1264,6 +1264,27 @@ export function startAccount(options: {
     backupProfile: () =>
       privateProfile ? encodePrivateProfile(privateProfile) : null,
     backupReminder: () => privateProfile?.preferences.backupReminder ?? false,
+    /** Configurações iniciais: the same encrypted profile save as the form, with errors raised to the caller. */
+    async savePrivacy(changes: Partial<ProfilePreferences>): Promise<void> {
+      const current = session,
+        currentKey = key,
+        profile = privateProfile;
+      if (!current || !currentKey || !profile || busy || dirtyProfile)
+        throw new Error(
+          'Privacidade não aplicada: o perfil está carregando ou com edição aberta.',
+        );
+      const preferences = { ...profile.preferences, ...changes };
+      if (JSON.stringify(preferences) === JSON.stringify(profile.preferences))
+        return;
+      busy = true;
+      try {
+        await persistPrivate(current, currentKey, { ...profile, preferences });
+        if (privateProfile === profile) profile.preferences = preferences;
+      } finally {
+        busy = false;
+        render();
+      }
+    },
     async acceptLinkedSession(linked: AccountSession): Promise<void> {
       setSession(linked);
       await loadPrivate(linked);

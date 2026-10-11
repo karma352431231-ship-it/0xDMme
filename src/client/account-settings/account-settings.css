@@ -1,0 +1,102 @@
+/* Configurações iniciais and the push offer for other devices. */
+.settings-pack {
+  width: min(36rem, calc(100vw - 2rem));
+  max-height: calc(100dvh - 2rem);
+  overflow: auto;
+  margin: auto;
+  padding: 1.5rem;
+  color: var(--text);
+  background: var(--surface);
+}
+.settings-pack::backdrop {
+  background: var(--overlay);
+}
+.settings-pack h2 {
+  margin: 0 0 0.5rem;
+  font-size: var(--fs-title);
+}
+.settings-pack h2:focus {
+  outline: none;
+}
+.settings-pack p {
+  margin: 0 0 1rem;
+  color: var(--text-muted);
+}
+.settings-pack-presets {
+  display: grid;
+  gap: 0.75rem;
+}
+.settings-pack-preset {
+  display: grid;
+  gap: 0.25rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md, 0.75rem);
+  background: var(--surface-2);
+  color: var(--text);
+  text-align: left;
+}
+.settings-pack-preset:hover,
+.settings-pack-preset:focus-visible {
+  border-color: var(--accent);
+}
+.settings-pack-preset small {
+  color: var(--text-muted);
+}
+.settings-pack fieldset {
+  display: grid;
+  gap: 0.5rem;
+  min-width: 0;
+  margin: 0 0 1rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md, 0.75rem);
+}
+.settings-pack legend {
+  padding: 0 0.25rem;
+  font-weight: 600;
+}
+.settings-pack label {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+/* Long option text wraps beside its checkbox; only the select drops below. */
+.settings-pack label:has(select) {
+  flex-wrap: wrap;
+  align-items: center;
+}
+.settings-pack input:is([type='checkbox'], [type='radio']) {
+  flex: none;
+  margin: 0.2em 0 0;
+}
+.settings-pack select {
+  flex: 1 1 14rem;
+  min-width: 0;
+}
+.settings-pack small {
+  color: var(--text-muted);
+  font-size: var(--fs-caption);
+}
+.settings-pack-themes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+.settings-pack-push {
+  display: grid;
+  gap: 0.5rem;
+  padding-left: 1.5rem;
+}
+.settings-pack
+  form:has(input[name='pushEnabled']:not(:checked))
+  .settings-pack-push {
+  display: none;
+}
+.settings-pack .settings-actions {
+  margin-top: 1rem;
+}
+.settings-pack [data-wizard-problems] {
+  margin: 0 0 1rem;
+  padding-left: 1.25rem;
+}

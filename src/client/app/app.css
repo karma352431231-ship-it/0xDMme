@@ -5,6 +5,7 @@
 @import '../contacts/contacts.css';
 @import './settings.css';
 @import '../hover-card/hover-card.css';
+@import '../account-settings/account-settings.css';
 
 /* === Theme tokens: the only place with literal colors (see tests/appearance.test.ts). === */
 /*
@@ -434,6 +435,36 @@
   }
   #app-shell[data-page='conversas'][data-layout='solo'] {
     grid-template-columns: 64px 272px minmax(0, 1fr) 46px;
+  }
+  /* Visitors without local history have no contacts: the login card takes the
+     left column and the feed takes the space the contact list used. */
+  #app-shell[data-page='conversas'][data-account='guest']:not(
+      [data-history='available']
+    )
+    .sidebar {
+    display: none;
+  }
+  #app-shell[data-page='conversas'][data-account='guest']:not(
+      [data-history='available']
+    ):is([data-layout='all'], [data-layout='nochat']) {
+    grid-template-columns: 64px minmax(340px, 440px) minmax(0, 1fr);
+  }
+  #app-shell[data-page='conversas'][data-account='guest']:not(
+      [data-history='available']
+    )[data-layout='solo'] {
+    grid-template-columns: 64px minmax(0, 1fr) 46px;
+  }
+  .app[data-page='conversas'][data-account='guest']:not(
+      [data-history='available']
+    )[data-layout='solo']
+    .account-section {
+    max-width: 560px;
+  }
+  .app[data-page='conversas'][data-account='guest']:not(
+      [data-history='available']
+    )[data-layout='nochat']
+    main {
+    display: flex;
   }
   .app[data-page='conversas']:not([data-layout='solo']) .feed-panel {
     display: flex;

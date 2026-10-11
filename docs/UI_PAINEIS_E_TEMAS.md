@@ -10,7 +10,7 @@ O proprietário avaliou a proposta de redesign apresentada em 09/10/2026 (págin
 - **Painel de contexto.** Detalhes do contato ou grupo (mídia, representantes, fixar/favoritar/arquivar, bloquear, participantes, administração e cofre do grupo) ficam num painel lateral que pode ser fechado. No modo só comunidades, o painel mostra ranking ou Sobre a comunidade.
 - **Mobile.** Barra inferior: **Conversas, Comunidades, Atividade e Perfil**. Adicionar contato fica no botão de nova conversa; agenda, bloqueados e Meu convite ficam em Perfil → Contatos; pedidos aparecem em Atividade. Salvar, solicitar e aceitar continuam operações separadas. Uma tela por vez, com a conversa aberta ocupando a tela.
 - **Atividade.** Reúne pedidos de conversa, respostas em comunidades, chamadas perdidas, convites e transferências de grupo/comunidade. É montada no aparelho a partir das listas e avisos que o app já recebe; não cria tabela, notificação ou dado novo no servidor. Se algum item exigir dado novo, ele passa por revisão separada.
-- **Três temas.** **Azul** (navy do logo, padrão), **Preto** (preto puro) e **Branco**. A escolha fica em Perfil → Aparência e é salva somente no aparelho. Os três usam os mesmos tokens; o degradê ciano → azul → violeta do logo aparece só como assinatura (marca, contadores, anel de status e área ativa). Verde e vermelho ficam reservados para sucesso e ações destrutivas.
+- **Três temas.** **Azul** (navy do logo, padrão), **Preto** (preto puro) e **Branco**. A escolha fica em Perfil → Aparência; desde 11/10/2026 acompanha a conta pelo cofre cifrado ([Configurações iniciais](UI_CONFIGURACOES.md)), e visitantes guardam no aparelho. Os três usam os mesmos tokens; o degradê ciano → azul → violeta do logo aparece só como assinatura (marca, contadores, anel de status e área ativa). Verde e vermelho ficam reservados para sucesso e ações destrutivas.
 - **Menos ruído.** Um único selo de ambiente de teste por tela; endereço sempre abreviado em fonte mono com cópia, e completo apenas em Detalhes; avatar sem foto com iniciais sobre degradê gerado localmente a partir do endereço; ações de mensagem no hover/toque longo; estado de entrega por ícone, com o texto completo em detalhes.
 
 ## Pré-requisitos antes de cada parte
@@ -37,7 +37,7 @@ Cada etapa preserva rotas antigas, rascunhos, consentimento, criptografia, bloqu
 Implementada localmente em 09/10/2026, sem mudança de layout:
 
 - `src/client/app/theme.css` concentra os tokens dos três temas (Azul padrão, Preto, Branco) e os padrões de campos, botões e diálogos sem cor própria. As 185 cores literais de `app.css`, `settings.css`, `chat.css`, `contacts.css` e `community.css` passaram a usar esses tokens; Comunidades deixou de ter paleta e tema escuro próprios. Bolha recebida e enviada, contador de não lidas (degradê da marca), QR (fundo claro) e vídeo (fundo preto) têm tokens específicos.
-- Perfil → **Aparência** escolhe o tema. A escolha fica em `localStorage` (`0xdmme:theme`), sem servidor, cofre ou sincronização; valor ausente, inválido ou ilegível volta para Azul com aviso. O tema é aplicado antes da primeira renderização do app e também na página de retorno da recuperação. Barra do navegador (`theme-color`) acompanha o tema; o manifesto PWA usa o navy padrão.
+- Perfil → **Aparência** escolhe o tema. A escolha fica em `localStorage` (`0xdmme:theme`); com conta conectada, desde 11/10/2026 também é copiada para o cofre cifrado e aplicada nos outros aparelhos da conta ([Configurações iniciais](UI_CONFIGURACOES.md)), nunca legível no servidor; valor ausente, inválido ou ilegível volta para Azul com aviso. O tema é aplicado antes da primeira renderização do app e também na página de retorno da recuperação. Barra do navegador (`theme-color`) acompanha o tema; o manifesto PWA usa o navy padrão.
 - Tipografia: as fontes novas continuam pendentes da conferência de licença/distribuição; a escala tipográfica entrou na etapa 2.
 
 Validação: lint, TypeScript, fronteiras, formatação, build (38 assets, módulo novo incluído no pacote de fontes GPL) e 421 testes unitários passaram. Testes novos cobrem a leitura da preferência (ausente, válida, inválida, bloqueada), a aplicação na raiz/`theme-color` e a regra de que nenhum CSS de componente usa cor literal fora de `theme.css`. Prévia local sem backend conferiu Perfil, Aparência e Comunidades nos três temas, persistência após recarregar e Contatos em 375 px. Conversa aberta com mensagens, chamada e diálogos não foram vistos com conta real nesta etapa; a cobertura deles é pelos tokens e pela regra automatizada.
@@ -385,3 +385,13 @@ Pedido do proprietário:
 - **Mídia:** cada foto, GIF ou vídeo escolhido aparece como miniatura com um X para tirar só aquele arquivo; escolher de novo soma à seleção, dentro dos mesmos limites (4 fotos, 3 GIFs ou 1 vídeo).
 - **Postar:** o botão do topo leva à lista de comunidades e, ao escolher uma, o formulário já abre com o cursor no título.
 - O post mostra todas as suas tags; cada uma filtra a comunidade por ela.
+
+## Conversas sem wallet — 11/10/2026
+
+Pedido do proprietário: quem entra sem conectar a wallet não vê a lista de contatos nem a conversa vazia. Em Conversas, com o shell em `data-account='guest'` e sem histórico local (`data-history` diferente de `available`):
+
+- **Desktop (1280 px ou mais):** a coluna de Contatos sai; o cartão **Conta por wallet** ocupa a coluna da esquerda (340–440 px) e as comunidades ocupam o espaço que era da lista. Em **Só conversas**, fica só o cartão (até 560 px) e a faixa de Comunidades. O modo sem conversa (`nochat`) mostra o cartão, porque o botão que reabriria a conversa ficava na lista escondida.
+- **Abaixo de 1280 px:** some a lista de contatos; marca, navegação e conta da lateral continuam.
+- **Mobile:** fica só o cartão, sem “Vamos conversar?” e sem a barra de conexão.
+
+Visitante com histórico salvo neste aparelho continua vendo a lista e a conversa, como antes. Validação: prévia local sem backend em 1.600 px (painel completo e Só conversas) e 375 px; nenhuma regra de sessão ou de dados mudou.

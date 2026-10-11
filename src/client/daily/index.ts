@@ -17,6 +17,7 @@ import { integer } from '../../shared/vault/index.ts';
 import type { VaultAccess } from '../vault-authority/index.ts';
 import type { VaultSync } from '../vault-sync/index.ts';
 import { messageApi } from '../message-api/index.ts';
+import { announcePreference } from '../preference-events/index.ts';
 type OrganizationSync = Pick<
   VaultSync,
   'complete' | 'currentHeads' | 'isRemoved' | 'open' | 'refresh' | 'save'
@@ -394,18 +395,32 @@ export class Daily {
     const raw = subscription.toJSON();
     const value = pushRegistration({ endpoint: raw.endpoint, keys: raw.keys });
     await this.api('daily-subscribe', { subscription: value });
+    announcePreference({ pushEnabled: true });
+  }
+  /** Browser-side state only: permission granted and a subscription present. */
+  async pushSubscribed(): Promise<boolean> {
+    if (
+      !('Notification' in globalThis) ||
+      Notification.permission !== 'granted' ||
+      !('serviceWorker' in navigator)
+    )
+      return false;
+    const registration = await navigator.serviceWorker.getRegistration('/');
+    return Boolean(await registration?.pushManager.getSubscription());
   }
   async pushPreferences(): Promise<PushPreferences> {
     return pushPreferences(await this.api('daily-push-state'));
   }
   async configurePush(preferences: PushPreferences): Promise<void> {
     await this.api('daily-push-configure', { preferences });
+    announcePreference({ push: preferences });
     const registration = await navigator.serviceWorker?.getRegistration('/');
     for (const notification of (await registration?.getNotifications()) ?? [])
       notification.close();
   }
   async disablePush(): Promise<void> {
     await this.api('daily-subscribe', { subscription: null });
+    announcePreference({ pushEnabled: false });
     const registration = await navigator.serviceWorker.getRegistration('/');
     await (await registration?.pushManager.getSubscription())?.unsubscribe();
   }
