@@ -1136,3 +1136,34 @@ Commits posteriores podem acrescentar esta guarda/documentação sem mudar a
 projeção aprovada. Build no Mac, CI exata, publicação pelo `npm run deploy:staging`,
 reinício dos serviços próprios, preservação e rollback de código continuam
 obrigatórios. Evidências e consumo reais ficam exclusivamente em `.local/`.
+
+## Integração de branches e rollback da conta — 11/10/2026
+
+O proprietário pediu integrar as branches pendentes na `main`, preservando os
+commits de `claude/split-account` por fast-forward ou merge normal, sem squash
+nem rebase. Essa branch contém `3939925` (configurações iniciais e tela sem
+wallet) e `bb77088` (divisão do módulo de conta).
+
+Se uma regressão de login exigir desfazer somente a divisão, preservar as
+configurações iniciais:
+
+```sh
+git revert bb77088
+```
+
+Se o problema estiver nas configurações iniciais ou na tela sem wallet, desfazer
+as duas mudanças, nesta ordem; reverter somente `3939925` pode conflitar com o
+trecho movido pela divisão:
+
+```sh
+git revert bb77088 3939925
+```
+
+Depois de qualquer revert: validar, fazer push, esperar a CI integral do commit
+exato passar e publicar novamente com `npm run deploy:staging`. Usar o checkout
+integrado e limpo e os controles de preservação/rollback já documentados.
+
+**Ponto importante:** integrar a calibração de moderação no Git não ativa uma
+nova política na VPS. A nova identidade do detector exige aceite e transição
+revisados, preservando aprovações anteriores e prazos; o merge não substitui
+esses controles nem autoriza alterar a configuração ativa automaticamente.

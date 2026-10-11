@@ -1,7 +1,8 @@
-"""Experimental fusion policy: generic NSFW scores are not the product policy.
+"""Locally calibrated fusion policy: generic NSFW scores are not the product policy.
 
 Inputs are complete canonical views, never source names or expected labels.
-Keep actual/simulated acts separate from clothing and the painting exception.
+Only exposed anatomy and visible actual acts are prohibited signals.
+Pose scores are validated for runtime compatibility but never decide a verdict.
 This module does not approve a media sequence or activate a runtime.
 """
 import math
@@ -12,12 +13,14 @@ CONTEXT_KEYS = (
 )
 NANO_KEYS = ('safe', 'hentai', 'porn', 'sexy', 'drawing')
 
-# Calibrated hypotheses, not probabilities or claims about population errors.
-STRONG_SAFE_CONTEXT = -0.035
-GENERIC_DISAGREEMENT_LIMIT = 0.75
+# Frozen 11/10/2026 calibration; similarities are not population error probabilities.
+# Every canonical view still needs negative context for a non-painting allowance.
+# Low-resolution generic disagreement may yield only below the strong-generic veto.
+STRONG_SAFE_CONTEXT = -0.02
+GENERIC_DISAGREEMENT_LIMIT = 0.95
 LOW_GENERIC_SCORE = 0.1
-BASELINE_CONTEXT = -0.005
-BASELINE_GENERIC_LIMIT = 0.2
+BASELINE_CONTEXT = -0.004
+BASELINE_GENERIC_LIMIT = 0.5
 STRONG_GENERIC_SCORE = 0.95
 CORROBORATED_EXPOSURE = 0.015
 CONSENSUS_ACT = 0.04
@@ -57,11 +60,11 @@ def classify(context, nano):
     """Return allow/hold/reject; malformed or incomplete evidence raises."""
     _check_views(context, nano)
     margins = [
-        max(view['sex_act'], view['simulated_act_pose'], view['exposed_anatomy'])
+        max(view['sex_act'], view['exposed_anatomy'])
         - view['covered'] for view in context
     ]
     acts = [
-        max(view['sex_act'], view['simulated_act_pose'])
+        view['sex_act']
         - max(view['covered'], view['painting_nudity']) for view in context
     ]
     generic = max(max(view['porn'], view['hentai']) for view in nano)
@@ -71,7 +74,7 @@ def classify(context, nano):
     elif generic >= STRONG_GENERIC_SCORE and max(margins) >= CORROBORATED_EXPOSURE:
         verdict, route = 'reject', 'corroborated-exposure'
     elif min(acts) >= CONSENSUS_ACT:
-        verdict, route = 'reject', 'consensus-actual-or-simulated-act'
+        verdict, route = 'reject', 'consensus-visible-actual-act'
     elif max(margins) <= STRONG_SAFE_CONTEXT and generic < GENERIC_DISAGREEMENT_LIMIT:
         verdict, route = 'allow', 'strong-safe-context-with-bounded-generic-disagreement'
     elif max(margins) < 0 and generic < LOW_GENERIC_SCORE:

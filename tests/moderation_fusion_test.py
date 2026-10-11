@@ -24,38 +24,77 @@ def generic(porn=0.02, hentai=0.01):
 
 
 class FusionPolicyTests(unittest.TestCase):
-    def test_simulated_act_is_prohibited_even_when_generic_detector_says_safe(self):
-        view = context(simulated_act_pose=0.8)
+    def test_bounded_generic_disagreement_with_consistently_covered_context_is_allowed(self):
+        # Synthetic regression for miniature-induced generic scores. No case IDs or labels.
+        covered = context(exposed_anatomy=0.478, simulated_act_pose=0.474)
+        self.assertEqual(policy.classify([covered] * 2, [generic(0.9)] * 2)['verdict'], 'allow')
+        for views, nano in (
+                ([covered, context(exposed_anatomy=0.485)], [generic(0.9)] * 2),
+                ([covered] * 2, [generic(0.95)] * 2),
+                ([covered] * 2, [generic(0.96)] * 2)):
+            with self.subTest(views=views, nano=nano):
+                self.assertEqual(policy.classify(views, nano)['verdict'], 'hold')
+
+    def test_covered_baseline_requires_both_negative_context_and_bounded_generic_score(self):
+        covered = context(sex_act=0.4955)
+        self.assertEqual(policy.classify([covered] * 2, [generic(0.36)] * 2)['verdict'], 'allow')
+        for view, nano in ((context(sex_act=0.497), generic(0.36)),
+                           (covered, generic(0.5)),
+                           (context(sex_act=0.501), generic(0.01))):
+            with self.subTest(view=view, nano=nano):
+                self.assertEqual(policy.classify([view] * 2, [nano] * 2)['verdict'], 'hold')
+
+    def test_painting_exception_needs_consistent_style_and_anatomy_evidence(self):
+        painted = context(painting_nudity=0.75, exposed_anatomy=0.8,
+                          style_painting=0.7, style_photo=0.2)
+        for other in (painted | {'style_illustration': 0.69},
+                      painted | {'painting_nudity': 0.4}):
+            self.assertNotEqual(policy.classify([painted, other], [generic(0.9)] * 2)['verdict'], 'allow')
+
+    def test_moderate_generic_score_does_not_block_consistently_covered_views(self):
+        covered = context(exposed_anatomy=0.491, sex_act=0.494,
+                          simulated_act_pose=1)
+        self.assertEqual(policy.classify([covered] * 2, [generic(0.47)] * 2)['verdict'], 'allow')
+        for view, nano in ((covered, generic(0.5)),
+                           (covered | {'sex_act': 0.501}, generic(0.47)),
+                           (covered | {'exposed_anatomy': 0.501}, generic(0.47))):
+            with self.subTest(view=view, nano=nano):
+                self.assertEqual(policy.classify([view] * 2, [nano] * 2)['verdict'], 'hold')
+
+    def test_pose_scores_do_not_decide_permission_or_rejection(self):
         for count in (2, 4):
-            self.assertEqual(policy.classify([view] * count, [generic()] * count)['verdict'],
-                             'reject')
+            for pose in (-1, 0, 0.8, 1):
+                with self.subTest(count=count, pose=pose):
+                    covered = context(simulated_act_pose=pose)
+                    self.assertEqual(policy.classify([covered] * count, [generic()] * count)['verdict'], 'allow')
+                    explicit = covered | {'sex_act': 0.8}
+                    self.assertEqual(policy.classify([explicit] * count, [generic()] * count)['verdict'], 'reject')
 
     def test_one_suspicious_view_prevents_permission_without_punitive_consensus(self):
-        views = [context(), context(simulated_act_pose=0.8)]
+        views = [context(), context(sex_act=0.8)]
         self.assertEqual(policy.classify(views, [generic()] * 2)['verdict'], 'hold')
 
     def test_generic_disagreement_only_yields_to_strong_consistent_negative_context(self):
         self.assertEqual(policy.classify([context()] * 2, [generic(0.7)] * 2)['verdict'], 'allow')
         for views, nano in (
-                ([context(), context(simulated_act_pose=0.49)], [generic(0.7)] * 2),
+                ([context(), context(sex_act=0.49)], [generic(0.7)] * 2),
                 ([context()] * 2, [generic(0.99)] * 2)):
             self.assertEqual(policy.classify(views, nano)['verdict'], 'hold')
 
     def test_weak_negative_context_requires_low_generic_score_and_never_allows_a_tie(self):
-        negative = context(simulated_act_pose=0.499)
+        negative = context(sex_act=0.499)
         self.assertEqual(policy.classify([negative] * 2, [generic(0.001, 0)] * 2)['verdict'], 'allow')
         for view, nano in ((negative, generic(0.3)),
-                           (context(simulated_act_pose=0.5), generic(0.001, 0)),
-                           (context(simulated_act_pose=0.501), generic(0.001, 0))):
+                           (context(sex_act=0.5), generic(0.001, 0)),
+                           (context(sex_act=0.501), generic(0.001, 0))):
             self.assertEqual(policy.classify([view] * 2, [nano] * 2)['verdict'], 'hold')
 
-    def test_painting_exempts_anatomy_but_not_actual_or_simulated_acts(self):
+    def test_painting_exempts_anatomy_and_pose_but_not_visible_actual_acts(self):
         painting = context(painting_nudity=0.75, exposed_anatomy=0.8,
-                           style_painting=0.7, style_photo=0.2)
+                           style_painting=0.7, style_photo=0.2, simulated_act_pose=0.99)
         self.assertEqual(policy.classify([painting] * 2, [generic(0.99)] * 2)['verdict'], 'allow')
-        for field in ('sex_act', 'simulated_act_pose'):
-            explicit = painting | {field: 0.9}
-            self.assertEqual(policy.classify([explicit] * 2, [generic(0.99)] * 2)['verdict'], 'reject')
+        explicit = painting | {'sex_act': 0.9}
+        self.assertEqual(policy.classify([explicit] * 2, [generic(0.99)] * 2)['verdict'], 'reject')
 
     def test_corroborated_exposed_anatomy_is_rejected(self):
         view = context(exposed_anatomy=0.65)

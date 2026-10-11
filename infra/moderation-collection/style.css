@@ -1,0 +1,154 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
+:root {
+  color-scheme: dark;
+  --bg: #11151d;
+  --panel: #1b2230;
+  --text: #f3f6fb;
+  --muted: #a7b3c8;
+  --line: #344159;
+  --allow: #94e9bb;
+  --allow-bg: #183d2c;
+  --reject: #ffb7b7;
+  --reject-bg: #492329;
+  --accent: #bbcbff;
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font:
+    16px/1.55 system-ui,
+    sans-serif;
+}
+main {
+  max-width: 780px;
+  margin: 32px auto;
+  padding: 0 24px 40px;
+}
+h1 {
+  font-size: clamp(28px, 6vw, 42px);
+  line-height: 1.15;
+}
+.badge {
+  color: var(--accent);
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  font-weight: 700;
+}
+.small {
+  color: var(--muted);
+  font-size: 13px;
+}
+.picker {
+  font-weight: 650;
+  display: block;
+  margin-top: 28px;
+}
+input {
+  display: block;
+  max-width: 100%;
+  margin-top: 8px;
+}
+input::file-selector-button,
+button {
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 12px 18px;
+  font: inherit;
+  cursor: pointer;
+}
+button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+button:focus-visible,
+input:focus-visible,
+summary:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 3px;
+}
+.summary {
+  color: var(--accent);
+  font-size: 14px;
+}
+.review {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 20px;
+}
+#current {
+  overflow-wrap: anywhere;
+  margin-top: 0;
+}
+#preview {
+  display: block;
+  width: 100%;
+  max-height: 55vh;
+  object-fit: contain;
+  border-radius: 8px;
+}
+[hidden] {
+  display: none !important;
+}
+.choices {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-top: 20px;
+}
+.choices button {
+  font-size: 22px;
+  font-weight: 700;
+  padding: 18px;
+}
+#allow {
+  background: var(--allow-bg);
+  color: var(--allow);
+}
+#reject {
+  background: var(--reject-bg);
+  color: var(--reject);
+}
+#status {
+  min-height: 1.55em;
+  overflow-wrap: anywhere;
+}
+.finish {
+  width: 100%;
+  background: var(--accent);
+  color: var(--bg);
+  font-weight: 750;
+}
+details {
+  margin: 24px 0;
+}
+summary {
+  cursor: pointer;
+}
+.case {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+}
+.case button {
+  padding: 5px 12px;
+  font-size: 13px;
+}
+.allow {
+  color: var(--allow);
+}
+.reject {
+  color: var(--reject);
+}
+a {
+  color: var(--accent);
+}
