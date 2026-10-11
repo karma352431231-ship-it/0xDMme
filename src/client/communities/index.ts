@@ -13,7 +13,8 @@ import type {
 } from '../../shared/communities/index.ts';
 import type { VaultAccess } from '../vault-authority/index.ts';
 import { preparePhoto } from '../attachment-images/index.ts';
-import { Communities, readCommunity } from './controller.ts';
+import { Communities } from './controller.ts';
+import { readCommunityDetail } from './detail-refresh.ts';
 import {
   communityButton,
   communityCard,
@@ -648,18 +649,34 @@ export function startCommunities(
       await listing();
       return;
     }
+    await refreshDetail();
+  }
+  async function refreshDetail(): Promise<void> {
+    if (!selected) return;
     const old = generation;
-    const value = await readCommunity(selected, signal());
-    if (old !== generation) return;
-    current = value;
-    state = null;
-    details();
-    if (session) {
-      const own = await controller.state(selected);
-      if (old !== generation) return;
-      state = own;
-      current = own.community;
-      details();
+    posts.invalidatePrivate();
+    try {
+      const next = await readCommunityDetail({
+        id: selected,
+        signedIn: session !== null,
+        signal: signal(),
+        valid: () => old === generation,
+        state: (id) => controller.state(id),
+        previous: { community: current, state },
+      });
+      if (!next) return;
+      current = next.community;
+      state = next.state;
+      if (next.changed || view === 'manage') details();
+      else await posts.refresh();
+    } catch (error: unknown) {
+      if (old === generation) {
+        posts.leave();
+        current = null;
+        state = null;
+        navigation();
+      }
+      throw error;
     }
   }
   function ready(): void {

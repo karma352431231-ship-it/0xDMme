@@ -41,6 +41,7 @@ import {
 import { postActions, postForm, postTagSelect } from './post-forms.ts';
 import { postText } from './post-text.ts';
 import { postReply } from './post-reply.ts';
+import { PostSnapshot } from './post-snapshot.ts';
 import { showExternalVideos } from '../external-video/index.ts';
 import type { ExternalMediaConsent } from '../external-media/index.ts';
 import {
@@ -75,6 +76,11 @@ export function startCommunityPosts(
     after: string | null = null,
     tag: string | null = null,
     scope = 'public';
+  const postSnapshot = new PostSnapshot(),
+    pageSnapshot = new PostSnapshot();
+  let pageAfter: string | null = null,
+    privateGeneration = 0,
+    refreshPending = false;
   const mediaCleanup = new Map<() => void, HTMLElement>();
   function clearMedia(container?: HTMLElement): void {
     for (const [cleanup, node] of mediaCleanup) {
@@ -125,7 +131,10 @@ export function startCommunityPosts(
     } finally {
       busy = false;
       disabled();
-      if (old !== generation && mounted) ready();
+      if ((old !== generation || refreshPending) && mounted) {
+        refreshPending = false;
+        void ready();
+      }
     }
   }
   const signal = () =>
@@ -211,13 +220,14 @@ export function startCommunityPosts(
     button(toolbar, 'Opções', () =>
       run(async () => {
         const old = generation,
+          privateVersion = privateGeneration,
           state = postState(
             await controller.request('post-state', {
               id: community,
               post: value.id,
             }),
           );
-        if (old !== generation) return;
+        if (old !== generation || privateVersion !== privateGeneration) return;
         clearMedia(options);
         options.replaceChildren();
         restrictedContent(options, state);
@@ -355,6 +365,24 @@ export function startCommunityPosts(
       ),
     );
     if (old !== generation || !list) return;
+    pageAfter = after;
+    after = page.next;
+    if (!pageSnapshot.changed(`replies:${value.id}:${pageAfter}`, page)) {
+      paging();
+      return;
+    }
+    const previous = list.querySelector<HTMLElement>('.community-thread');
+    if (previous) clearMedia(previous);
+    previous?.remove();
+    list.querySelector('.community-thread-heading')?.remove();
+    renderThread(value, page);
+    paging();
+  }
+  function renderThread(
+    value: CommunityPost,
+    page: ReturnType<typeof postPage>,
+  ): void {
+    if (!list) return;
     const heading = el('h3', 'Respostas', 'community-thread-heading');
     if (value.replies)
       heading.append(el('span', String(value.replies), 'activity-count'));
@@ -366,8 +394,6 @@ export function startCommunityPosts(
         el('p', 'Ainda não há respostas.', 'community-thread-empty'),
       );
     for (const reply of page.items) row(reply, null, replies);
-    after = page.next;
-    paging();
   }
   function restrictedContent(node: HTMLElement, state: PostState): void {
     if (state.content && state.post.status === 'removed')
@@ -433,7 +459,21 @@ export function startCommunityPosts(
     node.append(nav);
   }
   async function load(): Promise<void> {
-    clearMedia();
+    const old = generation;
+    try {
+      await loadCurrentPage();
+    } catch (error: unknown) {
+      if (old === generation) {
+        clearMedia();
+        postSnapshot.clear();
+        pageSnapshot.clear();
+        list?.replaceChildren();
+      }
+      throw error;
+    }
+  }
+  async function loadCurrentPage(): Promise<void> {
+    closePrivateContent();
     const old = generation;
     if (selected) {
       const result = communityPost(
@@ -443,8 +483,12 @@ export function startCommunityPosts(
         ),
       );
       if (old !== generation || !list) return;
-      list.replaceChildren();
-      row(result);
+      if (postSnapshot.changed(selected, result)) {
+        clearMedia();
+        list.replaceChildren();
+        row(result);
+        pageSnapshot.clear();
+      }
       await thread(result);
       return;
     }
@@ -474,7 +518,9 @@ export function startCommunityPosts(
     form.querySelector<HTMLElement>('input, textarea')?.focus();
   }
   async function loadPrivate(): Promise<void> {
-    const old = generation;
+    pageSnapshot.clear();
+    const old = generation,
+      privateVersion = privateGeneration;
     const page = privatePostPage(
       await controller.request('post-page', {
         id: community,
@@ -483,7 +529,10 @@ export function startCommunityPosts(
         tag,
       }),
     );
-    if (old !== generation || !list) return;
+    if (old !== generation || privateVersion !== privateGeneration || !list)
+      return;
+    pageAfter = after;
+    clearMedia();
     list.replaceChildren();
     for (const state of page.items) row(state.post, state);
     after = page.next;
@@ -503,8 +552,12 @@ export function startCommunityPosts(
           ),
     );
     if (old !== generation || !list) return;
-    list.replaceChildren();
-    for (const value of page.items) row(value.post);
+    pageAfter = after;
+    if (pageSnapshot.changed(query.toString(), page)) {
+      clearMedia();
+      list.replaceChildren();
+      for (const value of page.items) row(value.post);
+    }
     after = page.next;
   }
   function paging(): void {
@@ -655,6 +708,9 @@ export function startCommunityPosts(
   }
   function shell(): void {
     if (!mounted) return;
+    clearMedia();
+    postSnapshot.clear();
+    pageSnapshot.clear();
     mounted.replaceChildren();
     feedback = el('p', '', 'community-feedback');
     feedback.setAttribute('role', 'status');
@@ -665,21 +721,51 @@ export function startCommunityPosts(
     controls = el('div', '', 'post-toolbar');
     mounted.append(list, controls);
   }
-  function ready(): void {
+  function closePrivateContent(): void {
+    privateGeneration++;
+    for (const node of mounted?.querySelectorAll<HTMLElement>(
+      '.post-options',
+    ) ?? []) {
+      clearMedia(node);
+      node.replaceChildren();
+    }
+    if (scope === 'public') return;
+    clearMedia();
+    pageSnapshot.clear();
+    list?.replaceChildren();
+  }
+  async function ready(): Promise<void> {
     if (!mounted) return;
-    void run(async () => {
+    if (busy) {
+      refreshPending = true;
+      return;
+    }
+    closePrivateContent();
+    await run(async () => {
       const old = generation,
         page = tagPage(
           await communityRead(`/api/communities/${community}/tags`, signal()),
         );
       if (old !== generation) return;
+      const changed = JSON.stringify(tags) !== JSON.stringify(page);
       tags = page;
-      shell();
-      await load();
+      if (changed) shell();
+      const nextAfter = after;
+      after = pageAfter;
+      try {
+        await load();
+      } catch (error: unknown) {
+        after = nextAfter;
+        throw error;
+      }
     });
   }
   function leave(): void {
     clearMedia();
+    postSnapshot.clear();
+    pageSnapshot.clear();
+    pageAfter = null;
+    refreshPending = false;
     generation++;
     abort.abort();
     mounted = null;
@@ -801,7 +887,7 @@ export function startCommunityPosts(
       tags = { items: [], next: null };
       abort = new AbortController();
       shell();
-      ready();
+      void ready();
     },
     /** Tag management on the isolated manage screen, without the post list. */
     manageTags(container: HTMLElement, id: string): void {
@@ -816,6 +902,8 @@ export function startCommunityPosts(
       container.lastElementChild?.append(feedback);
     },
     leave,
+    refresh: ready,
+    invalidatePrivate: closePrivateContent,
     canActivate: () => !busy,
   };
 }
