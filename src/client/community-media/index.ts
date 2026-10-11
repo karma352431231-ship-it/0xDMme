@@ -295,11 +295,20 @@ export function mediaEditor(
   return async () => {
     if (remove.checked) return [];
     if (!chosen.length) return ids;
-    prepared ??= await uploadCommunityMedia(access, chosen, (text) => {
-      if (access.valid() && field.isConnected) status.textContent = text;
-    });
-    status.textContent = '';
-    return prepared;
+    try {
+      prepared ??= await uploadCommunityMedia(access, chosen, (text) => {
+        if (access.valid() && field.isConnected) status.textContent = text;
+      });
+      status.textContent = '';
+      return prepared;
+    } catch (error: unknown) {
+      if (access.valid() && field.isConnected)
+        status.textContent =
+          error instanceof Error
+            ? error.message
+            : 'Envio de mídia indisponível. Tente novamente.';
+      throw error;
+    }
   };
 }
 export function restrictedMedia(

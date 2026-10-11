@@ -8,12 +8,14 @@ import {
   rm,
   mkdir,
   writeFile,
+  readFile,
   symlink,
   stat,
 } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { createHash } from 'node:crypto';
+import { readWebConfiguration } from '../src/server/web-configuration/index.ts';
 import {
   MediaWorkerServer,
   mediaWorkerRequest,
@@ -219,4 +221,22 @@ await test('processamento compartilhado expõe somente o original montado ao gru
   } finally {
     await rm(root, { recursive: true, force: true });
   }
+});
+
+await test('worker instalado usa o mesmo diretório de mídia do web em staging', async () => {
+  const config = readWebConfiguration({
+    HASH_TALK_PROFILE: 'staging',
+    HASH_TALK_PUBLIC_ORIGIN: 'https://0xdmme.app',
+    HASH_TALK_DATABASE_URL:
+      'postgresql://hash_talk_stage:synthetic@127.0.0.1:45433/hash_talk_stage',
+  });
+  const unit = await readFile(
+    new URL('../infra/staging/0xdmme-media.service', import.meta.url),
+    'utf8',
+  );
+  const root = `${config.objectDirectory}/community-media`;
+  assert.ok(
+    unit.split('\n').includes(`Environment=HASH_TALK_MEDIA_ROOT=${root}`),
+  );
+  assert.ok(unit.split('\n').includes(`BindPaths=${root}`));
 });

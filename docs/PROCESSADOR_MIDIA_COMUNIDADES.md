@@ -31,6 +31,12 @@ A preparação operacional guarda baselines, arquivos, hashes, licenças, plano 
 
 Ativado em 07/10/2026 com a release `194bbd2`; ver [recibo e validação da publicação](GIT_E_DEPLOY.md#ativação-dos-fluxos-de-comunidades--solicitada-em-07102026). O ensaio pelo socket real aprovou uma foto, quatro vídeos de 60 s/1080p/60 FPS com áudio e três GIFs de 20 s/20 FPS. Preparação, validação, miniatura e hashes passaram: foto 0,658 s, vídeos 23,835–24,300 s e GIFs 2,873–3,051 s. Esses tempos não incluem transferência de rede nem moderação. O teste usou mídia sintética, agregou gerador/worker sob quatro CPUs e 8 GiB e removeu seus arquivos. A calibração com imagens reais permanece separada, com os 17 casos preservados; publicação pública continua aguardando detector aceito.
 
+## Correção de diretório e estado de erro — 11/10/2026
+
+A investigação do envio encontrou os uploads completos no diretório de objetos configurado do web, enquanto o worker isolado montava outro diretório. O handshake respondia normalmente, mas não comprovava acesso à origem; vídeos e GIFs falhavam antes de produzir o resultado. A unidade modelo passa a usar o subdiretório `community-media` do diretório de objetos padrão do web em staging. Configurações personalizadas devem manter `HASH_TALK_MEDIA_ROOT` e o bind do worker alinhados ao diretório efetivo do web, expondo somente mídia de comunidades. A interface passa a substituir o progresso pelo erro recebido e permite retomar a mesma reserva.
+
+**Ponto importante:** em 11/10/2026, o ajuste operacional foi aplicado à unidade própria, com cópia integral para retorno e reinício somente do processador. Foto, GIF e vídeo sintéticos passaram pelo socket real, incluindo preparação, miniaturas, hashes e limpeza dos temporários. Configurações e processos dos outros serviços foram preservados, sem mover uploads ou alterar o banco, retenção/moderação ou acesso aos demais objetos. Testes locais reproduzem tanto a divergência de diretórios quanto o progresso que persistia depois do erro. Este ensaio não mede upload pela rede nem comprova o arquivo real do proprietário; a correção da interface depende de sua própria publicação de código.
+
 ## Formatos e validação
 
 - Fotos: PNG/JPEG/WebP preparados no navegador pelo worker existente, até 3 MB e 2.048 px; resultado PNG/JPEG sem metadados. O servidor confere estrutura e decodifica o arquivo completo.
