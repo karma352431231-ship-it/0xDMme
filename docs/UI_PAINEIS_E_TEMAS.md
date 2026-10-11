@@ -375,3 +375,13 @@ Pedido do proprietário:
 - **"Mensagens pelo @"** saiu do topo de Comunidades (as conversas pelo `@` continuam na coluna de conversas e na aba "Mensagens @").
 - **Editar perfil público** (e "Criar perfil para seguir") abre o Perfil direto na categoria Perfil público (`#perfil?secao=profile`), também quando o Perfil já está aberto.
 - **Descrição do perfil:** Enter salva (Shift+Enter quebra a linha; no celular Enter quebra a linha) e um botão "Finalizar" aparece enquanto há alteração não salva.
+
+## Criar post: título, tags em botões, miniaturas e Postar direto — 11/10/2026
+
+Pedido do proprietário:
+
+- **Título** obrigatório e **texto** opcional.
+- **Tags** como botões lado a lado, todas visíveis; o autor marca de 1 a 5 (as da própria comunidade, inclusive as criadas pelos gestores). Uma tag já usada no post e depois desativada continua marcável na edição.
+- **Mídia:** cada foto, GIF ou vídeo escolhido aparece como miniatura com um X para tirar só aquele arquivo; escolher de novo soma à seleção, dentro dos mesmos limites (4 fotos, 3 GIFs ou 1 vídeo).
+- **Postar:** o botão do topo leva à lista de comunidades e, ao escolher uma, o formulário já abre com o cursor no título.
+- O post mostra todas as suas tags; cada uma filtra a comunidade por ela.

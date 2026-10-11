@@ -291,7 +291,8 @@ await test('corte 6: feeds públicos, descoberta e referências privadas', async
         first.next,
       );
       assert.equal(first.items.length + second.items.length, 26);
-      const tag = (await communities.tags(community, null)).items[0]!.id;
+      // Fixture posts carry the first tag; only this post gets the second.
+      const tag = (await communities.tags(community, null)).items[1]!.id;
       const current = postState(
         await owner.operate('post-state', { id: community, post: root }),
       );
@@ -299,7 +300,11 @@ await test('corte 6: feeds públicos, descoberta e referências privadas', async
         id: community,
         post: root,
         revision: current.post.revision,
-        content: { title: '', text: 'Texto público sintético', tag },
+        content: {
+          title: 'Post sintético',
+          text: 'Texto público sintético',
+          tags: [tag],
+        },
       });
       assert.deepEqual(
         (await feed(reader, { ...baseline, tag })).items.map(

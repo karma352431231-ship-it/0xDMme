@@ -298,7 +298,7 @@ await test('corte 5: árvore, votos e avisos diretos com autorização e persist
         id: community,
         post: child,
         revision: 1,
-        content: { title: '', text: 'Resposta filha editada', tag: null },
+        content: { title: '', text: 'Resposta filha editada', tags: [] },
       });
       assert.equal((await communities.post(community, child)).parent, reply);
       assert.equal((await communities.post(community, child)).root, root);
@@ -308,7 +308,7 @@ await test('corte 5: árvore, votos e avisos diretos com autorização e persist
           id: community,
           post: child,
           revision: 2,
-          content: { title: '', text: 'Outro autor', tag: null },
+          content: { title: '', text: 'Outro autor', tags: [] },
         }),
         bad(403),
       );
@@ -317,7 +317,7 @@ await test('corte 5: árvore, votos e avisos diretos com autorização e persist
           id: community,
           post: child,
           revision: 2,
-          content: { title: 'Título de reply', text: 'Inválida', tag: null },
+          content: { title: 'Título de reply', text: 'Inválida', tags: [] },
         }),
         bad(400),
       );
@@ -450,7 +450,7 @@ await test('corte 5: árvore, votos e avisos diretos com autorização e persist
               id: community,
               post: id,
               parent: root,
-              content: { title: '', text: 'Não cabe', tag: null },
+              content: { title: '', text: 'Não cabe', tags: [] },
             }),
           ),
           bad(503),

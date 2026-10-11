@@ -272,6 +272,8 @@ Validação local: lint com tipos, TypeScript estrito, fronteiras/ciclos, licen�
 
 ### Corte 4 — posts e tags locais em 06/10/2026
 
+> Atualização de 11/10/2026: título obrigatório, texto opcional e de 1 a 5 tags por post substituem o título/tag opcionais e a tag única descritos abaixo. Ver a [decisão](../DECISOES_E_PLANO_DE_IMPLEMENTACAO.md) e a migração 055.
+
 O proprietário aprovou tags geridas por comunidade: Discussão, Opinião e Memes iniciais; gestores podem criar, renomear e desativar; o autor escolhe uma tag opcional. Tags desativadas permanecem nos posts antigos e deixam de aceitar novas atribuições. Não há cota de quantidade de tags/posts; entradas e páginas têm limites técnicos e continuam sujeitas à capacidade global.
 
 O proprietário aprovou exclusão pelo autor com remoção do texto do banco ativo e marcador permanente para links/respostas futuras; cópias externas e backups não são apagados por consequência. Edição substitui título/texto/tag, sem histórico de textos antigos. Gestores ocultam de forma reversível com motivo restrito ao autor e gestores e uma contestação por remoção; registros de moderação são preservados, sem cópia do texto neles. Exclusão pelo autor impede restauração posterior por gestores. Arquivamento/sanção impedem publicação e edição, mas não a exclusão própria ou contestação. Texto oculto fica restrito ao autor/gestores, sem edição que contorne a revisão; restauração exige decisão de gestor.
