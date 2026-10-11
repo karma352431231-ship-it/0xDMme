@@ -67,14 +67,14 @@ await test('validação efetiva recusa duração excedida, animação disfarçad
     format: 'mov,mp4,m4a,3gp,3g2,mj2',
     width: 1920,
     height: 1080,
-    seconds: 60,
+    seconds: 120,
     fps: 60,
-    frames: 3600,
+    frames: 7200,
     audio: true,
   };
   validateMediaSource(source('video'), shape);
   assert.throws(() =>
-    validateMediaSource(source('video'), { ...shape, seconds: 60.01 }),
+    validateMediaSource(source('video'), { ...shape, seconds: 120.01 }),
   );
   assert.throws(() =>
     validateMediaSource(source('video'), { ...shape, format: 'hls' }),
@@ -95,12 +95,13 @@ await test('validação efetiva recusa duração excedida, animação disfarçad
     bytes: 25_000_000,
     width: 1280,
     height: 720,
-    seconds: 60,
+    seconds: 120,
     fps: 30,
     thumbnailBytes: 9000,
     normalized: true,
   };
   communityMediaResult(result);
+  assert.throws(() => communityMediaResult({ ...result, seconds: 120.11 }));
   assert.throws(() => communityMediaResult({ ...result, bytes: 25_000_001 }));
   assert.throws(() => communityMediaResult({ ...result, fps: 31 }));
   assert.throws(() => readMediaRuntime({ HASH_TALK_MEDIA_FFMPEG: './ffmpeg' }));

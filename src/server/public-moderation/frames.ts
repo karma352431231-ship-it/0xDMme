@@ -1,3 +1,4 @@
+import { communityMediaVideoFrameBudget } from '../../shared/community-media/index.ts';
 import type { Readable } from 'node:stream';
 import { AccountError, object } from '../../shared/account/index.ts';
 import type { MediaRuntime } from '../community-media/index.ts';
@@ -222,7 +223,7 @@ function requireFrameInput(input: PreparedFrameInput, size: number): void {
   if (
     !Number.isSafeInteger(input.maximumFrames) ||
     input.maximumFrames < 1 ||
-    input.maximumFrames > 1804
+    input.maximumFrames > communityMediaVideoFrameBudget
   )
     throw new Error('Cobertura da análise inválida.');
 }

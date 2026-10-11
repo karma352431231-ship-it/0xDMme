@@ -162,7 +162,9 @@ O proprietário aprovou a proposta de limites, alterando a quantidade de GIFs pa
 | ----- | ------------------------------------------------------------------------------ |
 | Foto  | Até 3 MB por resultado e 2.048 px, mantendo a preparação existente.            |
 | GIF   | Até 10 MB por arquivo, 20 segundos e 20 FPS; preservar animação/transparência. |
-| Vídeo | Original até 100 MB; resultado até 25 MB, 60 segundos, 720p e 30 FPS.          |
+| Vídeo | Original até 100 MB; resultado até 25 MB, 120 segundos, 720p e 30 FPS.         |
+
+Duração de vídeo revisada pelo proprietário em 11/10/2026 para dois minutos, substituindo os 60 segundos do contrato original. O player carrega ao entrar na tela, inicia por ação do usuário e não oferece botão de baixar mídia. Vídeos verticais preservam proporção com largura correspondente à altura máxima, sem fundo azul lateral.
 
 MB é decimal. Limites de bytes se aplicam por arquivo, inclusive no conjunto de três GIFs. Reduzir resolução/FPS quando necessário, informando a perda de qualidade e preservando proporção/orientação e áudio do vídeo; não prometer fidelidade do original. Duração acima do limite deve ser recusada, sem truncamento silencioso. A legenda pode ser omitida quando houver mídia; publicação totalmente vazia continua inválida. PNG/JPEG/WebP usam a preparação de fotos existente; GIF mantém animação/transparência; vídeo aceita MP4/MOV/WebM e prepara MP4 H.264/AAC. Concorrência, tempo e proteção de recursos estão documentados no processador. Qualquer nova restrição de produto precisa de revisão antes de adoção; recursos de produção não estão aprovados por consequência do ensaio.
 

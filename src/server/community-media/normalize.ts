@@ -83,7 +83,7 @@ function validateAnimation(
       422,
       source.kind === 'gif'
         ? 'GIF deve ter até 20 segundos.'
-        : 'Vídeo deve ter até 60 segundos.',
+        : `Vídeo deve ter até ${communityMediaLimits.video.seconds} segundos.`,
     );
 }
 function validateVideoFormat(shape: MediaShape): void {

@@ -23,6 +23,7 @@
     "src/server/public-moderation/scanner.ts",
     "src/server/public-moderation/configuration.ts",
     "src/server/public-moderation/configured-runner.ts",
-    "src/server/public-moderation/frames.ts"
+    "src/server/public-moderation/frames.ts",
+    "src/shared/community-media/index.ts"
   ]
 }

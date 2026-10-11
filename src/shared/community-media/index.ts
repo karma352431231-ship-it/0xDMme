@@ -8,8 +8,11 @@ export const communityMediaPartBytes = 262_144;
 export const communityMediaLimits = {
   photo: { count: 4, source: 3_000_000, result: 3_000_000, seconds: 0 },
   gif: { count: 3, source: 10_000_000, result: 10_000_000, seconds: 20 },
-  video: { count: 1, source: 100_000_000, result: 25_000_000, seconds: 60 },
+  video: { count: 1, source: 100_000_000, result: 25_000_000, seconds: 120 },
 } as const;
+/** Maximum normalized video frames, including the 0.1 s mux tolerance. */
+export const communityMediaVideoFrameBudget =
+  communityMediaLimits.video.seconds * 30 + 4;
 export interface CommunityMediaSource {
   id: string;
   kind: CommunityMediaKind;

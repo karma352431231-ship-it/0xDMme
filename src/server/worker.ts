@@ -28,7 +28,7 @@ try {
   database = new Database(
     config.databaseUrl,
     config.accountCapacityBytes,
-    moderation ? [moderation.model] : [],
+    moderation?.acceptedModels ?? [],
     'worker',
   );
   await database.verifyMigrations();

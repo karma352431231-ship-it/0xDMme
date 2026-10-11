@@ -594,7 +594,7 @@
   button {
   display: block;
   width: 100%;
-  background: var(--accent-soft);
+  background: transparent;
   border: 0;
   padding: 0;
   margin: 0;
@@ -610,7 +610,37 @@
   max-height: 560px;
   border-radius: 8px;
   object-fit: contain;
-  background: var(--accent-soft);
+  background: transparent;
+}
+:is(.app[data-page='comunidades'], .community-scope)
+  .community-public-media
+  figure.community-public-video {
+  width: min(
+    100%,
+    calc(var(--community-video-height, 560px) * var(--video-ratio))
+  );
+  justify-self: center;
+}
+:is(.app[data-page='comunidades'], .community-scope)
+  .community-public-media
+  figure.community-public-video
+  > video {
+  aspect-ratio: var(--video-ratio);
+  height: auto;
+}
+:is(.app[data-page='comunidades'], .community-scope)
+  .community-public-media
+  figure.community-public-video
+  > button {
+  font-size: var(--fs-caption);
+  padding: 8px;
+  background: transparent;
+}
+:is(.app[data-page='comunidades'], .community-scope)
+  .community-public-media
+  figure.community-public-video
+  > button[hidden] {
+  display: none;
 }
 @media (max-width: 1000px) and (min-width: 701px) {
   .app[data-page='comunidades'] {
@@ -1182,9 +1212,11 @@
     font-weight: 700;
   }
   #app-shell[data-page='comunidades'] .community-public-media {
+    --community-video-height: 360px;
     margin: 4px 0 10px;
   }
   #app-shell[data-page='comunidades'] .community-media-preview {
+    --community-video-height: 360px;
     max-height: 360px;
     border-radius: 12px;
   }
@@ -1406,6 +1438,7 @@
     font-weight: 700;
   }
   #app-shell[data-page='comunidades'] .community-public-media {
+    --community-video-height: 240px;
     margin: 4px 0 8px;
   }
   #app-shell[data-page='comunidades'] .community-media-preview {

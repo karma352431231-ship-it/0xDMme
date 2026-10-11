@@ -1,3 +1,4 @@
+import { communityMediaVideoFrameBudget } from '../../shared/community-media/index.ts';
 import { spawn } from 'node:child_process';
 import type { Readable } from 'node:stream';
 import { AccountError } from '../../shared/account/index.ts';
@@ -229,7 +230,7 @@ export async function classifyPreparedRgbaFrames(options: {
     input.bytes.length > 25_000_000 ||
     !Number.isSafeInteger(input.maximumFrames) ||
     input.maximumFrames < 1 ||
-    input.maximumFrames > 1804
+    input.maximumFrames > communityMediaVideoFrameBudget
   )
     throw new Error('Invalid prepared media budget.');
   signal.throwIfAborted();

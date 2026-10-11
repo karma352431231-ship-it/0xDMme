@@ -52,7 +52,7 @@ try {
   database = new Database(
     config.databaseUrl,
     config.accountCapacityBytes,
-    moderation ? [moderation.model] : [],
+    moderation?.acceptedModels ?? [],
   );
   await database.migrate();
   const objects = new ObjectStore(config.objectDirectory);
