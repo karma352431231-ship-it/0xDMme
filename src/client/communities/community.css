@@ -1470,14 +1470,28 @@
   border-color: var(--line-strong);
 }
 .community-post-back {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 14px;
+  font-size: 15px;
+  font-weight: 600;
+}
+.community-post-back a {
+  color: var(--text);
+  text-decoration: none;
+}
+/* The arrow goes back; the photo and name enter the community. */
+.community-post-back-identity {
   display: inline-flex;
   align-items: center;
   gap: 10px;
-  margin: 0 0 14px;
-  color: var(--text);
-  font-size: 15px;
-  font-weight: 600;
-  text-decoration: none;
+  min-width: 0;
+  padding: 4px 8px;
+  border-radius: 10px;
+}
+.community-post-back-identity:hover {
+  background: var(--surface-2);
 }
 .community-post-back .community-avatar {
   flex: 0 0 28px;
@@ -1485,9 +1499,18 @@
   height: 28px;
   font-size: 11px;
 }
-.community-post-back-arrow {
+.community-post-back .community-post-back-arrow {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
   color: var(--text-muted);
   font-size: 18px;
+}
+.community-post-back .community-post-back-arrow:hover {
+  background: var(--surface-2);
+  color: var(--text);
 }
 #app-shell .community-card.community-post-focus {
   padding: 20px 22px;

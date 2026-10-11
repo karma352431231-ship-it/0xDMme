@@ -112,6 +112,7 @@ async function page(approval: boolean, userAgent: string) {
     setSession: () => {},
     reset: () => {},
     leave: () => {},
+    forgetReturn: () => {},
     mount: () => {},
     ready: () => {},
     authorized: () => false,

@@ -34,6 +34,7 @@ import { communityAvatar, openPostFromCard } from './presentation.ts';
 import {
   communityDirectoryNavigation,
   communityNavigation,
+  postReturnTarget,
 } from './navigation.ts';
 
 export function startCommunities(
@@ -55,6 +56,8 @@ export function startCommunities(
     busy = false;
   let abort = new AbortController(),
     photoUrl: string | null = null;
+  // Query of the last list shown (feed, ranking, community…), for the post arrow.
+  let lastList: string | null = null;
   let view = 'feed',
     selectedDm: string | null = null,
     localDm = false,
@@ -427,20 +430,29 @@ export function startCommunities(
         card.append(communityElement('p', `Resposta: ${s.decision}`));
     }
   }
+  /**
+   * The arrow returns to `href`; the community photo and name enter the
+   * community. Both are links, so the feed panel keeps them in place.
+   */
+  function backHeader(value: Community, href: string): HTMLElement {
+    const header = communityElement('div', '', 'community-post-back'),
+      arrow = communityElement('a', '←', 'community-post-back-arrow'),
+      identity = communityElement('a', '', 'community-post-back-identity'),
+      avatar = communityAvatar(value.name);
+    arrow.href = href;
+    arrow.title = 'Voltar';
+    arrow.setAttribute('aria-label', 'Voltar');
+    identity.href = `#comunidades?id=${value.id}`;
+    identity.append(avatar, communityElement('span', value.name));
+    header.append(arrow, identity);
+    publicPhoto(avatar, value);
+    return header;
+  }
   /** A post takes the whole timeline: way back, the post, then its replies. */
   function postFocus(value: Community, post: string): void {
     if (!mounted) return;
     mounted.dataset['communityLayout'] = 'post';
-    const back = communityElement('a', '', 'community-post-back');
-    back.href = `#comunidades?id=${value.id}`;
-    const avatar = communityAvatar(value.name);
-    back.append(
-      communityElement('span', '←', 'community-post-back-arrow'),
-      avatar,
-      communityElement('span', value.name),
-    );
-    mounted.append(back);
-    publicPhoto(avatar, value);
+    mounted.append(backHeader(value, postReturnTarget(lastList, value.id)));
     const postContainer = communityElement('section', '', 'community-posts');
     mounted.append(postContainer);
     posts.mount(postContainer, {
@@ -494,15 +506,7 @@ export function startCommunities(
   function manageScreen(value: Community, own: CommunityState): void {
     if (!mounted) return;
     mounted.dataset['communityLayout'] = 'manage';
-    const back = communityElement('a', '', 'community-post-back');
-    back.href = `#comunidades?id=${value.id}`;
-    const avatar = communityAvatar(value.name);
-    back.append(
-      communityElement('span', '←', 'community-post-back-arrow'),
-      avatar,
-      communityElement('span', value.name),
-    );
-    publicPhoto(avatar, value);
+    const back = backHeader(value, `#comunidades?id=${value.id}`);
     const management = communityElement('section', '', 'community-manage');
     management.append(communityElement('h1', 'Gerenciar comunidade'));
     mounted.append(back, management);
@@ -695,6 +699,8 @@ export function startCommunities(
         selected = params.has('id') ? uuid(params.get('id')) : null;
         selectedPost = params.has('post') ? uuid(params.get('post')) : null;
         selectedTag = params.has('tag') ? uuid(params.get('tag')) : null;
+        // A post opened from a list returns to that list, not to its community.
+        if (!selectedPost) lastList = params.toString();
       } catch {
         selected = null;
         navigation();
@@ -721,6 +727,10 @@ export function startCommunities(
       ready();
     },
     leave,
+    /** Another app page opened: a post reached from there returns to its community. */
+    forgetReturn(): void {
+      lastList = null;
+    },
     ready,
     /** Public @ conversations in the workspace chat column, independent of the mounted feed. */
     openDm(container: HTMLElement, id: string | null, local: boolean): void {

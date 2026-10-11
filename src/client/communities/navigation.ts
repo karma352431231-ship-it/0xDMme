@@ -95,3 +95,13 @@ export function communityDirectoryNavigation(
   }
   container.append(head, tabs, nav, el('h2', 'Seguidas'));
 }
+
+/** Where the arrow of an opened post leads: the list the reader came from, else its community. */
+export function postReturnTarget(
+  lastList: string | null,
+  community: string,
+): string {
+  return lastList
+    ? `#comunidades?${lastList}`
+    : `#comunidades?id=${encodeURIComponent(community)}`;
+}

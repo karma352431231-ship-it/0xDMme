@@ -327,3 +327,7 @@ Pedido do proprietário:
 ## Perfil volta à última categoria — 10/10/2026
 
 Pedido do proprietário: ao recarregar a página do Perfil, a categoria aberta por último (Privacidade, Perfil público, Aparelhos…) volta aberta, em vez de sempre voltar para Privacidade. A escolha fica só neste navegador (`localStorage`, chave `0xdmme:settings-section`), como o arranjo dos painéis; sem armazenamento disponível, o Perfil abre como antes.
+
+## Seta do post volta à origem — 10/10/2026
+
+Pedido do proprietário: no post aberto, a seta voltava sempre para a comunidade, mesmo quando o post foi aberto pelo Feed. Agora a seta volta para a última lista vista em Comunidades (Feed, Explorar, Seguidas, a própria comunidade…), com os mesmos filtros. A foto e o nome da comunidade ao lado da seta viraram um link separado para entrar nela. Sem lista de origem (post aberto pela Atividade, por um link ou depois de outra página do app), a seta leva à comunidade. Vale na página cheia e no painel ao lado do chat.

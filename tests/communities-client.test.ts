@@ -1,3 +1,4 @@
+import { postReturnTarget } from '../src/client/communities/navigation.ts';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { AccountSession } from '../src/shared/account/index.ts';
@@ -275,4 +276,20 @@ await test('foto do feed aceita projeção pública da comunidade e recusa outra
     }),
   );
   assert.throws(() => parse({ ...group, wallet: 'privada' }));
+});
+
+await test('seta do post volta à lista de origem; sem origem, à comunidade', () => {
+  const community = crypto.randomUUID();
+  assert.equal(
+    postReturnTarget('view=feed', community),
+    '#comunidades?view=feed',
+  );
+  assert.equal(
+    postReturnTarget('view=explore&period=week', community),
+    '#comunidades?view=explore&period=week',
+  );
+  assert.equal(
+    postReturnTarget(null, community),
+    `#comunidades?id=${community}`,
+  );
 });
