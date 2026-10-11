@@ -2,7 +2,6 @@ import { fetchApi, readApiJson } from '../api-response/index.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
 import {
   community,
-  communityBody,
   communityPage,
   communityState,
 } from '../../shared/communities/index.ts';
@@ -11,6 +10,9 @@ import type {
   CommunityState,
 } from '../../shared/communities/index.ts';
 import type { VaultAccess } from '../vault-authority/index.ts';
+import { signedCommunityRequest } from './signed-request.ts';
+import type { CommunitySigner } from './signed-request.ts';
+import { MediaPartAuthority } from './media-part-authority.ts';
 
 export async function communityRead(
   path: string,
@@ -45,17 +47,21 @@ export async function readCommunity(id: string, signal: AbortSignal) {
 }
 export class Communities {
   private readonly access: VaultAccess;
+  private readonly parts: MediaPartAuthority;
   private session: AccountSession | null = null;
   private generation = 0;
   constructor(access: VaultAccess) {
     this.access = access;
+    this.parts = new MediaPartAuthority(access);
   }
   setSession(session: AccountSession | null): boolean {
     if (
       session?.csrf === this.session?.csrf &&
-      session?.accountId === this.session?.accountId
+      session?.accountId === this.session?.accountId &&
+      session?.deviceId === this.session?.deviceId
     )
       return false;
+    this.parts.clear();
     this.generation++;
     this.session = session;
     return true;
@@ -69,47 +75,26 @@ export class Communities {
       throw new Error(
         'Entre e crie seu perfil público em Perfil para participar.',
       );
-    return this.access.withVault(false, async (authority) => {
-      if (
-        authority.session.accountId !== this.session?.accountId ||
-        authority.session.deviceId !== this.session.deviceId ||
-        generation !== this.generation
-      )
-        throw new Error('Sessão alterada.');
-      const proof = { directory: authority.directory, payload };
-      const signature = await authority.sign(
-        communityBody(
-          authority.session.accountId,
-          authority.session.deviceId,
-          operation,
-          proof,
-        ),
-      );
-      if (generation !== this.generation) throw new Error('Sessão alterada.');
-      const response = await fetchApi(
-        `communities/${operation}`,
-        `/api/account/communities/${operation}`,
-        {
-          method: 'POST',
-          credentials: 'same-origin',
-          cache: 'no-store',
-          redirect: 'error',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-Hash-Talk-CSRF': authority.session.csrf,
-          },
-          body: JSON.stringify({ ...proof, signature }),
-          signal: AbortSignal.timeout(
-            operation.startsWith('media-') ? 15000 : 8000,
-          ),
-        },
-      );
-      const result = await readApiJson(response, `communities/${operation}`);
-      if (generation !== this.generation)
-        throw new Error('Sessão alterada durante a operação.');
-      return result;
-    });
+    const send = (authority: CommunitySigner) =>
+      signedCommunityRequest({
+        operation,
+        payload,
+        authority,
+        valid: () =>
+          authority.session.accountId === this.session?.accountId &&
+          authority.session.deviceId === this.session.deviceId &&
+          authority.session.csrf === this.session.csrf &&
+          generation === this.generation,
+      });
+    if (operation !== 'media-part') return this.access.withVault(false, send);
+    try {
+      return await send(await this.parts.get());
+    } catch (error: unknown) {
+      this.parts.clear();
+      throw error;
+    }
   }
+
   async state(id: string): Promise<CommunityState> {
     return communityState(await this.request('state', { id }));
   }

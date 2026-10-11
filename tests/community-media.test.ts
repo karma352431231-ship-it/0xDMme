@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { mkdtemp, rm, readFile, realpath } from 'node:fs/promises';
+import { mkdtemp, rm, readFile, realpath, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createHash } from 'node:crypto';
@@ -92,7 +92,7 @@ await test('validação efetiva recusa duração excedida, animação disfarçad
   const result = {
     kind: 'video',
     type: 'video/mp4',
-    bytes: 25_000_000,
+    bytes: 100_000_000,
     width: 1280,
     height: 720,
     seconds: 120,
@@ -102,7 +102,7 @@ await test('validação efetiva recusa duração excedida, animação disfarçad
   };
   communityMediaResult(result);
   assert.throws(() => communityMediaResult({ ...result, seconds: 120.11 }));
-  assert.throws(() => communityMediaResult({ ...result, bytes: 25_000_001 }));
+  assert.throws(() => communityMediaResult({ ...result, bytes: 100_000_001 }));
   assert.throws(() => communityMediaResult({ ...result, fps: 31 }));
   assert.throws(() => readMediaRuntime({ HASH_TALK_MEDIA_FFMPEG: './ffmpeg' }));
 });
@@ -144,6 +144,31 @@ await test('objetos de mídia: montagem limitada, hash integral, retomada e limp
     await Promise.all([files.discard(input.id), files.discard(input.id)]);
     await files.discard(input.id);
     await assert.rejects(files.read(input.id, 'result', bytes.length));
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+await test('resultado acima de 25 MB mantém hash integral e última parte para a leitura restrita', async () => {
+  const root = await realpath(
+    await mkdtemp(join(tmpdir(), '0xdmme-large-result-')),
+  );
+  const files = new CommunityMediaFiles(root);
+  try {
+    await files.initialize();
+    const id = crypto.randomUUID(),
+      bytes = Buffer.alloc(26_000_001, 42);
+    await files.part(id, 0, new Uint8Array([1]));
+    await writeFile(join(files.root, id, 'result'), bytes);
+    assert.equal(
+      await files.digest(id, 'result', bytes.length),
+      createHash('sha256').update(bytes).digest('hex'),
+    );
+    const index = Math.ceil(bytes.length / communityMediaPartBytes) - 1;
+    assert.deepEqual(
+      await files.slice(id, { name: 'result', index, bytes: bytes.length }),
+      bytes.subarray(index * communityMediaPartBytes),
+    );
   } finally {
     await rm(root, { recursive: true, force: true });
   }

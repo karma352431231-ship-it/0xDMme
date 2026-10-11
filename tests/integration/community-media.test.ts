@@ -1402,6 +1402,78 @@ await test('mídia das comunidades: cadeia real, autorização, vínculo atômic
     },
   );
   await t.test(
+    'reserva antiga amplia resultado atomicamente, falta de capacidade preserva bytes e retry não duplica cobrança',
+    async () => {
+      const data = await readFile(video),
+        candidate = descriptor('video', data);
+      await reserve(candidate);
+      await author.operate('media-part', {
+        id,
+        media: candidate.id,
+        index: 0,
+        bytes: encode(data),
+      });
+      const authority = {
+        session: author.login.session,
+        directory: author.directory,
+      };
+      const oldCharge = candidate.bytes * 2 + 25_000_000 + 96_000 + 32_768;
+      await inspector.query(
+        'UPDATE hash_talk.community_media SET charge=$2 WHERE id=$1',
+        [candidate.id, oldCharge],
+      );
+      const globalUsage = async () =>
+        Number(
+          (
+            await inspector.query<{ bytes: string }>(
+              'SELECT used_bytes::text AS bytes FROM hash_talk.content_usage WHERE singleton',
+            )
+          ).rows[0]!.bytes,
+        );
+      const beforeUpgrade = await globalUsage();
+      const limited = new Database(
+        config.databaseUrl,
+        beforeUpgrade + 74_999_999,
+      );
+      const input = {
+        community: id,
+        id: candidate.id,
+        index: null,
+        hash: null,
+      };
+      try {
+        await assert.rejects(
+          limited.communityMedia.begin(authority, input),
+          bad(503),
+        );
+        const row = await inspector.query<{
+          charge: string;
+          writer: string | null;
+          count: number;
+        }>(
+          'SELECT charge::text,writer,cardinality(received) AS count FROM hash_talk.community_media WHERE id=$1',
+          [candidate.id],
+        );
+        assert.equal(Number(row.rows[0]!.charge), oldCharge);
+        assert.equal(row.rows[0]!.writer, null);
+        assert.equal(row.rows[0]!.count, 1);
+        assert.equal(await globalUsage(), beforeUpgrade);
+      } finally {
+        await limited.close();
+      }
+      const lease = await db.communityMedia.begin(authority, input);
+      assert.ok(lease.writer);
+      assert.equal(await globalUsage(), beforeUpgrade + 75_000_000);
+      await db.communityMedia.release(candidate.id, lease.writer);
+      const retry = await db.communityMedia.begin(authority, input);
+      assert.ok(retry.writer);
+      assert.equal(await globalUsage(), beforeUpgrade + 75_000_000);
+      await db.communityMedia.release(candidate.id, retry.writer);
+      await author.operate('media-cancel', { id, media: candidate.id });
+      await media.clean();
+    },
+  );
+  await t.test(
     'partes persistidas retomam após interrupção e cancelamento coleta sem aceitar mídia',
     async () => {
       const data = Buffer.alloc(communityMediaPartBytes + 100, 9),

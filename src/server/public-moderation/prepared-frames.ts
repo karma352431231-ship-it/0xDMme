@@ -1,4 +1,7 @@
-import { communityMediaVideoFrameBudget } from '../../shared/community-media/index.ts';
+import {
+  communityMediaVideoFrameBudget,
+  communityMediaLimits,
+} from '../../shared/community-media/index.ts';
 import { spawn } from 'node:child_process';
 import type { Readable } from 'node:stream';
 import { AccountError } from '../../shared/account/index.ts';
@@ -227,7 +230,7 @@ export async function classifyPreparedRgbaFrames(options: {
   const { input, signal } = options;
   if (
     !input.bytes.length ||
-    input.bytes.length > 25_000_000 ||
+    input.bytes.length > communityMediaLimits.video.result ||
     !Number.isSafeInteger(input.maximumFrames) ||
     input.maximumFrames < 1 ||
     input.maximumFrames > communityMediaVideoFrameBudget

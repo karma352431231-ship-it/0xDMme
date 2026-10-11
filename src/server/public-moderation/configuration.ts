@@ -68,20 +68,23 @@ export async function readPoseModerationConfiguration(
     python = environment['HASH_TALK_MODERATION_PYTHON'],
     directory = environment['HASH_TALK_MODERATION_MODELS'],
     predecessor = environment['HASH_TALK_MODERATION_APPROVED_PREDECESSOR'],
-    next = environment['HASH_TALK_MODERATION_ACCEPTED_NEXT_HASH'];
-  const fields = [accepted, python, directory, predecessor, next];
+    next = environment['HASH_TALK_MODERATION_ACCEPTED_NEXT_HASH'],
+    approvals = environment['HASH_TALK_MODERATION_ACCEPTED_PIPELINES'];
+  const fields = [accepted, python, directory, predecessor, next, approvals];
   if (fields.every((field) => field === undefined)) return null;
-  if (
-    !accepted ||
-    !python ||
-    !directory ||
-    ![python, directory].every(isAbsolute)
-  )
-    throw new Error('Complete private inference configuration required.');
+  const paths = inferenceSettings({ accepted, python, directory });
   const model = await poseModelIdentity(),
     runtime = readMediaRuntime(environment);
   if (!runtime) throw new Error('Inference media runtime differs.');
-  verifyAcceptance(model.hash, accepted, next);
+  if (approvals !== undefined)
+    return {
+      python: paths.python,
+      directory: paths.directory,
+      runtime,
+      model,
+      acceptedModels: reviewedPipelines(model, approvals),
+    };
+  verifyAcceptance(model.hash, paths.accepted, next);
   const acceptedModels = [model];
   if (predecessor !== undefined) {
     // Owner-approved 11/10/2026 transition: preserve existing approvals only.
@@ -97,7 +100,13 @@ export async function readPoseModerationConfiguration(
         runtime: 'python3.12-onnxruntime1.24.4-numpy2.3.5-pillow12.3.0-pose-v1',
       });
   }
-  return { python, directory, runtime, model, acceptedModels };
+  return {
+    python: paths.python,
+    directory: paths.directory,
+    runtime,
+    model,
+    acceptedModels,
+  };
 }
 
 /** Dual exact approvals let the existing executor roll back to the old source without changing configuration. */
@@ -111,4 +120,42 @@ function verifyAcceptance(
     throw new Error('Next inference acceptance differs.');
   if (previous !== hash && next !== hash)
     throw new Error('Inference acceptance differs.');
+}
+
+/** Explicit operator approvals, including only the two reviewed compatible predecessors. */
+function reviewedPipelines(
+  model: { hash: string; runtime: string },
+  value: string,
+): Array<{ hash: string; runtime: string }> {
+  const hashes = value.split(',').map(fingerprint);
+  const known = new Set([
+    model.hash,
+    '6ae4df3886df584b0d2de91d52febf0e3967851da628b6e6ef0d03a4669f7d74',
+    '1271c7deba0443c4f53c76295c0789c9cdf766b53a5c9875ab560c2c5a7b7c58',
+  ]);
+  if (
+    hashes.length > 3 ||
+    new Set(hashes).size !== hashes.length ||
+    !hashes.includes(model.hash)
+  )
+    throw new Error('Incomplete or duplicated pipeline approvals.');
+  if (hashes.some((hash) => !known.has(hash)))
+    throw new Error('Unreviewed inference predecessor.');
+  return hashes.map((hash) => ({ hash, runtime: model.runtime }));
+}
+
+function inferenceSettings(input: {
+  accepted: string | undefined;
+  python: string | undefined;
+  directory: string | undefined;
+}): { accepted: string; python: string; directory: string } {
+  const { accepted, python, directory } = input;
+  if (
+    !accepted ||
+    !python ||
+    !directory ||
+    ![python, directory].every(isAbsolute)
+  )
+    throw new Error('Complete private inference configuration required.');
+  return { accepted: fingerprint(accepted), python, directory };
 }

@@ -81,3 +81,40 @@ await test('dois aceites exatos permitem a troca e o rollback sem aceitar pipeli
     }),
   );
 });
+
+await test('lista exata preserva as duas gerações aprovadas, exige atual e recusa outros pipelines', async () => {
+  const identity = await poseModelIdentity();
+  const previous = [
+    '6ae4df3886df584b0d2de91d52febf0e3967851da628b6e6ef0d03a4669f7d74',
+    '1271c7deba0443c4f53c76295c0789c9cdf766b53a5c9875ab560c2c5a7b7c58',
+  ];
+  const environment = {
+    HASH_TALK_MODERATION_ACCEPTED_HASH: previous[0],
+    HASH_TALK_MODERATION_ACCEPTED_NEXT_HASH: previous[1],
+    HASH_TALK_MODERATION_PYTHON: '/private/inference/python',
+    HASH_TALK_MODERATION_MODELS: '/private/inference/models',
+    HASH_TALK_MEDIA_FFMPEG: '/private/media/ffmpeg',
+    HASH_TALK_MEDIA_FFPROBE: '/private/media/ffprobe',
+    HASH_TALK_MODERATION_ACCEPTED_PIPELINES: [identity.hash, ...previous].join(
+      ',',
+    ),
+  };
+  const config = await readPoseModerationConfiguration(environment);
+  assert.deepEqual(config?.model, identity);
+  assert.deepEqual(
+    config?.acceptedModels.map(({ hash }) => hash),
+    [identity.hash, ...previous],
+  );
+  for (const hashes of [
+    previous,
+    [identity.hash, 'f'.repeat(64)],
+    [identity.hash, identity.hash],
+    [identity.hash, ...previous, identity.hash],
+  ])
+    await assert.rejects(
+      readPoseModerationConfiguration({
+        ...environment,
+        HASH_TALK_MODERATION_ACCEPTED_PIPELINES: hashes.join(','),
+      }),
+    );
+});

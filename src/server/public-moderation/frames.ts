@@ -1,4 +1,7 @@
-import { communityMediaVideoFrameBudget } from '../../shared/community-media/index.ts';
+import {
+  communityMediaVideoFrameBudget,
+  communityMediaLimits,
+} from '../../shared/community-media/index.ts';
 import type { Readable } from 'node:stream';
 import { AccountError, object } from '../../shared/account/index.ts';
 import type { MediaRuntime } from '../community-media/index.ts';
@@ -218,7 +221,10 @@ async function scanFrames(
 function requireFrameInput(input: PreparedFrameInput, size: number): void {
   if (!Number.isSafeInteger(size) || size < 32 || size > 512)
     throw new Error('Dimensão da análise inválida.');
-  if (!input.bytes.length || input.bytes.length > 25_000_000)
+  if (
+    !input.bytes.length ||
+    input.bytes.length > communityMediaLimits.video.result
+  )
     throw new Error('Mídia preparada inválida.');
   if (
     !Number.isSafeInteger(input.maximumFrames) ||

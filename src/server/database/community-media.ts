@@ -30,6 +30,7 @@ interface MediaRow {
   community_id: string;
   author: string | null;
   source: CommunityMediaSource;
+  charge: string;
   received: string[];
   status: CommunityMediaState['status'] | 'deleting';
   result: CommunityMediaResult | null;
@@ -201,11 +202,7 @@ export class CommunityMediaStore {
           409,
           'Identificador de mídia já utilizado. Inicie outro envio.',
         );
-      const charge =
-        source.bytes * 2 +
-        communityMediaLimits[source.kind].result +
-        96_000 +
-        32_768;
+      const charge = preparationCharge(source);
       const result = await c.client.query<MediaRow>(
         'INSERT INTO hash_talk.community_media(id,community_id,author,source,charge) VALUES($1,$2,$3,$4::jsonb,$5) RETURNING *',
         [source.id, community, c.actor.id, JSON.stringify(source), charge],
@@ -246,6 +243,7 @@ export class CommunityMediaStore {
   ) {
     return this.communities.withContext(a, input.community, async (c) => {
       await requireCommunityParticipation(c);
+      if (input.index === null) await lockContentUsage(c.client);
       const row = await this.owned(c, input.id);
       requirePart(row, input.index);
       if (input.index !== null && row.received[input.index] !== undefined) {
@@ -259,6 +257,7 @@ export class CommunityMediaStore {
         throw new AccountError(409, 'Upload em andamento. Aguarde.');
       if (input.index !== null && input.index !== row.received.length)
         throw new AccountError(409, 'Retome a próxima parte do upload.');
+      if (input.index === null) await this.reservePreparation(c, row);
       const writer = randomUUID();
       await c.client.query(
         'UPDATE hash_talk.community_media SET writer=$2,error=NULL WHERE id=$1',
@@ -266,6 +265,19 @@ export class CommunityMediaStore {
       );
       return { state: state(row), writer };
     });
+  }
+  /** A resumed old reservation must cover the current output ceiling before the decoder starts. */
+  private async reservePreparation(
+    context: CommunityContext,
+    row: MediaRow,
+  ): Promise<void> {
+    const charge = preparationCharge(row.source);
+    if (Number(row.charge) >= charge) return;
+    await context.client.query(
+      'UPDATE hash_talk.community_media SET charge=$2 WHERE id=$1',
+      [row.id, charge],
+    );
+    await assertContentCapacity(context.client, this.capacity);
   }
   async part(
     a: ContactAuthority,
@@ -604,4 +616,13 @@ export class CommunityMediaStore {
       "UPDATE hash_talk.community_media SET status='uploading',writer=NULL WHERE writer IS NOT NULL AND post_id IS NULL",
     );
   }
+}
+
+function preparationCharge(source: CommunityMediaSource): number {
+  return (
+    source.bytes * 2 +
+    communityMediaLimits[source.kind].result +
+    96_000 +
+    32_768
+  );
 }

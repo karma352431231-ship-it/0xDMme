@@ -305,3 +305,141 @@ await test('rota abre a configuração só com comunidade; telas desconhecidas e
   assert.equal(communityView('qualquer', id), 'feed');
   assert.equal(communityView('explore', null), 'explore');
 });
+
+await test('partes próximas reusam só o contexto de assinatura; cada pedido continua assinado', async (t) => {
+  const account = session();
+  let checks = 0,
+    signatures = 0;
+  const base = access(account, () => Promise.resolve(`signed-${++signatures}`));
+  const controller = new Communities({
+    ...base,
+    withVault: (offline, work) => {
+      checks++;
+      return base.withVault(offline, work);
+    },
+  });
+  controller.setSession(account);
+  const sent: number[] = [];
+  t.mock.method(globalThis, 'fetch', (_path: string, options: RequestInit) => {
+    assert.equal(typeof options.body, 'string');
+    if (typeof options.body !== 'string') throw new Error('Corpo inválido.');
+    const body = JSON.parse(options.body) as {
+      signature: string;
+      payload: { index: number };
+    };
+    assert.equal(body.signature, `signed-${body.payload.index + 1}`);
+    sent.push(body.payload.index);
+    return Promise.resolve(Response.json({ received: body.payload.index + 1 }));
+  });
+  for (let index = 0; index < 10; index++)
+    await controller.request('media-part', { index, bytes: 'synthetic' });
+  assert.equal(checks, 1);
+  assert.equal(signatures, 10);
+  assert.deepEqual(
+    sent,
+    Array.from({ length: 10 }, (_, index) => index),
+  );
+});
+
+await test('contexto de partes expira e não é usado por operações normais', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout', 'Date'] });
+  const account = session();
+  let checks = 0;
+  const base = access(account, () => Promise.resolve('synthetic'));
+  const controller = new Communities({
+    ...base,
+    withVault: (offline, work) => {
+      checks++;
+      return base.withVault(offline, work);
+    },
+  });
+  controller.setSession(account);
+  t.mock.method(globalThis, 'fetch', () =>
+    Promise.resolve(Response.json({ received: 1 })),
+  );
+  await controller.request('media-part', { index: 0 });
+  await controller.request('media-part', { index: 1 });
+  assert.equal(checks, 1);
+  await controller.request('media-status', { media: crypto.randomUUID() });
+  assert.equal(checks, 2);
+  t.mock.timers.tick(3001);
+  await controller.request('media-part', { index: 2 });
+  assert.equal(checks, 3);
+});
+
+await test('recusa do diretório invalida partes; retomada exige nova conferência e nenhuma parte sem assinatura', async (t) => {
+  const account = session();
+  let checks = 0,
+    head = 'b'.repeat(64);
+  const base = access(account, () => Promise.resolve('synthetic-signature'));
+  const controller = new Communities({
+    ...base,
+    withVault: (offline, work) => {
+      checks++;
+      return base.withVault(offline, (authority) =>
+        work({ ...authority, directory: head }),
+      );
+    },
+  });
+  controller.setSession(account);
+  let requests = 0;
+  t.mock.method(globalThis, 'fetch', (_path: string, options: RequestInit) => {
+    requests++;
+    assert.equal(typeof options.body, 'string');
+    if (typeof options.body !== 'string') throw new Error('Corpo inválido.');
+    const body = JSON.parse(options.body) as {
+      directory: string;
+      signature: string;
+    };
+    assert.equal(body.signature, 'synthetic-signature');
+    return Promise.resolve(
+      body.directory === head
+        ? Response.json({ received: requests })
+        : Response.json(
+            { error: 'Aparelho sem autorização atual.' },
+            { status: 403 },
+          ),
+    );
+  });
+  await controller.request('media-part', { index: 0 });
+  head = 'c'.repeat(64);
+  await assert.rejects(
+    controller.request('media-part', { index: 1 }),
+    /Aparelho sem autorização/,
+  );
+  assert.equal(requests, 2);
+  await controller.request('media-part', { index: 1 });
+  assert.equal(checks, 2);
+  controller.setSession(null);
+  await assert.rejects(
+    controller.request('media-part', { index: 2 }),
+    /Entre e crie/,
+  );
+  assert.equal(requests, 3);
+});
+
+await test('cache de partes tem orçamento de usos e mudança de aparelho exige nova assinatura', async (t) => {
+  const account = session();
+  let checks = 0;
+  const base = access(account, () => Promise.resolve('synthetic'));
+  const controller = new Communities({
+    ...base,
+    withVault: (offline, work) => {
+      checks++;
+      return base.withVault(offline, work);
+    },
+  });
+  controller.setSession(account);
+  const fetch = t.mock.method(globalThis, 'fetch', () =>
+    Promise.resolve(Response.json({ received: 1 })),
+  );
+  for (let index = 0; index < 17; index++)
+    await controller.request('media-part', { index });
+  assert.equal(checks, 2);
+  controller.setSession({ ...account, deviceId: crypto.randomUUID() });
+  await assert.rejects(
+    controller.request('media-part', { index: 17 }),
+    /Sessão alterada/,
+  );
+  assert.equal(fetch.mock.callCount(), 17);
+});

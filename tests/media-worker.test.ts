@@ -54,6 +54,21 @@ await test('worker público aceita somente comandos canônicos e arquivos da mes
           : resolve(directory, kind === 'thumbnail' ? 'thumbnail' : 'result');
       const command = preparationCommand({ kind, source, output });
       mediaCommandPaths(command);
+      if (kind === 'video') {
+        assert.equal(command.maximumBytes, 100_000_000);
+        const legacy = {
+          ...command,
+          maximumBytes: 25_000_000,
+          args: command.args.map((arg, index) =>
+            command.args[index - 1] === '-fs' ? '25000001' : arg,
+          ),
+        };
+        mediaCommandPaths(legacy);
+        assert.throws(() =>
+          mediaCommandPaths({ ...legacy, args: [...legacy.args, '-y'] }),
+        );
+      }
+
       assert.throws(() =>
         mediaCommandPaths({ ...command, args: [...command.args, '-y'] }),
       );
