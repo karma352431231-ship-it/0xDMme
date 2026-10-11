@@ -166,6 +166,7 @@ await test('eventos antigos conservam bytes canônicos; segredo do link não ent
     first = await genesis(owner);
   assert.equal(canonical(groupEvent(first)), canonical(first));
   assert.equal(Object.hasOwn(groupEvent(first), 'link'), false);
+  assert.throws(() => groupEvent({ ...first, kind: ['create'] }));
   const link = await grant(owner, first),
     joined = await admission(first, member, member.accountId, link);
   assert.equal(canonical(joined).includes('a'.repeat(64)), false);

@@ -171,6 +171,7 @@ export function groupEvent(value: unknown): GroupEvent {
 }
 function groupKind(value: unknown): GroupEvent['kind'] {
   if (
+    typeof value !== 'string' ||
     ![
       'create',
       'join',
@@ -181,7 +182,7 @@ function groupKind(value: unknown): GroupEvent['kind'] {
       'role',
       'transfer',
       'delete',
-    ].includes(String(value))
+    ].includes(value)
   )
     throw new AccountError(400, 'Alteração de grupo inválida.');
   return value as GroupEvent['kind'];

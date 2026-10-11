@@ -1,3 +1,7 @@
+.chat-panel [data-group-conversation] [hidden] {
+  display: none;
+}
+
 .group-dialog {
   width: min(480px, calc(100vw - 32px));
   max-height: calc(100dvh - 32px);
