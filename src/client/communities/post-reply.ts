@@ -80,7 +80,7 @@ function replyBox(
   toolbar.after(box);
   const content = replyForm(
       box,
-      { title: '', text: '', tag: null },
+      { title: '', text: '', tags: [] },
       access.media,
     ),
     actions = el('div', '', 'reply-box-actions');

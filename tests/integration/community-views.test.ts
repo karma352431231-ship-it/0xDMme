@@ -12,7 +12,10 @@ import {
 } from '../../src/server/communities/index.ts';
 import { createWebServer } from '../../src/server/web-host/index.ts';
 import { readWebConfiguration } from '../../src/server/web-configuration/index.ts';
-import { createCommunityAccount } from './community-fixture.ts';
+import {
+  createCommunityAccount,
+  rootPostContent,
+} from './community-fixture.ts';
 import { postState } from '../../src/shared/community-posts/index.ts';
 
 await test('visualizações públicas: concorrência, idempotência, isolamento por post, rollback e exclusão', async (t) => {
@@ -97,7 +100,12 @@ await test('visualizações públicas: concorrência, idempotência, isolamento 
     await owner.operate('post-create', {
       id: community,
       post,
-      content: { title: 'Contagem', text: 'Sintético.', tag: null },
+      content: await rootPostContent(
+        communities,
+        community,
+        'Sintético.',
+        'Contagem',
+      ),
     });
   const observation = { community, post: posts[0]!, token: 'a'.repeat(32) };
   const request = (items: unknown[], requestOrigin = origin) =>

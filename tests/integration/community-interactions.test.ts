@@ -33,7 +33,10 @@ import {
 } from '../../src/server/communities/index.ts';
 import { createWebServer } from '../../src/server/web-host/index.ts';
 import { readWebConfiguration } from '../../src/server/web-configuration/index.ts';
-import { createCommunityAccount } from './community-fixture.ts';
+import {
+  createCommunityAccount,
+  rootPostContent,
+} from './community-fixture.ts';
 
 await test('corte 5: árvore, votos e avisos diretos com autorização e persistência', async (t) => {
   const config = readWebConfiguration(process.env);
@@ -137,7 +140,7 @@ await test('corte 5: árvore, votos e avisos diretos com autorização e persist
         rules: 'Respeito',
       },
     });
-  const create = (
+  const create = async (
     who: typeof owner,
     id: string,
     parent: string | null = null,
@@ -146,7 +149,13 @@ await test('corte 5: árvore, votos e avisos diretos com autorização e persist
     who.operate(parent ? 'reply-create' : 'post-create', {
       id: extraCommunity,
       post: id,
-      content: { title: '', text: 'Resposta sintética', tag: null },
+      content: parent
+        ? { title: '', text: 'Resposta sintética', tags: [] }
+        : await rootPostContent(
+            communities,
+            extraCommunity,
+            'Resposta sintética',
+          ),
       ...(parent ? { parent } : {}),
     });
   const state = async (who: typeof owner, id: string) =>

@@ -25,7 +25,10 @@ import {
 } from '../../src/server/communities/index.ts';
 import { createWebServer } from '../../src/server/web-host/index.ts';
 import { readWebConfiguration } from '../../src/server/web-configuration/index.ts';
-import { createCommunityAccount } from './community-fixture.ts';
+import {
+  createCommunityAccount,
+  rootPostContent,
+} from './community-fixture.ts';
 
 await test('corte 6: feeds públicos, descoberta e referências privadas', async (t) => {
   const config = readWebConfiguration(process.env);
@@ -152,7 +155,13 @@ await test('corte 6: feeds públicos, descoberta e referências privadas', async
       await owner.operate(parent ? 'reply-create' : 'post-create', {
         id: group,
         post: id,
-        content: { title: '', text: 'Texto público sintético', tag: null },
+        content: parent
+          ? { title: '', text: 'Texto público sintético', tags: [] }
+          : await rootPostContent(
+              communities,
+              group,
+              'Texto público sintético',
+            ),
         ...(parent ? { parent } : {}),
       }),
     );

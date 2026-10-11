@@ -17,7 +17,7 @@ function post(): CommunityPost {
     author: null,
     title: 'Título público',
     text: 'Conteúdo público',
-    tag: null,
+    tags: [],
     createdAt: new Date().toISOString(),
     editedAt: null,
     revision: 1,
@@ -72,7 +72,7 @@ await test('responder a uma resposta preserva comunidade/pai direto e ID nas ten
       root: crypto.randomUUID(),
     },
     id = crypto.randomUUID(),
-    content = { title: '', text: 'Resposta', tag: null },
+    content = { title: '', text: 'Resposta', tags: [] },
     accepted = state({
       ...post(),
       id,
@@ -126,7 +126,7 @@ await test('troca de perfil/sessão durante leitura ou preparo não publica nem 
         id: crypto.randomUUID(),
         content: () => {
           valid = false;
-          return Promise.resolve({ title: '', text: 'Rascunho', tag: null });
+          return Promise.resolve({ title: '', text: 'Rascunho', tags: [] });
         },
       },
       access,
@@ -179,12 +179,20 @@ await test('atividade do perfil apresenta título, conteúdo e depois tag, conse
   });
   const value = {
     ...post(),
-    tag: {
-      id: crypto.randomUUID(),
-      label: 'Discussão',
-      active: true,
-      revision: 0,
-    },
+    tags: [
+      {
+        id: crypto.randomUUID(),
+        label: 'Discussão',
+        active: true,
+        revision: 0,
+      },
+      {
+        id: crypto.randomUUID(),
+        label: 'Opinião',
+        active: true,
+        revision: 0,
+      },
+    ],
   };
   const card = renderActivityEntry(
     { post: value, community: { id: value.community, name: 'Comunidade' } },
@@ -194,12 +202,12 @@ await test('atividade do perfil apresenta título, conteúdo e depois tag, conse
     body = card.children.findIndex(
       (node) => node.className === 'community-text',
     ),
-    tag = card.children.findIndex((node) =>
-      node.className.includes('post-tag'),
-    );
+    tag = card.children.findIndex((node) => node.className === 'post-tags');
   assert.ok(title >= 0 && body > title && tag > body);
-  assert.equal(
-    card.children[tag]?.href,
-    `#comunidades?id=${value.community}&tag=${value.tag.id}`,
+  assert.deepEqual(
+    card.children[tag]?.children.map((node) => node.href),
+    value.tags.map(
+      (item) => `#comunidades?id=${value.community}&tag=${item.id}`,
+    ),
   );
 });

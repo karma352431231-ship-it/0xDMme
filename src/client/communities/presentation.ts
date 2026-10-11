@@ -136,14 +136,15 @@ export function postComments(
   );
   container.append(a);
 }
+/** Each tag of the post links to its community filtered by that tag. */
 export function postTagLink(node: HTMLElement, post: CommunityPost): void {
-  if (!post.tag) return;
-  link(
-    node,
-    post.tag.label,
-    `#comunidades?id=${post.community}&tag=${post.tag.id}`,
-  );
-  node.lastElementChild?.classList.add('post-tag');
+  if (!post.tags.length) return;
+  const row = el('div', '', 'post-tags');
+  for (const tag of post.tags) {
+    link(row, tag.label, `#comunidades?id=${post.community}&tag=${tag.id}`);
+    row.lastElementChild?.classList.add('post-tag');
+  }
+  node.append(row);
 }
 
 /**

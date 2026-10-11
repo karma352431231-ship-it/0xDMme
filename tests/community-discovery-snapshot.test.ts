@@ -9,7 +9,7 @@ const post = {
   author: null,
   title: 'Postagem fictícia',
   text: 'Conteúdo fictício',
-  tag: null,
+  tags: [],
   createdAt: '2026-10-10T12:00:00.000Z',
   editedAt: null,
   revision: 1,
