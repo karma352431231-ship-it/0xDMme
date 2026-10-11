@@ -34,7 +34,7 @@ class DeploymentTests(unittest.TestCase):
     def test_executor_transport_handles_large_quoted_sources_without_oversized_shell_argument(self):
         names = ['deploy_sources', 'deploy_runtime', 'deploy_remote', 'deploy_blocks45',
                  'deploy_request_limit', 'deploy_background', 'deploy_profile_social',
-                 'deploy_profile_description']
+                 'deploy_profile_description', 'deploy_group_links']
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory); (root / 'infra/staging').mkdir(parents=True)
             config = {'files': {}}
@@ -131,6 +131,9 @@ class DeploymentTests(unittest.TestCase):
         valid = self.ci_run()
         self.assertEqual(deploy.require_ci({'workflow_runs': [valid]}, 'a' * 40,
                                           'codex/example'), valid['html_url'])
+        principal = dict(valid, head_branch='main')
+        self.assertEqual(deploy.require_ci({'workflow_runs': [principal]}, 'a' * 40,
+                                          'main'), valid['html_url'])
         for field, value in [('head_sha', 'b' * 40), ('head_branch', 'main'),
                              ('event', 'pull_request'), ('path', 'unrelated.yml'),
                              ('status', 'in_progress'), ('conclusion', 'failure'),
@@ -139,6 +142,15 @@ class DeploymentTests(unittest.TestCase):
             bad[field] = value
             with self.assertRaises(RuntimeError):
                 deploy.require_ci({'workflow_runs': [valid, bad]}, 'a' * 40, 'codex/example')
+
+    def test_main_release_keeps_explicit_branch_and_manifest_guards(self):
+        for branch in ['main', 'codex/example']:
+            self.assertTrue(remote.valid_release_branch(branch))
+            remote.validate(dict(manifest(), branch=branch))
+        for branch in ['master', 'main/other', 'feature/example', '../main', None]:
+            self.assertFalse(remote.valid_release_branch(branch))
+            with self.assertRaisesRegex(RuntimeError, 'Invalid branch'):
+                remote.validate(dict(manifest(), branch=branch))
 
     def runtime(self, path):
         (path / 'src/server/database/migrations').mkdir(parents=True)

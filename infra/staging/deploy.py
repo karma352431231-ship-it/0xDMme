@@ -18,7 +18,7 @@ import urllib.parse
 import urllib.request
 import zlib
 
-from deploy_remote import digest, validate
+from deploy_remote import digest, validate, valid_release_branch
 import deploy_sources as public_sources
 import deploy_runtime as runtime
 import deploy_request_limit as request_limits
@@ -49,8 +49,8 @@ def repository():
         raise RuntimeError('Commit reviewed changes before deployment.')
     branch = run(['git', 'symbolic-ref', '--short', 'HEAD']).decode().strip()
     revision = run(['git', 'rev-parse', 'HEAD']).decode().strip()
-    if not re.fullmatch(r'codex/[A-Za-z0-9][A-Za-z0-9._/-]*', branch):
-        raise RuntimeError('An explicit codex branch is required.')
+    if not valid_release_branch(branch):
+        raise RuntimeError('An explicit main or codex branch is required.')
     remote = run(['git', '-c', f'credential.username={OWNER}', 'ls-remote', '--exit-code',
                   'origin', 'refs/heads/' + branch]).decode().split()
     if not remote or remote[0] != revision:
@@ -191,7 +191,7 @@ def private_inputs():
 
 def executor_code(config):
     modules = []
-    for name in ['deploy_sources', 'deploy_runtime', 'deploy_remote', 'deploy_blocks45', 'deploy_request_limit', 'deploy_background', 'deploy_profile_social', 'deploy_profile_description']:
+    for name in ['deploy_sources', 'deploy_runtime', 'deploy_remote', 'deploy_blocks45', 'deploy_request_limit', 'deploy_background', 'deploy_profile_social', 'deploy_profile_description', 'deploy_group_links']:
         path = ROOT / 'infra/staging' / (name + '.py')
         if digest(path) != config['files'].get('infra/staging/' + name + '.py'):
             raise RuntimeError('Deployment executor changed after the reviewed commit.')

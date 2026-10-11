@@ -1,5 +1,33 @@
 # 0xDMme — Git e envio à VPS
 
+## Integração na main e grupos privados — autorização de 11/10/2026
+
+O proprietário pediu integrar as branches no caminho principal e ativar na VPS.
+Todos os commits das branches locais/remotas já pertenciam ao histórico de
+`99c7de5`; a integração da `main` é um avanço sem conflitos, preservando as
+alterações ainda não commitadas nas outras worktrees. O comando existente de
+deploy e a sincronização de fontes aceitam agora `main`, além das branches
+`codex/*`, mantendo checkout limpo, commit enviado e CI integral da branch e do
+commit exatos. Um push continua sem ativar o site automaticamente.
+
+A ativação inclui a transição 053→054 dos links de grupos. O módulo interno
+`deploy_group_links.py` fixa o predecessor publicado
+`4486e3aeb5b3742e6ea173fc954b9cff74f36605` e as fontes de aplicação revisadas
+`99c7de5ec0fcfa14d019c30b6503b67bcf523d20`. Confere toda a árvore de fontes,
+pacotes/Node, as 53 migrações anteriores e os units dos workers. A única tabela
+nova é `group_links`, inicialmente vazia, com gatilho habilitado para o contador
+de uso. Todas as linhas anteriores, checksums, ledger e objetos devem permanecer
+iguais. Não há instalação de dependências ou alteração de serviços compartilhados.
+
+Reutilizar `npm run deploy:staging`: parar os escritores próprios, guardar backup
+privado, ensaiar sua restauração, migrar e verificar antes de reabrir o web e os
+workers. Falha antes da reabertura permite retorno verificado; depois dela,
+preservar as novas escritas e exigir revisão. Evidências ficam em `.local/`.
+
+**Ponto importante:** esta autorização inclui a migração 054 e uma breve
+manutenção do app. Publicação só é confirmada após CI e verificações remotas;
+este registro de autorização não comprova uma ativação concluída.
+
 ## Descrição do perfil — migração 053 autorizada em 10/10/2026
 
 O proprietário autorizou ativar a edição do perfil no lugar e aplicar a migração
