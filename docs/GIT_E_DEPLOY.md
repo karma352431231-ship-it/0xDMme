@@ -1167,3 +1167,24 @@ integrado e limpo e os controles de preservação/rollback já documentados.
 nova política na VPS. A nova identidade do detector exige aceite e transição
 revisados, preservando aprovações anteriores e prazos; o merge não substitui
 esses controles nem autoriza alterar a configuração ativa automaticamente.
+
+### Ativação solicitada após o merge — 11/10/2026
+
+O proprietário pediu ativar a `main` integrada na VPS. O detector simplificado
+precisa de aceite da identidade integral nova; a fusão calibrada e os pesos
+permanecem os mesmos da rodada validada. O aceite do próximo hash incorpora
+somente o pipeline atual, mantendo as três identidades anteriores explicitamente
+revisadas. A lista anterior fica intacta e `HASH_TALK_MODERATION_ACCEPTED_NEXT_HASH`
+recebe a identidade nova; a release anterior ignora esse campo quando usa a lista,
+conservando compatibilidade de rollback. Não ampliar a lista para hashes arbitrários.
+
+Usar o executor existente a partir de commit integrado, enviado e com CI integral
+aprovada. Conferir a configuração em leitura, guardar cópia privada e preparar o
+aceite exato antes do comando `npm run deploy:staging`. Esta transição do detector
+não altera migrações, a versão pública de formato/pinturas `v2`, aprovações antigas
+ou prazos. Novas análises usam somente a identidade atual; decisões anteriores
+permanecem registradas, incluindo os itens retidos para revisão prevista.
+
+**Ponto importante:** aceite exato e saúde dos processos não estabelecem precisão
+universal. Preservar os controles de release, a infraestrutura do outro projeto,
+a proteção de conteúdo aprovado e o rollback da conta documentado acima.

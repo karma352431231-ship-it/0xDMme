@@ -82,7 +82,7 @@ export async function readPoseModerationConfiguration(
       directory: paths.directory,
       runtime,
       model,
-      acceptedModels: reviewedPipelines(model, approvals),
+      acceptedModels: reviewedPipelines(model, approvals, next),
     };
   verifyAcceptance(model.hash, paths.accepted, next);
   const acceptedModels = [model];
@@ -122,22 +122,25 @@ function verifyAcceptance(
     throw new Error('Inference acceptance differs.');
 }
 
-/** Explicit operator approvals, including only the two reviewed compatible predecessors. */
+/** Exact next acceptance adds this revision without breaking the predecessor rollback configuration. */
 function reviewedPipelines(
   model: { hash: string; runtime: string },
   value: string,
+  next: string | undefined,
 ): Array<{ hash: string; runtime: string }> {
   const hashes = value.split(',').map(fingerprint);
+  if (!hashes.includes(model.hash)) {
+    if (next === undefined || fingerprint(next) !== model.hash)
+      throw new Error('Incomplete pipeline approvals.');
+    hashes.push(model.hash);
+  }
   const known = new Set([
     model.hash,
     '6ae4df3886df584b0d2de91d52febf0e3967851da628b6e6ef0d03a4669f7d74',
     '1271c7deba0443c4f53c76295c0789c9cdf766b53a5c9875ab560c2c5a7b7c58',
+    '409455c7f259b71f0d9d2c60704613267da0c597f47c42b6ea92bbaf7f001a3f',
   ]);
-  if (
-    hashes.length > 3 ||
-    new Set(hashes).size !== hashes.length ||
-    !hashes.includes(model.hash)
-  )
+  if (hashes.length > 4 || new Set(hashes).size !== hashes.length)
     throw new Error('Incomplete or duplicated pipeline approvals.');
   if (hashes.some((hash) => !known.has(hash)))
     throw new Error('Unreviewed inference predecessor.');

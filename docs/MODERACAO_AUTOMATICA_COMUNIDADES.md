@@ -406,3 +406,17 @@ Na [fusão local](../infra/public-moderation/fusion_policy.py), a categoria `sim
 Reutilizando os mesmos 36 pares de original/miniatura, a regra simplificada libera 20 das 21 imagens antes marcadas Passa; uma continua retida. Na baseline ativa passavam dez e no ajuste anterior passavam 15. As 15 antes marcadas Bloqueia continuam restritas, agora com seis recusas e nove retenções. Os rótulos não foram alterados. Todos os scores já eram conhecidos: estes números são avaliação do novo escopo no material existente, sem nova validação independente ou estimativa de precisão universal.
 
 Os onze testes direcionados da fusão passaram, incluindo invariância da decisão a valores válidos da categoria de pose, nudez pintada sem ato, proibição de ato sexual efetivo em qualquer pintura, nudez corroborada, visões incompletas/divergentes e cobertura com score genérico moderado. As 37 decisões antigas de regressão continuam iguais. Os novos contratos de independência de pose falham no critério anterior, e o teste da miniatura coberta falha antes de ajustar o limite genérico. O executor real da nova fusão concordou com a reprodução em 72 entradas; evidências individuais e hashes ficam somente em `.local/`.
+
+### Transição do detector após integração — 11/10/2026
+
+Após o merge, o proprietário pediu ativar a release na VPS. A revisão do detector
+é identificada pelo hash integral de fonte, fusão, pesos, preparo e configuração.
+O contrato público `v2` de formato e pinturas permanece compatível; esta ativação
+não exige mudança de schema. O aceite exato do próximo hash conserva as três
+identidades aprovadas anteriormente, sem reutilizar sua aceitação para uma análise
+nova. A lista anterior permanece válida também para rollback da release.
+
+A decisão nova vale nas análises feitas pela revisão atual. Aprovações e decisões
+anteriores permanecem registradas; itens já retidos seguem a revisão prevista e o
+prazo original, sem reabertura automática ou nova janela de sete dias. Publicar
+pelo executor existente somente após testes e CI integral do commit exato.
