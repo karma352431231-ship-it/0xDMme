@@ -111,7 +111,7 @@ function fixture(post = false) {
     author: null,
     title: 'Postagem sintética',
     text: 'Texto público',
-    tag: null,
+    tags: [],
     createdAt: '2026-10-11T12:00:00.000Z',
     editedAt: null,
     revision: 1,

@@ -10,8 +10,9 @@ import deploy_group_links as groups
 # The predecessor is the integrated main with migration 054 (private group links).
 BEFORE = '9719676d1ae2bb6a8ed6c8c11fe06b05706e0dbd'
 # Owner chose several tags per post, required title and tag, on 11/10/2026.
-# Bind the exact reviewed application sources.
-REVIEWED = '91cc993a6ae24a443f5d61247e0e1caada3f95e9'
+# Owner authorized merging the community refresh fix with main and activation.
+# Bind the integrated application; the 054 predecessor and SQL guards stay exact.
+REVIEWED = '40cd67d7a050c92ea5c38195ed04a4c2be8d7edb'
 OLD_TABLES = groups.OLD_TABLES + groups.NEW_TABLES
 NEW_TABLES = ('community_post_extra_tags',)
 

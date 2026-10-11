@@ -1,6 +1,24 @@
 # 0xDMme — Git e envio à VPS
 
-## Várias tags por post — migração 055 preparada em 11/10/2026 (não ativada)
+## Fix de rechecagem integrado à main — ativação autorizada em 11/10/2026
+
+Após a conferência do Git, o proprietário pediu integrar o fix de piscadas à
+`main` e ativar na VPS. A integração inclui a migração 055 de tags já preparada;
+a autorização anterior de preparar sem publicar passa a permitir esta ativação.
+Reutilizar `npm run deploy:staging`, com checkout limpo/enviado, CI integral do
+commit exato, build no Mac, backup com restauração ensaiada, preservação e retorno
+limitado ao app próprio. A moderação não commitada da outra sessão fica fora.
+
+A conferência prévia confirmou fontes de `9719676`, os checksums das 54 migrações
+e prontidão dos três workers. A falha anterior foi recuperada. O executor da 055
+conserva esse predecessor e fixa as fontes integradas em `40cd67d7a050c92ea5c38195ed04a4c2be8d7edb`;
+nenhum SQL anterior, dependência, Node ou unit foi alterado pelo fix.
+
+**Ponto importante:** a transição 054→055 exige breve manutenção e preservação
+das linhas existentes. Esta autorização não comprova publicação concluída nem
+aceite físico das piscadas; evidências operacionais ficam em `.local/`.
+
+## Várias tags por post — migração 055 preparada em 11/10/2026
 
 O proprietário pediu título obrigatório e de 1 a 5 tags por post, e pediu para deixar a mudança pronta no Git, sem enviar à VPS. A migração 055 cria `community_post_extra_tags` (vazia, cobrança e gatilho de uso) e afrouxa a regra de conteúdo de `community_posts` para título, texto ou mídia; nenhuma linha existente muda.
 
