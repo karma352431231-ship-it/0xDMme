@@ -41,26 +41,28 @@
 .app[data-page='comunidades'] .page-heading {
   display: none;
 }
+/* Generic controls of the communities area; the shared chat keeps its own. */
 :is(.app[data-page='comunidades'], .community-scope)
-  :is(button, input, textarea, select) {
+  :is(button, input, textarea, select):where(:not(.chat-panel *)) {
   font: inherit;
   color: var(--text);
 }
 :is(.app[data-page='comunidades'], .community-scope)
-  :is(button, select, textarea),
+  :is(button, select, textarea):where(:not(.chat-panel *)),
 :is(.app[data-page='comunidades'], .community-scope)
-  input:not([type='checkbox']) {
+  input:not([type='checkbox']):where(:not(.chat-panel *)) {
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--surface);
   min-height: 40px;
   max-width: 100%;
 }
-:is(.app[data-page='comunidades'], .community-scope) :is(button, select) {
+:is(.app[data-page='comunidades'], .community-scope)
+  :is(button, select):where(:not(.chat-panel *)) {
   padding: 8px 12px;
 }
 :is(.app[data-page='comunidades'], .community-scope)
-  :is(button, a, summary):hover {
+  :is(button, a, summary):where(:not(.chat-panel *)):hover {
   color: var(--accent);
 }
 :is(.app[data-page='comunidades'], .community-scope) .icon-button {
@@ -254,7 +256,8 @@
   font-size: var(--fs-caption);
   color: var(--accent);
 }
-:is(.app[data-page='comunidades'], .community-scope) svg {
+:is(.app[data-page='comunidades'], .community-scope)
+  svg:where(:not(.chat-panel *)) {
   width: 18px;
   height: 18px;
   flex-shrink: 0;
@@ -2166,4 +2169,81 @@
 }
 .community-hint {
   color: var(--text-muted);
+}
+
+/*
+ * Public @ conversations use the private chat frame. In the workspace chat
+ * column the frame replaces the old bar; on the Comunidades page it gets a
+ * height of its own, since the page itself scrolls.
+ */
+.public-chat:has(.social-dm-panel) {
+  border: 0;
+  background: transparent;
+}
+.public-chat:has(.social-dm-panel) .public-chat-bar {
+  display: none;
+}
+.public-chat-body:has(> .social-dm-panel) {
+  display: flex;
+  padding: 0;
+  overflow: hidden;
+}
+.app[data-page='comunidades'] .social-dm-panel {
+  height: calc(100dvh - 120px);
+  min-height: 420px;
+}
+.social-dm-panel .chat-history {
+  display: flex;
+  flex-direction: column;
+}
+.dm-request {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  padding: 16px 18px 18px;
+  border-top: 1px solid var(--line);
+  background: var(--surface-2);
+  text-align: center;
+}
+.dm-request[hidden] {
+  display: none;
+}
+.chat-panel .dm-request p {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--fs-small);
+}
+.chat-panel .dm-request button {
+  margin: 0 4px;
+  padding: 9px 20px;
+  border-radius: 999px;
+  font-weight: 600;
+}
+.chat-panel .dm-request button.primary {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+.dm-list {
+  display: grid;
+  align-content: start;
+  gap: 2px;
+  height: 100%;
+  padding: 10px;
+  overflow-y: auto;
+}
+.dm-list-title {
+  margin: 14px 8px 4px;
+  color: var(--text-muted);
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.chat-panel .dm-list .chat-older {
+  justify-self: center;
+}
+@media (max-width: 700px) {
+  .app[data-page='comunidades'] .social-dm-panel {
+    height: calc(100dvh - 170px);
+  }
 }

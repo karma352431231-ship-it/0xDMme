@@ -349,3 +349,17 @@ Pedido do proprietário:
 
 - **Gerenciar comunidade:** a tela virou abas — Geral (nome, descrição, regras e foto), Tags, Moderação (moderadores, suspensão, sanções e denúncias) e, para o dono, Propriedade (transferência e arquivamento). Um grupo por vez, com os cartões lado a lado em telas largas, campos e botões menores. Tags e moderadores carregam sozinhos, sem "Carregar…"; "Mais" só aparece quando há próxima página. A aba aberta continua após salvar.
 - **Enter envia** nas conversas privadas, nos grupos e nas mensagens pelo `@`: texto, foto ou prévia de voz, o mesmo que o botão Enviar enviaria. Shift+Enter quebra a linha. Em teclados de toque, Enter continua quebrando a linha (o botão de enviar fica ao lado); Ctrl/Cmd+Enter envia. Depois de escolher um arquivo com mouse e teclado, o foco volta ao campo, então Enter já envia. Nas mensagens pelo `@`, com o campo vazio, Enter envia a mídia preparada.
+
+## Chat público igual ao privado — 10/10/2026
+
+Pedido do proprietário: as mensagens pelo `@` usam o mesmo quadro do chat privado, na coluna de conversas e na página de Comunidades.
+
+- **Cabeçalho:** foto e `@`, subtítulo com o estado da conversa (no lugar da presença) e menu "⋯" com Ver perfil público, Bloquear/Desbloquear e Recarregar.
+- **Histórico:** bolhas iguais às do privado (enviadas à direita), emojis, GIF do KLIPY, vídeos externos e mídia com o mesmo player; "Mensagens anteriores" no topo.
+- **Compositor:** o mesmo do privado (emoji com aba GIF, clipe, microfone com segurar/toque duplo, barra de gravação, prévia, Enter). Foto, GIF ou voz ficam em memória com prévia até Enviar; o envio prepara e manda a mídia com o texto digitado como legenda. Mídia salva antes neste aparelho aparece como pendente, com envio ou lixeira.
+- **Pedido de conversa:** solicitar, aguardar, aceitar ou recusar aparecem num aviso no lugar do compositor.
+- **Lista de conversas `@`:** linhas iguais às de Conversas, com as cópias deste aparelho embaixo.
+
+As regras genéricas de botão/campo/ícone de Comunidades não se aplicam mais dentro do quadro de chat (`:where(:not(.chat-panel *))`, sem mudar a especificidade do restante).
+
+**Ponto importante:** o servidor das mensagens pelo `@` não tem reações, responder, editar/apagar, confirmação de leitura nem chamadas, e as mensagens não guardam horário; por isso as bolhas públicas não mostram hora nem marcações de entrega. Esses recursos exigem trabalho de protocolo e servidor próprio.

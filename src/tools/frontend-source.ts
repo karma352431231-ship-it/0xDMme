@@ -223,9 +223,21 @@ export async function frontendSource(
   verifyInputs(root, inputs, included);
   if (included.size > 1024) throw new Error('Quantidade de fontes excedida.');
   // Explicit paths only: no repository-wide archive, shell, .local or backend.
+  // Plain ustar: the same files without per-file extended metadata (macOS
+  // xattrs, sub-second times), which compressed poorly and varied by machine.
   const { stdout } = await execute(
     'tar',
-    ['-cf', '-', '--no-recursion', '-C', root, '--', ...included],
+    [
+      '--format',
+      'ustar',
+      '-cf',
+      '-',
+      '--no-recursion',
+      '-C',
+      root,
+      '--',
+      ...included,
+    ],
     { encoding: 'buffer', maxBuffer: 24 * 1024 * 1024, timeout: 30_000 },
   );
   const archive = gzipSync(stdout, { level: 9 });

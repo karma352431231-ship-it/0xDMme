@@ -41,8 +41,12 @@ export function chatCollapse(): string {
 }
 
 /** Authored markup only. Account names and decrypted text never enter this template. */
-export function chatComposer(scope: 'message' | 'group'): string {
-  const form = scope === 'message' ? 'message-form' : 'group-compose';
+export function chatComposer(scope: 'message' | 'group' | 'public'): string {
+  const form = {
+    message: 'message-form',
+    group: 'group-compose',
+    public: 'public-compose',
+  }[scope];
   return `<form data-${form} class="chat-composer">
     ${scope === 'message' ? `<div data-compose-bar class="compose-context" hidden><p data-compose-context></p><button data-compose-cancel class="chat-icon" type="button" aria-label="Cancelar resposta ou edição">${chatIcon('close')}</button></div>` : ''}
     <div class="compose-preview"><div data-attachment-preview></div><button data-attachment-clear class="chat-icon" type="button" aria-label="Remover anexo" title="Remover anexo" hidden>${chatIcon('trash')}</button></div>
@@ -96,7 +100,7 @@ export function updateChatComposer(
   if (text) text.disabled = input.recording;
   form
     .querySelectorAll<HTMLButtonElement>(
-      '[data-chat-attachment], [data-message-emoji], [data-group-emoji]',
+      '[data-chat-attachment], [data-message-emoji], [data-group-emoji], [data-public-emoji]',
     )
     .forEach((button) => {
       button.disabled = state.disabled;

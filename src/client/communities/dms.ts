@@ -3,30 +3,30 @@ import { publicProfile } from '../../shared/public-profile/index.ts';
 import type { PublicProfile } from '../../shared/public-profile/index.ts';
 import { socialRelation } from '../../shared/social-dm/index.ts';
 import type { SocialRelation } from '../../shared/social-dm/index.ts';
-import { prepareSocialImage } from '../social-media/index.ts';
 import { AttachmentUi } from '../attachment-ui/index.ts';
 import { VoicePlayback } from '../voice-playback/index.ts';
-import { VoiceRecording } from '../voice-recording/index.ts';
 import { LiveMessages } from '../message-live/index.ts';
 import { socialAttachment } from '../../shared/social-media/index.ts';
 import { SocialDms } from '../social-dm/index.ts';
 import type { VaultAccess } from '../vault-authority/index.ts';
 import type { VaultSync } from '../vault-sync/index.ts';
-import {
-  communityButton,
-  communityCard,
-  communityElement,
-  communityField,
-  communityLink,
-} from './elements.ts';
-import { postText } from './post-text.ts';
-import { communityIcon } from './presentation.ts';
-import { sendOnEnter } from '../chat-ui/index.ts';
-import { dropFilesInto } from '../file-drop/index.ts';
-import { showToast } from '../toast/index.ts';
+import { historyPosition, resetHistoryPosition } from '../chat-ui/index.ts';
+import { communityElement } from './elements.ts';
 import { paintAvatar } from '../appearance/index.ts';
-import { showExternalVideos } from '../external-video/index.ts';
 import type { ExternalMediaConsent } from '../external-media/index.ts';
+import {
+  dmBubble,
+  dmConversationView,
+  dmListView,
+  dmRequestState,
+  dmStateLabel,
+  paintDmPeer,
+} from './dm-chat.ts';
+import type { DmRequestAction, DmView } from './dm-chat.ts';
+import { startDmComposer } from './dm-composer.ts';
+
+type DmPage = Awaited<ReturnType<SocialDms['cached']>>;
+type DmItem = DmPage['items'][number];
 
 export function startSocialDmUi(
   access: VaultAccess,
@@ -36,39 +36,42 @@ export function startSocialDmUi(
   const controller = new SocialDms(access, sync);
   const playback = new VoicePlayback(),
     mediaUi = new AttachmentUi(playback, () => {});
-  const recording = new VoiceRecording({
-    changed: (state) => {
-      if (output) output.textContent = state.notice;
-    },
-    completed: (selection) => {
+  const composer = startDmComposer({
+    playback,
+    privacy,
+    run,
+    submit: async ({ text, media, pending }) => {
       const selected = peer;
       if (!selected) return;
-      void run(async () => {
-        try {
-          await controller.stageMedia(selected, selection, 'voice', draft);
-        } finally {
-          selection.bytes.fill(0);
-        }
-        if (output)
-          output.textContent =
-            'Áudio preparado. Envie ou cancele a mídia pendente.';
-      });
+      if (media) {
+        await controller.stageMedia(
+          selected,
+          media.selection,
+          media.media,
+          text.trim(),
+        );
+        await controller.sendMedia(selected);
+      } else {
+        if (pending) await controller.sendMedia(selected);
+        if (text.trim()) await sendText(selected, text);
+      }
+      before = null;
+      await conversation();
+    },
+    discardPending: async () => {
+      if (peer) await controller.cancelMedia(peer);
     },
   });
   const live = new LiveMessages({
     access,
     event: (event) => {
-      if (!container || busy || recording.active) return;
+      if (!container || busy || composer.active) return;
       if (['ready', 'changed', 'authorization', 'invalidated'].includes(event))
         void run(async () => {
           await playback.check((target) =>
             controller.state(target).then((state) => state?.canSend ?? false),
           );
-          if (peer) await conversation();
-          else {
-            cursor = null;
-            await list();
-          }
+          await reload();
         });
     },
     changed: () => {},
@@ -79,308 +82,318 @@ export function startSocialDmUi(
       if (
         !container ||
         busy ||
-        recording.active ||
+        composer.active ||
         live.connected ||
         document.visibilityState !== 'visible'
       )
         return;
-      void run(async () => {
-        if (peer) await conversation();
-        else {
-          cursor = null;
-          await list();
-        }
-      });
+      void run(reload);
     }, 30000);
   }
   let container: HTMLElement | null = null,
     session: AccountSession | null = null,
-    output: HTMLElement | null = null;
+    view: DmView | null = null,
+    viewKey = '';
   let generation = 0,
     busy = false,
     peer: string | null = null,
     cursor: string | null = null,
     before: number | null = null;
-  let draft = '',
-    messageId: string = crypto.randomUUID();
+  let messageId: string = crypto.randomUUID();
   let ownProfile: string | null = null;
   let localOnly = false;
   let externalAbort = new AbortController();
-  let currentCard: HTMLElement | null = null,
-    cardKey = '';
-  const textRows = new Map<
+  const rows = new Map<
     string,
-    { text: string; row: HTMLElement; stop: () => void }
+    { key: string; row: HTMLElement; stop: () => void }
   >();
-  function clearExternal(): void {
+  function clearRows(): void {
     externalAbort.abort();
     externalAbort = new AbortController();
-    textRows.clear();
-    currentCard = null;
+    for (const held of rows.values()) held.stop();
+    rows.clear();
+    mediaUi.clearMedia();
   }
-  function feedback(error: unknown): void {
-    if (output)
-      output.textContent =
-        error instanceof Error ? error.message : 'DM indisponível.';
+  function status(message: string): void {
+    if (view) view.gate.textContent = message;
+    else if (container)
+      container.replaceChildren(communityElement('p', message, 'chat-gate'));
   }
   async function run(work: () => Promise<void>): Promise<void> {
     if (busy) return;
     const old = generation;
     busy = true;
-    container
-      ?.querySelectorAll<HTMLButtonElement>('button')
-      .forEach((b) => (b.disabled = true));
+    composer.update({ ...composerState(), busy: true });
     try {
       await work();
     } catch (error: unknown) {
-      if (old === generation) feedback(error);
+      if (old === generation)
+        status(error instanceof Error ? error.message : 'DM indisponível.');
     } finally {
       busy = false;
-      if (old === generation)
-        container
-          ?.querySelectorAll<HTMLButtonElement>('button')
-          .forEach((b) => (b.disabled = false));
+      if (old === generation) composer.update(composerState());
     }
   }
-  function card(title: string): HTMLElement {
-    if (!container) throw new Error('DM encerrada.');
-    const key = `${peer}:${before}:${localOnly}`;
-    if (
-      peer &&
-      currentCard &&
-      cardKey === key &&
-      container.contains(currentCard)
-    ) {
-      for (const child of [...currentCard.children])
-        if (!child.classList.contains('social-dm-history')) child.remove();
-      currentCard.prepend(communityElement('h2', title));
-      output = communityElement('p', '', 'community-feedback');
-      output.setAttribute('role', 'status');
-      currentCard.append(output);
-      return currentCard;
+  let writable = false,
+    pendingMedia = false;
+  function composerState() {
+    return { writable, pending: pendingMedia, busy };
+  }
+  async function reload(): Promise<void> {
+    if (peer) await conversation();
+    else {
+      cursor = null;
+      await list();
     }
-    clearExternal();
-    cardKey = key;
-    container.replaceChildren();
-    const navigation = communityElement('nav', '', 'community-tabs');
-    navigation.setAttribute('aria-label', 'Mensagens pelo @');
-    communityLink(
-      navigation,
-      'Voltar às comunidades',
-      '#comunidades?view=feed',
-    );
-    if (peer)
-      communityLink(navigation, 'Lista de mensagens', '#comunidades?view=dms');
-    container.append(navigation);
-    const node = communityCard(title);
-    currentCard = node;
-    container.append(node);
-    output = communityElement('p', '', 'community-feedback');
-    output.setAttribute('role', 'status');
-    node.append(output);
-    return node;
+  }
+  async function sendText(selected: string, text: string): Promise<void> {
+    await controller.send(selected, text, messageId);
+    messageId = crypto.randomUUID();
   }
   async function list(): Promise<void> {
-    if (localOnly || !navigator.onLine) {
-      await copiesList();
-      return;
-    }
+    if (!container) return;
     const old = generation,
-      page = await controller.list(cursor);
+      offline = localOnly || !navigator.onLine,
+      page = offline ? null : await controller.list(cursor);
     if (old !== generation || !container) return;
-    const node = card('Mensagens pelo @');
-    node.append(
-      communityElement(
-        'p',
-        'DMs privadas com identidade pública. Solicitações não compartilham seu perfil privado.',
-      ),
-    );
-    for (const row of page.items) {
-      const item = communityElement('div', '', 'community-row');
-      communityLink(
-        item,
-        `@${row.peer.handle} · ${relationLabel(row)}`,
-        `#comunidades?view=dms&dm=${row.peer.id}`,
-      );
-      node.append(item);
-    }
+    view = null;
+    viewKey = '';
+    const host = dmListView(container);
+    if (page) listRows(host, page);
+    await copiesList(host);
+    cursor = page?.next ?? null;
+    if (cursor) moreButton(host, 'Mais conversas', list);
+  }
+  function listRows(
+    host: HTMLElement,
+    page: Awaited<ReturnType<SocialDms['list']>>,
+  ): void {
+    for (const row of page.items) host.append(directoryRow(row));
     if (!page.items.length)
-      node.append(
+      host.append(
         communityElement(
           'p',
-          'Sem DMs nesta página. Abra um perfil público para solicitar uma conversa.',
+          'Nenhuma conversa @ ainda. Abra um perfil público para mandar mensagem.',
+          'chat-gate',
         ),
       );
-    await copiesList(node);
-    cursor = page.next;
-    if (page.next) communityButton(node, 'Próxima página', () => run(list));
-    communityButton(node, 'Recarregar lista', () =>
-      run(async () => {
-        cursor = null;
-        await list();
-      }),
-    );
   }
   async function copiesList(
-    target?: HTMLElement,
+    host: HTMLElement,
     after: string | null = null,
   ): Promise<void> {
     const old = generation,
       page = await controller.copies(after);
-    if (old !== generation || !container) return;
-    const node = target ?? card('Mensagens pelo @ no aparelho');
-    if (page.items.length)
-      node.append(communityElement('h3', 'Histórico neste aparelho'));
+    if (old !== generation) return;
+    if (page.items.length && !after)
+      host.append(communityElement('h4', 'Neste aparelho', 'dm-list-title'));
     for (const row of page.items)
-      communityLink(
-        node,
-        `@${row.peer.handle} · Cópia local`,
-        `#comunidades?view=dms&dm=${row.peer.id}&history=local`,
-      );
-    if (!target && !page.items.length)
-      node.append(
-        communityElement('p', 'Sem histórico de DMs nesta página do aparelho.'),
+      host.append(
+        directoryRow(
+          { peer: row.peer, label: 'Cópia local' },
+          `&history=local`,
+        ),
       );
     if (page.next)
-      communityButton(node, 'Mais históricos locais', () =>
-        run(() => copiesList(undefined, page.next)),
-      );
+      moreButton(host, 'Mais cópias locais', () => copiesList(host, page.next));
+  }
+  function moreButton(
+    host: HTMLElement,
+    label: string,
+    work: () => Promise<void>,
+  ): void {
+    const button = communityElement('button', label, 'chat-older');
+    button.type = 'button';
+    button.addEventListener('click', () => {
+      button.remove();
+      void run(work);
+    });
+    host.append(button);
   }
   async function identity(id: string): Promise<PublicProfile> {
     // UUID is not a directory of private contacts. Only already-approved public identities are returned.
-    const rows = await controller.list(null);
-    const known = rows.items.find((row) => row.peer.id === id);
+    const page = await controller.list(null);
+    const known = page.items.find((row) => row.peer.id === id);
     if (known) return known.peer;
-    const raw = await controller.request('profile', { peer: id });
-    return publicProfile(raw);
+    return publicProfile(await controller.request('profile', { peer: id }));
+  }
+  /** One frame per conversation: refreshes update it in place. */
+  function frame(selected: string): DmView {
+    const key = `${selected}:${localOnly}`;
+    if (view && viewKey === key && container?.contains(view.panel)) return view;
+    if (!container) throw new Error('DM encerrada.');
+    composer.leave();
+    clearRows();
+    view = dmConversationView(container);
+    viewKey = key;
+    resetHistoryPosition(view.history);
+    composer.bind(view);
+    view.older.addEventListener('click', () => {
+      void run(async () => {
+        await conversation();
+      });
+    });
+    return view;
+  }
+  /** What the server (or, offline, this device) knows about the conversation. */
+  async function loadConversation(selected: string) {
+    const offline = localOnly || !navigator.onLine;
+    if (offline) {
+      const page = await controller.cached(selected, before);
+      return {
+        offline,
+        value: null,
+        page,
+        profile: page.items[0]?.peer ?? null,
+      };
+    }
+    const value = await controller.state(selected);
+    return {
+      offline,
+      value,
+      page: null,
+      profile: value?.peer ?? (await identity(selected)),
+    };
   }
   async function conversation(): Promise<void> {
-    if (!peer) return;
-    if (localOnly || !navigator.onLine) {
-      await offlineConversation(peer);
+    const selected = peer;
+    if (!selected || !container) return;
+    const old = generation,
+      data = await loadConversation(selected);
+    if (old !== generation || !container) return;
+    const current = frame(selected);
+    current.gate.textContent = '';
+    paintHeader(current, data);
+    options(current, selected, data.profile, data.value);
+    const request = dmRequestState({
+      value: data.value,
+      own: ownProfile,
+      local: data.offline,
+      canRequest: !data.offline && canRequest(data.value),
+      handle: data.profile?.handle ?? '',
+    });
+    requestBanner(current, selected, data.value, request);
+    writable = !data.offline && request === null;
+    await messages(current, selected, old, data.page);
+  }
+  function paintHeader(
+    current: DmView,
+    data: Awaited<ReturnType<typeof loadConversation>>,
+  ): void {
+    if (!data.profile) {
+      current.title.textContent = 'Histórico de DM no aparelho';
       return;
     }
-    const old = generation,
-      selected = peer,
-      value = await controller.state(selected),
-      profile = value ? value.peer : await identity(selected);
-    if (old !== generation || !container) return;
-    const node = card(`DM com @${profile.handle}`);
-    communityLink(
-      node,
-      'Ver perfil público',
-      `#publico?handle=${encodeURIComponent(profile.handle)}`,
-    );
-    node.append(
-      communityElement(
-        'p',
-        'Somente @ e avatar públicos. Texto, áudio, foto e GIF com E2EE; mensagens ficam ilegíveis no servidor.',
-      ),
-    );
-    if (canRequest(value)) {
-      communityButton(node, 'Solicitar DM', () =>
-        run(async () => {
-          socialRelation(
-            await controller.request('request', { peer: selected }),
-          );
-          await conversation();
-        }),
-      );
-      blockControl(node, selected, value);
-      await messages(node, selected, old, false);
-      return;
-    }
-    if (!value) throw new Error('Relação da DM ausente.');
-    await consentControls({ node, selected, value, old });
-    if (old !== generation) return;
-    blockControl(node, selected, value);
-    communityButton(node, 'Recarregar conversa', () =>
-      run(async () => {
-        before = null;
-        await conversation();
-      }),
-    );
+    paintDmPeer(current, {
+      profile: data.profile,
+      state: dmStateLabel(data.value, ownProfile, data.offline),
+      signal: externalAbort.signal,
+    });
   }
-  async function offlineConversation(selected: string): Promise<void> {
-    const old = generation,
-      page = await controller.cached(selected, before);
-    if (old !== generation || !container) return;
-    const profile = page.items[0]?.peer;
-    const node = card(
-      profile ? `DM com @${profile.handle}` : 'Histórico de DM no aparelho',
-    );
-    node.append(
-      communityElement(
-        'p',
-        'Cópia local. Conecte para sincronizar, solicitar ou enviar mensagens.',
-      ),
-    );
-    await messages(node, selected, old, false);
-  }
-  function blockControl(
-    node: HTMLElement,
+  async function messages(
+    current: DmView,
     selected: string,
+    old: number,
+    cached: DmPage | null,
+  ): Promise<void> {
+    const page =
+      cached ??
+      (writable
+        ? await controller.read(selected, before)
+        : await controller.cached(selected, before));
+    const draft = writable ? await controller.pending(selected) : null;
+    pendingMedia = writable ? await controller.mediaDraft(selected) : false;
+    if (old !== generation) return;
+    if (draft) {
+      messageId = draft.id;
+      composer.restoreDraft(draft.text);
+    }
+    renderHistory(current, page, { selected, localMedia: !writable });
+    composer.update(composerState());
+  }
+  function options(
+    current: DmView,
+    selected: string,
+    profile: PublicProfile | null,
     value: SocialRelation | null,
   ): void {
+    current.options.replaceChildren();
+    if (profile) {
+      const link = communityElement('a', 'Ver perfil público');
+      link.href = `#publico?handle=${encodeURIComponent(profile.handle)}`;
+      current.options.append(link);
+    }
+    if (localOnly || !navigator.onLine) return;
     const blocked = value?.blocked ?? false;
-    communityButton(
-      node,
-      blocked ? 'Desbloquear esta DM' : 'Bloquear esta DM',
-      () =>
-        run(async () => {
-          await controller.request('block', {
-            peer: selected,
-            blocked: !blocked,
-            revision: value?.blockRevision ?? 0,
-          });
-          before = null;
-          await conversation();
-        }),
-    );
+    optionButton(current, blocked ? 'Desbloquear' : 'Bloquear', async () => {
+      await controller.request('block', {
+        peer: selected,
+        blocked: !blocked,
+        revision: value?.blockRevision ?? 0,
+      });
+      before = null;
+      await conversation();
+    });
+    optionButton(current, 'Recarregar conversa', async () => {
+      before = null;
+      await conversation();
+    });
   }
-  async function consentControls(input: {
-    node: HTMLElement;
-    selected: string;
-    value: SocialRelation;
-    old: number;
-  }): Promise<void> {
-    const { node, selected, value, old } = input;
-    if (value.state === 'pending') {
-      const own = ownProfile;
-      if (old !== generation) return;
-      node.append(
-        communityElement(
-          'p',
-          value.requester === own
-            ? 'Aguardando aceite. Nenhuma mensagem livre pode ser enviada.'
-            : 'Solicitação de conversa pelo @.',
-        ),
+  function optionButton(
+    current: DmView,
+    label: string,
+    work: () => Promise<void>,
+  ): void {
+    const button = communityElement('button', label);
+    button.type = 'button';
+    button.addEventListener('click', () => {
+      button.closest('details')?.removeAttribute('open');
+      void run(work);
+    });
+    current.options.append(button);
+  }
+  function requestBanner(
+    current: DmView,
+    selected: string,
+    value: SocialRelation | null,
+    request: ReturnType<typeof dmRequestState>,
+  ): void {
+    current.request.hidden = request === null;
+    current.request.replaceChildren();
+    if (!request) return;
+    current.request.append(communityElement('p', request.text));
+    const labels: Record<DmRequestAction, string> = {
+      request: 'Solicitar DM',
+      accept: 'Aceitar',
+      reject: 'Recusar',
+    };
+    for (const action of request.actions) {
+      const button = communityElement(
+        'button',
+        labels[action],
+        action === 'reject' ? '' : 'primary',
       );
-      if (value.requester !== own)
-        for (const [accept, label] of [
-          [true, 'Aceitar DM'],
-          [false, 'Recusar'],
-        ] as const)
-          communityButton(node, label, () =>
-            run(async () => {
-              await controller.request('decide', {
-                peer: selected,
-                revision: value.revision,
-                accept,
-              });
-              await conversation();
-            }),
-          );
-    } else if (!value.canSend)
-      node.append(
-        communityElement('p', 'Esta DM está recusada ou indisponível.'),
-      );
-    await messages(
-      node,
-      selected,
-      old,
-      value.state === 'approved' && value.canSend,
-    );
+      button.type = 'button';
+      button.addEventListener('click', () => {
+        void run(() => decide(selected, value, action));
+      });
+      current.request.append(button);
+    }
+  }
+  async function decide(
+    selected: string,
+    value: SocialRelation | null,
+    action: DmRequestAction,
+  ): Promise<void> {
+    if (action === 'request')
+      socialRelation(await controller.request('request', { peer: selected }));
+    else if (value)
+      await controller.request('decide', {
+        peer: selected,
+        revision: value.revision,
+        accept: action === 'accept',
+      });
+    await conversation();
   }
   function canRequest(value: SocialRelation | null): boolean {
     return (
@@ -390,227 +403,83 @@ export function startSocialDmUi(
         value.requester !== ownProfile)
     );
   }
-  async function messages(
-    node: HTMLElement,
-    selected: string,
-    old: number,
-    writable: boolean,
-  ): Promise<void> {
-    const page = writable
-      ? await controller.read(selected, before)
-      : await controller.cached(selected, before);
-    const pending = writable ? await controller.pending(selected) : null;
-    if (pending) {
-      draft = pending.text;
-      messageId = pending.id;
-    }
-    if (old !== generation) return;
-    renderHistory({ node, selected, page, localMedia: !writable });
-    if (!writable) return;
-    if (await controller.mediaDraft(selected))
-      node.append(
-        communityElement(
-          'p',
-          'Há mídia pendente neste aparelho. Retome o envio ou cancele.',
-        ),
-      );
-    const text = communityField(node, 'Mensagem de texto', {
-      value: draft,
-      multiline: true,
-      maximum: 1000000,
-    });
-    text.addEventListener('input', () => {
-      draft = text.value;
-    });
-    const image = communityElement('input');
-    image.type = 'file';
-    image.hidden = true;
-    image.accept = 'image/png,image/jpeg,image/webp,image/gif';
-    image.setAttribute('aria-label', 'Foto ou GIF para esta DM');
-    const attach = communityElement('button', '', 'media-picker-button');
-    attach.type = 'button';
-    attach.setAttribute('aria-label', 'Anexar foto ou GIF');
-    attach.title = 'Anexar foto ou GIF';
-    attach.append(communityIcon('clip'));
-    attach.addEventListener('click', () => {
-      image.click();
-    });
-    node.append(image, attach);
-    dropFilesInto(node, image);
-    image.addEventListener('change', () => {
-      const file = image.files?.[0];
-      image.value = '';
-      if (!file) return;
-      void run(async () => {
-        const prepared = await prepareSocialImage(file).catch(
-          (error: unknown) => {
-            showToast(
-              error instanceof Error ? error.message : 'Imagem inválida.',
-            );
-            return null;
-          },
-        );
-        if (!prepared) return;
-        try {
-          await controller.stageMedia(
-            selected,
-            prepared.selection,
-            prepared.media,
-            draft,
-          );
-          if (output)
-            output.textContent =
-              'Mídia preparada. Envie ou cancele a mídia pendente.';
-        } finally {
-          prepared.selection.bytes.fill(0);
-          prepared.selection.thumbnail?.fill(0);
-        }
-      });
-    });
-    communityButton(node, 'Gravar áudio', () => recording.start());
-    communityButton(node, 'Concluir gravação', () => recording.stop());
-    const sendMedia = communityButton(node, 'Enviar mídia preparada', () =>
-      run(async () => {
-        await controller.sendMedia(selected);
-        before = null;
-        await conversation();
-      }),
-    );
-    communityButton(node, 'Cancelar mídia pendente', () =>
-      run(async () => {
-        await controller.cancelMedia(selected);
-        if (output) output.textContent = 'Mídia pendente cancelada.';
-      }),
-    );
-    const sendText = communityButton(node, 'Enviar mensagem', () =>
-      run(async () => {
-        await controller.send(selected, draft, messageId);
-        if (old !== generation) return;
-        draft = '';
-        messageId = crypto.randomUUID();
-        before = null;
-        await conversation();
-      }),
-    );
-    // Enter sends the text; with an empty field it sends the prepared media.
-    sendOnEnter(text, () => {
-      (text.value.trim() ? sendText : sendMedia).click();
-    });
-  }
-  function renderHistory(input: {
-    node: HTMLElement;
-    selected: string;
-    page: Awaited<ReturnType<SocialDms['cached']>>;
-    localMedia: boolean;
-  }): void {
-    const { node, page } = input;
-    mediaUi.clearMedia();
-    const history =
-      node.querySelector<HTMLElement>('.social-dm-history') ??
-      communityElement('section', '', 'social-dm-history');
-    if (!history.parentElement) node.append(history);
-    pruneTextRows(history, page);
-    let cursor = history.firstChild;
-    for (const item of [...page.items].reverse()) {
-      const held = textRows.get(item.id);
-      if (held?.text === item.text) {
-        cursor = held.row.nextSibling;
-        continue;
-      }
-      cursor = removeTextRow(item.id, cursor);
-      const row = communityElement('article', '', 'card');
-      row.append(
-        communityElement(
-          'strong',
-          item.sender === page.self ? 'Você' : 'Mensagem recebida',
-        ),
-        ...(item.kind === 'text' ? [postText(item.text)] : []),
-      );
-      history.insertBefore(row, cursor);
-      retainTextRow(row, item);
-      renderAttachment(row, item, input);
-    }
-    if (!page.items.length)
-      history.append(communityElement('p', 'Nenhuma mensagem nesta página.'));
-    if (page.next !== null)
-      communityButton(node, 'Mensagens anteriores', () =>
-        run(async () => {
-          before = page.next;
-          await conversation();
-        }),
-      );
-  }
-  function renderAttachment(
-    row: HTMLElement,
-    item: DmPage['items'][number],
-    input: {
-      selected: string;
-      localMedia: boolean;
-    },
+  /**
+   * Rows are reused by id and content, so a refresh neither reloads media nor
+   * restarts an embedded video; only new or changed messages are drawn.
+   */
+  function renderHistory(
+    current: DmView,
+    page: DmPage,
+    input: { selected: string; localMedia: boolean },
   ): void {
-    if (item.kind !== 'attachment' || !item.media) return;
-    mediaUi.render({
-      article: row,
-      view: { ...item, peer: input.selected, archived: input.localMedia },
-      saveNotice:
-        'A cópia salva fica fora do cofre e da limpeza pessoal. Abra arquivos somente se confiar na origem.',
-      content: socialAttachment(JSON.parse(item.text) as unknown, item.media),
-      load: (_view, thumbnail) =>
-        controller.media(item, thumbnail, false, input.localMedia),
-      run,
-    });
-  }
-  type DmPage = Awaited<ReturnType<SocialDms['cached']>>;
-  function pruneTextRows(history: HTMLElement, page: DmPage): void {
-    const ids = new Set(
-      page.items.filter((item) => item.kind === 'text').map((item) => item.id),
-    );
-    for (const [id, held] of textRows)
-      if (!ids.has(id)) {
+    const restore = historyPosition(current.history);
+    const keep = new Set(page.items.map((item) => item.id));
+    for (const [id, held] of rows)
+      if (!keep.has(id)) {
         held.stop();
         held.row.remove();
-        textRows.delete(id);
+        rows.delete(id);
       }
-    for (const child of [...history.children])
-      if (!child.hasAttribute('data-social-text')) child.remove();
+    for (const child of [...current.history.children])
+      if (!(child instanceof HTMLElement) || !child.dataset['message'])
+        child.remove();
+    let cursorNode = current.history.firstChild;
+    for (const item of page.items) {
+      const row = messageRow(item, page, input);
+      if (row === cursorNode) cursorNode = row.nextSibling;
+      else current.history.insertBefore(row, cursorNode);
+    }
+    if (!page.items.length)
+      current.gate.textContent = 'Nenhuma mensagem ainda.';
+    current.older.hidden = page.next === null;
+    before = page.next;
+    restore();
   }
-  function removeTextRow(
-    id: string,
-    cursor: ChildNode | null,
-  ): ChildNode | null {
-    const held = textRows.get(id);
-    if (!held) return cursor;
-    if (cursor === held.row) cursor = held.row.nextSibling;
-    held.stop();
-    held.row.remove();
-    textRows.delete(id);
-    return cursor;
-  }
-  function retainTextRow(
-    row: HTMLElement,
-    item: DmPage['items'][number],
-  ): void {
-    if (item.kind !== 'text') return;
-    row.dataset['socialText'] = item.id;
-    const stop = showExternalVideos(row, item.text, {
-      privacy,
-      signal: externalAbort.signal,
-    });
-    textRows.set(item.id, { text: item.text, row, stop });
+  function messageRow(
+    item: DmItem,
+    page: DmPage,
+    input: { selected: string; localMedia: boolean },
+  ): HTMLElement {
+    const key = `${item.kind}:${item.text}:${input.localMedia}`,
+      held = rows.get(item.id);
+    if (held?.key === key) return held.row;
+    held?.stop();
+    held?.row.remove();
+    const handle = item.peer.handle,
+      bubble = dmBubble(item, {
+        own: item.sender === page.self,
+        handle,
+        privacy,
+        signal: externalAbort.signal,
+      });
+    if (item.kind === 'attachment' && item.media)
+      mediaUi.render({
+        article: bubble.row,
+        view: { ...item, peer: input.selected, archived: input.localMedia },
+        saveNotice:
+          'A cópia salva fica fora do cofre e da limpeza pessoal. Abra arquivos somente se confiar na origem.',
+        content: socialAttachment(JSON.parse(item.text) as unknown, item.media),
+        load: (_view, thumbnail) =>
+          controller.media(item, thumbnail, false, input.localMedia),
+        run,
+      });
+    rows.set(item.id, { key, ...bubble });
+    return bubble.row;
   }
   function leave(): void {
-    clearExternal();
+    clearRows();
+    composer.leave();
     live.stop();
     if (fallback) clearInterval(fallback);
     fallback = null;
-    recording.cancel();
-    mediaUi.clearMedia();
     playback.close();
     generation++;
     controller.cancel();
     container = null;
-    output = null;
-    draft = '';
+    view = null;
+    viewKey = '';
+    writable = false;
+    pendingMedia = false;
     messageId = crypto.randomUUID();
   }
   return {
@@ -621,15 +490,17 @@ export function startSocialDmUi(
       localOnly = local;
       cursor = null;
       before = null;
-      const target = card(id ? 'Abrindo DM…' : 'Mensagens pelo @');
       if (!session) {
-        communityLink(
-          target,
-          'Entre pelo Perfil para abrir suas DMs',
-          '#perfil',
+        node.replaceChildren(
+          communityElement(
+            'p',
+            'Entre pelo Perfil para abrir suas mensagens pelo @.',
+            'chat-gate',
+          ),
         );
         return;
       }
+      status(id ? 'Abrindo conversa…' : 'Carregando mensagens pelo @…');
       const old = generation;
       void run(async () => {
         const profile =
@@ -638,26 +509,20 @@ export function startSocialDmUi(
         ownProfile = profile;
         if (navigator.onLine && !localOnly) live.start();
         if (navigator.onLine && !localOnly) startFallback();
-        await (peer ? conversation() : list());
+        await reload();
       });
     },
     leave,
     setSession(value: AccountSession | null): void {
       if (sameSession(value, session)) return;
-      clearExternal();
-      live.stop();
-      if (fallback) clearInterval(fallback);
-      fallback = null;
-      recording.cancel();
-      mediaUi.clearMedia();
-      playback.close();
+      const node = container;
+      leave();
       session = value;
       ownProfile = null;
-      generation++;
       controller.setSession(value);
-      container?.replaceChildren();
+      node?.replaceChildren();
     },
-    canActivate: () => !busy && !recording.active,
+    canActivate: () => !busy && !composer.active,
     /** Public @ conversations for the Contatos → Públicos list; handles and states only. */
     async directory(node: HTMLElement, valid: () => boolean): Promise<void> {
       if (!session) {
@@ -677,11 +542,9 @@ export function startSocialDmUi(
               'Nenhuma conversa @ ainda. Abra um perfil público para mandar mensagem.',
             ),
           );
-        communityLink(
-          node,
-          'Todas as mensagens @ e pedidos',
-          '#comunidades?view=dms',
-        );
+        const all = communityElement('a', 'Todas as mensagens @ e pedidos');
+        all.href = '#comunidades?view=dms';
+        node.append(all);
       } catch (error: unknown) {
         if (valid())
           node.append(
@@ -705,16 +568,20 @@ function sameSession(
   );
 }
 
-function directoryRow(row: SocialRelation): HTMLAnchorElement {
+/** Conversation list row, the same as the private conversations list. */
+function directoryRow(
+  row: SocialRelation | { peer: PublicProfile; label: string },
+  extra = '',
+): HTMLAnchorElement {
   const link = communityElement('a', '', 'conversation-row public-row');
-  link.href = `#comunidades?view=dms&dm=${row.peer.id}`;
+  link.href = `#comunidades?view=dms&dm=${row.peer.id}${extra}`;
   const avatar = communityElement('span', '', 'conversation-avatar');
   avatar.setAttribute('aria-hidden', 'true');
   paintAvatar(avatar, { label: row.peer.handle, seed: row.peer.id });
   const copy = communityElement('span', '', 'conversation-copy');
   copy.append(
     communityElement('strong', `@${row.peer.handle}`),
-    communityElement('small', relationLabel(row)),
+    communityElement('small', 'label' in row ? row.label : relationLabel(row)),
   );
   link.append(avatar, copy);
   return link;
