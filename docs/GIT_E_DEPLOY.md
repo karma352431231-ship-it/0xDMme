@@ -1,6 +1,6 @@
 # 0xDMme — Git e envio à VPS
 
-## Experiência social — transição 058→061 preparada em 12/10/2026
+## Experiência social — transição 058→061 autorizada em 12/10/2026
 
 O proprietário pediu concluir as mudanças na mesma branch, integrar na main e
 ativar tudo na VPS. A inspeção somente leitura confirmou a predecessora
@@ -26,9 +26,12 @@ Antes da reabertura, retorno verificado de banco e release; depois dela,
 preservar novas escritas em caso de falha. Usar checkout limpo, commit integrado
 e enviado, CI integral do commit exato e evidências exclusivamente em `.local/`.
 
-**Ponto importante:** esta transição está preparada para aprovação específica das
-três migrações, exigida pelo AGENTS.md. O pedido de integração não comprova essa
-aprovação nem a ativação. O executor recusa fontes diferentes das revisadas.
+**Ponto importante:** o proprietário aprovou explicitamente as migrações 059–061
+e a ativação. O ensaio real em banco descartável confirmou a preservação e a
+rejeição de mudança indevida em linha existente. A CI integral de `8311ad8` passou;
+este registro muda somente documentação e ainda exige CI integral do commit
+final antes da ativação. O executor recusa fontes diferentes das revisadas.
+A autorização não comprova publicação; conferir recibo, hashes e prontidão.
 
 ## Conexões da conta do app — correção autorizada em 12/10/2026
 
