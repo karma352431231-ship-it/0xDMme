@@ -115,7 +115,7 @@ export async function profileSocialControls(
   summaryNode.append(communityIcon('more'));
   menu.append(summaryNode, content);
   host.append(menu);
-  button(
+  const block = button(
     content,
     access.block.blocked ? 'Desbloquear usuário' : 'Bloquear usuário',
     async () => {
@@ -136,9 +136,13 @@ export async function profileSocialControls(
     },
     error,
   );
+  block.prepend(communityIcon('block'));
+  if (!access.block.blocked) block.classList.add('post-menu-danger');
   const form = document.createElement('details'),
     heading = document.createElement('summary');
+  form.className = 'post-report';
   heading.textContent = 'Denunciar usuário';
+  heading.prepend(communityIcon('flag'));
   form.append(heading);
   content.append(form);
   const label = document.createElement('label'),

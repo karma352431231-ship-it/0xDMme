@@ -43,6 +43,7 @@ import { postText } from './post-text.ts';
 import { postPreview } from './post-preview.ts';
 import { postReply } from './post-reply.ts';
 import { PostSnapshot } from './post-snapshot.ts';
+import { showRepliedAbove } from './reply-context.ts';
 import { showExternalVideos } from '../external-video/index.ts';
 import type { ExternalMediaConsent } from '../external-media/index.ts';
 import {
@@ -456,11 +457,12 @@ export function startCommunityPosts(
     const post = (id: string | null) =>
       `#comunidades?id=${community}&post=${id}`;
     if (value.id === selected) {
-      // An opened reply shows where it came from, above its own thread.
-      link(nav, '↑ Resposta anterior', post(value.parent));
-      if (value.root !== value.parent)
+      // An opened reply has the answered post above it (reply-context.ts);
+      // a deeper reply also links to the thread's first post.
+      if (value.root !== value.parent) {
         link(nav, 'Postagem original', post(value.root));
-      node.prepend(nav);
+        node.prepend(nav);
+      }
       return;
     }
     if (selected && !(depth >= 3 && value.replies)) return;
@@ -506,6 +508,15 @@ export function startCommunityPosts(
         list.replaceChildren();
         row(result);
         pageSnapshot.clear();
+        void showRepliedAbove({
+          reply: list.lastElementChild,
+          post: result,
+          community: identity,
+          member: own !== null,
+          request: (operation, data) => controller.request(operation, data),
+          valid: () => old === generation,
+          signal: signal(),
+        });
       }
       await thread(result);
       return;

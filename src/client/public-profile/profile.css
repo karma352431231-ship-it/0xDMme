@@ -166,24 +166,86 @@
   margin-top: 24px;
   padding-top: 24px;
 }
-.public-profile-communities a {
-  display: block;
-  padding: 8px 0;
-  overflow-wrap: anywhere;
+/* Followed communities: a row of photos, expanded into a named list. */
+/* Outranks the display of each part, including the toggle's button rule. */
+#app-shell .public-profile-communities [hidden] {
+  display: none;
 }
-.profile-reply-context {
-  border-left: 3px solid var(--line-strong);
-  padding-left: 14px;
-  margin: 14px 0;
+.profile-communities-compact {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.profile-communities-compact p {
+  margin: 0;
   color: var(--text-muted);
-  font-size: 14px;
 }
-.profile-reply-context p {
-  margin: 8px 0;
+.profile-community-photo {
+  display: inline-grid;
+  border-radius: 28%;
 }
-.profile-reply-context blockquote {
-  margin: 8px 0;
+.profile-community-photo .community-avatar,
+.profile-communities-toggle {
+  width: 44px;
+  height: 44px;
+  flex-basis: 44px;
+}
+.profile-community-photo:hover .community-avatar,
+.profile-community-photo:focus-visible .community-avatar {
+  box-shadow: 0 0 0 2px var(--accent);
+}
+#app-shell .profile-communities-toggle {
+  display: inline-grid;
+  place-items: center;
+  min-height: 0;
+  margin: 0;
+  padding: 0 6px;
+  width: auto;
+  min-width: 44px;
+  border: 1px dashed var(--line-strong);
+  border-radius: 28%;
+  background: transparent;
+  color: var(--text);
+  font-size: var(--fs-small);
+  font-weight: 650;
+}
+#app-shell .profile-communities-toggle:hover {
+  border-style: solid;
+  background: var(--surface-2);
+}
+.profile-communities-list {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.profile-community-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 8px;
+  border-radius: 10px;
+  color: var(--text);
+  text-decoration: none;
   overflow-wrap: anywhere;
+}
+.profile-community-row:hover {
+  background: var(--surface-2);
+}
+.profile-communities-footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+#app-shell .profile-communities-footer button {
+  min-height: 34px;
+  margin: 0;
+  padding: 4px 14px;
+  border-radius: 99px;
+  font-size: var(--fs-small);
 }
 .public-profile-empty {
   padding: 32px 0;
@@ -573,22 +635,10 @@
   stroke-linecap: round;
   stroke-linejoin: round;
 }
-.public-profile-actions .post-more {
-  position: relative;
-}
-.public-profile-actions .post-more[open] {
-  flex-basis: 100%;
-}
+/* Its panel floats from this button (communities/post-menu.css). */
 .public-profile-actions .post-more > summary {
   width: 40px;
   padding: 8px;
   list-style: none;
   cursor: pointer;
-}
-.public-profile-actions .post-more-content {
-  width: 100%;
-  max-width: 320px;
-  display: grid;
-  gap: 8px;
-  background: var(--surface-2);
 }

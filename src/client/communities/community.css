@@ -1,4 +1,6 @@
 @import './social-controls.css';
+@import './post-menu.css';
+@import './reply-context.css';
 .community-mobile-tabs {
   display: none;
 }
@@ -526,22 +528,6 @@
   list-style: none;
   cursor: pointer;
   line-height: 0;
-}
-.post-more[open] {
-  flex-basis: 100%;
-}
-.post-more-content {
-  margin-top: 12px;
-  padding: 12px;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-}
-.post-report > summary {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 0;
-  cursor: pointer;
 }
 .community-posts {
   margin: 24px 0;
@@ -1662,9 +1648,6 @@
   box-shadow: inset 0 0 0 1px var(--line);
   color: var(--text-muted);
   font-size: 12.5px;
-}
-.post-options:empty {
-  display: none;
 }
 #app-shell .community-reply > button {
   min-height: 0;

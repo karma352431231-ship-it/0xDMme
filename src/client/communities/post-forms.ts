@@ -21,6 +21,14 @@ import {
   communityElement as el,
   communityField as field,
 } from './elements.ts';
+import { iconLabel } from './presentation.ts';
+import type { CommunityIcon } from './presentation.ts';
+/** A row of the post's “...” menu that opens its own form. */
+function menuSummary(text: string, icon: CommunityIcon): HTMLElement {
+  const summary = el('summary', text);
+  iconLabel(summary, icon);
+  return summary;
+}
 export interface PostActions {
   run: (work: () => Promise<void>) => Promise<void>;
   request: (
@@ -197,8 +205,8 @@ export function postActions(
   actions: PostActions,
 ): void {
   if (state.canEdit) {
-    const form = el('details');
-    form.append(el('summary', 'Editar postagem'));
+    const form = el('details', '', 'post-edit');
+    form.append(menuSummary('Editar postagem', 'pencil'));
     container.append(form);
     const content = state.post.parent
       ? replyForm(form, state.content!, actions.media)
@@ -222,7 +230,7 @@ function deleteForm(
   actions: PostActions,
 ): void {
   const form = el('details', '', 'post-delete');
-  form.append(el('summary', 'Excluir postagem'));
+  form.append(menuSummary('Excluir postagem', 'trash'));
   container.append(form);
   const label = el('label'),
     confirm = el('input');
@@ -245,7 +253,7 @@ function hideForm(
   actions: PostActions,
 ): void {
   const form = el('details', '', 'post-moderate');
-  form.append(el('summary', 'Ocultar pela moderação'));
+  form.append(menuSummary('Ocultar pela moderação', 'shield'));
   container.append(form);
   const reason = field(form, 'Motivo da remoção', {
       maximum: 1000,
@@ -311,7 +319,7 @@ function history(
   const list = el('div');
   container.append(list);
   let after: string | null = null;
-  button(container, 'Consultar histórico de moderação', () =>
+  const consult = button(container, 'Consultar histórico de moderação', () =>
     actions.run(async () => {
       const data = object(
         await actions.request('post-moderations', {
@@ -338,6 +346,8 @@ function history(
       after = communityCursor(data['next']);
     }),
   );
+  iconLabel(consult, 'clock');
+  list.className = 'post-history';
 }
 export function postReportForm(
   container: HTMLElement,

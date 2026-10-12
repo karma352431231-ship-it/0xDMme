@@ -18,7 +18,6 @@ import { communityState } from '../../shared/communities/index.ts';
 import { communityRead } from './controller.ts';
 import {
   communityButton as button,
-  communityCard as card,
   communityElement as el,
   communityLink as link,
 } from './elements.ts';
@@ -29,7 +28,7 @@ import { showExternalVideos } from '../external-video/index.ts';
 import type { ExternalMediaConsent } from '../external-media/index.ts';
 import { postViews } from './post-views.ts';
 import { DiscoverySnapshot } from './discovery-page.ts';
-import { appendReplyContext } from './activity-entry.ts';
+import { appendReplyContext, entryCard } from './activity-entry.ts';
 import {
   communityAvatar,
   communityIcon,
@@ -318,11 +317,9 @@ export function startCommunityDiscovery(
       // Keep only a bounded recent window; pagination does not accumulate DOM/content.
       seen.add(post.id);
       if (seen.size > 240) seen.delete(seen.values().next().value!);
-      const row = card(post.parent ? 'Resposta' : post.title || 'Postagem');
-      row.dataset['postId'] = post.id;
-      row.classList.add('community-post');
+      const row = entryCard(post);
       const avatar = postHeader(row, post, entry.community);
-      appendReplyContext(row, entry);
+      appendReplyContext(row, entry, abort.signal);
       followControl(row, entry, old);
       if (entry.community.avatar)
         mediaCleanup.add(

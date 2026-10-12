@@ -54,20 +54,6 @@
   gap: 0.6rem;
   padding-block: 1rem;
 }
-.post-more-content,
-.post-options,
-.post-options > details {
-  display: grid;
-  gap: 0.6rem;
-}
-.post-options > details > summary {
-  cursor: pointer;
-  padding-block: 0.4rem;
-}
-.post-options > details > label {
-  display: grid;
-  gap: 0.4rem;
-}
 #app-shell .community-presentation-editor .community-image-pick {
   display: block;
   width: 100%;

@@ -147,6 +147,7 @@ class CardNode {
   className = '';
   textContent = '';
   href = '';
+  parent: CardNode | null = null;
   readonly tag: string;
   constructor(tag: string) {
     this.tag = tag;
@@ -155,18 +156,48 @@ class CardNode {
     return this.children.at(-1);
   }
   append(...nodes: CardNode[]): void {
+    for (const node of nodes) node.parent = this;
     this.children.push(...nodes);
   }
   prepend(...nodes: CardNode[]): void {
+    for (const node of nodes) node.parent = this;
     this.children.unshift(...nodes);
   }
+  after(node: CardNode): void {
+    const siblings = this.parent!.children;
+    node.parent = this.parent;
+    siblings.splice(siblings.indexOf(this) + 1, 0, node);
+  }
   setAttribute(): void {}
+  addEventListener(): void {}
+  /** Class selectors only, depth first, as the code under test uses them. */
+  querySelector(selector: string): CardNode | null {
+    const name = selector.replace(/^\./u, '');
+    for (const child of this.children) {
+      if (child.className.split(' ').includes(name)) return child;
+      const found = child.querySelector(selector);
+      if (found) return found;
+    }
+    return null;
+  }
+  texts(): string[] {
+    return [
+      this.textContent,
+      ...this.children.flatMap((child) => child.texts()),
+    ].filter(Boolean);
+  }
 }
-await test('atividade do perfil apresenta título, conteúdo e depois tag, conservando a comunidade', (t) => {
+function fakeDocument(t: { after: (done: () => void) => void }): void {
   const previous = Object.getOwnPropertyDescriptor(globalThis, 'document');
+  const anchor = Object.getOwnPropertyDescriptor(
+    globalThis,
+    'HTMLAnchorElement',
+  );
   t.after(() => {
     if (previous) Object.defineProperty(globalThis, 'document', previous);
     else Reflect.deleteProperty(globalThis, 'document');
+    if (anchor) Object.defineProperty(globalThis, 'HTMLAnchorElement', anchor);
+    else Reflect.deleteProperty(globalThis, 'HTMLAnchorElement');
   });
   Object.defineProperty(globalThis, 'document', {
     configurable: true,
@@ -177,6 +208,69 @@ await test('atividade do perfil apresenta título, conteúdo e depois tag, conse
         Object.assign(new CardNode('#text'), { textContent: text }),
     },
   });
+  // Post headers check for links; the fake nodes are never anchors.
+  Object.defineProperty(globalThis, 'HTMLAnchorElement', {
+    configurable: true,
+    value: class {},
+  });
+}
+await test('resposta no perfil é marcada como resposta e mostra inteira a postagem respondida', (t) => {
+  fakeDocument(t);
+  const root = {
+    ...post(),
+    title: 'Post original',
+    text: 'Texto completo do post original',
+  };
+  const answered = {
+    ...post(),
+    community: root.community,
+    title: '',
+    text: 'Resposta intermediária respondida',
+    parent: root.id,
+    root: root.id,
+  };
+  const reply = {
+    ...post(),
+    community: root.community,
+    title: '',
+    text: 'Minha resposta',
+    parent: answered.id,
+    root: root.id,
+  };
+  const card = renderActivityEntry(
+    {
+      post: reply,
+      community: { id: root.community, name: 'Comunidade' },
+      context: { root, parent: answered },
+    },
+    new AbortController().signal,
+  ) as unknown as CardNode;
+  // No generic “Resposta” title: the chip and the answered post say it.
+  assert.equal(
+    card.children.some((node) => node.tag === 'h2'),
+    false,
+  );
+  assert.ok(card.className.includes('community-post-is-reply'));
+  assert.ok(card.querySelector('.post-kind-reply'));
+  const context = card.querySelector('.replied-post')!;
+  assert.ok(context.texts().includes('Resposta intermediária respondida'));
+  const links = [
+    context.querySelector('.replied-post-open'),
+    context.querySelector('.replied-post-root'),
+  ];
+  assert.deepEqual(
+    links.map((node) => node?.href),
+    [
+      `#comunidades?id=${root.community}&post=${answered.id}`,
+      `#comunidades?id=${root.community}&post=${root.id}`,
+    ],
+  );
+  // The answered post comes before the reply's own text.
+  const order = card.children.map((node) => node.className);
+  assert.ok(order.indexOf('replied-post') < order.indexOf('community-text'));
+});
+await test('atividade do perfil apresenta título, conteúdo e depois tag, conservando a comunidade', (t) => {
+  fakeDocument(t);
   const value = {
     ...post(),
     tags: [

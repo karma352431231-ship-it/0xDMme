@@ -11,8 +11,8 @@ import { profileSummary } from '../../shared/profile-social/index.ts';
 import type { ProfileSummary } from '../../shared/profile-social/index.ts';
 import { feedPage } from '../../shared/community-discovery/index.ts';
 import type { FeedEntry } from '../../shared/community-discovery/index.ts';
-import { communityPage } from '../../shared/communities/index.ts';
 import { showPublicAvatar } from '../public-media/index.ts';
+import { profileCommunities } from './communities-panel.ts';
 import { renderActivityEntry } from '../communities/index.ts';
 import type { PublicProfiles } from './controller.ts';
 import { editPublicProfileHash } from './follow.ts';
@@ -201,7 +201,15 @@ export function showProfilePage(
         `#comunidades?view=dms&dm=${summary.profile.id}`,
       );
     void follow(actions, summary, block).catch(error);
-    void memberships(null).catch(error);
+    profileCommunities(communities, {
+      total: summary.communities,
+      read: (after) =>
+        read(
+          `${base}/communities${after ? `?after=${encodeURIComponent(after)}` : ''}`,
+        ),
+      signal: lifetime.signal,
+      error,
+    });
     void activity(null).catch(error);
     async function activity(after: string | null): Promise<void> {
       contentAbort.abort();
@@ -247,22 +255,6 @@ export function showProfilePage(
         control(paging, 'Próxima página', () => activity(response.next));
       if (after) control(paging, 'Voltar ao início', () => activity(null));
       status.textContent = '';
-    }
-    async function memberships(after: string | null): Promise<void> {
-      const query = after ? `?after=${encodeURIComponent(after)}` : '';
-      const response = communityPage(await read(`${base}/communities${query}`));
-      if (lifetime.signal.aborted) return;
-      communities.replaceChildren(element('h2', 'Comunidades'));
-      for (const group of response.items)
-        link(communities, group.name, `#comunidades?id=${group.id}`);
-      if (!response.items.length)
-        communities.append(element('p', 'Nenhuma comunidade seguida.'));
-      if (response.next)
-        control(communities, 'Mais comunidades', () =>
-          memberships(response.next),
-        );
-      if (after)
-        control(communities, 'Voltar ao início', () => memberships(null));
     }
   }
   function control(
