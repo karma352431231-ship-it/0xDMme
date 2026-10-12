@@ -1,4 +1,5 @@
 import type pg from 'pg';
+import { visiblePost } from './community-post-visibility.ts';
 import { createHash, randomUUID } from 'node:crypto';
 import { AccountError } from '../../shared/account/index.ts';
 import { canonical, fingerprint } from '../../shared/devices/index.ts';
@@ -490,7 +491,7 @@ export class CommunityMediaStore {
       throw new AccountError(400, 'Página de mídia excedida.');
     const found = await client.query<MediaRow>(
       `SELECT m.* FROM hash_talk.community_media m JOIN hash_talk.community_posts p ON p.id=m.post_id
-        WHERE m.post_id=ANY($1::uuid[]) AND m.status='attached' AND NOT p.deleted AND p.active_removal IS NULL
+        WHERE m.post_id=ANY($1::uuid[]) AND m.status='attached' AND ${visiblePost('p')} AND (p.root_id IS NULL OR EXISTS(SELECT 1 FROM hash_talk.community_posts root WHERE root.id=p.root_id AND ${visiblePost('root')}))
           AND m.id=ANY(p.media_ids) ORDER BY m.post_id,array_position(p.media_ids,m.id)`,
       [posts],
     );
@@ -539,7 +540,7 @@ export class CommunityMediaStore {
       return null;
     const found = await this.pool.query<MediaRow>(
       `SELECT m.* FROM hash_talk.community_media m JOIN hash_talk.community_posts p ON p.id=m.post_id
-        WHERE m.id=$1 AND m.status='attached' AND NOT p.deleted AND p.active_removal IS NULL AND m.id=ANY(p.media_ids)`,
+        WHERE m.id=$1 AND m.status='attached' AND ${visiblePost('p')} AND (p.root_id IS NULL OR EXISTS(SELECT 1 FROM hash_talk.community_posts root WHERE root.id=p.root_id AND ${visiblePost('root')})) AND m.id=ANY(p.media_ids)`,
       [target],
     );
     const row = found.rows[0];

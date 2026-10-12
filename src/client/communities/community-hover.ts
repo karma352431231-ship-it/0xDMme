@@ -56,7 +56,8 @@ export function communityHoverProvider(input: {
       head.append(avatar, actions);
       const name = el('a', value.name, 'hover-card-title');
       name.href = `#comunidades?id=${encodeURIComponent(value.id)}`;
-      card.append(head, name);
+      const banner = previewBanner(value, avatar, signal);
+      card.append(banner, head, name);
       if (value.description)
         card.append(el('p', value.description, 'hover-card-text'));
       const figures = [
@@ -112,4 +113,21 @@ async function followButton(
   });
   paint();
   host.append(button);
+}
+
+function previewBanner(
+  value: Community,
+  avatar: HTMLElement,
+  signal: AbortSignal,
+): HTMLElement {
+  const banner = el('div', '', 'community-banner hover-card-banner');
+  banner.dataset['tone'] = avatar.dataset['tone'] ?? '0';
+  if (value.banner)
+    showPublicAvatar(banner, {
+      kind: 'community-banner',
+      target: value.id,
+      reference: value.banner,
+      signal,
+    });
+  return banner;
 }

@@ -1,4 +1,5 @@
 import type pg from 'pg';
+import { blockedPosts } from './community-post-visibility.ts';
 import { AccountError, keys, uuid } from '../../shared/account/index.ts';
 import {
   communityArray,
@@ -39,7 +40,11 @@ export async function requireReplyTarget(
   context: CommunityContext,
   row: PostRow,
 ): Promise<void> {
-  if (row.deleted || row.active_removal)
+  if (
+    row.deleted ||
+    row.active_removal ||
+    (await blockedPosts(context.client, [row.id])).has(row.id)
+  )
     throw new AccountError(
       409,
       'Conteúdo excluído ou oculto não aceita novas interações.',

@@ -1,3 +1,4 @@
+import { visiblePost } from './community-post-visibility.ts';
 import { createHash } from 'node:crypto';
 import type pg from 'pg';
 import type { ContactStore } from './contacts.ts';
@@ -35,9 +36,9 @@ export class CommunityViewsStore {
         `SELECT p.id FROM hash_talk.community_posts p
          JOIN jsonb_to_recordset($1::jsonb) AS i(community uuid,post uuid,hash text)
          ON p.community_id=i.community AND p.id=i.post
-         WHERE NOT p.deleted AND p.active_removal IS NULL
+         WHERE ${visiblePost('p')}
          AND (p.root_id IS NULL OR EXISTS(SELECT 1 FROM hash_talk.community_posts r
-           WHERE r.id=p.root_id AND NOT r.deleted AND r.active_removal IS NULL))
+           WHERE r.id=p.root_id AND ${visiblePost('r')}))
          ORDER BY p.id`,
         [JSON.stringify(observations)],
       );

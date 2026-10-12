@@ -1,9 +1,14 @@
+import {
+  discussionOrder,
+  discussionCursor,
+} from '../../shared/community-discussion/index.ts';
 import type pg from 'pg';
 import { discussionRows } from './community-discussion.ts';
 import type { DiscussionOrder } from '../../shared/community-discussion/index.ts';
 import { sharedPostIds } from './post-sharing.ts';
 import { withPostInteractions } from './community-interaction-view.ts';
 import { queueWatchedPost } from './profile-notifications.ts';
+import { blockedPost, blockedPosts } from './community-post-visibility.ts';
 import {
   postVotes,
   setPostVote,
@@ -126,6 +131,7 @@ function requireEditWindow(row: PostRow): void {
     );
 }
 interface PostLookup {
+  blocked: Set<string>;
   authors: Map<string, PublicProfile>;
   tags: Map<string, PostTag>;
   extras: Map<string, string[]>;
@@ -305,12 +311,16 @@ export class CommunityPostStore {
           : [],
       ),
     );
-    return { authors, tags, extras, media, badges };
+    const blocked = await blockedPosts(
+      client,
+      rows.map((row) => row.id),
+    );
+    return { authors, tags, extras, media, badges, blocked };
   }
   private view(row: PostRow, lookup: PostLookup): CommunityPost {
     const status = row.deleted
         ? 'deleted'
-        : row.active_removal
+        : row.active_removal || lookup.blocked.has(row.id)
           ? 'removed'
           : 'visible',
       visible = status === 'visible';
@@ -391,9 +401,10 @@ export class CommunityPostStore {
   ): Promise<PostRow[]> {
     const [time, id] = (options.after ?? '').split('/');
     const found = await client.query<PostRow>(
-      `SELECT ${columns} FROM hash_talk.community_posts WHERE community_id=$1 AND ($9 OR parent_id=$8::uuid OR ($8::uuid IS NULL AND parent_id IS NULL)) AND (parent_id IS NOT NULL OR NOT deleted)
+      `SELECT ${columns} FROM hash_talk.community_posts p WHERE community_id=$1 AND ($9 OR parent_id=$8::uuid OR ($8::uuid IS NULL AND parent_id IS NULL)) AND (parent_id IS NOT NULL OR NOT deleted)
       AND ($2::timestamptz IS NULL OR (created_at,id)<($2,$3::uuid))
-      AND ($4::uuid IS NULL OR tag_id=$4 OR EXISTS(SELECT 1 FROM hash_talk.community_post_extra_tags e WHERE e.post_id=community_posts.id AND e.tag_id=$4))
+      AND ($4::uuid IS NULL OR tag_id=$4 OR EXISTS(SELECT 1 FROM hash_talk.community_post_extra_tags e WHERE e.post_id=p.id AND e.tag_id=$4))
+      AND ($5::uuid IS NOT NULL OR NOT ${blockedPost('p')})
       AND ($5::uuid IS NULL OR author=$5) AND ($8::uuid IS NOT NULL OR $5::uuid IS NOT NULL OR (active_removal IS NOT NULL)=$6)
       AND NOT EXISTS(SELECT 1 FROM hash_talk.social_blocks b WHERE b.actor=$10 AND b.target=author AND b.blocked)
       ORDER BY created_at DESC,id DESC LIMIT $7`,
@@ -461,19 +472,25 @@ export class CommunityPostStore {
     selection: { order: DiscussionOrder; after: string | null },
   ) {
     await this.read(community, parent);
-    const page = await discussionRows(
-      this.pool,
-      { community, parent },
-      selection,
-    );
+    return this.discussionPage(this.pool, { community, parent }, selection);
+  }
+  private async discussionPage(
+    client: Pick<pg.PoolClient, 'query'>,
+    target: { community: string; parent: string; actor?: string },
+    selection: { order: DiscussionOrder; after: string | null },
+  ) {
+    const page = await discussionRows(client, target, selection);
     const posts = new Map(
-      (await this.readMany(this.pool, page.ids)).map((post) => [post.id, post]),
+      (await this.readMany(client, page.ids)).map((post) => [post.id, post]),
     );
+    const items = page.ids.flatMap((id) => {
+      const post = posts.get(id);
+      return post ? [post] : [];
+    });
     return {
-      items: page.ids.flatMap((id) => {
-        const post = posts.get(id);
-        return post ? [post] : [];
-      }),
+      items: target.actor
+        ? await withPostInteractions(client, target.actor, items)
+        : items,
       next: page.next,
     };
   }
@@ -695,6 +712,23 @@ export class CommunityPostStore {
           )[0]!;
         }
         if (operation === 'post-replies') {
+          await this.requireVisibleTo(context, uuid(data['post']));
+          if (Object.hasOwn(data, 'order')) {
+            keys(data, ['id', 'post', 'after', 'order']);
+            discussionCursor(data['after']);
+            return this.discussionPage(
+              context.client,
+              {
+                community: context.row.id,
+                parent: uuid(data['post']),
+                actor: context.actor.id,
+              },
+              {
+                order: discussionOrder(data['order']),
+                after: data['after'] as string | null,
+              },
+            );
+          }
           keys(data, ['id', 'post', 'after']);
           const result = page(
             await this.rows(context.client, {

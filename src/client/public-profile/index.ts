@@ -6,6 +6,7 @@ import { profileFollows } from './follows.ts';
 import { startOwnProfileShortcut } from './own-shortcut.ts';
 import { renderModeration } from './moderation.ts';
 import { showProfilePage } from './page.ts';
+import { ModerationNotifications } from './moderation-notifications.ts';
 import { startProfileEditor } from './profile-editor.ts';
 import { profileHoverProvider } from './profile-hover.ts';
 import { registerHoverCard } from '../hover-card/index.ts';
@@ -45,6 +46,7 @@ export function startPublicProfile(
 ) {
   const controller = new PublicProfiles(access);
   const shortcut = startOwnProfileShortcut(controller);
+  const notices = new ModerationNotifications(controller);
   const activity = new ActivityPosts(access, privacy);
   registerHoverCard(profileHoverProvider(controller));
   const editor = startProfileEditor(controller, {
@@ -193,6 +195,8 @@ export function startPublicProfile(
       });
     },
     follows: profileFollows(controller),
+    moderationNotifications: () => notices.read(),
+    markModerationRead: (ids: readonly string[]) => notices.markRead(ids),
     mount,
     leave,
     ready,
@@ -202,6 +206,7 @@ export function startPublicProfile(
     },
     setSession(session: AccountSession | null): void {
       activity.setSession(session);
+      notices.setAccount(session?.accountId ?? null);
       if (!controller.setSession(session)) return;
       shortcut.clear();
       editor.clear();

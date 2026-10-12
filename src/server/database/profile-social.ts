@@ -1,5 +1,6 @@
 import { readProfileMutuals } from './profile-mutuals.ts';
 import { profileActivityFilter } from '../../shared/profile-social/index.ts';
+import { visiblePost } from './community-post-visibility.ts';
 import type pg from 'pg';
 import { AccountError, keys, uuid } from '../../shared/account/index.ts';
 import {
@@ -50,13 +51,13 @@ export class ProfileSocialStore {
       description: string | null;
     }>(
       `WITH eligible AS (SELECT p.* FROM hash_talk.community_posts p
-        WHERE p.author=$1 AND NOT p.deleted AND p.active_removal IS NULL
-        AND (p.root_id IS NULL OR EXISTS(SELECT 1 FROM hash_talk.community_posts r WHERE r.id=p.root_id AND NOT r.deleted AND r.active_removal IS NULL)))
+        WHERE p.author=$1 AND ${visiblePost('p')}
+        AND (p.root_id IS NULL OR EXISTS(SELECT 1 FROM hash_talk.community_posts r WHERE r.id=p.root_id AND ${visiblePost('r')})))
        SELECT created_at,
         (SELECT count(*) FROM eligible WHERE parent_id IS NULL) AS posts,
         (SELECT count(*) FROM eligible WHERE parent_id IS NOT NULL) AS replies,
         (SELECT count(*) FROM eligible e WHERE e.parent_id IS NULL AND EXISTS(
-          SELECT 1 FROM hash_talk.community_posts r WHERE r.root_id=e.id AND r.author<>$1 AND NOT r.deleted AND r.active_removal IS NULL)) AS conversations,
+          SELECT 1 FROM hash_talk.community_posts r WHERE r.root_id=e.id AND r.author<>$1 AND ${visiblePost('r')})) AS conversations,
         (SELECT count(*) FROM hash_talk.community_follows WHERE profile_id=$1) AS communities,
         (SELECT count(*) FROM hash_talk.public_profile_follows WHERE target=$1 AND following) AS followers,
         (SELECT description FROM hash_talk.public_profile_descriptions WHERE profile_id=$1) AS description

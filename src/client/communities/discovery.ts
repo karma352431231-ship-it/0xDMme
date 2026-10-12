@@ -1,5 +1,4 @@
 import { appendOwnProfileShortcut } from '../profile-shortcut/index.ts';
-import type { FeedEntry } from '../../shared/community-discovery/index.ts';
 import { postSharing } from './post-sharing.ts';
 import {
   feedFilter,
@@ -32,6 +31,8 @@ import type { ExternalMediaConsent } from '../external-media/index.ts';
 import { postViews } from './post-views.ts';
 import { DiscoverySnapshot } from './discovery-page.ts';
 import { appendReplyContext, entryCard } from './activity-entry.ts';
+import { feedPosition, restoreFeedPosition } from './feed-return.ts';
+import type { FeedBookmark } from './feed-return.ts';
 import {
   communityAvatar,
   communityIcon,
@@ -65,6 +66,7 @@ export function startCommunityDiscovery(
     busy = false,
     signedIn = false,
     abort = new AbortController();
+  let openComposer: () => void = () => undefined;
   let followChanged: () => Promise<void> = () => Promise.resolve();
   let view = 'feed',
     order: FeedOrder = 'mixed',
@@ -187,7 +189,10 @@ export function startCommunityDiscovery(
   /** Posting starts from the community the person chooses. */
   function postShortcut(toolbar: HTMLElement): void {
     if (!signedIn || (view !== 'feed' && view !== 'following')) return;
-    link(toolbar, 'Postar', '#comunidades?view=communities&compose=1');
+    button(toolbar, 'Postar', () => {
+      openComposer();
+      return Promise.resolve();
+    });
     const post = toolbar.lastElementChild as HTMLElement;
     post.className = 'community-post-cta';
     iconLabel(post, 'pencil');
@@ -428,10 +433,22 @@ export function startCommunityDiscovery(
       );
   }
   async function reload(): Promise<void> {
+    if (mounted) feedScrollerReset();
     after = null;
     rankOffset = 0;
     seen.clear();
     await load();
+  }
+  function feedScrollerReset(): void {
+    if (mounted)
+      restoreFeedPosition(mounted, {
+        view,
+        order,
+        period,
+        after: null,
+        top: 0,
+        anchor: null,
+      });
   }
   function ready(): void {
     void run(reload);
@@ -457,6 +474,29 @@ export function startCommunityDiscovery(
     displayedAfter = null;
     displayedRank = 0;
   }
+  function startPage(bookmark?: FeedBookmark | null): void {
+    if (!bookmark) {
+      ready();
+      return;
+    }
+    void run(async () => {
+      after = bookmark.after;
+      await load();
+      if (mounted) restoreFeedPosition(mounted, bookmark, abort.signal);
+    });
+  }
+  function initialFilters(bookmark?: FeedBookmark | null): void {
+    const defaults: Record<string, FeedOrder> = {
+      feed: 'mixed',
+      following: 'recent',
+      explore: 'recent',
+      saved: 'recent',
+      hidden: 'recent',
+    };
+    order = bookmark?.order ?? defaults[view]!;
+    period = bookmark?.period ?? (view === 'explore' ? 'day' : 'all');
+    exploreOrder = 'trending';
+  }
   return {
     mount(
       container: HTMLElement,
@@ -464,6 +504,8 @@ export function startCommunityDiscovery(
         view: string;
         signedIn: boolean;
         followChanged?: () => Promise<void>;
+        openComposer?: () => void;
+        bookmark?: FeedBookmark | null;
       },
     ): void {
       leave();
@@ -471,17 +513,9 @@ export function startCommunityDiscovery(
       abort = new AbortController();
       view = options.view;
       signedIn = options.signedIn;
+      openComposer = options.openComposer ?? (() => undefined);
       followChanged = options.followChanged ?? (() => Promise.resolve());
-      const initialOrders: Record<string, FeedOrder> = {
-        feed: 'mixed',
-        following: 'recent',
-        explore: 'recent',
-        saved: 'recent',
-        hidden: 'recent',
-      };
-      order = initialOrders[view]!;
-      period = view === 'explore' ? 'day' : 'all';
-      exploreOrder = 'trending';
+      initialFilters(options.bookmark);
       const titles: Record<string, string> = {
         feed: 'Feed',
         following: 'Seguindo',
@@ -521,10 +555,21 @@ export function startCommunityDiscovery(
       );
       paging = el('div', '', 'post-toolbar');
       mounted.append(feedback, list, paging);
-      ready();
+      startPage(options.bookmark);
     },
     leave,
+    bookmark(): FeedBookmark | null {
+      if (!mounted || !['feed', 'following'].includes(view)) return null;
+      return {
+        view,
+        order,
+        period,
+        after: displayedAfter,
+        ...feedPosition(mounted),
+      };
+    },
     refresh,
+    reset: () => run(reload),
     canActivate: () => !busy,
   };
 }

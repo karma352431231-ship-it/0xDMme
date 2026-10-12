@@ -131,6 +131,11 @@ await test('prefetch alternates direct and groups, stops completed branches and 
   t.mock.timers.tick(10000);
   await turn();
   assert.deepEqual(calls, ['direct', 'direct', 'groups']);
+  await f.sync.maintainPresence();
+  await f.sync.run(() => Promise.resolve());
+  t.mock.timers.tick(10000);
+  await turn();
+  assert.deepEqual(calls, ['direct', 'direct', 'groups']);
 });
 await test('background/offline suppress wakeups; close cancels a queued refresh and timers', async (t) => {
   t.mock.timers.enable({ apis: ['setTimeout'] });

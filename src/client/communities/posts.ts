@@ -40,7 +40,7 @@ import {
   communityField as field,
   communityLink as link,
 } from './elements.ts';
-import { postActions, postForm, postTagSelect } from './post-forms.ts';
+import { postActions, postTagSelect } from './post-forms.ts';
 import { postText } from './post-text.ts';
 import { postPreview } from './post-preview.ts';
 import { postReply } from './post-reply.ts';
@@ -66,6 +66,7 @@ import type {
 export function startCommunityPosts(
   controller: Communities,
   privacy: ExternalMediaConsent,
+  openComposer: (id: string) => void,
 ) {
   let mounted: HTMLElement | null = null,
     management: HTMLElement | null = null,
@@ -105,7 +106,6 @@ export function startCommunityPosts(
       privacy,
     };
   }
-  let composeOpen = false;
   let order: FeedOrder = 'recent',
     period: DiscoveryPeriod = 'all';
   let feedback: HTMLElement | null = null,
@@ -487,16 +487,12 @@ export function startCommunityPosts(
     }
     emptyCommunity(host, {
       community,
-      compose: own?.canPost ? openComposer : null,
+      compose: own?.canPost ? createPost : null,
       signal: signal(),
     });
   }
-  function openComposer(): void {
-    const form = mounted?.querySelector<HTMLDetailsElement>('.post-composer');
-    if (!form) return;
-    form.open = true;
-    form.scrollIntoView({ block: 'nearest' });
-    form.querySelector<HTMLElement>('input, textarea')?.focus();
+  function createPost(): void {
+    openComposer(community);
   }
   async function loadPrivate(): Promise<void> {
     pageSnapshot.clear();
@@ -567,42 +563,10 @@ export function startCommunityPosts(
   function composer(): void {
     // An opened post answers through its own reply box.
     if (!mounted || !own?.canPost || selected) return;
-    // Closed, it reads like a field; opening it reveals the full form.
-    const form = el('details', '', 'card community-card post-composer'),
-      summary = el('summary'),
-      icon = el('span', '', 'post-composer-icon');
-    iconLabel(icon, 'pencil');
-    summary.append(
-      icon,
-      el('span', 'Escreva algo para a comunidade…', 'post-composer-prompt'),
-    );
-    summary.setAttribute('aria-label', 'Criar postagem');
-    form.append(summary);
-    mounted.append(form);
-    form.open = composeOpen;
-    const content = postForm(
-        form,
-        { title: '', text: '', tags: [] },
-        tagSource(),
-        mediaAccess(),
-      ),
-      id = crypto.randomUUID();
-    if (composeOpen)
-      queueMicrotask(() => form.querySelector<HTMLElement>('input')?.focus());
-    button(form, 'Publicar postagem', () =>
-      run(async () => {
-        const old = generation;
-        postState(
-          await controller.request('post-create', {
-            id: community,
-            post: id,
-            content: await content(),
-          }),
-        );
-        if (old !== generation) return;
-        location.hash = `#comunidades?id=${community}&post=${id}`;
-      }),
-    );
+    button(mounted, 'Criar postagem', () => {
+      openComposer(community);
+      return Promise.resolve();
+    });
   }
   /**
    * Order and "Meus posts" are tabs; period, tag and hidden posts live in a
@@ -864,12 +828,9 @@ export function startCommunityPosts(
         state: CommunityState | null;
         post: string | null;
         tag: string | null;
-        /** Arriving from "Postar": the composer starts open. */
-        compose?: boolean;
       },
     ): void {
       leave();
-      composeOpen = options.compose === true;
       mounted = container;
       community = options.community;
       identity = options.identity;

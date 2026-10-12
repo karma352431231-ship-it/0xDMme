@@ -1,4 +1,6 @@
 import { publicationTitle, publicationQuote } from './publications.ts';
+import { moderationRows, watchModeration } from './moderation.ts';
+import type { ModerationActivity } from './moderation.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
 import { displayName, paintAvatar, shortAddress } from '../appearance/index.ts';
 
@@ -8,6 +10,8 @@ import { displayName, paintAvatar, shortAddress } from '../appearance/index.ts';
  * only reads them on demand and calls the same actions as the original screens.
  */
 export interface ActivitySources {
+  moderation?: () => Promise<readonly ModerationActivity[]>;
+  markModerationRead?: (ids: readonly string[]) => Promise<void>;
   requests: () => Promise<
     readonly {
       accountId: string;
@@ -48,13 +52,14 @@ type Loaded<T> = { items: readonly T[]; problem: string };
 
 export type ActivityFilter = 'all' | 'requests' | 'replies';
 export type ActivityGroup =
-  'requests' | 'calls' | 'invites' | 'replies' | 'transfers';
+  'requests' | 'calls' | 'invites' | 'replies' | 'transfers' | 'moderation';
 const groupOrder: readonly ActivityGroup[] = [
   'requests',
   'calls',
   'invites',
   'replies',
   'transfers',
+  'moderation',
 ];
 /**
  * Tudo shows every group. Pedidos are the items waiting for an answer
@@ -73,6 +78,7 @@ type Item<
 > = Awaited<ReturnType<ActivitySources[K]>>[number];
 
 interface Snapshot {
+  moderation: Loaded<ModerationActivity>;
   requests: Loaded<Item<'requests'>>;
   invites: Loaded<Item<'groupInvites'>>;
   replies: Loaded<Item<'replies'>>;
@@ -82,6 +88,7 @@ interface Snapshot {
 
 function empty(): Snapshot {
   return {
+    moderation: { items: [], problem: '' },
     requests: { items: [], problem: '' },
     invites: { items: [], problem: '' },
     replies: { items: [], problem: '' },
@@ -144,6 +151,7 @@ export function startActivity(
   let busy = false;
   let feedback = '';
   let filter: ActivityFilter = 'all';
+  let moderationAbort = new AbortController();
 
   function count(): number {
     return (
@@ -151,21 +159,33 @@ export function startActivity(
       snapshot.invites.items.length +
       snapshot.replies.items.length +
       snapshot.transfers.items.length +
-      snapshot.calls.items.length
+      snapshot.calls.items.length +
+      snapshot.moderation.items.length
     );
   }
   async function refresh(): Promise<void> {
     if (!session) return;
     const old = ++generation;
-    const [requests, invites, replies, transfers, calls] = await Promise.all([
-      load(sources.requests),
-      load(sources.groupInvites),
-      load(sources.replies),
-      load(sources.transfers),
-      load(sources.missedCalls),
-    ]);
+    const [requests, invites, replies, transfers, calls, moderation] =
+      await Promise.all([
+        load(sources.requests),
+        load(sources.groupInvites),
+        load(sources.replies),
+        load(sources.transfers),
+        load(sources.missedCalls),
+        load(sources.moderation ?? (() => Promise.resolve([]))),
+      ]);
     if (old !== generation) return;
-    snapshot = { requests, invites, replies, transfers, calls };
+    snapshot = { requests, invites, replies, transfers, calls, moderation };
+    options.countChanged(count());
+    render();
+  }
+  async function refreshModeration(): Promise<void> {
+    if (!session || !sources.moderation) return;
+    const old = generation;
+    const result = await load(sources.moderation);
+    if (old !== generation) return;
+    snapshot.moderation = result;
     options.countChanged(count());
     render();
   }
@@ -390,6 +410,7 @@ export function startActivity(
   }
   function groupSections(): [ActivityGroup, HTMLElement | null][] {
     const replyIds = snapshot.replies.items.map((item) => item.reply);
+    const moderationIds = snapshot.moderation.items.map((item) => item.id);
     return [
       [
         'requests',
@@ -406,6 +427,23 @@ export function startActivity(
                 'Limpar',
                 () => sources.clearMissedCalls(),
                 'Chamadas perdidas removidas da lista em todos os aparelhos.',
+              )
+            : undefined,
+        ),
+      ],
+      [
+        'moderation',
+        section(
+          'Moderação automática',
+          snapshot.moderation,
+          moderationRows(snapshot.moderation.items),
+          moderationIds.length
+            ? button(
+                'Marcar avisos como lidos',
+                () =>
+                  sources.markModerationRead?.(moderationIds) ??
+                  Promise.resolve(),
+                'Avisos marcados como lidos neste aparelho.',
               )
             : undefined,
         ),
@@ -457,6 +495,10 @@ export function startActivity(
       session = value;
       generation++;
       snapshot = empty();
+      moderationAbort.abort();
+      moderationAbort = new AbortController();
+      if (value && sources.moderation && typeof document !== 'undefined')
+        watchModeration(refreshModeration, moderationAbort.signal);
       feedback = '';
       filter = 'all';
       options.countChanged(0);

@@ -4,6 +4,7 @@
 @import '../public-media/picture.css';
 @import '../communities/community.css';
 @import '../communities/post-sharing.css';
+@import '../communities/post-composer.css';
 @import '../public-profile/profile.css';
 @import '../chat-ui/chat.css';
 @import '../groups/groups.css';

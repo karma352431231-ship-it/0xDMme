@@ -242,6 +242,11 @@ function fixture(post = false) {
     access,
     {} as Parameters<typeof startCommunities>[1],
     {} as Parameters<typeof startCommunities>[2],
+    {
+      inspect: () => Promise.resolve(null),
+      set: () =>
+        Promise.resolve({ following: false, notify: false, revision: 0 }),
+    },
   );
   const host = new CommunityNode('main');
   ui.setSession(account);

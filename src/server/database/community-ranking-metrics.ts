@@ -1,3 +1,4 @@
+import { visiblePost } from './community-post-visibility.ts';
 import type pg from 'pg';
 import type { RankingComparison } from '../../shared/community-ranking/index.ts';
 
@@ -49,8 +50,8 @@ async function readRanking(
       SELECT p.* FROM hash_talk.community_posts p JOIN targets t ON t.id=p.community_id
       LEFT JOIN hash_talk.community_posts root ON root.id=p.root_id
       WHERE p.created_at>=$2::timestamptz-interval '14 days' AND p.created_at<$2
-      AND NOT p.deleted AND p.active_removal IS NULL
-      AND (p.root_id IS NULL OR (NOT root.deleted AND root.active_removal IS NULL))
+      AND ${visiblePost('p')}
+      AND (p.root_id IS NULL OR (${visiblePost('root')}))
     ), activity AS (
       SELECT e.*,period,span,bucket,intervals,
         CASE WHEN e.created_at >= $2::timestamptz-span THEN 0 ELSE 1 END AS segment
@@ -80,7 +81,7 @@ async function readRanking(
     ), deltas AS (
       SELECT p.community_id,d.post_id,d.at,d.delta FROM hash_talk.community_upvote_deltas d
       JOIN hash_talk.community_posts p ON p.id=d.post_id JOIN targets t ON t.id=p.community_id
-      WHERE d.at>=$2::timestamptz-interval '14 days' AND d.at<$2 AND NOT p.deleted AND p.active_removal IS NULL
+      WHERE d.at>=$2::timestamptz-interval '14 days' AND d.at<$2 AND ${visiblePost('p')}
     ), post_votes AS (
       SELECT d.community_id,d.post_id,period,
         CASE WHEN at >= $2::timestamptz-span THEN 0 ELSE 1 END AS segment,

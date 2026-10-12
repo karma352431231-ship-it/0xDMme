@@ -1,0 +1,46 @@
+.post-composer-dialog {
+  width: min(640px, calc(100vw - 24px));
+  max-height: calc(100dvh - 32px);
+  padding: 24px;
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  background: var(--surface);
+  color: var(--text);
+  overflow-y: auto;
+}
+.post-composer-dialog::backdrop {
+  background: var(--overlay);
+}
+.post-composer-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+}
+.post-composer-heading h2 {
+  margin: 0;
+}
+.post-composer-content {
+  display: grid;
+  gap: 16px;
+}
+.post-composer-content :is(input, textarea, select) {
+  width: 100%;
+}
+.post-composer-content textarea {
+  min-height: 160px;
+}
+.post-composer-community {
+  text-align: left;
+}
+.post-composer-dialog .post-discard-confirmation {
+  position: absolute;
+  inset: 0;
+  padding: 32px 24px;
+  background: var(--surface);
+  border-radius: inherit;
+  z-index: 1;
+}
+.post-discard-confirmation button {
+  margin: 8px 8px 0 0;
+}

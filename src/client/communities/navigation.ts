@@ -88,7 +88,12 @@ export function communityDirectoryNavigation(
     if (!selected && (view === key || (key === 'feed' && view === 'following')))
       a.setAttribute('aria-current', 'page');
   }
-  container.append(head, tabs, nav, el('h2', 'Seguidas'));
+  container.append(
+    head,
+    tabs,
+    nav,
+    el('h2', view === 'dms' ? 'Mensagens @' : 'Seguidas'),
+  );
 }
 
 /** Where the arrow of an opened post leads: the list the reader came from, else its community. */

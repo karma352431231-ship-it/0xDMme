@@ -1,3 +1,4 @@
+import { blockedPost, visiblePost } from './community-post-visibility.ts';
 import type pg from 'pg';
 import { AccountError } from '../../shared/account/index.ts';
 import { communityPageSize } from '../../shared/communities/index.ts';
@@ -13,7 +14,7 @@ import type {
 /** Indexed aggregate counters; no subtree scans or per-card history queries. */
 export async function discussionRows(
   client: Pick<pg.PoolClient, 'query'>,
-  target: { community: string; parent: string },
+  target: { community: string; parent: string; actor?: string },
   selection: { order: DiscussionOrder; after: string | null },
 ) {
   const key = discussionKey(target.community, target.parent, selection.order),
@@ -34,7 +35,10 @@ export async function discussionRows(
     created_at: Date;
   }>(
     `WITH ordered AS (SELECT p.id,p.created_at,${activity} AS activity,${score} AS score
-     FROM hash_talk.community_posts p WHERE p.community_id=$1 AND p.parent_id=$2 AND p.created_at<=$3)
+     FROM hash_talk.community_posts p WHERE p.community_id=$1 AND p.parent_id=$2 AND p.created_at<=$3
+       AND NOT ${blockedPost('p')}
+       AND (p.root_id IS NULL OR EXISTS(SELECT 1 FROM hash_talk.community_posts root WHERE root.id=p.root_id AND ${visiblePost('root')}))
+       AND NOT EXISTS(SELECT 1 FROM hash_talk.social_blocks b WHERE b.actor=$9 AND b.blocked AND b.target=p.author))
      SELECT * FROM ordered WHERE ($4::bigint IS NULL OR (activity,score,created_at,id)${compare}($4,$5,$6::timestamptz,$7::uuid))
      ORDER BY activity ${direction},score ${direction},created_at ${direction},id ${direction} LIMIT $8`,
     [
@@ -43,6 +47,7 @@ export async function discussionRows(
       anchor,
       ...position,
       communityPageSize + 1,
+      target.actor ?? null,
     ],
   );
   const rows = found.rows.slice(0, communityPageSize),

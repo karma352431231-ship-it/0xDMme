@@ -107,6 +107,8 @@ await test('feed e discussão: elegibilidade, representantes, diversidade e árv
     id: community,
     meta: { name: 'Discussão sintética', description: '', rules: '' },
   });
+  const defaultTag = (await db.communityPosts.tags(community, null)).items[0]!
+    .id;
   const create = async (
     who: typeof owner,
     parent: string | null = null,
@@ -115,7 +117,11 @@ await test('feed e discussão: elegibilidade, representantes, diversidade e árv
     await who.operate(parent ? 'reply-create' : 'post-create', {
       id: community,
       post: id,
-      content: { title: '', text: 'Texto público sintético', tag: null },
+      content: {
+        title: parent ? '' : 'Título sintético',
+        text: 'Texto público sintético',
+        tags: parent ? [] : [defaultTag],
+      },
       ...(parent ? { parent } : {}),
     });
     return id;
@@ -203,6 +209,34 @@ await test('feed e discussão: elegibilidade, representantes, diversidade e árv
       });
       assert.equal((await replies(root)).items[0]?.id, popular);
       assert.equal((await replies(popular, 'oldest')).items[0]?.id, nested);
+    },
+  );
+  await t.test(
+    'leitura assinada dos ramos conserva votos privados sem expor o leitor publicamente',
+    async () => {
+      await reader.operate('post-vote', {
+        id: community,
+        post: popular,
+        position: 1,
+        voteRevision: 0,
+      });
+      const signed = discussionPage(
+        await reader.operate('post-replies', {
+          id: community,
+          post: root,
+          order: 'votes',
+          after: null,
+        }),
+      );
+      assert.equal(signed.items[0]?.id, popular);
+      assert.equal(signed.items[0]?.viewer?.vote, 1);
+      assert.equal((await replies(root, 'votes')).items[0]?.viewer, undefined);
+      await reader.operate('post-vote', {
+        id: community,
+        post: popular,
+        position: 0,
+        voteRevision: 1,
+      });
     },
   );
   await follow(identities[1]!.id);
@@ -397,7 +431,7 @@ await test('feed e discussão: elegibilidade, representantes, diversidade e árv
           id: community,
           post: retry,
           parent: popular,
-          content: { title: '', text: 'Retry sintético', tag: null },
+          content: { title: '', text: 'Retry sintético', tags: [] },
         };
       await Promise.all([
         people[6]!.operate('reply-create', payload),
@@ -417,7 +451,7 @@ await test('feed e discussão: elegibilidade, representantes, diversidade e árv
           'DELETE FROM hash_talk.community_discussion_participants',
         );
         await sql.query(
-          'DROP TABLE hash_talk.community_discussion_participants CASCADE; DROP FUNCTION hash_talk.track_discussion_post() CASCADE; DROP FUNCTION hash_talk.adjust_discussion_contribution(uuid,uuid,integer); DROP FUNCTION hash_talk.track_discussion_participant(); ALTER TABLE hash_talk.community_posts DROP COLUMN discussion_participants, DROP COLUMN discussion_activity; DROP INDEX hash_talk.community_reply_first; DROP INDEX hash_talk.community_reply_votes',
+          'DROP TRIGGER community_ranking_discussion_visibility ON hash_talk.community_posts; DROP INDEX hash_talk.community_discussion_media_refs; DROP TABLE hash_talk.community_discussion_participants CASCADE; DROP FUNCTION hash_talk.prepare_discussion_visibility() CASCADE; DROP FUNCTION hash_talk.refresh_discussion_visibility() CASCADE; DROP FUNCTION hash_talk.discussion_media_blocked(uuid[]); DROP FUNCTION hash_talk.track_discussion_post() CASCADE; DROP FUNCTION hash_talk.adjust_discussion_contribution(uuid,uuid,integer); DROP FUNCTION hash_talk.track_discussion_participant(); ALTER TABLE hash_talk.community_posts DROP COLUMN discussion_participants, DROP COLUMN discussion_activity, DROP COLUMN discussion_blocked; DROP INDEX hash_talk.community_reply_first; DROP INDEX hash_talk.community_reply_votes',
         );
         await sql.query(
           await readFile(

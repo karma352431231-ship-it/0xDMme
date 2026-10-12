@@ -91,3 +91,11 @@
   color: var(--danger);
   font-size: 12px;
 }
+
+.hover-card .hover-card-banner {
+  height: 64px;
+  min-height: 64px;
+  margin-bottom: 12px;
+  overflow: hidden;
+  border-radius: 8px;
+}

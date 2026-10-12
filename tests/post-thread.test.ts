@@ -42,7 +42,7 @@ function post(parent: CommunityPost | null, score: number): CommunityPost {
     author: null,
     title: parent ? '' : 'Discussão sintética',
     text: String(score),
-    tag: null,
+    tags: [],
     createdAt: '2026-10-12T12:00:00.000Z',
     editedAt: null,
     revision: 1,

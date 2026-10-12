@@ -1,3 +1,4 @@
+import { visiblePost } from './community-post-visibility.ts';
 import type pg from 'pg';
 import { AccountError, keys } from '../../shared/account/index.ts';
 import { communityPageSize } from '../../shared/communities/index.ts';
@@ -126,8 +127,8 @@ export class CommunityDiscoveryStore {
       SELECT p.id,p.root_id,p.author,p.community_id,c.name,p.created_at,${rank} AS rank
       FROM hash_talk.community_posts p JOIN hash_talk.communities c ON c.id=p.community_id
       LEFT JOIN hash_talk.community_post_preferences pref ON pref.post_id=p.id AND pref.profile_id=$1
-      WHERE ($2 IN ('saved','hidden') OR (NOT p.deleted AND p.active_removal IS NULL
-        AND (p.root_id IS NULL OR EXISTS(SELECT 1 FROM hash_talk.community_posts root WHERE root.id=p.root_id AND NOT root.deleted AND root.active_removal IS NULL))
+      WHERE ($2 IN ('saved','hidden') OR (${visiblePost('p')}
+        AND (p.root_id IS NULL OR EXISTS(SELECT 1 FROM hash_talk.community_posts root WHERE root.id=p.root_id AND ${visiblePost('root')}))
         AND (p.parent_id IS NULL OR (($2='following' OR $3::uuid IS NULL) AND (
           ($2='all' AND $11='mixed' AND p.author IS NOT NULL AND (p.score>=5 OR p.discussion_participants>=3)) OR
           (($2='following' OR $11<>'mixed') AND EXISTS(SELECT 1 FROM hash_talk.public_profile_follows pf WHERE pf.follower=$1 AND pf.target=p.author AND pf.following)))))))
@@ -174,8 +175,8 @@ export class CommunityDiscoveryStore {
         UNION ALL SELECT id,post_id,created_at,created_at FROM hash_talk.community_post_shares WHERE profile_id=$1 AND shared AND $3='overview'
       ) SELECT a.activity_id AS id,p.id AS post_id,p.community_id,c.name,a.created_at,a.shared_at,0::bigint AS rank
       FROM activity a JOIN hash_talk.community_posts p ON p.id=a.post_id JOIN hash_talk.communities c ON c.id=p.community_id
-      WHERE true AND NOT p.deleted AND p.active_removal IS NULL AND a.created_at<=$2
-      AND (p.root_id IS NULL OR EXISTS(SELECT 1 FROM hash_talk.community_posts root WHERE root.id=p.root_id AND NOT root.deleted AND root.active_removal IS NULL))
+      WHERE true AND ${visiblePost('p')} AND a.created_at<=$2
+      AND (p.root_id IS NULL OR EXISTS(SELECT 1 FROM hash_talk.community_posts root WHERE root.id=p.root_id AND ${visiblePost('root')}))
       AND ($3='overview' OR ($3='posts' AND p.parent_id IS NULL) OR ($3='replies' AND p.parent_id IS NOT NULL))
       AND ($4::timestamptz IS NULL OR (a.created_at,a.activity_id)<($4,$5::uuid))
       AND NOT EXISTS(SELECT 1 FROM hash_talk.social_blocks b WHERE b.actor=$7 AND b.blocked AND
@@ -239,7 +240,7 @@ export class CommunityDiscoveryStore {
       next: result.next,
       items: result.items.flatMap((row) => {
         const post = posts.get(row.post_id ?? row.id);
-        if (!post) return [];
+        if (!availablePost(post, publicOnly)) return [];
         const avatar = photos.get(row.community_id);
         const context = this.replyContext(post, ancestors);
         if (post.root && !context && publicOnly) return [];
@@ -363,4 +364,11 @@ export class CommunityDiscoveryStore {
       return operatePostPreference(context, operation, data, this.capacity);
     });
   }
+}
+
+function availablePost(
+  post: CommunityPost | undefined,
+  publicOnly: boolean,
+): post is CommunityPost {
+  return !!post && (!publicOnly || post.status === 'visible');
 }

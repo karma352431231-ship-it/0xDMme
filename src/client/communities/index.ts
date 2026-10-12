@@ -33,6 +33,9 @@ import { manageGroups } from './manage-tabs.ts';
 import { communityHoverProvider } from './community-hover.ts';
 import { registerHoverCard } from '../hover-card/index.ts';
 import { startCommunityPosts } from './posts.ts';
+import { PostComposer } from './post-composer.ts';
+import { FeedReturn } from './feed-return.ts';
+import type { FeedBookmark } from './feed-return.ts';
 import { replyNotificationPage } from '../../shared/community-posts/index.ts';
 import type { ReplyNotification } from '../../shared/community-posts/index.ts';
 import { startCommunityDiscovery } from './discovery.ts';
@@ -60,9 +63,20 @@ export function startCommunities(
   registerHoverCard(
     communityHoverProvider({ controller, signedIn: () => session !== null }),
   );
-  const posts = startCommunityPosts(controller, privacy);
+  const composer = new PostComposer(controller);
+  const feedReturn = new FeedReturn();
+  let returnBookmark: FeedBookmark | null = null;
+  const posts = startCommunityPosts(controller, privacy, (id) =>
+    composer.open(id),
+  );
   const discovery = startCommunityDiscovery(controller, privacy, profiles);
   document.addEventListener('click', openPostFromCard);
+  feedReturn.bind({
+    container: () => mounted,
+    bookmark: () => discovery.bookmark(),
+    reset: () => discovery.reset(),
+  });
+  composer.bind(() => session !== null);
   let mounted: HTMLElement | null = null,
     sidebar: HTMLElement | null = null,
     session: AccountSession | null = null;
@@ -74,8 +88,6 @@ export function startCommunities(
     presentation: { dirty: () => boolean; dispose: () => void } | null = null;
   // Query of the last list shown (feed, ranking, community…), for the post arrow.
   let lastList: string | null = null;
-  // "Postar" passes through the community list and opens the composer there.
-  let composeNext = false;
   let view = 'feed',
     selectedDm: string | null = null,
     localDm = false,
@@ -169,7 +181,7 @@ export function startCommunities(
       const a = communityElement('a', '', 'community-row-link'),
         avatar = communityAvatar(item.name),
         copy = communityElement('span', '', 'community-row-copy');
-      a.href = `#comunidades?id=${item.id}${composeNext ? '&compose=1' : ''}`;
+      a.href = `#comunidades?id=${item.id}`;
       if (item.id === selected) a.setAttribute('aria-current', 'page');
       copy.append(
         communityElement('strong', item.name),
@@ -188,11 +200,20 @@ export function startCommunities(
   function followerLabel(value: Community): string {
     return `${value.followers} ${value.followers === 1 ? 'seguidor' : 'seguidores'}${value.archived ? ' · Arquivada' : ''}`;
   }
+  async function dmSidebar(): Promise<void> {
+    if (!sidebar) return;
+    const old = generation;
+    await dms.directory(sidebar, () => old === generation && view === 'dms');
+  }
   async function directory(): Promise<void> {
     if (!sidebar) return;
     clearPublicPhotos(sidebar);
     sidebar.replaceChildren();
     communityDirectoryNavigation(sidebar, view, selected);
+    if (view === 'dms') {
+      await dmSidebar();
+      return;
+    }
     if (!session) {
       sidebar.append(
         communityElement('p', 'Entre para ver suas comunidades seguidas.'),
@@ -208,15 +229,19 @@ export function startCommunities(
       if (page.next)
         communityButton(sidebar, 'Mais comunidades', () => run(directory));
     } catch (error: unknown) {
-      if (old === generation && sidebar)
-        sidebar.append(
-          communityElement(
-            'p',
-            error instanceof Error ? error.message : 'Lista indisponível.',
-          ),
-        );
+      directoryProblem(old, error);
     }
   }
+  function directoryProblem(old: number, error: unknown): void {
+    if (old !== generation || !sidebar) return;
+    sidebar.append(
+      communityElement(
+        'p',
+        error instanceof Error ? error.message : 'Lista indisponível.',
+      ),
+    );
+  }
+
   async function notifications(): Promise<void> {
     const old = generation,
       currentCursor = cursor,
@@ -496,7 +521,12 @@ export function startCommunities(
   function postFocus(value: Community, post: string): void {
     if (!mounted) return;
     mounted.dataset['communityLayout'] = 'post';
-    mounted.append(backHeader(value, postReturnTarget(lastList, value.id)));
+    mounted.append(
+      backHeader(
+        value,
+        feedReturn.target() ?? postReturnTarget(lastList, value.id),
+      ),
+    );
     const postContainer = communityElement('section', '', 'community-posts');
     mounted.append(postContainer);
     posts.mount(postContainer, {
@@ -540,7 +570,6 @@ export function startCommunities(
       state,
       post: selectedPost,
       tag: selectedTag,
-      compose: composeNext,
     });
     // Owners and moderators manage from the isolated screen (top-right link);
     // participants keep their sanctions, appeals and reports here.
@@ -626,11 +655,14 @@ export function startCommunities(
     discovery.mount(container, {
       view,
       signedIn: session !== null,
+      openComposer: () => composer.open(),
+      bookmark: returnBookmark,
       followChanged: async () => {
         sidebarCursor = null;
         await directory();
       },
     });
+    returnBookmark = null;
   }
   async function refresh(): Promise<void> {
     if (!mounted) return;
@@ -717,6 +749,7 @@ export function startCommunities(
       directoryNode: HTMLElement | null,
       params: URLSearchParams,
     ): void {
+      returnBookmark = feedReturn.take(params);
       leave();
       mounted = container;
       sidebar = directoryNode;
@@ -739,7 +772,7 @@ export function startCommunities(
         return;
       }
       view = communityView(view, selected);
-      composeNext = params.get('compose') === '1';
+
       navigation();
       ready();
     },
@@ -778,6 +811,7 @@ export function startCommunities(
     canActivate: () =>
       !busy &&
       !presentation?.dirty() &&
+      composer.canActivate() &&
       posts.canActivate() &&
       discovery.canActivate() &&
       dms.canActivate(),
@@ -785,6 +819,9 @@ export function startCommunities(
       session = value;
       dms.setSession(value);
       if (!controller.setSession(value)) return;
+      composer.close();
+      feedReturn.clear();
+      returnBookmark = null;
       generation++;
       posts.leave();
       discovery.leave();

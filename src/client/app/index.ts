@@ -172,6 +172,11 @@ const activity = startActivity(
     replies: () => communities.unreadReplies(),
     markRepliesRead: (ids) => communities.markRepliesRead(ids),
     transfers: () => communities.pendingTransfers(),
+    moderation: () => publicProfiles.moderationNotifications(),
+    markModerationRead: (ids) => {
+      publicProfiles.markModerationRead(ids);
+      return Promise.resolve();
+    },
     missedCalls: async () =>
       (await callLog.missed()).map((call) => ({
         ...call,

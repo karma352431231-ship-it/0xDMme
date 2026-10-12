@@ -80,7 +80,15 @@ export function profileHoverProvider(
       const name = line('a', `@${value.profile.handle}`, 'hover-card-title');
       (name as HTMLAnchorElement).href =
         `#publico?handle=${encodeURIComponent(value.profile.handle)}`;
-      card.append(head, name);
+      const banner = line('div', '', 'public-profile-banner hover-card-banner');
+      if (value.banner)
+        showPublicAvatar(banner, {
+          kind: 'profile-banner',
+          target: value.profile.id,
+          reference: value.banner,
+          signal,
+        });
+      card.append(banner, head, name);
       if (value.description)
         card.append(line('p', value.description, 'hover-card-text'));
       card.append(

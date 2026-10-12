@@ -78,7 +78,10 @@ await test('sem sessão nada é lido e trocar de conta zera o contador', async (
 
 await test('filtros: Pedidos reúne o que espera resposta e Respostas só as respostas das comunidades', () => {
   for (const [filter, groups] of [
-    ['all', ['requests', 'calls', 'invites', 'replies', 'transfers']],
+    [
+      'all',
+      ['requests', 'calls', 'invites', 'replies', 'transfers', 'moderation'],
+    ],
     ['requests', ['requests', 'invites', 'transfers']],
     ['replies', ['replies']],
   ] as const)
