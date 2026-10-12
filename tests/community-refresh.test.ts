@@ -153,11 +153,15 @@ function fixture(post = false) {
       );
     if (path.endsWith('/tags'))
       return Promise.resolve(Response.json({ items: [], next: null }));
-    if (path.endsWith('/replies'))
+    if (['/replies', '/post-replies'].some((suffix) => path.endsWith(suffix)))
       return Promise.resolve(
         Response.json({ items: data.replies, next: null }),
       );
-    if (path.endsWith('/posts/' + postId))
+    if (
+      ['/posts/' + postId, '/post-public'].some((suffix) =>
+        path.endsWith(suffix),
+      )
+    )
       return Promise.resolve(Response.json(data.value));
     if (path.endsWith('/post-page'))
       return Promise.resolve(
@@ -273,6 +277,8 @@ await test('post e respostas idênticos conservam elementos; edição e exclusã
     thread = host.querySelector('.community-thread');
   assert.ok(card, host.textContent);
   assert.ok(thread, host.textContent);
+  assert.ok(data.requests.includes('/api/account/communities/post-public'));
+  assert.ok(data.requests.includes('/api/account/communities/post-replies'));
   ui.ready();
   await settled(ui);
   assert.equal(host.querySelector('.community-post'), card);
