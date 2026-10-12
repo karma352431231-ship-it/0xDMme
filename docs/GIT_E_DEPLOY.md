@@ -1,5 +1,27 @@
 # 0xDMme — Git e envio à VPS
 
+## Contexto de respostas e menus — integração de 12/10/2026
+
+O proprietário pediu integrar os últimos commits na `main` e ativar na VPS.
+O branch `claude/profile-activity-menus` foi integrado sem conflito; a revisão
+`9077d25` também corrige o menu do perfil que saía da tela em 320 px e era
+recortado pelo cabeçalho. As mudanças são de frontend; servidor, dependências,
+Node, configuração e as 58 migrações permanecem iguais à release `93fb22c`.
+
+A primeira tentativa devolveu a release anterior após falha na prontidão dos
+workers. A recuperação posterior confirmou o site, os três workers e as reservas
+PostgreSQL, com configurações e processo do banco preservados. Conservar o recibo
+original e certificar a recuperação antes de liberar somente os artefatos de
+código pelo executor existente. Acesso e diagnóstico ficam em `.local/`.
+
+A CI integral de `9077d25` passou no branch de publicação. A execução da `main`
+falhou em fixtures HTTP com `EADDRINUSE`; a credencial existente não permite
+reexecutá-la. Esta entrega registra a revisão e exige nova CI integral do commit
+final, checkout limpo/enviado e `npm run deploy:staging` para a nova tentativa.
+
+**Ponto importante:** a recuperação da release anterior não confirma publicação
+da nova. Conferir recibo, hashes públicos e prontidão dos três workers ao concluir.
+
 ## Tetos de backup removidos — decisão de 11/10/2026
 
 O proprietário mandou retirar as travas de 256 MiB para objetos e 64 MiB para
