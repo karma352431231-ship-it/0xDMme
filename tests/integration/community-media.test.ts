@@ -621,7 +621,7 @@ await test('mídia das comunidades: cadeia real, autorização, vínculo atômic
     },
   );
   await t.test(
-    'análise vincula resultado e miniatura; descarte exige remoção física e preserva texto/links e aprovados',
+    'análise vincula resultado e miniatura; descarte conserva texto do autor e original excluído mantém o reply restrito',
     async () => {
       const attached = await inspector.query<{
         id: string;
@@ -775,10 +775,31 @@ await test('mídia das comunidades: cadeia real, autorização, vínculo atômic
         }),
       );
       assert.equal(edited.content?.text, 'Texto preservado após o descarte.');
-      assert.equal(
-        (await communities.post(id, reply)).text,
-        'Texto preservado após o descarte.',
+      const restricted = await communities.post(id, reply);
+      assert.equal(restricted.status, 'removed');
+      assert.equal(restricted.text, '');
+      assert.equal(restricted.author, null);
+      assert.equal(restricted.media?.length ?? 0, 0);
+      assert.ok(edited.content);
+      assert.ok(edited.content.media);
+      const restored = postState(
+        await author.operate('post-edit', {
+          id,
+          post: reply,
+          revision: edited.post.revision,
+          content: {
+            ...edited.content,
+            media: edited.content.media.filter((item) => item !== held.target),
+          },
+        }),
       );
+      // The original was deleted above: correcting an attachment cannot reopen its replies.
+      assert.equal(restored.post.status, 'removed');
+      assert.ok(restored.content);
+      assert.ok(restored.content.media);
+      assert.equal(restored.content.text, 'Texto preservado após o descarte.');
+      assert.equal(restored.content.media.includes(held.target), false);
+      assert.equal((await communities.post(id, reply)).text, '');
       assert.equal(
         JSON.stringify(await communities.post(id, reply)).includes(
           approved.target,

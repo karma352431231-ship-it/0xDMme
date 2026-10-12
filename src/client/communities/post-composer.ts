@@ -1,6 +1,7 @@
 import { communityPage } from '../../shared/communities/index.ts';
 import { postState, tagPage } from '../../shared/community-posts/index.ts';
 import type { Community } from '../../shared/communities/index.ts';
+import type { ExternalMediaConsent } from '../external-media/index.ts';
 import { showToast } from '../toast/index.ts';
 import { communityRead, type Communities } from './controller.ts';
 import {
@@ -36,8 +37,10 @@ export class PostComposer {
   private draft: HTMLElement | null = null;
   private feedback: HTMLElement | null = null;
   private readonly controller: Communities;
-  constructor(controller: Communities) {
+  private readonly privacy: ExternalMediaConsent;
+  constructor(controller: Communities, privacy: ExternalMediaConsent) {
     this.controller = controller;
+    this.privacy = privacy;
   }
   bind(signedIn: () => boolean): void {
     document.addEventListener('click', (event) => {
@@ -208,6 +211,7 @@ export class PostComposer {
           this.controller.request(operation, payload),
         valid: () => !lifetime.signal.aborted,
         signal: lifetime.signal,
+        privacy: this.privacy,
       },
     );
     const post = crypto.randomUUID();

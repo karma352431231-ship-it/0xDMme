@@ -63,7 +63,7 @@ export function startCommunities(
   registerHoverCard(
     communityHoverProvider({ controller, signedIn: () => session !== null }),
   );
-  const composer = new PostComposer(controller);
+  const composer = new PostComposer(controller, privacy);
   const feedReturn = new FeedReturn();
   let returnBookmark: FeedBookmark | null = null;
   const posts = startCommunityPosts(controller, privacy, (id) =>
