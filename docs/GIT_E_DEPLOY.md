@@ -1,5 +1,31 @@
 # 0xDMme — Git e envio à VPS
 
+## Conexões da conta do app — correção autorizada em 12/10/2026
+
+Após duas falhas de prontidão na ativação, a investigação encontrou um limite
+legado de oito conexões no role do app, apesar dos pools web 16/worker 4 e do
+`max_connections` 64 aprovados em 09/10. A inicialização isolada de configuração,
+schema e modelo passou na release anterior e candidata; os logs não preservaram
+a causa exata das falhas do processo completo. A CI integral de `190f1a1` passou
+na `main` e no branch de publicação. A release anterior e os três workers foram
+recuperados e verificados antes desta correção.
+
+O proprietário autorizou remover o limite por role com `CONNECTION LIMIT -1` e
+concluir a ativação. Alterar somente esse atributo da conta própria, preservando
+privilégios, senha, parâmetros, pools e o limite global existente de 64 conexões.
+A alteração é dinâmica: não reiniciar PostgreSQL, instalar pacotes ou executar
+migração. Registrar comparação antes/depois em `.local/`; retorno restrito é
+restaurar o atributo anterior, após conferir que a conta mantém o estado esperado.
+
+Usar novamente `npm run deploy:staging` em commit final limpo, integrado/enviado
+e com CI integral aprovada. Conservar o recibo da tentativa anterior e certificar
+a recuperação antes da limpeza normal de código. Exigir hashes públicos exatos,
+três reservas dos workers e preservação dos serviços/configurações ao concluir.
+
+**Ponto importante:** são conexões simultâneas, não MiB nem tamanho do banco.
+A retirada do limite por conta permite aos pools usar a capacidade já configurada;
+os controles globais, prazos, durabilidade e retenção permanecem.
+
 ## Contexto de respostas e menus — integração de 12/10/2026
 
 O proprietário pediu integrar os últimos commits na `main` e ativar na VPS.
