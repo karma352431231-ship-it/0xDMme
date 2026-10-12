@@ -215,3 +215,20 @@ await test('confirm recusado por exclusão e revogação durante confirm permane
     assert.ok(frames.every((rows) => rows === null));
   }
 });
+
+await test('retomada da visão fechada renderiza o histórico completo mesmo quando o snapshot só precisa conferir entrega', () => {
+  const frames: { rows: readonly string[] | null; update: HistoryUpdate }[] =
+    [];
+  const visibility = new MessageVisibility<string>((rows, update) =>
+    frames.push({ rows, update }),
+  );
+  const initial = visibility.begin();
+  visibility.stage(initial, ['mensagem já validada']);
+  visibility.complete(initial);
+  visibility.close();
+  const resume = visibility.refresh('delivery');
+  visibility.stage(resume, ['mensagem já validada']);
+  visibility.complete(resume);
+  assert.equal(frames.at(-1)?.update, 'history');
+  assert.deepEqual(frames.at(-1)?.rows, ['mensagem já validada']);
+});

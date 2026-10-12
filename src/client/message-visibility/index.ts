@@ -31,7 +31,9 @@ export class MessageVisibility<T> {
   }
   /** Retain only the last complete view while preparing a normal update. */
   refresh(update: HistoryUpdate = 'history'): number {
-    if (!this.visible) return this.begin(update);
+    // A closed view has no rendered bubbles to update in place. Reopening must
+    // publish a full history even when only delivery was checked on the wire.
+    if (!this.visible) return this.begin();
     this.generation++;
     this.staged = [];
     this.update = update;

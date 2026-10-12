@@ -188,6 +188,12 @@ export class Messages {
     this.index.reset();
     this.offlineIndex.reset();
   }
+  /** Hide during a normal pause, retaining only a fully confirmed window.
+   * probe() must authenticate the current snapshot before publishing it again. */
+  pause(): void {
+    this.pauseSynchronization();
+    this.visibility.close();
+  }
   hide(): void {
     this.pauseSynchronization();
     this.index.reset();
@@ -695,7 +701,6 @@ export class Messages {
     }
   }
   async synchronize(): Promise<void> {
-    this.confirmed = null;
     const token = this.visibility.refresh(),
       generation = this.generation,
       selected = this.selected;
@@ -757,26 +762,21 @@ export class Messages {
       this.oldest =
         staged.items.filter((item) => item.kind !== 'profile')[0]?.sequence ??
         this.before;
-      this.confirmed = {
-        snapshot: JSON.stringify(staged.snapshot),
-        views: staged.views,
-      };
-      await this.refreshDelivery(staged.snapshot, generation);
-      await this.access.withVault(false, async (a) => {
-        if (!this.confirmed) throw new Error('Histórico alterado.');
-        this.confirmed.views = await this.includeHistory(
-          a,
-          this.confirmed.views,
-          generation,
-        );
-      });
+      const delivered = await this.refreshDelivery(
+        staged.snapshot,
+        generation,
+        staged.views,
+      );
+      const views = await this.access.withVault(false, (a) =>
+        this.includeHistory(a, delivered, generation),
+      );
       this.oldest =
-        this.confirmed.views.filter(
-          (v) => !v.relation && v.kind !== 'profile',
-        )[0]?.sequence ?? this.before;
-      this.visibility.stage(token, this.confirmed.views);
+        views.filter((v) => !v.relation && v.kind !== 'profile')[0]?.sequence ??
+        this.before;
+      this.visibility.stage(token, views);
       await this.confirmVisible(token, staged.snapshot, generation);
       this.guard(generation);
+      this.confirmed = { snapshot: JSON.stringify(staged.snapshot), views };
       this.verified.remember(staged.snapshot, staged.window, staged.views);
     } catch (error: unknown) {
       this.index.reset();
@@ -1486,9 +1486,15 @@ export class Messages {
       );
       this.guard(generation);
       if (this.confirmed?.snapshot === JSON.stringify(snapshot)) {
-        await this.refreshDelivery(snapshot, generation);
-        this.visibility.stage(token, this.confirmed.views);
+        const views = await this.refreshDelivery(
+          snapshot,
+          generation,
+          this.confirmed.views,
+        );
+        this.visibility.stage(token, views);
         await this.confirmVisible(token, snapshot, generation);
+        this.guard(generation);
+        this.confirmed = { snapshot: JSON.stringify(snapshot), views };
         return false;
       }
       this.confirmed = null;
@@ -1504,12 +1510,11 @@ export class Messages {
   private async refreshDelivery(
     snapshot: unknown,
     generation: number,
-  ): Promise<void> {
-    const confirmed = this.confirmed;
-    if (!confirmed) return;
+    views: readonly MessageView[],
+  ): Promise<MessageView[]> {
     const raw = await this.access.withVault(false, async (a) => {
       const result: unknown[] = [];
-      const onlineViews = confirmed.views.filter((v) => !v.archived);
+      const onlineViews = views.filter((v) => !v.archived);
       for (let offset = 0; offset < onlineViews.length; offset += 18) {
         const batch = await messageApi(
           a,
@@ -1546,7 +1551,7 @@ export class Messages {
         ] as const;
       }),
     );
-    confirmed.views = confirmed.views.map((view) => {
+    return views.map((view) => {
       if (view.archived) return view;
       const state = states.get(view.id);
       if (!state || state.hash !== view.hash)

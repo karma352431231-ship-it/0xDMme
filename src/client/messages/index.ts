@@ -70,6 +70,7 @@ import type { VaultAccess } from '../vault-authority/index.ts';
 import type { VaultSync } from '../vault-sync/index.ts';
 import { Contacts } from '../contacts/index.ts';
 import { Messages, receivedState } from './controller.ts';
+import { HistoryPreparation } from './preparation.ts';
 import type { MessageView } from './controller.ts';
 type ConversationPeer = Peer & { localOnly?: boolean };
 export function startMessages(
@@ -137,10 +138,8 @@ export function startMessages(
   let preloadTimer: ReturnType<typeof setTimeout> | null = null;
   let preloadAbort: AbortController | null = null;
   let preloadRunning = false;
-  let preloadGroups = false;
   let preloadRetryAt = 0;
-  let preloadDirectPending = true;
-  let preloadGroupsPending = true;
+  const preparation = new HistoryPreparation();
   let settingsHost: HTMLElement | null = null;
   let pushSettings: ReturnType<typeof mountPushSettings> | null = null;
   let message = 'Entre e autorize este aparelho para conversar.';
@@ -272,7 +271,7 @@ export function startMessages(
       playback.close();
     }
     if (['authorization', 'invalidated', 'revoked', 'ended'].includes(event))
-      suspend();
+      suspend('invalidate');
     else if (event === 'removed') {
       // Cancel the history token immediately without cancelling an in-flight
       // signed mutation (the sender receives its own deletion before its reply).
@@ -281,7 +280,7 @@ export function startMessages(
       menu.close();
       searchPanel.close();
     } else if (event === 'changed') controller.hint();
-    else controller.hide();
+    else controller.pause();
   }
   async function checkVoiceAuthority(): Promise<void> {
     await playback.check((peer) => controller.playbackAllowed(peer));
@@ -441,9 +440,13 @@ export function startMessages(
     groups.pauseSynchronization();
   }
   function schedulePreload(delay = 1000): void {
-    if (preloadRunning || preloadTimer !== null || !canPreload()) return;
-    preloadDirectPending = true;
-    preloadGroupsPending = true;
+    if (
+      preloadRunning ||
+      preloadTimer !== null ||
+      !canPreload() ||
+      !preparation.pending
+    )
+      return;
     preloadTimer = setTimeout(
       () => {
         preloadTimer = null;
@@ -463,17 +466,18 @@ export function startMessages(
     );
   }
   async function preloadHistory(): Promise<void> {
-    if (!canPreload() || preloadRunning) return;
+    const turn = preparation.next();
+    if (!canPreload() || preloadRunning || !turn) return;
     preloadRunning = true;
     const abort = new AbortController(),
       current = generation;
     preloadAbort = abort;
     try {
-      if (preloadGroups && preloadGroupsPending)
-        preloadGroupsPending = await groups.synchronizeAll(abort.signal);
-      else preloadDirectPending = await controller.synchronizeAll(abort.signal);
-      preloadGroups =
-        preloadGroupsPending && (!preloadGroups || !preloadDirectPending);
+      const more =
+        turn.kind === 'groups'
+          ? await groups.synchronizeAll(abort.signal)
+          : await controller.synchronizeAll(abort.signal);
+      if (current === generation) preparation.complete(turn, more);
     } catch (error: unknown) {
       preloadFailure(error, abort, current);
     } finally {
@@ -496,12 +500,7 @@ export function startMessages(
     preloadRetryAt = Date.now() + 61000;
   }
   function continuePreload(current: number): void {
-    if (
-      current !== generation ||
-      !canPreload() ||
-      !(preloadDirectPending || preloadGroupsPending)
-    )
-      return;
+    if (current !== generation || !canPreload() || !preparation.pending) return;
     // Keep each completed branch complete until a foreground/live update.
     preloadTimer = setTimeout(
       () => {
@@ -555,6 +554,7 @@ export function startMessages(
     await controller.sendPending();
   }
   function requestRefresh(update: LiveUpdate = 'refresh'): void {
+    preparation.request();
     automaticAttempts = 0;
     updates.request(update);
   }
@@ -1243,24 +1243,29 @@ export function startMessages(
   async function refresh(): Promise<void> {
     updates.clear();
     lastTransferAttempt = Date.now();
-    controller.hide();
-    await controller.initialize();
-    await controller.loadPins();
-    await refreshContacts();
-    await groups.refresh();
-    contactsMore();
-    await controller.sendPending();
-    if (selected && conversationVisible('[data-direct-conversation]')) {
-      await refreshSelected();
+    const current = generation;
+    try {
+      await controller.initialize();
+      await controller.loadPins();
+      await refreshContacts();
+      await groups.refresh();
+      contactsMore();
+      await controller.sendPending();
+      if (selected && conversationVisible('[data-direct-conversation]')) {
+        await refreshSelected();
+      }
+      await controller.savePins();
+      await dailyTick();
+      if (
+        session &&
+        navigator.onLine &&
+        (document.visibilityState === 'visible' || playback.open)
+      )
+        live.start();
+    } catch (error: unknown) {
+      if (current === generation) controller.hide();
+      throw error;
     }
-    await controller.savePins();
-    await dailyTick();
-    if (
-      session &&
-      navigator.onLine &&
-      (document.visibilityState === 'visible' || playback.open)
-    )
-      live.start();
   }
   async function refreshChanges(): Promise<void> {
     await refreshChangedSelected();
@@ -1290,8 +1295,11 @@ export function startMessages(
     await synchronizeVisible();
   }
   async function synchronizeVisible(): Promise<void> {
-    if (conversationVisible('[data-direct-conversation]'))
+    if (!conversationVisible('[data-direct-conversation]')) return;
+    if (await controller.probe()) {
+      preparation.request();
       await controller.synchronize();
+    }
   }
   async function submit(): Promise<void> {
     if (selected?.localOnly)
@@ -1500,11 +1508,12 @@ export function startMessages(
     if (!result) throw new Error(message);
     return result;
   }
-  function suspend(): void {
+  function suspend(reason: 'pause' | 'invalidate' = 'pause'): void {
     stopPreload();
     menu.close();
     emojiPicker.close();
-    controller.close();
+    if (reason === 'invalidate') controller.close();
+    else controller.pause();
     groups.suspend();
     rows = null;
     searchPanel.close();
@@ -1559,7 +1568,7 @@ export function startMessages(
       requestRefresh();
   });
   const stopControls = observeMessageControls(() => {
-    suspend();
+    suspend('invalidate');
     requestRefresh();
   });
   const devicesChannel =
@@ -1567,11 +1576,13 @@ export function startMessages(
       ? null
       : new BroadcastChannel('0xdmme-device-changes');
   devicesChannel?.addEventListener('message', () => {
-    suspend();
+    suspend('invalidate');
     void checkVoiceAuthority();
   });
 
   window.addEventListener('0xdmme-history-imported', () => {
+    controller.hide();
+    preparation.request();
     groups.historyChanged();
     if (mounted?.isConnected && !busy)
       void run(navigator.onLine ? refresh : refreshLocalContacts);
@@ -1602,6 +1613,7 @@ export function startMessages(
     await resumePending();
     if (!live.connected && (await controller.probe())) {
       if (!conversationVisible('[data-direct-conversation]')) return;
+      preparation.request();
       await controller.synchronize();
       await controller.savePins();
     }
@@ -1610,6 +1622,7 @@ export function startMessages(
     if (!canMaintain()) return;
     const current = generation;
     try {
+      if (!live.connected) preparation.request();
       await maintainPresence();
       if (current !== generation || !canMaintain()) return;
       if (!(await periodicMessageWork())) return;
@@ -1656,7 +1669,7 @@ export function startMessages(
         status();
       });
     }
-    suspend();
+    suspend(event.persisted ? 'pause' : 'invalidate');
   });
   window.addEventListener('pageshow', (event) => {
     if (event.persisted) {
@@ -1817,6 +1830,7 @@ export function startMessages(
         return;
       }
       generation++;
+      preparation.request();
       externalRows.clear();
       externalAbort.abort();
       externalAbort = new AbortController();
