@@ -22,6 +22,9 @@ BEFORE = 'd64711c0cdcb3024c6728e4328190d545988333e'
 REVIEWED = '203274bb8dac5031a0697cf892c4b96f7d7600ac'
 QR_TREE = '8a55ad125d65d832ae60b9cf6499e1898c4c9034624708c2f1362f9daa2fc389'
 MAX_BACKUP = 64 * 1024 * 1024
+# Owner approved 256 MiB for opaque objects on 11/10/2026 after the existing
+# tree exceeded the old shared guard. Database/SQL remain separate.
+MAX_OBJECT_BACKUP = 256 * 1024 * 1024
 OLD_TABLES = ('accounts', 'login_devices', 'login_challenges', 'login_sessions',
               'login_handoffs', 'service_metadata')
 
@@ -206,7 +209,7 @@ def pg(args, *, input=None):
 def objects_snapshot():
     root = base.DATA / 'objects/content'
     files = file_tree(root)
-    if sum((root / name).stat().st_size for name in files) > MAX_BACKUP:
+    if sum((root / name).stat().st_size for name in files) > MAX_OBJECT_BACKUP:
         raise RuntimeError('Object backup budget exceeded.')
     return files
 
@@ -295,7 +298,7 @@ def activate(config, work):
         if base.digest(work / name) != checksum:
             raise RuntimeError('Transition archive digest mismatch.')
     candidate = prepare_candidate(config, work)
-    if own_free_bytes() < 2 * base.MAX_RELEASE + 2 * MAX_BACKUP:
+    if own_free_bytes() < required_backup_space():
         raise RuntimeError('Insufficient disk budget for private backups.')
     base.preservation(config['baseline'])
     if base.own_state() != before_state:
@@ -362,6 +365,11 @@ def activate(config, work):
     base.receipt(work, result)
     base.prune_completed(work)
     return result
+
+
+def required_backup_space():
+    # Reserve both independent backups as well as the existing release budget.
+    return 2 * base.MAX_RELEASE + 2 * (MAX_BACKUP + MAX_OBJECT_BACKUP)
 
 
 def own_free_bytes():

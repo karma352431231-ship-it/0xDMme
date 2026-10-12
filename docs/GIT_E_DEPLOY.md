@@ -34,6 +34,21 @@ são guardadas, sininho começa desligado e o badge de novo membro dura dois dia
 Este registro de autorização não comprova a publicação; evidências operacionais
 e acesso ficam em `.local/`.
 
+A primeira tentativa de `2b6325c` foi recusada no backup, antes da migração: os
+objetos existentes ultrapassavam o limite antigo de 64 MiB. A release
+`adc6b6e` e as 55 migrações permaneceram; web/workers voltaram a executar, mas a
+verificação de leases do retorno expirou, por isso o recibo não declarou rollback
+verificado. A inspeção posterior confirmou a preservação da configuração e do
+processo PostgreSQL; exigir prontidão dos três workers antes da nova tentativa.
+
+O proprietário autorizou **256 MiB somente para o backup de objetos**. Conferir
+todos os hashes e preservar o teto separado de 64 MiB para banco/dump/SQL de
+restauração. A reserva prévia de espaço passa a contabilizar os dois backups e
+as releases; a retenção de backups de migração usa o mesmo teto de objetos.
+Esses valores são travas operacionais de migração, não cotas de armazenamento do
+produto nem uma configuração que impeça o PostgreSQL de crescer. O código não
+trunca backups ou arquivos para caber.
+
 ## Fix de rechecagem integrado à main — ativação autorizada em 11/10/2026
 
 Após a conferência do Git, o proprietário pediu integrar o fix de piscadas à

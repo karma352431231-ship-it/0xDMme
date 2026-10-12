@@ -15,6 +15,20 @@ import deploy_remote as base
 
 
 class ReviewedTransitionTests(unittest.TestCase):
+    def test_object_backup_has_independent_budget_and_keeps_every_byte(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory);objects=root/'objects/content';objects.mkdir(parents=True)
+            file=objects/'opaque';file.write_bytes(b'x'*128)
+            with (patch.object(base,'DATA',root),patch.object(transition,'MAX_BACKUP',64),
+                  patch.object(transition,'MAX_OBJECT_BACKUP',256)):
+                self.assertEqual(transition.objects_snapshot(),{'opaque':base.digest(file)})
+                self.assertEqual(file.read_bytes(),b'x'*128)
+                self.assertEqual(transition.required_backup_space(),2*base.MAX_RELEASE+2*(64+256))
+                file.write_bytes(b'x'*257)
+                with self.assertRaisesRegex(RuntimeError,'Object backup budget'):
+                    transition.objects_snapshot()
+                self.assertEqual(file.stat().st_size,257)
+
     def exports(self, old, new):
         previous = {'src/server/database/old.sql':b'old', 'package-lock.json':b'old-lock',
                     '.nvmrc':b'24.14.0', 'package.json':b'{"engines":{"node":">=24.14.0 <25"}}'}

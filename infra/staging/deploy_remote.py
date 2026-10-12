@@ -905,7 +905,7 @@ def activate_database(config, work, candidate, transition):
     transition['review'](candidate, DATA / 'release')
     if snapshot()['versions'] != attachment_versions(candidate)[:transition['versions']]:
         raise RuntimeError('Live schema differs from the reviewed predecessor.')
-    if backups.own_free_bytes() < 2 * MAX_RELEASE + 2 * backups.MAX_BACKUP:
+    if backups.own_free_bytes() < backups.required_backup_space():
         raise RuntimeError('Insufficient disk budget for private backups.')
     receipt(work, {'status':'maintenance', 'commit':config['commit']})
     opened = installed = False
@@ -1130,7 +1130,7 @@ def retain_migration_backup(work, old):
     if not objects.is_dir() or not previous.is_dir():
         raise RuntimeError('Completed transition directories differ.')
     object_files = backups.file_tree(objects)
-    if sum((objects / name).stat().st_size for name in object_files) > backups.MAX_BACKUP:
+    if sum((objects / name).stat().st_size for name in object_files) > backups.MAX_OBJECT_BACKUP:
         raise RuntimeError('Historical object backup budget exceeded.')
     allowed = {'src', 'infra', 'dist', 'node_modules', 'package.json', 'package-lock.json', '.nvmrc'}
     if not set(p.name for p in previous.iterdir()).issubset(allowed):
