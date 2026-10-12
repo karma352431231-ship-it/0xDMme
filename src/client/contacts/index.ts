@@ -9,6 +9,7 @@ import {
 import type {
   AddressBookEntry,
   ContactList,
+  DiscoveryMode,
   Invitation,
   Peer,
 } from '../../shared/contacts/index.ts';
@@ -685,6 +686,18 @@ export function startContacts(
   }
   return {
     ready,
+    /** Who may request a conversation, read from the server; used by Configurações iniciais. */
+    async discovery(): Promise<DiscoveryMode> {
+      await contacts.refresh();
+      return contacts.state.mode;
+    },
+    /** Same signed configure as Privacidade; the private invite stays as it is. */
+    async setDiscovery(mode: DiscoveryMode): Promise<void> {
+      await contacts.refresh();
+      if (contacts.state.mode === mode) return;
+      await contacts.configure(mode, contacts.state.inviteHash);
+      render();
+    },
     /** Received requests for Atividade; same signed API and checks as Contatos → Solicitações. */
     async incomingRequests(): Promise<readonly Peer[]> {
       await contacts.refresh();

@@ -2,12 +2,19 @@ import type {
   AccountSession,
   EncryptedProfile,
 } from '../../shared/account/index.ts';
-import { enrollmentPayload } from '../../shared/device-enrollment/index.ts';
+import {
+  enrollmentPayload,
+  enrollmentUrl,
+} from '../../shared/device-enrollment/index.ts';
 import type { EnrollmentCode } from '../../shared/device-enrollment/index.ts';
 import { notifyMessageControls } from '../message-controls/index.ts';
 import { QrCamera, renderQr } from '../device-qr/index.ts';
 import { DeviceController } from './controller.ts';
 import type { VaultAuthority, VaultLocator } from '../vault-authority/index.ts';
+export {
+  startEnrollmentEntry,
+  mountEnrollmentLogin,
+} from './enrollment-entry.ts';
 import {
   acknowledgeLoginOpening,
   readLoginOpening,
@@ -50,6 +57,7 @@ export function startDevices(options: {
     renderPanels();
     renderInvitation();
     renderList();
+    window.dispatchEvent(new Event('0xdmme-device-status'));
   }
   function renderPanels(): void {
     show('[data-devices-connected]', controller.authorized);
@@ -73,7 +81,8 @@ export function startDevices(options: {
     const code = node<HTMLTextAreaElement>('[data-device-code]');
     if (code) code.value = invitation ? enrollmentPayload(invitation) : '';
     const qr = node('[data-link-qr]');
-    if (qr && invitation) renderQr(qr, enrollmentPayload(invitation));
+    if (qr && invitation)
+      renderQr(qr, enrollmentUrl(invitation, location.origin));
     else qr?.replaceChildren();
   }
   function renderList(): void {
@@ -340,6 +349,20 @@ export function startDevices(options: {
     },
     authorized: () => controller.authorized,
     stopCamera: () => camera?.stop(),
+    enrollmentState: () => ({
+      waiting,
+      authorized: controller.authorized,
+      message,
+      failed,
+    }),
+    async enroll(code: string): Promise<void> {
+      if (busy)
+        throw new Error('Aguarde a entrada atual terminar e tente novamente.');
+      if (controller.session)
+        throw new Error('Saia da conta atual antes de vincular outra conta.');
+      await run(() => join(code));
+      if (failed) throw new Error(message);
+    },
     updateBlockReason(): string | null {
       expireWalletRequest();
       if (controller.walletPending)

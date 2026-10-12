@@ -78,7 +78,7 @@ await test('resposta no perfil exige comunidade, raiz e pai corretos; raiz exclu
     author: profile,
     title: 'Original',
     text: 'Texto',
-    tag: null,
+    tags: [],
     createdAt: '2026-10-10T12:00:00.000Z',
     editedAt: null,
     revision: 1,
@@ -157,4 +157,25 @@ await test('descrição do perfil aceita texto e emoji, normaliza quebras e recu
     42,
   ])
     assert.throws(() => profileDescriptionText(input), AccountError);
+});
+
+await test('seguidores em comum são paginados, sem campos privados, duplicatas ou contagens falsas', async () => {
+  const { mutualFollowers } =
+    await import('../src/shared/profile-social/index.ts');
+  const page = { items: [profile], total: 2, next: profile.id };
+  assert.deepEqual(mutualFollowers(page), page);
+  for (const value of [
+    { ...page, total: 0 },
+    { ...page, items: [profile, profile] },
+    {
+      ...page,
+      items: Array.from({ length: 25 }, () => ({
+        ...profile,
+        id: crypto.randomUUID(),
+      })),
+      total: 25,
+    },
+    { ...page, items: [{ ...profile, wallet: 'private' }] },
+  ])
+    assert.throws(() => mutualFollowers(value), AccountError);
 });

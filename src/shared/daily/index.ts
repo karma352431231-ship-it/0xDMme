@@ -46,7 +46,8 @@ export function dailyPreferences(input: unknown): DailyPreferences {
       throw new AccountError(400, 'Preferência inválida.');
   return {
     online: d['online'] as boolean,
-    lastSeen: d['lastSeen'] as boolean,
+    // Kept in the wire format for old clients; last access is no longer shared.
+    lastSeen: false,
     readReceipts: d['readReceipts'] as boolean,
   };
 }

@@ -1,3 +1,4 @@
+import { communityMediaVideoFrameBudget } from '../../shared/community-media/index.ts';
 import { createHash } from 'node:crypto';
 import { AccountError, boundedText } from '../../shared/account/index.ts';
 import { fingerprint } from '../../shared/devices/index.ts';
@@ -132,7 +133,7 @@ export class PublicModerationScanner implements PublicModerationRunner {
             ? 1
             : candidate.result.kind === 'gif'
               ? 400
-              : 1803,
+              : communityMediaVideoFrameBudget,
       },
       { bytes: thumbnail, type: 'image/png', maximumFrames: 1 },
     ];

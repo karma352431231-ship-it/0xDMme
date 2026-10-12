@@ -56,6 +56,17 @@ const result = () => ({
   pendingAvatar: null,
 });
 await test('criar @ aguarda a escolha de mídia externa, sem caixa adicional para o nome', async (t) => {
+  for (const [name, value] of Object.entries({
+    document: { querySelectorAll: () => [] },
+    window: new EventTarget(),
+  })) {
+    const previous = Object.getOwnPropertyDescriptor(globalThis, name);
+    Object.defineProperty(globalThis, name, { configurable: true, value });
+    t.after(() => {
+      if (previous) Object.defineProperty(globalThis, name, previous);
+      else Reflect.deleteProperty(globalThis, name);
+    });
+  }
   const own = session();
   let click = () => {};
   const button = {
@@ -272,4 +283,78 @@ await test('troca de sessão durante assinatura impede o envio e campos privados
   );
   await assert.rejects(clean.refresh(), /Campos inválidos/);
   assert.equal(clean.profile, null);
+});
+
+await test('atalho com foto pública não mistura iniciais; sem foto mantém fallback e a troca limpa os bytes', async (t) => {
+  const { startOwnProfileShortcut } =
+    await import('../src/client/public-profile/own-shortcut.ts');
+  const { publicAvatarPath } =
+    await import('../src/shared/public-media/index.ts');
+  const { CommunityNode, communityDocument } =
+    await import('./fixtures/community-dom.ts');
+  const links = [new CommunityNode('a'), new CommunityNode('a')];
+  for (const link of links) Object.assign(link, { isConnected: true });
+  const document = Object.assign(communityDocument(), {
+    querySelectorAll: () => links,
+  });
+  for (const [name, value] of Object.entries({
+    document,
+    window: new EventTarget(),
+  })) {
+    const previous = Object.getOwnPropertyDescriptor(globalThis, name);
+    Object.defineProperty(globalThis, name, { configurable: true, value });
+    t.after(() => {
+      if (previous) Object.defineProperty(globalThis, name, previous);
+      else Reflect.deleteProperty(globalThis, name);
+    });
+  }
+  const target = crypto.randomUUID();
+  let avatar: string | null = publicAvatarPath(
+    'avatar',
+    target,
+    crypto.randomUUID(),
+  );
+  const controller = new PublicProfiles(
+    access(session(), () => Promise.resolve('assinatura-sintetica')),
+  );
+  controller.setSession(session());
+  t.mock.method(controller, 'perform', () =>
+    Promise.resolve({
+      profile: { id: target, handle: 'teste_publico', avatar },
+      revision: 1,
+      pendingAvatar: null,
+    }),
+  );
+  t.mock.method(globalThis, 'fetch', (_url: string, options: RequestInit) => {
+    assert.equal(options.credentials, 'omit');
+    return Promise.resolve(
+      new Response(new Uint8Array([1]), {
+        headers: { 'Content-Type': 'image/png', 'Content-Length': '1' },
+      }),
+    );
+  });
+  t.mock.method(URL, 'createObjectURL', () => 'blob:public-photo');
+  const revoked: string[] = [];
+  t.mock.method(URL, 'revokeObjectURL', (url: string) => revoked.push(url));
+  const shortcut = startOwnProfileShortcut(controller);
+  try {
+    shortcut.ready();
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    for (const link of links) {
+      assert.equal(link.textContent, '');
+      assert.ok(link.querySelector('img'));
+      assert.equal(link.getAttribute('aria-label'), 'Abrir meu perfil público');
+    }
+    avatar = null;
+    shortcut.clear();
+    shortcut.ready();
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    for (const link of links) {
+      assert.equal(link.textContent, 'TE');
+      assert.equal(link.querySelector('img'), null);
+    }
+    assert.equal(revoked.length, 2);
+  } finally {
+    shortcut.clear();
+  }
 });

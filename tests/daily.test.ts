@@ -120,7 +120,7 @@ await test('reação admite um emoji composto e variantes; rejeita texto, múlti
   }
   assert.equal(validReaction(''), true);
 });
-await test('checks só mostram azul com leitura compartilhada, cinza com ACK destinatário e nenhum estado remoto na cópia offline', () => {
+await test('checks só mostram verde com leitura compartilhada, cinza com ACK destinatário e nenhum estado remoto na cópia offline', () => {
   assert.deepEqual(
     messageChecks({ own: true, delivery: 'accepted', read: false }),
     {
@@ -140,7 +140,7 @@ await test('checks só mostram azul com leitura compartilhada, cinza com ACK des
   );
   assert.equal(
     messageChecks({ own: true, delivery: 'received', read: true })?.color,
-    'blue',
+    'green',
   );
   assert.equal(messageChecks({ own: true, read: true }), null);
   assert.equal(

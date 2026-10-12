@@ -1,34 +1,25 @@
+import { initializeMessageDirectory } from './startup.ts';
+import { MessageSynchronization } from './synchronization.ts';
+import { MessageHistoryUi } from './history-ui.ts';
+import { bindMessageLifecycle } from './lifecycle.ts';
 import {
   directChat,
   bindChatComposer,
   bindChatOptions,
   updateChatComposer,
-  historyPosition,
   resetHistoryPosition,
-  updateMessageStates,
   bindRecordGesture,
   showRecording,
 } from '../chat-ui/index.ts';
-import { displayName, paintAvatar, shortAddress } from '../appearance/index.ts';
+import { shortAddress } from '../appearance/index.ts';
 import type { HistoryUpdate } from '../message-visibility/index.ts';
 import { mountPushSettings } from '../push-settings/index.ts';
 import { notificationSettings } from './settings.ts';
 import { ConversationSearch } from './search.ts';
 import type { SearchPage } from './search.ts';
-import {
-  renderDirectory,
-  filteredConversations,
-  renderStatusStrip,
-  statusAuthors as activeStatusAuthors,
-} from './directory.ts';
-import type {
-  ConversationEntry,
-  ConversationAction,
-  ConversationFilter,
-} from './directory.ts';
+import type { ConversationAction } from './directory.ts';
 import { ConversationMenu } from './directory-menu.ts';
-import { ContactDirectory, agendaContact } from './contact-directory.ts';
-import type { SavedContact } from './contact-directory.ts';
+import { ContactDirectory } from './contact-directory.ts';
 import { organizationActions } from './directory-actions.ts';
 import { startGroups } from '../groups/index.ts';
 import type { startRepresentatives } from '../representatives/index.ts';
@@ -36,26 +27,15 @@ import type { VoicePlayback } from '../voice-playback/index.ts';
 import { VoiceRecording } from '../voice-recording/index.ts';
 import { AttachmentUi } from '../attachment-ui/index.ts';
 import type { LiveEvent } from '../message-live/index.ts';
-import { LiveMessages, LiveUpdates } from '../message-live/index.ts';
+import { LiveMessages } from '../message-live/index.ts';
 import type { LiveUpdate } from '../message-live/index.ts';
 import { Daily } from '../daily/index.ts';
 import type { PeerState } from '../daily/index.ts';
 import { dailyViews } from '../daily-text/index.ts';
 import type { DailyView } from '../daily-text/index.ts';
-import { messageActions } from '../message-actions/index.ts';
-import { observeMessageControls } from '../message-controls/index.ts';
-import { checksIcon, messageChecks } from '../message-status/index.ts';
-import {
-  GifSearch,
-  gifMessageUrl,
-  mountGifPane,
-  showExternalGif,
-} from '../gif-search/index.ts';
-import { showExternalVideos } from '../external-video/index.ts';
-import { externalVideoIds } from '../../shared/external-video/index.ts';
+import { GifSearch, gifMessageUrl, mountGifPane } from '../gif-search/index.ts';
 import type { ExternalMediaConsent } from '../external-media/index.ts';
-import { ExternalTextHistory } from '../external-media/index.ts';
-import { EmojiPicker, emojiIntoComposer, emojiText } from '../emoji/index.ts';
+import { EmojiPicker, emojiIntoComposer } from '../emoji/index.ts';
 import {
   NotificationSound,
   soundPreferenceKey,
@@ -69,10 +49,11 @@ import type { Peer, AddressBookEntry } from '../../shared/contacts/index.ts';
 import type { VaultAccess } from '../vault-authority/index.ts';
 import type { VaultSync } from '../vault-sync/index.ts';
 import { Contacts } from '../contacts/index.ts';
-import { Messages, receivedState } from './controller.ts';
-import { HistoryPreparation } from './preparation.ts';
+import { Messages } from './controller.ts';
 import type { MessageView } from './controller.ts';
-type ConversationPeer = Peer & { localOnly?: boolean };
+import { MessageDirectory } from './directory-controller.ts';
+import type { ConversationPeer } from './directory-controller.ts';
+import { MessageDirectoryUi } from './directory-ui.ts';
 export function startMessages(
   access: VaultAccess,
   sync: VaultSync,
@@ -102,7 +83,6 @@ export function startMessages(
   // Accounts with an active status, from the status list the app already loads.
   let statusAuthors: ReadonlySet<string> = new Set();
   let externalAbort = new AbortController();
-  const externalRows = new ExternalTextHistory();
   const gifs = new GifSearch(
     () =>
       options.externalMedia?.authorize('gifs', externalAbort.signal) ??
@@ -113,33 +93,17 @@ export function startMessages(
         ...(options.externalMedia ? [options.externalMedia.signal] : []),
       ]),
   );
-  let peers: ConversationPeer[] = [],
-    states = new Map<string, PeerState>(),
-    directoryFilter: ConversationFilter = 'all';
+  let states = new Map<string, PeerState>();
   let composing: { mode: 'reply' | 'edit'; view: MessageView } | null = null;
   let focusRequested = false;
   let navigatingToConversation = false;
-  let readIds = new Set<string>();
   let directory: HTMLElement | null = null;
   const searchPanel = new ConversationSearch(searchPage);
   let mounted: HTMLElement | null = null,
-    busy = false,
     selected: ConversationPeer | null = null,
     session: AccountSession | null = null,
     rows: readonly MessageView[] | null = null,
-    generation = 0,
-    automaticAttempts = 0,
-    lastTransferAttempt = 0;
-  let archivedAfter: string | null = null;
-  let remoteMore = true,
-    archivedMore = true;
-  let failed = false;
-  let maintenance: Promise<void> | null = null;
-  let preloadTimer: ReturnType<typeof setTimeout> | null = null;
-  let preloadAbort: AbortController | null = null;
-  let preloadRunning = false;
-  let preloadRetryAt = 0;
-  const preparation = new HistoryPreparation();
+    generation = 0;
   let settingsHost: HTMLElement | null = null;
   let pushSettings: ReturnType<typeof mountPushSettings> | null = null;
   let message = 'Entre e autorize este aparelho para conversar.';
@@ -163,7 +127,7 @@ export function startMessages(
   }
   function composerStatus(): void {
     updateChatComposer(node('[data-message-form]'), {
-      blocked: busy || rows === null || !selected,
+      blocked: synchronization.busy || rows === null || !selected,
       recording: voice.active,
       attachment: attachments.selected !== null,
     });
@@ -179,7 +143,7 @@ export function startMessages(
     const start = node<HTMLButtonElement>('[data-voice-record]');
     if (start)
       start.disabled =
-        busy ||
+        synchronization.busy ||
         rows === null ||
         voice.active ||
         attachments.selected !== null ||
@@ -197,36 +161,65 @@ export function startMessages(
     const file = node<HTMLInputElement>('[data-attachment-file]');
     if (file)
       file.disabled =
-        busy || rows === null || voice.active || !!attachments.selected?.voice;
+        synchronization.busy ||
+        rows === null ||
+        voice.active ||
+        !!attachments.selected?.voice;
   }
   const controller = new Messages(access, sync, (value, update) => {
     rows = value;
     renderHistory(update);
-  });
-  const updates = new LiveUpdates({
-    available: () =>
-      !busy &&
-      maintenance === null &&
-      !live.connecting &&
-      connected() &&
-      !!session &&
-      navigator.onLine &&
-      document.visibilityState === 'visible',
-    run: (update) => {
-      void run(update === 'refresh' ? refresh : refreshChanges);
-    },
   });
   const groups = startGroups(access, sync, {
     externalMedia: options.externalMedia,
     playback,
     daily,
     run,
-    changed: () => renderContacts(peers),
-    peers: () => peers.filter((p) => !p.localOnly),
+    changed: () => renderContacts(),
+    peers: () => directoryData.peers.filter((p) => !p.localOnly),
     organizationPeers: () => organizationIds(),
-    isBusy: () => busy,
+    isBusy: () => synchronization.busy,
     alert: () => sound.beep(),
     select: selectGroup,
+  });
+  const directoryData = new MessageDirectory({
+    agenda,
+    contacts,
+    archivedPeers: (after) => controller.archivedPeers(after),
+    changed: (peers) => {
+      if (selected)
+        selected =
+          peers.find((peer) => peer.accountId === selected?.accountId) ??
+          selected;
+      renderContacts();
+    },
+  });
+  const directoryUi = new MessageDirectoryUi({
+    snapshot: () => ({
+      peers: directoryData.peers,
+      selected,
+      states,
+      statusAuthors,
+      session,
+    }),
+    agenda,
+    daily,
+    groups,
+    menu,
+    searchPanel,
+    node,
+    host: () => directory,
+    contactActions,
+    perform: performDirectoryAction,
+    openPeer: (peer) => {
+      if (!reopenSelectedPeer(peer)) void run(() => openPeer(peer));
+    },
+    openContact: options.openContact,
+    openGroup: (group) => {
+      void run(() => groups.open(group));
+    },
+    changed: options.directoryChanged,
+    presence: renderPresence,
   });
   function selectGroup(): void {
     if (voice.active || attachments.selected?.voice)
@@ -248,7 +241,7 @@ export function startMessages(
       options.liveState?.(live.connected);
       const label = node('[data-message-live]');
       if (label) label.textContent = live.notice;
-      updates.resume();
+      synchronization.resume();
     },
     event: (event) => {
       options.liveEvent?.(event);
@@ -257,6 +250,76 @@ export function startMessages(
       if (event === 'authorization') void checkVoiceAuthority();
       hideLiveHistory(event);
       requestRefresh(event === 'changed' ? 'probe' : 'refresh');
+    },
+  });
+  const synchronization = new MessageSynchronization({
+    state: () => ({
+      generation,
+      connected: connected(),
+      session: !!session,
+      online: navigator.onLine,
+      visible: document.visibilityState === 'visible',
+      liveConnecting: live.connecting,
+    }),
+    status,
+    notice: (value) => {
+      message = value;
+    },
+    complete: () => {
+      message = controller.transportPending
+        ? 'Alguns envios ainda estão pendentes. A retomada é automática.'
+        : 'Conversas atualizadas.';
+    },
+    renderPending,
+    pause: () => {
+      controller.pauseSynchronization();
+      groups.pauseSynchronization();
+    },
+    preloadDirect: (signal) => controller.synchronizeAll(signal),
+    preloadGroups: (signal) => groups.synchronizeAll(signal),
+    presence: dailyTick,
+    refresh,
+    changes: refreshChanges,
+    periodic: periodicMessages,
+    periodicWork: periodicMessageWork,
+    pending: () => controller.pending(),
+    sendPending: () => controller.sendPending(),
+  });
+  const historyUi = new MessageHistoryUi({
+    node,
+    context: () => ({
+      selected,
+      peers: directoryData.peers,
+      session,
+      calls: !!options.calls,
+    }),
+    visible: () => conversationVisible('[data-direct-conversation]'),
+    signal: () => externalAbort.signal,
+    attachments,
+    media: (view, thumbnail) => controller.media(view, thumbnail),
+    run,
+    composerChanged: composerStatus,
+    ...(options.externalMedia ? { externalMedia: options.externalMedia } : {}),
+    ...(options.representatives
+      ? { representatives: options.representatives }
+      : {}),
+    actions: {
+      action,
+      picker: emojiPicker,
+      choose,
+      forward,
+      react: async (view, reaction) => {
+        await controller.composeAction(
+          view,
+          'reaction',
+          encodeDailyText({ text: reaction, reply: null, forwarded: false }),
+        );
+        await transmit();
+      },
+      remove: async (view) => {
+        await controller.remove(view);
+        await synchronizeVisible();
+      },
     },
   });
   function invalidateGroupAuthority(event: LiveEvent): void {
@@ -310,16 +373,22 @@ export function startMessages(
     if (immediate) immediate.textContent = live.notice;
     const retry = node('[data-message-refresh]');
     if (retry)
-      retry.textContent = failed ? 'Tentar novamente' : 'Sincronizar agora';
+      retry.textContent = synchronization.failed
+        ? 'Tentar novamente'
+        : 'Sincronizar agora';
     renderChatStatus();
     const directoryStatus = node('[data-directory-status]');
-    if (directoryStatus) directoryStatus.textContent = failed ? message : '';
+    if (directoryStatus)
+      directoryStatus.textContent = synchronization.failed ? message : '';
   }
   function renderChatStatus(): void {
     const text = node('[data-message-status]');
     if (!text) return;
-    const upToDate = !busy && !failed && message === 'Conversas atualizadas.';
-    text.textContent = busy
+    const upToDate =
+      !synchronization.busy &&
+      !synchronization.failed &&
+      message === 'Conversas atualizadas.';
+    text.textContent = synchronization.busy
       ? 'Sincronizando…'
       : upToDate
         ? 'Atualizada'
@@ -330,7 +399,7 @@ export function startMessages(
   }
   function status(): void {
     renderStatusMessage();
-    menu.setBusy(busy);
+    menu.setBusy(synchronization.busy);
     const dailyStatus = settingsHost?.querySelector('[data-daily-status]');
     if (dailyStatus) dailyStatus.textContent = message;
     renderSoundSettings();
@@ -345,7 +414,7 @@ export function startMessages(
           'button:not([data-chat-back]),input,select,textarea:not([data-message-text]):not([data-group-text])',
         )
         .forEach((control) => {
-          control.disabled = busy;
+          control.disabled = synchronization.busy;
         });
     voiceStatus();
     groups.status();
@@ -394,141 +463,11 @@ export function startMessages(
     });
     return button;
   }
-  async function run(work: () => Promise<void>): Promise<void> {
-    if (busy) return;
-    stopPreload();
-    busy = true;
-    failed = false;
-    const current = generation;
-    status();
-    try {
-      // A click during presence maintenance is accepted and serialized, not dropped.
-      await maintenance;
-      if (current !== generation) return;
-      await work();
-      if (current !== generation) return;
-      if (navigator.onLine)
-        message = controller.transportPending
-          ? 'Alguns envios ainda estão pendentes. A retomada é automática.'
-          : 'Conversas atualizadas.';
-    } catch (error: unknown) {
-      if (current === generation) {
-        failed = true;
-        message =
-          error instanceof Error
-            ? error.message
-            : 'Não foi possível concluir a operação.';
-      }
-    } finally {
-      busy = false;
-      if (current === generation) {
-        await renderPending().catch(() => {
-          message =
-            'Não foi possível abrir os envios pendentes deste aparelho.';
-        });
-        status();
-      }
-      updates.resume();
-      schedulePreload();
-    }
+  function run(work: () => Promise<void>): Promise<void> {
+    return synchronization.run(work);
   }
   function stopPreload(): void {
-    if (preloadTimer !== null) clearTimeout(preloadTimer);
-    preloadTimer = null;
-    preloadAbort?.abort();
-    controller.pauseSynchronization();
-    groups.pauseSynchronization();
-  }
-  function schedulePreload(delay = 1000): void {
-    if (
-      preloadRunning ||
-      preloadTimer !== null ||
-      !canPreload() ||
-      !preparation.pending
-    )
-      return;
-    preloadTimer = setTimeout(
-      () => {
-        preloadTimer = null;
-        void preloadHistory();
-      },
-      Math.max(delay, preloadRetryAt - Date.now()),
-    );
-  }
-  function canPreload(): boolean {
-    return (
-      !busy &&
-      maintenance === null &&
-      connected() &&
-      !!session &&
-      navigator.onLine &&
-      document.visibilityState === 'visible'
-    );
-  }
-  async function preloadHistory(): Promise<void> {
-    const turn = preparation.next();
-    if (!canPreload() || preloadRunning || !turn) return;
-    preloadRunning = true;
-    const abort = new AbortController(),
-      current = generation;
-    preloadAbort = abort;
-    try {
-      const more =
-        turn.kind === 'groups'
-          ? await groups.synchronizeAll(abort.signal)
-          : await controller.synchronizeAll(abort.signal);
-      if (current === generation) preparation.complete(turn, more);
-    } catch (error: unknown) {
-      preloadFailure(error, abort, current);
-    } finally {
-      preloadRunning = false;
-      if (preloadAbort === abort) preloadAbort = null;
-      continuePreload(current);
-    }
-  }
-  function preloadFailure(
-    error: unknown,
-    abort: AbortController,
-    current: number,
-  ): void {
-    if (abort.signal.aborted || current !== generation) return;
-    message =
-      error instanceof Error
-        ? error.message
-        : 'Não foi possível preparar o histórico das conversas.';
-    status();
-    preloadRetryAt = Date.now() + 61000;
-  }
-  function continuePreload(current: number): void {
-    if (current !== generation || !canPreload() || !preparation.pending) return;
-    // Keep each completed branch complete until a foreground/live update.
-    preloadTimer = setTimeout(
-      () => {
-        preloadTimer = null;
-        void preloadHistory();
-      },
-      Math.max(1000, preloadRetryAt - Date.now()),
-    );
-  }
-  async function maintainPresence(): Promise<void> {
-    if (busy || maintenance) return;
-    const current = generation;
-    stopPreload();
-    maintenance = dailyTick()
-      .catch((error: unknown) => {
-        if (current !== generation) return;
-        message =
-          error instanceof Error
-            ? error.message
-            : 'Não foi possível atualizar a presença.';
-        if (!busy) status();
-      })
-      .finally(() => {
-        maintenance = null;
-        updates.resume();
-        schedulePreload();
-      });
-    await maintenance;
+    synchronization.stopPreload();
   }
   function conversationVisible(selector = '.chat-panel'): boolean {
     return (
@@ -545,223 +484,11 @@ export function startMessages(
       navigatingToConversation = false;
     }
   }
-  async function resumePending(): Promise<void> {
-    if (automaticAttempts >= 3 || Date.now() - lastTransferAttempt < 60000)
-      return;
-    lastTransferAttempt = Date.now();
-    if (!(await controller.pending()).length) return;
-    automaticAttempts++;
-    await controller.sendPending();
-  }
   function requestRefresh(update: LiveUpdate = 'refresh'): void {
-    preparation.request();
-    automaticAttempts = 0;
-    updates.request(update);
-  }
-  function peerLabel(): string {
-    return (
-      selected?.name || selected?.address || 'Selecione um contato aprovado'
-    );
+    synchronization.request(update);
   }
   function renderHistory(update: HistoryUpdate = 'history'): void {
-    const history = node('[data-message-history]');
-    if (!history) return;
-    const restoreScroll = historyPosition(history);
-    renderHistoryContent(history, update);
-    history.hidden = rows === null;
-    const gate = node('[data-message-gate]');
-    if (gate) {
-      gate.hidden = rows !== null;
-      gate.textContent =
-        'Sincronizando mensagens… O histórico abre após conferir as atualizações e exclusões.';
-    }
-    const older = node('[data-message-older]');
-    if (older) older.hidden = dailyViews(rows ?? []).length === 0;
-    renderPeer();
-    restoreScroll();
-    composerStatus();
-  }
-  function renderHistoryContent(
-    history: HTMLElement,
-    update: HistoryUpdate,
-  ): void {
-    if (update === 'history') {
-      attachments.clearMedia();
-      externalRows.render(
-        history,
-        dailyViews(rows ?? []).map((view) => ({
-          id: view.id,
-          key:
-            view.kind === 'text' &&
-            externalVideoIds(view.content.text).length > 0
-              ? JSON.stringify([view.content, view.reactions, view.archived])
-              : null,
-          render: (signal) => renderMessage(view, signal),
-        })),
-        externalAbort.signal,
-      );
-      renderMessageStates();
-    } else if (rows !== null) renderMessageStates();
-  }
-  function renderMessageStates(): void {
-    updateMessageStates(
-      node('[data-message-history]'),
-      new Map(
-        dailyViews(rows ?? []).map((view) => [view.id, messageState(view)]),
-      ),
-    );
-  }
-  function renderPeerIdentity(): void {
-    const title = node('[data-message-peer]');
-    if (title) {
-      title.textContent = selected ? displayName(peerLabel()) : peerLabel();
-      title.title = selected?.address ?? '';
-    }
-    const avatar = node('[data-chat-avatar]');
-    if (avatar)
-      paintAvatar(avatar, {
-        label: peerLabel(),
-        seed: selected?.address ?? '',
-      });
-  }
-  function renderPeer(): void {
-    renderPeerIdentity();
-    const call = node('[data-call-start]');
-    if (call) call.hidden = !options.calls || !!selected?.localOnly;
-    const form = node('[data-message-form]');
-    if (form) form.hidden = selected?.localOnly === true;
-  }
-  function messageState(view: DailyView<MessageView>): HTMLElement {
-    const detail = document.createElement('small');
-    detail.className = 'message-meta';
-    const checks = messageChecks({ ...view, read: readIds.has(view.id) });
-    if (checks)
-      detail.append(
-        checksIcon({ ...checks, label: `${checks.label}. ${view.state}` }),
-      );
-    else if (view.state === receivedState) detail.title = view.state;
-    else detail.textContent = view.state;
-    if (view.edited)
-      detail.prepend(detail.childNodes.length ? 'Editada · ' : 'Editada');
-    return detail;
-  }
-  function renderAnnotations(
-    view: DailyView<MessageView>,
-    article: HTMLElement,
-  ): void {
-    if (view.content.reply) {
-      const reply = document.createElement('small');
-      const original = dailyViews(rows ?? []).find(
-        (row) => row.id === view.content.reply,
-      );
-      reply.textContent = original
-        ? `Em resposta: ${original.content.text.slice(0, 120)}`
-        : 'Resposta: mensagem original fora desta página ou indisponível.';
-      article.append(reply);
-    }
-    if (view.content.forwarded) {
-      const forwarded = document.createElement('small');
-      forwarded.textContent = 'Encaminhada';
-      article.append(forwarded);
-    }
-    if (view.reactions.length) {
-      const reactions = document.createElement('p');
-      emojiText(reactions, view.reactions.join(' '));
-      article.append(reactions);
-    }
-  }
-  function renderMessage(
-    view: DailyView<MessageView>,
-    mediaSignal: AbortSignal,
-  ): HTMLElement {
-    const article = document.createElement('article');
-    article.className = view.own ? 'chat-message own' : 'chat-message';
-    article.dataset['message'] = view.id;
-    article.setAttribute(
-      'aria-label',
-      view.own
-        ? 'Mensagem enviada por você'
-        : `Mensagem recebida de ${peerLabel()}`,
-    );
-    const text = document.createElement('p');
-    renderContent(article, text, view, mediaSignal);
-    if (view.kind === 'text' && options.externalMedia)
-      showExternalVideos(article, view.content.text, {
-        privacy: options.externalMedia,
-        signal: mediaSignal,
-      });
-    const detail = messageState(view);
-    renderAnnotations(view, article);
-    article.append(text, detail);
-    article.append(
-      messageActions({
-        view,
-        peers: peers.filter((p) => !p.localOnly),
-        replyAllowed: !selected?.localOnly,
-        action,
-        picker: emojiPicker,
-        choose,
-        react: async (v, reaction) => {
-          await controller.composeAction(
-            v,
-            'reaction',
-            encodeDailyText({
-              text: reaction,
-              reply: null,
-              forwarded: false,
-            }),
-          );
-          await transmit();
-        },
-        forward,
-        ...(!view.archived && view.own
-          ? {
-              remove: async () => {
-                await controller.remove(view);
-                await synchronizeVisible();
-              },
-            }
-          : {}),
-      }),
-    );
-    return article;
-  }
-  function renderContent(
-    article: HTMLElement,
-    text: HTMLElement,
-    view: DailyView<MessageView>,
-    mediaSignal: AbortSignal,
-  ): void {
-    if (view.kind === 'attachment') {
-      attachments.render({
-        article,
-        view,
-        load: (v, thumb) => controller.media(v, thumb),
-        run,
-      });
-    } else if (gifMessageUrl(view.content.text))
-      renderCatalogGif(text, view.content.text, mediaSignal);
-    else if (
-      !options.representatives?.renderCard(
-        article,
-        view.content.text,
-        view.own
-          ? session
-          : (peers.find((p) => p.accountId === view.peer) ?? null),
-      )
-    )
-      emojiText(text, view.content.text);
-  }
-  function renderCatalogGif(
-    text: HTMLElement,
-    value: string,
-    mediaSignal: AbortSignal,
-  ): void {
-    if (!options.externalMedia) return emojiText(text, value);
-    showExternalGif(text, gifMessageUrl(value) ?? '', {
-      privacy: options.externalMedia,
-      signal: mediaSignal,
-    });
+    historyUi.render(rows, update);
   }
   function compositionText(view: MessageView): string {
     return (
@@ -809,7 +536,7 @@ export function startMessages(
     view: DailyView<MessageView>,
     peer: string,
   ): Promise<void> {
-    if (!peers.some((p) => p.accountId === peer && !p.localOnly))
+    if (!directoryData.peers.some((p) => p.accountId === peer && !p.localOnly))
       throw new Error('Selecione um contato aprovado para encaminhar.');
     if (view.kind === 'text')
       await controller.compose(
@@ -873,7 +600,7 @@ export function startMessages(
   }
   function organizationIds(): string[] {
     return [
-      ...peers.map((p) => p.accountId),
+      ...directoryData.peers.map((p) => p.accountId),
       ...agenda.ids,
       ...groups.entries.map((g) => g.state.groupId),
     ];
@@ -884,7 +611,7 @@ export function startMessages(
       if (expected !== generation) throw new Error('Sessão alterada.');
       await work();
       if (expected !== generation) throw new Error('Sessão alterada.');
-      renderContacts(peers);
+      renderContacts();
     });
   }
   function contactActions(
@@ -940,162 +667,19 @@ export function startMessages(
       },
     ];
   }
-  function peerEntry(peer: ConversationPeer): ConversationEntry {
-    const saved = agenda.find(peer),
-      contact = saved?.contact ?? agendaContact(peer),
-      favoriteId = agenda.id(peer);
-    const settingsId = contactOrganizationId(saved, peer.accountId);
-    const settings = daily.conversation(settingsId);
-    return {
-      id: peer.accountId,
-      title: contactTitle(contact, peer),
-      detail: contactLabel(peer, settingsId),
-      kind: 'contact',
-      seed: peer.address,
-      status: statusAuthors.has(peer.accountId),
-      searchText: `${contact.alias} ${peer.name} ${peer.address}`,
-      selected: selected?.accountId === peer.accountId,
-      hidden: contact.removed,
-      ...settings,
-      favorite: daily.favorite(favoriteId),
-      unread: states.get(peer.accountId)?.unread ?? 0,
-      actions: contactActions(
-        contact,
-        settingsId,
-        peer.localOnly ? null : peer.accountId,
-      ),
-      menuNote:
-        'Remover contato preserva histórico e permissões. Arquivar silencia; desarquivar não retoma alertas automaticamente.',
-      open: () => {
-        if (reopenSelectedPeer(peer)) return;
-        void run(() => openPeer(peer));
-      },
-    };
-  }
-  function contactOrganizationId(
-    saved: SavedContact | undefined,
-    peer: string,
-  ): string {
-    return saved && daily.hasOrganization(saved.entity) ? saved.entity : peer;
-  }
   function selectedOrganizationId(target: string): string {
     if (groups.selected || !selected) return target;
-    return contactOrganizationId(agenda.find(selected), target);
+    return directoryUi.contactOrganizationId(agenda.find(selected), target);
   }
-  function contactTitle(contact: AddressBookEntry, peer: Peer): string {
-    return contact.alias || peer.name || peer.address;
-  }
-  function savedEntry(saved: SavedContact): ConversationEntry {
-    const { contact, entity } = saved,
-      settings = daily.conversation(entity);
-    return {
-      id: entity,
-      title: contact.alias || contact.address,
-      detail: `${settings.pinned ? '📌 ' : ''}${shortAddress(contact.address)} · salvo na agenda`,
-      kind: 'contact',
-      seed: contact.address,
-      searchText: `${contact.alias} ${contact.address}`,
-      selected: false,
-      hidden: contact.removed,
-      ...settings,
-      favorite: daily.favorite(entity),
-      unread: 0,
-      actions: contactActions(contact, entity, null),
-      menuNote:
-        'Salvar ou remover da agenda não altera o consentimento nem apaga o histórico.',
-      open: () => options.openContact(contact),
-    };
-  }
-  function groupEntries(): ConversationEntry[] {
-    return groups.entries.map((group) => {
-      const id = group.state.groupId,
-        settings = daily.conversation(id);
-      return {
-        id,
-        title: group.title,
-        detail: groups.listLabel(group).replace(group.title + ' · ', ''),
-        kind: 'group',
-        searchText: group.title,
-        selected: groups.selected?.state.groupId === id,
-        ...settings,
-        favorite: daily.favorite(id),
-        unread: groups.unread(id),
-        actions: organizationActions({
-          daily,
-          settingsId: id,
-          favoriteId: id,
-          mutePeer: group.localOnly ? null : id,
-          perform: performDirectoryAction,
-        }),
-        menuNote:
-          'Arquivar silencia alertas. Desarquivar não retoma alertas automaticamente.',
-        open: () => {
-          void run(() => groups.open(group));
-        },
-      };
-    });
-  }
-  function renderContacts(peers: ConversationPeer[]): void {
-    const list = node('[data-message-contacts]');
-    if (!list) return;
-    const panel = node('.chat-panel');
-    if (panel) panel.dataset['empty'] = String(!selected && !groups.selected);
-    const entries: ConversationEntry[] = [
-      ...peers.map(peerEntry),
-      ...agenda.entries
-        .filter(
-          (saved) =>
-            !peers.some(
-              (peer) =>
-                peer.ecosystem === saved.contact.ecosystem &&
-                peer.address === saved.contact.address,
-            ),
-        )
-        .map(savedEntry),
-      ...groupEntries(),
-    ];
-    const strip = node('[data-status-strip]');
-    if (strip)
-      renderStatusStrip(strip, {
-        ownActive:
-          session && statusAuthors.has(session.accountId)
-            ? session.accountId
-            : null,
-        authors: activeStatusAuthors(entries),
-      });
-    const sorted = filteredConversations(entries, directoryFilter);
-    renderDirectory(list, sorted, {
-      menu,
-      empty:
-        directoryFilter === 'all'
-          ? 'Adicione um contato ou entre em um grupo para começar.'
-          : 'Nenhuma conversa neste filtro.',
-    });
-    directory
-      ?.querySelectorAll<HTMLButtonElement>('[data-conversation-filter]')
-      .forEach((button) =>
-        button.setAttribute(
-          'aria-pressed',
-          String(button.dataset['conversationFilter'] === directoryFilter),
-        ),
-      );
-    const tools = node('[data-group-tools]');
-    if (tools) tools.hidden = directoryFilter !== 'groups';
-    options.directoryChanged(entries.length > 0);
-    searchPanel.update(entries);
-    renderPresence();
-  }
-  function contactLabel(peer: Peer, settingsId: string): string {
-    const state = states.get(peer.accountId),
-      settings = daily.conversation(settingsId);
-    const conflict = daily.organizationConflict(settingsId)
-      ? ' · organização em conflito'
-      : '';
-    const address = shortAddress(peer.address);
-    return `${settings.pinned ? '📌 ' : ''}${address}${state && state.mutedUntil > Date.now() ? ' · silenciada' : ''}${conflict}`;
+  function renderContacts(): void {
+    directoryUi.renderContacts();
   }
   function reopenSelectedPeer(peer: ConversationPeer): boolean {
-    if (selected?.accountId !== peer.accountId || rows === null || failed)
+    if (
+      selected?.accountId !== peer.accountId ||
+      rows === null ||
+      synchronization.failed
+    )
       return false;
     showDirectConversation();
     enterConversation();
@@ -1132,7 +716,7 @@ export function startMessages(
     if (selected?.accountId !== peer.accountId)
       resetHistoryPosition(node('[data-message-history]'));
     selected = peer;
-    renderContacts(peers);
+    renderContacts();
     mountRepresentativeChat(peer);
     if (mounted) mounted.dataset['voicePeer'] = peer.accountId;
     controller.select(peer.accountId);
@@ -1170,84 +754,39 @@ export function startMessages(
   }
   function presenceText(state: PeerState | null | undefined): string | null {
     if (state?.online) return 'Online';
-    if (state?.lastSeen)
-      return `Último acesso: ${new Date(state.lastSeen).toLocaleString('pt-BR')}`;
     return null;
   }
   function contactsMore(): void {
     const button = node('[data-message-more-contacts]');
     if (button)
       button.hidden =
-        !agenda.more &&
-        !archivedMore &&
-        (!navigator.onLine || !remoteMore) &&
-        groups.next === null;
+        !directoryData.hasMore(navigator.onLine) && groups.next === null;
+  }
+  async function refreshContacts(more = false): Promise<void> {
+    await directoryData.refresh(more);
+    contactsMore();
   }
   async function refreshLocalContacts(more = false): Promise<void> {
-    await agenda.load(more);
-    if (!more) {
-      archivedAfter = null;
-      archivedMore = true;
-    }
-    const local = archivedMore
-      ? await controller.archivedPeers(archivedAfter)
-      : { items: [], next: null };
-    archivedAfter = local.next;
-    archivedMore = local.next !== null;
-    const combined = new Map(peers.map((p) => [p.accountId, p]));
-    for (const peer of local.items)
-      if (!combined.has(peer.accountId))
-        combined.set(peer.accountId, { ...peer, localOnly: true });
-    peers = [...combined.values()];
-    await agenda.prepare(peers);
+    await directoryData.refresh(more, false);
     if (session) await groups.refresh(more);
     else await daily.loadSettings(organizationIds());
-    renderContacts(peers);
+    renderContacts();
     contactsMore();
     if (selected && conversationVisible('[data-direct-conversation]'))
       await controller.openOffline(selected.accountId);
   }
-  function updateSelected(combined: Map<string, ConversationPeer>): void {
-    if (selected && combined.has(selected.accountId))
-      selected = combined.get(selected.accountId)!;
-  }
-  async function refreshContacts(more = false): Promise<void> {
-    await agenda.load(more);
-    if (!more) {
-      remoteMore = true;
-      archivedMore = true;
-      archivedAfter = null;
-    }
-    const page = remoteMore
-      ? await contacts.list('approved', more)
-      : { items: [], next: null };
-    remoteMore = page.next !== null;
-    const local = archivedMore
-      ? await controller.archivedPeers(archivedAfter)
-      : { items: [], next: null };
-    archivedAfter = local.next;
-    archivedMore = local.next !== null;
-    const combined = new Map<string, ConversationPeer>(
-      more ? peers.map((p) => [p.accountId, p]) : [],
-    );
-    for (const item of local.items)
-      if (!combined.has(item.accountId))
-        combined.set(item.accountId, { ...item, localOnly: true });
-    for (const item of page.items) combined.set(item.accountId, item);
-    peers = [...combined.values()];
-    await agenda.prepare(peers);
-    updateSelected(combined);
-    renderContacts(peers);
-    contactsMore();
-  }
   async function refresh(): Promise<void> {
-    updates.clear();
-    lastTransferAttempt = Date.now();
+    synchronization.startRefresh();
     const current = generation;
     try {
-      await controller.initialize();
-      await controller.loadPins();
-      await refreshContacts();
+      await initializeMessageDirectory({
+        loadPins: () => controller.loadPins(),
+        loadContacts: refreshContacts,
+        initialize: () => controller.initialize(),
+        guard: () => {
+          if (current !== generation) throw new Error('Sessão alterada.');
+        },
+      });
       await groups.refresh();
       contactsMore();
       await controller.sendPending();
@@ -1281,7 +820,10 @@ export function startMessages(
     const changed = await controller.probe();
     if (selected !== peer || !conversationVisible('[data-direct-conversation]'))
       return;
-    if (changed) await controller.synchronize();
+    if (changed) {
+      synchronization.prepareHistory();
+      await controller.synchronize();
+    }
     await controller.savePins();
   }
   async function refreshSelected(): Promise<void> {
@@ -1297,7 +839,7 @@ export function startMessages(
   async function synchronizeVisible(): Promise<void> {
     if (!conversationVisible('[data-direct-conversation]')) return;
     if (await controller.probe()) {
-      preparation.request();
+      synchronization.prepareHistory();
       await controller.synchronize();
     }
   }
@@ -1393,24 +935,24 @@ export function startMessages(
     await daily.heartbeat(document.visibilityState === 'visible');
     if (current !== generation || !connected()) return;
     const old = states,
-      next = await daily.states(peers.map((p) => p.accountId));
+      next = await daily.states(directoryData.peers.map((p) => p.accountId));
     if (current !== generation) return;
     await silenceArchived(next);
     if (current !== generation) return;
     states = next;
     alertUnread(old);
-    renderContacts(peers);
-    await markVisibleRead();
+    renderContacts();
+    await historyUi.markRead(daily);
   }
   async function silenceArchived(next: Map<string, PeerState>): Promise<void> {
-    for (const peer of peers) {
+    for (const peer of directoryData.peers) {
       const state = next.get(peer.accountId);
       if (!state || peer.localOnly) continue;
       next.set(
         peer.accountId,
         await daily.keepArchivedSilent(
           peer.accountId,
-          contactOrganizationId(agenda.find(peer), peer.accountId),
+          directoryUi.contactOrganizationId(agenda.find(peer), peer.accountId),
           state,
         ),
       );
@@ -1425,62 +967,11 @@ export function startMessages(
       )
         sound.beep();
   }
-  function readableWindow(): {
-    peer: string;
-    views: readonly MessageView[];
-  } | null {
-    if (
-      !selected ||
-      selected.localOnly ||
-      rows === null ||
-      !conversationVisible('[data-direct-conversation]') ||
-      !node('[data-message-history]')?.getClientRects().length
-    )
-      return null;
-    return { peer: selected.accountId, views: rows };
-  }
-  function readStillVisible(
-    peer: string,
-    views: readonly MessageView[],
-  ): boolean {
-    return (
-      rows === views &&
-      selected?.accountId === peer &&
-      conversationVisible('[data-direct-conversation]')
-    );
-  }
-  async function markVisibleRead(): Promise<void> {
-    const window = readableWindow();
-    if (!window) return;
-    const { views: currentRows, peer } = window;
-    const incoming = currentRows
-      .filter(
-        (r) =>
-          !r.own &&
-          !r.archived &&
-          !r.relation &&
-          r.kind !== 'profile' &&
-          r.state !== 'Suspensa',
-      )
-      .map((r) => r.id);
-    if (incoming.length) await daily.read(peer, incoming);
-    if (!readStillVisible(peer, currentRows)) return;
-    const receipts = await daily.receipts(
-      currentRows
-        .filter(
-          (r) => r.own && !r.archived && !r.relation && r.kind !== 'profile',
-        )
-        .map((r) => r.id),
-    );
-    if (!readStillVisible(peer, currentRows)) return;
-    readIds = receipts;
-    renderMessageStates();
-  }
   async function searchPage(
     query: string,
     after: string | null,
   ): Promise<SearchPage> {
-    if (busy)
+    if (synchronization.busy)
       throw new Error('Aguarde a atualização das conversas e tente novamente.');
     let result: SearchPage | null = null;
     await run(async () => {
@@ -1519,33 +1010,31 @@ export function startMessages(
     searchPanel.close();
     renderHistory();
   }
-  window.addEventListener('0xdmme-attachment-progress', (event) => {
-    const progress = (event as CustomEvent<{ done: number; total: number }>)
-      .detail;
-    if (!busy || !mounted?.isConnected) return;
+  function attachmentProgress(progress: { done: number; total: number }): void {
+    if (!synchronization.busy || !mounted?.isConnected) return;
     message = `Enviando anexo: parte ${progress.done} de ${progress.total}. Fechar o app pausa a transferência; o rascunho cifrado permanece.`;
     status();
-  });
-  window.addEventListener('beforeunload', (event) => {
+  }
+  function beforeUnload(event: BeforeUnloadEvent): void {
     if (!voice.active && !attachments.selected?.voice) return;
     event.preventDefault();
     event.returnValue = '';
-  });
-  window.addEventListener('offline', () => {
+  }
+  function offline(): void {
     live.stop();
     suspend();
     message =
       'Sem conexão. O histórico salvo continua disponível neste aparelho.';
     void run(refreshLocalContacts);
     status();
-  });
-  window.addEventListener('online', () => {
+  }
+  function online(): void {
     if (session && (document.visibilityState === 'visible' || playback.open))
       live.start();
     suspend();
     requestRefresh();
-  });
-  document.addEventListener('visibilitychange', () => {
+  }
+  function visibilityChanged(): void {
     if (document.visibilityState === 'hidden') {
       if (!playback.open) live.stop();
       if (voice.active)
@@ -1554,7 +1043,9 @@ export function startMessages(
         );
     } else if (session) live.start();
     suspend();
+    const current = generation;
     void daily.heartbeat(document.visibilityState === 'visible').catch(() => {
+      if (current !== generation) return;
       message =
         'Não foi possível atualizar a presença. Ela deixará de indicar online pelo prazo de atividade.';
       status();
@@ -1566,41 +1057,27 @@ export function startMessages(
       navigator.onLine
     )
       requestRefresh();
-  });
-  const stopControls = observeMessageControls(() => {
+  }
+  function controlsChanged(): void {
     suspend('invalidate');
     requestRefresh();
-  });
-  const devicesChannel =
-    typeof BroadcastChannel === 'undefined'
-      ? null
-      : new BroadcastChannel('0xdmme-device-changes');
-  devicesChannel?.addEventListener('message', () => {
+  }
+  function devicesChanged(): void {
     suspend('invalidate');
     void checkVoiceAuthority();
-  });
-
-  window.addEventListener('0xdmme-history-imported', () => {
+  }
+  function historyImported(): void {
     controller.hide();
-    preparation.request();
+    synchronization.prepareHistory();
     groups.historyChanged();
-    if (mounted?.isConnected && !busy)
+    if (mounted?.isConnected && !synchronization.busy)
       void run(navigator.onLine ? refresh : refreshLocalContacts);
-  });
+  }
   async function groupTick(): Promise<void> {
     if (!mounted?.isConnected) return;
     if (!live.connected) await groups.refresh();
     if (conversationVisible('[data-group-conversation]'))
       await groups.resumePending();
-  }
-  function canMaintain(): boolean {
-    return (
-      !busy &&
-      maintenance === null &&
-      !!session &&
-      navigator.onLine &&
-      document.visibilityState === 'visible'
-    );
   }
   async function periodicMessages(): Promise<void> {
     await groupTick();
@@ -1610,31 +1087,12 @@ export function startMessages(
       selected.localOnly
     )
       return;
-    await resumePending();
+    await synchronization.resumePending();
     if (!live.connected && (await controller.probe())) {
       if (!conversationVisible('[data-direct-conversation]')) return;
-      preparation.request();
+      synchronization.prepareHistory();
       await controller.synchronize();
       await controller.savePins();
-    }
-  }
-  async function periodicTick(): Promise<void> {
-    if (!canMaintain()) return;
-    const current = generation;
-    try {
-      if (!live.connected) preparation.request();
-      await maintainPresence();
-      if (current !== generation || !canMaintain()) return;
-      if (!(await periodicMessageWork())) return;
-      if (current !== generation) return;
-      await run(periodicMessages);
-    } catch (error: unknown) {
-      if (current !== generation) return;
-      message =
-        error instanceof Error
-          ? error.message
-          : 'Não foi possível conferir os envios pendentes.';
-      status();
     }
   }
   async function periodicMessageWork(): Promise<boolean> {
@@ -1642,14 +1100,12 @@ export function startMessages(
       return true;
     return (await controller.pending()).length > 0;
   }
-  const timer = setInterval(() => {
-    void periodicTick();
-  }, 30000);
-  window.addEventListener('0xdmme-profile-preferences', () => {
-    if (!busy && session && navigator.onLine) void maintainPresence();
-  });
-  window.addEventListener('pagehide', (event) => {
-    updates.clear();
+  function preferencesChanged(): void {
+    if (!synchronization.busy && session && navigator.onLine)
+      void synchronization.maintainPresence();
+  }
+  function pageHide(event: PageTransitionEvent): void {
+    synchronization.reset();
     live.stop();
     if (voice.active)
       void voice.stop(
@@ -1660,9 +1116,7 @@ export function startMessages(
       groups.suspend(true);
       playback.close();
       attachments.clearSelection();
-      clearInterval(timer);
-      stopControls();
-      devicesChannel?.close();
+      synchronization.close();
       soundEvents.abort();
       void sound.dispose().catch(() => {
         message = 'Não foi possível encerrar o áudio deste navegador.';
@@ -1670,30 +1124,33 @@ export function startMessages(
       });
     }
     suspend(event.persisted ? 'pause' : 'invalidate');
-  });
-  window.addEventListener('pageshow', (event) => {
+  }
+  function pageShow(event: PageTransitionEvent): void {
     if (event.persisted) {
       if (session && navigator.onLine) live.start();
       suspend();
       if (mounted?.isConnected && session && navigator.onLine) requestRefresh();
     }
+  }
+  bindMessageLifecycle({
+    offline,
+    online,
+    visibility: visibilityChanged,
+    controls: controlsChanged,
+    devices: devicesChanged,
+    imported: historyImported,
+    preferences: preferencesChanged,
+    tick: () => synchronization.periodicTick(),
+    progress: attachmentProgress,
+    beforeUnload,
+    pageHide,
+    pageShow,
   });
   function bind(selector: string, handler: () => void): void {
     node(selector)?.addEventListener('click', handler);
   }
   function bindDailyControls(): void {
-    const filters: readonly ConversationFilter[] = [
-      'all',
-      'unread',
-      'favorites',
-      'groups',
-      'archived',
-    ];
-    for (const filter of filters)
-      bind(`[data-conversation-filter="${filter}"]`, () => {
-        directoryFilter = filter;
-        renderContacts(peers);
-      });
+    directoryUi.bind();
     bind('[data-message-emoji]', () => {
       const input = node<HTMLTextAreaElement>('[data-message-text]'),
         anchor = node('[data-message-emoji]');
@@ -1716,7 +1173,7 @@ export function startMessages(
     bindRecordGesture(node('[data-voice-record]'), {
       start: () => {
         if (
-          busy ||
+          synchronization.busy ||
           voice.active ||
           attachments.selected ||
           !selected ||
@@ -1744,7 +1201,7 @@ export function startMessages(
     await refreshContacts(true);
     if (groups.next !== null) await groups.refresh(true);
     else await daily.loadSettings(organizationIds());
-    renderContacts(peers);
+    renderContacts();
     contactsMore();
   }
   function bindMessageControls(): void {
@@ -1790,15 +1247,17 @@ export function startMessages(
     if (direct) direct.hidden = !!groups.selected;
   }
   return {
+    createGroup: () => groups.create(),
+    joinGroup: (url = '') => groups.join(url),
     groupInvites: () => groups.invites(),
     respondGroupInvite: (id: string, accept: boolean) =>
       groups.respondInvite(id, accept),
     statusesChanged(authors: ReadonlySet<string>): void {
       statusAuthors = authors;
-      renderContacts(peers);
+      renderContacts();
     },
     async openContact(peer: Peer): Promise<void> {
-      if (busy)
+      if (synchronization.busy)
         throw new Error(
           'Aguarde a atualização das conversas e tente novamente.',
         );
@@ -1807,7 +1266,7 @@ export function startMessages(
     },
     async contactSaved(contact: AddressBookEntry): Promise<void> {
       await agenda.saved(contact);
-      renderContacts(peers);
+      renderContacts();
     },
     prepareCall(): void {
       if (voice.active)
@@ -1816,8 +1275,8 @@ export function startMessages(
         );
     },
     callLabel: (peer: string) =>
-      peers.find((p) => p.accountId === peer)?.name ||
-      peers.find((p) => p.accountId === peer)?.address ||
+      directoryData.peers.find((p) => p.accountId === peer)?.name ||
+      directoryData.peers.find((p) => p.accountId === peer)?.address ||
       `Contato aprovado ${peer.slice(0, 8)}`,
     openSearch: () => searchPanel.open(),
     applyPrivacy: (preferences: DailyPreferences) =>
@@ -1830,21 +1289,19 @@ export function startMessages(
         return;
       }
       generation++;
-      preparation.request();
-      externalRows.clear();
+      historyUi.clear();
       externalAbort.abort();
       externalAbort = new AbortController();
-      agenda.clear();
+      directoryData.clear();
       menu.reset();
-      directoryFilter = 'all';
+      directoryUi.reset();
       searchPanel.close();
       voice.cancel();
       playback.close();
       recordingPeer = null;
       live.stop();
       emojiPicker.reset();
-      updates.clear();
-      automaticAttempts = 0;
+      synchronization.reset();
       session = value;
       contacts.setSession(value);
       daily.setSession(value);
@@ -1852,9 +1309,7 @@ export function startMessages(
       controller.setSession(value);
       groups.setSession(value);
       selected = null;
-      peers = [];
       states.clear();
-      readIds.clear();
       clearContext();
       attachments.clearSelection();
       clearSessionPanels();
@@ -1862,7 +1317,7 @@ export function startMessages(
       message = value
         ? 'Abra os contatos e sincronize para conversar.'
         : 'Entre e autorize este aparelho para conversar.';
-      renderContacts(peers);
+      renderContacts();
       renderHistory();
       status();
     },
@@ -1874,13 +1329,13 @@ export function startMessages(
         requestRefresh();
     },
     canActivate: () =>
-      !busy &&
+      !synchronization.busy &&
       !voice.active &&
       !attachments.selected?.voice &&
       groups.canActivate(),
     leave(): void {
       externalAbort.abort();
-      externalRows.clear();
+      historyUi.clearMedia();
       externalAbort = new AbortController();
       suspend();
       groups.leave();
@@ -1954,7 +1409,7 @@ export function startMessages(
       bindVoiceControls();
       bindDailyControls();
       bindMessageControls();
-      renderContacts(peers);
+      renderContacts();
       renderHistory();
       status();
       if (session && navigator.onLine) {

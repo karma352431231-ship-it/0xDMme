@@ -1,7 +1,13 @@
+import {
+  mountCommunityFollowerPage,
+  mountCommunityFollowerPreview,
+} from './followers.ts';
+import { communityPresentationEditor } from './presentation-editor.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
 export { renderActivityEntry } from './activity-entry.ts';
 export { ActivityPosts } from './activity-posts.ts';
-import { encode, uuid } from '../../shared/account/index.ts';
+export { communityAvatar, communityIcon } from './presentation.ts';
+import { uuid } from '../../shared/account/index.ts';
 import {
   communityPolicy,
   communityState,
@@ -12,8 +18,8 @@ import type {
   CommunityState,
 } from '../../shared/communities/index.ts';
 import type { VaultAccess } from '../vault-authority/index.ts';
-import { preparePhoto } from '../attachment-images/index.ts';
-import { Communities, readCommunity } from './controller.ts';
+import { Communities } from './controller.ts';
+import { readCommunityDetail } from './detail-refresh.ts';
 import {
   communityButton,
   communityCard,
@@ -22,6 +28,10 @@ import {
   communityLink,
 } from './elements.ts';
 import { mountCommunityGovernance } from './governance.ts';
+import { mountCommunityBadges } from './badges.ts';
+import { manageGroups } from './manage-tabs.ts';
+import { communityHoverProvider } from './community-hover.ts';
+import { registerHoverCard } from '../hover-card/index.ts';
 import { startCommunityPosts } from './posts.ts';
 import { replyNotificationPage } from '../../shared/community-posts/index.ts';
 import type { ReplyNotification } from '../../shared/community-posts/index.ts';
@@ -35,6 +45,8 @@ import { communityAvatar, openPostFromCard } from './presentation.ts';
 import {
   communityDirectoryNavigation,
   communityNavigation,
+  communityView,
+  postReturnTarget,
 } from './navigation.ts';
 
 export function startCommunities(
@@ -45,6 +57,9 @@ export function startCommunities(
 ) {
   const dms = startSocialDmUi(access, sync, privacy);
   const controller = new Communities(access);
+  registerHoverCard(
+    communityHoverProvider({ controller, signedIn: () => session !== null }),
+  );
   const posts = startCommunityPosts(controller, privacy);
   const discovery = startCommunityDiscovery(controller, privacy, profiles);
   document.addEventListener('click', openPostFromCard);
@@ -56,7 +71,11 @@ export function startCommunities(
     generation = 0,
     busy = false;
   let abort = new AbortController(),
-    photoUrl: string | null = null;
+    presentation: { dirty: () => boolean; dispose: () => void } | null = null;
+  // Query of the last list shown (feed, ranking, community…), for the post arrow.
+  let lastList: string | null = null;
+  // "Postar" passes through the community list and opens the composer there.
+  let composeNext = false;
   let view = 'feed',
     selectedDm: string | null = null,
     localDm = false,
@@ -89,14 +108,17 @@ export function startCommunities(
       container,
     );
   }
-  function clearPhoto(): void {
-    if (photoUrl) URL.revokeObjectURL(photoUrl);
-    photoUrl = null;
-  }
   function controls(): void {
-    mounted?.querySelectorAll<HTMLButtonElement>('button').forEach((button) => {
-      button.disabled = busy;
-    });
+    mounted
+      ?.querySelectorAll<
+        | HTMLButtonElement
+        | HTMLInputElement
+        | HTMLTextAreaElement
+        | HTMLSelectElement
+      >('button,input,textarea,select')
+      .forEach((button) => {
+        button.disabled = busy;
+      });
   }
   async function run(work: () => Promise<void>): Promise<void> {
     if (busy) return;
@@ -121,7 +143,8 @@ export function startCommunities(
   function navigation(): void {
     if (!mounted) return;
     discoveryMounted = false;
-    clearPhoto();
+    presentation?.dispose();
+    presentation = null;
     clearPublicPhotos(mounted);
     mounted.replaceChildren();
     delete mounted.dataset['communityLayout'];
@@ -140,18 +163,13 @@ export function startCommunities(
     output.setAttribute('role', 'status');
     mounted.append(output);
   }
-  /** `manage` opens each community's settings screen (managed list). */
-  function rows(
-    container: HTMLElement,
-    page: CommunityPage,
-    target: 'page' | 'manage' = 'page',
-  ): void {
+  function rows(container: HTMLElement, page: CommunityPage): void {
     for (const item of page.items) {
       const row = communityElement('div', '', 'community-row');
       const a = communityElement('a', '', 'community-row-link'),
         avatar = communityAvatar(item.name),
         copy = communityElement('span', '', 'community-row-copy');
-      a.href = `#comunidades?id=${item.id}${target === 'manage' ? '&view=manage' : ''}`;
+      a.href = `#comunidades?id=${item.id}${composeNext ? '&compose=1' : ''}`;
       if (item.id === selected) a.setAttribute('aria-current', 'page');
       copy.append(
         communityElement('strong', item.name),
@@ -207,12 +225,12 @@ export function startCommunities(
       );
     if (old !== generation || !mounted) return;
     navigation();
-    const card = communityCard('Respostas ao seu conteúdo');
+    const card = communityCard('Notificações');
     mounted.append(card);
     card.append(
       communityElement(
         'p',
-        'Somente respostas diretas a posts ou comentários seus.',
+        'Respostas ao seu conteúdo e posts/respostas de contas com o sininho ativado.',
       ),
     );
     for (const item of page.items) {
@@ -220,7 +238,7 @@ export function startCommunities(
       card.append(row);
       communityLink(
         row,
-        item.read ? 'Resposta lida' : 'Nova resposta',
+        item.read ? 'Publicação lida' : 'Nova publicação',
         `#comunidades?id=${item.community}&post=${item.reply}`,
       );
       row.append(
@@ -231,7 +249,7 @@ export function startCommunities(
       );
     }
     if (!page.items.length)
-      card.append(communityElement('p', 'Nenhuma resposta nesta página.'));
+      card.append(communityElement('p', 'Nenhuma notificação nesta página.'));
     const unread = page.items
       .filter((item) => !item.read)
       .map((item) => item.reply);
@@ -249,8 +267,10 @@ export function startCommunities(
       );
     cursor = page.next;
     if (page.next)
-      communityButton(card, 'Respostas anteriores', () => run(notifications));
-    communityButton(card, 'Recarregar respostas', () =>
+      communityButton(card, 'Notificações anteriores', () =>
+        run(notifications),
+      );
+    communityButton(card, 'Recarregar notificações', () =>
       run(async () => {
         cursor = null;
         await notifications();
@@ -266,11 +286,9 @@ export function startCommunities(
     if (old !== generation || !mounted) return;
     navigation();
     const card = communityCard(
-      view === 'managed'
-        ? 'Comunidades que você gerencia'
-        : view === 'invitations'
-          ? 'Transferências de comunidades'
-          : 'Minhas comunidades',
+      view === 'invitations'
+        ? 'Transferências de comunidades'
+        : 'Minhas comunidades',
     );
     mounted.append(card);
     if (view === 'communities') {
@@ -285,7 +303,7 @@ export function startCommunities(
         communityLink(links, label, `#comunidades?view=${key}`);
       card.append(links);
     }
-    rows(card, page, view === 'managed' ? 'manage' : 'page');
+    rows(card, page);
     cursor = page.next;
     if (page.next) communityButton(card, 'Próxima página', () => run(listing));
     communityButton(card, 'Recarregar lista', () => {
@@ -354,15 +372,34 @@ export function startCommunities(
     const avatar = communityAvatar(value.name);
     const banner = communityElement('div', '', 'community-banner');
     banner.dataset['tone'] = avatar.dataset['tone'] ?? '0';
+    if (value.banner)
+      publicPhotos.set(
+        showPublicAvatar(banner, {
+          kind: 'community-banner',
+          target: value.id,
+          reference: value.banner,
+          signal: abort.signal,
+        }),
+        banner,
+      );
     const head = communityElement('div', '', 'community-hero-head');
     const title = communityElement('div', '', 'community-hero-title');
     title.append(
       communityElement('h1', value.name),
-      communityElement('p', followerLabel(value), 'community-hero-meta'),
+      ...(value.archived
+        ? [communityElement('p', 'Arquivada', 'community-hero-meta')]
+        : []),
     );
     head.append(avatar, title);
     hero.append(banner, head);
     publicPhoto(avatar, value);
+    mountCommunityFollowerPreview(hero, {
+      id: value.id,
+      total: value.followers,
+      signedIn: state !== null,
+      controller,
+      signal: abort.signal,
+    });
     if (value.description)
       hero.append(
         communityElement('p', value.description, 'community-hero-description'),
@@ -395,13 +432,21 @@ export function startCommunities(
     }
     participant(head, state);
   }
+  function communityFollowControl(
+    card: HTMLElement,
+    own: CommunityState,
+  ): void {
+    if (own.role !== 'owner') {
+      communityButton(card, own.following ? 'Seguindo' : 'Seguir', () =>
+        mutate('follow', { id: own.community.id, following: !own.following }),
+      );
+      const follow = card.lastElementChild;
+      follow?.classList.add('community-follow');
+      follow?.setAttribute('aria-pressed', String(own.following));
+    }
+  }
   function participant(card: HTMLElement, own: CommunityState): void {
-    communityButton(card, own.following ? 'Seguindo' : 'Seguir', () =>
-      mutate('follow', { id: own.community.id, following: !own.following }),
-    );
-    const follow = card.lastElementChild;
-    follow?.classList.add('community-follow');
-    follow?.setAttribute('aria-pressed', String(own.following));
+    communityFollowControl(card, own);
     if (!own.canPost)
       card.after(
         communityElement(
@@ -429,20 +474,29 @@ export function startCommunities(
         card.append(communityElement('p', `Resposta: ${s.decision}`));
     }
   }
+  /**
+   * The arrow returns to `href`; the community photo and name enter the
+   * community. Both are links, so the feed panel keeps them in place.
+   */
+  function backHeader(value: Community, href: string): HTMLElement {
+    const header = communityElement('div', '', 'community-post-back'),
+      arrow = communityElement('a', '←', 'community-post-back-arrow'),
+      identity = communityElement('a', '', 'community-post-back-identity'),
+      avatar = communityAvatar(value.name);
+    arrow.href = href;
+    arrow.title = 'Voltar';
+    arrow.setAttribute('aria-label', 'Voltar');
+    identity.href = `#comunidades?id=${value.id}`;
+    identity.append(avatar, communityElement('span', value.name));
+    header.append(arrow, identity);
+    publicPhoto(avatar, value);
+    return header;
+  }
   /** A post takes the whole timeline: way back, the post, then its replies. */
   function postFocus(value: Community, post: string): void {
     if (!mounted) return;
     mounted.dataset['communityLayout'] = 'post';
-    const back = communityElement('a', '', 'community-post-back');
-    back.href = `#comunidades?id=${value.id}`;
-    const avatar = communityAvatar(value.name);
-    back.append(
-      communityElement('span', '←', 'community-post-back-arrow'),
-      avatar,
-      communityElement('span', value.name),
-    );
-    mounted.append(back);
-    publicPhoto(avatar, value);
+    mounted.append(backHeader(value, postReturnTarget(lastList, value.id)));
     const postContainer = communityElement('section', '', 'community-posts');
     mounted.append(postContainer);
     posts.mount(postContainer, {
@@ -456,6 +510,17 @@ export function startCommunities(
   function details(): void {
     if (!mounted || !current) return;
     navigation();
+    if (view === 'followers') {
+      mounted.dataset['communityLayout'] = 'followers';
+      mountCommunityFollowerPage(mounted, {
+        id: current.id,
+        name: current.name,
+        signedIn: session !== null,
+        controller,
+        signal: abort.signal,
+      });
+      return;
+    }
     if (selectedPost) {
       postFocus(current, selectedPost);
       return;
@@ -475,6 +540,7 @@ export function startCommunities(
       state,
       post: selectedPost,
       tag: selectedTag,
+      compose: composeNext,
     });
     // Owners and moderators manage from the isolated screen (top-right link);
     // participants keep their sanctions, appeals and reports here.
@@ -496,89 +562,39 @@ export function startCommunities(
   function manageScreen(value: Community, own: CommunityState): void {
     if (!mounted) return;
     mounted.dataset['communityLayout'] = 'manage';
-    const back = communityElement('a', '', 'community-post-back');
-    back.href = `#comunidades?id=${value.id}`;
-    const avatar = communityAvatar(value.name);
-    back.append(
-      communityElement('span', '←', 'community-post-back-arrow'),
-      avatar,
-      communityElement('span', value.name),
-    );
-    publicPhoto(avatar, value);
+    const back = backHeader(value, `#comunidades?id=${value.id}`);
     const management = communityElement('section', '', 'community-manage');
     management.append(communityElement('h1', 'Gerenciar comunidade'));
     mounted.append(back, management);
-    const card = communityCard('Nome, descrição e regras');
-    management.append(card);
-    const meta = metaForm(card, own.community);
-    communityButton(card, 'Salvar nome, descrição e regras', () =>
-      mutate('edit', {
-        id: own.community.id,
-        revision: own.community.revision,
-        meta: meta(),
-      }),
+    const groups = manageGroups(
+      management,
+      own.role === 'owner'
+        ? ['general', 'tags', 'moderation', 'ownership']
+        : ['general', 'tags', 'moderation'],
     );
-    const photoCard = communityCard('Foto da comunidade');
-    management.append(photoCard);
-    photo(photoCard, own);
-    posts.manageTags(management, own.community.id);
-    governance(management, own);
+    presentation = communityPresentationEditor(groups.general, own, {
+      signal: abort.signal,
+      run,
+      save: (data) => mutateWork('presentation', data),
+    });
+    mountCommunityBadges(groups.general, own.community.id, {
+      mutate,
+      query: run,
+      request: (op, data) => controller.request(op, data),
+    });
+    posts.manageTags(groups.tags, own.community.id);
+    governance(groups.moderation, own, groups.ownership);
   }
-  function governance(container: HTMLElement, own: CommunityState): void {
-    mountCommunityGovernance(container, own, {
+  function governance(
+    container: HTMLElement,
+    own: CommunityState,
+    ownership: HTMLElement = container,
+  ): void {
+    mountCommunityGovernance({ container, ownership }, own, {
       mutate,
       query: run,
       request: (operation, data) => controller.request(operation, data),
     });
-  }
-  function photo(card: HTMLElement, own: CommunityState): void {
-    card.append(
-      communityElement(
-        'p',
-        'A foto fica restrita aos gestores até a moderação automática. Arquivos ainda não aprovados são descartados em até sete dias. Quem enviou consulta a análise e pode contestar em Perfil.',
-      ),
-    );
-    if (own.pendingPhoto) {
-      const image = communityElement('img', '', 'public-avatar-preview');
-      image.alt = 'Foto preparada da comunidade, ainda restrita';
-      photoUrl = URL.createObjectURL(
-        new Blob([own.pendingPhoto.bytes], { type: own.pendingPhoto.type }),
-      );
-      image.src = photoUrl;
-      card.append(image);
-    }
-    const file = communityElement('input');
-    file.type = 'file';
-    file.accept = 'image/png,image/jpeg,image/webp';
-    file.hidden = true;
-    card.append(file);
-    communityButton(card, 'Escolher foto da comunidade', () => {
-      file.click();
-      return Promise.resolve();
-    });
-    file.addEventListener('change', () => {
-      const selectedFile = file.files?.[0];
-      file.value = '';
-      if (!selectedFile) return;
-      const old = generation;
-      void run(async () => {
-        const prepared = await preparePhoto(selectedFile);
-        if (old !== generation) return;
-        await mutateWork('photo', {
-          id: own.community.id,
-          revision: own.community.revision,
-          photo: { type: prepared.type, bytes: encode(prepared.bytes) },
-        });
-      });
-    });
-    if (own.pendingPhoto)
-      communityButton(card, 'Remover foto preparada', () =>
-        mutate('photo', {
-          id: own.community.id,
-          revision: own.community.revision,
-          photo: null,
-        }),
-      );
   }
   async function mutateWork(
     operation: string,
@@ -640,18 +656,34 @@ export function startCommunities(
       await listing();
       return;
     }
+    await refreshDetail();
+  }
+  async function refreshDetail(): Promise<void> {
+    if (!selected) return;
     const old = generation;
-    const value = await readCommunity(selected, signal());
-    if (old !== generation) return;
-    current = value;
-    state = null;
-    details();
-    if (session) {
-      const own = await controller.state(selected);
-      if (old !== generation) return;
-      state = own;
-      current = own.community;
-      details();
+    posts.invalidatePrivate();
+    try {
+      const next = await readCommunityDetail({
+        id: selected,
+        signedIn: session !== null,
+        signal: signal(),
+        valid: () => old === generation,
+        state: (id) => controller.state(id),
+        previous: { community: current, state },
+      });
+      if (!next) return;
+      current = next.community;
+      state = next.state;
+      if (next.changed || ['manage', 'followers'].includes(view)) details();
+      else await posts.refresh();
+    } catch (error: unknown) {
+      if (old === generation) {
+        posts.leave();
+        current = null;
+        state = null;
+        navigation();
+      }
+      throw error;
     }
   }
   function ready(): void {
@@ -674,7 +706,8 @@ export function startCommunities(
     mounted = null;
     state = null;
     current = null;
-    clearPhoto();
+    presentation?.dispose();
+    presentation = null;
     clearPublicPhotos();
   }
   return {
@@ -697,32 +730,24 @@ export function startCommunities(
         selected = params.has('id') ? uuid(params.get('id')) : null;
         selectedPost = params.has('post') ? uuid(params.get('post')) : null;
         selectedTag = params.has('tag') ? uuid(params.get('tag')) : null;
+        // A post opened from a list returns to that list, not to its community.
+        if (!selectedPost) lastList = params.toString();
       } catch {
         selected = null;
         navigation();
         if (output) output.textContent = 'Link de comunidade inválido.';
         return;
       }
-      if (
-        ![
-          'dms',
-          'explore',
-          'feed',
-          'saved',
-          'hidden',
-          'communities',
-          'following',
-          'managed',
-          'invitations',
-          'create',
-          'replies',
-        ].includes(view)
-      )
-        view = 'feed';
+      view = communityView(view, selected);
+      composeNext = params.get('compose') === '1';
       navigation();
       ready();
     },
     leave,
+    /** Another app page opened: a post reached from there returns to its community. */
+    forgetReturn(): void {
+      lastList = null;
+    },
     ready,
     /** Public @ conversations in the workspace chat column, independent of the mounted feed. */
     openDm(container: HTMLElement, id: string | null, local: boolean): void {
@@ -752,6 +777,7 @@ export function startCommunities(
     },
     canActivate: () =>
       !busy &&
+      !presentation?.dirty() &&
       posts.canActivate() &&
       discovery.canActivate() &&
       dms.canActivate(),
@@ -766,7 +792,8 @@ export function startCommunities(
       state = null;
       current = null;
       sidebarCursor = null;
-      clearPhoto();
+      presentation?.dispose();
+      presentation = null;
       clearPublicPhotos();
       sidebar?.replaceChildren();
       if (mounted) {

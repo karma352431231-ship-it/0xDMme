@@ -1,5 +1,6 @@
 import { cacheableRequest } from '../../shared/pwa-policy/index.ts';
 import { genericNotification } from '../../shared/daily/index.ts';
+import { publicNotificationPreview } from '../../shared/public-notification/index.ts';
 import { pushSoundEnabled } from '../notification-sound/index.ts';
 import { fetchApi, readApiJson } from '../api-response/index.ts';
 
@@ -15,7 +16,13 @@ interface WorkerScope {
     matchAll(options: {
       type: 'window';
       includeUncontrolled: boolean;
-    }): Promise<{ url: string; focus(): Promise<unknown> }[]>;
+    }): Promise<
+      {
+        url: string;
+        focus(): Promise<unknown>;
+        postMessage(message: unknown): void;
+      }[]
+    >;
     openWindow(url: string): Promise<unknown>;
   };
   addEventListener(
@@ -25,7 +32,7 @@ interface WorkerScope {
   addEventListener(
     type: 'notificationclick',
     listener: (event: {
-      notification: { close(): void };
+      notification: { close(): void; data?: unknown };
       waitUntil(promise: Promise<unknown>): void;
     }) => void,
   ): void;
@@ -203,10 +210,11 @@ async function notify(): Promise<void> {
     )
       return;
     const sound = await pushSoundEnabled();
-    await scope.registration.showNotification(genericNotification.title, {
-      ...notificationAppearance(data),
+    const appearance = notificationAppearance(data);
+    await scope.registration.showNotification(appearance.title, {
+      ...appearance,
       icon: '/icon-192.png',
-      badge: '/icon-192.png',
+      badge: '/notification-badge.png',
       silent: !sound,
       renotify: sound,
     });
@@ -214,10 +222,27 @@ async function notify(): Promise<void> {
     /* Unverified authorization/mute never falls back to an alert. The message remains durable. */
   }
 }
-function notificationAppearance(data: object): { body: string; tag: string } {
+function notificationAppearance(data: object): {
+  title: string;
+  body: string;
+  tag: string;
+  data?: { href: string };
+} {
   const call = 'call' in data && data.call === true;
   const showCall = call && 'showCall' in data && data.showCall === true;
+  if (!call && 'publicPreview' in data) {
+    const preview = publicNotificationPreview(data.publicPreview);
+    return {
+      title: `@${preview.author.handle} ${preview.reply ? 'respondeu' : 'publicou'} · 0xDMme`,
+      body: preview.text,
+      tag: '0xdmme-public-activity',
+      data: {
+        href: `/#comunidades?id=${preview.community}&post=${preview.post}`,
+      },
+    };
+  }
   return {
+    title: genericNotification.title,
     body: showCall
       ? 'Chamada de voz recebida. Abra o app para atender.'
       : genericNotification.body,
@@ -227,11 +252,23 @@ function notificationAppearance(data: object): { body: string; tag: string } {
 scope.addEventListener('push', (event) => {
   event.waitUntil(notify());
 });
+function notificationHref(data: unknown): string {
+  const href =
+    typeof data === 'object' &&
+    data !== null &&
+    'href' in data &&
+    typeof data.href === 'string'
+      ? data.href
+      : '';
+  const publicPost =
+    /^\/#comunidades\?id=[a-f0-9-]{36}&post=[a-f0-9-]{36}$/u.test(href);
+  return new URL(publicPost ? href : '/#conversas', scope.location.origin).href;
+}
 scope.addEventListener('notificationclick', (event) => {
   event.notification.close();
   event.waitUntil(
     (async () => {
-      const url = new URL('/#conversas', scope.location.origin).href;
+      const url = notificationHref(event.notification.data);
       const windows = await scope.clients.matchAll({
         type: 'window',
         includeUncontrolled: true,
@@ -239,8 +276,14 @@ scope.addEventListener('notificationclick', (event) => {
       const existing = windows.find(
         (client) => new URL(client.url).origin === scope.location.origin,
       );
-      if (existing) await existing.focus();
-      else await scope.clients.openWindow(url);
+      if (existing) {
+        if (url.includes('#comunidades'))
+          existing.postMessage({
+            type: 'OPEN_PUBLIC_POST',
+            hash: new URL(url).hash,
+          });
+        await existing.focus();
+      } else await scope.clients.openWindow(url);
     })(),
   );
 });

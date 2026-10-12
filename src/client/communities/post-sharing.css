@@ -1,0 +1,19 @@
+/* The original keeps the same gray frame as an answered post. */
+.community-post-is-share .replied-post-card {
+  background: var(--shared-post-bg);
+}
+#app-shell .post-votes :is(button, a)[data-vote],
+#app-shell .post-share {
+  color: var(--text-muted);
+}
+#app-shell .post-votes [data-vote='1'][aria-pressed='true'],
+#app-shell .post-share[aria-pressed='true'] {
+  color: var(--interaction-active);
+}
+#app-shell .post-votes [data-vote='-1'][aria-pressed='true'] {
+  color: var(--interaction-down);
+}
+#app-shell .post-votes [aria-pressed='true'] svg,
+#app-shell .post-share[aria-pressed='true'] svg {
+  stroke-width: 2.7;
+}

@@ -1,3 +1,8 @@
+import { groupDirectoryRequest } from './directory.ts';
+import {
+  groupInvitationActions,
+  groupInvitationOperations,
+} from './invitations.ts';
 import { groupDailyActions, groupDailyOperations } from './daily.ts';
 import {
   AccountError,
@@ -6,7 +11,6 @@ import {
   uuid,
 } from '../../shared/account/index.ts';
 import { revision } from '../../shared/contacts/index.ts';
-import { fingerprint } from '../../shared/devices/index.ts';
 import { groupConsent, groupEvent } from '../../shared/groups/index.ts';
 import type {
   ContactAuthority,
@@ -21,6 +25,7 @@ function cursor(value: unknown): string | null {
 }
 
 export const groupOperations = [
+  ...groupInvitationOperations,
   'group-mode',
   'group-list',
   'group-current',
@@ -48,6 +53,7 @@ export class GroupService {
   ) {
     this.store = store;
     this.actions = {
+      ...groupInvitationActions(store),
       'group-mode': (_a, d) => {
         keys(d, []);
         // Preserve the existing mode contract for installed clients; groups now require no token.
@@ -83,7 +89,7 @@ export class GroupService {
         return { status: 'saved' };
       },
       'group-commit': (a, d) => this.commit(a, d),
-      'group-directory': (a, d) => this.directory(a, d),
+      'group-directory': (a, d) => store.directory(a, groupDirectoryRequest(d)),
       ...groupDeliveryActions(messages),
       ...groupDailyActions(daily),
     };
@@ -98,33 +104,6 @@ export class GroupService {
       : undefined;
     if (!action) throw new AccountError(404, 'Operação de grupo indisponível.');
     return await action(authority, data);
-  }
-  private directory(
-    authority: ContactAuthority,
-    data: Record<string, unknown>,
-  ): Promise<unknown> {
-    keys(data, ['groupId', 'head', 'accounts']);
-    if (
-      !Array.isArray(data['accounts']) ||
-      data['accounts'].length > 16 ||
-      !data['accounts'].length
-    )
-      throw new AccountError(400, 'Lote de participantes inválido.');
-    const accounts = data['accounts'].map((input: unknown) => {
-      const row = object(input);
-      keys(row, ['accountId', 'after']);
-      return {
-        accountId: uuid(row['accountId']),
-        after: revision(row['after']),
-      };
-    });
-    if (new Set(accounts.map((r) => r.accountId)).size !== accounts.length)
-      throw new AccountError(400, 'Participantes repetidos.');
-    return this.store.directory(authority, {
-      groupId: uuid(data['groupId']),
-      head: fingerprint(data['head']),
-      accounts,
-    });
   }
   private commit(
     authority: ContactAuthority,

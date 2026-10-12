@@ -20,6 +20,7 @@ export interface Community extends CommunityMeta {
   revision: number;
   archived: boolean;
   avatar: string | null;
+  banner?: string | null;
   owner: PublicProfile | null;
   followers: number;
 }
@@ -42,6 +43,7 @@ export interface CommunityState {
   following: boolean;
   canPost: boolean;
   pendingPhoto: PendingPublicAvatar | null;
+  pendingBanner?: PendingPublicAvatar | null;
   sanction: Sanction | null;
   transfer: { id: string; target: PublicProfile } | null;
 }
@@ -103,6 +105,7 @@ export function community(value: unknown): Community {
     'avatar',
     'owner',
     'followers',
+    ...(Object.hasOwn(d, 'banner') ? ['banner'] : []),
   ]);
   if (
     typeof d['followers'] !== 'number' ||
@@ -121,6 +124,9 @@ export function community(value: unknown): Community {
     revision: communityRevision(d['revision']),
     archived: communityBoolean(d['archived']),
     avatar: publicAvatar(d['avatar'], 'community-photo', id),
+    ...(Object.hasOwn(d, 'banner')
+      ? { banner: publicAvatar(d['banner'], 'community-banner', id) }
+      : {}),
     owner: d['owner'] === null ? null : publicProfile(d['owner']),
     followers: d['followers'],
   };
@@ -169,6 +175,7 @@ export function communityState(value: unknown): CommunityState {
     'following',
     'canPost',
     'pendingPhoto',
+    ...(Object.hasOwn(d, 'pendingBanner') ? ['pendingBanner'] : []),
     'sanction',
     'transfer',
   ]);
@@ -187,6 +194,9 @@ export function communityState(value: unknown): CommunityState {
     following: communityBoolean(d['following']),
     canPost: communityBoolean(d['canPost']),
     pendingPhoto: pendingPublicAvatar(d['pendingPhoto']),
+    ...(Object.hasOwn(d, 'pendingBanner')
+      ? { pendingBanner: pendingPublicAvatar(d['pendingBanner']) }
+      : {}),
     sanction: d['sanction'] === null ? null : sanction(d['sanction']),
     transfer,
   };

@@ -268,3 +268,17 @@ Novos desafios HTTPS usam `0xdmme.app wants you to sign in with your Ethereum ac
 **Ponto importante:** a recusa por formatação está confirmada nas entradas analisadas, mas o cabeçalho como causa específica e o sucesso desse ajuste na Phantom/EVM real permanecem por validar. Solana, retorno manual, confirmação do endereço e todas as condições de autenticação são preservados.
 
 Verificação local: lint, tipos, fronteiras, formatação e build passaram, além de sete testes dirigidos de SIWE/perfil e dez testes de integração da conta. Os novos testes verificam assinatura EIP-191 dos mesmos bytes entregues a `personal_sign`, origem/porta HTTPS, compatibilidade de desafios anteriores, recusa de domínio/protocolo trocados e rejeição de HTTPS implícito em HTTP. A integração preservou rejeição de replay, expiração, cookies independentes, confirmação obrigatória no navegador original e ausência de sessão na wallet. Não foi realizado teste físico ou publicado este ajuste.
+
+## Divisão do módulo de conta — 11/10/2026
+
+O proprietário aprovou dividir `src/client/account/index.ts`, um hotspot cujo `startAccount` encerrava cerca de 1.230 linhas com uns 30 estados compartilhados. A divisão não muda comportamento, protocolo, armazenamento nem a interface pública de `startAccount`:
+
+- `core.ts`: estado compartilhado (sessão, mensagens, operação em curso, época, montagem), chamada à API e identificador do aparelho de login.
+- `wallet-picker.ts`: escolha de wallet e ecossistema no cartão.
+- `approval-flow.ts`: pedido assinado para outro navegador (fragmento, documento, cookie, prazo, diagnóstico e textos de confirmação). Continua lendo o pedido e limpando a URL antes da descoberta de wallets.
+- `login.ts`: desafio assinado, envio do pedido de outro navegador, abertura da wallet no celular, vigilância do provider e assinatura de declarações.
+- `private-profile.ts`: perfil privado cifrado, rascunhos de nome e preferências, foto e as leituras usadas por outros módulos.
+- `view.ts` e `template.ts`: renderização do cartão e da lateral.
+- `index.ts`: ciclo da sessão, regra de uma operação por vez, restauração, descarte da página e interface pública (cerca de 290 linhas).
+
+Validação: os 30 testes de ciclo da conta (login, pedidos por fragmento/documento/cookie, prazos, Backpack, troca de wallet), os de base web, inicialização e perfil passaram antes e depois sem alteração; lint, tipos, limites de módulos, formatação e build também. Sem teste físico nesta divisão; por não mudar comportamento, o aceite físico anterior dos fluxos de login continua sendo a referência, e um reteste rápido de login no celular após a publicação é recomendado.

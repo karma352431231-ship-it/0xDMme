@@ -1,4 +1,5 @@
-import { mediaEditor } from '../community-media/index.ts';
+import { postEditorMedia } from './post-editor-media.ts';
+import type { PostEditorAccess } from './post-editor-media.ts';
 import type { CommunityMediaAccess } from '../community-media/index.ts';
 import { keys, object } from '../../shared/account/index.ts';
 import {
@@ -6,7 +7,10 @@ import {
   communityCursor,
   communityText,
 } from '../../shared/communities/index.ts';
-import { postRemoval } from '../../shared/community-posts/index.ts';
+import {
+  postRemoval,
+  postTagLimit,
+} from '../../shared/community-posts/index.ts';
 import type {
   PostContent,
   PostState,
@@ -18,6 +22,14 @@ import {
   communityElement as el,
   communityField as field,
 } from './elements.ts';
+import { iconLabel } from './presentation.ts';
+import type { CommunityIcon } from './presentation.ts';
+/** A row of the post's “...” menu that opens its own form. */
+function menuSummary(text: string, icon: CommunityIcon): HTMLElement {
+  const summary = el('summary', text);
+  iconLabel(summary, icon);
+  return summary;
+}
 export interface PostActions {
   run: (work: () => Promise<void>) => Promise<void>;
   request: (
@@ -78,49 +90,114 @@ export function postTagSelect(
   render(source.page, true);
   return select;
 }
+/**
+ * Every community tag as a chip; the author toggles up to `postTagLimit`.
+ * Tags already on the post stay selectable even if a manager retired them.
+ */
+function postTagChips(
+  container: HTMLElement,
+  value: readonly string[],
+  source: PostTags,
+): { chosen: () => string[]; offered: () => boolean } {
+  const group = el('fieldset', '', 'post-tag-chips'),
+    chips = el('div', '', 'post-tag-chip-list'),
+    more = el('div', '', 'post-toolbar');
+  group.append(el('legend', `Tags (escolha de 1 a ${postTagLimit})`), chips);
+  container.append(group, more);
+  let chosen = [...value],
+    page = source.page;
+  const paint = (): void => {
+    const known = new Map(page.items.map((tag) => [tag.id, tag.label]));
+    const ids = [
+      ...page.items.map((tag) => tag.id),
+      ...chosen.filter((id) => !known.has(id)),
+    ];
+    chips.replaceChildren(
+      ...ids.map((id) => {
+        const chip = el('button', known.get(id) ?? 'Tag anterior');
+        chip.type = 'button';
+        const on = chosen.includes(id);
+        chip.setAttribute('aria-pressed', String(on));
+        chip.disabled = !on && chosen.length >= postTagLimit;
+        chip.addEventListener('click', () => {
+          chosen = on ? chosen.filter((tag) => tag !== id) : [...chosen, id];
+          paint();
+        });
+        return chip;
+      }),
+    );
+    more.replaceChildren();
+    if (page.next)
+      button(more, 'Mais tags', () =>
+        source.run(async () => {
+          const next = await source.load(page.next);
+          page = { items: [...page.items, ...next.items], next: next.next };
+          paint();
+        }),
+      );
+  };
+  paint();
+  return { chosen: () => [...chosen], offered: () => page.items.length > 0 };
+}
 export function postForm(
   container: HTMLElement,
   value: PostContent,
   tags: PostTags,
-  access: CommunityMediaAccess,
+  access: PostEditorAccess,
 ): () => Promise<PostContent> {
-  const title = field(container, 'Título (opcional)', {
+  const title = field(container, 'Título', {
       value: value.title,
       maximum: 200,
     }),
-    text = field(container, 'Texto da postagem (opcional com mídia)', {
+    text = field(container, 'Texto (opcional)', {
       value: value.text,
       maximum: 4000,
       multiline: true,
     }),
-    select = postTagSelect(
-      container,
-      { value: value.tag, label: 'Tag (opcional)', empty: 'Sem tag' },
-      tags,
-    );
-  const media = mediaEditor(container, value.media ?? [], access);
-  return async () => ({
-    title: title.value,
-    text: text.value,
-    tag: select.value || null,
-    media: await media(),
+    chips = postTagChips(container, value.tags, tags);
+  title.required = true;
+  const media = postEditorMedia({
+    container,
+    text,
+    ids: value.media ?? [],
+    access,
   });
+  return async () => {
+    if (!title.value.trim()) {
+      title.focus();
+      throw new Error('Dê um título à postagem.');
+    }
+    const chosen = chips.chosen();
+    if (!chosen.length && chips.offered())
+      throw new Error('Escolha pelo menos uma tag.');
+    return {
+      title: title.value,
+      text: text.value,
+      tags: chosen,
+      media: await media(),
+    };
+  };
 }
 export function replyForm(
   container: HTMLElement,
   value: PostContent,
-  access: CommunityMediaAccess,
+  access: PostEditorAccess,
 ): () => Promise<PostContent> {
   const text = field(container, 'Texto da resposta (opcional com mídia)', {
     value: value.text,
     maximum: 4000,
     multiline: true,
   });
-  const media = mediaEditor(container, value.media ?? [], access);
+  const media = postEditorMedia({
+    container,
+    text,
+    ids: value.media ?? [],
+    access,
+  });
   return async () => ({
     title: '',
     text: text.value,
-    tag: null,
+    tags: [],
     media: await media(),
   });
 }
@@ -139,8 +216,8 @@ export function postActions(
   actions: PostActions,
 ): void {
   if (state.canEdit) {
-    const form = el('details');
-    form.append(el('summary', 'Editar postagem'));
+    const form = el('details', '', 'post-edit');
+    form.append(menuSummary('Editar postagem', 'pencil'));
     container.append(form);
     const content = state.post.parent
       ? replyForm(form, state.content!, actions.media)
@@ -157,15 +234,15 @@ export function postActions(
     hideForm(container, state, actions);
   if (state.removal) removalForms(container, state, actions);
   if (state.own || state.manager) history(container, state, actions);
-  postReportForm(container, state.post, (data) =>
-    actions.mutate('report', data),
-  );
 }
 function deleteForm(
   container: HTMLElement,
   state: PostState,
   actions: PostActions,
 ): void {
+  const form = el('details', '', 'post-delete');
+  form.append(menuSummary('Excluir postagem', 'trash'));
+  container.append(form);
   const label = el('label'),
     confirm = el('input');
   confirm.type = 'checkbox';
@@ -175,8 +252,8 @@ function deleteForm(
       'Excluir texto e mídia do banco/armazenamento ativo. Cópias externas e backups podem permanecer.',
     ),
   );
-  container.append(label);
-  button(container, 'Excluir minha postagem', async () => {
+  form.append(label);
+  button(form, 'Excluir minha postagem', async () => {
     if (!confirm.checked) throw new Error('Confirme a exclusão da postagem.');
     await actions.mutate('post-delete', command(state));
   });
@@ -186,12 +263,15 @@ function hideForm(
   state: PostState,
   actions: PostActions,
 ): void {
-  const reason = field(container, 'Motivo da remoção', {
+  const form = el('details', '', 'post-moderate');
+  form.append(menuSummary('Ocultar pela moderação', 'shield'));
+  container.append(form);
+  const reason = field(form, 'Motivo da remoção', {
       maximum: 1000,
       multiline: true,
     }),
     record = crypto.randomUUID();
-  button(container, 'Ocultar postagem', () =>
+  button(form, 'Ocultar postagem', () =>
     actions.mutate('post-hide', {
       ...command(state),
       record,
@@ -250,7 +330,7 @@ function history(
   const list = el('div');
   container.append(list);
   let after: string | null = null;
-  button(container, 'Consultar histórico de moderação', () =>
+  const consult = button(container, 'Consultar histórico de moderação', () =>
     actions.run(async () => {
       const data = object(
         await actions.request('post-moderations', {
@@ -277,6 +357,8 @@ function history(
       after = communityCursor(data['next']);
     }),
   );
+  iconLabel(consult, 'clock');
+  list.className = 'post-history';
 }
 export function postReportForm(
   container: HTMLElement,
@@ -291,9 +373,10 @@ export function postReportForm(
     record = crypto.randomUUID();
   button(container, 'Denunciar postagem', () =>
     report({
-      id: post.community,
       record,
-      reason: `Post ${post.id}: ${communityText(reason.value, 900)}`,
+      kind: 'post',
+      target: post.id,
+      reason: communityText(reason.value, 900),
     }),
   );
 }

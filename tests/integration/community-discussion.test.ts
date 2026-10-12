@@ -422,7 +422,7 @@ await test('feed e discussão: elegibilidade, representantes, diversidade e árv
         await sql.query(
           await readFile(
             new URL(
-              '../../src/server/database/migrations/054-discussion-engagement.sql',
+              '../../src/server/database/migrations/062-discussion-engagement.sql',
               import.meta.url,
             ),
             'utf8',

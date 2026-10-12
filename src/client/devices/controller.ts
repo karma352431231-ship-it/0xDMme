@@ -1,3 +1,4 @@
+import { authoritySignature } from './authority-signature.ts';
 import { fetchApi, readApiJson } from '../api-response/index.ts';
 import {
   boundedText,
@@ -373,6 +374,9 @@ export class DeviceController {
       await this.restoreWalletPending(session);
     });
   }
+  private signingAuthority(session: AccountSession, key: CryptoKey) {
+    return authoritySignature(key, () => this.assertSession(session));
+  }
   async withVault<T>(
     offline: boolean,
     work: (authority: VaultAuthority) => Promise<T>,
@@ -400,10 +404,7 @@ export class DeviceController {
           if (!secret) throw new Error('Época de chave indisponível.');
           return aesKey(secret);
         },
-        sign: async (proof) => {
-          this.assertSession(session);
-          return sign(signing, proof);
-        },
+        sign: this.signingAuthority(session, signing),
         openSecret: async (envelope, context) => {
           this.assertSession(session);
           const value = await openFrom(wrapping, envelope, context);

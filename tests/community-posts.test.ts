@@ -17,7 +17,7 @@ const post = () => ({
   author: { id: id(), handle: 'teste_publico', avatar: null },
   title: '',
   text: 'Texto 😄',
-  tag: null,
+  tags: [],
   createdAt: time,
   editedAt: null,
   revision: 1,
@@ -27,10 +27,15 @@ const post = () => ({
   score: 0,
   replies: 0,
 });
-await test('posts validam texto, título opcional, UUID de tag e orçamento de entrada', () => {
+await test('posts validam texto, tags em lista sem repetição, até cinco, e orçamento de entrada', () => {
   assert.deepEqual(
-    postContent({ title: '', text: ' Olá\r\nGalera! ', tag: null }),
-    { title: '', text: 'Olá\nGalera!', tag: null },
+    postContent({ title: '', text: ' Olá\r\nGalera! ', tags: [] }),
+    { title: '', text: 'Olá\nGalera!', tags: [] },
+  );
+  const tags = Array.from({ length: 5 }, id);
+  assert.deepEqual(
+    postContent({ title: 'Só título', text: '', tags }).tags,
+    tags,
   );
   for (const patch of [
     { text: '' },
@@ -38,14 +43,17 @@ await test('posts validam texto, título opcional, UUID de tag e orçamento de e
     { title: 'x'.repeat(201) },
     { title: 'duas\nlinhas' },
     { text: 'a\u200bb' },
-    { tag: 'fora-do-contrato' },
+    { tags: ['fora-do-contrato'] },
+    { tags: [tags[0], tags[0]] },
+    { tags: [...tags, id()] },
+    { tags: null },
   ])
     assert.throws(
-      () => postContent({ title: '', text: 'Válido', tag: null, ...patch }),
+      () => postContent({ title: '', text: 'Válido', tags: [], ...patch }),
       AccountError,
     );
   assert.throws(
-    () => postContent({ title: '', text: 'Texto', tag: null, media: '/a.png' }),
+    () => postContent({ title: '', text: 'Texto', tags: [], media: '/a.png' }),
     AccountError,
   );
 });
@@ -65,7 +73,7 @@ await test('páginas de posts têm cursor estável e recusam campos privados ou 
       status: 'removed',
       author: null,
       text: '',
-      tag: null,
+      tags: [],
     }).status,
     'removed',
   );
@@ -83,7 +91,7 @@ await test('páginas de posts têm cursor estável e recusam campos privados ou 
         manager: false,
         canEdit: false,
         canDelete: false,
-        content: { title: '', text: 'Retido', tag: null },
+        content: { title: '', text: 'Retido', tags: [] },
         removal: null,
       }),
     AccountError,
@@ -117,7 +125,7 @@ await test('árvore, votos privados e avisos recusam referências incoerentes ou
     {
       parent: id(),
       root: id(),
-      tag: { id: id(), label: 'tag', active: true, revision: 1 },
+      tags: [{ id: id(), label: 'tag', active: true, revision: 1 }],
     },
   ])
     assert.throws(() => communityPost({ ...value, ...patch }), AccountError);

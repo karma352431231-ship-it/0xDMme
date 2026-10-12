@@ -149,7 +149,15 @@ const migrations = [
   '051-public-profile-social.sql',
   '052-profile-conversation-index.sql',
   '053-public-profile-descriptions.sql',
-  '054-discussion-engagement.sql',
+  '054-group-invitation-links.sql',
+  '055-community-post-extra-tags.sql',
+  '056-community-badges.sql',
+  '057-community-banners.sql',
+  '058-social-notifications-reports.sql',
+  '059-post-sharing.sql',
+  '060-public-notification-wake.sql',
+  '061-social-read-receipts.sql',
+  '062-discussion-engagement.sql',
 ];
 
 export interface MaintenanceSnapshot {
@@ -270,6 +278,7 @@ export class Database {
       profiles: this.publicProfiles,
       capacity: contentCapacity,
     });
+    this.communities.setSocialControls(this.socialDm);
     this.socialCrypto = new SocialCryptoStore(
       this.socialDm,
       this.publicProfiles,

@@ -32,7 +32,33 @@ export function enrollmentCode(value: unknown): EnrollmentCode {
 export function enrollmentPayload(code: EnrollmentCode): string {
   return '0xdmme-enroll:1:' + canonical(enrollmentCode(code));
 }
-export function readEnrollment(value: string): EnrollmentCode {
+/** Fragment-only URL: the capability never enters HTTP requests or referrers. */
+export function enrollmentUrl(code: EnrollmentCode, origin: string): string {
+  const url = new URL('/', origin);
+  if (
+    url.protocol !== 'https:' &&
+    !['localhost', '127.0.0.1'].includes(url.hostname)
+  )
+    throw new Error('A vinculação exige HTTPS.');
+  url.hash = 'vincular=' + encodeURIComponent(enrollmentPayload(code));
+  return url.href;
+}
+export function readEnrollment(
+  value: string,
+  origin = 'https://0xdmme.app',
+): EnrollmentCode {
+  if (value.length > 4096) throw new Error('Código de vinculação excedido.');
+  if (/^https?:/u.test(value)) {
+    const url = new URL(value);
+    if (
+      url.origin !== new URL(origin).origin ||
+      url.pathname !== '/' ||
+      url.search ||
+      !url.hash.startsWith('#vincular=')
+    )
+      throw new Error('Link de vinculação inválido.');
+    value = decodeURIComponent(url.hash.slice('#vincular='.length));
+  }
   if (value.length > 2048) throw new Error('Código de vinculação excedido.');
   const raw = value.startsWith('0xdmme-enroll:1:')
     ? value.slice('0xdmme-enroll:1:'.length)

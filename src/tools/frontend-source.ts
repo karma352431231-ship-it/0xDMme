@@ -7,6 +7,8 @@ import { promisify } from 'node:util';
 const execute = promisify(execFile);
 const authored = [
   'src/client/api-response',
+  'src/client/message-menu',
+  'src/shared/community-followers',
   'src/client/moderation-evaluation',
   'src/shared/moderation-evaluation',
   'src/client/public-media',
@@ -26,10 +28,14 @@ const authored = [
   'src/shared/community-discovery',
   'src/shared/community-discussion',
   'src/shared/community-posts',
+  'src/shared/post-sharing',
+  'src/shared/public-notification',
+  'src/shared/community-badges',
   'src/shared/community-views',
   'src/client/communities',
   'src/shared/communities',
   'src/client/public-profile',
+  'src/client/profile-shortcut',
   'src/shared/public-profile',
   'src/shared/profile-social',
   'src/shared/public-avatar',
@@ -43,6 +49,7 @@ const authored = [
   'src/client/gif-search',
   'src/client/toast',
   'src/client/file-drop',
+  'src/client/hover-card',
   'src/tools/frontend-emoji.ts',
   'vendor/emoji/README.md',
   'vendor/emoji/LICENSE-GRAPHICS.txt',
@@ -56,6 +63,8 @@ const authored = [
   'src/client/message-actions',
   'src/client/chat-ui',
   'src/client/appearance',
+  'src/client/preference-events',
+  'src/client/account-settings',
   'src/client/activity',
   'src/client/message-search',
   'src/client/message-status',
@@ -74,6 +83,7 @@ const authored = [
   'src/client/personal-removals',
   'src/client/groups',
   'src/client/message-session',
+  'src/client/message-runtime',
   'src/client/status',
   'src/client/status-crypto',
   'src/client/peer-identity',
@@ -194,7 +204,7 @@ async function dependencySources(
     preferred = ['dist/modules-esm', 'LICENSE', 'README.md', 'package.json'];
   else return collect(root, path);
   // Preserve preferred sources, metadata/licenses and exact incorporated JS;
-  // omit duplicate distribution builds without increasing the resource caps.
+  // Omit duplicate distribution builds while preserving the complete inputs.
   const files: string[] = [];
   for (const source of preferred)
     files.push(...(await collect(root, `${path}/${source}`)));
@@ -224,17 +234,32 @@ export async function frontendSource(
   verifyInputs(root, inputs, included);
   if (included.size > 1024) throw new Error('Quantidade de fontes excedida.');
   // Explicit paths only: no repository-wide archive, shell, .local or backend.
+  // Plain ustar: the same files without per-file extended metadata (macOS
+  // xattrs, ACLs, sub-second times) or machine-specific owner names.
   const { stdout } = await execute(
     'tar',
-    ['-cf', '-', '--no-recursion', '-C', root, '--', ...included],
-    { encoding: 'buffer', maxBuffer: 24 * 1024 * 1024, timeout: 30_000 },
+    [
+      '--format',
+      'ustar',
+      '-cf',
+      '-',
+      '--numeric-owner',
+      '--no-xattrs',
+      '--no-acls',
+      '--no-recursion',
+      '-C',
+      root,
+      '--',
+      ...included,
+    ],
+    {
+      encoding: 'buffer',
+      maxBuffer: 24 * 1024 * 1024,
+      timeout: 30_000,
+      env: { ...process.env, COPYFILE_DISABLE: '1' },
+    },
   );
-  const archive = gzipSync(stdout, { level: 9, memLevel: 6 });
-  if (archive.length > 2 * 1024 * 1024)
-    throw new Error(
-      `Fontes comprimidas (${archive.length} bytes) excedem o teto de 2 MiB.`,
-    );
-  return archive;
+  return gzipSync(stdout, { level: 9 });
 }
 function verifyInputs(
   root: string,

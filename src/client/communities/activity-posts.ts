@@ -1,18 +1,16 @@
 import type { AccountSession } from '../../shared/account/index.ts';
 import type { FeedEntry } from '../../shared/community-discovery/index.ts';
-import { postState, tagPage } from '../../shared/community-posts/index.ts';
+import { postSharing } from './post-sharing.ts';
+import { postState } from '../../shared/community-posts/index.ts';
 import type { PostState } from '../../shared/community-posts/index.ts';
 import { communityState } from '../../shared/communities/index.ts';
 import type { VaultAccess } from '../vault-authority/index.ts';
 import type { ExternalMediaConsent } from '../external-media/index.ts';
-import { Communities, communityRead } from './controller.ts';
+import { Communities } from './controller.ts';
 import { renderActivityEntry } from './activity-entry.ts';
-import {
-  communityButton as button,
-  communityElement as el,
-} from './elements.ts';
+import { communityElement as el } from './elements.ts';
 import { postVoting, preferenceControls } from './discovery-controls.ts';
-import { postActions } from './post-forms.ts';
+import { postManagementMenu } from './post-menu.ts';
 import { postReply } from './post-reply.ts';
 import { postViews } from './post-views.ts';
 
@@ -37,6 +35,28 @@ export class ActivityPosts {
   constructor(access: VaultAccess, privacy: ExternalMediaConsent) {
     this.controller = new Communities(access);
     this.privacy = privacy;
+    globalThis.window?.addEventListener('0xdmme-public-block', (event) =>
+      this.hideBlockedAuthor(event),
+    );
+  }
+  private hideBlockedAuthor(event: Event): void {
+    if (!(event instanceof CustomEvent)) return;
+    const data = event.detail as { target?: unknown; blocked?: unknown };
+    if (typeof data?.target !== 'string' || data?.blocked !== true) return;
+    for (const card of this.cards) {
+      if (this.hasAuthor(card.entry, data.target)) {
+        card.lifetime.abort();
+        card.node.remove();
+      }
+    }
+  }
+  private hasAuthor(entry: FeedEntry, target: string): boolean {
+    return [
+      entry.post.author?.id,
+      entry.context?.root.author?.id,
+      entry.context?.parent.author?.id,
+      entry.share?.author.id,
+    ].includes(target);
   }
   setSession(session: AccountSession | null): void {
     if (!this.controller.setSession(session)) return;
@@ -84,6 +104,22 @@ export class ActivityPosts {
       { once: true },
     );
     this.toolbar(card);
+    window.addEventListener(
+      '0xdmme-post-share',
+      (event) => {
+        if (!(event instanceof CustomEvent)) return;
+        const detail = event.detail as { post?: unknown; shared?: unknown };
+        if (
+          card.entry.share?.own &&
+          detail.post === card.entry.post.id &&
+          detail.shared === false
+        ) {
+          card.lifetime.abort();
+          card.node.remove();
+        }
+      },
+      { signal },
+    );
     return card.node;
   }
   private access(card: ActivityCard) {
@@ -94,6 +130,10 @@ export class ActivityPosts {
       run: (work: () => Promise<void>) => this.run(card, epoch, work),
       changed: (state?: PostState) => {
         if (state) this.counts(card, state);
+        else {
+          card.lifetime.abort();
+          card.node.remove();
+        }
         return Promise.resolve();
       },
     };
@@ -111,7 +151,13 @@ export class ActivityPosts {
       post = card.entry.post;
     status.setAttribute('role', 'status');
     card.node.append(toolbar, status);
-    postVoting(toolbar, post, this.session ? actions : null);
+    postVoting(
+      toolbar,
+      post,
+      this.session
+        ? { ...actions, position: card.entry.viewerVote ?? 0 }
+        : null,
+    );
     if (this.session) {
       postReply(toolbar, post, {
         ...actions,
@@ -120,17 +166,20 @@ export class ActivityPosts {
           (await this.controller.state(post.community)).canPost,
         replied: (state) => this.replied(card, state),
       });
-      preferenceControls(toolbar, post, actions);
-      const options = el('div', '', 'post-options');
-      status.before(options);
-      button(toolbar, 'Opções', () =>
-        actions.run(() => this.options(card, options)),
-      ).setAttribute('aria-label', 'Opções da postagem');
+      postSharing(toolbar, post, {
+        ...actions,
+        shared: card.entry.viewerShared ?? false,
+      });
+      preferenceControls(toolbar, post, {
+        ...actions,
+        options: (host) => this.options(card, host),
+      });
     } else {
       const login = el('a', 'Responder', 'post-action post-comments');
       login.href = '#perfil';
       login.setAttribute('aria-label', 'Entre pelo Perfil para responder');
       toolbar.append(login);
+      postSharing(toolbar, post, null);
     }
     const discussion = el(
       'a',
@@ -149,6 +198,7 @@ export class ActivityPosts {
         this.controller.request(operation, data),
       valid,
       signal: AbortSignal.any([card.signal, this.sessionAbort.signal]),
+      privacy: this.privacy,
     };
   }
   private async run(
@@ -192,7 +242,16 @@ export class ActivityPosts {
     if (status) status.textContent = text;
   }
   private counts(card: ActivityCard, state: PostState): void {
-    card.entry = { ...card.entry, post: state.post };
+    card.entry = {
+      ...card.entry,
+      post: state.post,
+      viewerVote: state.vote.position,
+    };
+    for (const button of card.node.querySelectorAll<HTMLElement>('[data-vote]'))
+      button.setAttribute(
+        'aria-pressed',
+        String(Number(button.dataset['vote']) === state.vote.position),
+      );
     const score = card.node.querySelector('.post-score'),
       replies = card.node.querySelector('.post-comments span');
     if (score) score.textContent = String(state.post.score);
@@ -231,44 +290,15 @@ export class ActivityPosts {
           );
     }
   }
-  private async options(card: ActivityCard, host: HTMLElement): Promise<void> {
-    const access = this.access(card),
-      post = card.entry.post,
-      state = postState(
-        await this.controller.request('post-state', {
-          id: post.community,
-          post: post.id,
-        }),
-      );
-    const tags =
-      state.canEdit && !post.parent
-        ? tagPage(await this.tags(card, null))
-        : { items: [], next: null };
-    if (!access.valid()) return;
-    host.replaceChildren();
-    postActions(
-      host,
-      state,
-      {
-        page: tags,
-        run: access.run,
-        load: async (after) => tagPage(await this.tags(card, after)),
-      },
-      {
-        run: access.run,
-        request: (operation, data) => this.controller.request(operation, data),
-        media: this.media(card),
-        mutate: (operation, data) =>
-          access.run(() => this.mutate(card, operation, data)),
-      },
-    );
-  }
-  private tags(card: ActivityCard, after: string | null): Promise<unknown> {
-    const query = after ? `?after=${encodeURIComponent(after)}` : '';
-    return communityRead(
-      `/api/communities/${card.entry.post.community}/tags${query}`,
-      AbortSignal.any([card.signal, AbortSignal.timeout(8000)]),
-    );
+  private options(card: ActivityCard, host: HTMLElement) {
+    const access = this.access(card);
+    return postManagementMenu(host, card.entry.post, {
+      run: access.run,
+      request: (operation, data) => this.controller.request(operation, data),
+      media: this.media(card),
+      mutate: (operation, data) =>
+        access.run(() => this.mutate(card, operation, data)),
+    });
   }
   private async mutate(
     card: ActivityCard,

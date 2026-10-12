@@ -1,3 +1,5 @@
+import { prepareMessageRuntime } from '../message-runtime/index.ts';
+import { dmMessageStates } from './read-receipts.ts';
 import {
   base64,
   encode,
@@ -263,6 +265,8 @@ export class SocialDms {
     }) => Promise<T>,
   ): Promise<T> {
     const generation = this.generation;
+    this.guard(generation);
+    await prepareMessageRuntime();
     this.guard(generation);
     const directory = await readSocialDirectory(
       (op, data) => this.request(op, data),
@@ -537,6 +541,9 @@ export class SocialDms {
       await pinSocialHistory(packet.sender, events);
     }
     return events;
+  }
+  async messageStates(input: { peer: string; read: string[]; own: string[] }) {
+    return dmMessageStates(await this.request('message-status', input));
   }
   async read(peer: string, before: number | null) {
     if (navigator.onLine) {

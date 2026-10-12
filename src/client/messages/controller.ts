@@ -25,6 +25,7 @@ import {
   retainAttachment,
 } from '../attachments/index.ts';
 import type { AttachmentSelection } from '../attachments/index.ts';
+import { prepareMessageRuntime } from '../message-runtime/index.ts';
 import { openMessageMachine } from '../message-session/index.ts';
 import { AccountError, object } from '../../shared/account/index.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
@@ -251,6 +252,8 @@ export class Messages {
   }
   async initialize(): Promise<void> {
     const generation = this.generation;
+    await prepareMessageRuntime();
+    this.guard(generation);
     await this.access.withVault(false, async (a) => {
       this.guard(generation);
       if (this.initializedDirectory === a.directory) return;

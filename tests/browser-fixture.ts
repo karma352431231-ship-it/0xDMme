@@ -1,3 +1,7 @@
+import {
+  PublicMediaService,
+  createPublicMediaHandler,
+} from '../src/server/public-media/index.ts';
 import { build } from 'esbuild';
 import { createHash, randomBytes } from 'node:crypto';
 import { Database } from '../src/server/database/index.ts';
@@ -58,7 +62,10 @@ if (!/^0x[a-f0-9]{64}$/u.test(fixtureSeed))
   throw new Error(
     'Seed sintética de fixture inválida. Nunca forneça uma chave real.',
   );
-const database = new Database(config.databaseUrl, config.accountCapacityBytes);
+// Synthetic moderation inventory is confined to this loopback-only browser fixture.
+const database = new Database(config.databaseUrl, config.accountCapacityBytes, [
+  { hash: 'f'.repeat(64), runtime: 'browser-fixture-synthetic' },
+]);
 await database.migrate();
 const objects = new ObjectStore(config.objectDirectory);
 await objects.initialize();
@@ -184,10 +191,21 @@ function fixtureServer(
       (handle) => publicProfiles.read(handle),
       publicProfiles,
     ),
+    publicMedia: createPublicMediaHandler(
+      new PublicMediaService(
+        {
+          profiles: database.publicProfiles,
+          communities: database.communities,
+          media: database.communityMedia,
+        },
+        config.objectDirectory,
+      ),
+    ),
     communities: createCommunityHandler({
       origin: testOrigin,
       views: (input) => database.communityViews.observe(input),
       read: (id) => communities.read(id),
+      followers: (id, after) => communities.followerPage(id, after),
       list: (after) => communities.list(after),
       feed: (filter, after) => communities.feed(filter, after),
       explore: (filter, after) => communities.explore(filter, after),

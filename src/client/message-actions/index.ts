@@ -1,8 +1,9 @@
 import type { Peer } from '../../shared/contacts/index.ts';
 import type { DailyRow, DailyView } from '../daily-text/index.ts';
 import type { EmojiPicker } from '../emoji/index.ts';
-import { chatIcon } from '../chat-ui/index.ts';
+import { anchoredMessageMenu } from '../message-menu/index.ts';
 interface MessageActionOptions<T extends DailyRow> {
+  signal: AbortSignal;
   view: DailyView<T>;
   peers: readonly Peer[];
   replyAllowed?: boolean;
@@ -16,35 +17,13 @@ interface MessageActionOptions<T extends DailyRow> {
 export function messageActions<T extends DailyRow>(
   c: MessageActionOptions<T>,
 ): HTMLElement {
-  const host = document.createElement('div');
-  host.className = 'message-actions';
-  if (c.view.kind === 'profile' && !c.remove) return host;
-  const trigger = document.createElement('button');
-  trigger.type = 'button';
-  trigger.className = 'chat-icon';
-  trigger.setAttribute('aria-label', 'Opções da mensagem');
-  trigger.title = 'Opções da mensagem';
-  trigger.setAttribute('aria-haspopup', 'dialog');
-  trigger.innerHTML = chatIcon('more');
-  const menu = document.createElement('dialog');
-  menu.className = 'message-menu';
-  menu.setAttribute('aria-label', 'Opções da mensagem');
-  const close = document.createElement('button');
-  close.type = 'button';
-  close.className = 'message-menu-close';
-  close.textContent = 'Fechar';
-  close.addEventListener('click', () => menu.close());
-  menu.append(close);
-  trigger.addEventListener('click', () => menu.showModal());
-  host.append(trigger, menu);
-  menu.addEventListener(
-    'click',
-    (event) => {
-      if (event.target instanceof Element && event.target.closest('button'))
-        menu.close();
-    },
-    { capture: true },
-  );
+  if (c.view.kind === 'profile' && !c.remove)
+    return document.createElement('div');
+  const {
+    host,
+    panel: menu,
+    trigger,
+  } = anchoredMessageMenu({ signal: c.signal });
   if (c.view.kind === 'profile') {
     appendRemove(menu, c);
     return host;

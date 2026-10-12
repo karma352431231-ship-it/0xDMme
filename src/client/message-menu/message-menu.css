@@ -1,0 +1,45 @@
+.message-menu {
+  position: fixed;
+  inset: auto;
+  margin: 0;
+  width: min(272px, calc(100vw - 16px));
+  max-height: calc(100dvh - 16px);
+  overflow-y: auto;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 6px;
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 8px 24px var(--shadow);
+  z-index: 65;
+}
+.message-menu:not([hidden]) {
+  display: grid;
+  gap: 2px;
+}
+.message-menu::backdrop {
+  background: transparent;
+  pointer-events: none;
+}
+#app-shell .message-menu button {
+  display: block;
+  width: 100%;
+  min-height: 40px;
+  margin: 0;
+  padding: 10px 12px;
+  text-align: left;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  font-size: var(--fs-body);
+}
+#app-shell .message-menu button:hover {
+  background: var(--surface-3);
+}
+#app-shell .message-menu select {
+  min-width: 0;
+  width: 100%;
+  margin: 0;
+  font-size: var(--fs-caption);
+}

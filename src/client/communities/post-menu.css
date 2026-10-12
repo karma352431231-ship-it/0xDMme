@@ -1,0 +1,231 @@
+/*
+ * The "..." menu of posts and public profiles: a floating panel of actions
+ * anchored to the action row, so it never passes the card edge. Forms that a
+ * row opens (report, edit, delete, moderation) stay inside the panel.
+ */
+.post-actions {
+  position: relative;
+}
+.post-actions .post-more {
+  position: static;
+}
+#app-shell .post-more-content {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 6px);
+  left: 0;
+  display: grid;
+  gap: 2px;
+  width: min(340px, 100%);
+  max-height: min(70vh, 560px);
+  overflow-y: auto;
+  margin: 0;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+  box-shadow: 0 16px 40px var(--shadow);
+  font-size: var(--fs-body);
+}
+.public-profile-actions {
+  position: relative;
+}
+.public-profile-actions .post-more {
+  position: static;
+}
+#app-shell .public-profile-actions .post-more-content {
+  right: 0;
+  left: auto;
+  width: min(320px, 100%);
+}
+
+/*
+ * Rows: buttons that act at once and the summaries of the forms they open.
+ * The whole panel lives inside the "..." details, so rows are matched by
+ * position (direct children), never by "not inside a details".
+ */
+#app-shell .post-more-content > button,
+#app-shell .post-options > button,
+#app-shell .post-more-content details > summary {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 10px;
+  width: 100%;
+  min-height: 40px;
+  margin: 0;
+  padding: 8px 12px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  box-shadow: none;
+  color: var(--text);
+  font: inherit;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  list-style: none;
+}
+#app-shell .post-more-content details > summary::-webkit-details-marker {
+  display: none;
+}
+#app-shell .post-more-content > button:hover,
+#app-shell .post-options > button:hover,
+#app-shell .post-more-content details > summary:hover,
+#app-shell .post-more-content details[open] > summary {
+  background: var(--surface-2);
+}
+#app-shell .post-more-content :is(button, summary) > svg {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+/* A chevron tells rows that open a form from rows that act at once. */
+#app-shell .post-more-content details > summary::after {
+  content: '';
+  flex: none;
+  width: 7px;
+  height: 7px;
+  margin-left: auto;
+  border-right: 1.6px solid var(--text-muted);
+  border-bottom: 1.6px solid var(--text-muted);
+  transform: rotate(-45deg);
+  transition: transform 0.15s ease;
+}
+#app-shell .post-more-content details[open] > summary::after {
+  transform: rotate(45deg);
+}
+/* Destructive rows. */
+#app-shell
+  .post-more-content
+  :is(
+    .post-menu-danger,
+    .post-report > summary,
+    .post-delete > summary,
+    .post-moderate > summary
+  ) {
+  color: var(--danger);
+}
+
+/* Groups: viewer actions first, then the author's or moderators' management. */
+.post-options:not(:empty) {
+  display: grid;
+  gap: 2px;
+  margin-top: 4px;
+  padding-top: 6px;
+  border-top: 1px solid var(--line);
+}
+.post-options:empty {
+  display: none;
+}
+
+/*
+ * A form opened from a row, and the removal forms shown to managers. Browsers
+ * wrap a details' content in their own box, so spacing uses margins, not grid.
+ */
+#app-shell .post-more-content details[open] {
+  padding-bottom: 12px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--surface-2) 55%, transparent);
+}
+#app-shell .post-more-content details[open] > :not(summary),
+#app-shell .post-options > :is(label, p) {
+  margin: 10px 12px 0;
+}
+#app-shell .post-more-content label {
+  display: grid;
+  gap: 6px;
+  color: var(--text-muted);
+  font-size: var(--fs-small);
+}
+#app-shell .post-more-content label:has(> input[type='checkbox']) {
+  grid-template-columns: auto 1fr;
+  align-items: start;
+  color: var(--text);
+  line-height: 1.45;
+}
+#app-shell .post-more-content input[type='checkbox'] {
+  margin: 3px 0 0;
+}
+#app-shell
+  .post-more-content
+  :is(textarea, input:not([type='checkbox']), select) {
+  width: 100%;
+  min-height: 40px;
+  padding: 8px 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-size: var(--fs-input);
+}
+#app-shell .post-more-content textarea {
+  min-height: 84px;
+  resize: vertical;
+}
+#app-shell .post-more-content :is(textarea, input, select):focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+/* The form's own action: compact, at the end of the form. */
+#app-shell .post-more-content details[open] > button {
+  margin-left: auto;
+}
+#app-shell .post-more-content details button {
+  display: block;
+  width: fit-content;
+  min-height: 36px;
+  padding: 6px 16px;
+  border: 0;
+  border-radius: 99px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-size: var(--fs-small);
+  font-weight: 600;
+}
+#app-shell
+  .post-more-content
+  :is(.post-report, .post-delete, .post-moderate)
+  button {
+  background: var(--danger);
+}
+#app-shell .post-more-content button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+#app-shell .post-more-content [role='status']:empty {
+  display: none;
+}
+#app-shell .post-more-content details [role='status'],
+#app-shell .post-more-content > p,
+#app-shell .post-options > p {
+  margin-block: 0;
+  color: var(--text-muted);
+  font-size: var(--fs-small);
+}
+.post-history:empty {
+  display: none;
+}
+.post-history {
+  display: grid;
+  gap: 6px;
+  margin: 0 12px;
+  color: var(--text-muted);
+  font-size: var(--fs-small);
+}
+.post-history p {
+  margin: 0;
+}
+
+/* Phones: the panel spans the action row. */
+@media (max-width: 700px) {
+  #app-shell .post-more-content {
+    width: 100%;
+  }
+}

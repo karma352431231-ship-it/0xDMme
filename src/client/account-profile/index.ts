@@ -1,3 +1,6 @@
+import type { ProfilePreferences } from './preferences-draft.ts';
+import { validatePhoto } from './photo-validation.ts';
+export { validatePhoto } from './photo-validation.ts';
 import {
   base64,
   encode,
@@ -9,13 +12,8 @@ import {
 } from '../../shared/account/index.ts';
 import type { EncryptedProfile } from '../../shared/account/index.ts';
 
-export interface ProfilePreferences {
-  discoverable: boolean;
-  online: boolean;
-  lastSeen: boolean;
-  readReceipts: boolean;
-  backupReminder: boolean;
-}
+export { PrivatePreferencesDraft } from './preferences-draft.ts';
+export type { ProfilePreferences } from './preferences-draft.ts';
 export interface PrivateProfile {
   preferences: ProfilePreferences;
   photo: { type: string; bytes: Uint8Array<ArrayBuffer> } | null;
@@ -54,6 +52,7 @@ function preferences(value: unknown): ProfilePreferences {
       throw new Error('Preferência inválida.');
     result[name] = data[name];
   }
+  result.lastSeen = false; // Historical encrypted field, no active last-access feature.
   return result;
 }
 export function encodePrivateProfile(profile: PrivateProfile): string {
@@ -90,29 +89,6 @@ function additionalData(
   return new TextEncoder().encode(
     JSON.stringify(['hash-talk-private-profile', 1, accountId, revision]),
   );
-}
-
-function photoSignature(type: string, bytes: Uint8Array): boolean {
-  if (type === 'image/png')
-    return encode(bytes.subarray(0, 8)) === 'iVBORw0KGgo=';
-  if (type === 'image/jpeg')
-    return bytes[0] === 255 && bytes[1] === 216 && bytes[2] === 255;
-  if (type === 'image/webp')
-    return (
-      new TextDecoder().decode(bytes.subarray(0, 4)) === 'RIFF' &&
-      new TextDecoder().decode(bytes.subarray(8, 12)) === 'WEBP'
-    );
-  return false;
-}
-
-export function validatePhoto(
-  type: string,
-  bytes: Uint8Array<ArrayBuffer>,
-): void {
-  if (bytes.length === 0 || bytes.length > profileLimit)
-    throw new Error('Foto deve ter até 3 MB.');
-  if (!photoSignature(type, bytes))
-    throw new Error('Use uma foto PNG, JPEG ou WebP válida.');
 }
 
 export async function sealProfile(input: {
@@ -202,3 +178,4 @@ export async function openProfile(input: {
 }
 
 export { profileKey } from './key-store.ts';
+export { PrivatePhotoDraft } from './photo-draft.ts';

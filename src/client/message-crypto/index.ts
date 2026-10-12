@@ -1,3 +1,4 @@
+import { prepareMessageRuntime } from '../message-runtime/index.ts';
 import { socialAttachment } from '../../shared/social-media/index.ts';
 import { optionalRelation } from '../../shared/daily/index.ts';
 import {
@@ -36,7 +37,6 @@ import {
   DeviceLists,
   DecryptedToDeviceEvent,
   EncryptionSettings,
-  initAsync,
   KeysClaimRequest,
   KeysQueryRequest,
   KeysUploadRequest,
@@ -176,7 +176,7 @@ export class MessageCrypto {
     store: StoreHandle | null;
     transport: MessageTransport;
   }): Promise<MessageCrypto> {
-    await initAsync('/matrix-crypto-18.9.0.wasm');
+    await prepareMessageRuntime();
     const machine = input.store
       ? await OlmMachine.initFromStore(
           new UserId(matrixUser(input.accountId)),

@@ -1,3 +1,4 @@
+import { publicationTitle, publicationQuote } from './publications.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
 import { displayName, paintAvatar, shortAddress } from '../appearance/index.ts';
 
@@ -25,6 +26,7 @@ export interface ActivitySources {
       reply: string;
       community: string;
       createdAt: string;
+      kind?: 'post' | 'reply';
       /** Author and start of the reply, already filtered by public visibility. */
       preview: {
         author: string | null;
@@ -108,11 +110,7 @@ export function replyQuote(
     status: 'visible' | 'removed' | 'deleted';
   } | null,
 ): string {
-  if (!preview) return '';
-  if (preview.status === 'deleted') return 'Resposta excluída pelo autor.';
-  if (preview.status === 'removed') return 'Resposta ocultada pela moderação.';
-  if (preview.text) return preview.text;
-  return preview.media ? 'Enviou uma mídia.' : '';
+  return publicationQuote(preview, 'reply');
 }
 function relativeTime(iso: string): string {
   const minutes = Math.max(
@@ -309,10 +307,8 @@ export function startActivity(
         ...(preview?.author
           ? { avatar: { label: preview.author, seed: preview.author } }
           : {}),
-        title: preview?.author
-          ? `@${preview.author} respondeu`
-          : 'Nova resposta ao seu conteúdo',
-        quote: replyQuote(preview),
+        title: publicationTitle(preview?.author, reply.kind ?? 'reply'),
+        quote: publicationQuote(preview, reply.kind ?? 'reply'),
         detail: relativeTime(reply.createdAt),
         actions: [
           link(
@@ -358,7 +354,7 @@ export function startActivity(
       host.append(
         element(
           'p',
-          'Entre na conta para ver pedidos, convites e respostas.',
+          'Entre na conta para ver pedidos, convites e publicações.',
           'activity-empty',
         ),
       );
@@ -379,7 +375,7 @@ export function startActivity(
     for (const [key, label] of [
       ['all', 'Tudo'],
       ['requests', 'Pedidos'],
-      ['replies', 'Respostas'],
+      ['replies', 'Publicações'],
     ] as const) {
       const choice = element('button', label);
       choice.type = 'button';
@@ -418,14 +414,14 @@ export function startActivity(
       [
         'replies',
         section(
-          'Respostas nas comunidades',
+          'Publicações nas comunidades',
           snapshot.replies,
           replyRows(),
           replyIds.length
             ? button(
                 'Marcar como lidas',
                 () => sources.markRepliesRead(replyIds),
-                'Respostas marcadas como lidas.',
+                'Publicações marcadas como lidas.',
               )
             : undefined,
         ),

@@ -1,23 +1,22 @@
+import { mountMutualFollowers } from './mutuals.ts';
+import { profileSocialControls } from './social-controls.ts';
+import { publicBlockState } from '../../shared/profile-social/index.ts';
+import type { PublicBlockState } from '../../shared/profile-social/index.ts';
 import {
   ApiResponseError,
   fetchApi,
   readApiJson,
 } from '../api-response/index.ts';
 import { publicHandle } from '../../shared/public-profile/index.ts';
-import {
-  profileSummary,
-  profileFollow,
-} from '../../shared/profile-social/index.ts';
-import type {
-  ProfileSummary,
-  ProfileFollow,
-} from '../../shared/profile-social/index.ts';
+import { profileSummary } from '../../shared/profile-social/index.ts';
+import type { ProfileSummary } from '../../shared/profile-social/index.ts';
 import { feedPage } from '../../shared/community-discovery/index.ts';
 import type { FeedEntry } from '../../shared/community-discovery/index.ts';
-import { communityPage } from '../../shared/communities/index.ts';
 import { showPublicAvatar } from '../public-media/index.ts';
+import { profileCommunities } from './communities-panel.ts';
 import { renderActivityEntry } from '../communities/index.ts';
 import type { PublicProfiles } from './controller.ts';
+import { editPublicProfileHash } from './follow.ts';
 
 function element<K extends keyof HTMLElementTagNameMap>(
   tag: K,
@@ -106,9 +105,27 @@ export function showProfilePage(
       base = `/api/public-profiles/${encodeURIComponent(name)}`;
     const summary = profileSummary(await read(`${base}/page`));
     if (lifetime.signal.aborted) return;
-    render(summary, base);
+    let block: PublicBlockState = { blocked: false, revision: 0 };
+    const controller = options.controller;
+    if (controller?.hasSession()) {
+      await controller.refresh();
+      if (
+        controller.profile &&
+        controller.profile.profile.id !== summary.profile.id
+      )
+        block = publicBlockState(
+          await controller.perform('block-state', {
+            target: summary.profile.id,
+          }),
+        );
+    }
+    if (!lifetime.signal.aborted) render(summary, base, block);
   }
-  function render(summary: ProfileSummary, base: string): void {
+  function render(
+    summary: ProfileSummary,
+    base: string,
+    block: PublicBlockState,
+  ): void {
     const header = element('header', '', 'public-profile-header'),
       banner = element('div', '', 'public-profile-banner'),
       identity = element('div', '', 'public-profile-identity'),
@@ -159,7 +176,15 @@ export function showProfilePage(
       button.dataset['tab'] = value;
       button.addEventListener('click', () => {
         tab = value;
-        void activity(null).catch(error);
+        if (block.blocked) {
+          contentAbort.abort();
+          timeline.replaceChildren(
+            element(
+              'p',
+              'Este usuário está bloqueado. Suas publicações e respostas ficam ocultas para você.',
+            ),
+          );
+        } else void activity(null).catch(error);
       });
       tabs.append(button);
     }
@@ -169,14 +194,29 @@ export function showProfilePage(
     timeline.append(tabs, items, paging);
     layout.append(timeline, sidebar);
     page.replaceChildren(header, status, layout);
+    if (!block.blocked)
+      mountMutualFollowers(header, {
+        target: summary.profile.id,
+        controller: options.controller,
+        signal: lifetime.signal,
+      });
     status.textContent = '';
-    link(
-      actions,
-      'Solicitar DM',
-      `#comunidades?view=dms&dm=${summary.profile.id}`,
-    );
-    void follow(actions, summary).catch(error);
-    void memberships(null).catch(error);
+    if (!block.blocked)
+      link(
+        actions,
+        'Solicitar DM',
+        `#comunidades?view=dms&dm=${summary.profile.id}`,
+      );
+    void follow(actions, summary, block).catch(error);
+    profileCommunities(communities, {
+      total: summary.communities,
+      read: (after) =>
+        read(
+          `${base}/communities${after ? `?after=${encodeURIComponent(after)}` : ''}`,
+        ),
+      signal: lifetime.signal,
+      error,
+    });
     void activity(null).catch(error);
     async function activity(after: string | null): Promise<void> {
       contentAbort.abort();
@@ -187,7 +227,13 @@ export function showProfilePage(
       const query = new URLSearchParams({ tab });
       if (after) query.set('after', after);
       const response = feedPage(
-        await read(`${base}/activity?${query}`, signal),
+        options.controller?.profile
+          ? await options.controller.perform('activity', {
+              target: summary.profile.id,
+              tab,
+              after,
+            })
+          : await read(`${base}/activity?${query}`, signal),
       );
       if (signal.aborted || old !== generation) return;
       tabs
@@ -217,22 +263,6 @@ export function showProfilePage(
       if (after) control(paging, 'Voltar ao início', () => activity(null));
       status.textContent = '';
     }
-    async function memberships(after: string | null): Promise<void> {
-      const query = after ? `?after=${encodeURIComponent(after)}` : '';
-      const response = communityPage(await read(`${base}/communities${query}`));
-      if (lifetime.signal.aborted) return;
-      communities.replaceChildren(element('h2', 'Comunidades'));
-      for (const group of response.items)
-        link(communities, group.name, `#comunidades?id=${group.id}`);
-      if (!response.items.length)
-        communities.append(element('p', 'Nenhuma comunidade seguida.'));
-      if (response.next)
-        control(communities, 'Mais comunidades', () =>
-          memberships(response.next),
-        );
-      if (after)
-        control(communities, 'Voltar ao início', () => memberships(null));
-    }
   }
   function control(
     host: HTMLElement,
@@ -256,44 +286,30 @@ export function showProfilePage(
   async function follow(
     host: HTMLElement,
     summary: ProfileSummary,
+    block: PublicBlockState,
   ): Promise<void> {
     const controller = options.controller;
     if (!controller?.hasSession()) {
       link(host, 'Entrar para seguir', '#perfil');
       return;
     }
-    await controller.refresh();
+    if (!controller.profile) await controller.refresh();
     if (lifetime.signal.aborted) return;
     if (!controller.profile) {
       link(host, 'Criar perfil para seguir', '#perfil');
       return;
     }
-    if (controller.profile?.profile.id === summary.profile.id) {
-      link(host, 'Editar perfil público', '#perfil');
+    if (controller.profile.profile.id === summary.profile.id) {
+      link(host, 'Editar perfil público', editPublicProfileHash);
       return;
     }
-    let state: ProfileFollow = profileFollow(
-      await controller.perform('follow-state', { target: summary.profile.id }),
-    );
-    if (lifetime.signal.aborted) return;
-    const button = control(
-      host,
-      state.following ? 'Seguindo' : 'Seguir',
-      async () => {
-        state = profileFollow(
-          await controller.perform('follow', {
-            target: summary.profile.id,
-            following: !state.following,
-            revision: state.revision,
-          }),
-        );
-        if (!lifetime.signal.aborted) {
-          button.textContent = state.following ? 'Seguindo' : 'Seguir';
-          button.setAttribute('aria-pressed', String(state.following));
-        }
-      },
-    );
-    button.setAttribute('aria-pressed', String(state.following));
+    await profileSocialControls(host, summary, {
+      controller,
+      signal: lifetime.signal,
+      error,
+      block,
+      changed: load,
+    });
   }
   void load().catch(error);
   return () => {

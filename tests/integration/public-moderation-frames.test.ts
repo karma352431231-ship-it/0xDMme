@@ -9,7 +9,7 @@ import { classifyPreparedFrames } from '../../src/server/public-moderation/index
 import type { PublicFrameDetector } from '../../src/server/public-moderation/index.ts';
 import { readMediaRuntime } from '../../src/server/community-media/index.ts';
 
-await test('análise temporal real: 60 s/720p/30 FPS e três GIFs de 20 s, incluindo ocorrência de um frame no meio e fim', async (t) => {
+await test('análise temporal real: 120 s/720p/30 FPS e três GIFs de 20 s, incluindo ocorrência de um frame no meio e fim', async (t) => {
   const runtime = readMediaRuntime(process.env);
   if (!runtime) {
     t.skip(
@@ -29,9 +29,9 @@ await test('análise temporal real: 60 s/720p/30 FPS e três GIFs de 20 s, inclu
     [
       ...base,
       '-i',
-      'color=c=red:s=1280x720:r=30:d=60',
+      'color=c=red:s=1280x720:r=30:d=120',
       '-vf',
-      "drawbox=x=0:y=0:w=iw:h=ih:color=green:t=fill:enable='eq(n,900)',drawbox=x=0:y=0:w=iw:h=ih:color=blue:t=fill:enable='eq(n,1799)'",
+      "drawbox=x=0:y=0:w=iw:h=ih:color=green:t=fill:enable='eq(n,1800)',drawbox=x=0:y=0:w=iw:h=ih:color=blue:t=fill:enable='eq(n,3599)'",
       '-c:v',
       'libx264',
       '-preset',
@@ -104,10 +104,10 @@ await test('análise temporal real: 60 s/720p/30 FPS e três GIFs de 20 s, inclu
       input: {
         bytes: await readFile(video),
         type: 'video/mp4',
-        maximumFrames: 1803,
+        maximumFrames: 3603,
       },
     });
-  assert.deepEqual(clip, { frames: 1800, verdict: 'reject' });
+  assert.deepEqual(clip, { frames: 3600, verdict: 'reject' });
   const animation = await readFile(gif),
     image = await readFile(photo);
   for (let i = 0; i < 3; i++)
@@ -131,12 +131,12 @@ await test('análise temporal real: 60 s/720p/30 FPS e três GIFs de 20 s, inclu
       }),
       { frames: 1, verdict: 'allow' },
     );
-  assert.equal(seen, 3012);
+  assert.equal(seen, 4812);
   assert.equal(holds, 1);
   assert.equal(rejects, 1);
   assert.equal(largestBatch, 4);
   t.diagnostic(
-    `3012 frames, lotes de até 4, ${(performance.now() - start).toFixed(1)} ms; detector sintético de cores, sem comprovação de precisão sexual.`,
+    `4812 frames, lotes de até 4, ${(performance.now() - start).toFixed(1)} ms; detector sintético de cores, sem comprovação de precisão sexual.`,
   );
   await t.test(
     'falha, resposta parcial e aborto não concluem a análise',

@@ -3,6 +3,7 @@ import { avatarInitials, avatarTone } from '../appearance/index.ts';
 import { communityElement as el, communityLink as link } from './elements.ts';
 
 const paths = {
+  bell: ['M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9', 'M10 21h4'],
   layers: ['m12 3 10 5-10 5L2 8z', 'm2 12 10 5 10-5', 'm2 16 10 5 10-5'],
   compass: ['M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20', 'm16 8-3 5-5 3 3-5z'],
   globe: [
@@ -10,6 +11,7 @@ const paths = {
     'M2 12h20',
     'M12 2c-6 6-6 14 0 20 6-6 6-14 0-20',
   ],
+  share: ['M4 10V5h13', 'm14 2 3 3-3 3', 'M20 14v5H7', 'm10 16-3 3 3 3'],
   up: ['M12 20V4', 'm5 11 7-7 7 7'],
   down: ['M12 4v16', 'm5 13 7 7 7-7'],
   comment: [
@@ -28,6 +30,17 @@ const paths = {
   ],
   pencil: ['M4 20h4L19 9l-4-4L4 16z', 'm13.5 6.5 4 4'],
   plus: ['M12 5v14', 'M5 12h14'],
+  reply: ['m9 14-5-5 5-5', 'M4 9h10a6 6 0 0 1 6 6v5'],
+  hide: [
+    'M3 3l18 18',
+    'M10.6 6.1A10 10 0 0 1 12 6c6.5 0 10 6 10 6a17 17 0 0 1-3 3.6',
+    'M6.6 6.6C3.9 8.3 2 12 2 12s3.5 6 10 6a9.7 9.7 0 0 0 5.4-1.6',
+  ],
+  block: ['M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20', 'm5 5 14 14'],
+  trash: ['M4 7h16', 'M10 11v6', 'M14 11v6', 'M6 7l1 13h10l1-13', 'M9 7V4h6v3'],
+  shield: ['M12 3 4 6v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V6z'],
+  clock: ['M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20', 'M12 6v6l4 2'],
+  image: ['M3 4h18v16H3z', 'm3 16 5-5 4 4 3-3 6 6', 'M15 9h.01'],
 } as const;
 export type CommunityIcon = keyof typeof paths;
 
@@ -87,6 +100,7 @@ export function postHeader(
       `#publico?handle=${encodeURIComponent(post.author.handle)}`,
     );
     identity.lastElementChild?.classList.add('community-post-author');
+    authorBadges(identity, post);
   } else identity.append(el('span', 'Conta removida', 'community-post-author'));
   const byline = el('div', '', 'community-post-byline');
   if (context === 'feed') {
@@ -95,7 +109,7 @@ export function postHeader(
   }
   const time = el(
     'time',
-    `${context === 'feed' ? ' · ' : ''}${relativePostTime(post.createdAt)}${post.editedAt ? ' · Editado' : ''}`,
+    `${context === 'feed' ? ' · ' : ''}${relativePostTime(post.createdAt)}${post.editedAt ? ' · Post Editado' : ''}`,
   );
   time.dateTime = post.createdAt;
   time.title = new Date(post.createdAt).toLocaleString('pt-BR');
@@ -103,6 +117,21 @@ export function postHeader(
   identity.append(byline);
   node.prepend(header);
   return avatar;
+}
+function authorBadges(identity: HTMLElement, post: CommunityPost): void {
+  for (const badge of post.authorBadges ?? []) {
+    const mark = el(
+      'span',
+      badge.kind === 'custom'
+        ? badge.label
+        : { owner: '👑', moderator: '🛡️', new: '🌱' }[badge.kind],
+      'community-author-badge',
+    );
+    mark.title = badge.label;
+    mark.setAttribute('aria-label', badge.label);
+    mark.dataset['kind'] = badge.kind;
+    identity.append(mark);
+  }
 }
 function authorAvatar(post: CommunityPost): HTMLElement {
   const label = post.author?.handle ?? '?';
@@ -136,14 +165,15 @@ export function postComments(
   );
   container.append(a);
 }
+/** Each tag of the post links to its community filtered by that tag. */
 export function postTagLink(node: HTMLElement, post: CommunityPost): void {
-  if (!post.tag) return;
-  link(
-    node,
-    post.tag.label,
-    `#comunidades?id=${post.community}&tag=${post.tag.id}`,
-  );
-  node.lastElementChild?.classList.add('post-tag');
+  if (!post.tags.length) return;
+  const row = el('div', '', 'post-tags');
+  for (const tag of post.tags) {
+    link(row, tag.label, `#comunidades?id=${post.community}&tag=${tag.id}`);
+    row.lastElementChild?.classList.add('post-tag');
+  }
+  node.append(row);
 }
 
 /**

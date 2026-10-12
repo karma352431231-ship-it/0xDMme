@@ -1,12 +1,14 @@
 import type { AccountSession } from '../../shared/account/index.ts';
+import { announcePreference } from '../preference-events/index.ts';
 import { mediaConsentDialog } from './dialog.ts';
 import { mediaStorage, readChoices, writeChoices } from './preferences.ts';
 import type { ConsentStorage, MediaScope } from './preferences.ts';
 export type { MediaScope } from './preferences.ts';
 export type ExternalMediaKind = 'video' | 'gifs';
 
-/** A device permission shared by all chats, isolated by account. It contains no
- * message, wallet, provider media ID or server-side consent tracking. */
+/** A permission shared by all chats, isolated by account and copied to the
+ * account's encrypted vault by account-settings. It contains no message,
+ * wallet, provider media ID or server-side consent tracking. */
 export class ExternalMediaConsent {
   private readonly storage: ConsentStorage | null;
   private readonly profile: () => Promise<boolean>;
@@ -93,8 +95,21 @@ export class ExternalMediaConsent {
     this.save(scope, choice);
     return choice;
   }
+  /** An account choice already made (Configurações iniciais) is not asked again. */
   beforeCreate(signal: AbortSignal): Promise<boolean | null> {
+    if (this.choices.all !== null) return Promise.resolve(this.choices.all);
     return this.ask('all', AbortSignal.any([signal, this.signal]));
+  }
+  /** One answer for GIFs and players, as account-settings keeps it. */
+  accountChoice(): boolean | null {
+    return this.choices.all ?? this.choices.gifs;
+  }
+  /** The account's choice arriving from the vault; it is not announced back. */
+  applyAccountChoice(choice: boolean): void {
+    if (this.choices.all === choice && this.choices.gifs === choice) return;
+    this.choices = { all: choice, gifs: choice };
+    this.durable = writeChoices(this.storage, this.key, this.choices);
+    this.changed();
   }
   created(choice: boolean): void {
     this.profileEpoch++;
@@ -119,7 +134,7 @@ export class ExternalMediaConsent {
         : choice
           ? 'Mídias externas permitidas.'
           : 'Mídias externas somente como links.';
-    return `${status} ${this.durable ? 'Escolha neste navegador.' : 'Não foi possível salvar; escolha válida só neste acesso.'}`;
+    return `${status} ${this.durable ? 'A escolha acompanha sua conta.' : 'Não foi possível salvar; escolha válida só neste acesso.'}`;
   }
   storageChanged(key: string | null): void {
     if (key !== null && key !== this.key) return;
@@ -137,6 +152,7 @@ export class ExternalMediaConsent {
     this.choices[scope] = choice;
     this.durable = writeChoices(this.storage, this.key, this.choices);
     this.changed();
+    if (this.account) announcePreference({ externalMedia: choice });
   }
   private changed(): void {
     for (const listener of this.listeners) listener();

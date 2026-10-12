@@ -9,6 +9,7 @@ import {
 import { integer } from '../../shared/vault/index.ts';
 import {
   communityMediaPartBytes,
+  communityMediaLimits,
   communityMediaSource,
 } from '../../shared/community-media/index.ts';
 import type {
@@ -266,7 +267,11 @@ export class CommunityMediaService {
   ): Promise<unknown> {
     keys(d, ['id', 'media', 'index', 'thumbnail']);
     const id = uuid(d['media']),
-      index = integer(d['index'], 95);
+      index = integer(
+        d['index'],
+        Math.ceil(communityMediaLimits.video.result / communityMediaPartBytes) -
+          1,
+      );
     if (typeof d['thumbnail'] !== 'boolean')
       throw new AccountError(400, 'Seleção de mídia inválida.');
     const state = await this.store.status(a, community, id);

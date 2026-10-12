@@ -3,9 +3,12 @@ import type { VaultAccess } from '../vault-authority/index.ts';
 import type { PublicModerationNotice } from '../../shared/public-moderation/index.ts';
 import { PublicProfiles } from './controller.ts';
 import { profileFollows } from './follows.ts';
+import { startOwnProfileShortcut } from './own-shortcut.ts';
 import { renderModeration } from './moderation.ts';
 import { showProfilePage } from './page.ts';
 import { startProfileEditor } from './profile-editor.ts';
+import { profileHoverProvider } from './profile-hover.ts';
+import { registerHoverCard } from '../hover-card/index.ts';
 import type { ExternalMediaConsent } from '../external-media/index.ts';
 import { ActivityPosts } from '../communities/index.ts';
 
@@ -41,7 +44,9 @@ export function startPublicProfile(
   privacy: ExternalMediaConsent,
 ) {
   const controller = new PublicProfiles(access);
+  const shortcut = startOwnProfileShortcut(controller);
   const activity = new ActivityPosts(access, privacy);
+  registerHoverCard(profileHoverProvider(controller));
   const editor = startProfileEditor(controller, {
     run,
     changed: () => controller.refreshModeration(),
@@ -81,6 +86,7 @@ export function startPublicProfile(
     if (older) older.hidden = controller.moderationOlder === null;
   }
   function render(): void {
+    shortcut.paint();
     renderIdentity();
     renderControls();
     renderModeration(node('[data-public-moderation]'), {
@@ -115,6 +121,7 @@ export function startPublicProfile(
     }
   }
   function ready(): void {
+    shortcut.ready();
     if (!mounted) return;
     void run(async () => {
       failed = true;
@@ -189,13 +196,14 @@ export function startPublicProfile(
     mount,
     leave,
     ready,
-    canActivate: () => !busy && activity.canActivate(),
+    canActivate: () => !busy && !editor.hasDraft() && activity.canActivate(),
     async exists(): Promise<boolean> {
       return controller.exists();
     },
     setSession(session: AccountSession | null): void {
       activity.setSession(session);
       if (!controller.setSession(session)) return;
+      shortcut.clear();
       editor.clear();
       generation++;
       status = '';

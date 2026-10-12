@@ -28,7 +28,10 @@ import {
 } from '../../src/server/communities/index.ts';
 import { createWebServer } from '../../src/server/web-host/index.ts';
 import { readWebConfiguration } from '../../src/server/web-configuration/index.ts';
-import { createCommunityAccount } from './community-fixture.ts';
+import {
+  createCommunityAccount,
+  rootPostContent,
+} from './community-fixture.ts';
 import { checkOperatorPreview } from './moderation-operator-fixture.ts';
 import { prepareEvent } from '../../src/client/device-operations/index.ts';
 import { freshKeyring } from '../../src/client/device-operations/index.ts';
@@ -61,6 +64,7 @@ await test('comunidades: criação aberta, privacidade, gestão, sanções, den�
     objects: { healthy: () => Promise.resolve(true) },
     communities: createCommunityHandler({
       read: (id) => communities.read(id),
+      followers: (id, after) => communities.followerPage(id, after),
       list: (after) => communities.list(after),
     }),
     account: createAccountHandler({ origin, service: account, communities }),
@@ -159,7 +163,7 @@ await test('comunidades: criação aberta, privacidade, gestão, sanções, den�
         await owner.operate('create', { id, meta }),
       );
       assert.equal(result.role, 'owner');
-      assert.equal(result.following, false);
+      assert.equal(result.following, true);
       assert.equal(result.canPost, true);
       assert.equal(result.community.owner?.id, ownerProfile.id);
       assert.deepEqual(
@@ -182,7 +186,7 @@ await test('comunidades: criação aberta, privacidade, gestão, sanções, den�
     },
   );
   await t.test(
-    'leitura pública não exige conta; follows não publicam identidade ou lista de usuários',
+    'leitura pública não exige conta; seguidores mostram apenas a identidade pública',
     async () => {
       const result = await fetch(`${origin}/api/communities/${id}`);
       assert.equal(result.status, 200);
@@ -198,6 +202,7 @@ await test('comunidades: criação aberta, privacidade, gestão, sanções, den�
           'revision',
           'archived',
           'avatar',
+          'banner',
           'owner',
           'followers',
         ].sort(),
@@ -212,11 +217,11 @@ await test('comunidades: criação aberta, privacidade, gestão, sanções, den�
       );
       const after = await change(participant, 'follow', { following: true });
       assert.equal(after.following, true);
-      assert.equal(after.community.followers, 1);
+      assert.equal(after.community.followers, 2);
       assert.equal(
         (await change(participant, 'follow', { following: true })).community
           .followers,
-        1,
+        2,
       );
       const following = communityPage(
         await participant.operate('list', { kind: 'following', after: null }),
@@ -227,15 +232,33 @@ await test('comunidades: criação aberta, privacidade, gestão, sanções, den�
       );
       assert.equal(
         ownerFollowing.items.some((item) => item.id === id),
-        false,
+        true,
       );
       const unfollowed = await change(participant, 'follow', {
         following: false,
       });
       assert.equal(unfollowed.canPost, true);
-      assert.equal(unfollowed.community.followers, 0);
+      assert.equal(unfollowed.community.followers, 1);
       const invalid = await fetch(`${origin}/api/communities/${id}/followers`);
-      assert.equal(invalid.status, 404);
+      assert.equal(invalid.status, 200);
+      const roster = (await invalid.json()) as {
+        items: Record<string, unknown>[];
+        total: number;
+      };
+      assert.equal(roster.total, 1);
+      assert.deepEqual(Object.keys(roster.items[0]!).sort(), [
+        'avatar',
+        'handle',
+        'id',
+      ]);
+      assert.equal(
+        JSON.stringify(roster).includes(owner.login.session.accountId),
+        false,
+      );
+      assert.equal(
+        JSON.stringify(roster).includes(owner.login.session.address),
+        false,
+      );
       await assert.rejects(
         participant.operate('list', { kind: 'followers', after: null }),
         bad(400),
@@ -289,11 +312,11 @@ await test('comunidades: criação aberta, privacidade, gestão, sanções, den�
       await owner.operate('post-create', {
         id,
         post: crypto.randomUUID(),
-        content: {
-          title: '',
-          text: 'Texto sintético com foto da comunidade ainda restrita.',
-          tag: null,
-        },
+        content: await rootPostContent(
+          communities,
+          id,
+          'Texto sintético com foto da comunidade ainda restrita.',
+        ),
       });
       const feed = await communities.feed(
         {

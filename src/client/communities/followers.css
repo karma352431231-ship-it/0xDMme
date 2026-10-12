@@ -1,0 +1,68 @@
+.community-followers {
+  margin-top: 12px;
+}
+.community-followers-panel {
+  margin-top: 16px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+.community-followers-panel nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.community-followers-panel nav [aria-pressed='true'] {
+  background: var(--surface-3);
+  color: var(--text);
+}
+.community-followers-list {
+  display: grid;
+  gap: 12px;
+}
+.community-follower {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--text);
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+.community-follower-avatar {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: var(--surface-3);
+}
+.community-follower-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border: 0;
+}
+.community-known-followers {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--fs-caption);
+  color: var(--text-muted);
+}
+.community-known-followers .community-follower-avatar {
+  width: 24px;
+  height: 24px;
+}
+#app-shell .community-followers-link {
+  display: inline-block;
+  padding: 4px 0;
+  text-decoration: none;
+  color: var(--text-muted);
+}
+#app-shell .community-followers-link:hover {
+  text-decoration: underline;
+}

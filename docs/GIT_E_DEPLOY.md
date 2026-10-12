@@ -1,5 +1,211 @@
 # 0xDMme — Git e envio à VPS
 
+## Experiência social — transição 058→061 autorizada em 12/10/2026
+
+O proprietário pediu concluir as mudanças na mesma branch, integrar na main e
+ativar tudo na VPS. A inspeção somente leitura confirmou a predecessora
+`0065abea363920a0ef414f921f56dcd4f281c569`, 58 migrações com checksums exatos,
+web e três workers prontos e preservação dos outros serviços/configurações.
+As fontes de aplicação revisadas são
+`612a6f4c2fc7822cbc0296564563baff1da53ad4`.
+
+O módulo interno `deploy_social_experience.py` reutiliza exclusivamente
+`npm run deploy:staging`. A 059 cria compartilhamentos por referência,
+inicialmente vazios, com cobrança de 256 bytes por relação e gatilho de uso.
+A 060 cria um índice parcial para os follows com sininho ativo, sem gerar
+notificações históricas. A 061 acrescenta `read_epoch` inteiro opcional às
+confirmações das DMs públicas; todos os registros anteriores continuam nulos.
+Nenhuma migração anterior, dependência, Node ou unit muda.
+
+A revisão exige predecessor/fontes exatos e compara todas as linhas anteriores,
+checksums e ledger. O snapshot omite somente o novo `read_epoch`; seus valores
+históricos devem permanecer nulos. Conferir tabela nova vazia, índices, coluna e
+gatilho. Fazer backup integral do banco e objetos, sem os antigos tetos de MiB,
+ensaiar restauração e parar somente web e workers próprios durante manutenção.
+Antes da reabertura, retorno verificado de banco e release; depois dela,
+preservar novas escritas em caso de falha. Usar checkout limpo, commit integrado
+e enviado, CI integral do commit exato e evidências exclusivamente em `.local/`.
+
+**Ponto importante:** o proprietário aprovou explicitamente as migrações 059–061
+e a ativação. O ensaio real em banco descartável confirmou a preservação e a
+rejeição de mudança indevida em linha existente. A CI integral de `8311ad8` passou;
+este registro muda somente documentação e ainda exige CI integral do commit
+final antes da ativação. O executor recusa fontes diferentes das revisadas.
+A autorização não comprova publicação; conferir recibo, hashes e prontidão.
+
+## Conexões da conta do app — correção autorizada em 12/10/2026
+
+Após duas falhas de prontidão na ativação, a investigação encontrou um limite
+legado de oito conexões no role do app, apesar dos pools web 16/worker 4 e do
+`max_connections` 64 aprovados em 09/10. A inicialização isolada de configuração,
+schema e modelo passou na release anterior e candidata; os logs não preservaram
+a causa exata das falhas do processo completo. A CI integral de `190f1a1` passou
+na `main` e no branch de publicação. A release anterior e os três workers foram
+recuperados e verificados antes desta correção.
+
+O proprietário autorizou remover o limite por role com `CONNECTION LIMIT -1` e
+concluir a ativação. Alterar somente esse atributo da conta própria, preservando
+privilégios, senha, parâmetros, pools e o limite global existente de 64 conexões.
+A alteração é dinâmica: não reiniciar PostgreSQL, instalar pacotes ou executar
+migração. Registrar comparação antes/depois em `.local/`; retorno restrito é
+restaurar o atributo anterior, após conferir que a conta mantém o estado esperado.
+
+Usar novamente `npm run deploy:staging` em commit final limpo, integrado/enviado
+e com CI integral aprovada. Conservar o recibo da tentativa anterior e certificar
+a recuperação antes da limpeza normal de código. Exigir hashes públicos exatos,
+três reservas dos workers e preservação dos serviços/configurações ao concluir.
+
+**Ponto importante:** são conexões simultâneas, não MiB nem tamanho do banco.
+A retirada do limite por conta permite aos pools usar a capacidade já configurada;
+os controles globais, prazos, durabilidade e retenção permanecem.
+
+## Contexto de respostas e menus — integração de 12/10/2026
+
+O proprietário pediu integrar os últimos commits na `main` e ativar na VPS.
+O branch `claude/profile-activity-menus` foi integrado sem conflito; a revisão
+`9077d25` também corrige o menu do perfil que saía da tela em 320 px e era
+recortado pelo cabeçalho. As mudanças são de frontend; servidor, dependências,
+Node, configuração e as 58 migrações permanecem iguais à release `93fb22c`.
+
+A primeira tentativa devolveu a release anterior após falha na prontidão dos
+workers. A recuperação posterior confirmou o site, os três workers e as reservas
+PostgreSQL, com configurações e processo do banco preservados. Conservar o recibo
+original e certificar a recuperação antes de liberar somente os artefatos de
+código pelo executor existente. Acesso e diagnóstico ficam em `.local/`.
+
+A CI integral de `9077d25` passou no branch de publicação. A execução da `main`
+falhou em fixtures HTTP com `EADDRINUSE`; a credencial existente não permite
+reexecutá-la. Esta entrega registra a revisão e exige nova CI integral do commit
+final, checkout limpo/enviado e `npm run deploy:staging` para a nova tentativa.
+
+**Ponto importante:** a recuperação da release anterior não confirma publicação
+da nova. Conferir recibo, hashes públicos e prontidão dos três workers ao concluir.
+
+## Tetos de backup removidos — decisão de 11/10/2026
+
+O proprietário mandou retirar as travas de 256 MiB para objetos e 64 MiB para
+banco, dump e SQL de restauração. Esta decisão substitui a autorização anterior
+de ampliar apenas objetos. Não rejeitar backup nem migração por esses tamanhos;
+não substituir os números por outro teto fixo.
+
+O executor mede o banco e os objetos para estimar o espaço necessário, além da
+reserva existente para as releases. Confere hashes por blocos, sem carregar cada
+arquivo completo na memória. A restauração usa SQL integral em arquivo temporário
+privado (0600), validado antes de alimentar o `psql`; ensaio termina em ROLLBACK,
+retorno autorizado termina em COMMIT. Falha na decodificação não abre a transação.
+Os arquivos temporários são removidos ao concluir ou falhar normalmente. Espaço
+físico, integridade, isolamento, CI e prazos de execução continuam verificados.
+
+Reutilizar `npm run deploy:staging` para publicar esta correção do executor,
+com checkout limpo e commit integrado/enviado. As 58 migrações e o código da
+aplicação não mudam; o banco não é migrado novamente por esta publicação.
+
+**Ponto importante:** os antigos valores eram limites do executor, não da
+capacidade do PostgreSQL ou do produto. Agora banco e backups podem ultrapassá-los.
+
+## Controles sociais — ativação autorizada em 11/10/2026
+
+O proprietário pediu alinhar este trabalho com o `main`, enviar à VPS e ativar.
+A conferência somente leitura encontrou a release `adc6b6e`, 55 migrações e
+nenhuma tabela dos novos controles sociais. As migrações desta tarefa, antes
+054–056 apenas em bancos descartáveis, passam a 056–058; nenhuma das 55 migrações
+já aplicadas muda. Preservar conta modular, configuração inicial, múltiplas tags,
+moderação e demais mudanças integradas do `main`.
+
+Reutilizar `npm run deploy:staging`, com checkout limpo/enviado, CI integral,
+build no Mac, backup privado e restauração ensaiada. O módulo interno
+`deploy_social_controls.py` exige fontes e predecessor exatos. Durante manutenção,
+parar somente web e três workers próprios. Conferir todas as linhas anteriores e
+checksums; permitir só follows ausentes dos donos, uma revisão de ranking por
+follow e 128 bytes no ledger por follow. Campos históricos de ingresso ficam
+nulos; banners, badges, leituras e denúncias começam vazios, com os gatilhos de
+contabilidade habilitados. Antes da abertura, retorno verificado do banco e da
+release; depois de reabrir, preservar novas escritas em caso de falha.
+
+Fontes integradas revisadas: `3646d5460b0fc47d2156d09aaa4b1f8228f44211`,
+com predecessora publicada `adc6b6e88b3e06aa905ff3b8e49a6e3237979649`.
+O commit seguinte registra essas referências sem mudar fontes de aplicação,
+SQL, dependências ou units; a ativação exige CI integral do commit final.
+
+A comparação de fontes usa o limite vigente de 1024 entradas do manifesto;
+o helper antigo ainda usava 512 e recusava ler as fontes do `main`. O limite
+separado de 512 para backups/objetos/QR continua igual. Não mudar dependências,
+Node, units, scanner privado, swap, proxy ou serviços compartilhados.
+
+**Ponto importante:** esta ativação exige breve manutenção. Denúncias apenas
+são guardadas, sininho começa desligado e o badge de novo membro dura dois dias.
+Este registro de autorização não comprova a publicação; evidências operacionais
+e acesso ficam em `.local/`.
+
+A primeira tentativa de `2b6325c` foi recusada no backup, antes da migração: os
+objetos existentes ultrapassavam o limite antigo de 64 MiB. A release
+`adc6b6e` e as 55 migrações permaneceram; web/workers voltaram a executar, mas a
+verificação de leases do retorno expirou, por isso o recibo não declarou rollback
+verificado. A inspeção posterior confirmou a preservação da configuração e do
+processo PostgreSQL; exigir prontidão dos três workers antes da nova tentativa.
+
+O proprietário autorizou **256 MiB somente para o backup de objetos**. Conferir
+todos os hashes e preservar o teto separado de 64 MiB para banco/dump/SQL de
+restauração. A reserva prévia de espaço passa a contabilizar os dois backups e
+as releases; a retenção de backups de migração usa o mesmo teto de objetos.
+Esses valores são travas operacionais de migração, não cotas de armazenamento do
+produto nem uma configuração que impeça o PostgreSQL de crescer. O código não
+trunca backups ou arquivos para caber.
+
+## Fix de rechecagem integrado à main — ativação autorizada em 11/10/2026
+
+Após a conferência do Git, o proprietário pediu integrar o fix de piscadas à
+`main` e ativar na VPS. A integração inclui a migração 055 de tags já preparada;
+a autorização anterior de preparar sem publicar passa a permitir esta ativação.
+Reutilizar `npm run deploy:staging`, com checkout limpo/enviado, CI integral do
+commit exato, build no Mac, backup com restauração ensaiada, preservação e retorno
+limitado ao app próprio. A moderação não commitada da outra sessão fica fora.
+
+A conferência prévia confirmou fontes de `9719676`, os checksums das 54 migrações
+e prontidão dos três workers. A falha anterior foi recuperada. O executor da 055
+conserva esse predecessor e fixa as fontes integradas em `40cd67d7a050c92ea5c38195ed04a4c2be8d7edb`;
+nenhum SQL anterior, dependência, Node ou unit foi alterado pelo fix.
+
+**Ponto importante:** a transição 054→055 exige breve manutenção e preservação
+das linhas existentes. Esta autorização não comprova publicação concluída nem
+aceite físico das piscadas; evidências operacionais ficam em `.local/`.
+
+## Várias tags por post — migração 055 preparada em 11/10/2026
+
+O proprietário pediu título obrigatório e de 1 a 5 tags por post, e pediu para deixar a mudança pronta no Git, sem enviar à VPS. A migração 055 cria `community_post_extra_tags` (vazia, cobrança e gatilho de uso) e afrouxa a regra de conteúdo de `community_posts` para título, texto ou mídia; nenhuma linha existente muda.
+
+O módulo `deploy_post_tags.py` revisa a transição 054→055 no molde das anteriores: fontes fixadas em `91cc993a6ae24a443f5d61247e0e1caada3f95e9` e predecessora fixada em `9719676d1ae2bb6a8ed6c8c11fe06b05706e0dbd` (main integrada com a 054 de grupos). Snapshot integral das tabelas existentes, ledger e checksums; depois confere tabela vazia, gatilho, índice e a nova regra de conteúdo.
+
+**Ponto importante:** a ativação de `9719676` registrada em 11/10/2026 00:55 terminou com "Background workers did not acquire all three leases" e serviço próprio parado para revisão; o site voltou a responder depois. Antes de ativar a 055, confirmar qual release e quantas migrações estão de fato no ar e ajustar `BEFORE` se a predecessora não for `9719676`.
+
+## Integração na main e grupos privados — autorização de 11/10/2026
+
+O proprietário pediu integrar as branches no caminho principal e ativar na VPS.
+Todos os commits das branches locais/remotas já pertenciam ao histórico de
+`99c7de5`; a integração da `main` é um avanço sem conflitos, preservando as
+alterações ainda não commitadas nas outras worktrees. O comando existente de
+deploy e a sincronização de fontes aceitam agora `main`, além das branches
+`codex/*`, mantendo checkout limpo, commit enviado e CI integral da branch e do
+commit exatos. Um push continua sem ativar o site automaticamente.
+
+A ativação inclui a transição 053→054 dos links de grupos. O módulo interno
+`deploy_group_links.py` fixa o predecessor publicado
+`4486e3aeb5b3742e6ea173fc954b9cff74f36605` e as fontes de aplicação revisadas
+`99c7de5ec0fcfa14d019c30b6503b67bcf523d20`. Confere toda a árvore de fontes,
+pacotes/Node, as 53 migrações anteriores e os units dos workers. A única tabela
+nova é `group_links`, inicialmente vazia, com gatilho habilitado para o contador
+de uso. Todas as linhas anteriores, checksums, ledger e objetos devem permanecer
+iguais. Não há instalação de dependências ou alteração de serviços compartilhados.
+
+Reutilizar `npm run deploy:staging`: parar os escritores próprios, guardar backup
+privado, ensaiar sua restauração, migrar e verificar antes de reabrir o web e os
+workers. Falha antes da reabertura permite retorno verificado; depois dela,
+preservar as novas escritas e exigir revisão. Evidências ficam em `.local/`.
+
+**Ponto importante:** esta autorização inclui a migração 054 e uma breve
+manutenção do app. Publicação só é confirmada após CI e verificações remotas;
+este registro de autorização não comprova uma ativação concluída.
+
 ## Descrição do perfil — migração 053 autorizada em 10/10/2026
 
 O proprietário autorizou ativar a edição do perfil no lugar e aplicar a migração
@@ -8,14 +214,16 @@ própria, gatilho de uso). Nenhuma tabela existente muda.
 
 O módulo interno `deploy_profile_description.py` segue o molde do
 `deploy_profile_social.py`: predecessor fixado na release publicada
-`2ac00f98698d384cff2a2f9d6937093e552d276b` (52 migrações) e fontes de aplicação
-fixadas em `6008df54f32072a8a8639040174a249ef50281d3`, com comparação integral
+`000308884e86989fb3dbd9326deb2f6608ef5511` (52 migrações, com a moderação por poses publicada pela outra sessão) e fontes de aplicação
+fixadas no merge `6a4d8e0702dbadeee596a2131f802a5190ec8e9d`, com comparação integral
 das fontes, das 52 migrações já aplicadas, pacotes/Node e units dos workers.
 O snapshot compara todas as linhas das tabelas existentes, o ledger de
 capacidade e os checksums; depois confere a tabela nova vazia e seu gatilho de
 uso. Web e workers próprios param durante o backup/migração e voltam em seguida,
 com o mesmo retorno verificado da transição anterior. O deploy roda de uma
-worktree limpa no commit integrado e enviado, sem tocar na pasta de trabalho.
+worktree limpa, na branch de publicação `codex/publicacao-perfil-moderacao`, que junta
+o perfil/descrição e a moderação por poses já publicada (opção escolhida pelo
+proprietário), sem tocar na pasta de trabalho nem nas branches das sessões.
 
 **Ponto importante:** o site fica indisponível por alguns segundos durante a
 manutenção. Passaram 164 testes do executor, incluindo os da revisão exata, da
@@ -74,6 +282,30 @@ durante a manutenção autorizada. A aplicação passou 18 testes unitários,
 e a transição 049→052. O site fica temporariamente indisponível durante a
 manutenção. Banner continua restrito até a análise aceita já exigida pelo
 produto. A imagem de prévia usa dados fictícios e não comprova publicação.
+
+## Detector de poses — ativação condicionada em 10/10/2026
+
+O proprietário pediu ativar a integração e autorizou instalar, validar e ativar
+o runtime privado revisado somente se passar. A revisão de código fixa a árvore
+inteira de banco do predecessor `2ac00f9` e das fontes `5a54ddb`; apenas
+`community-media.ts`, `public-moderation.ts` e `vault-quota.ts` diferem.
+As 52 migrações, executor de migrações, pacotes npm e Node permanecem iguais.
+Não executar migração para esta transição. A integração incorpora também as
+alterações concluídas do branch principal antes da publicação.
+
+Usar `npm run deploy:staging`, build no Mac, checkout limpo/enviado e CI integral
+do commit final. A autorização separada do runtime cobre somente a área própria,
+as versões/pesos fixados e configuração de web/worker público, sem instalação
+global. Antes de aceitar o hash, validar execução nativa no isolamento, controles
+licenciados existentes, todos os frames dentro do prazo vigente e preservação.
+Falha mantém a análise desativada; não ampliar prazo nem alterar política para
+obter aprovação. Guardar acesso, manifestos e evidências exclusivamente em
+`.local/`, com rollback limitado às adições próprias. O [contrato de integração](INTEGRACAO_MODERACAO_POSES.md)
+registra as versões, limites e a retenção observada no controle de IA convertido.
+
+**Ponto importante:** publicar o código não aceita automaticamente o detector.
+Vídeos liberados durante a análise podem ser vistos/copiados antes da remoção;
+DMs E2EE não entram no scanner.
 
 ## Teto do manifesto ampliado — 09/10/2026
 
@@ -880,7 +1112,7 @@ O proprietário pediu explicitamente publicação/ativação e aprovou aumentar 
 
 Comando específico: `python3 infra/staging/deploy_blocks67.py --activate`, executado no Mac em checkout limpo do commit exato com CI aprovada. `--check` prepara/sincroniza/verifica sem ativação. O executor aceita somente a aplicação revisada em `8e74bb1` sobre o predecessor `32663bb`, com migrações 010–015; o comando comum continua recusando mudanças de banco e artefatos maiores que 16 MiB.
 
-O Mac prepara o build completo e seu manifesto. O pacote transferido omite somente as 18 partes da fonte preferencial Matrix, já presente no Git dedicado da VPS. O executor copia esses bytes do blob versionado em blocos, sem compilar ou instalar, verificando tamanho, SHA-256 integral e hash de cada parte contra o build do Mac. Todas as fontes permanecem disponíveis na publicação. O pacote mantém teto de 16 MiB e a soma de código/assets/dependências permanece limitada a 128 MiB. Só a verificação HTTP do WASM conhecido admite 8 MiB; as demais respostas conservam 2 MiB.
+O Mac prepara o build completo e seu manifesto. O pacote transferido omite somente as 18 partes da fonte preferencial Matrix, já presente no Git dedicado da VPS. O executor copia esses bytes do blob versionado em blocos, sem compilar ou instalar, verificando tamanho, SHA-256 integral e hash de cada parte contra o build do Mac. Todas as fontes permanecem disponíveis na publicação. O pacote mantém teto de 16 MiB e a soma de código/assets/dependências permanece limitada a 128 MiB. A verificação HTTP do WASM conhecido admite 8 MiB; as demais respostas conservam 2 MiB, exceto o pacote principal `source-<hash>.tar.gz`: em 10/10/2026, o proprietário removeu seu teto individual. A conferência desse pacote usa o orçamento total da release e preserva o prazo e o SHA-256/ETag; não altera serviços compartilhados.
 
 Antes de migrar, parar somente o writer `0xdmme-test.service`, conferir schema 1–9 e preservar hashes das 12 tabelas existentes. Fazer backup privado de até 64 MiB, verificar sua integridade e ensaiar restauração do schema próprio dentro de transação revertida. Após migrar, conferir checksums 1–15, dados anteriores, tabelas novas vazias e contabilidade de bytes. Falha antes de reabrir admite retorno verificado; após reabrir, nunca restaurar automaticamente o banco antigo, pois novos dados podem existir. Guardar backup/versão anterior em workspace próprio para revisão posterior.
 
@@ -1056,3 +1288,63 @@ Commits posteriores podem acrescentar esta guarda/documentação sem mudar a
 projeção aprovada. Build no Mac, CI exata, publicação pelo `npm run deploy:staging`,
 reinício dos serviços próprios, preservação e rollback de código continuam
 obrigatórios. Evidências e consumo reais ficam exclusivamente em `.local/`.
+
+## Integração de branches e rollback da conta — 11/10/2026
+
+O proprietário pediu integrar as branches pendentes na `main`, preservando os
+commits de `claude/split-account` por fast-forward ou merge normal, sem squash
+nem rebase. Essa branch contém `3939925` (configurações iniciais e tela sem
+wallet) e `bb77088` (divisão do módulo de conta).
+
+Se uma regressão de login exigir desfazer somente a divisão, preservar as
+configurações iniciais:
+
+```sh
+git revert bb77088
+```
+
+Se o problema estiver nas configurações iniciais ou na tela sem wallet, desfazer
+as duas mudanças, nesta ordem; reverter somente `3939925` pode conflitar com o
+trecho movido pela divisão:
+
+```sh
+git revert bb77088 3939925
+```
+
+Depois de qualquer revert: validar, fazer push, esperar a CI integral do commit
+exato passar e publicar novamente com `npm run deploy:staging`. Usar o checkout
+integrado e limpo e os controles de preservação/rollback já documentados.
+
+**Ponto importante:** integrar a calibração de moderação no Git não ativa uma
+nova política na VPS. A nova identidade do detector exige aceite e transição
+revisados, preservando aprovações anteriores e prazos; o merge não substitui
+esses controles nem autoriza alterar a configuração ativa automaticamente.
+
+### Ativação solicitada após o merge — 11/10/2026
+
+O proprietário pediu ativar a `main` integrada na VPS. O detector simplificado
+precisa de aceite da identidade integral nova; a fusão calibrada e os pesos
+permanecem os mesmos da rodada validada. O aceite do próximo hash incorpora
+somente o pipeline atual, mantendo as três identidades anteriores explicitamente
+revisadas. A lista anterior fica intacta e `HASH_TALK_MODERATION_ACCEPTED_NEXT_HASH`
+recebe a identidade nova; a release anterior ignora esse campo quando usa a lista,
+conservando compatibilidade de rollback. Não ampliar a lista para hashes arbitrários.
+
+Usar o executor existente a partir de commit integrado, enviado e com CI integral
+aprovada. Conferir a configuração em leitura, guardar cópia privada e preparar o
+aceite exato antes do comando `npm run deploy:staging`. Esta transição do detector
+não altera migrações, a versão pública de formato/pinturas `v2`, aprovações antigas
+ou prazos. Novas análises usam somente a identidade atual; decisões anteriores
+permanecem registradas, incluindo os itens retidos para revisão prevista.
+
+**Ponto importante:** aceite exato e saúde dos processos não estabelecem precisão
+universal. Preservar os controles de release, a infraestrutura do outro projeto,
+a proteção de conteúdo aprovado e o rollback da conta documentado acima.
+
+## Modularização do chat — autorização de 12/10/2026
+
+O proprietário pediu executar os cortes do plano temporário e ativar na VPS ao concluir. Integrar somente o trabalho deste chat a partir da release `50ea4c9`; a branch independente com outras alterações não entra neste deploy. Revalidar a main remota antes do push e conferir o diff da release. Contratos e escopo em [Bloco 07](BLOCO_07_MENSAGENS.md#organização-interna-do-chat--12102026).
+
+Exigir checkout limpo/enviado e CI integral do commit exato. Reusar `npm run deploy:staging`, build no Mac, verificações de preservação, prontidão dos serviços próprios e rollback já existentes. São mudanças apenas de organização do cliente e testes/documentação; conservar as 61 migrações, backend, dependências, Node, infraestrutura e configuração ativa. Guardar recibos e acesso exclusivamente em `.local/`.
+
+**Ponto importante:** a autorização cobre esta release do chat. Não autoriza incluir a outra branch, trocar o detector de moderação, migrar banco ou alterar serviços compartilhados.

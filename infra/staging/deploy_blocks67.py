@@ -34,7 +34,7 @@ OLD_TABLES = ('accounts', 'content_usage', 'device_directories', 'device_events'
 NEW_TABLES = ('contact_controls', 'contact_relations', 'contact_blocks', 'message_recovery_keys',
               'message_packets', 'message_references', 'message_heads', 'matrix_devices',
               'matrix_one_time_keys', 'matrix_envelopes')
-MAX_BACKUP = backup_tools.MAX_BACKUP
+required_backup_space = backup_tools.required_backup_space
 file_tree = backup_tools.file_tree
 objects_snapshot = backup_tools.objects_snapshot
 backup = backup_tools.backup
@@ -123,7 +123,7 @@ def preflight(config):
     live = base.DATA / 'release'
     if not live.is_dir() or live.is_symlink():
         raise RuntimeError('Unexpected own release path.')
-    if own_free_bytes() < 2 * base.MAX_RELEASE + 2 * MAX_BACKUP:
+    if own_free_bytes() < required_backup_space():
         raise RuntimeError('Insufficient own backup/release budget.')
     actual = base.run(['git', '--git-dir=' + str(base.DATA / 'git/0xdmme.git'),
                        'rev-parse', 'refs/heads/' + config['branch']]).decode().strip()
@@ -240,7 +240,7 @@ def activate(config, work):
     candidate = prepare_candidate(config, work)
     if database_snapshot()['versions'] != expected_versions(candidate)[:9]:
         raise RuntimeError('Live schema differs from the reviewed predecessor.')
-    if own_free_bytes() < 2 * base.MAX_RELEASE + 2 * MAX_BACKUP:
+    if own_free_bytes() < required_backup_space():
         raise RuntimeError('Insufficient disk budget for private backups.')
     preservation(config)
     if base.own_state() != before_state:

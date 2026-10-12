@@ -14,7 +14,8 @@ export class PublicMediaService {
   private readonly stores: {
     profiles: Pick<PublicProfileStore, 'releasedAvatar'> &
       Partial<Pick<PublicProfileStore, 'releasedBanner'>>;
-    communities: Pick<CommunityStore, 'releasedPhoto'>;
+    communities: Pick<CommunityStore, 'releasedPhoto'> &
+      Partial<Pick<CommunityStore, 'releasedBanner'>>;
     media?: Pick<CommunityMediaStore, 'releasedMedia'>;
   };
   private readonly files: CommunityMediaFiles | null;
@@ -22,7 +23,8 @@ export class PublicMediaService {
     stores: {
       profiles: Pick<PublicProfileStore, 'releasedAvatar'> &
         Partial<Pick<PublicProfileStore, 'releasedBanner'>>;
-      communities: Pick<CommunityStore, 'releasedPhoto'>;
+      communities: Pick<CommunityStore, 'releasedPhoto'> &
+        Partial<Pick<CommunityStore, 'releasedBanner'>>;
       media?: Pick<CommunityMediaStore, 'releasedMedia'>;
     },
     directory?: string,
@@ -41,7 +43,10 @@ export class PublicMediaService {
           Promise.resolve(null))
         : kind === 'avatar'
           ? this.stores.profiles.releasedAvatar(target, review)
-          : this.stores.communities.releasedPhoto(target, review);
+          : kind === 'community-banner'
+            ? (this.stores.communities.releasedBanner?.(target, review) ??
+              Promise.resolve(null))
+            : this.stores.communities.releasedPhoto(target, review);
     const content = await read();
     if (!content || !(await read()))
       throw new AccountError(404, 'Mídia pública indisponível.');

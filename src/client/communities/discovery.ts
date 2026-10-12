@@ -1,3 +1,6 @@
+import { appendOwnProfileShortcut } from '../profile-shortcut/index.ts';
+import type { FeedEntry } from '../../shared/community-discovery/index.ts';
+import { postSharing } from './post-sharing.ts';
 import {
   feedFilter,
   discoveryPeriod,
@@ -18,16 +21,17 @@ import type { FeedProfileFollows } from './feed-follow.ts';
 import { communityRead } from './controller.ts';
 import {
   communityButton as button,
-  communityCard as card,
   communityElement as el,
   communityLink as link,
 } from './elements.ts';
-import { postText } from './post-text.ts';
-import { showExternalVideos } from '../external-video/index.ts';
+import { postPreview } from './post-preview.ts';
+import { postManagementMenu } from './post-menu.ts';
+import { postState } from '../../shared/community-posts/index.ts';
+import { showPostExternalMedia } from './post-external-media.ts';
 import type { ExternalMediaConsent } from '../external-media/index.ts';
 import { postViews } from './post-views.ts';
 import { DiscoverySnapshot } from './discovery-page.ts';
-import { appendReplyContext } from './activity-entry.ts';
+import { appendReplyContext, entryCard } from './activity-entry.ts';
 import {
   communityAvatar,
   communityIcon,
@@ -183,10 +187,11 @@ export function startCommunityDiscovery(
   /** Posting starts from the community the person chooses. */
   function postShortcut(toolbar: HTMLElement): void {
     if (!signedIn || (view !== 'feed' && view !== 'following')) return;
-    link(toolbar, 'Postar', '#comunidades?view=communities');
+    link(toolbar, 'Postar', '#comunidades?view=communities&compose=1');
     const post = toolbar.lastElementChild as HTMLElement;
     post.className = 'community-post-cta';
     iconLabel(post, 'pencil');
+    appendOwnProfileShortcut(toolbar);
   }
   function query(): string {
     const data = new URLSearchParams({
@@ -317,11 +322,9 @@ export function startCommunityDiscovery(
       // Keep only a bounded recent window; pagination does not accumulate DOM/content.
       seen.add(post.id);
       if (seen.size > 240) seen.delete(seen.values().next().value!);
-      const row = card(post.parent ? 'Resposta' : post.title || 'Postagem');
-      row.dataset['postId'] = post.id;
-      row.classList.add('community-post');
+      const row = entryCard(post);
       const avatar = postHeader(row, post, entry.community);
-      appendReplyContext(row, entry);
+      appendReplyContext(row, entry, abort.signal);
       followControl(row, entry, old);
       if (entry.community.avatar)
         mediaCleanup.add(
@@ -341,11 +344,41 @@ export function startCommunityDiscovery(
         valid: () => old === generation,
         changed: reload,
       };
-      postVoting(toolbar, post, signedIn ? actions : null);
+      postVoting(
+        toolbar,
+        post,
+        signedIn ? { ...actions, position: entry.viewerVote } : null,
+      );
       postComments(toolbar, post);
+      postSharing(
+        toolbar,
+        post,
+        signedIn ? { ...actions, shared: entry.viewerShared } : null,
+      );
       mediaCleanup.add(postViews(row, post, toolbar));
       if (signedIn) {
-        preferenceControls(toolbar, post, actions);
+        preferenceControls(toolbar, post, {
+          ...actions,
+          options: (host) =>
+            postManagementMenu(host, post, {
+              run,
+              request: (op, data) => controller.request(op, data),
+              media: {
+                community: post.community,
+                request: (op, data) => controller.request(op, data),
+                valid: actions.valid,
+                signal: abort.signal,
+              },
+              mutate: (op, data) =>
+                run(async () => {
+                  const payload =
+                    typeof data === 'function' ? await data() : data;
+                  if (!actions.valid()) return;
+                  postState(await controller.request(op, payload));
+                  if (actions.valid()) await reload();
+                }),
+            }),
+        });
       }
       list?.append(row);
     }
@@ -356,7 +389,7 @@ export function startCommunityDiscovery(
     old: number,
   ): void {
     const header = row.querySelector<HTMLElement>('.community-post-header');
-    if (!header || !signedIn) return;
+    if (!header || !signedIn || entry.ownCommunity) return;
     feedFollowControl(
       header,
       { community: entry.community, author: entry.post.author },
@@ -373,9 +406,12 @@ export function startCommunityDiscovery(
   }
   function postContent(row: HTMLElement, post: CommunityPost): void {
     if (post.status === 'visible') {
-      row.append(postText(post.text));
+      row.append(postPreview(post.text));
       mediaCleanup.add(
-        showExternalVideos(row, post.text, { privacy, signal: abort.signal }),
+        showPostExternalMedia(row, post.text, {
+          privacy,
+          signal: abort.signal,
+        }),
       );
       if (post.media?.length)
         mediaCleanup.add(showPublicPostMedia(row, post.media, abort.signal));

@@ -96,6 +96,10 @@ async function accept(
     'UPDATE hash_talk.communities SET owner=$2,transfer_id=NULL,transfer_to=NULL,revision=revision+1 WHERE id=$1',
     [context.row.id, context.actor.id],
   );
+  await context.client.query(
+    'INSERT INTO hash_talk.community_follows(community_id,profile_id) VALUES($1,$2) ON CONFLICT DO NOTHING',
+    [context.row.id, context.actor.id],
+  );
 }
 async function archive(
   context: CommunityContext,
@@ -144,6 +148,7 @@ export async function communityGovernance(
       return true;
     case 'transfer-accept':
       await accept(context, data);
+      await assertContentCapacity(context.client, capacity);
       return true;
     case 'archive':
       await archive(context, data);

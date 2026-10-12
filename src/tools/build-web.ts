@@ -186,7 +186,12 @@ for (const [name, expected] of fonts) {
     throw new Error('Fonte divergente.');
   asset(name, bytes);
 }
-for (const name of ['icon.svg', 'icon-192.png', 'icon-512.png']) {
+for (const name of [
+  'icon.svg',
+  'icon-192.png',
+  'icon-512.png',
+  'notification-badge.png',
+]) {
   asset(name, await readFile(new URL(`src/client/app/${name}`, root)));
 }
 asset(

@@ -167,6 +167,14 @@ POOL_SIZE_REVIEWED = '68831a56089d26c2de8c129a47eda9be6ac0b5a5'
 # modules change; no SQL, migration or executor change.
 ACTIVITY_PREVIEW_BEFORE = '9a3170dd3815689d7d547d117824a92f66283d3b'
 ACTIVITY_PREVIEW_REVIEWED = '0bb7b9dddbd84fe8c033b2ae04dec93a2f97fade'
+# Owner approved activation of the frozen public pose detector on 10/10/2026.
+# Only media visibility, review and capacity accounting code changes. The
+# existing 052 schema, migrations and migration executor remain byte-identical.
+POSE_MODERATION_BEFORE = '2ac00f98698d384cff2a2f9d6937093e552d276b'
+POSE_MODERATION_REVIEWED = '5a54ddbe4a0dbdd91b1965b902dae970f12e646d'
+# Owner-approved 11/10/2026 code-only reservation upgrade; all migrations unchanged.
+MEDIA_OUTPUT_BEFORE = 'feff745968330663f956d26faac583d9b3194340'
+MEDIA_OUTPUT_REVIEWED = '5e024bfa606213f6c99760378a82fed68d2699e2'
 COMMUNITIES_TABLES = CALLS_TABLES + CALLS_NEW_TABLES
 COMMUNITIES_NEW_TABLES = ('public_profiles', 'communities', 'community_follows',
     'community_moderators', 'community_sanctions', 'community_reports',
@@ -183,13 +191,21 @@ def run(args, timeout=30):
 
 
 def digest(path):
-    return hashlib.sha256(path.read_bytes()).hexdigest()
+    checksum = hashlib.sha256()
+    with path.open('rb') as content:
+        for chunk in iter(lambda: content.read(1024 * 1024), b''):
+            checksum.update(chunk)
+    return checksum.hexdigest()
+
+
+def valid_release_branch(value):
+    return isinstance(value, str) and re.fullmatch(r'(?:main|codex/[A-Za-z0-9][A-Za-z0-9._/-]*)', value) is not None
 
 
 def validate(config):
     if not re.fullmatch(r'[a-f0-9]{40}', config['commit']):
         raise RuntimeError('Invalid commit.')
-    if not re.fullmatch(r'codex/[A-Za-z0-9][A-Za-z0-9._/-]*', config['branch']):
+    if not valid_release_branch(config['branch']):
         raise RuntimeError('Invalid branch.')
     files = config['files']
     if not 1 <= len(files) <= MAX_MANIFEST_FILES:
@@ -267,6 +283,10 @@ def own_state():
 
 def fetch(path, expected=None):
     limit = 8 * 1024 * 1024 if path == '/matrix-crypto-18.9.0.wasm' else 2 * 1024 * 1024
+    # Main corresponding sources have no separate 2 MiB ceiling. Their download
+    # remains bounded by the existing budget for the entire extracted release.
+    if re.fullmatch(r'/source-[a-f0-9]{16}\.tar\.gz', path):
+        limit = MAX_RELEASE
     args = ['curl', '--silent', '--fail', '--max-time', '10', '--max-filesize', str(limit)]
     if expected:
         args += ['--header', 'If-None-Match: "' + expected + '"', '--write-out', '\n%{http_code}']
@@ -340,6 +360,7 @@ def database_code_reviewed(candidate, live):
     before, after = database_files(live), database_files(candidate)
     changed = {name for name in set(before) | set(after) if before.get(name) != after.get(name)}
     reviews = [
+        ({'community-media.ts'}, MEDIA_OUTPUT_BEFORE, MEDIA_OUTPUT_REVIEWED),
         ({'communities.ts', 'community-discovery.ts'}, COMMUNITY_FEED_BEFORE, COMMUNITY_FEED_REVIEWED),
         ({'authentication.ts'}, MOBILE_OPENING_BEFORE, MOBILE_OPENING_REVIEWED),
         ({'community-ranking-metrics.ts'}, RANKING_METRICS_BEFORE, RANKING_METRICS_REVIEWED),
@@ -348,6 +369,8 @@ def database_code_reviewed(candidate, live):
         ({'index.ts'}, POOL_SIZE_BEFORE, POOL_SIZE_REVIEWED),
         ({'community-interactions.ts', 'community-posts.ts'},
          ACTIVITY_PREVIEW_BEFORE, ACTIVITY_PREVIEW_REVIEWED),
+        ({'community-media.ts', 'public-moderation.ts', 'vault-quota.ts'},
+         POSE_MODERATION_BEFORE, POSE_MODERATION_REVIEWED),
     ]
     selected = next((review for review in reviews if changed == review[0]), None)
     if selected is None:
@@ -433,6 +456,18 @@ def backup_review(candidate, live):
 
 def database_review(candidate, live):
     count = len(list((candidate / 'src/server/database/migrations').glob('*.sql')))
+    if count == 61:
+        import deploy_social_experience
+        return deploy_social_experience.review(candidate, live)
+    if count == 58:
+        import deploy_social_controls
+        return deploy_social_controls.review(candidate, live)
+    if count == 55:
+        import deploy_post_tags
+        return deploy_post_tags.review(candidate, live)
+    if count == 54:
+        import deploy_group_links
+        return deploy_group_links.review(candidate, live)
     if count == 53:
         import deploy_profile_description
         return deploy_profile_description.review(candidate, live)
@@ -877,7 +912,7 @@ def activate_database(config, work, candidate, transition):
     transition['review'](candidate, DATA / 'release')
     if snapshot()['versions'] != attachment_versions(candidate)[:transition['versions']]:
         raise RuntimeError('Live schema differs from the reviewed predecessor.')
-    if backups.own_free_bytes() < 2 * MAX_RELEASE + 2 * backups.MAX_BACKUP:
+    if backups.own_free_bytes() < backups.required_backup_space():
         raise RuntimeError('Insufficient disk budget for private backups.')
     receipt(work, {'status':'maintenance', 'commit':config['commit']})
     opened = installed = False
@@ -1010,6 +1045,18 @@ def activate(config, work):
     if (database_files(candidate) != database_files(DATA / 'release')
             and not database_code_reviewed(candidate, DATA / 'release')):
         # Any unreviewed database change was rejected by prepare()/compatibility().
+        if len(list((candidate / 'src/server/database/migrations').glob('*.sql'))) == 61:
+            import deploy_social_experience
+            return deploy_social_experience.activate(config, work, candidate, before)
+        if len(list((candidate / 'src/server/database/migrations').glob('*.sql'))) == 58:
+            import deploy_social_controls
+            return deploy_social_controls.activate(config, work, candidate, before)
+        if len(list((candidate / 'src/server/database/migrations').glob('*.sql'))) == 55:
+            import deploy_post_tags
+            return deploy_post_tags.activate(config, work, candidate, before)
+        if len(list((candidate / 'src/server/database/migrations').glob('*.sql'))) == 54:
+            import deploy_group_links
+            return deploy_group_links.activate(config, work, candidate, before)
         if len(list((candidate / 'src/server/database/migrations').glob('*.sql'))) == 53:
             import deploy_profile_description
             return deploy_profile_description.activate(config, work, candidate, before)
@@ -1084,7 +1131,10 @@ def retain_migration_backup(work, old):
         raise RuntimeError('Completed transition contents require manual review.')
     if work.stat().st_uid != os.geteuid() or any(p.is_symlink() for p in work.iterdir()):
         raise RuntimeError('Completed transition ownership/link requires review.')
-    for name, limit in [('database.dump',backups.MAX_BACKUP), ('build.tar.gz',MAX_ARCHIVE),
+    dump = work / 'database.dump'
+    if not dump.is_file() or dump.stat().st_size <= 0:
+        raise RuntimeError('Historical database backup is missing or irregular.')
+    for name, limit in [('build.tar.gz',MAX_ARCHIVE),
                         ('result.json',65536), ('qr.tar.gz',2 * 1024 * 1024)]:
         path = work / name
         if path.exists() and (not path.is_file() or path.stat().st_size > limit):
@@ -1092,9 +1142,7 @@ def retain_migration_backup(work, old):
     objects, previous = work / 'objects-backup', work / 'previous'
     if not objects.is_dir() or not previous.is_dir():
         raise RuntimeError('Completed transition directories differ.')
-    object_files = backups.file_tree(objects)
-    if sum((objects / name).stat().st_size for name in object_files) > backups.MAX_BACKUP:
-        raise RuntimeError('Historical object backup budget exceeded.')
+    backups.file_tree(objects)
     allowed = {'src', 'infra', 'dist', 'node_modules', 'package.json', 'package-lock.json', '.nvmrc'}
     if not set(p.name for p in previous.iterdir()).issubset(allowed):
         raise RuntimeError('Old rollback contents require manual review.')
@@ -1237,6 +1285,9 @@ def main():
         request_limits.reviewed_path(config['request_limit'])
     action = sys.argv[1]
     work = DATA / ('deployment-' + config['commit'])
+    if 'media_worker' in config:
+        import deploy_media_worker
+        deploy_media_worker.validate_current(config)
     if action == 'check':
         with measured('preflight'):
             preflight(config)
@@ -1294,6 +1345,11 @@ def main():
             with (work / 'build.tar.gz').open('xb') as handle:
                 handle.write(archive)
             return {'uploaded': True, 'activated': False}
+        if 'media_worker' in config:
+            import deploy_media_worker
+            with deploy_media_worker.activation(config, work) as media_proof:
+                result = activate(config, work)
+            return dict(result, media_worker=media_proof)
         return activate(config, work)
 
 

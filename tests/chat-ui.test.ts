@@ -4,6 +4,7 @@ import {
   composerState,
   historyPosition,
   resetHistoryPosition,
+  sendOnEnter,
   updateMessageStates,
 } from '../src/client/chat-ui/index.ts';
 
@@ -154,4 +155,38 @@ await test('recibos alteram somente os checks; mídia, bolha e posição de leit
   assert.equal(article.body, body);
   assert.equal(article.actions, actions);
   assert.equal(history.scrollTop, 170);
+});
+
+await test('Enter envia, Shift+Enter quebra linha; teclado de toque só envia com Ctrl/Cmd', (t) => {
+  let touch = false;
+  Object.defineProperty(globalThis, 'matchMedia', {
+    configurable: true,
+    value: () => ({ matches: touch }),
+  });
+  t.after(() => {
+    Reflect.deleteProperty(globalThis, 'matchMedia');
+  });
+  const field = new EventTarget() as HTMLTextAreaElement;
+  let sent = 0;
+  sendOnEnter(field, () => sent++);
+  const press = (init: KeyboardEventInit & { isComposing?: boolean }) => {
+    const event = Object.assign(new Event('keydown', { cancelable: true }), {
+      key: 'Enter',
+      shiftKey: false,
+      ctrlKey: false,
+      metaKey: false,
+      isComposing: false,
+      ...init,
+    });
+    field.dispatchEvent(event);
+    return event.defaultPrevented;
+  };
+  assert.equal(press({}), true);
+  assert.equal(press({ shiftKey: true }), false);
+  assert.equal(press({ isComposing: true }), false);
+  assert.equal(press({ key: 'a' }), false);
+  touch = true;
+  assert.equal(press({}), false);
+  assert.equal(press({ ctrlKey: true }), true);
+  assert.equal(sent, 2);
 });

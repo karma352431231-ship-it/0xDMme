@@ -52,16 +52,24 @@ export async function vaultUsage(
   if (!Number.isSafeInteger(bytes)) throw new Error('Cota indisponível.');
   return bytes;
 }
-export async function assertContentCapacity(
+/** Accounting reductions also take this lock before their byte-owner rows, so
+ * they cannot deadlock a post admission which already owns the global ledger. */
+export async function lockContentUsage(
   client: Pick<pg.PoolClient, 'query'>,
-  capacity: number,
-): Promise<void> {
+): Promise<number> {
   const result = await client.query<{ bytes: string }>(
     'SELECT used_bytes::text AS bytes FROM hash_talk.content_usage WHERE singleton FOR UPDATE',
   );
   const bytes = Number(result.rows[0]?.bytes);
   if (!Number.isSafeInteger(bytes) || bytes < 0)
     throw new Error('Contagem global indisponível.');
+  return bytes;
+}
+export async function assertContentCapacity(
+  client: Pick<pg.PoolClient, 'query'>,
+  capacity: number,
+): Promise<void> {
+  const bytes = await lockContentUsage(client);
   if (bytes > capacity)
     throw new AccountError(
       503,

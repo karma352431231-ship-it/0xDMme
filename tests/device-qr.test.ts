@@ -180,3 +180,26 @@ await test('câmera libera tracks ao ler, cancelar, expirar e quando a permissã
   assert.equal(failures.length, 4);
   assert.equal(video.srcObject, null);
 });
+
+await test('QR de vinculação abre HTTPS e guarda a capacidade somente no fragmento', async () => {
+  const { enrollmentUrl, readEnrollment, enrollmentPayload } =
+    await import('../src/shared/device-enrollment/index.ts');
+  const code = {
+    version: 1 as const,
+    id: crypto.randomUUID(),
+    accountId: crypto.randomUUID(),
+    root: 'a'.repeat(64),
+    secret: 'b'.repeat(64),
+    expiresAt: new Date(Date.now() + 300000).toISOString(),
+  };
+  const href = enrollmentUrl(code, 'https://0xdmme.app');
+  const url = new URL(href);
+  assert.equal(url.pathname, '/');
+  assert.equal(url.search, '');
+  assert.equal(url.href.split('#')[0]?.includes(code.secret), false);
+  assert.deepEqual(readEnrollment(href), code);
+  assert.equal(decodeQrFrame(raster(href)), href);
+  assert.equal(readQrPayload(href, 'enrollment'), enrollmentPayload(code));
+  assert.throws(() => readEnrollment(href.replace('0xdmme.app', 'evil.test')));
+  assert.throws(() => enrollmentUrl(code, 'http://evil.test'));
+});

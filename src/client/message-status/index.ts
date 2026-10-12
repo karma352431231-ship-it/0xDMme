@@ -3,10 +3,10 @@ export function messageChecks(input: {
   own: boolean;
   delivery?: DeliveryState;
   read: boolean;
-}): { text: string; label: string; color: 'gray' | 'blue' } | null {
+}): { text: string; label: string; color: 'gray' | 'green' } | null {
   if (!input.own || !input.delivery) return null;
   if (input.read)
-    return { text: '✓✓', label: 'Lida pelo destinatário', color: 'blue' };
+    return { text: '✓✓', label: 'Lida pelo destinatário', color: 'green' };
   if (input.delivery === 'received')
     return {
       text: '✓✓',
@@ -29,7 +29,7 @@ const svgNs = 'http://www.w3.org/2000/svg';
 export function checksIcon(checks: {
   text: string;
   label: string;
-  color: 'gray' | 'blue';
+  color: 'gray' | 'green';
 }): SVGSVGElement {
   const double = [...checks.text].length > 1;
   const svg = document.createElementNS(svgNs, 'svg');

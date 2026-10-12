@@ -11,13 +11,18 @@ import { publicHandle, publicProfile } from '../public-profile/index.ts';
 import type { PublicProfile } from '../public-profile/index.ts';
 import { publicPostMedia } from '../public-media/index.ts';
 import type { PublicPostMedia } from '../public-media/index.ts';
+import { communityBadges } from '../community-badges/index.ts';
+import type { CommunityBadge } from '../community-badges/index.ts';
+export { withinPostEditWindow, postEditWindowMs } from './edit-window.ts';
 
 export interface PostContent {
   title: string;
   text: string;
-  tag: string | null;
+  /** Ordered community tag ids; a post needs at least one when the community offers tags. */
+  tags: string[];
   media?: string[];
 }
+export const postTagLimit = 5;
 export interface PostTag {
   id: string;
   label: string;
@@ -25,12 +30,15 @@ export interface PostTag {
   revision: number;
 }
 export interface CommunityPost {
+  /** Present only in authenticated projections for this viewer. */
+  viewer?: { vote: -1 | 0 | 1; shared: boolean };
+  authorBadges?: CommunityBadge[];
   id: string;
   community: string;
   author: PublicProfile | null;
   title: string;
   text: string;
-  tag: PostTag | null;
+  tags: PostTag[];
   createdAt: string;
   editedAt: string | null;
   revision: number;
@@ -51,6 +59,7 @@ export interface PostRemoval {
   decision: string | null;
 }
 export interface PostState {
+  shared?: boolean;
   post: CommunityPost;
   own: boolean;
   manager: boolean;
@@ -95,7 +104,7 @@ export function postContent(value: unknown): PostContent {
   keys(data, [
     'title',
     'text',
-    'tag',
+    'tags',
     ...(Object.hasOwn(data, 'media') ? ['media'] : []),
   ]);
   const media = Object.hasOwn(data, 'media')
@@ -106,10 +115,20 @@ export function postContent(value: unknown): PostContent {
     throw new AccountError(400, 'Título deve ocupar uma linha.');
   return {
     title,
-    text: communityText(data['text'], 4000, media.length > 0),
-    tag: communityCursor(data['tag']),
+    // A titled post or one with media may have no text; a reply needs one of them.
+    text: communityText(data['text'], 4000, media.length > 0 || title !== ''),
+    tags: postTagIds(data['tags']),
     ...(Object.hasOwn(data, 'media') ? { media } : {}),
   };
+}
+/** Distinct tag ids, at most `postTagLimit`, in the order chosen. */
+export function postTagIds(value: unknown): string[] {
+  const ids = communityArray(value).map((id) => uuid(id));
+  if (ids.length > postTagLimit)
+    throw new AccountError(400, `Escolha até ${postTagLimit} tags.`);
+  if (new Set(ids).size !== ids.length)
+    throw new AccountError(400, 'Tag repetida no post.');
+  return ids;
 }
 export function postTagLabel(value: unknown): string {
   const label = communityText(value, 36);
@@ -129,16 +148,49 @@ export function postTag(value: unknown): PostTag {
 }
 function publicPostContent(data: Record<string, unknown>) {
   const author = data['author'] === null ? null : publicProfile(data['author']),
-    tag = data['tag'] === null ? null : postTag(data['tag']),
+    tags = communityArray(data['tags']).map(postTag),
     title = communityText(data['title'], 200, true),
     text = communityText(data['text'], 4000, true),
     media = Object.hasOwn(data, 'media') ? publicPostMedia(data['media']) : [];
-  const hiddenFields = [title, text, author, tag].some(
+  if (tags.length > postTagLimit)
+    throw new AccountError(400, 'Tags demais no post.');
+  const hiddenFields = [title, text, author].some(
     (field) => field !== '' && field !== null,
   );
-  if (data['status'] !== 'visible' && (hiddenFields || media.length > 0))
+  if (
+    data['status'] !== 'visible' &&
+    (hiddenFields || tags.length > 0 || media.length > 0)
+  )
     throw new AccountError(400, 'Marcador de post contém dados restritos.');
-  return { author, tag, title, text, ...(media.length ? { media } : {}) };
+  return { author, tags, title, text, ...(media.length ? { media } : {}) };
+}
+function postBadgeFields(
+  data: Record<string, unknown>,
+  status: CommunityPost['status'],
+) {
+  if (!Object.hasOwn(data, 'authorBadges')) return {};
+  const authorBadges = communityBadges(data['authorBadges']);
+  if (status !== 'visible' && authorBadges.length)
+    throw new AccountError(400, 'Marcador de post contém badges restritos.');
+  return { authorBadges };
+}
+function postViewFields(data: Record<string, unknown>) {
+  return Object.hasOwn(data, 'views')
+    ? { views: postCount(data['views']) }
+    : {};
+}
+function postViewerFields(
+  data: Record<string, unknown>,
+): Pick<CommunityPost, 'viewer'> {
+  if (!Object.hasOwn(data, 'viewer')) return {};
+  const viewer = object(data['viewer']);
+  keys(viewer, ['vote', 'shared']);
+  return {
+    viewer: {
+      vote: votePosition(viewer['vote']),
+      shared: communityBoolean(viewer['shared']),
+    },
+  };
 }
 export function communityPost(value: unknown): CommunityPost {
   const data = object(value);
@@ -148,7 +200,7 @@ export function communityPost(value: unknown): CommunityPost {
     'author',
     'title',
     'text',
-    'tag',
+    'tags',
     'createdAt',
     'editedAt',
     'revision',
@@ -157,8 +209,10 @@ export function communityPost(value: unknown): CommunityPost {
     'root',
     'score',
     'replies',
+    ...(Object.hasOwn(data, 'authorBadges') ? ['authorBadges'] : []),
     ...(Object.hasOwn(data, 'views') ? ['views'] : []),
     ...(Object.hasOwn(data, 'media') ? ['media'] : []),
+    ...(Object.hasOwn(data, 'viewer') ? ['viewer'] : []),
   ]);
   const status = data['status'];
   if (status !== 'visible' && status !== 'removed' && status !== 'deleted')
@@ -167,6 +221,7 @@ export function communityPost(value: unknown): CommunityPost {
     id: uuid(data['id']),
     community: uuid(data['community']),
     ...publicPostContent(data),
+    ...postBadgeFields(data, status),
     createdAt: postTime(data['createdAt']),
     editedAt: data['editedAt'] === null ? null : postTime(data['editedAt']),
     revision: communityRevision(data['revision']),
@@ -174,9 +229,8 @@ export function communityPost(value: unknown): CommunityPost {
     ...postTree(data),
     score: postCount(data['score'], true),
     replies: postCount(data['replies']),
-    ...(Object.hasOwn(data, 'views')
-      ? { views: postCount(data['views']) }
-      : {}),
+    ...postViewFields(data),
+    ...postViewerFields(data),
   };
 }
 export function postPage(value: unknown): PostPage {
@@ -229,6 +283,7 @@ export function postState(value: unknown): PostState {
     'content',
     'removal',
     'vote',
+    ...(Object.hasOwn(data, 'shared') ? ['shared'] : []),
   ]);
   const own = communityBoolean(data['own']),
     manager = communityBoolean(data['manager']);
@@ -246,6 +301,9 @@ export function postState(value: unknown): PostState {
     content,
     removal,
     vote: postVote(data['vote']),
+    ...(Object.hasOwn(data, 'shared')
+      ? { shared: communityBoolean(data['shared']) }
+      : {}),
   };
 }
 /** Links never load previews or embed external media. Only explicit HTTP(S) navigation. */
@@ -300,7 +358,8 @@ function postTree(data: Record<string, unknown>) {
     root === data['id']
   )
     throw new AccountError(400, 'Árvore inválida.');
-  if (parent && (data['title'] !== '' || data['tag'] !== null))
+  const tagged = Array.isArray(data['tags']) && data['tags'].length > 0;
+  if (parent && (data['title'] !== '' || tagged))
     throw new AccountError(400, 'Resposta não admite título/tag.');
   return { parent, root };
 }
@@ -316,6 +375,7 @@ export interface ReplyPreview {
 }
 export const replyPreviewLength = 280;
 export interface ReplyNotification {
+  kind?: 'post' | 'reply';
   reply: string;
   post: string;
   community: string;
@@ -362,13 +422,32 @@ export interface ReplyNotificationPage {
   items: ReplyNotification[];
   next: string | null;
 }
+function notificationKind(data: Record<string, unknown>): {
+  kind?: 'post' | 'reply';
+} {
+  if (!Object.hasOwn(data, 'kind')) return {};
+  const kind = data['kind'];
+  if (kind !== 'post' && kind !== 'reply')
+    throw new AccountError(400, 'Tipo de notificação inválido.');
+  if ((kind === 'post') !== (data['post'] === data['reply']))
+    throw new AccountError(400, 'Referência de notificação inválida.');
+  return { kind };
+}
 export function replyNotificationPage(value: unknown): ReplyNotificationPage {
   const data = object(value);
   keys(data, ['items', 'next']);
   return {
     items: communityArray(data['items']).map((value) => {
       const row = object(value);
-      keys(row, ['reply', 'post', 'community', 'createdAt', 'read', 'preview']);
+      keys(row, [
+        'reply',
+        'post',
+        'community',
+        'createdAt',
+        'read',
+        'preview',
+        ...(Object.hasOwn(row, 'kind') ? ['kind'] : []),
+      ]);
       return {
         reply: uuid(row['reply']),
         post: uuid(row['post']),
@@ -376,6 +455,7 @@ export function replyNotificationPage(value: unknown): ReplyNotificationPage {
         createdAt: postTime(row['createdAt']),
         read: communityBoolean(row['read']),
         preview: parseReplyPreview(row['preview']),
+        ...notificationKind(row),
       };
     }),
     next: postCursor(data['next']),

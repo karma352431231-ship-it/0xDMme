@@ -31,22 +31,27 @@ function assetEntry(entry: unknown): { path: string; type: string } {
   return { path: entry.path, type: entry.type };
 }
 
-export async function loadWebAssets(): Promise<ReadonlyMap<string, WebAsset>> {
-  const root = new URL('../../../dist/web/', import.meta.url);
+function checkAssetSize(path: string, size: number): void {
+  // Corresponding source downloads grow with the app and are not PWA assets.
+  if (/^\/source-[a-f0-9]{16}\.tar\.gz$/u.test(path)) return;
+  const maximum =
+    path === '/matrix-crypto-18.9.0.wasm' ? 8 * 1024 * 1024 : 2 * 1024 * 1024;
+  if (size > maximum) throw new Error('Asset excedido.');
+}
+
+export async function loadWebAssets(
+  root = new URL('../../../dist/web/', import.meta.url),
+): Promise<ReadonlyMap<string, WebAsset>> {
   const manifest: unknown = JSON.parse(
     await readFile(new URL('assets.json', root), 'utf8'),
   );
-  if (!Array.isArray(manifest) || manifest.length > 40)
+  if (!Array.isArray(manifest) || manifest.length > 64)
     throw new Error('Build inválido.');
   const assets = new Map<string, WebAsset>();
   for (const value of manifest as unknown[]) {
     const entry = assetEntry(value);
     const content = await readFile(new URL(entry.path.slice(1), root));
-    const maximum =
-      entry.path === '/matrix-crypto-18.9.0.wasm'
-        ? 8 * 1024 * 1024
-        : 2 * 1024 * 1024;
-    if (content.length > maximum) throw new Error('Asset excedido.');
+    checkAssetSize(entry.path, content.length);
     assets.set(entry.path === '/index.html' ? '/' : entry.path, {
       content,
       type: entry.type,

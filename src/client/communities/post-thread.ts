@@ -23,6 +23,7 @@ interface ThreadActions {
   run: (work: () => Promise<void>) => Promise<void>;
   render: (container: HTMLElement, post: CommunityPost) => void;
   cleanup: (container: HTMLElement) => void;
+  request?: (payload: Record<string, unknown>) => Promise<unknown>;
 }
 interface Branch {
   parent: CommunityPost;
@@ -42,6 +43,11 @@ export class PostThread {
   private readonly paging = el('div', '', 'post-thread-paging');
   private active = true;
   private order: DiscussionOrder = 'discussed';
+  private after: string | null = null;
+  private snapshot = '';
+  async refresh(parent: CommunityPost): Promise<void> {
+    await this.page(parent, this.after);
+  }
   constructor(actions: ThreadActions) {
     this.actions = actions;
   }
@@ -91,10 +97,12 @@ export class PostThread {
     const query = new URLSearchParams({ order });
     if (after) query.set('after', after);
     return discussionPage(
-      await communityRead(
-        `/api/communities/${this.actions.community}/posts/${parent}/replies?${query.toString()}`,
-        AbortSignal.any([this.actions.signal, AbortSignal.timeout(8000)]),
-      ),
+      this.actions.request
+        ? await this.actions.request({ post: parent, order, after })
+        : await communityRead(
+            `/api/communities/${this.actions.community}/posts/${parent}/replies?${query.toString()}`,
+            AbortSignal.any([this.actions.signal, AbortSignal.timeout(8000)]),
+          ),
     );
   }
   private async page(
@@ -105,6 +113,10 @@ export class PostThread {
     const page = await this.read(parent.id, order, after);
     if (!this.valid()) return;
     this.order = order;
+    this.after = after;
+    const snapshot = JSON.stringify([parent.id, order, after, page]);
+    if (snapshot === this.snapshot) return;
+    this.snapshot = snapshot;
     this.actions.cleanup(this.replies);
     this.replies.replaceChildren();
     for (const post of page.items) this.row(this.replies, post, 0);

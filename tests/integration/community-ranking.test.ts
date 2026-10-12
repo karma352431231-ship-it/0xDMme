@@ -13,7 +13,10 @@ import { PublicProfileService } from '../../src/server/public-profile/index.ts';
 import { CommunityService } from '../../src/server/communities/index.ts';
 import { CommunityRankingService } from '../../src/server/community-ranking/index.ts';
 import { readWebConfiguration } from '../../src/server/web-configuration/index.ts';
-import { createCommunityAccount } from './community-fixture.ts';
+import {
+  createCommunityAccount,
+  rootPostContent,
+} from './community-fixture.ts';
 import type { PublicProfile } from '../../src/shared/public-profile/index.ts';
 import { postState } from '../../src/shared/community-posts/index.ts';
 import { explorePage } from '../../src/shared/community-discovery/index.ts';
@@ -102,19 +105,23 @@ await test('rankings: métricas exatas, votos agregados, eventos, recuperação 
   await owner.operate('post-create', {
     id: community,
     post: original,
-    content: { title: '', text: 'Discussão sintética', tag: null },
+    content: await rootPostContent(
+      communities,
+      community,
+      'Discussão sintética',
+    ),
   });
   await users[1]!.operate('reply-create', {
     id: community,
     post: reply,
     parent: original,
-    content: { title: '', text: 'Resposta sintética', tag: null },
+    content: { title: '', text: 'Resposta sintética', tags: [] },
   });
   const third = crypto.randomUUID();
   await users[2]!.operate('post-create', {
     id: community,
     post: third,
-    content: { title: '', text: 'Outro autor', tag: null },
+    content: await rootPostContent(communities, community, 'Outro autor'),
   });
   await inspector.query(
     "UPDATE hash_talk.community_posts SET created_at=clock_timestamp()-interval '2 hours' WHERE id=ANY($1::uuid[])",
@@ -574,7 +581,11 @@ await test('rankings: métricas exatas, votos agregados, eventos, recuperação 
         await example.user.operate('post-create', {
           id: community,
           post: id,
-          content: { title: '', text: 'Retorno sintético', tag: null },
+          content: await rootPostContent(
+            communities,
+            community,
+            'Retorno sintético',
+          ),
         });
         await inspector.query(
           "UPDATE hash_talk.community_posts SET created_at=clock_timestamp()-$2*interval '1 hour' WHERE id=$1",
@@ -611,7 +622,7 @@ await test('rankings: métricas exatas, votos agregados, eventos, recuperação 
       await owner.operate('post-create', {
         id,
         post,
-        content: { title: '', text: 'Expiração da janela', tag: null },
+        content: await rootPostContent(communities, id, 'Expiração da janela'),
       });
       await inspector.query(
         "UPDATE hash_talk.community_posts SET created_at=date_trunc('milliseconds',clock_timestamp())-interval '24 hours'+interval '400 milliseconds' WHERE id=$1",

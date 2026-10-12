@@ -24,10 +24,6 @@ export function communityNavigation(
   const tools = el('nav', '', 'community-tools');
   tools.setAttribute('aria-label', 'Acessos de comunidades');
   if (options.selected) link(tools, '← Feed', '#comunidades?view=feed');
-  if (options.signedIn) {
-    link(tools, 'Mensagens pelo @', '#comunidades?view=dms');
-    iconLabel(tools.lastElementChild as HTMLElement, 'mail');
-  }
   const menu = el('details', '', 'community-more'),
     summary = el('summary', 'Mais opções');
   iconLabel(summary, 'more');
@@ -37,7 +33,7 @@ export function communityNavigation(
   if (options.manage)
     link(
       choices,
-      'Gerenciar esta comunidade',
+      'Gerenciar comunidade',
       `#comunidades?id=${options.manage}&view=manage`,
     );
   for (const [key, title] of [
@@ -46,7 +42,6 @@ export function communityNavigation(
     ['saved', 'Salvos'],
     ['hidden', 'Ocultos'],
     ['replies', 'Respostas ao seu conteúdo'],
-    ['managed', 'Gerenciar comunidades'],
     ['invitations', 'Transferências'],
     ['create', 'Criar comunidade'],
   ] as const) {
@@ -94,4 +89,37 @@ export function communityDirectoryNavigation(
       a.setAttribute('aria-current', 'page');
   }
   container.append(head, tabs, nav, el('h2', 'Seguidas'));
+}
+
+/** Where the arrow of an opened post leads: the list the reader came from, else its community. */
+export function postReturnTarget(
+  lastList: string | null,
+  community: string,
+): string {
+  return lastList
+    ? `#comunidades?${lastList}`
+    : `#comunidades?id=${encodeURIComponent(community)}`;
+}
+
+const communityViews = new Set([
+  'followers',
+  'dms',
+  'explore',
+  'feed',
+  'saved',
+  'hidden',
+  'communities',
+  'following',
+  'manage',
+  'invitations',
+  'create',
+  'replies',
+]);
+/**
+ * Known screens only; unknown links fall back to the feed. Settings belong to
+ * one community, so `manage` without a community also opens the feed.
+ */
+export function communityView(view: string, selected: string | null): string {
+  if (!communityViews.has(view)) return 'feed';
+  return ['manage', 'followers'].includes(view) && !selected ? 'feed' : view;
 }

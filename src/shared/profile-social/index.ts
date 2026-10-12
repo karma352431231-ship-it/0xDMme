@@ -1,3 +1,5 @@
+export { mutualFollowers } from './mutuals.ts';
+export type { MutualFollowers } from './mutuals.ts';
 import { AccountError, keys, object, uuid } from '../account/index.ts';
 import { communityBoolean } from '../communities/index.ts';
 import { postCount, postTime } from '../community-posts/index.ts';
@@ -22,6 +24,8 @@ export interface ProfileFollow {
   following: boolean;
   revision: number;
 }
+export { publicBlockState, profileNotifications } from './controls.ts';
+export type { PublicBlockState, ProfileNotifications } from './controls.ts';
 export interface ProfileDescription {
   revision: number;
   description: string;

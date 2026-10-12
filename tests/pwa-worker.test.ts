@@ -4,7 +4,7 @@ import { readFile } from 'node:fs/promises';
 import { runInNewContext } from 'node:vm';
 
 interface WorkerEvent {
-  notification?: { close(): void };
+  notification?: { close(): void; data?: unknown };
   request?: Request;
   data?: unknown;
   source?: { url: string };
@@ -19,6 +19,7 @@ async function worker(
     unreadLimit?: number;
     networkDelayMs?: number;
     pushAllowed?: boolean;
+    publicPreview?: unknown;
     pushCheckFails?: boolean;
     pushSound?: string;
     pushCall?: boolean;
@@ -59,6 +60,7 @@ async function worker(
     allowed: options.pushAllowed ?? false,
     call: options.pushCall ?? false,
     showCall: options.showCall ?? true,
+    publicPreview: options.publicPreview,
   };
   const networkResponses = new WeakSet<Response>();
   for (const [path, bytes] of Object.entries(options.previousAssets ?? {})) {
@@ -101,6 +103,7 @@ async function worker(
       return Promise.resolve();
     },
     Request,
+    TextDecoder,
     AbortSignal: {
       timeout(milliseconds: number) {
         const controller = new AbortController();
@@ -480,4 +483,38 @@ await test('atualização reaproveita WASM público somente com hash igual ao bu
     'public-shell',
   );
   assert.ok(altered.stores.has('unrelated-project-cache'));
+});
+
+await test('push público mostra autor e prévia validada, com símbolo monocromático e link interno', async () => {
+  const publicPreview = {
+    author: { id: crypto.randomUUID(), handle: 'sintetico', avatar: null },
+    post: crypto.randomUUID(),
+    community: crypto.randomUUID(),
+    text: 'Pequena prévia pública',
+    reply: true,
+  };
+  const scope = await worker({ pushAllowed: true, publicPreview });
+  await scope.dispatch('push');
+  const notification = scope.notifications[0]!;
+  assert.match(notification.title, /@sintetico respondeu/u);
+  assert.equal(notification.options.body, publicPreview.text);
+  assert.equal(notification.options.badge, '/notification-badge.png');
+  await scope.dispatch('notificationclick', {
+    notification: { close() {}, data: notification.options.data as unknown },
+  });
+  assert.deepEqual(scope.opened, [
+    `${scope.origin}/#comunidades?id=${publicPreview.community}&post=${publicPreview.post}`,
+  ]);
+  const blocked = await worker({ pushAllowed: false, publicPreview });
+  await blocked.dispatch('push');
+  assert.equal(blocked.notifications.length, 0);
+  const invalid = await worker({
+    pushAllowed: true,
+    publicPreview: {
+      ...publicPreview,
+      author: { ...publicPreview.author, wallet: 'private' },
+    },
+  });
+  await invalid.dispatch('push');
+  assert.equal(invalid.notifications.length, 0);
 });

@@ -1,0 +1,127 @@
+.community-author-badge {
+  display: inline-flex;
+  align-items: center;
+  margin-inline-start: 0.4rem;
+  vertical-align: middle;
+  font-size: 0.85em;
+}
+.community-author-badge[data-kind='custom'] {
+  padding: 0.12rem 0.4rem;
+  border: 1px solid var(--line);
+  border-radius: 0.4rem;
+  overflow-wrap: anywhere;
+}
+.post-preview-toggle {
+  margin-block: 0.3rem;
+}
+.community-presentation-editor {
+  display: grid;
+  gap: 0.8rem;
+  padding: 1rem;
+}
+.community-image-pick {
+  position: relative;
+  overflow: hidden;
+  padding: 0;
+  min-height: 5rem;
+}
+.community-image-pick img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.community-image-banner {
+  height: 12rem;
+}
+.community-image-photo {
+  width: 6rem;
+  height: 6rem;
+  border-radius: 50%;
+}
+.community-image-pick span {
+  position: absolute;
+  inset: auto 0 0;
+  padding: 0.4rem;
+  background: var(--surface);
+}
+.community-banner img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.community-badge-editor {
+  display: grid;
+  gap: 0.6rem;
+  padding-block: 1rem;
+}
+#app-shell .community-presentation-editor .community-image-pick {
+  display: block;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  border-radius: 0;
+}
+.community-image-slot {
+  position: relative;
+}
+.community-image-slot-banner {
+  height: clamp(110px, 16vw, 180px);
+}
+.community-image-slot-photo {
+  width: 6rem;
+  height: 6rem;
+  margin-top: -36px;
+  margin-inline: 20px;
+}
+#app-shell
+  .community-presentation-editor
+  .community-image-slot-photo
+  .community-image-pick {
+  border-radius: 50%;
+}
+#app-shell .community-presentation-editor .community-image-remove {
+  position: absolute;
+  z-index: 2;
+  top: 8px;
+  right: 8px;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  min-height: 0;
+  padding: 0;
+  margin: 0;
+  border-radius: 50%;
+  background: var(--overlay);
+  font-size: 20px;
+}
+#app-shell
+  .community-presentation-editor
+  .community-image-slot-photo
+  .community-image-remove {
+  top: auto;
+  right: 0;
+  bottom: 0;
+}
+#app-shell .community-presentation-editor .community-image-remove[hidden] {
+  display: none;
+}
+
+#app-shell .community-presentation-editor .community-image-pick span {
+  inset: 0;
+  display: grid;
+  place-items: center;
+  opacity: 0;
+  background: var(--overlay);
+}
+#app-shell
+  .community-presentation-editor
+  .community-image-pick:is(:hover, :focus-visible)
+  span,
+#app-shell
+  .community-presentation-editor
+  .community-image-pick:has(img[hidden])
+  span {
+  opacity: 1;
+}

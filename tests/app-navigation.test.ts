@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { pageKey } from '../src/client/app/pages.ts';
+import { pageKey, pageContent } from '../src/client/app/pages.ts';
 
 await test('links antigos de configurações e retornos da wallet abrem o Perfil', () => {
   for (const fragment of [
@@ -19,4 +19,13 @@ await test('âncora de acessibilidade não navega e rotas desconhecidas não exp
   assert.equal(pageKey('#contatos?convite=convite-sintetico'), 'contatos');
   assert.equal(pageKey('#comunidades?view=following'), 'comunidades');
   assert.equal(pageKey('#comunidades?id=identificador'), 'comunidades');
+});
+
+await test('Perfil sem login monta apenas a entrada; configurações aparecem com sessão', () => {
+  assert.equal(pageContent('perfil', false), '');
+  assert.match(pageContent('perfil', true), /data-device-settings/u);
+  assert.equal(
+    pageContent('comunidades', false),
+    pageContent('comunidades', true),
+  );
 });

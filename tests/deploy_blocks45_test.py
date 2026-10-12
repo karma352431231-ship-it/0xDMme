@@ -2,8 +2,10 @@
 
 import hashlib
 import json
+import os
 from pathlib import Path
 import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -15,6 +17,63 @@ import deploy_remote as base
 
 
 class ReviewedTransitionTests(unittest.TestCase):
+    def test_objects_above_256_mib_are_hashed_without_size_rejection_or_full_ram_copy(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory);objects=root/'objects/content';objects.mkdir(parents=True)
+            file=objects/'opaque';size=256*1024*1024+1
+            with file.open('wb') as output:output.truncate(size)
+            expected=hashlib.sha256();block=b'\0'*1024*1024
+            for _ in range(256):expected.update(block)
+            expected.update(b'\0')
+            with (patch.object(base,'DATA',root),patch.object(Path,'read_bytes',side_effect=AssertionError('full RAM copy'))):
+                self.assertEqual(transition.objects_snapshot(),{'opaque':expected.hexdigest()})
+            self.assertEqual(file.stat().st_size,size)
+
+    def test_free_space_reserve_uses_measured_database_and_object_sizes(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory);objects=root/'objects/content';objects.mkdir(parents=True)
+            (objects/'opaque').write_bytes(b'x'*123)
+            with patch.object(base,'DATA',root),patch.object(transition,'node',return_value=str(90*1024*1024).encode()):
+                self.assertEqual(transition.required_backup_space(),2*base.MAX_RELEASE+3*(90*1024*1024)+2*123)
+
+    def test_restore_sql_above_64_mib_stays_private_atomic_and_file_backed(self):
+        from deploy_backup_io import restore_transaction
+        consumed=[]
+        def execute(args,**options):
+            if args[0]=='pg_restore':
+                # Match real pg_restore: a child process writes to the shared
+                # descriptor after the parent's transaction prefix was flushed.
+                subprocess.run([sys.executable,'-c',
+                    "import sys; block=b'x'*1024*1024; [sys.stdout.buffer.write(block) for _ in range(65)]"],
+                    stdout=options['output'],check=True,timeout=10)
+                return
+            self.assertNotIn('input',options)
+            content=options['input_file']
+            self.assertEqual(Path(content.name).stat().st_mode&0o077,0)
+            self.assertTrue(content.read(64).startswith(b'BEGIN; DROP SCHEMA hash_talk CASCADE;'))
+            content.seek(-16,os.SEEK_END);consumed.append(content.read())
+            self.assertGreater(Path(content.name).stat().st_size,64*1024*1024)
+        with tempfile.TemporaryDirectory() as directory:
+            work=Path(directory)
+            for rollback in [True,False]:
+                restore_transaction(work,work/'dump',execute,rollback=rollback)
+            self.assertEqual(list(work.iterdir()),[])
+        self.assertTrue(consumed[0].endswith(b'ROLLBACK;\n'))
+        self.assertTrue(consumed[1].endswith(b'COMMIT;\n'))
+
+    def test_failed_dump_decode_never_opens_psql_and_removes_partial_sql(self):
+        from deploy_backup_io import restore_transaction
+        calls=[]
+        def execute(args,**options):
+            calls.append(args[0]);options['output'].write(b'partial')
+            raise RuntimeError('decode failed')
+        with tempfile.TemporaryDirectory() as directory:
+            work=Path(directory)
+            with self.assertRaisesRegex(RuntimeError,'decode failed'):
+                restore_transaction(work,work/'dump',execute,rollback=False)
+            self.assertEqual(list(work.iterdir()),[])
+        self.assertEqual(calls,['pg_restore'])
+
     def exports(self, old, new):
         previous = {'src/server/database/old.sql':b'old', 'package-lock.json':b'old-lock',
                     '.nvmrc':b'24.14.0', 'package.json':b'{"engines":{"node":">=24.14.0 <25"}}'}
@@ -106,6 +165,7 @@ class ReviewedTransitionTests(unittest.TestCase):
             stack.enter_context(patch.object(base, 'prune_completed'))
             stack.enter_context(patch.object(transition, 'prepare_candidate', return_value=candidate))
             stack.enter_context(patch.object(transition, 'own_free_bytes', return_value=2**30))
+            stack.enter_context(patch.object(transition, 'required_backup_space', return_value=1024))
             stack.enter_context(patch.object(transition, 'database_snapshot', side_effect=lambda:state['value']))
             stack.enter_context(patch.object(transition, 'objects_snapshot', return_value=objects))
             stack.enter_context(patch.object(transition, 'backup', return_value='b' * 64))
@@ -170,13 +230,10 @@ class ReviewedTransitionTests(unittest.TestCase):
             work = Path(directory)
             before = {'versions':[{'version':3}], 'tables':{}}
             with patch.object(base, 'digest', return_value='b' * 64), \
-                    patch.object(transition, 'pg', return_value=b'CREATE SCHEMA hash_talk;') as pg, \
+                    patch.object(transition, 'restore_transaction') as restore_sql, \
                     patch.object(transition, 'database_snapshot', return_value=before):
                 transition.restore(work, before, 'b' * 64)
-                query = pg.call_args_list[-1].kwargs['input']
-                self.assertTrue(query.startswith(b'BEGIN; DROP SCHEMA hash_talk CASCADE;'))
-                self.assertTrue(query.endswith(b'COMMIT;\n'))
-                self.assertNotIn(b'public', query)
+                restore_sql.assert_called_once_with(work,work/'database.dump',transition.pg,rollback=False)
                 with self.assertRaises(RuntimeError):
                     transition.restore(work, before, 'c' * 64)
 
@@ -200,14 +257,11 @@ class ReviewedTransitionTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             work = Path(directory)
             before = {'versions':[{'version':3}], 'tables':{}}
-            with patch.object(transition, 'restore_sql', return_value=b'CREATE SCHEMA hash_talk;'), \
-                    patch.object(transition, 'pg') as pg, \
+            with patch.object(base,'digest',return_value='b'*64), \
+                    patch.object(transition, 'restore_transaction') as restore_sql, \
                     patch.object(transition, 'database_snapshot', return_value=before):
                 transition.validate_restore(work, before, 'b' * 64)
-                query = pg.call_args.kwargs['input']
-                self.assertTrue(query.startswith(b'BEGIN; DROP SCHEMA hash_talk CASCADE;'))
-                self.assertTrue(query.endswith(b'ROLLBACK;\n'))
-                self.assertNotIn(b'COMMIT', query)
+                restore_sql.assert_called_once_with(work,work/'database.dump',transition.pg,rollback=True)
 
 
 if __name__ == '__main__':

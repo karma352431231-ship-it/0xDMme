@@ -1,4 +1,5 @@
-import { fetchApi, readApiJson } from '../api-response/index.ts';
+import type { CommunityActions } from './actions.ts';
+import { communityTargetPicker } from './target-picker.ts';
 import { keys, object } from '../../shared/account/index.ts';
 import {
   communityArray,
@@ -10,10 +11,7 @@ import type {
   CommunityState,
   Sanction,
 } from '../../shared/communities/index.ts';
-import {
-  publicHandle,
-  publicProfile,
-} from '../../shared/public-profile/index.ts';
+import { publicProfile } from '../../shared/public-profile/index.ts';
 import type { PublicProfile } from '../../shared/public-profile/index.ts';
 import {
   communityButton,
@@ -22,25 +20,20 @@ import {
   communityField,
   communityLink,
 } from './elements.ts';
-export interface CommunityActions {
-  mutate: (operation: string, data: Record<string, unknown>) => Promise<void>;
-  query: (work: () => Promise<void>) => Promise<void>;
-  request: (
-    operation: string,
-    data: Record<string, unknown>,
-  ) => Promise<unknown>;
-}
+export type { CommunityActions } from './actions.ts';
+/** `ownership` receives the owner's transfer/archive card; moderation gets the rest. */
 export function mountCommunityGovernance(
-  container: HTMLElement,
+  hosts: { container: HTMLElement; ownership: HTMLElement },
   state: CommunityState,
   actions: CommunityActions,
 ): void {
+  const { container } = hosts;
   if (state.role !== 'participant') {
     staff(container, state, actions);
     sanctionForm(container, state, actions);
   }
   reviews(container, state, actions);
-  if (state.role === 'owner') ownership(container, state, actions);
+  if (state.role === 'owner') ownership(hosts.ownership, state, actions);
   if (state.transfer && state.role !== 'owner')
     accept(container, state, actions);
   if (state.sanction && !state.sanction.appeal)
@@ -50,48 +43,7 @@ export function mountCommunityGovernance(
 function command(state: CommunityState): Record<string, unknown> {
   return { id: state.community.id, revision: state.community.revision };
 }
-function targetPicker(
-  container: HTMLElement,
-  actions: CommunityActions,
-): () => PublicProfile {
-  const handle = communityField(container, '@ do perfil público', {
-    maximum: 31,
-  });
-  const result = communityElement('p');
-  container.append(result);
-  let selected: PublicProfile | null = null;
-  handle.addEventListener('input', () => {
-    selected = null;
-    result.textContent = '';
-  });
-  communityButton(container, 'Buscar perfil', () =>
-    actions.query(async () => {
-      selected = null;
-      const requested = handle.value;
-      const response = await fetchApi(
-        'public-profile/read',
-        `/api/public-profiles/${encodeURIComponent(publicHandle(requested))}`,
-        {
-          credentials: 'omit',
-          cache: 'no-store',
-          redirect: 'error',
-          signal: AbortSignal.timeout(8000),
-        },
-      );
-      const profile = publicProfile(
-        await readApiJson(response, 'public-profile/read'),
-      );
-      if (handle.value !== requested) return;
-      selected = profile;
-      result.textContent = `Perfil selecionado: @${selected.handle}. Confira antes de confirmar.`;
-    }),
-  );
-  return () => {
-    if (!selected)
-      throw new Error('Busque e confira o perfil antes de continuar.');
-    return selected;
-  };
-}
+
 function staff(
   container: HTMLElement,
   state: CommunityState,
@@ -102,36 +54,36 @@ function staff(
   const list = communityElement('div');
   card.append(list);
   let after: string | null = null;
-  communityButton(card, 'Carregar moderadores', () =>
-    actions.query(async () => {
-      const data = object(
-        await actions.request('staff', { id: state.community.id, after }),
-      );
-      keys(data, ['items', 'next']);
-      list.replaceChildren();
-      for (const item of communityArray(data['items'])) {
-        const profile = publicProfile(item),
-          row = communityElement('div', '', 'community-row');
-        communityLink(
-          row,
-          `@${profile.handle}`,
-          `#publico?handle=${encodeURIComponent(profile.handle)}`,
-        );
-        if (state.role === 'owner')
-          communityButton(row, 'Remover moderador', () =>
-            actions.mutate('role', {
-              ...command(state),
-              target: profile.id,
-              moderator: false,
-            }),
-          );
-        list.append(row);
-      }
-      after = communityCursor(data['next']);
-    }),
+  // Loads on open: the screen is drawn inside a running operation, so this
+  // read cannot wait for the shared queue.
+  const load = async (): Promise<void> => {
+    const data = object(
+      await actions.request('staff', { id: state.community.id, after }),
+    );
+    keys(data, ['items', 'next']);
+    list.replaceChildren();
+    for (const item of communityArray(data['items']))
+      list.append(staffRow(publicProfile(item), state, actions));
+    if (!list.children.length)
+      list.append(communityElement('p', 'Nenhum moderador.', 'community-hint'));
+    after = communityCursor(data['next']);
+    more.hidden = after === null;
+  };
+  const more = communityButton(card, 'Mais moderadores', () =>
+    actions.query(load),
   );
+  more.hidden = true;
+  void load().catch(() => {
+    list.replaceChildren(
+      communityElement(
+        'p',
+        'Moderadores indisponíveis agora.',
+        'community-hint',
+      ),
+    );
+  });
   if (state.role !== 'owner') return;
-  const target = targetPicker(card, actions);
+  const target = communityTargetPicker(card, actions);
   communityButton(card, 'Nomear moderador', () =>
     actions.mutate('role', {
       ...command(state),
@@ -139,6 +91,27 @@ function staff(
       moderator: true,
     }),
   );
+}
+function staffRow(
+  profile: PublicProfile,
+  state: CommunityState,
+  actions: CommunityActions,
+): HTMLElement {
+  const row = communityElement('div', '', 'community-row');
+  communityLink(
+    row,
+    `@${profile.handle}`,
+    `#publico?handle=${encodeURIComponent(profile.handle)}`,
+  );
+  if (state.role === 'owner')
+    communityButton(row, 'Remover', () =>
+      actions.mutate('role', {
+        ...command(state),
+        target: profile.id,
+        moderator: false,
+      }),
+    );
+  return row;
 }
 function sanctionForm(
   container: HTMLElement,
@@ -153,7 +126,7 @@ function sanctionForm(
       'O motivo será visível ao participante e aos gestores. Gestores devem perder a função antes de serem sancionados.',
     ),
   );
-  const target = targetPicker(card, actions),
+  const target = communityTargetPicker(card, actions),
     reason = communityField(card, 'Motivo', { maximum: 1000, multiline: true });
   const label = communityElement('label', 'Duração'),
     days = communityElement('select');
@@ -193,7 +166,7 @@ function ownership(
       'A transferência depende do aceite do destinatário. Depois do aceite, você passa a participante e perde a gestão.',
     ),
   );
-  const target = targetPicker(card, actions);
+  const target = communityTargetPicker(card, actions);
   communityButton(card, 'Oferecer transferência', () =>
     actions.mutate('transfer-offer', {
       ...command(state),

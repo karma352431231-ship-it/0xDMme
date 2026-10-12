@@ -46,6 +46,45 @@ export function bindSettingsSections(
   return sections;
 }
 
+/**
+ * The last opened category reopens after a reload. Device-only convenience:
+ * without storage (private mode, blocked site data) the list simply starts closed.
+ */
+export const settingsSectionKey = '0xdmme:settings-section';
+type SectionStorage = Pick<Storage, 'getItem' | 'setItem'>;
+export function savedSettingsSection(storage: SectionStorage): string | null {
+  try {
+    return storage.getItem(settingsSectionKey);
+  } catch {
+    return null;
+  }
+}
+export function saveSettingsSection(storage: SectionStorage, id: string): void {
+  try {
+    storage.setItem(settingsSectionKey, id);
+  } catch {
+    // The category still opens; only the reload memory is unavailable.
+  }
+}
+
+/** `#perfil?secao=<id>` opens that category, e.g. "Editar perfil público". */
+export function requestedSettingsSection(hash: string): string | null {
+  return new URLSearchParams(hash.split('?')[1] ?? '').get('secao');
+}
+/** Opens a category by id; unknown ids leave the page as it is. */
+export function openSettingsSection(
+  host: HTMLElement,
+  id: string | null,
+): void {
+  if (!id) return;
+  const section = [
+    ...host.querySelectorAll<HTMLDetailsElement>('[data-settings-section]'),
+  ].find((node) => node.dataset['settingsSection'] === id);
+  if (!section) return;
+  section.open = true;
+  section.scrollIntoView({ block: 'nearest' });
+}
+
 /** Category list, shortcuts and the always-open category of the wide layout. */
 export function startSettingsCategories(
   host: HTMLElement,
@@ -55,6 +94,10 @@ export function startSettingsCategories(
   const wide = (): boolean => matchMedia(wideSettings).matches;
   for (const section of sections) {
     section.addEventListener('toggle', categories.sync);
+    section.addEventListener('toggle', () => {
+      const id = section.dataset['settingsSection'];
+      if (section.open && id) saveSettingsSection(localStorage, id);
+    });
     // Beside the list the open category is the page itself; it closes on phones.
     section.querySelector('summary')?.addEventListener('click', (event) => {
       if (wide() && section.open) event.preventDefault();
@@ -72,7 +115,14 @@ export function startSettingsCategories(
         if (target) target.open = true;
       });
     });
-  if (wide() && !sections.some((section) => section.open))
+  const saved =
+    requestedSettingsSection(location.hash) ??
+    savedSettingsSection(localStorage);
+  const last = sections.find(
+    (section) => section.dataset['settingsSection'] === saved,
+  );
+  if (last) last.open = true;
+  else if (wide() && !sections.some((section) => section.open))
     categories.first?.click();
 }
 
@@ -110,10 +160,10 @@ function categoryList(
 }
 
 const profileContent = `<section class="profile-settings" aria-label="Configurações da conta"><h2>Configurações</h2><p class="settings-intro">Abra a categoria que você quer ajustar.</p>
-${settingsSection({ id: 'privacy', title: 'Privacidade', description: 'Quem pode me encontrar', content: '<div data-contact-settings-container></div>' })}
+${settingsSection({ id: 'privacy', title: 'Privacidade', description: 'Presença, leitura e quem pode me encontrar', content: '<div data-privacy-settings></div><div data-contact-settings-container></div>' })}
 ${settingsSection({ id: 'profile', title: 'Perfil público', description: 'Seu @ e sua foto nas comunidades', content: '<div data-public-profile-settings></div>' })}
 ${settingsSection({ id: 'alerts', title: 'Notificações e chamadas', description: 'Push, sons e silêncio das conversas', content: '<div data-daily-settings></div><div data-call-settings></div>' })}
-${settingsSection({ id: 'devices', title: 'Aparelhos', description: 'Vincular, recuperar e gerenciar acessos', content: '<div data-device-settings></div>' })}
+${settingsSection({ id: 'devices', title: 'Dispositivos conectados', description: 'Vincular, recuperar e gerenciar acessos', content: '<div data-device-settings></div>' })}
 ${settingsSection({ id: 'vault', title: 'Cofre e backup', description: 'Uso do armazenamento, salvar e restaurar', content: '<div class="cards" data-vault-settings></div>' })}
 ${settingsSection({ id: 'representatives', title: 'Organizações e representantes', description: 'Organizações e autorizações assinadas', content: '<div data-representatives-settings></div>' })}
 ${settingsSection({ id: 'appearance', title: 'Aparência', description: 'Tema Azul, Preto ou Branco', content: '<div data-appearance-settings></div>' })}
@@ -153,6 +203,18 @@ export const pages = {
 };
 
 export type PageKey = keyof typeof pages;
+
+/** Settings are mounted only after an authenticated session exists. */
+export function profileSessionChanged(
+  page: string,
+  mounted: boolean,
+  authenticated: boolean,
+): boolean {
+  return page === 'perfil' && mounted !== authenticated;
+}
+export function pageContent(key: PageKey, authenticated: boolean): string {
+  return key === 'perfil' && !authenticated ? '' : pages[key].content;
+}
 
 /** Resolve presentation only; wallet-return fragments stay intact for account. */
 export function pageKey(hash: string): PageKey | null {

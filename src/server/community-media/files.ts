@@ -13,7 +13,10 @@ import {
 import { resolve } from 'node:path';
 import { createHash } from 'node:crypto';
 import { uuid } from '../../shared/account/index.ts';
-import { communityMediaPartBytes } from '../../shared/community-media/index.ts';
+import {
+  communityMediaPartBytes,
+  communityMediaLimits,
+} from '../../shared/community-media/index.ts';
 import type { CommunityMediaSource } from '../../shared/community-media/index.ts';
 
 /** Dedicated private namespaces. No public/static route points at this directory. */
@@ -173,7 +176,7 @@ export class CommunityMediaFiles {
         !stat.isFile() ||
         stat.size !== expectedBytes ||
         expectedBytes < 1 ||
-        expectedBytes > 25_000_000
+        expectedBytes > communityMediaLimits.video.result
       )
         throw new Error('Objeto de mídia irregular.');
       const buffer = Buffer.alloc(

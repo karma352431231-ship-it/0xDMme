@@ -1,3 +1,5 @@
+import { sendOnEnter } from './enter.ts';
+
 const icons = {
   back: '<path d="m14 6-6 6 6 6"/>',
   more: '<circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/>',
@@ -15,6 +17,7 @@ const icons = {
 } as const;
 
 export { bindRecordGesture, showRecording } from './voice.ts';
+export { sendOnEnter } from './enter.ts';
 
 export function chatIcon(name: keyof typeof icons): string {
   return `<svg viewBox="0 0 24 24" aria-hidden="true">${icons[name]}</svg>`;
@@ -38,8 +41,12 @@ export function chatCollapse(): string {
 }
 
 /** Authored markup only. Account names and decrypted text never enter this template. */
-export function chatComposer(scope: 'message' | 'group'): string {
-  const form = scope === 'message' ? 'message-form' : 'group-compose';
+export function chatComposer(scope: 'message' | 'group' | 'public'): string {
+  const form = {
+    message: 'message-form',
+    group: 'group-compose',
+    public: 'public-compose',
+  }[scope];
   return `<form data-${form} class="chat-composer">
     ${scope === 'message' ? `<div data-compose-bar class="compose-context" hidden><p data-compose-context></p><button data-compose-cancel class="chat-icon" type="button" aria-label="Cancelar resposta ou edição">${chatIcon('close')}</button></div>` : ''}
     <div class="compose-preview"><div data-attachment-preview></div><button data-attachment-clear class="chat-icon" type="button" aria-label="Remover anexo" title="Remover anexo" hidden>${chatIcon('trash')}</button></div>
@@ -93,7 +100,7 @@ export function updateChatComposer(
   if (text) text.disabled = input.recording;
   form
     .querySelectorAll<HTMLButtonElement>(
-      '[data-chat-attachment], [data-message-emoji], [data-group-emoji]',
+      '[data-chat-attachment], [data-message-emoji], [data-group-emoji], [data-public-emoji]',
     )
     .forEach((button) => {
       button.disabled = state.disabled;
@@ -111,14 +118,12 @@ export function bindChatComposer(form: HTMLElement, changed: () => void): void {
     changed();
   };
   text?.addEventListener('input', resize);
-  text?.addEventListener('keydown', (event) => {
-    // Touch keyboards keep Enter as a newline; desktop Ctrl/Cmd+Enter sends.
-    if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
-      event.preventDefault();
+  // Text, a photo or a voice preview: Enter sends whatever Enviar would send.
+  if (text)
+    sendOnEnter(text, () => {
       const send = form.querySelector<HTMLButtonElement>('[data-compose-send]');
       if (send && !send.hidden && !send.disabled) send.click();
-    }
-  });
+    });
   form
     .querySelectorAll<HTMLButtonElement>('[data-chat-attachment]')
     .forEach((button) => {

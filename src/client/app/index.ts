@@ -1,8 +1,14 @@
+import { startGroupEntrypoints } from './group-entrypoints.ts';
 import { paintAvatar, startAppearance } from '../appearance/index.ts';
 import { startPwa } from '../pwa/index.ts';
+import { updateBlockReason } from './update-readiness.ts';
 import { keepPageOnStrayDrop } from '../file-drop/index.ts';
 import { startAccount } from '../account/index.ts';
-import { startDevices } from '../devices/index.ts';
+import {
+  startDevices,
+  startEnrollmentEntry,
+  mountEnrollmentLogin,
+} from '../devices/index.ts';
 import { MessageReadiness } from '../message-live/index.ts';
 import { startBackups } from '../backups/index.ts';
 import { startVault } from '../vault-ui/index.ts';
@@ -18,13 +24,18 @@ import type { AccountSession } from '../../shared/account/index.ts';
 import type { AddressBookEntry } from '../../shared/contacts/index.ts';
 import {
   bindSettingsSections,
+  openSettingsSection,
   pages,
   pageKey,
+  pageContent,
+  profileSessionChanged,
+  requestedSettingsSection,
   startSettingsCategories,
 } from './pages.ts';
 import { startPanels } from './panels.ts';
 import { startActivity } from '../activity/index.ts';
 import { ExternalMediaConsent } from '../external-media/index.ts';
+import { startAccountSettings } from './account-settings.ts';
 import type { PageKey } from './pages.ts';
 
 function element<T extends HTMLElement>(id: string): T {
@@ -50,6 +61,7 @@ publicChat.innerHTML =
 const publicChatBody = publicChat.lastElementChild as HTMLElement;
 let currentPage = '';
 let currentHash = '';
+let profileAuthenticated = false;
 let closePublicProfile: (() => void) | null = null;
 function openConversation(): void {
   if (location.hash !== '#conversas') {
@@ -146,6 +158,11 @@ const messages = startMessages(devices, vault.sync, {
   sharedProfile: () => account.sharedProfile(),
   preferences: () => account.privacyPreferences(),
 });
+const groupEntrypoints = startGroupEntrypoints({
+  available: () => !!connectedAccount && devices.authorized(),
+  create: () => messages.createGroup(),
+  join: (url) => messages.joinGroup(url),
+});
 const activity = startActivity(
   {
     requests: () => contacts.incomingRequests(),
@@ -173,6 +190,18 @@ const activity = startActivity(
     },
   },
 );
+const accountSettings = startAccountSettings({
+  access: devices,
+  sync: vault.sync,
+  appearance,
+  externalMedia,
+  account: {
+    privacyPreferences: () => account.privacyPreferences(),
+    backupReminder: () => account.backupReminder(),
+    savePrivacy: (changes) => account.savePrivacy(changes),
+  },
+  contacts,
+});
 // Activity and status rings load once per authorized session, never on a timer.
 let sessionExtrasFor = '';
 const account = startAccount({
@@ -197,6 +226,7 @@ const account = startAccount({
     externalMedia.setSession(session);
     backups.setSession(session);
     contacts.setSession(session);
+    accountSettings.setSession(session);
     messages.setSession(session);
     calls.setSession(session);
     statuses.setSession(session);
@@ -214,6 +244,10 @@ const account = startAccount({
         ? session.name || 'Conta conectada'
         : 'Conta não conectada';
     railAvatar(session);
+    if (profileSessionChanged(currentPage, profileAuthenticated, !!session)) {
+      currentPage = '';
+      route();
+    }
   },
 });
 // The standalone wallet document has no workspace panels. Identify it through
@@ -247,26 +281,39 @@ const panels = account.approvalPage
 const pwa = account.approvalPage
   ? null
   : startPwa({
-      blockedReason: () => devices.updateBlockReason(),
-      canActivate: () =>
-        account.canActivate() &&
-        devices.canActivate() &&
-        vault.canActivate() &&
-        backups.canActivate() &&
-        contacts.canActivate() &&
-        messages.canActivate() &&
-        !calls.active() &&
-        statuses.canActivate() &&
-        representatives.canActivate() &&
-        extrasCanActivate(),
+      waitForIdle: true,
+      blockedReason: () =>
+        updateBlockReason({
+          authenticated: () => !!connectedAccount,
+          account,
+          devices,
+          vault,
+          backups,
+          contacts,
+          messages,
+          statuses,
+          representatives,
+          activity,
+          publicProfiles,
+          communities,
+          calls,
+        }),
     });
-function extrasCanActivate(): boolean {
-  return activity.canActivate() && socialCanActivate();
-}
-function socialCanActivate(): boolean {
-  return publicProfiles.canActivate() && communities.canActivate();
-}
 
+/** Every page feature releases its view before the next page mounts. */
+function leaveFeatures(next: PageKey): void {
+  messages.leave();
+  statuses.leave();
+  representatives.leave();
+  publicProfiles.leave();
+  communities.leave();
+  if (next !== 'comunidades') communities.forgetReturn();
+  closePublicProfile?.();
+  closePublicProfile = null;
+  activity.leave();
+  backups.leave();
+  vault.leave();
+}
 function route(): void {
   if (account.approvalPage) {
     renderApprovalPage();
@@ -280,25 +327,21 @@ function route(): void {
   ) {
     // Account handles wallet-return fragments; keep profile drafts/camera mounted.
     currentHash = location.hash;
+    if (key === 'perfil')
+      openSettingsSection(
+        element('page-content'),
+        requestedSettingsSection(location.hash),
+      );
     return;
   }
   currentPage = key;
   currentHash = location.hash;
   element('app-shell').dataset['page'] = key;
-  const page = pages[key];
   renderPageHeader(key);
-  messages.leave();
-  statuses.leave();
-  representatives.leave();
-  publicProfiles.leave();
-  communities.leave();
-  closePublicProfile?.();
-  closePublicProfile = null;
-  activity.leave();
-  backups.leave();
-  vault.leave();
+  leaveFeatures(key);
   // Templates are static authored content. No user/server input enters HTML.
-  element('page-content').innerHTML = page.content;
+  profileAuthenticated = !!connectedAccount;
+  element('page-content').innerHTML = pageContent(key, profileAuthenticated);
   if (key === 'conversas')
     element('page-content').append(conversationContent, publicChat);
   mountAccountPanels(key);
@@ -348,6 +391,10 @@ function renderPageHeader(key: PageKey): void {
   document.title = `${title} · 0xDMme`;
 }
 function mountProfileSettings(content: HTMLElement): void {
+  const privacySettings = content.querySelector<HTMLElement>(
+    '[data-privacy-settings]',
+  );
+  if (privacySettings) account.mountPrivacy(privacySettings);
   const appearanceSettings = content.querySelector<HTMLElement>(
     '[data-appearance-settings]',
   );
@@ -455,8 +502,15 @@ function mountAccountPanels(key: PageKey): void {
   const container = document.createElement('div');
   container.className = 'account-section';
   element('page-content').prepend(container);
-  account.mount(container, key === 'perfil' ? 'settings' : 'login');
+  account.mount(
+    container,
+    key === 'perfil' && connectedAccount ? 'settings' : 'login',
+  );
   if (key !== 'perfil') return;
+  if (!connectedAccount) {
+    mountEnrollmentLogin(container, devices);
+    return;
+  }
   const meter = document.createElement('div');
   meter.className = 'vault-meter';
   container.after(meter);
@@ -487,9 +541,11 @@ function connection(): void {
     if (messagesReady) messages.ready();
     calls.ready();
     contacts.ready();
+    groupEntrypoints.ready();
     statuses.ready();
     void vault.ready();
     loadSessionExtras(connectedAccount.accountId);
+    if (!account.approvalPage) accountSettings.ready();
   }
   renderConnection();
 }
@@ -586,5 +642,6 @@ document
 window.addEventListener('hashchange', route);
 window.addEventListener('online', connection);
 window.addEventListener('offline', connection);
+startEnrollmentEntry(devices);
 route();
 connection();

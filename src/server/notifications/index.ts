@@ -30,6 +30,7 @@ export type PushSend = (
   delivery?: PushDelivery,
 ) => Promise<void>;
 import { WorkScheduler } from '../work-scheduler/index.ts';
+import type { PublicNotificationPreview } from '../../shared/public-notification/index.ts';
 import { CallPushQueue } from './call-push.ts';
 import type { CallInvitation } from './call-push.ts';
 
@@ -172,9 +173,12 @@ export class NotificationService {
   async flushCalls(): Promise<void> {
     await this.calls.flush();
   }
-  async inspectPush(
-    session: AccountSession,
-  ): Promise<{ allowed: boolean; call: boolean; showCall: boolean }> {
+  async inspectPush(session: AccountSession): Promise<{
+    allowed: boolean;
+    call: boolean;
+    showCall: boolean;
+    publicPreview?: PublicNotificationPreview;
+  }> {
     const current = await this.devices.current(session.accountId);
     if (!current) return { allowed: false, call: false, showCall: false };
     const authority = { session, directory: current.head };
@@ -183,10 +187,14 @@ export class NotificationService {
       state.registered &&
       state.calls &&
       (await this.incoming(session, current.head));
+    const allowed = call || (await this.store.check(authority));
+    const publicPreview =
+      allowed && !call ? await this.store.publicPreview(authority) : null;
     return {
-      allowed: call || (await this.store.check(authority)),
+      allowed,
       call,
       showCall: call && state.showCalls,
+      ...(publicPreview ? { publicPreview } : {}),
     };
   }
   start(): void {

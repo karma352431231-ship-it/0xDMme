@@ -1,8 +1,8 @@
+import { prepareMessageRuntime } from '../message-runtime/index.ts';
 import {
   BackupDecryptionKey,
   Curve25519PublicKey,
   PkEncryption,
-  initAsync,
 } from '@matrix-org/matrix-sdk-crypto-wasm';
 import { base64, encode } from '../../shared/account/index.ts';
 import {
@@ -23,7 +23,7 @@ import { openBlock, sealBlock } from '../vault-crypto/index.ts';
 export async function createRecoveryKey(
   authority: VaultAuthority,
 ): Promise<RecoveryKey> {
-  await initAsync('/matrix-crypto-18.9.0.wasm');
+  await prepareMessageRuntime();
   const secret = BackupDecryptionKey.createRandomKey();
   const publicKey = secret.megolmV1PublicKey;
   try {
@@ -63,7 +63,7 @@ export async function openRecoveryKey(
   input: unknown,
   authority: VaultAuthority,
 ): Promise<BackupDecryptionKey> {
-  await initAsync('/matrix-crypto-18.9.0.wasm');
+  await prepareMessageRuntime();
   const raw = recoveryKey(input);
   const event = authority.events[raw.authorityRevision - 1];
   if (!event) throw new Error('Autoridade histórica da recuperação ausente.');
@@ -93,7 +93,7 @@ export async function archiveRoomKey(
   key: RecoveryKey,
   exported: string,
 ): Promise<RoomKeyArchive> {
-  await initAsync('/matrix-crypto-18.9.0.wasm');
+  await prepareMessageRuntime();
   const publicKey = new Curve25519PublicKey(key.publicKey);
   const encryption = PkEncryption.fromKey(publicKey);
   try {
