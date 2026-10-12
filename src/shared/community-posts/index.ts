@@ -30,6 +30,8 @@ export interface PostTag {
   revision: number;
 }
 export interface CommunityPost {
+  /** Present only in authenticated projections for this viewer. */
+  viewer?: { vote: -1 | 0 | 1; shared: boolean };
   authorBadges?: CommunityBadge[];
   id: string;
   community: string;
@@ -57,6 +59,7 @@ export interface PostRemoval {
   decision: string | null;
 }
 export interface PostState {
+  shared?: boolean;
   post: CommunityPost;
   own: boolean;
   manager: boolean;
@@ -176,6 +179,19 @@ function postViewFields(data: Record<string, unknown>) {
     ? { views: postCount(data['views']) }
     : {};
 }
+function postViewerFields(
+  data: Record<string, unknown>,
+): Pick<CommunityPost, 'viewer'> {
+  if (!Object.hasOwn(data, 'viewer')) return {};
+  const viewer = object(data['viewer']);
+  keys(viewer, ['vote', 'shared']);
+  return {
+    viewer: {
+      vote: votePosition(viewer['vote']),
+      shared: communityBoolean(viewer['shared']),
+    },
+  };
+}
 export function communityPost(value: unknown): CommunityPost {
   const data = object(value);
   keys(data, [
@@ -196,6 +212,7 @@ export function communityPost(value: unknown): CommunityPost {
     ...(Object.hasOwn(data, 'authorBadges') ? ['authorBadges'] : []),
     ...(Object.hasOwn(data, 'views') ? ['views'] : []),
     ...(Object.hasOwn(data, 'media') ? ['media'] : []),
+    ...(Object.hasOwn(data, 'viewer') ? ['viewer'] : []),
   ]);
   const status = data['status'];
   if (status !== 'visible' && status !== 'removed' && status !== 'deleted')
@@ -213,6 +230,7 @@ export function communityPost(value: unknown): CommunityPost {
     score: postCount(data['score'], true),
     replies: postCount(data['replies']),
     ...postViewFields(data),
+    ...postViewerFields(data),
   };
 }
 export function postPage(value: unknown): PostPage {
@@ -265,6 +283,7 @@ export function postState(value: unknown): PostState {
     'content',
     'removal',
     'vote',
+    ...(Object.hasOwn(data, 'shared') ? ['shared'] : []),
   ]);
   const own = communityBoolean(data['own']),
     manager = communityBoolean(data['manager']);
@@ -282,6 +301,9 @@ export function postState(value: unknown): PostState {
     content,
     removal,
     vote: postVote(data['vote']),
+    ...(Object.hasOwn(data, 'shared')
+      ? { shared: communityBoolean(data['shared']) }
+      : {}),
   };
 }
 /** Links never load previews or embed external media. Only explicit HTTP(S) navigation. */

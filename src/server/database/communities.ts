@@ -181,6 +181,11 @@ export class CommunityStore {
     return this.photos.references(client, ids);
   }
   /** Discovery projects at most one page without private governance columns. */
+  async publicIdentity(client: Pick<pg.PoolClient, 'query'>, profile: string) {
+    return (
+      (await this.profiles.identities(client, [profile])).get(profile) ?? null
+    );
+  }
   async readMany(
     client: Pick<pg.PoolClient, 'query'>,
     ids: string[],

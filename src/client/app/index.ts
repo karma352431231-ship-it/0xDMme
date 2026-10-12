@@ -1,9 +1,14 @@
 import { startGroupEntrypoints } from './group-entrypoints.ts';
 import { paintAvatar, startAppearance } from '../appearance/index.ts';
 import { startPwa } from '../pwa/index.ts';
+import { updateBlockReason } from './update-readiness.ts';
 import { keepPageOnStrayDrop } from '../file-drop/index.ts';
 import { startAccount } from '../account/index.ts';
-import { startDevices } from '../devices/index.ts';
+import {
+  startDevices,
+  startEnrollmentEntry,
+  mountEnrollmentLogin,
+} from '../devices/index.ts';
 import { MessageReadiness } from '../message-live/index.ts';
 import { startBackups } from '../backups/index.ts';
 import { startVault } from '../vault-ui/index.ts';
@@ -22,6 +27,8 @@ import {
   openSettingsSection,
   pages,
   pageKey,
+  pageContent,
+  profileSessionChanged,
   requestedSettingsSection,
   startSettingsCategories,
 } from './pages.ts';
@@ -54,6 +61,7 @@ publicChat.innerHTML =
 const publicChatBody = publicChat.lastElementChild as HTMLElement;
 let currentPage = '';
 let currentHash = '';
+let profileAuthenticated = false;
 let closePublicProfile: (() => void) | null = null;
 function openConversation(): void {
   if (location.hash !== '#conversas') {
@@ -231,6 +239,10 @@ const account = startAccount({
         ? session.name || 'Conta conectada'
         : 'Conta não conectada';
     railAvatar(session);
+    if (profileSessionChanged(currentPage, profileAuthenticated, !!session)) {
+      currentPage = '';
+      route();
+    }
   },
 });
 // The standalone wallet document has no workspace panels. Identify it through
@@ -264,25 +276,24 @@ const panels = account.approvalPage
 const pwa = account.approvalPage
   ? null
   : startPwa({
-      blockedReason: () => devices.updateBlockReason(),
-      canActivate: () =>
-        account.canActivate() &&
-        devices.canActivate() &&
-        vault.canActivate() &&
-        backups.canActivate() &&
-        contacts.canActivate() &&
-        messages.canActivate() &&
-        !calls.active() &&
-        statuses.canActivate() &&
-        representatives.canActivate() &&
-        extrasCanActivate(),
+      waitForIdle: true,
+      blockedReason: () =>
+        updateBlockReason({
+          authenticated: () => !!connectedAccount,
+          account,
+          devices,
+          vault,
+          backups,
+          contacts,
+          messages,
+          statuses,
+          representatives,
+          activity,
+          publicProfiles,
+          communities,
+          calls,
+        }),
     });
-function extrasCanActivate(): boolean {
-  return activity.canActivate() && socialCanActivate();
-}
-function socialCanActivate(): boolean {
-  return publicProfiles.canActivate() && communities.canActivate();
-}
 
 /** Every page feature releases its view before the next page mounts. */
 function leaveFeatures(next: PageKey): void {
@@ -321,11 +332,11 @@ function route(): void {
   currentPage = key;
   currentHash = location.hash;
   element('app-shell').dataset['page'] = key;
-  const page = pages[key];
   renderPageHeader(key);
   leaveFeatures(key);
   // Templates are static authored content. No user/server input enters HTML.
-  element('page-content').innerHTML = page.content;
+  profileAuthenticated = !!connectedAccount;
+  element('page-content').innerHTML = pageContent(key, profileAuthenticated);
   if (key === 'conversas')
     element('page-content').append(conversationContent, publicChat);
   mountAccountPanels(key);
@@ -482,8 +493,15 @@ function mountAccountPanels(key: PageKey): void {
   const container = document.createElement('div');
   container.className = 'account-section';
   element('page-content').prepend(container);
-  account.mount(container, key === 'perfil' ? 'settings' : 'login');
+  account.mount(
+    container,
+    key === 'perfil' && connectedAccount ? 'settings' : 'login',
+  );
   if (key !== 'perfil') return;
+  if (!connectedAccount) {
+    mountEnrollmentLogin(container, devices);
+    return;
+  }
   const meter = document.createElement('div');
   meter.className = 'vault-meter';
   container.after(meter);
@@ -615,5 +633,6 @@ document
 window.addEventListener('hashchange', route);
 window.addEventListener('online', connection);
 window.addEventListener('offline', connection);
+startEnrollmentEntry(devices);
 route();
 connection();

@@ -205,6 +205,7 @@ function fixture(post = false) {
     window: new EventTarget(),
     HTMLElement: CommunityNode,
     HTMLAnchorElement: CommunityNode,
+    HTMLButtonElement: CommunityNode,
     HTMLInputElement: CommunityNode,
     URL,
     URLSearchParams,

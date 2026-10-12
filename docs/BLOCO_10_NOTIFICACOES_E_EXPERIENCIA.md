@@ -27,7 +27,7 @@ Implementação local em 03/10/2026, solicitada para todos os itens do bloco. O 
 
 Mute fica no servidor para funcionar sem chaves E2EE. Arquivar/fixar permanecem no cofre cifrado. Admissão não agenda push para a conversa silenciada, mesmo com não lidas antigas de outro contato. Emissão e consulta pelo Service Worker verificam aparelho autorizado, consentimento bilateral, mensagens não lidas e mute vigente.
 
-Payload fixo: título **0xDMme**, corpo **Há nova atividade. Abra o app para sincronizar.** Sem texto, mídia, wallet, remetente, ID da conversa ou chaves. A biblioteca cifra o transporte Web Push; não substitui Olm/Megolm das mensagens. O Worker ignora o payload recebido e consulta a mesma origem com cookie autenticado, `no-store` e timeout de cinco segundos. Sem sessão, offline ou sem conferir mute, não exibe alerta. O clique foca o app ou abre conversas, sem URL vinda do payload.
+Payload fixo: título **0xDMme**, corpo **Há nova atividade. Abra o app para sincronizar.** Sem texto, mídia, wallet, remetente, ID da conversa ou chaves. A biblioteca cifra o transporte Web Push; não substitui Olm/Megolm das mensagens. O Worker ignora o payload recebido e consulta a mesma origem com cookie autenticado, `no-store` e timeout de cinco segundos. Sem sessão, offline ou sem conferir mute, não exibe alerta. Para atividade privada, o clique foca o app ou abre conversas, sem URL vinda do payload. Desde o ajuste de 12/10 abaixo, uma prévia pública validada pode abrir a própria discussão.
 
 Há corrida entre a conferência de mute e o sistema exibir um alerta já entregue. Aplicar mute fecha notificações genéricas existentes nesse navegador; não se promete retirar alertas vistos em outro aparelho. Provedores observam inscrição, IP/horários e tamanho do transporte; push não promete anonimato de metadados.
 
@@ -98,3 +98,15 @@ Emissor dedicado na mesma VPS (opção B), preservando isolamento web, sem acess
 Convite de chamada dura 60 s. Destinatários com inscrição autorizada podem abrir o app e receber a oferta cifrada antes de expirar. Estado/ofertas e fila imediata de avisos permanecem em RAM; não inserir IDs/sinais em filas duráveis de mensagens. Revalidar contato, diretório, preferência global, silêncio e inscrição antes de enviar/exibir/atender. Primeiro atendimento vence; recusa/cancelamento/expiração invalida os demais. Worker consulta a mesma origem, ignora payload recebido e navega somente ao app. Notificações já exibidas não são prova de convite vigente: abrir revalida a chamada. Não criar histórico de chamadas perdidas.
 
 **Ponto importante:** ativação na VPS, envio a provedores reais e matriz física continuam pendentes; a preparação local não promete atendimento nativo em segundo plano nem entrega pontual.
+
+## Prévia pública no push, perfil visitante e atualização — 12/10/2026
+
+Pedido do proprietário: corrigir o quadrado preto da notificação mobile e mostrar quem publicou/respondeu e um trecho. O badge pequeno passa a ser PNG monocromático com transparência, separado do ícone colorido do app. Para atividade pública elegível, o worker busca pelo endpoint autenticado da própria origem o `@` público e até 160 caracteres de título/texto normalizados. Sem texto, informa nova publicação com mídia. Sessão/aparelho, inscrição, preferência por dispositivo, sininho, bloqueios, leitura e visibilidade do original/ancestrais são revalidados; resultado inválido não gera alerta.
+
+Posts/replies de perfis seguidos com sininho ativado também acordam os dispositivos inscritos. Seguir sozinho continua sem ativar o sininho. O serviço isolado e o provedor externo continuam recebendo somente o sinal genérico: nenhum `@`, texto público, conteúdo privado, wallet ou chave. Chat E2EE conserva notificação genérica. Chamadas conservam suas opções existentes. Ao tocar numa prévia pública, a rota da discussão abre dentro da aba existente sem recarregá-la; sem aba, abre o app nesse destino. URLs externas são recusadas.
+
+Perfil visitante mostra entrada na conta, sem categorias/configurações privadas. Login e logout remontam a tela de Perfil para refletir a sessão atual. A opção de colar o vínculo permanece na entrada.
+
+**Atualizar agora** deixa de tratar preferências devolvidas ao valor salvo e descrição pública inalterada como rascunhos. Ignora os painéis privados desconectados e informa a área que está realmente ocupada. Após o clique, espera até cinco segundos por uma operação transitória, revalidando a cada tentativa; rascunhos reais, chamadas e autorizações pendentes continuam protegidos. Não ativa por mero vencimento do prazo nem recarrega após perder a autorização para atualizar.
+
+**Ponto importante:** a prévia revela só conteúdo já público ao próprio dispositivo autenticado. O desenho final da notificação continua sob controle do navegador/sistema; conferir o badge e o push num Android real após publicar a versão.

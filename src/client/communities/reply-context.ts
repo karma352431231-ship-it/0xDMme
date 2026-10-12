@@ -1,6 +1,9 @@
 import { communityPost } from '../../shared/community-posts/index.ts';
 import type { CommunityPost } from '../../shared/community-posts/index.ts';
-import { showPublicPostMedia } from '../public-media/index.ts';
+import {
+  showPublicPostMedia,
+  showPublicAvatar,
+} from '../public-media/index.ts';
 import { communityRead } from './controller.ts';
 import { communityElement as el } from './elements.ts';
 import { postPreview } from './post-preview.ts';
@@ -34,23 +37,35 @@ export function repliedPost(input: {
   /** The thread's first post, linked when the reply answers another reply. */
   root?: CommunityPost;
   signal: AbortSignal;
+  kind?: 'reply' | 'share';
 }): HTMLElement {
   const { parent, community, root, signal } = input;
   const section = el('section', '', 'replied-post');
-  section.setAttribute('aria-label', 'Postagem respondida');
-  section.append(
-    el(
-      'p',
-      parent.author
-        ? `Em resposta a @${parent.author.handle}`
-        : 'Em resposta a uma conta removida',
-      'replied-post-label',
-    ),
+  section.setAttribute(
+    'aria-label',
+    input.kind === 'share' ? 'Postagem compartilhada' : 'Postagem respondida',
   );
+  if (input.kind !== 'share')
+    section.append(
+      el(
+        'p',
+        parent.author
+          ? `Em resposta a @${parent.author.handle}`
+          : 'Em resposta a uma conta removida',
+        'replied-post-label',
+      ),
+    );
   const quoted = el('article', '', 'replied-post-card');
   section.append(quoted);
   if (parent.status !== 'visible') {
-    quoted.append(el('p', 'Postagem respondida indisponível.'));
+    quoted.append(
+      el(
+        'p',
+        input.kind === 'share'
+          ? 'Postagem compartilhada indisponível.'
+          : 'Postagem respondida indisponível.',
+      ),
+    );
     return section;
   }
   quotedContent(quoted, parent, community, signal);
@@ -70,7 +85,14 @@ function quotedContent(
   community: Place,
   signal: AbortSignal,
 ): void {
-  postHeader(quoted, parent, community, 'community');
+  const avatar = postHeader(quoted, parent, community, 'community');
+  if (parent.author?.avatar)
+    showPublicAvatar(avatar, {
+      kind: 'avatar',
+      target: parent.author.id,
+      reference: parent.author.avatar,
+      signal,
+    });
   if (!parent.parent && parent.title) quoted.append(el('h3', parent.title));
   if (parent.text) quoted.append(postPreview(parent.text));
   if (parent.media?.length) showPublicPostMedia(quoted, parent.media, signal);

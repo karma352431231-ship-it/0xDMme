@@ -8,6 +8,8 @@ import {
 } from '../communities/index.ts';
 import type { Community } from '../communities/index.ts';
 import { publicAvatar } from '../public-media/index.ts';
+import { publicProfile } from '../public-profile/index.ts';
+import type { PublicProfile } from '../public-profile/index.ts';
 import {
   communityPost,
   postCount,
@@ -37,6 +39,15 @@ export interface RankCursor {
   id: string;
 }
 export interface FeedEntry {
+  activityId?: string;
+  viewerVote?: -1 | 0 | 1;
+  viewerShared?: boolean;
+  share?: {
+    id: string;
+    createdAt: string;
+    author: PublicProfile;
+    own?: boolean;
+  };
   ownCommunity?: boolean;
   post: CommunityPost;
   community: { id: string; name: string; avatar?: string | null };
@@ -168,6 +179,9 @@ export function feedPage(value: unknown): FeedPage {
         'community',
         ...(Object.hasOwn(row, 'context') ? ['context'] : []),
         ...(Object.hasOwn(row, 'ownCommunity') ? ['ownCommunity'] : []),
+        ...['activityId', 'viewerVote', 'viewerShared', 'share'].filter((key) =>
+          Object.hasOwn(row, key),
+        ),
       ]);
       keys(
         group,
@@ -181,6 +195,7 @@ export function feedPage(value: unknown): FeedPage {
         throw new AccountError(400, 'Comunidade do feed inválida.');
       return {
         post,
+        ...feedInteractions(row),
         ...(Object.hasOwn(row, 'ownCommunity')
           ? { ownCommunity: communityBoolean(row['ownCommunity']) }
           : {}),
@@ -197,6 +212,48 @@ export function feedPage(value: unknown): FeedPage {
     next: nextCursor(data['next']),
   };
 }
+function feedInteractions(
+  row: Record<string, unknown>,
+): Pick<FeedEntry, 'activityId' | 'share' | 'viewerVote' | 'viewerShared'> {
+  const extra: Pick<
+    FeedEntry,
+    'activityId' | 'share' | 'viewerVote' | 'viewerShared'
+  > = {};
+  if (Object.hasOwn(row, 'activityId'))
+    extra.activityId = uuid(row['activityId']);
+  if (Object.hasOwn(row, 'viewerShared'))
+    extra.viewerShared = communityBoolean(row['viewerShared']);
+  if (Object.hasOwn(row, 'viewerVote')) {
+    const position = row['viewerVote'];
+    if (position !== -1 && position !== 0 && position !== 1)
+      throw new AccountError(400, 'Voto inválido.');
+    extra.viewerVote = position;
+  }
+  if (Object.hasOwn(row, 'share')) {
+    extra.share = feedShare(row['share']);
+    if (extra.share.id !== extra.activityId)
+      throw new AccountError(400, 'Atividade compartilhada inválida.');
+  }
+  return extra;
+}
+function feedShare(value: unknown): NonNullable<FeedEntry['share']> {
+  const share = object(value);
+  keys(share, [
+    'id',
+    'createdAt',
+    'author',
+    ...(Object.hasOwn(share, 'own') ? ['own'] : []),
+  ]);
+  return {
+    id: uuid(share['id']),
+    createdAt: postTime(share['createdAt']),
+    author: publicProfile(share['author']),
+    ...(Object.hasOwn(share, 'own')
+      ? { own: communityBoolean(share['own']) }
+      : {}),
+  };
+}
+
 function feedContext(value: unknown, post: CommunityPost) {
   const data = object(value);
   keys(data, ['root', 'parent']);

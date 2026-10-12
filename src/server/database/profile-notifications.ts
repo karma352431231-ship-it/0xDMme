@@ -52,3 +52,16 @@ function notificationChange(
     throw new AccountError(403, 'Siga a conta antes de ativar o sininho.');
   return enabled === old.enabled ? null : enabled;
 }
+
+export async function queueWatchedPost(
+  client: pg.PoolClient,
+  author: string,
+): Promise<void> {
+  await client.query(
+    `UPDATE hash_talk.push_subscriptions s SET pending=true,generation=generation+1,attempts=0,next_attempt=now()
+    WHERE EXISTS(SELECT 1 FROM hash_talk.public_profile_follows f JOIN hash_talk.public_profiles pp ON pp.id=f.follower
+      WHERE f.target=$1 AND f.following AND f.notifications AND pp.account_id=s.account_id
+      AND NOT EXISTS(SELECT 1 FROM hash_talk.social_blocks b WHERE b.blocked AND ((b.actor=f.follower AND b.target=$1) OR (b.actor=$1 AND b.target=f.follower))))`,
+    [author],
+  );
+}

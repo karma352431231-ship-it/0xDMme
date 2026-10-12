@@ -1,4 +1,7 @@
 import type pg from 'pg';
+import { sharedPostIds } from './post-sharing.ts';
+import { withPostInteractions } from './community-interaction-view.ts';
+import { queueWatchedPost } from './profile-notifications.ts';
 import {
   postVotes,
   setPostVote,
@@ -466,6 +469,11 @@ export class CommunityPostStore {
       context.actor.id,
       rows.map((row) => row.id),
     );
+    const shared = await sharedPostIds(
+      context.client,
+      context.actor.id,
+      rows.map((row) => row.id),
+    );
     return rows.map((row) => {
       const own = row.author === context.actor.id,
         restricted = own || manager;
@@ -474,6 +482,7 @@ export class CommunityPostStore {
         own,
         manager,
         vote: votes.get(row.id) ?? { position: 0, revision: 0 },
+        shared: shared.has(row.id),
         canEdit: editable(row, own, canPost),
         canDelete: own && !row.deleted,
         content:
@@ -530,6 +539,7 @@ export class CommunityPostStore {
     await requireTagged(context, value, { root: !parent, previous: [] });
     await insertPost(context, { id, value, parent });
     await this.media.replace(context, { post: id, ids: value.media ?? [] });
+    await queueWatchedPost(context.client, context.actor.id);
     if (parent) {
       await context.client.query(
         'UPDATE hash_talk.community_posts SET replies=replies+1 WHERE id=$1',
@@ -654,7 +664,11 @@ export class CommunityPostStore {
         if (operation === 'post-public') {
           keys(data, ['id', 'post']);
           await this.requireVisibleTo(context, uuid(data['post']));
-          return this.read(context.row.id, uuid(data['post']));
+          return (
+            await withPostInteractions(context.client, context.actor.id, [
+              await this.read(context.row.id, uuid(data['post'])),
+            ])
+          )[0]!;
         }
         if (operation === 'post-replies') {
           keys(data, ['id', 'post', 'after']);
@@ -672,7 +686,11 @@ export class CommunityPostStore {
           const lookup = await this.lookups(context.client, result.items);
           return {
             ...result,
-            items: result.items.map((row) => this.view(row, lookup)),
+            items: await withPostInteractions(
+              context.client,
+              context.actor.id,
+              result.items.map((row) => this.view(row, lookup)),
+            ),
           };
         }
         if (operation.startsWith('tag-')) {

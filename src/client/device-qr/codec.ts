@@ -29,7 +29,10 @@ export function qrReceipt(receipt: string): string {
   return prefix.receipt + receipt;
 }
 export function readQrPayload(payload: string, kind: QrKind): string {
-  if (kind === 'enrollment') return enrollmentPayload(readEnrollment(payload));
+  if (kind === 'enrollment')
+    return enrollmentPayload(
+      readEnrollment(payload, globalThis.location?.origin),
+    );
   if (kind === 'invitation') {
     if (
       payload.length > 512 ||

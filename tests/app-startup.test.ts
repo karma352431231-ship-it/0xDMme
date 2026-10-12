@@ -11,7 +11,7 @@ const featureExports: Record<string, string[]> = {
   appearance: ['startAppearance', 'paintAvatar'],
   pwa: ['startPwa'],
   account: ['startAccount'],
-  devices: ['startDevices'],
+  devices: ['startDevices', 'startEnrollmentEntry', 'mountEnrollmentLogin'],
   'message-live': ['MessageReadiness'],
   backups: ['startBackups'],
   'vault-ui': ['startVault'],
@@ -80,6 +80,7 @@ class Node extends EventTarget {
     return [];
   }
   setAttribute(): void {}
+  after(): void {}
   prepend(node: Node): void {
     this.children.unshift(node);
   }
@@ -91,7 +92,7 @@ class Node extends EventTarget {
   }
 }
 
-async function page(approval: boolean, userAgent: string) {
+async function page(approval: boolean, userAgent: string, hash = '#conversas') {
   const html = await readFile(
     `src/client/app/${approval ? 'wallet' : 'index'}.html`,
     'utf8',
@@ -108,6 +109,7 @@ async function page(approval: boolean, userAgent: string) {
     createElement: () => new Node(),
   });
   const mounted: Node[] = [];
+  const modes: (string | undefined)[] = [];
   let pwaStarts = 0;
   let changed: (session: AccountSession | null) => void = () => {};
   const feature = {
@@ -117,6 +119,7 @@ async function page(approval: boolean, userAgent: string) {
     leave: () => {},
     forgetReturn: () => {},
     mount: () => {},
+    mountMeter: () => {},
     ready: () => {},
     authorized: () => false,
   };
@@ -128,7 +131,10 @@ async function page(approval: boolean, userAgent: string) {
       changed = options.changed;
       return {
         approvalPage: approval,
-        mount: (node: Node) => mounted.push(node),
+        mount: (node: Node, mode?: string) => {
+          mounted.push(node);
+          modes.push(mode);
+        },
       };
     },
     startPwa: () => {
@@ -160,13 +166,13 @@ async function page(approval: boolean, userAgent: string) {
     document,
     window: new EventTarget(),
     navigator: { onLine: true, userAgent },
-    location: { hash: approval ? '#configuracoes' : '#conversas' },
+    location: { hash: approval ? '#configuracoes' : hash },
     matchMedia: () => Object.assign(new EventTarget(), { matches: !approval }),
     localStorage: { getItem: () => null, setItem: () => {} },
     URLSearchParams,
     HTMLElement: Node,
   });
-  return { nodes, mounted, document, pwaStarts, changed };
+  return { nodes, mounted, modes, document, pwaStarts, changed };
 }
 
 await test('documento da wallet inicializa a confirmação em Android e iPhone sem os painéis do app', async () => {
@@ -199,4 +205,28 @@ await test('app completo conserva os painéis e a inicialização da PWA no desk
     view.nodes.get('connection')?.textContent ?? '',
     /Conexão disponível/u,
   );
+});
+
+await test('Perfil no mobile só monta configurações depois do login e as retira no logout', async () => {
+  const view = await page(false, 'Android', '#perfil');
+  const content = view.nodes.get('page-content')!;
+  assert.equal(content.innerHTML, '');
+  assert.equal(view.modes.at(-1), 'login');
+  view.changed({
+    accountId: crypto.randomUUID(),
+    deviceId: crypto.randomUUID(),
+    csrf: 'synthetic',
+    ecosystem: 'evm',
+    address: '0x' + '1'.repeat(40),
+    name: 'Sintético',
+    deviceState: 'pending',
+    historyAuthorized: false,
+    expiresAt: '2027-01-01T00:00:00.000Z',
+    profileRevision: 0,
+  });
+  assert.match(content.innerHTML, /profile-settings/u);
+  assert.equal(view.modes.at(-1), 'settings');
+  view.changed(null);
+  assert.equal(content.innerHTML, '');
+  assert.equal(view.modes.at(-1), 'login');
 });

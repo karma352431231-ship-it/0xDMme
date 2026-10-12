@@ -1,0 +1,25 @@
+.device-enrollment-entry {
+  width: min(440px, calc(100vw - 32px));
+  max-height: calc(100dvh - 32px);
+  padding: 24px;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+}
+.device-enrollment-entry::backdrop {
+  background: var(--shadow);
+}
+.device-enrollment-entry button {
+  margin: 8px 8px 0 0;
+}
+.enrollment-login {
+  margin-top: 16px;
+}
+.enrollment-login label {
+  display: grid;
+  gap: 8px;
+}
+.enrollment-login textarea {
+  width: 100%;
+  min-height: 90px;
+}

@@ -1,4 +1,6 @@
+import { appendOwnProfileShortcut } from '../profile-shortcut/index.ts';
 import type { FeedEntry } from '../../shared/community-discovery/index.ts';
+import { postSharing } from './post-sharing.ts';
 import {
   feedFilter,
   discoveryPeriod,
@@ -187,6 +189,7 @@ export function startCommunityDiscovery(
     const post = toolbar.lastElementChild as HTMLElement;
     post.className = 'community-post-cta';
     iconLabel(post, 'pencil');
+    appendOwnProfileShortcut(toolbar);
   }
   function query(): string {
     const data = new URLSearchParams({
@@ -339,8 +342,17 @@ export function startCommunityDiscovery(
         valid: () => old === generation,
         changed: reload,
       };
-      postVoting(toolbar, post, signedIn ? actions : null);
+      postVoting(
+        toolbar,
+        post,
+        signedIn ? { ...actions, position: entry.viewerVote } : null,
+      );
       postComments(toolbar, post);
+      postSharing(
+        toolbar,
+        post,
+        signedIn ? { ...actions, shared: entry.viewerShared } : null,
+      );
       mediaCleanup.add(postViews(row, post, toolbar));
       if (signedIn) {
         preferenceControls(toolbar, post, {

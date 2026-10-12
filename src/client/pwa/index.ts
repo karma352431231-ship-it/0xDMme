@@ -1,7 +1,9 @@
+import { startNotificationNavigation } from './notification-navigation.ts';
 /** Explicit shell activation waits for private operations and unsaved drafts. */
 export function startPwa(
   options: {
     canActivate?: () => boolean;
+    waitForIdle?: boolean;
     blockedReason?: () => string | null;
   } = {},
 ) {
@@ -14,6 +16,7 @@ export function startPwa(
   let disposed = false;
   const cleanup = new Set<() => void>();
   const supported = 'serviceWorker' in navigator && window.isSecureContext;
+  if (supported) cleanup.add(startNotificationNavigation());
 
   const render = () => {
     if (disposed) return;
@@ -123,12 +126,26 @@ export function startPwa(
       ? 'Conclua a operação ou salve suas alterações antes de atualizar.'
       : null;
   }
+  let activationRetry: number | undefined;
+  let retryUntil = 0;
+  const stopRetry = () => {
+    window.clearTimeout(activationRetry);
+    activationRetry = undefined;
+  };
+  cleanup.add(stopRetry);
+  function requestApply(): void {
+    stopRetry();
+    retryUntil = Date.now() + 5000;
+    apply();
+  }
   function apply(): void {
     if (!registration?.waiting || applying || disposed) return;
     const blocked = activationBlock();
     if (blocked) {
       const result = document.getElementById('update-result');
       if (result) result.textContent = blocked;
+      if (options.waitForIdle && Date.now() < retryUntil)
+        activationRetry = window.setTimeout(apply, 200);
       return;
     }
     applying = true;
@@ -183,7 +200,7 @@ export function startPwa(
     for (const stop of cleanup) stop();
     document
       .getElementById('apply-update')
-      ?.removeEventListener('click', apply);
+      ?.removeEventListener('click', requestApply);
     window.removeEventListener('pagehide', dispose);
   }
 
@@ -191,7 +208,9 @@ export function startPwa(
   else
     state =
       'Instalação e modo offline exigem navegador compatível e HTTPS ou loopback.';
-  document.getElementById('apply-update')?.addEventListener('click', apply);
+  document
+    .getElementById('apply-update')
+    ?.addEventListener('click', requestApply);
   window.addEventListener('pagehide', dispose);
   return {
     render,

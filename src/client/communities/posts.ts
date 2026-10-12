@@ -1,3 +1,5 @@
+import { postSharing } from './post-sharing.ts';
+import { postInteractionSelection } from './post-interactions.ts';
 import { restrictedMedia } from '../community-media/index.ts';
 import { postViews } from './post-views.ts';
 import {
@@ -202,9 +204,22 @@ export function startCommunityPosts(
     rowMeta(node, value, depth);
     const toolbar = el('div', '', 'post-actions');
     node.append(toolbar);
-    voting(toolbar, value);
+    voting(toolbar, value, privateState);
     if (selected) replyToggle(toolbar, value);
     else postComments(toolbar, value);
+    const shareVersion = generation;
+    postSharing(
+      toolbar,
+      value,
+      own
+        ? {
+            controller,
+            run,
+            valid: () => shareVersion === generation,
+            shared: postInteractionSelection(value, privateState).shared,
+          }
+        : null,
+    );
     mediaCleanup.set(postViews(node, value, toolbar), node);
     branch(node, value, depth);
     if (!own) return;
@@ -315,7 +330,11 @@ export function startCommunityPosts(
     const more = container.lastElementChild as HTMLButtonElement;
     container.append(children);
   }
-  function voting(node: HTMLElement, value: CommunityPost): void {
+  function voting(
+    node: HTMLElement,
+    value: CommunityPost,
+    state: PostState | null,
+  ): void {
     if (own && !own.canPost && value.status === 'visible') {
       const score = el('span', String(value.score), 'post-score');
       score.title = 'Votação indisponível nesta comunidade.';
@@ -330,6 +349,7 @@ export function startCommunityPosts(
         ? {
             controller,
             run,
+            position: postInteractionSelection(value, state).vote,
             valid: () => old === generation,
             changed: async () => {
               after = null;
@@ -585,7 +605,14 @@ export function startCommunityPosts(
     if (pageSnapshot.changed(query.toString(), page)) {
       clearMedia();
       list.replaceChildren();
-      for (const value of page.items) row(value.post);
+      for (const value of page.items)
+        row({
+          ...value.post,
+          viewer: {
+            vote: value.viewerVote ?? 0,
+            shared: value.viewerShared ?? false,
+          },
+        });
     }
     after = page.next;
   }

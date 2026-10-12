@@ -56,6 +56,17 @@ const result = () => ({
   pendingAvatar: null,
 });
 await test('criar @ aguarda a escolha de mídia externa, sem caixa adicional para o nome', async (t) => {
+  for (const [name, value] of Object.entries({
+    document: { querySelectorAll: () => [] },
+    window: new EventTarget(),
+  })) {
+    const previous = Object.getOwnPropertyDescriptor(globalThis, name);
+    Object.defineProperty(globalThis, name, { configurable: true, value });
+    t.after(() => {
+      if (previous) Object.defineProperty(globalThis, name, previous);
+      else Reflect.deleteProperty(globalThis, name);
+    });
+  }
   const own = session();
   let click = () => {};
   const button = {

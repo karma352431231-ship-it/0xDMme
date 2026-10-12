@@ -68,7 +68,13 @@ export class AccountPrivateProfile {
   }
   /** No unsaved name or preference draft. */
   get clean(): boolean {
-    return !this.dirtyName && !this.dirtyProfile;
+    const nameChanged =
+      this.dirtyName && this.draftName !== this.core.session?.name;
+    const preferencesChanged =
+      this.profile &&
+      JSON.stringify(this.preferencesDraft.value(this.profile.preferences)) !==
+        JSON.stringify(this.profile.preferences);
+    return !nameChanged && !this.photoDraft.dirty() && !preferencesChanged;
   }
   clear(): void {
     this.photoDraft.clear();

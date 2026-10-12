@@ -1,5 +1,6 @@
 import type { AccountSession } from '../../shared/account/index.ts';
 import type { FeedEntry } from '../../shared/community-discovery/index.ts';
+import { postSharing } from './post-sharing.ts';
 import { postState } from '../../shared/community-posts/index.ts';
 import type { PostState } from '../../shared/community-posts/index.ts';
 import { communityState } from '../../shared/communities/index.ts';
@@ -54,6 +55,7 @@ export class ActivityPosts {
       entry.post.author?.id,
       entry.context?.root.author?.id,
       entry.context?.parent.author?.id,
+      entry.share?.author.id,
     ].includes(target);
   }
   setSession(session: AccountSession | null): void {
@@ -102,6 +104,22 @@ export class ActivityPosts {
       { once: true },
     );
     this.toolbar(card);
+    window.addEventListener(
+      '0xdmme-post-share',
+      (event) => {
+        if (!(event instanceof CustomEvent)) return;
+        const detail = event.detail as { post?: unknown; shared?: unknown };
+        if (
+          card.entry.share?.own &&
+          detail.post === card.entry.post.id &&
+          detail.shared === false
+        ) {
+          card.lifetime.abort();
+          card.node.remove();
+        }
+      },
+      { signal },
+    );
     return card.node;
   }
   private access(card: ActivityCard) {
@@ -133,7 +151,13 @@ export class ActivityPosts {
       post = card.entry.post;
     status.setAttribute('role', 'status');
     card.node.append(toolbar, status);
-    postVoting(toolbar, post, this.session ? actions : null);
+    postVoting(
+      toolbar,
+      post,
+      this.session
+        ? { ...actions, position: card.entry.viewerVote ?? 0 }
+        : null,
+    );
     if (this.session) {
       postReply(toolbar, post, {
         ...actions,
@@ -141,6 +165,10 @@ export class ActivityPosts {
         canReply: async () =>
           (await this.controller.state(post.community)).canPost,
         replied: (state) => this.replied(card, state),
+      });
+      postSharing(toolbar, post, {
+        ...actions,
+        shared: card.entry.viewerShared ?? false,
       });
       preferenceControls(toolbar, post, {
         ...actions,
@@ -151,6 +179,7 @@ export class ActivityPosts {
       login.href = '#perfil';
       login.setAttribute('aria-label', 'Entre pelo Perfil para responder');
       toolbar.append(login);
+      postSharing(toolbar, post, null);
     }
     const discussion = el(
       'a',
@@ -212,7 +241,16 @@ export class ActivityPosts {
     if (status) status.textContent = text;
   }
   private counts(card: ActivityCard, state: PostState): void {
-    card.entry = { ...card.entry, post: state.post };
+    card.entry = {
+      ...card.entry,
+      post: state.post,
+      viewerVote: state.vote.position,
+    };
+    for (const button of card.node.querySelectorAll<HTMLElement>('[data-vote]'))
+      button.setAttribute(
+        'aria-pressed',
+        String(Number(button.dataset['vote']) === state.vote.position),
+      );
     const score = card.node.querySelector('.post-score'),
       replies = card.node.querySelector('.post-comments span');
     if (score) score.textContent = String(state.post.score);

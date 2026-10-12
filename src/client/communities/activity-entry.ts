@@ -3,6 +3,7 @@ import type { CommunityPost } from '../../shared/community-posts/index.ts';
 import { communityCard as card, communityElement as el } from './elements.ts';
 import { postHeader, postTagLink, postComments } from './presentation.ts';
 import { postPreview } from './post-preview.ts';
+import { sharedEntry } from './shared-context.ts';
 import { markReply, repliedPost } from './reply-context.ts';
 import { showPublicPostMedia } from '../public-media/index.ts';
 import { showPublicAvatar } from '../public-media/index.ts';
@@ -44,7 +45,8 @@ export function renderActivityEntry(
   privacy?: ExternalMediaConsent,
 ): HTMLElement {
   const { post, community } = entry;
-  const row = entryCard(post);
+  const row = entry.share ? sharedEntry(entry, signal) : entryCard(post);
+  if (entry.share) return row;
   const avatar = postHeader(row, post, community);
   if (community.avatar)
     showPublicAvatar(avatar, {

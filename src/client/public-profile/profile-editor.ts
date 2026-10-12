@@ -248,7 +248,8 @@ export function startProfileEditor(
     hasDraft: () =>
       draftAvatar !== undefined ||
       draftBanner !== undefined ||
-      draftDescription !== null,
+      (draftDescription !== null &&
+        draftDescription.trim() !== description.description),
     disable(busy: boolean): void {
       host
         ?.querySelectorAll<

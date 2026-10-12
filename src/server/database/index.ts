@@ -154,6 +154,8 @@ const migrations = [
   '056-community-badges.sql',
   '057-community-banners.sql',
   '058-social-notifications-reports.sql',
+  '059-post-sharing.sql',
+  '060-public-notification-wake.sql',
 ];
 
 export interface MaintenanceSnapshot {

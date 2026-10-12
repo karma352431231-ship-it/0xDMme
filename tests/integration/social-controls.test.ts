@@ -347,9 +347,39 @@ await test('controles sociais: autoridade, badges, confirmação, edição, bloq
         enabled: true,
         revision: 0,
       });
+      const pushAuthority = {
+        session: reader.login.session,
+        directory: reader.directory,
+      };
+      await db.daily.subscribe(pushAuthority, {
+        endpoint:
+          'https://fcm.googleapis.com/fcm/send/synthetic-social-preview',
+        keys: { p256dh: 'synthetic', auth: 'synthetic' },
+      });
       const watched = await create(author, 'Com sininho'),
         watchedReply = await create(author, 'Reply com sininho', root.id);
       const alerts = await notices();
+      assert.equal(await db.daily.check(pushAuthority), true);
+      const preview = await db.daily.publicPreview(pushAuthority);
+      assert.ok(preview);
+      assert.equal(preview.author.handle, authorId.handle);
+      assert.ok(preview.text.includes('sininho'));
+      const queued = await inspector.query<{ pending: boolean }>(
+        'SELECT pending FROM hash_talk.push_subscriptions WHERE account_id=$1 AND device_id=$2',
+        [reader.login.session.accountId, reader.login.session.deviceId],
+      );
+      assert.equal(queued.rows[0]?.pending, true);
+      await db.daily.configurePush(pushAuthority, {
+        messages: false,
+        calls: true,
+        showCalls: false,
+      });
+      assert.equal(await db.daily.publicPreview(pushAuthority), null);
+      await db.daily.configurePush(pushAuthority, {
+        messages: true,
+        calls: true,
+        showCalls: false,
+      });
       assert.equal(
         alerts.items.find((item) => item.reply === watched.id)?.kind,
         'post',
@@ -383,6 +413,7 @@ await test('controles sociais: autoridade, badges, confirmação, edição, bloq
         revision: block.revision,
       });
       assert.equal((await notices()).items.length, 0);
+      assert.equal(await db.daily.publicPreview(pushAuthority), null);
       await assert.rejects(
         reader.operate('post-public', { id, post: watched.id }),
         bad(404),

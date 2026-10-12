@@ -20,6 +20,10 @@ import type { CommunityStore } from './communities.ts';
 import type { ContactAuthority } from './contacts.ts';
 import type { CommunityRankingStore } from './community-ranking.ts';
 import { operatePostPreference } from './community-preferences.ts';
+import { operatePostShare, sharedPostIds } from './post-sharing.ts';
+import { postVotes } from './community-interactions.ts';
+import { attachProfileShares } from './profile-activity-sharing.ts';
+import type { PostVote } from '../../shared/community-posts/index.ts';
 import { profileActivityFilter } from '../../shared/profile-social/index.ts';
 
 type Reader = Pick<pg.PoolClient, 'query'>;
@@ -29,6 +33,8 @@ interface RankedRow {
   created_at: Date;
 }
 interface FeedRow extends RankedRow {
+  post_id?: string;
+  shared_at?: Date | null;
   community_id: string;
   name: string;
 }
@@ -66,6 +72,19 @@ function activityWindow(profile: string, tab: string, after: string | null) {
   if (Date.parse(anchor) > Date.now() + 1000)
     throw new AccountError(400, 'Cursor no futuro.');
   return { key, cursor, anchor };
+}
+function activityIdentity(row: FeedRow) {
+  return row.post_id ? { activityId: row.id } : {};
+}
+function viewerInteractions(
+  actor: string | null,
+  votes: Map<string, PostVote>,
+  shares: Set<string>,
+  id: string,
+) {
+  return actor
+    ? { viewerVote: votes.get(id)?.position ?? 0, viewerShared: shares.has(id) }
+    : {};
 }
 export class CommunityDiscoveryStore {
   private readonly pool: pg.Pool;
@@ -151,17 +170,20 @@ export class CommunityDiscoveryStore {
     reader?: { client: Reader; actor: string },
   ): Promise<FeedPage> {
     const { key, cursor, anchor } = activityWindow(profile, tab, after);
-    const client = reader?.client ?? this.pool;
+    const { client, actor } = reader ?? { client: this.pool, actor: null };
     const found = await client.query<FeedRow>(
-      `SELECT p.id,p.community_id,c.name,p.created_at,0::bigint AS rank
-      FROM hash_talk.community_posts p JOIN hash_talk.communities c ON c.id=p.community_id
-      WHERE p.author=$1 AND NOT p.deleted AND p.active_removal IS NULL AND p.created_at<=$2
+      `WITH activity AS (
+        SELECT id AS activity_id,id AS post_id,created_at,NULL::timestamptz AS shared_at FROM hash_talk.community_posts WHERE author=$1
+        UNION ALL SELECT id,post_id,created_at,created_at FROM hash_talk.community_post_shares WHERE profile_id=$1 AND shared AND $3='overview'
+      ) SELECT a.activity_id AS id,p.id AS post_id,p.community_id,c.name,a.created_at,a.shared_at,0::bigint AS rank
+      FROM activity a JOIN hash_talk.community_posts p ON p.id=a.post_id JOIN hash_talk.communities c ON c.id=p.community_id
+      WHERE true AND NOT p.deleted AND p.active_removal IS NULL AND a.created_at<=$2
       AND (p.root_id IS NULL OR EXISTS(SELECT 1 FROM hash_talk.community_posts root WHERE root.id=p.root_id AND NOT root.deleted AND root.active_removal IS NULL))
       AND ($3='overview' OR ($3='posts' AND p.parent_id IS NULL) OR ($3='replies' AND p.parent_id IS NOT NULL))
-      AND ($4::timestamptz IS NULL OR (p.created_at,p.id)<($4,$5::uuid))
+      AND ($4::timestamptz IS NULL OR (a.created_at,a.activity_id)<($4,$5::uuid))
       AND NOT EXISTS(SELECT 1 FROM hash_talk.social_blocks b WHERE b.actor=$7 AND b.blocked AND
         (b.target=p.author OR b.target IN (SELECT a.author FROM hash_talk.community_posts a WHERE a.id=p.parent_id OR a.id=p.root_id)))
-      ORDER BY p.created_at DESC,p.id DESC LIMIT $6`,
+      ORDER BY a.created_at DESC,a.activity_id DESC LIMIT $6`,
       [
         profile,
         anchor,
@@ -169,10 +191,20 @@ export class CommunityDiscoveryStore {
         cursor?.time ?? null,
         cursor?.id ?? null,
         communityPageSize + 1,
-        reader?.actor ?? null,
+        actor,
       ],
     );
-    return this.projectFeed(client, page(found.rows, { key, anchor }));
+    const result = await this.projectFeed(
+      client,
+      page(found.rows, { key, anchor }),
+      { scope: 'all', actor: actor },
+    );
+    return attachProfileShares({
+      rows: found.rows,
+      page: result,
+      viewer: actor,
+      author: () => this.communities.publicIdentity(client, profile),
+    });
   }
   private async projectFeed(
     client: Reader,
@@ -184,10 +216,9 @@ export class CommunityDiscoveryStore {
   ): Promise<FeedPage> {
     const { scope, actor } = options;
     const publicOnly = scope === 'all' || scope === 'following';
-    const primary = await this.posts(
-      client,
-      result.items.map((row) => row.id),
-    );
+    const primary = await this.posts(client, [
+      ...new Set(result.items.map((row) => row.post_id ?? row.id)),
+    ]);
     const posts = new Map(primary.map((post) => [post.id, post]));
     const ancestors = await this.ancestors(client, primary);
     const photos = await this.communities.photoReferences(client, [
@@ -200,10 +231,17 @@ export class CommunityDiscoveryStore {
         )
       : null;
     const ownedIds = new Set(owned?.rows.map((row) => row.id));
+    const ids = primary.map((post) => post.id);
+    const votes = actor
+      ? await postVotes(client, actor, ids)
+      : new Map<string, PostVote>();
+    const shares = actor
+      ? await sharedPostIds(client, actor, ids)
+      : new Set<string>();
     return {
       next: result.next,
       items: result.items.flatMap((row) => {
-        const post = posts.get(row.id);
+        const post = posts.get(row.post_id ?? row.id);
         if (!post) return [];
         const avatar = photos.get(row.community_id);
         const context = this.replyContext(post, ancestors);
@@ -211,6 +249,8 @@ export class CommunityDiscoveryStore {
         return [
           {
             post,
+            ...activityIdentity(row),
+            ...viewerInteractions(actor, votes, shares, post.id),
             ...(actor ? { ownCommunity: ownedIds.has(row.community_id) } : {}),
             ...(context ? { context } : {}),
             community: {
@@ -321,6 +361,8 @@ export class CommunityDiscoveryStore {
       });
     }
     return this.communities.withActor(authority, async (context) => {
+      if (operation.startsWith('discovery-share'))
+        return operatePostShare(context, operation, data, this.capacity);
       return operatePostPreference(context, operation, data, this.capacity);
     });
   }

@@ -11,6 +11,7 @@ import {
   profileBanner,
   profileDescription,
 } from '../../src/shared/profile-social/index.ts';
+import { postShareState } from '../../src/shared/post-sharing/index.ts';
 import { feedPage } from '../../src/shared/community-discovery/index.ts';
 import { communityPage } from '../../src/shared/communities/index.ts';
 import { postState } from '../../src/shared/community-posts/index.ts';
@@ -565,6 +566,151 @@ await test('perfil social: métricas, comunidades públicas, follows, feeds e ba
           (item) =>
             item.context && item.context.root.id !== item.context.parent.id,
         ),
+      );
+    },
+  );
+  await t.test(
+    'compartilhamento: referência única, CAS, votos privados, bloqueio e remoção do original',
+    async () => {
+      const sharer = await make();
+      const sharerProfile = await sharer.publicIdentity(
+        'share_' + crypto.randomUUID().slice(0, 8),
+      );
+      const id = await create(owner, otherCommunity);
+      const payload = { id: otherCommunity, post: id };
+      const shared = { ...payload, state: { shared: true, revision: 0 } };
+      assert.deepEqual(
+        postShareState(await sharer.operate('discovery-share', payload)),
+        { shared: false, revision: 0 },
+      );
+      const before = await inspector.query<{ used_bytes: string }>(
+        'SELECT used_bytes FROM hash_talk.content_usage WHERE singleton',
+      );
+      const accepted = await Promise.all([
+        sharer.operate('discovery-share-set', shared),
+        sharer.operate('discovery-share-set', shared),
+      ]);
+      assert.deepEqual(accepted.map(postShareState), [
+        { shared: true, revision: 1 },
+        { shared: true, revision: 1 },
+      ]);
+      const after = await inspector.query<{ used_bytes: string }>(
+        'SELECT used_bytes FROM hash_talk.content_usage WHERE singleton',
+      );
+      assert.equal(
+        BigInt(after.rows[0]!.used_bytes) - BigInt(before.rows[0]!.used_bytes),
+        256n,
+      );
+      await assert.rejects(
+        sharer.operate('discovery-share-set', {
+          ...shared,
+          id: followedCommunity,
+        }),
+        AccountError,
+      );
+      const overview = feedPage(
+        await profiles.activity(sharerProfile.handle, 'overview', null),
+      );
+      const entry = overview.items.find((item) => item.post.id === id)!;
+      assert.equal(entry.share?.author.id, sharerProfile.id);
+      assert.equal(entry.post.author?.id, identity.id);
+      assert.equal(
+        entry.viewerVote,
+        undefined,
+        'anonymous projection contains no viewer data',
+      );
+      await sharer.operate('post-vote', {
+        ...payload,
+        position: 1,
+        voteRevision: 0,
+      });
+      const personal = feedPage(
+        await operate(sharer, 'activity', {
+          target: sharerProfile.id,
+          tab: 'overview',
+          after: null,
+        }),
+      );
+      assert.equal(
+        personal.items.find((item) => item.post.id === id)?.viewerVote,
+        1,
+      );
+      assert.equal(
+        personal.items.find((item) => item.post.id === id)?.viewerShared,
+        true,
+      );
+      assert.equal(
+        personal.items.find((item) => item.post.id === id)?.share?.own,
+        true,
+      );
+      const publicPost = (await sharer.operate('post-public', payload)) as {
+        viewer: unknown;
+      };
+      assert.deepEqual(publicPost.viewer, { vote: 1, shared: true });
+      const current = (await operate(sharer, 'block-state', {
+        target: identity.id,
+      })) as { revision: number };
+      await operate(sharer, 'block', {
+        target: identity.id,
+        blocked: true,
+        revision: current.revision,
+      });
+      const blocked = feedPage(
+        await operate(sharer, 'activity', {
+          target: sharerProfile.id,
+          tab: 'overview',
+          after: null,
+        }),
+      );
+      assert.equal(
+        blocked.items.some((item) => item.post.id === id),
+        false,
+      );
+      await assert.rejects(
+        sharer.operate('discovery-share-set', shared),
+        AccountError,
+      );
+      await operate(sharer, 'block', {
+        target: identity.id,
+        blocked: false,
+        revision: current.revision + 1,
+      });
+      const original = postState(await owner.operate('post-state', payload));
+      await owner.operate('post-edit', {
+        ...payload,
+        revision: 1,
+        content: {
+          title: 'Texto atualizado',
+          text: 'Somente a versão atual',
+          tags: original.post.tags.map((tag) => tag.id),
+        },
+      });
+      const updated = feedPage(
+        await profiles.activity(sharerProfile.handle, 'overview', null),
+      );
+      assert.equal(
+        updated.items.find((item) => item.post.id === id)?.post.text,
+        'Somente a versão atual',
+      );
+      await owner.operate('post-delete', { ...payload, revision: 2 });
+      assert.equal(
+        feedPage(
+          await profiles.activity(sharerProfile.handle, 'overview', null),
+        ).items.some((item) => item.post.id === id),
+        false,
+      );
+      const remove = { ...payload, state: { shared: false, revision: 1 } };
+      assert.deepEqual(
+        postShareState(await sharer.operate('discovery-share-set', remove)),
+        { shared: false, revision: 2 },
+      );
+      assert.deepEqual(
+        postShareState(await sharer.operate('discovery-share-set', remove)),
+        { shared: false, revision: 2 },
+      );
+      await assert.rejects(
+        sharer.operate('discovery-share-set', shared),
+        AccountError,
       );
     },
   );

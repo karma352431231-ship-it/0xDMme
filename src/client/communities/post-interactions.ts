@@ -67,3 +67,13 @@ export async function togglePostPreference(
   );
   return access.valid() ? result : null;
 }
+
+export function postInteractionSelection(
+  post: CommunityPost,
+  state: PostState | null,
+) {
+  return {
+    vote: state?.vote.position ?? post.viewer?.vote ?? 0,
+    shared: state?.shared ?? post.viewer?.shared ?? false,
+  };
+}

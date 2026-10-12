@@ -138,7 +138,7 @@ function reportControl(
 export function postVoting(
   container: HTMLElement,
   post: CommunityPost,
-  actions: Actions | null,
+  actions: (Actions & { position?: -1 | 0 | 1 | undefined }) | null,
 ): void {
   if (post.status !== 'visible') return;
   const controls = el('div', '', 'post-votes');
@@ -161,6 +161,8 @@ export function postVoting(
       'aria-label',
       actions ? title : 'Entre pelo Perfil para votar',
     );
+    node.dataset['vote'] = String(position);
+    node.setAttribute('aria-pressed', String(actions?.position === position));
     node.append(communityIcon(icon));
     if (!actions) controls.append(node);
     if (position === 1)

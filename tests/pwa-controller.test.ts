@@ -70,21 +70,22 @@ function browser(locationValues: { search?: string; hash?: string } = {}) {
       return result;
     },
   });
+  const location = {
+    search: '',
+    hash: '',
+    ...locationValues,
+    reload() {
+      reloads++;
+    },
+    replace(url: string) {
+      replacements.push(url);
+    },
+  };
   const api = runInNewContext(`${source}\nPwa;`, {
     document: { getElementById: (id: string) => elements.get(id) },
     window,
     navigator: { serviceWorker },
-    location: {
-      search: '',
-      hash: '',
-      ...locationValues,
-      reload() {
-        reloads++;
-      },
-      replace(url: string) {
-        replacements.push(url);
-      },
-    },
+    location,
   }) as { startPwa: typeof startPwa };
   const status = () => elements.get('pwa-state')?.textContent ?? '';
   const expire = () => {
@@ -94,6 +95,7 @@ function browser(locationValues: { search?: string; hash?: string } = {}) {
     start: api.startPwa,
     registration,
     serviceWorker,
+    location,
     window,
     elements,
     status,
@@ -259,5 +261,38 @@ await test('atualização espera operação de conta e alterações não salvas'
   allowed = true;
   scope.elements.get('apply-update')?.dispatchEvent(new Event('click'));
   assert.equal(scope.registration.waiting.messages.length, 1);
+  scope.window.dispatchEvent(new Event('pagehide'));
+});
+
+await test('Atualizar agora aguarda uma sincronização transitória e revalida antes de ativar', async () => {
+  const scope = browser();
+  scope.registration.waiting = new Worker();
+  let idle = false;
+  scope.start({ waitForIdle: true, canActivate: () => idle });
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  scope.elements.get('apply-update')?.dispatchEvent(new Event('click'));
+  assert.equal(scope.registration.waiting.messages.length, 0);
+  idle = true;
+  scope.expire();
+  assert.equal(scope.registration.waiting.messages.length, 1);
+  scope.window.dispatchEvent(new Event('pagehide'));
+  assert.equal(scope.timers(), 0);
+});
+
+await test('abrir push público muda só a rota da aba, sem recarga, e recusa destinos externos', () => {
+  const scope = browser();
+  scope.start();
+  const hash = `#comunidades?id=${crypto.randomUUID()}&post=${crypto.randomUUID()}`;
+  scope.serviceWorker.dispatchEvent(
+    new MessageEvent('message', { data: { type: 'OPEN_PUBLIC_POST', hash } }),
+  );
+  assert.equal(scope.location.hash, hash);
+  scope.serviceWorker.dispatchEvent(
+    new MessageEvent('message', {
+      data: { type: 'OPEN_PUBLIC_POST', hash: 'https://other.example' },
+    }),
+  );
+  assert.equal(scope.location.hash, hash);
+  assert.equal(scope.reloads(), 0);
   scope.window.dispatchEvent(new Event('pagehide'));
 });

@@ -163,7 +163,7 @@ const profileContent = `<section class="profile-settings" aria-label="Configura�
 ${settingsSection({ id: 'privacy', title: 'Privacidade', description: 'Quem pode me encontrar', content: '<div data-contact-settings-container></div>' })}
 ${settingsSection({ id: 'profile', title: 'Perfil público', description: 'Seu @ e sua foto nas comunidades', content: '<div data-public-profile-settings></div>' })}
 ${settingsSection({ id: 'alerts', title: 'Notificações e chamadas', description: 'Push, sons e silêncio das conversas', content: '<div data-daily-settings></div><div data-call-settings></div>' })}
-${settingsSection({ id: 'devices', title: 'Aparelhos', description: 'Vincular, recuperar e gerenciar acessos', content: '<div data-device-settings></div>' })}
+${settingsSection({ id: 'devices', title: 'Dispositivos conectados', description: 'Vincular, recuperar e gerenciar acessos', content: '<div data-device-settings></div>' })}
 ${settingsSection({ id: 'vault', title: 'Cofre e backup', description: 'Uso do armazenamento, salvar e restaurar', content: '<div class="cards" data-vault-settings></div>' })}
 ${settingsSection({ id: 'representatives', title: 'Organizações e representantes', description: 'Organizações e autorizações assinadas', content: '<div data-representatives-settings></div>' })}
 ${settingsSection({ id: 'appearance', title: 'Aparência', description: 'Tema Azul, Preto ou Branco', content: '<div data-appearance-settings></div>' })}
@@ -203,6 +203,18 @@ export const pages = {
 };
 
 export type PageKey = keyof typeof pages;
+
+/** Settings are mounted only after an authenticated session exists. */
+export function profileSessionChanged(
+  page: string,
+  mounted: boolean,
+  authenticated: boolean,
+): boolean {
+  return page === 'perfil' && mounted !== authenticated;
+}
+export function pageContent(key: PageKey, authenticated: boolean): string {
+  return key === 'perfil' && !authenticated ? '' : pages[key].content;
+}
 
 /** Resolve presentation only; wallet-return fragments stay intact for account. */
 export function pageKey(hash: string): PageKey | null {

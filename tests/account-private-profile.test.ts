@@ -96,6 +96,15 @@ await test('perfil privado modular conserva foto e privacidade ativas até confi
   );
   await profile.load(current);
   profile.bind();
+  input.checked = false;
+  const unchanged = new Event('change');
+  Object.defineProperty(unchanged, 'target', { value: input });
+  preferences.dispatchEvent(unchanged);
+  assert.equal(
+    profile.clean,
+    true,
+    'unchanged preference must not block shell updates',
+  );
   input.checked = true;
   const change = new Event('change');
   Object.defineProperty(change, 'target', { value: input });
