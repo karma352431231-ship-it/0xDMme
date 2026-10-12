@@ -644,16 +644,20 @@ await test('mensagens persistentes: Olm/Megolm, recuperação, idempotência, ex
   await t.test(
     'SSE real exige assinatura atual, libera slots HTTP e avisa remetente/destinatário após persistência',
     async () => {
-      const origin = 'http://127.0.0.1:45118',
-        live = new MessageLive(db.changes),
+      let origin = 'http://127.0.0.1';
+      const live = new MessageLive(db.changes),
         account = createAccountHandler({
-          origin,
+          get origin() {
+            return origin;
+          },
           service: accounts,
           messages,
           live,
         }),
         host = createWebServer({
-          origin,
+          get origin() {
+            return origin;
+          },
           assets: new Map(),
           database: db,
           objects: { healthy: () => Promise.resolve(true) },
@@ -661,8 +665,11 @@ await test('mensagens persistentes: Olm/Megolm, recuperação, idempotência, ex
         });
       await new Promise<void>((resolve, reject) => {
         host.server.once('error', reject);
-        host.server.listen(45118, '127.0.0.1', resolve);
+        host.server.listen(0, '127.0.0.1', resolve);
       });
+      const address = host.server.address();
+      assert.ok(address && typeof address !== 'string');
+      origin = `http://127.0.0.1:${address.port}`;
       const controllers: AbortController[] = [];
       const root = origin + '/api/account/messages/';
       function headers(user: User) {
@@ -897,15 +904,19 @@ await test('mensagens persistentes: Olm/Megolm, recuperação, idempotência, ex
   await t.test(
     'rota exige origem, sessão e CSRF antes do corpo; preserva publicação grande e idempotente',
     async () => {
-      const origin = 'http://127.0.0.1:45118';
+      let origin = 'http://127.0.0.1';
       const account = createAccountHandler({
-        origin,
+        get origin() {
+          return origin;
+        },
         service: accounts,
         messages,
         notifications,
       });
       const host = createWebServer({
-        origin,
+        get origin() {
+          return origin;
+        },
         assets: new Map(),
         database: db,
         objects: { healthy: () => Promise.resolve(true) },
@@ -914,11 +925,12 @@ await test('mensagens persistentes: Olm/Megolm, recuperação, idempotência, ex
       const server = host.server;
       await new Promise<void>((resolve, reject) => {
         server.once('error', reject);
-        server.listen(45118, '127.0.0.1', resolve);
+        server.listen(0, '127.0.0.1', resolve);
       });
       const address = server.address();
       assert.ok(address && typeof address !== 'string');
-      const root = `http://127.0.0.1:${address.port}/api/account/messages/`;
+      origin = `http://127.0.0.1:${address.port}`;
+      const root = origin + '/api/account/messages/';
       const headers = {
         Origin: origin,
         'Content-Type': 'application/json',
