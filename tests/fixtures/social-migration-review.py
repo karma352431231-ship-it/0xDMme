@@ -1,6 +1,6 @@
 """Run the real preservation SQL only against an explicitly isolated local test DB."""
 from pathlib import Path
-import json,os,subprocess,sys,urllib.parse
+import json,os,shutil,subprocess,sys,tempfile,urllib.parse
 
 root=Path(sys.argv[1]);phase=sys.argv[2];record=Path(sys.argv[3])
 url=urllib.parse.urlparse(os.environ['HASH_TALK_DATABASE_URL'])
@@ -25,6 +25,16 @@ backups.URL_CHECK="const url = new URL(process.env.HASH_TALK_DATABASE_URL);"
 if phase=='before':
     record.write_text(json.dumps(social.snapshot()));record.chmod(0o600)
 elif phase=='after':
-    social.verify_migration(root,json.loads(record.read_text()))
+    # This regression exercises the historical 055→058 candidate. Later feature
+    # migrations must not become part of that candidate's exact checksum catalog.
+    # Keep the production verifier and every record/ledger comparison intact.
+    with tempfile.TemporaryDirectory(prefix='0xdmme-social-candidate-') as directory:
+        candidate=Path(directory)
+        migrations=candidate/'src/server/database/migrations'
+        migrations.mkdir(parents=True)
+        for source in (root/'src/server/database/migrations').glob('*.sql'):
+            if source.name[:3].isdigit() and 1 <= int(source.name[:3]) <= 58:
+                shutil.copyfile(source,migrations/source.name)
+        social.verify_migration(candidate,json.loads(record.read_text()))
 else: raise RuntimeError('Unknown test phase')
 print(json.dumps({'phase':phase,'verified':True}))
