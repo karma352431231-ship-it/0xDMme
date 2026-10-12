@@ -17,6 +17,12 @@
   background: var(--surface);
   color: var(--text);
 }
+.public-image-viewer[open] {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 12px;
+  overflow: hidden;
+}
 .public-image-viewer::backdrop {
   background: var(--shadow);
 }
@@ -24,22 +30,32 @@
   display: flex;
   justify-content: flex-end;
   gap: 12px;
-  height: 48px;
+  flex-wrap: wrap;
+  min-height: 44px;
 }
 .public-image-toolbar button {
   margin: 0;
+  min-height: 44px;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  font: inherit;
 }
 .public-image-frame {
   display: grid;
   place-items: center;
-  height: calc(100% - 60px);
-  margin-top: 12px;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+  min-width: 0;
+  min-height: 0;
   overflow: auto;
 }
 .public-image-frame img {
   display: block;
   width: auto;
   height: auto;
+  min-width: 0;
+  min-height: 0;
   max-width: 100%;
   max-height: 100%;
   object-fit: contain;
