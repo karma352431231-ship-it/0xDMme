@@ -46,6 +46,7 @@ export class PostThread {
     this.actions = actions;
   }
   async mount(container: HTMLElement, parent: CommunityPost): Promise<void> {
+    this.order = parent.parent ? 'votes' : 'discussed';
     this.host.setAttribute('aria-label', 'Discussão da postagem');
     const toolbar = el('div', '', 'post-thread-toolbar');
     const heading = el('h3', 'Respostas', 'community-thread-heading');
@@ -201,7 +202,7 @@ export class PostThread {
       return;
     }
     if (!branch.queue.length) {
-      const page = await this.read(branch.parent.id, 'oldest', branch.next);
+      const page = await this.read(branch.parent.id, 'votes', branch.next);
       if (!this.valid()) return;
       branch.queue = page.items;
       branch.next = page.next;
