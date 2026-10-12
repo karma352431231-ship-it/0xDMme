@@ -19,6 +19,11 @@ nulos; banners, badges, leituras e denúncias começam vazios, com os gatilhos d
 contabilidade habilitados. Antes da abertura, retorno verificado do banco e da
 release; depois de reabrir, preservar novas escritas em caso de falha.
 
+Fontes integradas revisadas: `3646d5460b0fc47d2156d09aaa4b1f8228f44211`,
+com predecessora publicada `adc6b6e88b3e06aa905ff3b8e49a6e3237979649`.
+O commit seguinte registra essas referências sem mudar fontes de aplicação,
+SQL, dependências ou units; a ativação exige CI integral do commit final.
+
 A comparação de fontes usa o limite vigente de 1024 entradas do manifesto;
 o helper antigo ainda usava 512 e recusava ler as fontes do `main`. O limite
 separado de 512 para backups/objetos/QR continua igual. Não mudar dependências,

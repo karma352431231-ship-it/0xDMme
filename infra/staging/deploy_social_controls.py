@@ -9,7 +9,8 @@ import deploy_background as background
 import deploy_post_tags as tags
 
 BEFORE = 'adc6b6e88b3e06aa905ff3b8e49a6e3237979649'
-REVIEWED = 'UNREVIEWED'
+# Owner requested main integration and activation; pin the combined, tested sources.
+REVIEWED = '3646d5460b0fc47d2156d09aaa4b1f8228f44211'
 OLD_TABLES = tags.OLD_TABLES + tags.NEW_TABLES
 NEW_TABLES = ('community_badges', 'community_member_badges',
               'public_notification_reads', 'public_reports')
