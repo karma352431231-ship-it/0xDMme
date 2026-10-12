@@ -270,3 +270,90 @@ await test('vídeo carrega ao entrar na tela e libera os bytes ao sair, sem cliq
     }
   }
 });
+
+await test('foto do feed carrega bytes completos ao entrar na tela e libera ao sair; clique permanece disponível', async (t) => {
+  const { showPublicPostMedia } =
+    await import('../src/client/public-media/index.ts');
+  const { CommunityNode, communityDocument } =
+    await import('./fixtures/community-dom.ts');
+  const document = communityDocument();
+  let visible: (entries: Array<{ isIntersecting: boolean }>) => void = () => {},
+    disconnected = false;
+  const saved = ['document', 'IntersectionObserver'].map(
+    (key) => [key, Object.getOwnPropertyDescriptor(globalThis, key)] as const,
+  );
+  Object.defineProperty(globalThis, 'document', {
+    configurable: true,
+    value: document,
+  });
+  Object.defineProperty(globalThis, 'IntersectionObserver', {
+    configurable: true,
+    value: class {
+      constructor(callback: typeof visible) {
+        visible = callback;
+      }
+      observe() {}
+      disconnect() {
+        disconnected = true;
+      }
+    },
+  });
+  const paths: string[] = [],
+    revoked: string[] = [];
+  t.mock.method(URL, 'createObjectURL', () => 'blob:photo');
+  t.mock.method(URL, 'revokeObjectURL', (url: string) => revoked.push(url));
+  t.mock.method(globalThis, 'fetch', (url: string, options: RequestInit) => {
+    paths.push(url);
+    assert.equal(options.credentials, 'omit');
+    return Promise.resolve(
+      new Response(new Uint8Array(3), {
+        headers: { 'Content-Type': 'image/png', 'Content-Length': '3' },
+      }),
+    );
+  });
+  try {
+    const host = new CommunityNode(),
+      stop = new AbortController();
+    const cleanup = showPublicPostMedia(
+      host as unknown as HTMLElement,
+      [
+        {
+          id: crypto.randomUUID(),
+          review: crypto.randomUUID(),
+          result: {
+            kind: 'photo',
+            type: 'image/png',
+            bytes: 3,
+            width: 1000,
+            height: 800,
+            seconds: 0,
+            fps: 0,
+            thumbnailBytes: 2,
+            normalized: true,
+          },
+        },
+      ],
+      stop.signal,
+    );
+    assert.equal(paths.length, 0);
+    visible([{ isIntersecting: true }]);
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    assert.equal(paths.length, 1);
+    assert.equal(paths[0]!.endsWith('/thumbnail'), false);
+    assert.equal(host.querySelector('img')!.hidden, false);
+    assert.equal(
+      host.querySelector('button')!.getAttribute('aria-label'),
+      'Ampliar imagem',
+    );
+    visible([{ isIntersecting: false }]);
+    assert.equal(host.querySelector('img')!.hidden, true);
+    assert.deepEqual(revoked, ['blob:photo']);
+    cleanup();
+    assert.equal(disconnected, true);
+  } finally {
+    for (const [key, descriptor] of saved) {
+      if (descriptor) Object.defineProperty(globalThis, key, descriptor);
+      else Reflect.deleteProperty(globalThis, key);
+    }
+  }
+});

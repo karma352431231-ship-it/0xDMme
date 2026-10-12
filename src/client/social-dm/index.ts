@@ -1,3 +1,4 @@
+import { dmMessageStates } from './read-receipts.ts';
 import {
   base64,
   encode,
@@ -537,6 +538,9 @@ export class SocialDms {
       await pinSocialHistory(packet.sender, events);
     }
     return events;
+  }
+  async messageStates(input: { peer: string; read: string[]; own: string[] }) {
+    return dmMessageStates(await this.request('message-status', input));
   }
   async read(peer: string, before: number | null) {
     if (navigator.onLine) {

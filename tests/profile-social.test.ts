@@ -158,3 +158,24 @@ await test('descrição do perfil aceita texto e emoji, normaliza quebras e recu
   ])
     assert.throws(() => profileDescriptionText(input), AccountError);
 });
+
+await test('seguidores em comum são paginados, sem campos privados, duplicatas ou contagens falsas', async () => {
+  const { mutualFollowers } =
+    await import('../src/shared/profile-social/index.ts');
+  const page = { items: [profile], total: 2, next: profile.id };
+  assert.deepEqual(mutualFollowers(page), page);
+  for (const value of [
+    { ...page, total: 0 },
+    { ...page, items: [profile, profile] },
+    {
+      ...page,
+      items: Array.from({ length: 25 }, () => ({
+        ...profile,
+        id: crypto.randomUUID(),
+      })),
+      total: 25,
+    },
+    { ...page, items: [{ ...profile, wallet: 'private' }] },
+  ])
+    assert.throws(() => mutualFollowers(value), AccountError);
+});

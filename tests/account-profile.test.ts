@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import { randomUUID } from 'node:crypto';
 import {
   emptyProfile,
+  decodePrivateProfile,
   openProfile,
   sealProfile,
   validatePhoto,
@@ -164,4 +165,12 @@ await test('conector usa somente contas, rede e personal_sign; nunca solicita tr
     }) ?? '',
     /^https:\/\/phantom\.com\/ul\/browse\//u,
   );
+});
+
+await test('perfil histórico com último acesso ligado permanece legível, mas o campo fica inativo', () => {
+  const profile = emptyProfile();
+  profile.preferences.lastSeen = true;
+  const reopened = decodePrivateProfile(JSON.stringify(profile));
+  assert.equal(reopened.preferences.lastSeen, false);
+  assert.equal(reopened.preferences.online, false);
 });

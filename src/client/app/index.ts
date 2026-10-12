@@ -386,6 +386,10 @@ function renderPageHeader(key: PageKey): void {
   document.title = `${title} · 0xDMme`;
 }
 function mountProfileSettings(content: HTMLElement): void {
+  const privacySettings = content.querySelector<HTMLElement>(
+    '[data-privacy-settings]',
+  );
+  if (privacySettings) account.mountPrivacy(privacySettings);
   const appearanceSettings = content.querySelector<HTMLElement>(
     '[data-appearance-settings]',
   );

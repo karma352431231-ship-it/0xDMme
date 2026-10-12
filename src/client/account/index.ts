@@ -309,6 +309,7 @@ export function startAccount(
         'Confirme a wallet da sua conta para liberar as ações sensíveis nesta sessão.';
       render();
     },
+    mountPrivacy: (host: HTMLElement) => profile.mountPrivacy(host),
     privacyPreferences: () => profile.privacyPreferences(),
     sharedProfile: () => profile.shared(),
     approvalPage: approval.page,

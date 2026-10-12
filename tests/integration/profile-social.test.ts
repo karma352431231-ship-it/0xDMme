@@ -10,6 +10,7 @@ import {
   profileFollow,
   profileBanner,
   profileDescription,
+  mutualFollowers,
 } from '../../src/shared/profile-social/index.ts';
 import { postShareState } from '../../src/shared/post-sharing/index.ts';
 import { feedPage } from '../../src/shared/community-discovery/index.ts';
@@ -230,6 +231,94 @@ await test('perfil social: métricas, comunidades públicas, follows, feeds e ba
         [identity.id],
       );
       assert.equal((await profiles.summary(identity.handle)).createdAt, null);
+    },
+  );
+  await t.test(
+    'seguidores em comum: direção correta, paginação e bloqueios em ambos os lados',
+    async () => {
+      const people = await Promise.all(
+        Array.from({ length: 25 }, () => make()),
+      );
+      const publicIds: string[] = [];
+      for (const person of people) {
+        const publicIdentity = await person.publicIdentity(
+          `mut_${crypto.randomUUID().slice(0, 8)}`,
+        );
+        publicIds.push(publicIdentity.id);
+        await operate(reader, 'follow', {
+          target: publicIdentity.id,
+          following: true,
+          revision: 0,
+        });
+        await operate(person, 'follow', {
+          target: identity.id,
+          following: true,
+          revision: 0,
+        });
+      }
+      const read = (after: string | null = null) =>
+        operate(reader, 'mutual-followers', {
+          target: identity.id,
+          after,
+        }).then(mutualFollowers);
+      const first = await read();
+      assert.equal(first.total, 25);
+      assert.equal(first.items.length, 24);
+      assert.ok(first.next);
+      const second = await read(first.next);
+      assert.equal(second.total, 25);
+      assert.equal(second.items.length, 1);
+      assert.equal(second.next, null);
+      assert.equal(
+        new Set([...first.items, ...second.items].map((item) => item.id)).size,
+        25,
+      );
+      for (const item of first.items)
+        assert.deepEqual(Object.keys(item).sort(), ['avatar', 'handle', 'id']);
+      assert.equal(
+        mutualFollowers(
+          await operate(owner, 'mutual-followers', {
+            target: follower.id,
+            after: null,
+          }),
+        ).total,
+        0,
+      );
+      await operate(people[0]!, 'block', {
+        target: follower.id,
+        blocked: true,
+        revision: 0,
+      });
+      assert.equal((await read()).total, 24);
+      await operate(reader, 'block', {
+        target: publicIds[1]!,
+        blocked: true,
+        revision: 0,
+      });
+      assert.equal((await read()).total, 23);
+      await operate(reader, 'block', {
+        target: identity.id,
+        blocked: true,
+        revision: 0,
+      });
+      assert.equal((await read()).total, 0);
+      await operate(reader, 'block', {
+        target: identity.id,
+        blocked: false,
+        revision: 1,
+      });
+      for (const id of publicIds)
+        await operate(reader, 'follow', {
+          target: id,
+          following: false,
+          revision: 1,
+        });
+      for (const person of people)
+        await operate(person, 'follow', {
+          target: identity.id,
+          following: false,
+          revision: 1,
+        });
     },
   );
   await t.test(

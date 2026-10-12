@@ -82,7 +82,7 @@ export class Daily {
     if (!preferences || !this.session) return;
     const chosen = {
       online: preferences.online,
-      lastSeen: preferences.lastSeen,
+      lastSeen: false,
       readReceipts: preferences.readReceipts,
     };
     const identity = JSON.stringify([this.session.profileRevision, chosen]);
@@ -445,7 +445,7 @@ function parseState(value: unknown): PeerState {
     mutedUntil: integer(Number(d['mutedUntil']), Number.MAX_SAFE_INTEGER),
     unread: integer(d['unread'], 2147483647),
     online: d['online'],
-    lastSeen: d['lastSeen'],
+    lastSeen: null,
     ...cleanupState(d),
   };
 }

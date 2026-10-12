@@ -156,6 +156,7 @@ const migrations = [
   '058-social-notifications-reports.sql',
   '059-post-sharing.sql',
   '060-public-notification-wake.sql',
+  '061-social-read-receipts.sql',
 ];
 
 export interface MaintenanceSnapshot {

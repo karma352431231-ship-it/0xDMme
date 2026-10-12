@@ -1,0 +1,61 @@
+.public-picture-open {
+  cursor: zoom-in;
+}
+#app-shell .community-public-media .public-picture-retry {
+  width: auto;
+  padding: 8px 12px;
+  font-size: var(--fs-caption);
+}
+.public-image-viewer {
+  width: calc(100vw - 32px);
+  max-width: none;
+  height: calc(100dvh - 32px);
+  max-height: none;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--surface);
+  color: var(--text);
+}
+.public-image-viewer::backdrop {
+  background: var(--shadow);
+}
+.public-image-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  height: 48px;
+}
+.public-image-toolbar button {
+  margin: 0;
+}
+.public-image-frame {
+  display: grid;
+  place-items: center;
+  height: calc(100% - 60px);
+  margin-top: 12px;
+  overflow: auto;
+}
+.public-image-frame img {
+  display: block;
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  border: 0;
+  cursor: zoom-in;
+}
+.public-image-viewer.zoomed .public-image-frame {
+  display: block;
+}
+.public-image-viewer.zoomed img {
+  max-width: none;
+  max-height: none;
+  cursor: zoom-out;
+}
+
+#app-shell .community-public-media [hidden],
+.community-scope .community-public-media [hidden] {
+  display: none;
+}

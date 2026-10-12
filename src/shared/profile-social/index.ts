@@ -1,3 +1,5 @@
+export { mutualFollowers } from './mutuals.ts';
+export type { MutualFollowers } from './mutuals.ts';
 import { AccountError, keys, object, uuid } from '../account/index.ts';
 import { communityBoolean } from '../communities/index.ts';
 import { postCount, postTime } from '../community-posts/index.ts';

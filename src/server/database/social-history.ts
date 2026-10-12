@@ -1,3 +1,4 @@
+import { SocialReadReceipts } from './social-read-receipts.ts';
 import type pg from 'pg';
 import {
   AccountError,
@@ -25,10 +26,12 @@ export interface SocialSnapshot {
   profile: string;
 }
 export class SocialHistoryStore {
+  readonly reads: SocialReadReceipts;
   private readonly social: SocialDmStore;
   private readonly profiles: PublicProfileStore;
   constructor(social: SocialDmStore, profiles: PublicProfileStore) {
     this.social = social;
+    this.reads = new SocialReadReceipts(social);
     this.profiles = profiles;
   }
   async secret(a: ContactAuthority, raw?: unknown) {

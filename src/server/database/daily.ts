@@ -68,7 +68,7 @@ export class DailyStore {
           a.session.accountId,
           revision,
           preferences.online,
-          preferences.lastSeen,
+          false,
           preferences.readReceipts,
         ],
       );
@@ -91,7 +91,7 @@ export class DailyStore {
         `SELECT root.peer,coalesce(cc.revision,0) AS revision,coalesce(cc.muted_until,0)::text AS "mutedUntil",
         (SELECT count(*)::integer FROM hash_talk.message_packets m WHERE m.sender=root.peer AND m.recipient=$1 AND m.kind<>'profile' AND m.relation IS NULL AND m.body IS NOT NULL AND NOT EXISTS(SELECT 1 FROM hash_talk.message_reads mr WHERE mr.account_id=m.recipient AND mr.message_id=m.id) AND NOT EXISTS(SELECT 1 FROM hash_talk.personal_removals pr WHERE pr.account_id=$1 AND pr.kind='message' AND pr.id=m.id)) AS unread,
         coalesce(dc.online,false) AND EXISTS(SELECT 1 FROM hash_talk.device_presence p JOIN hash_talk.device_directories d ON d.account_id=p.account_id WHERE p.account_id=root.peer AND p.expires_at>now() AND EXISTS(SELECT 1 FROM jsonb_array_elements(d.event->'devices') member WHERE member->>'id'=p.device_id::text)) AS online,
-        CASE WHEN dc.last_seen THEN dc.seen_at ELSE NULL END AS "lastSeen"
+        NULL::timestamptz AS "lastSeen"
         FROM unnest($2::uuid[]) root(peer) LEFT JOIN hash_talk.conversation_controls cc ON cc.account_id=$1 AND cc.peer=root.peer LEFT JOIN hash_talk.daily_controls dc ON dc.account_id=root.peer WHERE EXISTS(SELECT 1 FROM hash_talk.contact_relations cr WHERE cr.lo=least($1::uuid,root.peer) AND cr.hi=greatest($1::uuid,root.peer) AND cr.state='approved')`,
         [a.session.accountId, peers],
       );
@@ -119,16 +119,11 @@ export class DailyStore {
   }
   async heartbeat(a: ContactAuthority, active: boolean): Promise<void> {
     return this.contacts.withMessageAuthority(a, async (c) => {
-      const result = await c.query<{ online: boolean; last_seen: boolean }>(
-        'SELECT online,last_seen FROM hash_talk.daily_controls WHERE account_id=$1',
+      const result = await c.query<{ online: boolean }>(
+        'SELECT online FROM hash_talk.daily_controls WHERE account_id=$1',
         [a.session.accountId],
       );
       const prefs = result.rows[0];
-      if (active && prefs?.last_seen)
-        await c.query(
-          "UPDATE hash_talk.daily_controls SET seen_at=now() WHERE account_id=$1 AND (seen_at IS NULL OR seen_at<now()-interval '25 seconds')",
-          [a.session.accountId],
-        );
       if (active && prefs?.online)
         await c.query(
           `INSERT INTO hash_talk.device_presence(account_id,device_id,expires_at) VALUES($1,$2,now()+interval '75 seconds') ON CONFLICT(account_id,device_id) DO UPDATE SET expires_at=excluded.expires_at WHERE hash_talk.device_presence.expires_at<now()+interval '45 seconds'`,

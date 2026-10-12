@@ -111,10 +111,10 @@ export const presets: readonly Preset[] = [
   {
     id: 'social',
     label: 'Social',
-    hint: 'Tudo ligado: online, último acesso, leitura, GIFs e avisos completos.',
+    hint: 'Tudo ligado: online, leitura, GIFs e avisos completos.',
     externalMedia: true,
     push: { enabled: true, messages: true, calls: true, showCalls: true },
-    privacy: { online: true, lastSeen: true, readReceipts: true },
+    privacy: { online: true, lastSeen: false, readReceipts: true },
     discovery: 'wallet',
   },
 ];

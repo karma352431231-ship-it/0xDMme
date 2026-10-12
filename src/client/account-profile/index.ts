@@ -52,6 +52,7 @@ function preferences(value: unknown): ProfilePreferences {
       throw new Error('Preferência inválida.');
     result[name] = data[name];
   }
+  result.lastSeen = false; // Historical encrypted field, no active last-access feature.
   return result;
 }
 export function encodePrivateProfile(profile: PrivateProfile): string {

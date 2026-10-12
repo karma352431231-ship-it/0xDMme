@@ -48,7 +48,7 @@ Decisão do proprietário: um “pacote de configurações básicas” para quem
 | Opção                    | Reservado  | Equilibrado       | Social            |
 | ------------------------ | ---------- | ----------------- | ----------------- |
 | Quem pode pedir conversa | Só convite | Wallet ou convite | Wallet ou convite |
-| Online / último acesso   | Não        | Não               | Sim               |
+| Online                   | Não        | Não               | Sim               |
 | Confirmação de leitura   | Não        | Sim               | Sim               |
 | GIFs e vídeos externos   | Só link    | Sim               | Sim               |
 | Push                     | Desligado  | Ligado, completo  | Ligado, completo  |
@@ -56,7 +56,7 @@ Decisão do proprietário: um “pacote de configurações básicas” para quem
 **Onde fica cada escolha.**
 
 - Tema, sons, mídia externa e push: registro `settings` do cofre cifrado, com entidade fixa derivada da conta e rótulo “Configurações da conta”. O servidor guarda só o bloco opaco, como os demais registros do cofre. Ao entrar em outro aparelho, o registro é aplicado ali. Mudar essas opções em Perfil atualiza o registro; gravações iguais ao que já está salvo não são feitas.
-- Online, último acesso, confirmação de leitura e lembrete de backup: o perfil privado cifrado de sempre (mesma gravação do formulário).
+- Online e confirmação de leitura e lembrete de backup: o perfil privado cifrado de sempre (mesma gravação do formulário).
 - Quem pode pedir conversa: a configuração de descoberta no servidor, pela mesma operação assinada de Privacidade; o convite privado continua como está.
 - Ficam no aparelho: arranjo dos painéis, última categoria aberta do Perfil e as escolhas de visitantes.
 
@@ -65,3 +65,5 @@ Decisão do proprietário: um “pacote de configurações básicas” para quem
 **Limites.** Uma conta antiga aberta numa versão anterior do app ainda guarda essas escolhas só no aparelho até atualizar. O teste físico do pedido de permissão (Android, iPhone com o app na tela inicial) e da aplicação em dois aparelhos reais continua pendente.
 
 Validação local: lint, tipos, limites de módulos, formatação e build passaram; testes novos cobrem o formato do registro, os perfis prontos, a gravação que substitui versões concorrentes no cofre, conteúdo inválido, cofre incompleto, a aplicação da cópia da conta em outro aparelho sem gravar ecos e a troca de conta. A prévia local sem backend conferiu as três etapas do assistente em 1.280 e 375 px, sem rolagem horizontal. O fluxo com conta real, cofre e push não foi visto nesta etapa.
+
+**Revisão de 12/10/2026:** último acesso removido da interface, dos presets, da coleta e da projeção. Campos históricos são aceitos como inativos para preservar perfis/clients antigos. Online e confirmação de leitura aparecem em Privacidade, com rascunho e confirmação explícita, incluindo a aba mobile; leitura confirmada usa checks verdes. DMs pelo @ agora distinguem aceitação, recebimento e leitura compartilhada: somente pacotes recebidos pelo aparelho, consentimento atual, bloqueios, remoção pessoal e época da preferência permitem projetar leitura. Migração 061 adiciona uma época nullable aos recibos existentes, sem inventar leituras históricas ou alterar a cobrança de 256 bytes. A entrega local não ativa migrações na VPS.

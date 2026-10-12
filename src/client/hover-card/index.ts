@@ -79,7 +79,8 @@ function install(): void {
     }
     const render = providers.map((provider) => provider(link)).find(Boolean);
     if (!render) return;
-    clearTimeout(openTimer);
+    // A previous leave must not cancel the next link before its open delay.
+    close();
     openTimer = window.setTimeout(() => open(link, render), openDelay);
     link.addEventListener(
       'pointerleave',

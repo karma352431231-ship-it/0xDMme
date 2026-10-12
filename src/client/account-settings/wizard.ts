@@ -30,7 +30,7 @@ const reviewStep = `<form data-wizard-step="review" hidden><h2>Revise suas confi
   .map(([value, label]) => `<option value="${value}">${label}</option>`)
   .join(
     '',
-  )}</select></label><label><input type="checkbox" name="online"> Exibir online para contatos aprovados</label><label><input type="checkbox" name="lastSeen"> Exibir último acesso para contatos aprovados</label><label><input type="checkbox" name="readReceipts"> Enviar confirmação de leitura</label></fieldset>
+  )}</select></label><label><input type="checkbox" name="online"> Exibir online para contatos aprovados</label><label><input type="checkbox" name="readReceipts"> Enviar confirmação de leitura</label></fieldset>
 <fieldset><legend>Mídias externas</legend><label><input type="checkbox" name="externalMedia"> Mostrar GIFs e vídeos externos</label><small data-wizard-media></small></fieldset>
 <fieldset><legend>Notificações</legend><label><input type="checkbox" name="pushEnabled"> Receber notificações push</label><div class="settings-pack-push"><label><input type="checkbox" name="messages"> Mensagens e respostas</label><label><input type="checkbox" name="calls"> Chamadas</label><label><input type="checkbox" name="showCalls"> Identificar aviso como chamada de voz</label></div><small>Ao salvar, o navegador pede a permissão de notificações. O nome do contato nunca aparece.</small><label><input type="checkbox" name="sound"> Sons dentro do app</label></fieldset>
 <fieldset><legend>Backup</legend><label><input type="checkbox" name="backupReminder"> Lembrar de salvar um backup a cada sete dias</label></fieldset>
@@ -46,7 +46,6 @@ function fill(form: HTMLFormElement, pack: SettingsPack): void {
   const { settings, privacy } = pack;
   for (const [name, value] of [
     ['online', privacy.online],
-    ['lastSeen', privacy.lastSeen],
     ['readReceipts', privacy.readReceipts],
     ['backupReminder', privacy.backupReminder],
     ['externalMedia', settings.externalMedia],
@@ -97,7 +96,7 @@ function read(form: HTMLFormElement, base: SettingsPack): SettingsPack {
     },
     privacy: {
       online: checked('online'),
-      lastSeen: checked('lastSeen'),
+      lastSeen: false,
       readReceipts: checked('readReceipts'),
       backupReminder: checked('backupReminder'),
     },

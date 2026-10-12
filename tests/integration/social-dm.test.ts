@@ -557,6 +557,35 @@ await test('cortes 7–8: consentimento, E2EE, mídia e cofre social', async (t)
     },
   );
   await t.test(
+    'leitura de DM exige recebimento neste aparelho e consentimento, sem confundir ACK',
+    async () => {
+      await assert.rejects(
+        operate(bob, 'message-status', {
+          peer: ap.id,
+          read: [packet.id],
+          own: [],
+        }),
+        { status: 409 },
+      );
+      await assert.rejects(
+        operate(outsider, 'message-status', {
+          peer: ap.id,
+          read: [],
+          own: [packet.id],
+        }),
+        { status: 403 },
+      );
+      assert.deepEqual(
+        await operate(alice, 'message-status', {
+          peer: bp.id,
+          read: [],
+          own: [packet.id],
+        }),
+        [{ id: packet.id, received: false, read: false }],
+      );
+    },
+  );
+  await t.test(
     'snapshot não entrega corpo a aparelho sem consentimento; ACK distingue cópia já recebida',
     async () => {
       const snapshot = await operate(bob, 'personal-snapshot', {});
@@ -572,12 +601,70 @@ await test('cortes 7–8: consentimento, E2EE, mídia e cofre social', async (t)
         )
       ).rows[0]!.hash;
       await operate(bob, 'received', { items: [{ id: packet.id, hash }] });
+      const request = () =>
+        operate(bob, 'message-status', {
+          peer: ap.id,
+          read: [packet.id],
+          own: [],
+        });
+      const state = () =>
+        operate(alice, 'message-status', {
+          peer: bp.id,
+          read: [],
+          own: [packet.id],
+        });
+      assert.deepEqual(await state(), [
+        { id: packet.id, received: true, read: false },
+      ]);
+      await request();
+      assert.deepEqual(await state(), [
+        { id: packet.id, received: true, read: false },
+      ]);
+      const revision = (
+        await inspector.query<{ profile_revision: number }>(
+          'SELECT profile_revision FROM hash_talk.accounts WHERE id=$1',
+          [bob.login.session.accountId],
+        )
+      ).rows[0]!.profile_revision;
+      const configure = (enabled: boolean) =>
+        db.daily.configure(
+          { session: bob.login.session, directory: bob.directory },
+          revision,
+          { online: false, lastSeen: false, readReceipts: enabled },
+        );
+      await configure(true);
+      await request();
+      await request();
+      assert.deepEqual(await state(), [
+        { id: packet.id, received: true, read: true },
+      ]);
+      await configure(false);
+      assert.deepEqual(await state(), [
+        { id: packet.id, received: true, read: false },
+      ]);
+      await configure(true);
+      assert.deepEqual(await state(), [
+        { id: packet.id, received: true, read: false },
+      ]);
+      await request();
+      assert.deepEqual(await state(), [
+        { id: packet.id, received: true, read: true },
+      ]);
+      await configure(false);
     },
   );
   await t.test(
     'bloqueio social impede conteúdo/chaves sem mudar o contato privado',
     async () => {
       await operate(bob, 'block', { peer: ap.id, blocked: true });
+      await assert.rejects(
+        operate(alice, 'message-status', {
+          peer: bp.id,
+          read: [],
+          own: [packet.id],
+        }),
+        { status: 403 },
+      );
       const snapshot = await operate(bob, 'personal-snapshot', {});
       const received = (await operate(bob, 'personal-page', {
         snapshot,

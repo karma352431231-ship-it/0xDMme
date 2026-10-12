@@ -160,7 +160,7 @@ function categoryList(
 }
 
 const profileContent = `<section class="profile-settings" aria-label="Configurações da conta"><h2>Configurações</h2><p class="settings-intro">Abra a categoria que você quer ajustar.</p>
-${settingsSection({ id: 'privacy', title: 'Privacidade', description: 'Quem pode me encontrar', content: '<div data-contact-settings-container></div>' })}
+${settingsSection({ id: 'privacy', title: 'Privacidade', description: 'Presença, leitura e quem pode me encontrar', content: '<div data-privacy-settings></div><div data-contact-settings-container></div>' })}
 ${settingsSection({ id: 'profile', title: 'Perfil público', description: 'Seu @ e sua foto nas comunidades', content: '<div data-public-profile-settings></div>' })}
 ${settingsSection({ id: 'alerts', title: 'Notificações e chamadas', description: 'Push, sons e silêncio das conversas', content: '<div data-daily-settings></div><div data-call-settings></div>' })}
 ${settingsSection({ id: 'devices', title: 'Dispositivos conectados', description: 'Vincular, recuperar e gerenciar acessos', content: '<div data-device-settings></div>' })}

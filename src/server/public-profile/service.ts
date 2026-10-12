@@ -97,6 +97,7 @@ export class PublicProfileService {
         'description-state',
         'description',
         'follow-state',
+        'mutual-followers',
         'follow',
         'block-state',
         'block',
@@ -138,6 +139,7 @@ export class PublicProfileService {
       [
         'follow',
         'follow-state',
+        'mutual-followers',
         'banner',
         'banner-state',
         'block',
@@ -210,6 +212,7 @@ export class PublicProfileService {
       [
         'follow',
         'follow-state',
+        'mutual-followers',
         'block',
         'block-state',
         'public-report',

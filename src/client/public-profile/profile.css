@@ -683,3 +683,50 @@
     z-index: 20;
   }
 }
+
+.mutual-followers {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-top: 16px;
+  color: var(--text-muted);
+  font-size: var(--fs-caption);
+}
+.mutual-followers a {
+  color: inherit;
+  text-decoration: none;
+}
+.mutual-followers a:hover {
+  text-decoration: underline;
+}
+.mutual-followers-avatars {
+  display: flex;
+  padding-left: 6px;
+}
+.mutual-follower-avatar {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  margin-left: -6px;
+  overflow: hidden;
+  border: 2px solid var(--surface);
+  border-radius: 50%;
+  background: var(--surface-3);
+}
+.mutual-follower-avatar .public-avatar-preview {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border: 0;
+}
+.mutual-followers-list {
+  display: grid;
+  gap: 8px;
+  flex-basis: 100%;
+}
+.mutual-followers p:empty {
+  display: none;
+}

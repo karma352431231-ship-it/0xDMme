@@ -1,3 +1,4 @@
+import { mountMutualFollowers } from './mutuals.ts';
 import { profileSocialControls } from './social-controls.ts';
 import { publicBlockState } from '../../shared/profile-social/index.ts';
 import type { PublicBlockState } from '../../shared/profile-social/index.ts';
@@ -193,6 +194,12 @@ export function showProfilePage(
     timeline.append(tabs, items, paging);
     layout.append(timeline, sidebar);
     page.replaceChildren(header, status, layout);
+    if (!block.blocked)
+      mountMutualFollowers(header, {
+        target: summary.profile.id,
+        controller: options.controller,
+        signal: lifetime.signal,
+      });
     status.textContent = '';
     if (!block.blocked)
       link(

@@ -1170,8 +1170,6 @@ export function startMessages(
   }
   function presenceText(state: PeerState | null | undefined): string | null {
     if (state?.online) return 'Online';
-    if (state?.lastSeen)
-      return `Último acesso: ${new Date(state.lastSeen).toLocaleString('pt-BR')}`;
     return null;
   }
   function contactsMore(): void {

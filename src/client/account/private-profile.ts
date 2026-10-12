@@ -1,3 +1,4 @@
+import { PrivacyControls } from './privacy-controls.ts';
 import { accountSession, profileEnvelope } from '../../shared/account/index.ts';
 import type {
   AccountSession,
@@ -46,6 +47,7 @@ export class AccountPrivateProfile {
   private draftName: string | null = null;
   private readonly photoDraft = new PrivatePhotoDraft();
   private readonly preferencesDraft = new PrivatePreferencesDraft();
+  private readonly privacyControls: PrivacyControls;
   private readonly core: AccountCore;
   private readonly options: ProfileOptions;
   private readonly host: {
@@ -62,6 +64,20 @@ export class AccountPrivateProfile {
     this.core = core;
     this.options = options;
     this.host = host;
+    this.privacyControls = new PrivacyControls({
+      value: () =>
+        this.profile
+          ? this.preferencesDraft.value(this.profile.preferences)
+          : null,
+      busy: () => this.core.busy,
+      status: () => this.core.status,
+      change: (name, value) => {
+        if (!this.profile) return;
+        this.preferencesDraft.set(this.profile.preferences, name, value);
+        this.dirtyProfile = true;
+      },
+      confirm: (event) => this.confirmChanges(event),
+    });
   }
   get loaded(): boolean {
     return this.profile !== null;
@@ -87,6 +103,7 @@ export class AccountPrivateProfile {
     this.dirtyName = false;
     this.dirtyProfile = false;
     this.draftName = null;
+    this.privacyControls.render();
   }
   async load(
     current: AccountSession,
@@ -165,6 +182,9 @@ export class AccountPrivateProfile {
       this.dirtyProfile = true;
     });
   }
+  mountPrivacy(host: HTMLElement): void {
+    this.privacyControls.mount(host);
+  }
   /** The name field, preference boxes and photo of the open form. */
   renderForm(current: AccountSession): void {
     const name = this.find<HTMLInputElement>('input[name="display-name"]');
@@ -181,6 +201,7 @@ export class AccountPrivateProfile {
           )[name];
       }
     this.renderPhoto();
+    this.privacyControls.render();
   }
   renderPhoto(): void {
     if (this.photoUrl) URL.revokeObjectURL(this.photoUrl);
@@ -262,8 +283,8 @@ export class AccountPrivateProfile {
     'online' | 'lastSeen' | 'readReceipts'
   > | null {
     if (!this.profile) return null;
-    const { online, lastSeen, readReceipts } = this.profile.preferences;
-    return { online, lastSeen, readReceipts };
+    const { online, readReceipts } = this.profile.preferences;
+    return { online, lastSeen: false, readReceipts };
   }
   shared(): {
     name: string;

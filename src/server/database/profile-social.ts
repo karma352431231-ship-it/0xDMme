@@ -1,3 +1,4 @@
+import { readProfileMutuals } from './profile-mutuals.ts';
 import { profileActivityFilter } from '../../shared/profile-social/index.ts';
 import type pg from 'pg';
 import { AccountError, keys, uuid } from '../../shared/account/index.ts';
@@ -127,9 +128,20 @@ export class ProfileSocialStore {
       return this.options.communities.withActor(authority, (context) =>
         storePublicReport(context, data, this.options.capacity),
       );
-    if (operation === 'notification-state' || operation === 'notification-set')
-      return this.options.communities.withActor(authority, (context) =>
-        profileNotificationSetting(context, operation, data),
+    if (
+      ['notification-state', 'notification-set', 'mutual-followers'].includes(
+        operation,
+      )
+    )
+      return this.options.communities.withActor(authority, async (context) =>
+        operation === 'mutual-followers'
+          ? await readProfileMutuals({
+              client: context.client,
+              actor: context.actor.id,
+              profiles: this.options.profiles,
+              data,
+            })
+          : await profileNotificationSetting(context, operation, data),
       );
     return this.followOperation(operation, authority, data);
   }

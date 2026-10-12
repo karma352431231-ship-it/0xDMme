@@ -9,6 +9,7 @@ import { publicAvatarLimit } from '../../shared/public-avatar/index.ts';
 import type { PublicPostMedia } from '../../shared/public-media/index.ts';
 import { withPublicRead } from './reads.ts';
 import { mountPublicVideo } from './video.ts';
+import { mountPublicPicture } from './picture.ts';
 
 function blobEnvelope(
   response: Response,
@@ -94,18 +95,15 @@ export function showPublicPostMedia(
 ): () => void {
   const checked = publicPostMedia(media);
   if (signal.aborted) return () => undefined;
-  const videoCleanup: Array<() => void> = [];
-  const urls = new Set<string>(),
-    pending = new AbortController(),
+  const mediaCleanup: Array<() => void> = [];
+  const pending = new AbortController(),
     lifetime = AbortSignal.any([signal, pending.signal]);
   const field = document.createElement('div');
   field.className = 'community-public-media';
   container.append(field);
   const cleanup = () => {
     pending.abort();
-    for (const stop of videoCleanup) stop();
-    for (const url of urls) URL.revokeObjectURL(url);
-    urls.clear();
+    for (const stop of mediaCleanup) stop();
     field.remove();
     signal.removeEventListener('abort', cleanup);
   };
@@ -114,7 +112,7 @@ export function showPublicPostMedia(
     if (item.result.kind === 'video') {
       const slot = document.createElement('figure');
       field.append(slot);
-      videoCleanup.push(
+      mediaCleanup.push(
         mountPublicVideo(slot, item, {
           signal: lifetime,
           load: (thumbnail, signal) =>
@@ -123,48 +121,14 @@ export function showPublicPostMedia(
       );
       continue;
     }
-    const button = document.createElement('button'),
-      caption = document.createElement('span');
-    button.type = 'button';
-    button.textContent =
-      item.result.kind === 'gif' ? 'Abrir GIF' : 'Abrir foto';
     const slot = document.createElement('figure');
-    slot.append(button, caption);
     field.append(slot);
-    void picture(item, true, button).catch(() => {
-      if (!lifetime.aborted) caption.textContent = 'Miniatura indisponível.';
-    });
-    button.addEventListener('click', () => {
-      button.disabled = true;
-      void picture(item, false, slot)
-        .then(() => {
-          button.remove();
-          caption.textContent = '';
-        })
-        .catch(() => {
-          if (!lifetime.aborted) {
-            button.disabled = false;
-            caption.textContent = 'Mídia indisponível.';
-          }
-        });
-    });
-  }
-  async function picture(
-    item: PublicPostMedia,
-    thumbnail: boolean,
-    target: HTMLElement,
-  ): Promise<void> {
-    const blob = await publicPostMediaBlob(item, thumbnail, lifetime);
-    if (lifetime.aborted || !field.isConnected) return;
-    const url = URL.createObjectURL(blob);
-    urls.add(url);
-    const node = document.createElement('img');
-    node.className = 'community-media-preview';
-    node.alt = thumbnail
-      ? 'Miniatura pública aprovada'
-      : 'Mídia pública aprovada';
-    node.src = url;
-    target.append(node);
+    mediaCleanup.push(
+      mountPublicPicture(slot, item, {
+        signal: lifetime,
+        load: (signal) => publicPostMediaBlob(item, false, signal),
+      }),
+    );
   }
   return cleanup;
 }

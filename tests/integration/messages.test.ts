@@ -1824,7 +1824,7 @@ await test('mensagens persistentes: Olm/Megolm, recuperação, idempotência, ex
         },
       );
       await dailyTest.test(
-        'online, último acesso e leitura são desligados por padrão e independentes; ACK não é leitura',
+        'online e leitura são independentes; último acesso legado não é coletado; ACK não é leitura',
         async () => {
           let state = object(
             await op(dana, 'daily-state', { peer: eve.session.accountId }),
@@ -1852,7 +1852,16 @@ await test('mensagens persistentes: Olm/Megolm, recuperação, idempotência, ex
             await op(dana, 'daily-state', { peer: eve.session.accountId }),
           );
           assert.equal(state['online'], false);
-          assert.ok(state['lastSeen']);
+          assert.equal(state['lastSeen'], null);
+          const presence = await inspector.query<{
+            seen_at: Date | null;
+            last_seen: boolean;
+          }>(
+            'SELECT seen_at,last_seen FROM hash_talk.daily_controls WHERE account_id=$1',
+            [eve.session.accountId],
+          );
+          assert.equal(presence.rows[0]!.seen_at, null);
+          assert.equal(presence.rows[0]!.last_seen, false);
           await assert.rejects(
             op(eve, 'daily-read', {
               peer: dana.session.accountId,

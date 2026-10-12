@@ -1,3 +1,4 @@
+import { refreshDmChecks } from './dm-checks.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
 import { publicProfile } from '../../shared/public-profile/index.ts';
 import type { PublicProfile } from '../../shared/public-profile/index.ts';
@@ -310,6 +311,15 @@ export function startSocialDmUi(
     }
     renderHistory(current, page, { selected, localMedia: !writable });
     composer.update(composerState());
+    if (writable)
+      await refreshDmChecks({
+        history: current.history,
+        controller,
+        peer: selected,
+        items: page.items,
+        usable: () =>
+          old === generation && writable && current.history.isConnected,
+      });
   }
   function options(
     current: DmView,

@@ -1185,7 +1185,7 @@
   }
   #app-shell[data-page='comunidades'] .community-feed .community-card p {
     margin: 0 0 10px;
-    color: var(--text-muted);
+    color: var(--text);
     font-size: 15px;
     line-height: 1.5;
   }
