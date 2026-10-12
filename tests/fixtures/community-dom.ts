@@ -30,6 +30,9 @@ export class CommunityNode extends EventTarget {
     this.text = value;
     this.replaceChildren();
   }
+  get parentElement(): CommunityNode | null {
+    return this.parent;
+  }
   get lastElementChild(): CommunityNode | null {
     return this.children.at(-1) ?? null;
   }

@@ -144,6 +144,10 @@ function fixture(post = false) {
     withVault: (_offline, work) => work(authority),
     withLocalVault: (_locator, work) => work(authority),
   };
+  const emptyPages = new Map<string, unknown>([
+    ['tags', { items: [], next: null }],
+    ['followers-page', { items: [], total: 0, next: null }],
+  ]);
   const respond = (path: string, input?: RequestInit) => {
     if (path.endsWith('/state'))
       return Promise.resolve(
@@ -151,8 +155,8 @@ function fixture(post = false) {
           status: data.failState ? 403 : 200,
         }),
       );
-    if (path.endsWith('/tags'))
-      return Promise.resolve(Response.json({ items: [], next: null }));
+    const page = emptyPages.get(path.slice(path.lastIndexOf('/') + 1));
+    if (page) return Promise.resolve(Response.json(page));
     if (['/replies', '/post-replies'].some((suffix) => path.endsWith(suffix)))
       return Promise.resolve(
         Response.json({ items: data.replies, next: null }),
@@ -207,6 +211,7 @@ function fixture(post = false) {
     HTMLAnchorElement: CommunityNode,
     HTMLButtonElement: CommunityNode,
     HTMLInputElement: CommunityNode,
+    HTMLLabelElement: CommunityNode,
     URL,
     URLSearchParams,
     AbortController,
