@@ -2,6 +2,7 @@ import type { AccountSession } from '../../shared/account/index.ts';
 import type { VaultAccess } from '../vault-authority/index.ts';
 import type { PublicModerationNotice } from '../../shared/public-moderation/index.ts';
 import { PublicProfiles } from './controller.ts';
+import { profileFollows } from './follows.ts';
 import { renderModeration } from './moderation.ts';
 import { showProfilePage } from './page.ts';
 import { startProfileEditor } from './profile-editor.ts';
@@ -184,6 +185,7 @@ export function startPublicProfile(
         renderEntry: (entry, signal) => activity.render(entry, signal),
       });
     },
+    follows: profileFollows(controller),
     mount,
     leave,
     ready,

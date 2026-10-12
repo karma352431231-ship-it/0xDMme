@@ -83,7 +83,12 @@ window.addEventListener('storage', (event) =>
   externalMedia.storageChanged(event.key),
 );
 const publicProfiles = startPublicProfile(devices, externalMedia);
-const communities = startCommunities(devices, vault.sync, externalMedia);
+const communities = startCommunities(
+  devices,
+  vault.sync,
+  externalMedia,
+  publicProfiles.follows,
+);
 const playback = new VoicePlayback();
 const callLog = new CallLog(vault.sync);
 const calls = startCalls({

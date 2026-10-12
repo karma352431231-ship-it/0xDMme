@@ -13,7 +13,8 @@ import type {
 } from '../../shared/community-discovery/index.ts';
 import type { Communities } from './controller.ts';
 import type { CommunityPost } from '../../shared/community-posts/index.ts';
-import { communityState } from '../../shared/communities/index.ts';
+import { feedFollowControl } from './feed-follow.ts';
+import type { FeedProfileFollows } from './feed-follow.ts';
 import { communityRead } from './controller.ts';
 import {
   communityButton as button,
@@ -50,6 +51,7 @@ import {
 export function startCommunityDiscovery(
   controller: Communities,
   privacy: ExternalMediaConsent,
+  profiles: FeedProfileFollows,
 ) {
   let mounted: HTMLElement | null = null,
     list: HTMLElement | null = null,
@@ -320,7 +322,7 @@ export function startCommunityDiscovery(
       row.classList.add('community-post');
       const avatar = postHeader(row, post, entry.community);
       appendReplyContext(row, entry);
-      followControl(row, entry.community, old);
+      followControl(row, entry, old);
       if (entry.community.avatar)
         mediaCleanup.add(
           showPublicAvatar(avatar, {
@@ -350,34 +352,24 @@ export function startCommunityDiscovery(
   }
   function followControl(
     row: HTMLElement,
-    community: { id: string; name: string },
+    entry: ReturnType<typeof feedPage>['items'][number],
     old: number,
   ): void {
     const header = row.querySelector<HTMLElement>('.community-post-header');
     if (!header || !signedIn) return;
-    let following = false;
-    const node = button(header, '+ Seguir', () =>
-      run(async () => {
-        const state = communityState(
-          await controller.request('follow', {
-            id: community.id,
-            following: !following,
-          }),
-        );
-        if (old !== generation) return;
-        following = state.following;
-        node.textContent = following ? 'Seguindo' : '+ Seguir';
-        node.setAttribute('aria-pressed', String(following));
-        node.setAttribute(
-          'aria-label',
-          `${following ? 'Deixar de seguir' : 'Seguir'} a comunidade ${community.name}`,
-        );
-        await followChanged();
-      }),
+    feedFollowControl(
+      header,
+      { community: entry.community, author: entry.post.author },
+      {
+        controller,
+        profiles,
+        run,
+        valid: () => old === generation,
+        changed: () => followChanged(),
+        signal: abort.signal,
+        chooseOnMobile: view === 'feed' || view === 'following',
+      },
     );
-    node.className = 'community-post-follow';
-    node.setAttribute('aria-label', `Seguir a comunidade ${community.name}`);
-    // First click is idempotent even if already followed; never guess private state.
   }
   function postContent(row: HTMLElement, post: CommunityPost): void {
     if (post.status === 'visible') {

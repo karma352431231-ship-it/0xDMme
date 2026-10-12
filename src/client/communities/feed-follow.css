@@ -1,0 +1,53 @@
+.feed-follow-dialog {
+  box-sizing: border-box;
+  width: min(360px, calc(100vw - 32px));
+  max-height: calc(100dvh - 32px);
+  margin: auto;
+  padding: 20px;
+  overflow: auto;
+  border: 1px solid var(--line-strong);
+  border-radius: 20px;
+  box-shadow: 0 18px 60px var(--shadow);
+}
+.feed-follow-dialog::backdrop {
+  background: var(--overlay);
+}
+.feed-follow-dialog h2 {
+  margin: 0 0 16px;
+  font-size: var(--fs-body);
+}
+.feed-follow-dialog button {
+  width: 100%;
+  min-height: 44px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface-2);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.feed-follow-dialog .feed-follow-choice {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 10px;
+  overflow-wrap: anywhere;
+}
+.feed-follow-choice span,
+.feed-follow-status {
+  color: var(--text-muted);
+  font-size: var(--fs-caption);
+}
+.feed-follow-status:empty {
+  display: none;
+}
+.feed-follow-dialog button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.feed-follow-dialog button:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}

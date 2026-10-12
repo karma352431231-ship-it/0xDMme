@@ -12,6 +12,38 @@ A sequência visual é **Título → Conteúdo (texto e mídia) → Tag → Aç�
 
 Revisão de responsabilidades: `activity-posts.ts` concentra os controles dos cards da atividade; `post-reply.ts` é o compositor compartilhado necessário a esta correção. Os closures existentes de `posts.ts` e `discovery.ts` continuam hotspots; a lógica do perfil ficou no módulo novo. Proposta para tarefa separada: extrair primeiro leitura/paginação da árvore para `post-thread.ts` e renderização para `post-card.ts`; depois separar leitura/paginação do feed em `discovery-feed.ts` e ranking em `ranking-view.ts`. Validar gerações/cancelamento, cursores, descarte de mídia e permissões com as integrações e os testes de snapshot. O principal risco é atualizar uma tela antiga ou conservar recursos após sair dela.
 
+## Escolha de seguir no feed mobile — 12/10/2026
+
+O proprietário escolheu manter o botão compacto “+ Seguir” nos cards do Feed e
+Seguindo. Até 700 px, tocar abre um popup com a comunidade e o autor, identificados
+pelo nome e pelo `@`; só a escolha explícita altera o vínculo correspondente.
+Consultar estados privados apenas ao abrir, com as operações assinadas existentes.
+Mostrar “Deixar de seguir” para vínculos existentes; o próprio perfil e um autor
+indisponível não podem ser seguidos. Fechar, tocar fora ou sair da tela cancela a
+escolha. Desktop e os controles da comunidade e do perfil conservam seu fluxo.
+
+**Ponto importante:** seguir comunidade e seguir autor são escolhas independentes.
+Esta etapa não altera ordenação ou distribuição de respostas na timeline. As
+correções ficam no Git, sem sincronização de fontes ou ativação na VPS.
+
+Validação local: 20 testes de perfil/follow/feed/tema, lint, tipos, fronteiras,
+licenças, formatação e build web passaram. A conferência em Chromium usou cards,
+controladores assinados e validadores reais com transporte/dados fictícios:
+320/390/700 px com escolha independente, seguir/deixar de seguir, cancelamento,
+toque fora, Escape, erro e saída durante leitura; 701/1.280 px com ação direta;
+próprio perfil/autor removido, visitante e Seguindo. Nenhuma carteira ou conta
+real foi usada; evidências ficam em `.local/`.
+
+Responsabilidades: o popup e seu estilo ficam em `feed-follow-choice.ts` e
+`feed-follow.css`; o controle em `feed-follow.ts` e o acesso social em
+`public-profile/follows.ts`. Os hotspots existentes recebem apenas a ligação.
+Para tarefa separada, extrair primeiro paginação/leitura para `discovery-feed.ts`
+e depois ranking para `ranking-view.ts`; em `startCommunities`, separar diretório
+para `community-directory.ts` e depois detalhe/governança para `community-page.ts`.
+Riscos: respostas de uma geração antiga, cursores, descarte de mídia e ciclo das
+DMs. Validar snapshots, paginação, navegação/saída, sessão e permissões após cada
+extração, sem misturá-la ao seletor.
+
 ## Perfil e métricas
 
 - Visão geral combina posts e respostas por data; Posts e Respostas filtram esse mesmo histórico. Respostas conservam comunidade, postagem original e destino da resposta. Conteúdo excluído/retirado e respostas cujo original não está visível não compõem atividade ou métricas públicas.
