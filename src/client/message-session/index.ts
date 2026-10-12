@@ -1,4 +1,5 @@
-import { initAsync, StoreHandle } from '@matrix-org/matrix-sdk-crypto-wasm';
+import { prepareMessageRuntime } from '../message-runtime/index.ts';
+import { StoreHandle } from '@matrix-org/matrix-sdk-crypto-wasm';
 import { localStoreKey } from '../message-storage/index.ts';
 import { MessageCrypto } from '../message-crypto/index.ts';
 import type { MessageTransport } from '../message-crypto/index.ts';
@@ -8,7 +9,7 @@ export async function openMessageMachine(
   a: VaultAuthority,
   transport: MessageTransport,
 ): Promise<MessageCrypto> {
-  await initAsync('/matrix-crypto-18.9.0.wasm');
+  await prepareMessageRuntime();
   const key = await localStoreKey(a);
   try {
     const store = await StoreHandle.openWithKey(

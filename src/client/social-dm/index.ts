@@ -1,3 +1,4 @@
+import { prepareMessageRuntime } from '../message-runtime/index.ts';
 import { dmMessageStates } from './read-receipts.ts';
 import {
   base64,
@@ -264,6 +265,8 @@ export class SocialDms {
     }) => Promise<T>,
   ): Promise<T> {
     const generation = this.generation;
+    this.guard(generation);
+    await prepareMessageRuntime();
     this.guard(generation);
     const directory = await readSocialDirectory(
       (op, data) => this.request(op, data),

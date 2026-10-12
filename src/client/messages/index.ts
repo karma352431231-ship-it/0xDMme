@@ -1,3 +1,4 @@
+import { initializeMessageDirectory } from './startup.ts';
 import {
   directChat,
   bindChatComposer,
@@ -1243,9 +1244,15 @@ export function startMessages(
     updates.clear();
     lastTransferAttempt = Date.now();
     controller.hide();
-    await controller.initialize();
-    await controller.loadPins();
-    await refreshContacts();
+    const current = generation;
+    await initializeMessageDirectory({
+      loadPins: () => controller.loadPins(),
+      loadContacts: refreshContacts,
+      initialize: () => controller.initialize(),
+      guard: () => {
+        if (current !== generation) throw new Error('Sessão alterada.');
+      },
+    });
     await groups.refresh();
     contactsMore();
     await controller.sendPending();

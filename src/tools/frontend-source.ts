@@ -82,6 +82,7 @@ const authored = [
   'src/client/personal-removals',
   'src/client/groups',
   'src/client/message-session',
+  'src/client/message-runtime',
   'src/client/status',
   'src/client/status-crypto',
   'src/client/peer-identity',
