@@ -12,11 +12,16 @@
   background: var(--surface);
   margin-bottom: 24px;
 }
+.public-profile-header:has(.post-more[open]) {
+  overflow: visible;
+}
 .public-profile-banner {
   height: clamp(120px, 19vw, 230px);
   background: var(--surface-3);
   overflow: hidden;
   position: relative;
+  border-start-start-radius: inherit;
+  border-start-end-radius: inherit;
 }
 .public-profile-banner > .public-avatar-preview {
   width: 100%;

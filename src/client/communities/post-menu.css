@@ -27,13 +27,16 @@
   box-shadow: 0 16px 40px var(--shadow);
   font-size: var(--fs-body);
 }
-.public-profile-actions .post-more {
+.public-profile-actions {
   position: relative;
+}
+.public-profile-actions .post-more {
+  position: static;
 }
 #app-shell .public-profile-actions .post-more-content {
   right: 0;
   left: auto;
-  width: min(320px, calc(100vw - 32px));
+  width: min(320px, 100%);
 }
 
 /*
