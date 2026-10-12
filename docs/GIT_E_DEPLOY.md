@@ -1,12 +1,12 @@
 # 0xDMme — Git e envio à VPS
 
-## Feed/postagem e discussão — preparação de 12/10/2026
+## Feed/postagem e discussão — ativação autorizada em 12/10/2026
 
-O proprietário autorizou revisar o feed pendente, integrar este chat na main e enviar as fontes à VPS. A aplicação revisada é `09917b96e3ee1fda67fd89da4a5fe99bd3cbf2e3`, sobre a release publicada `e22b5e3eac26b78af927e424923bf664567f38ff`. A transição 061→062 ainda aguarda aprovação específica de ativação. Preservar todas as migrações anteriores, Node, dependências, units e a política de moderação publicada sem julgamento de pose.
+O proprietário autorizou revisar o feed pendente, integrar este chat na main e enviar as fontes à VPS. A aplicação revisada é `09917b96e3ee1fda67fd89da4a5fe99bd3cbf2e3`, sobre a release publicada `e22b5e3eac26b78af927e424923bf664567f38ff`. Em 12/10/2026, após confirmar que o lote completo de feed/postagem foi integrado, o proprietário aprovou explicitamente a ativação do pacote na VPS, incluindo a transição 061→062. Preservar todas as migrações anteriores, Node, dependências, units e a política de moderação publicada sem julgamento de pose.
 
 O módulo interno `deploy_discussion.py` usa exclusivamente o executor existente (`npm run deploy:staging`). Compara fontes exatas, hashes das linhas antigas e das migrações, relações ancestral/perfil, contadores reconstruídos e ledger esperado (256 bytes por relação nova). A 062 adiciona três colunas, uma tabela e índices/gatilhos; não copia textos nem altera retenção. Antes de ativar, medir volume/capacidade/backfill, exigir CI do commit final, backup integral com ensaio de restauração e manutenção restrita aos serviços próprios; conservar rollback e preservação dos outros serviços.
 
-**Ponto importante:** merge/push e sincronização das fontes não ativam a release nem a migração. A revisão local passou em banco descartável, incluindo recusa de corrupção de dados, contadores, ledger e gatilhos. A autorização específica e a confirmação operacional da publicação continuam necessárias.
+**Ponto importante:** merge/push e sincronização das fontes não ativam a release nem a migração. A revisão local passou em banco descartável, incluindo recusa de corrupção de dados, contadores, ledger e gatilhos. A autorização específica foi concedida; a confirmação operacional da publicação continua necessária. A CI integral de `75c49fc` passou e a conferência prévia preservou os serviços; este registro muda somente documentação e ainda exige CI integral do commit final antes de ativar.
 
 ## Experiência social — transição 058→061 autorizada em 12/10/2026
 
