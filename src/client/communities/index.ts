@@ -1,3 +1,7 @@
+import {
+  mountCommunityFollowerPage,
+  mountCommunityFollowerPreview,
+} from './followers.ts';
 import { communityPresentationEditor } from './presentation-editor.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
 export { renderActivityEntry } from './activity-entry.ts';
@@ -380,11 +384,20 @@ export function startCommunities(
     const title = communityElement('div', '', 'community-hero-title');
     title.append(
       communityElement('h1', value.name),
-      communityElement('p', followerLabel(value), 'community-hero-meta'),
+      ...(value.archived
+        ? [communityElement('p', 'Arquivada', 'community-hero-meta')]
+        : []),
     );
     head.append(avatar, title);
     hero.append(banner, head);
     publicPhoto(avatar, value);
+    mountCommunityFollowerPreview(hero, {
+      id: value.id,
+      total: value.followers,
+      signedIn: state !== null,
+      controller,
+      signal: abort.signal,
+    });
     if (value.description)
       hero.append(
         communityElement('p', value.description, 'community-hero-description'),
@@ -495,6 +508,17 @@ export function startCommunities(
   function details(): void {
     if (!mounted || !current) return;
     navigation();
+    if (view === 'followers') {
+      mounted.dataset['communityLayout'] = 'followers';
+      mountCommunityFollowerPage(mounted, {
+        id: current.id,
+        name: current.name,
+        signedIn: session !== null,
+        controller,
+        signal: abort.signal,
+      });
+      return;
+    }
     if (selectedPost) {
       postFocus(current, selectedPost);
       return;
@@ -648,7 +672,7 @@ export function startCommunities(
       if (!next) return;
       current = next.community;
       state = next.state;
-      if (next.changed || view === 'manage') details();
+      if (next.changed || ['manage', 'followers'].includes(view)) details();
       else await posts.refresh();
     } catch (error: unknown) {
       if (old === generation) {

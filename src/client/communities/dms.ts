@@ -1,3 +1,4 @@
+import { dmMessageMenu } from './dm-message-menu.ts';
 import { refreshDmChecks } from './dm-checks.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
 import { publicProfile } from '../../shared/public-profile/index.ts';
@@ -473,7 +474,22 @@ export function startSocialDmUi(
           controller.media(item, thumbnail, false, input.localMedia),
         run,
       });
-    rows.set(item.id, { key, ...bubble });
+    const stopMenu = dmMessageMenu(bubble.row, {
+      text:
+        item.kind === 'text'
+          ? item.text
+          : socialAttachment(JSON.parse(item.text) as unknown, item.media!)
+              .caption,
+      signal: externalAbort.signal,
+    });
+    rows.set(item.id, {
+      key,
+      row: bubble.row,
+      stop: () => {
+        stopMenu();
+        bubble.stop();
+      },
+    });
     return bubble.row;
   }
   function leave(): void {

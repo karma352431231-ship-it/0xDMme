@@ -695,6 +695,7 @@ export function startMessages(
     article.append(text, detail);
     article.append(
       messageActions({
+        signal: mediaSignal,
         view,
         peers: peers.filter((p) => !p.localOnly),
         replyAllowed: !selected?.localOnly,

@@ -76,6 +76,9 @@ export class CommunityService {
   read(id: unknown) {
     return this.store.read(uuid(id));
   }
+  followerPage(id: unknown, after: unknown) {
+    return this.store.followerPage(id, after);
+  }
   list(after: unknown) {
     return this.store.list(communityCursor(after));
   }

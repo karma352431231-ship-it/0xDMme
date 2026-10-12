@@ -1,3 +1,6 @@
+@import '../communities/post-editor.css';
+@import '../communities/followers.css';
+@import '../message-menu/message-menu.css';
 @import '../public-media/picture.css';
 @import '../communities/community.css';
 @import '../communities/post-sharing.css';

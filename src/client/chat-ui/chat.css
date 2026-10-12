@@ -296,35 +296,6 @@
     opacity: 1;
   }
 }
-.message-menu {
-  width: min(320px, calc(100vw - 32px));
-  max-height: calc(100dvh - 32px);
-  overflow-y: auto;
-  border: 1px solid var(--line);
-  border-radius: 16px;
-  padding: 14px;
-  background: var(--surface);
-  color: var(--text);
-  box-shadow: 0 16px 50px var(--shadow);
-}
-.message-menu[open] {
-  display: grid;
-  gap: 6px;
-}
-.message-menu::backdrop {
-  background: var(--overlay);
-}
-.chat-panel .message-menu button {
-  margin: 0;
-  text-align: left;
-  width: 100%;
-  min-height: 44px;
-}
-.chat-panel .message-menu .message-menu-close {
-  background: transparent;
-  border: 0;
-  text-align: right;
-}
 .chat-panel .chat-older {
   align-self: center;
   flex: 0 0 auto;
@@ -551,10 +522,6 @@
     flex-basis: 52px;
     width: 52px;
     height: 52px;
-  }
-  .message-menu {
-    margin: auto 12px max(12px, env(safe-area-inset-bottom));
-    width: calc(100vw - 24px);
   }
 }
 

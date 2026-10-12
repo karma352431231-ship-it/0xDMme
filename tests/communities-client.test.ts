@@ -301,6 +301,8 @@ await test('rota abre a configuração só com comunidade; telas desconhecidas e
   const id = crypto.randomUUID();
   assert.equal(communityView('manage', id), 'manage');
   assert.equal(communityView('manage', null), 'feed');
+  assert.equal(communityView('followers', null), 'feed');
+  assert.equal(communityView('followers', crypto.randomUUID()), 'followers');
   assert.equal(communityView('managed', null), 'feed');
   assert.equal(communityView('qualquer', id), 'feed');
   assert.equal(communityView('explore', null), 'explore');

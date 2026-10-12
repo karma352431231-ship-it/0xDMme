@@ -26,7 +26,7 @@ import {
 import { postPreview } from './post-preview.ts';
 import { postManagementMenu } from './post-menu.ts';
 import { postState } from '../../shared/community-posts/index.ts';
-import { showExternalVideos } from '../external-video/index.ts';
+import { showPostExternalMedia } from './post-external-media.ts';
 import type { ExternalMediaConsent } from '../external-media/index.ts';
 import { postViews } from './post-views.ts';
 import { DiscoverySnapshot } from './discovery-page.ts';
@@ -417,7 +417,10 @@ export function startCommunityDiscovery(
     if (post.status === 'visible') {
       row.append(postPreview(post.text));
       mediaCleanup.add(
-        showExternalVideos(row, post.text, { privacy, signal: abort.signal }),
+        showPostExternalMedia(row, post.text, {
+          privacy,
+          signal: abort.signal,
+        }),
       );
       if (post.media?.length)
         mediaCleanup.add(showPublicPostMedia(row, post.media, abort.signal));

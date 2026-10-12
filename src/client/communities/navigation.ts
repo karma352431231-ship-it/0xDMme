@@ -102,6 +102,7 @@ export function postReturnTarget(
 }
 
 const communityViews = new Set([
+  'followers',
   'dms',
   'explore',
   'feed',
@@ -120,5 +121,5 @@ const communityViews = new Set([
  */
 export function communityView(view: string, selected: string | null): string {
   if (!communityViews.has(view)) return 'feed';
-  return view === 'manage' && !selected ? 'feed' : view;
+  return ['manage', 'followers'].includes(view) && !selected ? 'feed' : view;
 }

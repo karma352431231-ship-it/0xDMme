@@ -46,7 +46,7 @@ import { postPreview } from './post-preview.ts';
 import { postReply } from './post-reply.ts';
 import { PostSnapshot } from './post-snapshot.ts';
 import { showRepliedAbove } from './reply-context.ts';
-import { showExternalVideos } from '../external-video/index.ts';
+import { showPostExternalMedia } from './post-external-media.ts';
 import type { ExternalMediaConsent } from '../external-media/index.ts';
 import {
   preferenceControls,
@@ -101,6 +101,7 @@ export function startCommunityPosts(
         controller.request(operation, payload),
       valid: () => old === generation,
       signal: abort.signal,
+      privacy,
     };
   }
   let composeOpen = false;
@@ -455,7 +456,10 @@ export function startCommunityPosts(
         value.id === selected ? postText(value.text) : postPreview(value.text),
       );
     mediaCleanup.set(
-      showExternalVideos(node, value.text, { privacy, signal: abort.signal }),
+      showPostExternalMedia(node, value.text, {
+        privacy,
+        signal: abort.signal,
+      }),
       node,
     );
     if (value.media?.length)

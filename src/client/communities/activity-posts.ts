@@ -198,6 +198,7 @@ export class ActivityPosts {
         this.controller.request(operation, data),
       valid,
       signal: AbortSignal.any([card.signal, this.sessionAbort.signal]),
+      privacy: this.privacy,
     };
   }
   private async run(

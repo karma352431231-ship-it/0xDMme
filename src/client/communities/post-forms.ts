@@ -1,4 +1,5 @@
-import { mediaEditor } from '../community-media/index.ts';
+import { postEditorMedia } from './post-editor-media.ts';
+import type { PostEditorAccess } from './post-editor-media.ts';
 import type { CommunityMediaAccess } from '../community-media/index.ts';
 import { keys, object } from '../../shared/account/index.ts';
 import {
@@ -142,7 +143,7 @@ export function postForm(
   container: HTMLElement,
   value: PostContent,
   tags: PostTags,
-  access: CommunityMediaAccess,
+  access: PostEditorAccess,
 ): () => Promise<PostContent> {
   const title = field(container, 'Título', {
       value: value.title,
@@ -155,7 +156,12 @@ export function postForm(
     }),
     chips = postTagChips(container, value.tags, tags);
   title.required = true;
-  const media = mediaEditor(container, value.media ?? [], access);
+  const media = postEditorMedia({
+    container,
+    text,
+    ids: value.media ?? [],
+    access,
+  });
   return async () => {
     if (!title.value.trim()) {
       title.focus();
@@ -175,14 +181,19 @@ export function postForm(
 export function replyForm(
   container: HTMLElement,
   value: PostContent,
-  access: CommunityMediaAccess,
+  access: PostEditorAccess,
 ): () => Promise<PostContent> {
   const text = field(container, 'Texto da resposta (opcional com mídia)', {
     value: value.text,
     maximum: 4000,
     multiline: true,
   });
-  const media = mediaEditor(container, value.media ?? [], access);
+  const media = postEditorMedia({
+    container,
+    text,
+    ids: value.media ?? [],
+    access,
+  });
   return async () => ({
     title: '',
     text: text.value,

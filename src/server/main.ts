@@ -139,6 +139,7 @@ try {
       origin: config.origin,
       views: (input) => database!.communityViews.observe(input),
       read: (id) => communities.read(id),
+      followers: (id, after) => communities.followerPage(id, after),
       list: (after) => communities.list(after),
       feed: (filter, after) => communities.feed(filter, after),
       explore: (filter, after) => communities.explore(filter, after),

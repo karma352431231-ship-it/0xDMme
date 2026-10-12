@@ -237,6 +237,7 @@ export function mediaEditor(
   container: HTMLElement,
   ids: string[],
   access: CommunityMediaAccess,
+  controls?: HTMLElement,
 ): () => Promise<string[]> {
   const field = document.createElement('div');
   field.className = 'media-picker';
@@ -262,8 +263,9 @@ export function mediaEditor(
   const removeLabel = document.createElement('label');
   removeLabel.append(remove, document.createTextNode('Remover a mídia atual'));
   field.append(input, pick, status);
-  if (ids.length) field.append(removeLabel);
-  container.append(previews, field);
+  if (ids.length) container.append(removeLabel);
+  container.append(previews);
+  (controls ?? container).append(field);
   dropFilesInto(container, input);
   pick.addEventListener('click', () => {
     input.click();

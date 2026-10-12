@@ -64,6 +64,7 @@ await test('comunidades: criação aberta, privacidade, gestão, sanções, den�
     objects: { healthy: () => Promise.resolve(true) },
     communities: createCommunityHandler({
       read: (id) => communities.read(id),
+      followers: (id, after) => communities.followerPage(id, after),
       list: (after) => communities.list(after),
     }),
     account: createAccountHandler({ origin, service: account, communities }),
@@ -185,7 +186,7 @@ await test('comunidades: criação aberta, privacidade, gestão, sanções, den�
     },
   );
   await t.test(
-    'leitura pública não exige conta; follows não publicam identidade ou lista de usuários',
+    'leitura pública não exige conta; seguidores mostram apenas a identidade pública',
     async () => {
       const result = await fetch(`${origin}/api/communities/${id}`);
       assert.equal(result.status, 200);
@@ -239,7 +240,25 @@ await test('comunidades: criação aberta, privacidade, gestão, sanções, den�
       assert.equal(unfollowed.canPost, true);
       assert.equal(unfollowed.community.followers, 1);
       const invalid = await fetch(`${origin}/api/communities/${id}/followers`);
-      assert.equal(invalid.status, 404);
+      assert.equal(invalid.status, 200);
+      const roster = (await invalid.json()) as {
+        items: Record<string, unknown>[];
+        total: number;
+      };
+      assert.equal(roster.total, 1);
+      assert.deepEqual(Object.keys(roster.items[0]!).sort(), [
+        'avatar',
+        'handle',
+        'id',
+      ]);
+      assert.equal(
+        JSON.stringify(roster).includes(owner.login.session.accountId),
+        false,
+      );
+      assert.equal(
+        JSON.stringify(roster).includes(owner.login.session.address),
+        false,
+      );
       await assert.rejects(
         participant.operate('list', { kind: 'followers', after: null }),
         bad(400),

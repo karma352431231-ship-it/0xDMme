@@ -1,3 +1,4 @@
+import { communityFollowers } from '../../src/shared/community-followers/index.ts';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { readFile } from 'node:fs/promises';
@@ -245,6 +246,7 @@ await test('perfil social: métricas, comunidades públicas, follows, feeds e ba
           `mut_${crypto.randomUUID().slice(0, 8)}`,
         );
         publicIds.push(publicIdentity.id);
+        await person.operate('follow', { id: otherCommunity, following: true });
         await operate(reader, 'follow', {
           target: publicIdentity.id,
           following: true,
@@ -263,6 +265,38 @@ await test('perfil social: métricas, comunidades públicas, follows, feeds e ba
         }).then(mutualFollowers);
       const first = await read();
       assert.equal(first.total, 25);
+      const readCommunityFollowers = (
+        tab: string,
+        after: string | null = null,
+      ) =>
+        reader
+          .operate('followers-page', { id: otherCommunity, tab, after })
+          .then(communityFollowers);
+      const all = await readCommunityFollowers('all');
+      assert.equal(all.total, 26);
+      assert.equal(all.items.length, 24);
+      assert.ok(all.next);
+      assert.equal(
+        (await readCommunityFollowers('all', all.next)).items.length,
+        2,
+      );
+      const known = await readCommunityFollowers('known');
+      assert.equal(known.total, 25);
+      assert.equal(known.items.length, 24);
+      assert.equal(
+        (await readCommunityFollowers('known', known.next)).items.length,
+        1,
+      );
+      assert.equal(
+        communityFollowers(
+          await owner.operate('followers-page', {
+            id: otherCommunity,
+            tab: 'known',
+            after: null,
+          }),
+        ).total,
+        0,
+      );
       assert.equal(first.items.length, 24);
       assert.ok(first.next);
       const second = await read(first.next);
@@ -290,12 +324,15 @@ await test('perfil social: métricas, comunidades públicas, follows, feeds e ba
         revision: 0,
       });
       assert.equal((await read()).total, 24);
+      assert.equal((await readCommunityFollowers('known')).total, 24);
+      assert.equal((await readCommunityFollowers('all')).total, 25);
       await operate(reader, 'block', {
         target: publicIds[1]!,
         blocked: true,
         revision: 0,
       });
       assert.equal((await read()).total, 23);
+      assert.equal((await readCommunityFollowers('known')).total, 23);
       await operate(reader, 'block', {
         target: identity.id,
         blocked: true,

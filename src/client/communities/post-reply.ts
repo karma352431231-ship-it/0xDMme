@@ -2,7 +2,7 @@ import type {
   CommunityPost,
   PostState,
 } from '../../shared/community-posts/index.ts';
-import type { CommunityMediaAccess } from '../community-media/index.ts';
+import type { PostEditorAccess } from './post-editor-media.ts';
 import type { Communities } from './controller.ts';
 import {
   communityButton as button,
@@ -17,7 +17,7 @@ export interface ReplyActions {
   run: (work: () => Promise<void>) => Promise<void>;
   valid: () => boolean;
   canReply: () => Promise<boolean>;
-  media: CommunityMediaAccess;
+  media: PostEditorAccess;
   replied: (state: PostState) => Promise<void>;
 }
 /** The same inline composer belongs to the actual parent, on any public view. */

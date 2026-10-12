@@ -7,7 +7,7 @@ import { sharedEntry } from './shared-context.ts';
 import { markReply, repliedPost } from './reply-context.ts';
 import { showPublicPostMedia } from '../public-media/index.ts';
 import { showPublicAvatar } from '../public-media/index.ts';
-import { showExternalVideos } from '../external-video/index.ts';
+import { showPostExternalMedia } from './post-external-media.ts';
 import type { ExternalMediaConsent } from '../external-media/index.ts';
 
 /** Posts lead with their title; replies have none and are marked as replies. */
@@ -57,7 +57,7 @@ export function renderActivityEntry(
     });
   appendReplyContext(row, entry, signal);
   row.append(postPreview(post.text));
-  if (privacy) showExternalVideos(row, post.text, { privacy, signal });
+  if (privacy) showPostExternalMedia(row, post.text, { privacy, signal });
   if (post.media?.length) showPublicPostMedia(row, post.media, signal);
   postTagLink(row, post);
   const actions = el('div', '', 'post-actions');

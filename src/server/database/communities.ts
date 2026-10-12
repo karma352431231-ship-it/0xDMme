@@ -1,3 +1,4 @@
+import { CommunityFollowerStore } from './community-followers.ts';
 import { confirmCommunityPresentation } from './community-presentation.ts';
 import type pg from 'pg';
 import type { PublicProfile } from '../../shared/public-profile/index.ts';
@@ -67,6 +68,7 @@ function pageRows<T extends { id: string }>(
   };
 }
 export class CommunityStore {
+  private readonly followers: CommunityFollowerStore;
   private socialControls: {
     state: (
       authority: ContactAuthority,
@@ -124,6 +126,7 @@ export class CommunityStore {
     this.pool = options.pool;
     this.authority = options.authority;
     this.profiles = options.profiles;
+    this.followers = new CommunityFollowerStore(options.profiles);
     this.capacity = options.capacity;
     this.photos = new CommunityPhotoStore(options.pool, options.moderation);
     this.banners = new CommunityPhotoStore(
@@ -422,11 +425,26 @@ export class CommunityStore {
     if (inserted.rowCount)
       await assertContentCapacity(context.client, this.capacity);
   }
+  followerPage(id: unknown, after: unknown) {
+    return this.followers.read({ client: this.pool, id, after, tab: 'all' });
+  }
   async operate(
     operation: string,
     authority: ContactAuthority,
     data: Record<string, unknown>,
   ): Promise<unknown> {
+    if (operation === 'followers-page') {
+      keys(data, ['id', 'tab', 'after']);
+      return this.withReader(authority, ({ client, actor }) =>
+        this.followers.read({
+          client,
+          id: data['id'],
+          tab: data['tab'],
+          after: data['after'],
+          viewer: actor?.id ?? null,
+        }),
+      );
+    }
     if (operation === 'presentation')
       return this.withContext(authority, uuid(data['id']), async (context) => {
         await confirmCommunityPresentation(context, data, {

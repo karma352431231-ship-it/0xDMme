@@ -1,3 +1,4 @@
+import { dmMessageMenu } from '../../src/client/communities/dm-message-menu.ts';
 import {
   EmojiPicker,
   emojiIntoComposer,
@@ -10,7 +11,7 @@ import type { DailyRow, DailyView } from '../../src/client/daily-text/index.ts';
 const picker = new EmojiPicker();
 const root = document.querySelector('main');
 if (!root) throw new Error('Fixture ausente.');
-root.innerHTML = `<article class="card"><h1>Teste isolado de emojis</h1><p>Somente conteúdo sintético. Mesmos módulos do compositor, renderer e ações do app.</p><label>Mensagem de teste<textarea rows="3"></textarea></label><button type="button" data-picker>Escolher emoji</button><h2>Mensagem renderizada</h2><p data-preview></p><div data-actions></div><p data-reaction role="status"></p><button type="button" data-reset>Trocar sessão sintética</button><p data-status role="status"></p></article>`;
+root.innerHTML = `<article class="card chat-panel"><h1>Teste isolado de emojis</h1><p>Somente conteúdo sintético. Mesmos módulos do compositor, renderer e ações do app.</p><label>Mensagem de teste<textarea rows="3"></textarea></label><button type="button" data-picker>Escolher emoji</button><h2>Mensagem renderizada</h2><article class="chat-message own"><p data-preview></p><div data-actions></div></article><h2>DM pelo @</h2><article class="chat-message" data-public-message><p>Texto sintético da DM pública.</p></article><p data-reaction role="status"></p><button type="button" data-reset>Trocar sessão sintética</button><p data-status role="status"></p></article>`;
 const input = root.querySelector('textarea'),
   trigger = root.querySelector<HTMLButtonElement>('[data-picker]'),
   preview = root.querySelector<HTMLElement>('[data-preview]'),
@@ -19,6 +20,12 @@ const input = root.querySelector('textarea'),
   status = root.querySelector('[data-status]');
 if (!input || !trigger || !preview || !actions || !reaction || !status)
   throw new Error('Controles de teste ausentes.');
+const publicRow = root.querySelector<HTMLElement>('[data-public-message]');
+if (publicRow)
+  dmMessageMenu(publicRow, {
+    text: 'Texto sintético da DM pública.',
+    signal: new AbortController().signal,
+  });
 const renderedText = 'Teste: 😀 👩🏽‍💻 🇧🇷 <script>texto literal</script>';
 emojiText(preview, renderedText);
 function action(label: string, work: () => Promise<void>): HTMLButtonElement {
@@ -54,6 +61,7 @@ const view: DailyView<DailyRow> = {
 };
 actions.append(
   messageActions({
+    signal: new AbortController().signal,
     view,
     peers: [],
     picker,
