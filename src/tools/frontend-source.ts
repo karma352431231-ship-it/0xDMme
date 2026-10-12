@@ -43,6 +43,7 @@ const authored = [
   'src/client/gif-search',
   'src/client/toast',
   'src/client/file-drop',
+  'src/client/hover-card',
   'src/tools/frontend-emoji.ts',
   'vendor/emoji/README.md',
   'vendor/emoji/LICENSE-GRAPHICS.txt',
@@ -56,6 +57,8 @@ const authored = [
   'src/client/message-actions',
   'src/client/chat-ui',
   'src/client/appearance',
+  'src/client/preference-events',
+  'src/client/account-settings',
   'src/client/activity',
   'src/client/message-search',
   'src/client/message-status',
@@ -224,14 +227,28 @@ export async function frontendSource(
   verifyInputs(root, inputs, included);
   if (included.size > 1024) throw new Error('Quantidade de fontes excedida.');
   // Explicit paths only: no repository-wide archive, shell, .local or backend.
+  // Plain ustar: the same files without per-file extended metadata (macOS
+  // xattrs, ACLs, sub-second times) or machine-specific owner names.
   const { stdout } = await execute(
     'tar',
-    ['-cf', '-', '--no-recursion', '-C', root, '--', ...included],
+    [
+      '--format',
+      'ustar',
+      '-cf',
+      '-',
+      '--numeric-owner',
+      '--no-xattrs',
+      '--no-acls',
+      '--no-recursion',
+      '-C',
+      root,
+      '--',
+      ...included,
+    ],
     {
       encoding: 'buffer',
       maxBuffer: 24 * 1024 * 1024,
       timeout: 30_000,
-      // AppleDouble/xattrs are host metadata, not corresponding application source.
       env: { ...process.env, COPYFILE_DISABLE: '1' },
     },
   );

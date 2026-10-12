@@ -1777,6 +1777,8 @@ export function startMessages(
     if (direct) direct.hidden = !!groups.selected;
   }
   return {
+    createGroup: () => groups.create(),
+    joinGroup: (url = '') => groups.join(url),
     groupInvites: () => groups.invites(),
     respondGroupInvite: (id: string, accept: boolean) =>
       groups.respondInvite(id, accept),

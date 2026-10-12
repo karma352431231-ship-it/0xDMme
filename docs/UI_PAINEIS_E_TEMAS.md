@@ -10,7 +10,7 @@ O proprietário avaliou a proposta de redesign apresentada em 09/10/2026 (págin
 - **Painel de contexto.** Detalhes do contato ou grupo (mídia, representantes, fixar/favoritar/arquivar, bloquear, participantes, administração e cofre do grupo) ficam num painel lateral que pode ser fechado. No modo só comunidades, o painel mostra ranking ou Sobre a comunidade.
 - **Mobile.** Barra inferior: **Conversas, Comunidades, Atividade e Perfil**. Adicionar contato fica no botão de nova conversa; agenda, bloqueados e Meu convite ficam em Perfil → Contatos; pedidos aparecem em Atividade. Salvar, solicitar e aceitar continuam operações separadas. Uma tela por vez, com a conversa aberta ocupando a tela.
 - **Atividade.** Reúne pedidos de conversa, respostas em comunidades, chamadas perdidas, convites e transferências de grupo/comunidade. É montada no aparelho a partir das listas e avisos que o app já recebe; não cria tabela, notificação ou dado novo no servidor. Se algum item exigir dado novo, ele passa por revisão separada.
-- **Três temas.** **Azul** (navy do logo, padrão), **Preto** (preto puro) e **Branco**. A escolha fica em Perfil → Aparência e é salva somente no aparelho. Os três usam os mesmos tokens; o degradê ciano → azul → violeta do logo aparece só como assinatura (marca, contadores, anel de status e área ativa). Verde e vermelho ficam reservados para sucesso e ações destrutivas.
+- **Três temas.** **Azul** (navy do logo, padrão), **Preto** (preto puro) e **Branco**. A escolha fica em Perfil → Aparência; desde 11/10/2026 acompanha a conta pelo cofre cifrado ([Configurações iniciais](UI_CONFIGURACOES.md)), e visitantes guardam no aparelho. Os três usam os mesmos tokens; o degradê ciano → azul → violeta do logo aparece só como assinatura (marca, contadores, anel de status e área ativa). Verde e vermelho ficam reservados para sucesso e ações destrutivas.
 - **Menos ruído.** Um único selo de ambiente de teste por tela; endereço sempre abreviado em fonte mono com cópia, e completo apenas em Detalhes; avatar sem foto com iniciais sobre degradê gerado localmente a partir do endereço; ações de mensagem no hover/toque longo; estado de entrega por ícone, com o texto completo em detalhes.
 
 ## Pré-requisitos antes de cada parte
@@ -37,7 +37,7 @@ Cada etapa preserva rotas antigas, rascunhos, consentimento, criptografia, bloqu
 Implementada localmente em 09/10/2026, sem mudança de layout:
 
 - `src/client/app/theme.css` concentra os tokens dos três temas (Azul padrão, Preto, Branco) e os padrões de campos, botões e diálogos sem cor própria. As 185 cores literais de `app.css`, `settings.css`, `chat.css`, `contacts.css` e `community.css` passaram a usar esses tokens; Comunidades deixou de ter paleta e tema escuro próprios. Bolha recebida e enviada, contador de não lidas (degradê da marca), QR (fundo claro) e vídeo (fundo preto) têm tokens específicos.
-- Perfil → **Aparência** escolhe o tema. A escolha fica em `localStorage` (`0xdmme:theme`), sem servidor, cofre ou sincronização; valor ausente, inválido ou ilegível volta para Azul com aviso. O tema é aplicado antes da primeira renderização do app e também na página de retorno da recuperação. Barra do navegador (`theme-color`) acompanha o tema; o manifesto PWA usa o navy padrão.
+- Perfil → **Aparência** escolhe o tema. A escolha fica em `localStorage` (`0xdmme:theme`); com conta conectada, desde 11/10/2026 também é copiada para o cofre cifrado e aplicada nos outros aparelhos da conta ([Configurações iniciais](UI_CONFIGURACOES.md)), nunca legível no servidor; valor ausente, inválido ou ilegível volta para Azul com aviso. O tema é aplicado antes da primeira renderização do app e também na página de retorno da recuperação. Barra do navegador (`theme-color`) acompanha o tema; o manifesto PWA usa o navy padrão.
 - Tipografia: as fontes novas continuam pendentes da conferência de licença/distribuição; a escala tipográfica entrou na etapa 2.
 
 Validação: lint, TypeScript, fronteiras, formatação, build (38 assets, módulo novo incluído no pacote de fontes GPL) e 421 testes unitários passaram. Testes novos cobrem a leitura da preferência (ausente, válida, inválida, bloqueada), a aplicação na raiz/`theme-color` e a regra de que nenhum CSS de componente usa cor literal fora de `theme.css`. Prévia local sem backend conferiu Perfil, Aparência e Comunidades nos três temas, persistência após recarregar e Contatos em 375 px. Conversa aberta com mensagens, chamada e diálogos não foram vistos com conta real nesta etapa; a cobertura deles é pelos tokens e pela regra automatizada.
@@ -323,3 +323,75 @@ Pedido do proprietário:
 - A página pública mostra a descrição abaixo do nome, também no perfil compacto do painel.
 
 **Ponto importante:** a foto ou o banner em análise aparecem na prévia do dono antes de serem públicos, e nenhum aviso diz que estão em análise. Visitantes continuam vendo só o que foi aprovado.
+
+## Perfil volta à última categoria — 10/10/2026
+
+Pedido do proprietário: ao recarregar a página do Perfil, a categoria aberta por último (Privacidade, Perfil público, Aparelhos…) volta aberta, em vez de sempre voltar para Privacidade. A escolha fica só neste navegador (`localStorage`, chave `0xdmme:settings-section`), como o arranjo dos painéis; sem armazenamento disponível, o Perfil abre como antes.
+
+## Seta do post volta à origem — 10/10/2026
+
+Pedido do proprietário: no post aberto, a seta voltava sempre para a comunidade, mesmo quando o post foi aberto pelo Feed. Agora a seta volta para a última lista vista em Comunidades (Feed, Explorar, Seguidas, a própria comunidade…), com os mesmos filtros. A foto e o nome da comunidade ao lado da seta viraram um link separado para entrar nela. Sem lista de origem (post aberto pela Atividade, por um link ou depois de outra página do app), a seta leva à comunidade. Vale na página cheia e no painel ao lado do chat.
+
+## Página da comunidade: postar, filtros, vazio e gerenciar — 10/10/2026
+
+Pedido do proprietário (itens 2 a 4 da proposta; a coluna "Sobre" à direita foi recusada):
+
+- **Postar:** "Criar postagem" virou uma caixa com ícone e o campo "Escreva algo para a comunidade…"; ao tocar, o formulário abre embaixo.
+- **Filtros:** a fileira de botões virou abas (Destaques, Recentes, Mais votados, Mais comentados e, com conta, Meus posts) e um menu "⋯" com período, tag e, para quem modera, posts e respostas ocultos.
+- **Comunidade sem posts:** em vez de "Nenhuma postagem nesta lista.", aparece um convite com "Escrever a primeira postagem" (quem pode postar) e até quatro "Outras comunidades em alta", da mesma lista pública do Explorar. Não há dado de comunidades parecidas; as sugestões são as em alta da semana. Listas filtradas (tag, período, meus posts) continuam com a mensagem curta.
+- **Gerenciar:** o menu "⋯" do topo tem só "Gerenciar comunidade", e apenas para dono ou moderador da comunidade aberta; ele abre a tela de configuração dela (nome, descrição, regras, foto, tags e governança). A lista "Gerenciar comunidades" saiu. A tela de configuração não abria antes: a rota recusava `view=manage` e caía na página comum da comunidade.
+
+**Ponto importante:** comunidades ainda não têm banner próprio enviado pelo dono; o banner continua sendo o degradê do tom da comunidade. Enviar banner exige mídia pública nova, migração e análise, como o banner de perfil.
+
+## Gerenciar comunidade em abas e Enter para enviar — 10/10/2026
+
+Pedido do proprietário:
+
+- **Gerenciar comunidade:** a tela virou abas — Geral (nome, descrição, regras e foto), Tags, Moderação (moderadores, suspensão, sanções e denúncias) e, para o dono, Propriedade (transferência e arquivamento). Um grupo por vez, com os cartões lado a lado em telas largas, campos e botões menores. Tags e moderadores carregam sozinhos, sem "Carregar…"; "Mais" só aparece quando há próxima página. A aba aberta continua após salvar.
+- **Enter envia** nas conversas privadas, nos grupos e nas mensagens pelo `@`: texto, foto ou prévia de voz, o mesmo que o botão Enviar enviaria. Shift+Enter quebra a linha. Em teclados de toque, Enter continua quebrando a linha (o botão de enviar fica ao lado); Ctrl/Cmd+Enter envia. Depois de escolher um arquivo com mouse e teclado, o foco volta ao campo, então Enter já envia. Nas mensagens pelo `@`, com o campo vazio, Enter envia a mídia preparada.
+
+## Chat público igual ao privado — 10/10/2026
+
+Pedido do proprietário: as mensagens pelo `@` usam o mesmo quadro do chat privado, na coluna de conversas e na página de Comunidades.
+
+- **Cabeçalho:** foto e `@`, subtítulo com o estado da conversa (no lugar da presença) e menu "⋯" com Ver perfil público, Bloquear/Desbloquear e Recarregar.
+- **Histórico:** bolhas iguais às do privado (enviadas à direita), emojis, GIF do KLIPY, vídeos externos e mídia com o mesmo player; "Mensagens anteriores" no topo.
+- **Compositor:** o mesmo do privado (emoji com aba GIF, clipe, microfone com segurar/toque duplo, barra de gravação, prévia, Enter). Foto, GIF ou voz ficam em memória com prévia até Enviar; o envio prepara e manda a mídia com o texto digitado como legenda. Mídia salva antes neste aparelho aparece como pendente, com envio ou lixeira.
+- **Pedido de conversa:** solicitar, aguardar, aceitar ou recusar aparecem num aviso no lugar do compositor.
+- **Lista de conversas `@`:** linhas iguais às de Conversas, com as cópias deste aparelho embaixo.
+
+As regras genéricas de botão/campo/ícone de Comunidades não se aplicam mais dentro do quadro de chat (`:where(:not(.chat-panel *))`, sem mudar a especificidade do restante).
+
+**Ponto importante:** o servidor das mensagens pelo `@` não tem reações, responder, editar/apagar, confirmação de leitura nem chamadas, e as mensagens não guardam horário; por isso as bolhas públicas não mostram hora nem marcações de entrega. Esses recursos exigem trabalho de protocolo e servidor próprio.
+
+## Prévia ao passar o mouse, Editar perfil e descrição — 11/10/2026
+
+Pedido do proprietário:
+
+- **Prévia ao passar o mouse** sobre o nome ou a foto de quem postou/respondeu, ou sobre o nome de uma comunidade: um cartão pequeno abre depois de um instante e fecha ao sair, rolar ou apertar Esc; o mouse pode entrar no cartão.
+  - **Perfil:** foto, `@`, descrição (até 3 linhas), seguidores, posts e respostas, e Seguir/Seguindo (ou "Editar perfil público" no próprio perfil; "Entrar para seguir" sem sessão).
+  - **Comunidade:** foto, nome, descrição, seguidores, quem criou e Seguir/Seguindo para quem está conectado.
+  - Leituras públicas sem cookies, guardadas por 60 s para passar de novo sem nova consulta; o "Seguindo" usa a mesma assinatura do aparelho de antes. Telas de toque continuam abrindo a página ao tocar.
+- **"Mensagens pelo @"** saiu do topo de Comunidades (as conversas pelo `@` continuam na coluna de conversas e na aba "Mensagens @").
+- **Editar perfil público** (e "Criar perfil para seguir") abre o Perfil direto na categoria Perfil público (`#perfil?secao=profile`), também quando o Perfil já está aberto.
+- **Descrição do perfil:** Enter salva (Shift+Enter quebra a linha; no celular Enter quebra a linha) e um botão "Finalizar" aparece enquanto há alteração não salva.
+
+## Criar post: título, tags em botões, miniaturas e Postar direto — 11/10/2026
+
+Pedido do proprietário:
+
+- **Título** obrigatório e **texto** opcional.
+- **Tags** como botões lado a lado, todas visíveis; o autor marca de 1 a 5 (as da própria comunidade, inclusive as criadas pelos gestores). Uma tag já usada no post e depois desativada continua marcável na edição.
+- **Mídia:** cada foto, GIF ou vídeo escolhido aparece como miniatura com um X para tirar só aquele arquivo; escolher de novo soma à seleção, dentro dos mesmos limites (4 fotos, 3 GIFs ou 1 vídeo).
+- **Postar:** o botão do topo leva à lista de comunidades e, ao escolher uma, o formulário já abre com o cursor no título.
+- O post mostra todas as suas tags; cada uma filtra a comunidade por ela.
+
+## Conversas sem wallet — 11/10/2026
+
+Pedido do proprietário: quem entra sem conectar a wallet não vê a lista de contatos nem a conversa vazia. Em Conversas, com o shell em `data-account='guest'` e sem histórico local (`data-history` diferente de `available`):
+
+- **Desktop (1280 px ou mais):** a coluna de Contatos sai; o cartão **Conta por wallet** ocupa a coluna da esquerda (340–440 px) e as comunidades ocupam o espaço que era da lista. Em **Só conversas**, fica só o cartão (até 560 px) e a faixa de Comunidades. O modo sem conversa (`nochat`) mostra o cartão, porque o botão que reabriria a conversa ficava na lista escondida.
+- **Abaixo de 1280 px:** some a lista de contatos; marca, navegação e conta da lateral continuam.
+- **Mobile:** fica só o cartão, sem “Vamos conversar?” e sem a barra de conexão.
+
+Visitante com histórico salvo neste aparelho continua vendo a lista e a conversa, como antes. Validação: prévia local sem backend em 1.600 px (painel completo e Só conversas) e 375 px; nenhuma regra de sessão ou de dados mudou.

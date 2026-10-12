@@ -144,3 +144,31 @@ await test('fechar aviso não aceita; falha de perfil e escolha corrompida falha
   assert.equal(await privacy.beforeCreate(signal()), null);
   assert.equal(privacy.permitted('gifs'), false);
 });
+await test('escolha da conta vale para GIFs e players e não é perguntada de novo ao criar o @', async () => {
+  let prompts = 0;
+  const saved = storage();
+  const privacy = new ExternalMediaConsent({
+    profile: () => Promise.resolve(false),
+    storage: saved,
+    prompt: () => {
+      prompts++;
+      return Promise.resolve(true);
+    },
+  });
+  const current = session();
+  privacy.setSession(current);
+  assert.equal(privacy.accountChoice(), null);
+  privacy.applyAccountChoice(false);
+  assert.equal(privacy.accountChoice(), false);
+  assert.equal(await privacy.authorize('gifs', signal()), false);
+  assert.equal(await privacy.beforeCreate(signal()), false);
+  assert.equal(prompts, 0);
+  // The same account in a new instance reads the stored choice.
+  const reopened = new ExternalMediaConsent({
+    profile: () => Promise.resolve(true),
+    storage: saved,
+    prompt: () => Promise.resolve(true),
+  });
+  reopened.setSession(current);
+  assert.equal(reopened.accountChoice(), false);
+});

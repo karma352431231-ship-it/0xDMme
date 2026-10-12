@@ -38,7 +38,10 @@ import {
 import { createWebServer } from '../../src/server/web-host/index.ts';
 import { readWebConfiguration } from '../../src/server/web-configuration/index.ts';
 import { createCommunityAccount } from './community-fixture.ts';
-import { vaultUsage } from '../../src/server/database/vault-quota.ts';
+import {
+  vaultUsage,
+  lockContentUsage,
+} from '../../src/server/database/vault-quota.ts';
 import {
   publicModerationNotice,
   publicModerationRetentionMs,
@@ -55,6 +58,7 @@ import {
   PublicModerationScanner,
   PublicModerationWorker,
   publicModerationBinding,
+  publicModerationRetargeting,
 } from '../../src/server/public-moderation/index.ts';
 import { readMediaRuntime } from '../../src/server/community-media/index.ts';
 
@@ -94,6 +98,9 @@ await test('mídia das comunidades: cadeia real, autorização, vínculo atômic
     db.communityPosts,
     { media },
   );
+  // Posts need a title and a tag; fixtures use the community's first tag.
+  const firstTag = async (community: string) =>
+    (await communities.tags(community, null)).items[0]!.id;
   const accounts: string[] = [],
     addresses: string[] = [],
     publicOwners: string[] = [],
@@ -351,6 +358,39 @@ await test('mídia das comunidades: cadeia real, autorização, vínculo atômic
     },
   );
   await t.test(
+    'finalização do upload não bloqueia a mídia enquanto espera a contabilidade da postagem',
+    async () => {
+      await media.clean();
+      await inspector.query(
+        'UPDATE hash_talk.community_media SET charge=charge+1 WHERE id=$1',
+        [input.id],
+      );
+      await inspector.query('BEGIN');
+      await lockContentUsage(inspector);
+      const settled = db.communityMedia.settled(input.id);
+      void settled.catch(() => undefined); // Awaited below after releasing the test transaction.
+      try {
+        let waiting = false;
+        for (let attempt = 0; attempt < 30; attempt++) {
+          const result = await inspector.query<{ waiting: boolean }>(
+            'SELECT EXISTS(SELECT 1 FROM pg_stat_activity WHERE datname=current_database() AND pg_backend_pid()=ANY(pg_blocking_pids(pid))) AS waiting',
+          );
+          waiting = result.rows[0]!.waiting;
+          if (waiting) break;
+          await new Promise((resolve) => setTimeout(resolve, 10));
+        }
+        assert.ok(waiting, 'Finalização realmente concorrente à admissão.');
+        await inspector.query(
+          'SELECT id FROM hash_talk.community_media WHERE id=$1 FOR UPDATE NOWAIT',
+          [input.id],
+        );
+      } finally {
+        await inspector.query('ROLLBACK');
+        await settled;
+      }
+    },
+  );
+  await t.test(
     'HTTP transfere 100 MB em 382 partes e outro usuário no mesmo endereço sem teto de 60 pedidos',
     async () => {
       // Synthetic bytes exercise durable transport, without decoding a fake video.
@@ -399,7 +439,12 @@ await test('mídia das comunidades: cadeia real, autorização, vínculo atômic
   await t.test(
     'post sem legenda, retries e nenhuma referência/URL/miniatura pública',
     async () => {
-      const content = { title: '', text: '', tag: null, media: [input.id] };
+      const content = {
+        title: 'Mídia sintética',
+        text: '',
+        tags: [await firstTag(id)],
+        media: [input.id],
+      };
       const created = postState(
         await author.operate('post-create', { id, post, content }),
       );
@@ -453,7 +498,8 @@ await test('mídia das comunidades: cadeia real, autorização, vínculo atômic
         author.operate('post-create', {
           id: other,
           post: crypto.randomUUID(),
-          content,
+          // Reach the media ownership gate with valid tags for the target community.
+          content: { ...content, tags: [await firstTag(other)] },
         }),
         bad(403),
       );
@@ -486,7 +532,7 @@ await test('mídia das comunidades: cadeia real, autorização, vínculo atômic
         content: {
           title: '',
           text: '',
-          tag: null,
+          tags: [],
           media: gifs.map((r) => r.id),
         },
       });
@@ -504,9 +550,9 @@ await test('mídia das comunidades: cadeia real, autorização, vínculo atômic
           post,
           revision,
           content: {
-            title: '',
+            title: 'Mídia sintética',
             text: 'Teste',
-            tag: null,
+            tags: [await firstTag(id)],
             media: [input.id, item.id],
           },
         }),
@@ -517,7 +563,12 @@ await test('mídia das comunidades: cadeia real, autorização, vínculo atômic
           id,
           post,
           revision,
-          content: { title: '', text: '', tag: null, media: [item.id] },
+          content: {
+            title: 'Mídia sintética',
+            text: '',
+            tags: [await firstTag(id)],
+            media: [item.id],
+          },
         }),
       );
       await media.clean();
@@ -738,7 +789,7 @@ await test('mídia das comunidades: cadeia real, autorização, vínculo atômic
   );
   await t.test(
     'mídia aprovada é pública em posts, replies e feed; ocultação, corrupção e exclusão fecham os bytes',
-    async () => {
+    async (publicTest) => {
       const model = { hash: 'b'.repeat(64), runtime: 'isolated-contract-test' },
         accepted = new Database(config.databaseUrl, 3_000_000_000, [model]),
         clip = descriptor('video', await readFile(video)),
@@ -746,6 +797,8 @@ await test('mídia das comunidades: cadeia real, autorização, vínculo atômic
         rootPost = crypto.randomUUID(),
         reply = crypto.randomUUID();
       const publicOrigin = 'http://127.0.0.1:45128';
+      const publicFetch = (url: string, options: RequestInit = {}) =>
+        fetch(url, { ...options, signal: AbortSignal.timeout(10_000) });
       const publicHost = createWebServer({
         origin: publicOrigin,
         assets: new Map(),
@@ -785,7 +838,7 @@ await test('mídia das comunidades: cadeia real, autorização, vínculo atômic
           content: {
             title: 'Vídeo sintético',
             text: 'Legenda',
-            tag: null,
+            tags: [await firstTag(id)],
             media: [clip.id],
           },
         });
@@ -797,7 +850,7 @@ await test('mídia das comunidades: cadeia real, autorização, vínculo atômic
           content: {
             title: '',
             text: 'Resposta',
-            tag: null,
+            tags: [],
             media: [animation.id],
           },
         });
@@ -809,12 +862,12 @@ await test('mídia das comunidades: cadeia real, autorização, vínculo atômic
         for (const job of reviews.rows) {
           assert.equal(
             (
-              await fetch(
+              await publicFetch(
                 publicOrigin +
                   `/api/public-media/post-media/${job.target}/${job.id}`,
               )
             ).status,
-            404,
+            job.target === clip.id ? 200 : 404,
           );
         }
         const runtime = readMediaRuntime(process.env);
@@ -828,8 +881,7 @@ await test('mídia das comunidades: cadeia real, autorização, vínculo atômic
           },
           detector: {
             model,
-            size: 32,
-            classify: (frames) =>
+            classifyPrepared: (frames) =>
               Promise.resolve(frames.map(() => 'allow' as const)),
           },
         });
@@ -895,7 +947,7 @@ await test('mídia das comunidades: cadeia real, autorização, vínculo atômic
             join(root, 'community-media', clip.id, 'result'),
           ),
           path = publicPostMediaPath(published),
-          download = await fetch(publicOrigin + path);
+          download = await publicFetch(publicOrigin + path);
         assert.equal(download.status, 200);
         assert.equal(download.headers.get('Cache-Control'), 'no-store');
         assert.equal(download.headers.get('Content-Type'), 'video/mp4');
@@ -905,7 +957,7 @@ await test('mídia das comunidades: cadeia real, autorização, vínculo atômic
           'UPDATE hash_talk.community_media SET author=NULL WHERE id=$1',
           [clip.id],
         );
-        assert.equal((await fetch(publicOrigin + path)).status, 200);
+        assert.equal((await publicFetch(publicOrigin + path)).status, 200);
         assert.equal(
           firstMedia(await accepted.communityPosts.read(id, rootPost)),
           clip.id,
@@ -914,14 +966,14 @@ await test('mídia das comunidades: cadeia real, autorização, vínculo atômic
           'UPDATE hash_talk.community_media SET author=$2 WHERE id=$1',
           [clip.id, authorProfile.id],
         );
-        const head = await fetch(publicOrigin + path, { method: 'HEAD' });
+        const head = await publicFetch(publicOrigin + path, { method: 'HEAD' });
         assert.equal(head.status, 200);
         assert.equal(
           Number(head.headers.get('Content-Length')),
           content.length,
         );
         assert.equal((await head.arrayBuffer()).byteLength, 0);
-        const thumb = await fetch(
+        const thumb = await publicFetch(
           publicOrigin + publicPostMediaPath(published, true),
         );
         assert.equal(thumb.status, 200);
@@ -936,7 +988,7 @@ await test('mídia das comunidades: cadeia real, autorização, vínculo atômic
           join(root, 'community-media', clip.id, 'result'),
           corrupted,
         );
-        assert.equal((await fetch(publicOrigin + path)).status, 503);
+        assert.equal((await publicFetch(publicOrigin + path)).status, 503);
         await writeFile(
           join(root, 'community-media', clip.id, 'result'),
           content,
@@ -949,7 +1001,7 @@ await test('mídia das comunidades: cadeia real, autorização, vínculo atômic
           record: removal,
           reason: 'Ensaio local.',
         });
-        assert.equal((await fetch(publicOrigin + path)).status, 404);
+        assert.equal((await publicFetch(publicOrigin + path)).status, 404);
         assert.equal(
           (await accepted.communityPosts.read(id, rootPost)).media,
           undefined,
@@ -962,16 +1014,349 @@ await test('mídia das comunidades: cadeia real, autorização, vínculo atômic
           decision: 'Restaurado no ensaio.',
           restore: true,
         });
-        assert.equal((await fetch(publicOrigin + path)).status, 200);
+        assert.equal((await publicFetch(publicOrigin + path)).status, 200);
         for (const post of [rootPost, reply])
           await author.operate('post-delete', {
             id,
             post,
             revision: (await communities.post(id, post)).revision,
           });
-        assert.equal((await fetch(publicOrigin + path)).status, 404);
+        assert.equal((await publicFetch(publicOrigin + path)).status, 404);
         await media.clean();
-        assert.equal((await fetch(publicOrigin + path)).status, 404);
+        assert.equal((await publicFetch(publicOrigin + path)).status, 404);
+        async function uploadedVideo() {
+          const source = descriptor('video', await readFile(video)),
+            post = crypto.randomUUID();
+          await ready(source, await readFile(video));
+          await author.operate('post-create', {
+            id,
+            post,
+            content: {
+              title: 'Revisão sintética',
+              text: '',
+              tags: [await firstTag(id)],
+              media: [source.id],
+            },
+          });
+          const pending = await accepted.communityPosts.read(id, post),
+            ref = pending.media?.[0];
+          assert.ok(ref, 'Vídeo publicado sem esperar a análise.');
+          assert.equal(
+            (await communities.post(id, post)).media,
+            undefined,
+            'Sem detector aceito, os bytes reais continuam restritos.',
+          );
+          return {
+            source,
+            post,
+            ref,
+            path: publicOrigin + publicPostMediaPath(ref),
+          };
+        }
+        async function noticeFor(review: string) {
+          const body = {
+              directory: author.directory,
+              payload: { after: null },
+            },
+            values = await profiles.operate(
+              'moderation-notices',
+              author.login.session,
+              {
+                ...body,
+                signature: await sign(
+                  author.identity.signing,
+                  publicProfileBody(
+                    author.login.session.accountId,
+                    author.login.session.deviceId,
+                    'moderation-notices',
+                    body,
+                  ),
+                ),
+              },
+            );
+          const notice = values
+            .map(publicModerationNotice)
+            .find((value) => value.id === review);
+          assert.ok(notice);
+          return notice;
+        }
+        await publicTest.test(
+          'vídeo fica público durante análise; recusa, incerteza e falha revogam os bytes',
+          async () => {
+            for (const verdict of ['reject', 'hold', 'failed'] as const) {
+              const item = await uploadedVideo();
+              for (const suffix of ['', '/thumbnail']) {
+                assert.equal(
+                  (await publicFetch(item.path + suffix)).status,
+                  200,
+                );
+                assert.equal(
+                  (await publicFetch(item.path + suffix, { method: 'HEAD' }))
+                    .status,
+                  200,
+                );
+              }
+              assert.equal(
+                (await noticeFor(item.ref.review)).afterPublication,
+                true,
+              );
+              const job = await db.publicModeration.claim(model);
+              assert.ok(job);
+              assert.equal(job.id, item.ref.review);
+              assert.equal(
+                (await publicFetch(item.path)).status,
+                200,
+                'Ainda visível durante análise.',
+              );
+              if (verdict === 'failed') await db.publicModeration.fail(job);
+              else {
+                const evaluation = {
+                  verdict,
+                  contentHash: job.contentHash,
+                  modelHash: job.modelHash,
+                  frames: 61,
+                  expectedFrames: 61,
+                };
+                await db.publicModeration.finish(
+                  job,
+                  evaluation,
+                  publicModerationBinding(db),
+                );
+                const first = await inspector.query<{ warned_at: Date | null }>(
+                  'SELECT warned_at FROM hash_talk.public_moderation WHERE id=$1',
+                  [job.id],
+                );
+                await db.publicModeration.finish(
+                  job,
+                  evaluation,
+                  publicModerationBinding(db),
+                );
+                const repeated = await inspector.query<{
+                  warned_at: Date | null;
+                }>(
+                  'SELECT warned_at FROM hash_talk.public_moderation WHERE id=$1',
+                  [job.id],
+                );
+                assert.deepEqual(
+                  repeated.rows,
+                  first.rows,
+                  'Uma única advertência, mesmo após retry.',
+                );
+              }
+              for (const suffix of ['', '/thumbnail']) {
+                assert.equal(
+                  (await publicFetch(item.path + suffix)).status,
+                  404,
+                );
+                assert.equal(
+                  (await publicFetch(item.path + suffix, { method: 'HEAD' }))
+                    .status,
+                  404,
+                );
+              }
+              assert.equal(
+                (await accepted.communityPosts.read(id, item.post)).media,
+                undefined,
+              );
+              assert.equal(
+                firstMedia(
+                  (
+                    await accepted.communityDiscovery.feed(filter, null)
+                  ).items.find((entry) => entry.post.id === item.post)?.post,
+                ),
+                undefined,
+              );
+              assert.equal(
+                (await noticeFor(job.id)).warning === true,
+                verdict === 'reject',
+              );
+              if (verdict === 'reject') {
+                const body = {
+                  directory: author.directory,
+                  payload: {
+                    id: job.id,
+                    reason: 'Conteúdo permitido no ensaio.',
+                  },
+                };
+                await profiles.operate(
+                  'moderation-appeal',
+                  author.login.session,
+                  {
+                    ...body,
+                    signature: await sign(
+                      author.identity.signing,
+                      publicProfileBody(
+                        author.login.session.accountId,
+                        author.login.session.deviceId,
+                        'moderation-appeal',
+                        body,
+                      ),
+                    ),
+                  },
+                );
+                const resolved = await accepted.publicModeration.operatorReview(
+                  {
+                    id: job.id,
+                    verdict: 'allow',
+                    reason: 'Revisão de contrato sintética.',
+                    confirmsPermitted: true,
+                  },
+                  publicModerationBinding(accepted),
+                );
+                assert.equal(
+                  resolved.warning,
+                  undefined,
+                  'Reversão remove a advertência.',
+                );
+                assert.equal((await publicFetch(item.path)).status, 200);
+              }
+              await author.operate('post-delete', {
+                id,
+                post: item.post,
+                revision: (await communities.post(id, item.post)).revision,
+              });
+              await media.clean();
+            }
+          },
+        );
+        await publicTest.test(
+          'hash, modelo e prazo inválidos fecham vídeo provisório; foto nunca usa essa liberação',
+          async () => {
+            const item = await uploadedVideo(),
+              job = await db.publicModeration.claim(model);
+            assert.ok(job);
+            assert.equal(job.id, item.ref.review);
+            await inspector.query(
+              "UPDATE hash_talk.public_moderation SET runtime='unaccepted' WHERE id=$1",
+              [job.id],
+            );
+            assert.equal((await publicFetch(item.path)).status, 404);
+            await inspector.query(
+              'UPDATE hash_talk.public_moderation SET runtime=$2,content_hash=$3 WHERE id=$1',
+              [job.id, model.runtime, '0'.repeat(64)],
+            );
+            assert.equal((await publicFetch(item.path)).status, 404);
+            await inspector.query(
+              "UPDATE hash_talk.public_moderation SET content_hash=$2,created_at=now()-interval '8 days',expires_at=now()-interval '1 day' WHERE id=$1",
+              [job.id, job.contentHash],
+            );
+            assert.equal((await publicFetch(item.path)).status, 404);
+            await media.clean();
+            assert.equal((await noticeFor(job.id)).warning, undefined);
+            const image = descriptor('photo', await readFile(photo)),
+              post = crypto.randomUUID();
+            await ready(image, await readFile(photo));
+            await author.operate('post-create', {
+              id,
+              post,
+              content: {
+                title: 'Foto sintética',
+                text: '',
+                tags: [await firstTag(id)],
+                media: [image.id],
+              },
+            });
+            const review = await inspector.query<{ id: string }>(
+              'SELECT id FROM hash_talk.public_moderation WHERE target=$1',
+              [image.id],
+            );
+            const photoReview = review.rows[0]!.id;
+            // Even a wrongly flagged review cannot open photo bytes through the video gate.
+            await inspector.query(
+              "UPDATE hash_talk.public_moderation SET publication_phase='after' WHERE id=$1",
+              [photoReview],
+            );
+            assert.equal(
+              (await accepted.communityPosts.read(id, post)).media,
+              undefined,
+            );
+            assert.equal(
+              (
+                await publicFetch(
+                  publicOrigin +
+                    `/api/public-media/post-media/${image.id}/${photoReview}`,
+                )
+              ).status,
+              404,
+            );
+            await author.operate('post-delete', {
+              id,
+              post,
+              revision: (await communities.post(id, post)).revision,
+            });
+            await media.clean();
+          },
+        );
+        await publicTest.test(
+          'nova política preserva vídeo provisório, mas não reabre um vídeo já recusado',
+          async () => {
+            for (const rejected of [false, true]) {
+              const item = await uploadedVideo();
+              if (rejected) {
+                const job = await db.publicModeration.claim(model);
+                assert.ok(job);
+                assert.equal(job.id, item.ref.review);
+                await db.publicModeration.finish(
+                  job,
+                  {
+                    verdict: 'reject',
+                    contentHash: job.contentHash,
+                    modelHash: job.modelHash,
+                    frames: 61,
+                    expectedFrames: 61,
+                  },
+                  publicModerationBinding(db),
+                );
+              }
+              await inspector.query(
+                "UPDATE hash_talk.public_moderation SET policy='0xdmme-public-explicit-v1' WHERE id=$1",
+                [item.ref.review],
+              );
+              await db.publicModeration.upgrade(
+                publicModerationRetargeting(db),
+              );
+              assert.equal(
+                firstMedia(await accepted.communityPosts.read(id, item.post)),
+                rejected ? undefined : item.source.id,
+              );
+              assert.equal(
+                (await publicFetch(item.path)).status,
+                404,
+                'A revisão substituída nunca abre os bytes.',
+              );
+              assert.equal(
+                (await noticeFor(item.ref.review)).warning === true,
+                rejected,
+              );
+              if (rejected) {
+                const state = postState(
+                  await author.operate('post-state', { id, post: item.post }),
+                );
+                assert.ok(state.content);
+                await author.operate('post-edit', {
+                  id,
+                  post: item.post,
+                  revision: state.post.revision,
+                  content: {
+                    ...state.content,
+                    text: 'Legenda editada após a recusa.',
+                  },
+                });
+                assert.equal(
+                  (await accepted.communityPosts.read(id, item.post)).media,
+                  undefined,
+                  'Editar a legenda não reabre um vídeo já recusado.',
+                );
+              }
+              await author.operate('post-delete', {
+                id,
+                post: item.post,
+                revision: (await communities.post(id, item.post)).revision,
+              });
+              await media.clean();
+            }
+          },
+        );
       } finally {
         try {
           // A failed listen must remain the reported error, rather than its cleanup.
@@ -1014,6 +1399,78 @@ await test('mídia das comunidades: cadeia real, autorização, vínculo atômic
       } finally {
         await limited.close();
       }
+    },
+  );
+  await t.test(
+    'reserva antiga amplia resultado atomicamente, falta de capacidade preserva bytes e retry não duplica cobrança',
+    async () => {
+      const data = await readFile(video),
+        candidate = descriptor('video', data);
+      await reserve(candidate);
+      await author.operate('media-part', {
+        id,
+        media: candidate.id,
+        index: 0,
+        bytes: encode(data),
+      });
+      const authority = {
+        session: author.login.session,
+        directory: author.directory,
+      };
+      const oldCharge = candidate.bytes * 2 + 25_000_000 + 96_000 + 32_768;
+      await inspector.query(
+        'UPDATE hash_talk.community_media SET charge=$2 WHERE id=$1',
+        [candidate.id, oldCharge],
+      );
+      const globalUsage = async () =>
+        Number(
+          (
+            await inspector.query<{ bytes: string }>(
+              'SELECT used_bytes::text AS bytes FROM hash_talk.content_usage WHERE singleton',
+            )
+          ).rows[0]!.bytes,
+        );
+      const beforeUpgrade = await globalUsage();
+      const limited = new Database(
+        config.databaseUrl,
+        beforeUpgrade + 74_999_999,
+      );
+      const input = {
+        community: id,
+        id: candidate.id,
+        index: null,
+        hash: null,
+      };
+      try {
+        await assert.rejects(
+          limited.communityMedia.begin(authority, input),
+          bad(503),
+        );
+        const row = await inspector.query<{
+          charge: string;
+          writer: string | null;
+          count: number;
+        }>(
+          'SELECT charge::text,writer,cardinality(received) AS count FROM hash_talk.community_media WHERE id=$1',
+          [candidate.id],
+        );
+        assert.equal(Number(row.rows[0]!.charge), oldCharge);
+        assert.equal(row.rows[0]!.writer, null);
+        assert.equal(row.rows[0]!.count, 1);
+        assert.equal(await globalUsage(), beforeUpgrade);
+      } finally {
+        await limited.close();
+      }
+      const lease = await db.communityMedia.begin(authority, input);
+      assert.ok(lease.writer);
+      assert.equal(await globalUsage(), beforeUpgrade + 75_000_000);
+      await db.communityMedia.release(candidate.id, lease.writer);
+      const retry = await db.communityMedia.begin(authority, input);
+      assert.ok(retry.writer);
+      assert.equal(await globalUsage(), beforeUpgrade + 75_000_000);
+      await db.communityMedia.release(candidate.id, retry.writer);
+      await author.operate('media-cancel', { id, media: candidate.id });
+      await media.clean();
     },
   );
   await t.test(

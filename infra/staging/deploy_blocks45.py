@@ -26,14 +26,14 @@ OLD_TABLES = ('accounts', 'login_devices', 'login_challenges', 'login_sessions',
               'login_handoffs', 'service_metadata')
 
 
-def file_tree(root):
+def file_tree(root, *, maximum=512):
     files = {}
     for path in sorted(root.rglob('*')):
         if path.is_symlink():
             raise RuntimeError('Reviewed tree contains an unexpected link.')
         if path.is_file():
             files[str(path.relative_to(root))] = base.digest(path)
-        if len(files) > 512:
+        if len(files) > maximum:
             raise RuntimeError('Reviewed tree budget exceeded.')
     return files
 
@@ -55,7 +55,10 @@ def git_export(revision):
 def matches_export(root, files, source_only=False):
     expected = {name: hashlib.sha256(value).hexdigest() for name, value in files.items()
                 if not source_only or name.startswith('src/')}
-    actual = {'src/' + name: value for name, value in file_tree(root / 'src').items()}
+    # Authored sources share the already-reviewed release manifest budget.
+    # Backup/object and QR trees keep their separate default of 512 files.
+    actual = {'src/' + name: value for name, value in
+              file_tree(root / 'src', maximum=base.MAX_MANIFEST_FILES).items()}
     if not source_only:
         actual.update({name: base.digest(root / name) for name in files if not name.startswith('src/')})
     return actual == expected

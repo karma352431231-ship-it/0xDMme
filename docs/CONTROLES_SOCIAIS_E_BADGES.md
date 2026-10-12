@@ -1,6 +1,6 @@
 # Controles sociais e badges — pedido de 11/10/2026
 
-Implementação local solicitada pelo proprietário, dividida por contrato. Não autoriza ativação de migrações na VPS.
+Implementação solicitada pelo proprietário, dividida por contrato. Em 11/10/2026, o proprietário pediu alinhar com o `main`, enviar à VPS e ativar. A integração preserva conta modular, configuração inicial e tags múltiplas do `main`; as migrações inéditas foram renumeradas para 056–058 após conferir que a VPS já tinha 55 e ainda não tinha as tabelas sociais.
 
 - O dono segue desde a criação, conta como primeiro seguidor e não recebe botão de seguir/deixar de seguir. O destinatário de transferência também passa a seguir; o antigo dono conserva seu follow.
 - Posts e respostas mostram badges pelo papel atual: coroa para dono, escudo para moderador. “Novo membro” dura **dois dias** após seguir; datas antigas desconhecidas continuam desconhecidas.
@@ -20,4 +20,4 @@ Badges manuais têm orçamento inicial de até 20 definições por comunidade e 
 
 Excluir uma definição de badge exige não haver atribuições, evitando remoção em massa numa transação. Retirar badges de membros é uma operação individual. A Atividade distingue “publicou” de “respondeu”; o filtro histórico interno `replies` conserva sua identidade e ganha o rótulo público “Publicações”.
 
-Revisão de responsabilidades: os módulos novos isolam badges, apresentação, denúncias, sininho e rascunhos. Os controladores antigos de conta, comunidades e posts ainda concentram telas e estado. Uma tarefa própria pode extrair, nesta ordem, o editor privado de `account/index.ts`, a navegação/gerência de `communities/index.ts` e a composição da árvore de `communities/posts.ts`. Preservar os contratos públicos e testar troca de sessão, rascunhos e navegação a cada etapa; o principal risco é alterar o ciclo de vida dos controles e das mídias. Essa reorganização não faz parte desta entrega.
+Revisão de responsabilidades: os módulos novos isolam badges, apresentação, denúncias, sininho e rascunhos. A integração preserva a separação de conta já presente no `main` e porta os rascunhos para `account/private-profile.ts`. Os controladores antigos de comunidades e posts ainda concentram telas e estado. Uma tarefa própria pode extrair a navegação/gerência de `communities/index.ts` e depois a composição da árvore de `communities/posts.ts`. Preservar os contratos públicos e testar troca de sessão, rascunhos e navegação a cada etapa; o principal risco é alterar o ciclo de vida dos controles e das mídias. Essa reorganização não faz parte desta entrega.

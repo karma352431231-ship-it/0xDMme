@@ -5,6 +5,8 @@ import { PublicProfiles } from './controller.ts';
 import { renderModeration } from './moderation.ts';
 import { showProfilePage } from './page.ts';
 import { startProfileEditor } from './profile-editor.ts';
+import { profileHoverProvider } from './profile-hover.ts';
+import { registerHoverCard } from '../hover-card/index.ts';
 import type { ExternalMediaConsent } from '../external-media/index.ts';
 import { ActivityPosts } from '../communities/index.ts';
 
@@ -41,6 +43,7 @@ export function startPublicProfile(
 ) {
   const controller = new PublicProfiles(access);
   const activity = new ActivityPosts(access, privacy);
+  registerHoverCard(profileHoverProvider(controller));
   const editor = startProfileEditor(controller, {
     run,
     changed: () => controller.refreshModeration(),

@@ -15,6 +15,7 @@ import { communityPage } from '../../shared/communities/index.ts';
 import { showPublicAvatar } from '../public-media/index.ts';
 import { renderActivityEntry } from '../communities/index.ts';
 import type { PublicProfiles } from './controller.ts';
+import { editPublicProfileHash } from './follow.ts';
 
 function element<K extends keyof HTMLElementTagNameMap>(
   tag: K,
@@ -293,12 +294,14 @@ export function showProfilePage(
       link(host, 'Entrar para seguir', '#perfil');
       return;
     }
+    if (!controller.profile) await controller.refresh();
+    if (lifetime.signal.aborted) return;
     if (!controller.profile) {
       link(host, 'Criar perfil para seguir', '#perfil');
       return;
     }
     if (controller.profile.profile.id === summary.profile.id) {
-      link(host, 'Editar perfil público', '#perfil');
+      link(host, 'Editar perfil público', editPublicProfileHash);
       return;
     }
     await profileSocialControls(host, summary, {

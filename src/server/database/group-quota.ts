@@ -1,4 +1,5 @@
 import type pg from 'pg';
+import { groupLinkUsage } from './group-link-storage.ts';
 import { AccountError } from '../../shared/account/index.ts';
 import {
   groupContentQuota,
@@ -28,7 +29,7 @@ export async function groupTextUsage(
   const bytes = Number(rows.rows[0]?.bytes);
   if (!Number.isSafeInteger(bytes) || bytes < 0)
     throw new Error('Cota de grupo indisponível.');
-  return bytes;
+  return bytes + (await groupLinkUsage(client, groupId));
 }
 export async function assertGroupTextQuota(
   client: Pick<pg.PoolClient, 'query'>,

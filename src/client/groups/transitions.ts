@@ -10,6 +10,7 @@ import type {
   GroupEvent,
   GroupMember,
 } from '../../shared/groups/index.ts';
+import type { GroupLink } from '../../shared/groups/links.ts';
 import type { VaultAuthority } from '../vault-authority/index.ts';
 function actor(a: VaultAuthority) {
   return {
@@ -67,13 +68,14 @@ export async function changeGroupEvent(input: {
   target: string | null;
   consent?: GroupConsent;
   role?: 'admin' | 'member';
+  link?: GroupLink;
 }): Promise<GroupEvent> {
   const { authority, state, kind, target } = input;
   let members: GroupMember[] = state.members.map((m) => ({ ...m })),
     owner = state.owner;
-  if (kind === 'join')
+  if (['join', 'add', 'link-join'].includes(kind))
     members.push({
-      accountId: authority.session.accountId,
+      accountId: admissionTarget(target, authority),
       role: 'member',
       joined: state.epoch + 1,
     });
@@ -101,6 +103,7 @@ export async function changeGroupEvent(input: {
     owner,
     members,
     consent: input.consent ?? null,
+    ...linkFields(input.link),
     signature: '',
   });
 }
@@ -121,4 +124,14 @@ async function signedGroup(
 ): Promise<GroupEvent> {
   event.signature = await a.sign(groupEventProof(event));
   return event;
+}
+
+function admissionTarget(
+  target: string | null,
+  authority: VaultAuthority,
+): string {
+  return target ?? authority.session.accountId;
+}
+function linkFields(link: GroupLink | undefined): { link?: GroupLink } {
+  return link ? { link } : {};
 }

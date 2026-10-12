@@ -26,6 +26,9 @@ const featureExports: Record<string, string[]> = {
   activity: ['startActivity'],
   'external-media': ['ExternalMediaConsent'],
   'file-drop': ['keepPageOnStrayDrop'],
+  'account-settings': ['AccountSettingsController'],
+  daily: ['Daily'],
+  'notification-sound': ['applySoundPreference', 'storedSoundPreference'],
 };
 const bundle = await build({
   entryPoints: ['src/client/app/index.ts'],
@@ -112,6 +115,7 @@ async function page(approval: boolean, userAgent: string) {
     setSession: () => {},
     reset: () => {},
     leave: () => {},
+    forgetReturn: () => {},
     mount: () => {},
     ready: () => {},
     authorized: () => false,
@@ -145,6 +149,11 @@ async function page(approval: boolean, userAgent: string) {
     CallLog: class {
       reset(): void {}
     },
+    AccountSettingsController: class {
+      setSession(): void {}
+      ready(): void {}
+    },
+    Daily: class {},
   });
   runInNewContext(source, {
     fixture,

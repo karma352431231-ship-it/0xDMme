@@ -17,7 +17,7 @@ import type { ContactAuthority } from './contacts.ts';
 import type { CommunityStore } from './communities.ts';
 import { requireCommunityParticipation } from './community-authority.ts';
 import type { CommunityContext } from './community-authority.ts';
-import { assertContentCapacity } from './vault-quota.ts';
+import { assertContentCapacity, lockContentUsage } from './vault-quota.ts';
 import type {
   PublicModerationStore,
   PublicModerationSubject,
@@ -30,6 +30,7 @@ interface MediaRow {
   community_id: string;
   author: string | null;
   source: CommunityMediaSource;
+  charge: string;
   received: string[];
   status: CommunityMediaState['status'] | 'deleting';
   result: CommunityMediaResult | null;
@@ -201,11 +202,7 @@ export class CommunityMediaStore {
           409,
           'Identificador de mídia já utilizado. Inicie outro envio.',
         );
-      const charge =
-        source.bytes * 2 +
-        communityMediaLimits[source.kind].result +
-        96_000 +
-        32_768;
+      const charge = preparationCharge(source);
       const result = await c.client.query<MediaRow>(
         'INSERT INTO hash_talk.community_media(id,community_id,author,source,charge) VALUES($1,$2,$3,$4::jsonb,$5) RETURNING *',
         [source.id, community, c.actor.id, JSON.stringify(source), charge],
@@ -246,6 +243,7 @@ export class CommunityMediaStore {
   ) {
     return this.communities.withContext(a, input.community, async (c) => {
       await requireCommunityParticipation(c);
+      if (input.index === null) await lockContentUsage(c.client);
       const row = await this.owned(c, input.id);
       requirePart(row, input.index);
       if (input.index !== null && row.received[input.index] !== undefined) {
@@ -259,6 +257,7 @@ export class CommunityMediaStore {
         throw new AccountError(409, 'Upload em andamento. Aguarde.');
       if (input.index !== null && input.index !== row.received.length)
         throw new AccountError(409, 'Retome a próxima parte do upload.');
+      if (input.index === null) await this.reservePreparation(c, row);
       const writer = randomUUID();
       await c.client.query(
         'UPDATE hash_talk.community_media SET writer=$2,error=NULL WHERE id=$1',
@@ -266,6 +265,19 @@ export class CommunityMediaStore {
       );
       return { state: state(row), writer };
     });
+  }
+  /** A resumed old reservation must cover the current output ceiling before the decoder starts. */
+  private async reservePreparation(
+    context: CommunityContext,
+    row: MediaRow,
+  ): Promise<void> {
+    const charge = preparationCharge(row.source);
+    if (Number(row.charge) >= charge) return;
+    await context.client.query(
+      'UPDATE hash_talk.community_media SET charge=$2 WHERE id=$1',
+      [row.id, charge],
+    );
+    await assertContentCapacity(context.client, this.capacity);
   }
   async part(
     a: ContactAuthority,
@@ -389,6 +401,18 @@ export class CommunityMediaStore {
       "UPDATE hash_talk.community_media SET status='attached',post_id=$2 WHERE id=ANY($1::uuid[]) AND post_id IS NULL",
       [input.ids, input.post],
     );
+    for (const row of found.rows) await this.postedVideo(c, row);
+  }
+  private async postedVideo(c: CommunityContext, row: MediaRow): Promise<void> {
+    if (row.post_id !== null) return;
+    const hash = preparedHash(row);
+    if (row.result?.kind !== 'video' || !row.moderation_review || !hash) return;
+    await this.moderation.postedVideo(c.client, {
+      id: row.moderation_review,
+      owner: c.actor.id,
+      target: row.id,
+      contentHash: hash,
+    });
   }
   async garbage(): Promise<string[]> {
     await this.moderation.expired('post-media');
@@ -476,6 +500,15 @@ export class CommunityMediaStore {
         row.moderation_review ? [row.moderation_review] : [],
       ),
     );
+    const provisional = await this.moderation.releasedVideos(
+      client,
+      found.rows
+        .filter((row) => row.result?.kind === 'video')
+        .flatMap((row) =>
+          row.moderation_review ? [row.moderation_review] : [],
+        ),
+    );
+    for (const [id, review] of provisional) released.set(id, review);
     const refs = new Map<string, PublicPostMedia[]>();
     for (const row of found.rows) {
       const review = row.moderation_review
@@ -492,9 +525,16 @@ export class CommunityMediaStore {
     target: string,
     review: string,
   ): Promise<PublicModerationMediaCandidate | null> {
-    const subject = (await this.moderation.released(this.pool, [review])).get(
+    let subject = (await this.moderation.released(this.pool, [review])).get(
       review,
     );
+    let provisional = false;
+    if (!subject) {
+      subject = (await this.moderation.releasedVideos(this.pool, [review])).get(
+        review,
+      );
+      provisional = true;
+    }
     if (!subject || subject.kind !== 'post-media' || subject.target !== target)
       return null;
     const found = await this.pool.query<MediaRow>(
@@ -503,7 +543,11 @@ export class CommunityMediaStore {
       [target],
     );
     const row = found.rows[0];
-    if (!matchesMediaBytes(row, subject)) return null;
+    if (
+      !matchesMediaBytes(row, subject) ||
+      (provisional && row.result.kind !== 'video')
+    )
+      return null;
     return {
       id: row.id,
       result: row.result,
@@ -518,7 +562,7 @@ export class CommunityMediaStore {
       [review.target],
     );
     if (!matchesReview(found.rows[0], review)) return null;
-    // The queue commits the decision. Public projections remain closed until validated.
+    // The queue commits the decision and revokes provisional video access atomically.
     return () => Promise.resolve();
   }
   async bindPolicy(client: pg.PoolClient, review: PublicModerationSubject) {
@@ -559,14 +603,26 @@ export class CommunityMediaStore {
     ).rows.map((r) => r.id);
   }
   async settled(id: string): Promise<void> {
-    await this.pool.query(
-      "UPDATE hash_talk.community_media SET charge=(result->>'bytes')::bigint+(result->>'thumbnailBytes')::bigint+32768 WHERE id=$1 AND status IN ('ready','attached') AND charge<>(result->>'bytes')::bigint+(result->>'thumbnailBytes')::bigint+32768",
-      [id],
-    );
+    await this.transaction(async (client) => {
+      await lockContentUsage(client);
+      await client.query(
+        "UPDATE hash_talk.community_media SET charge=(result->>'bytes')::bigint+(result->>'thumbnailBytes')::bigint+32768 WHERE id=$1 AND status IN ('ready','attached') AND charge<>(result->>'bytes')::bigint+(result->>'thumbnailBytes')::bigint+32768",
+        [id],
+      );
+    });
   }
   async resumeInterrupted(): Promise<void> {
     await this.pool.query(
       "UPDATE hash_talk.community_media SET status='uploading',writer=NULL WHERE writer IS NOT NULL AND post_id IS NULL",
     );
   }
+}
+
+function preparationCharge(source: CommunityMediaSource): number {
+  return (
+    source.bytes * 2 +
+    communityMediaLimits[source.kind].result +
+    96_000 +
+    32_768
+  );
 }

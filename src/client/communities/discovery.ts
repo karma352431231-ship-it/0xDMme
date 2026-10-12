@@ -184,7 +184,7 @@ export function startCommunityDiscovery(
   /** Posting starts from the community the person chooses. */
   function postShortcut(toolbar: HTMLElement): void {
     if (!signedIn || (view !== 'feed' && view !== 'following')) return;
-    link(toolbar, 'Postar', '#comunidades?view=communities');
+    link(toolbar, 'Postar', '#comunidades?view=communities&compose=1');
     const post = toolbar.lastElementChild as HTMLElement;
     post.className = 'community-post-cta';
     iconLabel(post, 'pencil');

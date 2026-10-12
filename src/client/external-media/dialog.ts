@@ -21,7 +21,7 @@ export function mediaConsentDialog(
     title.textContent = scope === 'all' ? 'Mídias externas' : 'GIFs do KLIPY';
     notice.textContent = scope === 'all' ? externalMediaNotice : klipyNotice;
     detail.textContent =
-      'Sua escolha vale neste navegador e pode ser alterada no Perfil.';
+      'Com a conta conectada, a escolha acompanha a conta e pode ser alterada no Perfil.';
     actions.className = 'settings-actions';
     const finish = (choice: boolean | null) => {
       signal.removeEventListener('abort', cancel);

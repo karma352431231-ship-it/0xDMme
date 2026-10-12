@@ -18,10 +18,11 @@ import urllib.parse
 import urllib.request
 import zlib
 
-from deploy_remote import digest, validate
+from deploy_remote import digest, validate, valid_release_branch
 import deploy_sources as public_sources
 import deploy_runtime as runtime
 import deploy_request_limit as request_limits
+import deploy_media_worker as media_worker
 from deploy_python import ensure_python314
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -49,8 +50,8 @@ def repository():
         raise RuntimeError('Commit reviewed changes before deployment.')
     branch = run(['git', 'symbolic-ref', '--short', 'HEAD']).decode().strip()
     revision = run(['git', 'rev-parse', 'HEAD']).decode().strip()
-    if not re.fullmatch(r'codex/[A-Za-z0-9][A-Za-z0-9._/-]*', branch):
-        raise RuntimeError('An explicit codex branch is required.')
+    if not valid_release_branch(branch):
+        raise RuntimeError('An explicit main or codex branch is required.')
     remote = run(['git', '-c', f'credential.username={OWNER}', 'ls-remote', '--exit-code',
                   'origin', 'refs/heads/' + branch]).decode().split()
     if not remote or remote[0] != revision:
@@ -191,7 +192,7 @@ def private_inputs():
 
 def executor_code(config):
     modules = []
-    for name in ['deploy_sources', 'deploy_runtime', 'deploy_remote', 'deploy_blocks45', 'deploy_request_limit', 'deploy_background', 'deploy_profile_social', 'deploy_profile_description']:
+    for name in ['deploy_sources', 'deploy_runtime', 'deploy_remote', 'deploy_blocks45', 'deploy_request_limit', 'deploy_background', 'deploy_profile_social', 'deploy_profile_description', 'deploy_group_links', 'deploy_post_tags', 'deploy_media_worker', 'deploy_social_controls']:
         path = ROOT / 'infra/staging' / (name + '.py')
         if digest(path) != config['files'].get('infra/staging/' + name + '.py'):
             raise RuntimeError('Deployment executor changed after the reviewed commit.')
@@ -211,13 +212,19 @@ def remote(action, config, target):
     code = executor_code(config)
     worker_paths = []
     if action == 'activate' and 'src/server/worker.ts' in config['files']:
-        worker_paths = ['-p', 'ReadWritePaths=/var/lib/0xdmme/data /etc/systemd/system/0xdmme-test.service.d',
-                        '-p', 'TemporaryFileSystem=/tmp:rw,nosuid,nodev,noexec,size=16M',
+        worker_paths = ['-p', 'TemporaryFileSystem=/tmp:rw,nosuid,nodev,noexec,size=16M',
                         '-p', 'Environment=TMPDIR=/tmp']
     proxy_properties = []
     if action == 'requests':
         proxy_properties = ['-p', 'TemporaryFileSystem=/var/log/nginx:rw',
                             '-p', 'BindPaths=/dev/null:/run/nginx.pid']
+    writable = '/var/lib/0xdmme/data'
+    if action == 'activate' and 'src/server/worker.ts' in config['files']:
+        writable += ' /etc/systemd/system/0xdmme-test.service.d'
+    if action == 'activate' and 'media_worker' in config:
+        writable += ' ' + str(media_worker.DROPIN.parent)
+    if action == 'requests':
+        writable += ' ' + str(request_limits.PROXY)
     command = shlex.join([
         'systemd-run', '--quiet', '--wait', '--pipe', '--collect',
         '--unit=0xdmme-deploy-' + action + '-' + config['commit'][:12],
@@ -225,10 +232,11 @@ def remote(action, config, target):
         # off so secrets never reach disk, and the run keeps its time limit.
         '--slice=xdmme-test.slice', '-p', 'MemorySwapMax=0', '-p', 'NoNewPrivileges=yes',
         '-p', 'ProtectSystem=strict', '-p', 'ProtectHome=yes',
-        '-p', 'ReadWritePaths=/var/lib/0xdmme/data' +
-        (' ' + str(request_limits.PROXY) if action == 'requests' else ''),
+        '-p', 'ReadWritePaths=' + writable,
         '-p', 'RuntimeMaxSec=240',
         *proxy_properties, *worker_paths, '/usr/bin/python3', '-c', code, action])
+    if action == 'activate' and 'media_worker' in config:
+        command = shlex.join(['/usr/bin/python3', '-B', '-c', media_worker.directory_setup()]) + ' && ' + command
     if len(command.encode()) > 64 * 1024:
         raise RuntimeError('Deployment SSH command budget exceeded before connecting.')
     result = subprocess.run(['ssh', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=10',
@@ -250,9 +258,11 @@ def main():
     mode.add_argument('--activate', action='store_true', help='Run the explicitly approved own code deployment.')
     parser.add_argument('--request-limit', action='store_true',
                         help='Apply the separately approved 30 r/s site limit after code activation.')
+    parser.add_argument('--media-worker', action='store_true',
+                        help='Activate the separately reviewed own media bundle with this release.')
     args = parser.parse_args()
-    if args.request_limit and args.prepare:
-        parser.error('--request-limit requires --check or --activate.')
+    if (args.request_limit or args.media_worker) and args.prepare:
+        parser.error('Operational adjustments require --check or --activate.')
     revision, branch = repository()
     proof = ci(revision, branch)
     manifest, archive = prepare(revision, branch)
@@ -261,6 +271,13 @@ def main():
         return
     target, baseline = private_inputs()
     config = dict(manifest, baseline=baseline)
+    if args.media_worker:
+        path = ROOT / '.local/VPS_MEDIA_WORKER_REVIEW.json'
+        if path.is_symlink() or not path.is_file() or path.stat().st_mode & 0o077 or path.stat().st_size > 4096:
+            raise RuntimeError('Private media worker review missing or unsafe.')
+        run(['git', 'check-ignore', '--', str(path.relative_to(ROOT))])
+        config['media_worker'] = json.loads(path.read_text())
+        media_worker.review(config)
     if args.request_limit:
         review = ROOT / '.local/VPS_REQUEST_LIMIT_REVIEW.json'
         if review.is_symlink() or not review.is_file() or review.stat().st_mode & 0o077:

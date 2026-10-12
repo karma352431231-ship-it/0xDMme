@@ -21,7 +21,10 @@ import { DeviceService } from '../../src/server/devices/index.ts';
 import { PublicProfileService } from '../../src/server/public-profile/index.ts';
 import { CommunityService } from '../../src/server/communities/index.ts';
 import { readWebConfiguration } from '../../src/server/web-configuration/index.ts';
-import { createCommunityAccount } from './community-fixture.ts';
+import {
+  createCommunityAccount,
+  rootPostContent,
+} from './community-fixture.ts';
 
 await test('controles sociais: autoridade, badges, confirmação, edição, bloqueio, sininho e denúncias', async (t) => {
   const config = readWebConfiguration(process.env);
@@ -133,7 +136,14 @@ await test('controles sociais: autoridade, badges, confirmação, edição, bloq
       {
         id,
         post,
-        content: { title: '', text, tag: null },
+        content: parent
+          ? { title: '', text, tags: [] }
+          : await rootPostContent(
+              communities,
+              id,
+              text,
+              'Publicação sintética',
+            ),
         ...(parent ? { parent } : {}),
       },
     );
@@ -277,7 +287,11 @@ await test('controles sociais: autoridade, badges, confirmação, edição, bloq
           id,
           post: root.id,
           revision: root.revision,
-          content: { title: '', text: 'Substituto', tag: null },
+          content: {
+            title: 'Publicação editada',
+            text: 'Substituto',
+            tags: root.tags.map((tag) => tag.id),
+          },
         }),
       );
       assert.equal(edit.post.text, 'Substituto');
@@ -296,7 +310,11 @@ await test('controles sociais: autoridade, badges, confirmação, edição, bloq
           id,
           post: root.id,
           revision: edit.post.revision,
-          content: { title: '', text: 'Tarde', tag: null },
+          content: {
+            title: 'Publicação editada',
+            text: 'Tarde',
+            tags: root.tags.map((tag) => tag.id),
+          },
         }),
         bad(403),
       );

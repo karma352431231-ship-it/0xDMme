@@ -42,8 +42,11 @@ import { assertContentCapacity } from './vault-quota.ts';
 import {
   communityTagPage,
   operatePostTag,
+  postExtraTags,
   postTags,
-  requirePostTag,
+  replaceExtraTags,
+  requirePostTags,
+  requireRootContent,
 } from './community-post-tags.ts';
 import {
   postModeration,
@@ -59,13 +62,21 @@ import type { PostRow } from './community-post-authority.ts';
 import { withinPostEditWindow } from '../../shared/community-posts/index.ts';
 import { postAuthorBadges } from './community-badges.ts';
 import type { CommunityBadge } from '../../shared/community-badges/index.ts';
-function content(row: PostRow, own: boolean): PostContent | null {
+/** The first tag lives on the post row; the rest come in order from the extras table. */
+function rowTags(row: PostRow, extras: Map<string, string[]>): string[] {
+  return row.tag_id ? [row.tag_id, ...(extras.get(row.id) ?? [])] : [];
+}
+function content(
+  row: PostRow,
+  own: boolean,
+  extras: Map<string, string[]>,
+): PostContent | null {
   // Reviewers keep their existing text authority; media references remain author-only until moderation is ready.
   if (!own && !row.text) return null;
   return {
     title: row.title,
     text: row.text,
-    tag: row.tag_id,
+    tags: rowTags(row, extras),
     ...(own && row.media_ids?.length ? { media: row.media_ids } : {}),
   };
 }
@@ -75,11 +86,15 @@ function sameMedia(
 ): boolean {
   return JSON.stringify(current ?? []) === JSON.stringify(next ?? []);
 }
-function sameContent(row: PostRow, value: PostContent): boolean {
+function sameContent(
+  row: PostRow,
+  value: PostContent,
+  tags: string[],
+): boolean {
   return (
     row.title === value.title &&
     row.text === value.text &&
-    row.tag_id === value.tag &&
+    JSON.stringify(tags) === JSON.stringify(value.tags) &&
     sameMedia(row.media_ids, value.media)
   );
 }
@@ -90,7 +105,7 @@ async function writeEditedContent(
 ): Promise<void> {
   const edited = await context.client.query(
     "UPDATE hash_talk.community_posts SET title=$2,text=$3,tag_id=$4,media_ids=$5,edited_at=clock_timestamp(),revision=revision+1 WHERE id=$1 AND created_at>clock_timestamp()-interval '1 hour' RETURNING id",
-    [row.id, value.title, value.text, value.tag, value.media ?? []],
+    [row.id, value.title, value.text, value.tags[0] ?? null, value.media ?? []],
   );
   if (!edited.rowCount)
     throw new AccountError(
@@ -105,6 +120,13 @@ function requireEditWindow(row: PostRow): void {
       'A postagem só pode ser editada na primeira hora.',
     );
 }
+interface PostLookup {
+  authors: Map<string, PublicProfile>;
+  tags: Map<string, PostTag>;
+  extras: Map<string, string[]>;
+  media: Map<string, PublicPostMedia[]>;
+  badges: Map<string, CommunityBadge[]>;
+}
 function editable(row: PostRow, own: boolean, canPost: boolean): boolean {
   return (
     own &&
@@ -114,21 +136,16 @@ function editable(row: PostRow, own: boolean, canPost: boolean): boolean {
     withinPostEditWindow(row.created_at)
   );
 }
-function visibleFields(
-  row: PostRow,
-  lookup: {
-    authors: Map<string, PublicProfile>;
-    tags: Map<string, PostTag>;
-    media: Map<string, PublicPostMedia[]>;
-    badges: Map<string, CommunityBadge[]>;
-  },
-) {
+function visibleFields(row: PostRow, lookup: PostLookup) {
   const media = lookup.media.get(row.id);
   return {
     title: row.title,
     text: row.text,
     author: row.author ? (lookup.authors.get(row.author) ?? null) : null,
-    tag: row.tag_id ? (lookup.tags.get(row.tag_id) ?? null) : null,
+    tags: rowTags(row, lookup.extras).flatMap((id) => {
+      const tag = lookup.tags.get(id);
+      return tag ? [tag] : [];
+    }),
     ...(media?.length ? { media } : {}),
     authorBadges: lookup.badges.get(`${row.community_id}/${row.author}`) ?? [],
   };
@@ -140,6 +157,7 @@ function requireCreateRetry(
     actor: string;
     content: PostContent;
     parent: PostRow | null;
+    tags: string[];
   },
 ): void {
   const fields = [
@@ -147,7 +165,7 @@ function requireCreateRetry(
     [row.author, expected.actor],
     [row.title, expected.content.title],
     [row.text, expected.content.text],
-    [row.tag_id, expected.content.tag],
+    [JSON.stringify(expected.tags), JSON.stringify(expected.content.tags)],
     [row.parent_id, expected.parent?.id ?? null],
     [
       JSON.stringify(row.media_ids ?? []),
@@ -165,9 +183,65 @@ async function createParent(
   if (!Object.hasOwn(data, 'parent')) return null;
   const parent = await loadPost(context, uuid(data['parent']));
   await requireReplyTarget(context, parent);
-  if (value.title || value.tag)
+  if (value.title || value.tags.length)
     throw new AccountError(400, 'Resposta não admite título/tag.');
   return parent;
+}
+/** The first tag goes on the row, the others to the extras table. */
+async function insertPost(
+  context: CommunityContext,
+  input: { id: string; value: PostContent; parent: PostRow | null },
+): Promise<void> {
+  const { id, value, parent } = input;
+  await context.client.query(
+    'INSERT INTO hash_talk.community_posts(id,community_id,author,title,text,tag_id,parent_id,root_id,media_ids) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)',
+    [
+      id,
+      context.row.id,
+      context.actor.id,
+      value.title,
+      value.text,
+      value.tags[0] ?? null,
+      parent?.id ?? null,
+      parent ? (parent.root_id ?? parent.id) : null,
+      value.media ?? [],
+    ],
+  );
+  await replaceExtraTags(context, id, value.tags.slice(1));
+}
+/** A retried create with the same id must repeat the same post exactly. */
+async function createdBefore(
+  context: CommunityContext,
+  id: string,
+  expected: { content: PostContent; parent: PostRow | null },
+): Promise<boolean> {
+  const previous = await context.client.query<PostRow>(
+    `SELECT ${columns} FROM hash_talk.community_posts WHERE id=$1`,
+    [id],
+  );
+  const old = previous.rows[0];
+  if (!old) return false;
+  requireCreateRetry(old, {
+    community: context.row.id,
+    actor: context.actor.id,
+    ...expected,
+    tags: rowTags(old, await postExtraTags(context.client, [old.id])),
+  });
+  return true;
+}
+/** Posts need a title and tags; replies carry neither. */
+async function requireTagged(
+  context: CommunityContext,
+  value: PostContent,
+  input: { root: boolean; previous: string[] },
+): Promise<void> {
+  if (!input.root) {
+    if (value.title || value.tags.length)
+      throw new AccountError(400, 'Resposta não admite título/tag.');
+    return;
+  }
+  await requireRootContent(context, value);
+  await requirePostTags(context, value.tags, input.previous);
 }
 function page(rows: PostRow[]) {
   const items = rows.slice(0, communityPageSize),
@@ -204,9 +278,13 @@ export class CommunityPostStore {
         client,
         rows.flatMap((row) => (row.author ? [row.author] : [])),
       ),
+      extras = await postExtraTags(
+        client,
+        rows.filter((row) => row.tag_id).map((row) => row.id),
+      ),
       tags = await postTags(
         client,
-        rows.flatMap((row) => (row.tag_id ? [row.tag_id] : [])),
+        rows.flatMap((row) => rowTags(row, extras)),
       );
     const media = await this.media.references(
       client,
@@ -222,17 +300,9 @@ export class CommunityPostStore {
           : [],
       ),
     );
-    return { authors, tags, media, badges };
+    return { authors, tags, extras, media, badges };
   }
-  private view(
-    row: PostRow,
-    lookup: {
-      authors: Map<string, PublicProfile>;
-      tags: Map<string, PostTag>;
-      media: Map<string, PublicPostMedia[]>;
-      badges: Map<string, CommunityBadge[]>;
-    },
-  ): CommunityPost {
+  private view(row: PostRow, lookup: PostLookup): CommunityPost {
     const status = row.deleted
         ? 'deleted'
         : row.active_removal
@@ -244,7 +314,7 @@ export class CommunityPostStore {
       community: row.community_id,
       ...(visible
         ? visibleFields(row, lookup)
-        : { author: null, title: '', text: '', tag: null }),
+        : { author: null, title: '', text: '', tags: [] }),
       createdAt: row.created_at.toISOString(),
       editedAt: row.edited_at?.toISOString() ?? null,
       revision: row.revision,
@@ -317,7 +387,8 @@ export class CommunityPostStore {
     const [time, id] = (options.after ?? '').split('/');
     const found = await client.query<PostRow>(
       `SELECT ${columns} FROM hash_talk.community_posts WHERE community_id=$1 AND ($9 OR parent_id=$8::uuid OR ($8::uuid IS NULL AND parent_id IS NULL)) AND (parent_id IS NOT NULL OR NOT deleted)
-      AND ($2::timestamptz IS NULL OR (created_at,id)<($2,$3::uuid)) AND ($4::uuid IS NULL OR tag_id=$4)
+      AND ($2::timestamptz IS NULL OR (created_at,id)<($2,$3::uuid))
+      AND ($4::uuid IS NULL OR tag_id=$4 OR EXISTS(SELECT 1 FROM hash_talk.community_post_extra_tags e WHERE e.post_id=community_posts.id AND e.tag_id=$4))
       AND ($5::uuid IS NULL OR author=$5) AND ($8::uuid IS NOT NULL OR $5::uuid IS NOT NULL OR (active_removal IS NOT NULL)=$6)
       AND NOT EXISTS(SELECT 1 FROM hash_talk.social_blocks b WHERE b.actor=$10 AND b.target=author AND b.blocked)
       ORDER BY created_at DESC,id DESC LIMIT $7`,
@@ -405,7 +476,8 @@ export class CommunityPostStore {
         vote: votes.get(row.id) ?? { position: 0, revision: 0 },
         canEdit: editable(row, own, canPost),
         canDelete: own && !row.deleted,
-        content: restricted && !row.deleted ? content(row, own) : null,
+        content:
+          restricted && !row.deleted ? content(row, own, lookup.extras) : null,
         removal:
           restricted && row.active_removal
             ? removalView(removals.get(row.active_removal) ?? null)
@@ -454,35 +526,9 @@ export class CommunityPostStore {
     const id = uuid(data['post']),
       value = postContent(data['content']),
       parent = await createParent(context, data, value);
-    const previous = await context.client.query<PostRow>(
-      `SELECT ${columns} FROM hash_talk.community_posts WHERE id=$1`,
-      [id],
-    );
-    const old = previous.rows[0];
-    if (old) {
-      requireCreateRetry(old, {
-        community: context.row.id,
-        actor: context.actor.id,
-        content: value,
-        parent,
-      });
-      return;
-    }
-    await requirePostTag(context, value.tag);
-    await context.client.query(
-      'INSERT INTO hash_talk.community_posts(id,community_id,author,title,text,tag_id,parent_id,root_id,media_ids) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)',
-      [
-        id,
-        context.row.id,
-        context.actor.id,
-        value.title,
-        value.text,
-        value.tag,
-        parent?.id ?? null,
-        parent ? (parent.root_id ?? parent.id) : null,
-        value.media ?? [],
-      ],
-    );
+    if (await createdBefore(context, id, { content: value, parent })) return;
+    await requireTagged(context, value, { root: !parent, previous: [] });
+    await insertPost(context, { id, value, parent });
     await this.media.replace(context, { post: id, ids: value.media ?? [] });
     if (parent) {
       await context.client.query(
@@ -510,10 +556,12 @@ export class CommunityPostStore {
         'Post excluído ou oculto não pode ser editado.',
       );
     currentPost(row, data['revision']);
-    if (row.parent_id && (value.title || value.tag))
-      throw new AccountError(400, 'Resposta não admite título/tag.');
-    await requirePostTag(context, value.tag, row.tag_id);
-    if (sameContent(row, value)) return;
+    const current = rowTags(row, await postExtraTags(context.client, [row.id]));
+    await requireTagged(context, value, {
+      root: !row.parent_id,
+      previous: current,
+    });
+    if (sameContent(row, value, current)) return;
     requireEditWindow(row);
     // Expiry removes bytes while preserving the post/reply link and its text.
     // Editing text need not reattach historical IDs whose bytes were discarded.
@@ -523,6 +571,7 @@ export class CommunityPostStore {
         ids,
       });
     await writeEditedContent(context, row, value);
+    await replaceExtraTags(context, row.id, value.tags.slice(1));
     await assertContentCapacity(context.client, this.capacity);
   }
   private async remove(
@@ -536,6 +585,7 @@ export class CommunityPostStore {
     if (row.deleted) return;
     currentPost(row, data['revision']);
     await this.media.replace(context, { post: row.id, ids: [] });
+    await replaceExtraTags(context, row.id, []);
     await context.client.query(
       "UPDATE hash_talk.community_posts SET title='',text='',tag_id=NULL,active_removal=NULL,media_ids='{}',deleted=true,revision=revision+1 WHERE id=$1",
       [row.id],

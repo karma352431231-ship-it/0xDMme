@@ -6,7 +6,10 @@ import {
   communityCursor,
   communityText,
 } from '../../shared/communities/index.ts';
-import { postRemoval } from '../../shared/community-posts/index.ts';
+import {
+  postRemoval,
+  postTagLimit,
+} from '../../shared/community-posts/index.ts';
 import type {
   PostContent,
   PostState,
@@ -78,33 +81,88 @@ export function postTagSelect(
   render(source.page, true);
   return select;
 }
+/**
+ * Every community tag as a chip; the author toggles up to `postTagLimit`.
+ * Tags already on the post stay selectable even if a manager retired them.
+ */
+function postTagChips(
+  container: HTMLElement,
+  value: readonly string[],
+  source: PostTags,
+): { chosen: () => string[]; offered: () => boolean } {
+  const group = el('fieldset', '', 'post-tag-chips'),
+    chips = el('div', '', 'post-tag-chip-list'),
+    more = el('div', '', 'post-toolbar');
+  group.append(el('legend', `Tags (escolha de 1 a ${postTagLimit})`), chips);
+  container.append(group, more);
+  let chosen = [...value],
+    page = source.page;
+  const paint = (): void => {
+    const known = new Map(page.items.map((tag) => [tag.id, tag.label]));
+    const ids = [
+      ...page.items.map((tag) => tag.id),
+      ...chosen.filter((id) => !known.has(id)),
+    ];
+    chips.replaceChildren(
+      ...ids.map((id) => {
+        const chip = el('button', known.get(id) ?? 'Tag anterior');
+        chip.type = 'button';
+        const on = chosen.includes(id);
+        chip.setAttribute('aria-pressed', String(on));
+        chip.disabled = !on && chosen.length >= postTagLimit;
+        chip.addEventListener('click', () => {
+          chosen = on ? chosen.filter((tag) => tag !== id) : [...chosen, id];
+          paint();
+        });
+        return chip;
+      }),
+    );
+    more.replaceChildren();
+    if (page.next)
+      button(more, 'Mais tags', () =>
+        source.run(async () => {
+          const next = await source.load(page.next);
+          page = { items: [...page.items, ...next.items], next: next.next };
+          paint();
+        }),
+      );
+  };
+  paint();
+  return { chosen: () => [...chosen], offered: () => page.items.length > 0 };
+}
 export function postForm(
   container: HTMLElement,
   value: PostContent,
   tags: PostTags,
   access: CommunityMediaAccess,
 ): () => Promise<PostContent> {
-  const title = field(container, 'Título (opcional)', {
+  const title = field(container, 'Título', {
       value: value.title,
       maximum: 200,
     }),
-    text = field(container, 'Texto da postagem (opcional com mídia)', {
+    text = field(container, 'Texto (opcional)', {
       value: value.text,
       maximum: 4000,
       multiline: true,
     }),
-    select = postTagSelect(
-      container,
-      { value: value.tag, label: 'Tag (opcional)', empty: 'Sem tag' },
-      tags,
-    );
+    chips = postTagChips(container, value.tags, tags);
+  title.required = true;
   const media = mediaEditor(container, value.media ?? [], access);
-  return async () => ({
-    title: title.value,
-    text: text.value,
-    tag: select.value || null,
-    media: await media(),
-  });
+  return async () => {
+    if (!title.value.trim()) {
+      title.focus();
+      throw new Error('Dê um título à postagem.');
+    }
+    const chosen = chips.chosen();
+    if (!chosen.length && chips.offered())
+      throw new Error('Escolha pelo menos uma tag.');
+    return {
+      title: title.value,
+      text: text.value,
+      tags: chosen,
+      media: await media(),
+    };
+  };
 }
 export function replyForm(
   container: HTMLElement,
@@ -120,7 +178,7 @@ export function replyForm(
   return async () => ({
     title: '',
     text: text.value,
-    tag: null,
+    tags: [],
     media: await media(),
   });
 }

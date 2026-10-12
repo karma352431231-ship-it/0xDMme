@@ -33,7 +33,10 @@ import {
 } from '../../src/server/communities/index.ts';
 import { createWebServer } from '../../src/server/web-host/index.ts';
 import { readWebConfiguration } from '../../src/server/web-configuration/index.ts';
-import { createCommunityAccount } from './community-fixture.ts';
+import {
+  createCommunityAccount,
+  rootPostContent,
+} from './community-fixture.ts';
 
 await test('corte 5: árvore, votos e avisos diretos com autorização e persistência', async (t) => {
   const config = readWebConfiguration(process.env);
@@ -137,7 +140,7 @@ await test('corte 5: árvore, votos e avisos diretos com autorização e persist
         rules: 'Respeito',
       },
     });
-  const create = (
+  const create = async (
     who: typeof owner,
     id: string,
     parent: string | null = null,
@@ -146,7 +149,13 @@ await test('corte 5: árvore, votos e avisos diretos com autorização e persist
     who.operate(parent ? 'reply-create' : 'post-create', {
       id: extraCommunity,
       post: id,
-      content: { title: '', text: 'Resposta sintética', tag: null },
+      content: parent
+        ? { title: '', text: 'Resposta sintética', tags: [] }
+        : await rootPostContent(
+            communities,
+            extraCommunity,
+            'Resposta sintética',
+          ),
       ...(parent ? { parent } : {}),
     });
   const state = async (who: typeof owner, id: string) =>
@@ -289,7 +298,7 @@ await test('corte 5: árvore, votos e avisos diretos com autorização e persist
         id: community,
         post: child,
         revision: 1,
-        content: { title: '', text: 'Resposta filha editada', tag: null },
+        content: { title: '', text: 'Resposta filha editada', tags: [] },
       });
       assert.equal((await communities.post(community, child)).parent, reply);
       assert.equal((await communities.post(community, child)).root, root);
@@ -299,7 +308,7 @@ await test('corte 5: árvore, votos e avisos diretos com autorização e persist
           id: community,
           post: child,
           revision: 2,
-          content: { title: '', text: 'Outro autor', tag: null },
+          content: { title: '', text: 'Outro autor', tags: [] },
         }),
         bad(403),
       );
@@ -308,7 +317,7 @@ await test('corte 5: árvore, votos e avisos diretos com autorização e persist
           id: community,
           post: child,
           revision: 2,
-          content: { title: 'Título de reply', text: 'Inválida', tag: null },
+          content: { title: 'Título de reply', text: 'Inválida', tags: [] },
         }),
         bad(400),
       );
@@ -441,7 +450,7 @@ await test('corte 5: árvore, votos e avisos diretos com autorização e persist
               id: community,
               post: id,
               parent: root,
-              content: { title: '', text: 'Não cabe', tag: null },
+              content: { title: '', text: 'Não cabe', tags: [] },
             }),
           ),
           bad(503),

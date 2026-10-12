@@ -31,16 +31,33 @@ def manifest():
 
 
 class DeploymentTests(unittest.TestCase):
+    def test_source_comparison_uses_manifest_budget_and_keeps_backup_tree_budget(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory)
+            source=root/'src';source.mkdir()
+            expected={}
+            for index in range(remote.MAX_MANIFEST_FILES):
+                name='fixture-'+str(index)+'.ts'
+                (source/name).write_bytes(b'authored')
+                expected['src/'+name]=b'authored'
+            self.assertTrue(backups.matches_export(root,expected,source_only=True))
+            with self.assertRaisesRegex(RuntimeError,'Reviewed tree budget'):
+                backups.file_tree(source)
+            (source/'one-more.ts').write_bytes(b'authored')
+            with self.assertRaisesRegex(RuntimeError,'Reviewed tree budget'):
+                backups.matches_export(root,expected,source_only=True)
+
     def test_executor_transport_handles_large_quoted_sources_without_oversized_shell_argument(self):
         names = ['deploy_sources', 'deploy_runtime', 'deploy_remote', 'deploy_blocks45',
                  'deploy_request_limit', 'deploy_background', 'deploy_profile_social',
-                 'deploy_profile_description']
+                 'deploy_profile_description', 'deploy_group_links',
+                 'deploy_post_tags', 'deploy_media_worker', 'deploy_social_controls']
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory); (root / 'infra/staging').mkdir(parents=True)
             config = {'files': {}}
             for name in names:
                 path = root / 'infra/staging' / (name + '.py')
-                source = ("# quoted '\" transport fixture\n" * 700)
+                source = ("# quoted '\" transport fixture\n" * 500)
                 if name == 'deploy_remote': source += "def execute(): return {'restored': True}\n"
                 path.write_text(source)
                 config['files'][str(path.relative_to(root))] = remote.digest(path)
@@ -131,6 +148,9 @@ class DeploymentTests(unittest.TestCase):
         valid = self.ci_run()
         self.assertEqual(deploy.require_ci({'workflow_runs': [valid]}, 'a' * 40,
                                           'codex/example'), valid['html_url'])
+        principal = dict(valid, head_branch='main')
+        self.assertEqual(deploy.require_ci({'workflow_runs': [principal]}, 'a' * 40,
+                                          'main'), valid['html_url'])
         for field, value in [('head_sha', 'b' * 40), ('head_branch', 'main'),
                              ('event', 'pull_request'), ('path', 'unrelated.yml'),
                              ('status', 'in_progress'), ('conclusion', 'failure'),
@@ -139,6 +159,15 @@ class DeploymentTests(unittest.TestCase):
             bad[field] = value
             with self.assertRaises(RuntimeError):
                 deploy.require_ci({'workflow_runs': [valid, bad]}, 'a' * 40, 'codex/example')
+
+    def test_main_release_keeps_explicit_branch_and_manifest_guards(self):
+        for branch in ['main', 'codex/example']:
+            self.assertTrue(remote.valid_release_branch(branch))
+            remote.validate(dict(manifest(), branch=branch))
+        for branch in ['master', 'main/other', 'feature/example', '../main', None]:
+            self.assertFalse(remote.valid_release_branch(branch))
+            with self.assertRaisesRegex(RuntimeError, 'Invalid branch'):
+                remote.validate(dict(manifest(), branch=branch))
 
     def runtime(self, path):
         (path / 'src/server/database/migrations').mkdir(parents=True)
@@ -534,11 +563,14 @@ class DeploymentTests(unittest.TestCase):
                 self.assertEqual(remote.fetch(path,expected),b'public')
                 args=command.call_args.args[0]
                 self.assertEqual(args[args.index('--max-filesize')+1],str(limit))
-        sources=b's'*(2*1024*1024+1)
-        with patch.object(remote,'run',return_value=sources):
-            self.assertEqual(remote.fetch('/source-'+'a'*16+'.tar.gz'),sources)
-            with self.assertRaisesRegex(RuntimeError,'Public response budget'):
-                remote.fetch('/asset.bin')
+        source = '/source-' + 'a' * 16 + '.tar.gz'
+        content = b'x' * (2 * 1024 * 1024 + 1)
+        with patch.object(remote, 'run', return_value=content + b'\n200') as command:
+            self.assertEqual(remote.fetch(source, expected), content)
+            args = command.call_args.args[0]
+            self.assertEqual(args[args.index('--max-filesize')+1], str(remote.MAX_RELEASE))
+        with patch.object(remote, 'run', return_value=content + b'\n200'), self.assertRaises(RuntimeError):
+            remote.fetch('/asset.bin', expected)
         for body in [b'payload\n304',b'payload\n206',b'no status']:
             with patch.object(remote,'run',return_value=body),self.assertRaises(RuntimeError):
                 remote.fetch('/asset.bin',expected)
@@ -1063,6 +1095,34 @@ class MessageRemovalCodeTests(CommunityFeedCodeTests):
                     path.write_bytes(original)
 
 
+class PoseModerationCodeTests(CommunityFeedCodeTests):
+    def setUp(self):
+        super().setUp()
+        for relative in ['communities.ts', 'community-discovery.ts']:
+            (self.candidate / 'src/server/database' / relative).write_bytes(
+                (self.live / 'src/server/database' / relative).read_bytes())
+        for relative in ['community-media.ts', 'public-moderation.ts', 'vault-quota.ts']:
+            (self.live / 'src/server/database' / relative).write_text('existing public review')
+            (self.candidate / 'src/server/database' / relative).write_text('reviewed post-publication video review')
+        self.exports = {
+            remote.POSE_MODERATION_BEFORE: self.export(self.live),
+            remote.POSE_MODERATION_REVIEWED: self.export(self.candidate),
+        }
+
+    def test_each_review_module_requires_exact_reviewed_bytes(self):
+        for relative in ['community-media.ts', 'public-moderation.ts', 'vault-quota.ts']:
+            with self.subTest(path=relative):
+                path = self.candidate / 'src/server/database' / relative
+                original = path.read_bytes()
+                path.write_text('unreviewed authorization change')
+                try:
+                    with (patch.object(backups, 'git_export', side_effect=lambda sha: self.exports[sha]),
+                          self.assertRaises(RuntimeError)):
+                        remote.compatibility(self.candidate, self.live)
+                finally:
+                    path.write_bytes(original)
+
+
 class DatabasePoolCodeTests(CommunityFeedCodeTests):
     def setUp(self):
         super().setUp()
@@ -1374,3 +1434,22 @@ class HistoricalBackupRetentionTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class MediaOutputCodeTests(CommunityFeedCodeTests):
+    def setUp(self):
+        super().setUp()
+        for relative in ['communities.ts', 'community-discovery.ts']:
+            (self.candidate / 'src/server/database' / relative).write_bytes(
+                (self.live / 'src/server/database' / relative).read_bytes())
+        (self.live / 'src/server/database/community-media.ts').write_text('old result reservation')
+        (self.candidate / 'src/server/database/community-media.ts').write_text('reviewed atomic reservation upgrade')
+        self.exports = {
+            remote.MEDIA_OUTPUT_BEFORE:self.export(self.live),
+            remote.MEDIA_OUTPUT_REVIEWED:self.export(self.candidate),
+        }
+
+    def test_unreviewed_reservation_code_is_rejected(self):
+        (self.candidate / 'src/server/database/community-media.ts').write_text('unreviewed quota change')
+        with patch.object(backups,'git_export',side_effect=lambda sha:self.exports[sha]), self.assertRaises(RuntimeError):
+            remote.compatibility(self.candidate,self.live)

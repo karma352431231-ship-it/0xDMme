@@ -149,9 +149,11 @@ const migrations = [
   '051-public-profile-social.sql',
   '052-profile-conversation-index.sql',
   '053-public-profile-descriptions.sql',
-  '054-community-badges.sql',
-  '055-community-banners.sql',
-  '056-social-notifications-reports.sql',
+  '054-group-invitation-links.sql',
+  '055-community-post-extra-tags.sql',
+  '056-community-badges.sql',
+  '057-community-banners.sql',
+  '058-social-notifications-reports.sql',
 ];
 
 export interface MaintenanceSnapshot {

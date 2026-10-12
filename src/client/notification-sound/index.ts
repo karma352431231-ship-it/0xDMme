@@ -1,3 +1,5 @@
+import { announcePreference } from '../preference-events/index.ts';
+
 export const soundPreferenceKey = '0xdmme:sound-enabled';
 const pushPreferenceCache = '0xdmme-device-preferences';
 const pushPreferencePath = '/.0xdmme/sound-preference';
@@ -41,7 +43,32 @@ const browserStorage: PreferenceStorage = {
   setItem: (key, value) => localStorage.setItem(key, value),
 };
 
-/** Device preference is independent of account sessions; it contains no user data. */
+export function storedSoundPreference(
+  storage: PreferenceStorage = browserStorage,
+): boolean {
+  try {
+    return storage.getItem(soundPreferenceKey) !== 'false';
+  } catch {
+    return true;
+  }
+}
+/**
+ * Applies the account's choice to this device (account-settings). Open sound
+ * instances reload on `storage` events, which the browser only sends to other
+ * tabs, so this tab receives the same event explicitly.
+ */
+export async function applySoundPreference(
+  enabled: boolean,
+  storage: PreferenceStorage = browserStorage,
+): Promise<void> {
+  storage.setItem(soundPreferenceKey, String(enabled));
+  globalThis.window?.dispatchEvent(
+    new StorageEvent('storage', { key: soundPreferenceKey }),
+  );
+  await savePushSoundPreference(enabled);
+}
+
+/** Kept on this device and copied to the account by account-settings; it contains no user data. */
 export class NotificationSound {
   private readonly storage: PreferenceStorage;
   private readonly createAudio: () => SoundAudio;
@@ -94,6 +121,7 @@ export class NotificationSound {
     }
     this.problem = '';
     this.changed();
+    announcePreference({ sound: value });
     if (value) this.unlock();
     else await this.dispose();
   }

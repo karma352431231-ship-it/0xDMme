@@ -1,3 +1,4 @@
+import { GroupActionsUi, showGroupManagement } from './actions-ui.ts';
 import { paintAvatar } from '../appearance/index.ts';
 import {
   chatIcon,
@@ -65,8 +66,7 @@ export function startGroups(
     host: HTMLElement | null = null,
     aside: HTMLElement | null = null,
     notice = 'Abra um grupo para conversar.';
-  let states = new Map<string, PeerState>(),
-    creating = false;
+  let states = new Map<string, PeerState>();
   let vault: Awaited<ReturnType<GroupController['vault']>> | null = null;
   let externalAbort = new AbortController();
   const externalRows = new ExternalTextHistory();
@@ -81,6 +81,15 @@ export function startGroups(
       attachments.selectVoice(selection, session.accountId);
       voiceStatus();
     },
+  });
+  const actions = new GroupActionsUi({
+    access,
+    controller,
+    peers: options.peers,
+    refresh,
+    open: (id) => open(id),
+    isBusy: options.isBusy,
+    run: options.run,
   });
   function node<T extends HTMLElement>(selector: string): T | null {
     return host?.querySelector<T>(selector) ?? null;
@@ -219,18 +228,20 @@ export function startGroups(
   async function resumePending(): Promise<void> {
     if (await controller.resumePending()) await reopen();
   }
-  async function open(group: GroupSummary): Promise<void> {
+  async function open(group: GroupSummary | string): Promise<void> {
+    const id = typeof group === 'string' ? group : group.state.groupId,
+      localOnly = typeof group === 'string' ? false : !!group.localOnly;
     if (voice.active || attachments.selected?.voice)
       throw new Error(
         'Envie ou remova a prévia de voz antes de trocar de conversa.',
       );
-    if (controller.selected?.state.groupId !== group.state.groupId)
+    if (controller.selected?.state.groupId !== id)
       resetHistoryPosition(node('[data-group-history]'));
     options.select();
     attachments.clearSelection();
     emoji.close();
     if (host) host.hidden = false;
-    await controller.open(group.state.groupId, false, !!group.localOnly);
+    await controller.open(id, false, localOnly);
     await refreshVault();
     notice = controller.warning || 'Grupo aberto.';
     render();
@@ -456,27 +467,11 @@ export function startGroups(
     );
   }
   function renderInvites(): void {
-    const select = node<HTMLSelectElement>('[data-group-invite-target]'),
-      group = controller.selected,
-      form = node('[data-group-invite]');
-    if (form)
-      form.hidden =
-        !group ||
-        !!group.localOnly ||
-        !session ||
-        !groupManager(group.state, session.accountId);
-    if (!select || !group) return;
-    select.replaceChildren();
-    for (const peer of options
-      .peers()
-      .filter(
-        (p) => !group.state.members.some((m) => m.accountId === p.accountId),
-      )) {
-      const option = document.createElement('option');
-      option.value = peer.accountId;
-      option.textContent = peer.name || peer.address;
-      select.append(option);
-    }
+    showGroupManagement(
+      node('[data-group-manage]'),
+      controller.selected,
+      session?.accountId,
+    );
   }
   async function refreshVault(): Promise<void> {
     vault =
@@ -566,8 +561,6 @@ export function startGroups(
     const toggle = sidebar<HTMLButtonElement>('[data-group-new]');
     if (toggle)
       toggle.disabled = options.isBusy() || controller.mode === 'unavailable';
-    const form = sidebar('[data-group-create]');
-    if (form) form.hidden = !creating;
     const cancel = sidebar('[data-group-cancel-create]');
     if (cancel) cancel.hidden = !controller.creationPending;
   }
@@ -722,41 +715,13 @@ export function startGroups(
           await reopen();
         }),
     );
-    node<HTMLFormElement>('[data-group-invite]')?.addEventListener(
-      'submit',
-      (event) => {
-        event.preventDefault();
-        void run(async () => {
-          const target = node<HTMLSelectElement>(
-            '[data-group-invite-target]',
-          )?.value;
-          if (!target) throw new Error('Selecione um contato aprovado.');
-          await controller.propose(target, 'invite');
-          notice = 'Convite enviado. O contato precisa aceitar para entrar.';
-        });
-      },
+    node('[data-group-manage]')?.addEventListener('click', () =>
+      actions.showManage(),
     );
   }
   function bindAside(): void {
-    sidebar('[data-group-new]')?.addEventListener('click', () => {
-      creating = !creating;
-      renderCreation();
-    });
-    sidebar<HTMLFormElement>('[data-group-create]')?.addEventListener(
-      'submit',
-      (event) => {
-        event.preventDefault();
-        void run(async () => {
-          const title =
-            sidebar<HTMLInputElement>('[data-group-name]')?.value ?? '';
-          const id = await controller.create(title);
-          creating = false;
-          await refresh();
-          const group = controller.entries.find((g) => g.state.groupId === id);
-          if (group) await open(group);
-          notice = controller.warning || 'Grupo criado.';
-        });
-      },
+    sidebar('[data-group-new]')?.addEventListener('click', () =>
+      actions.showCreate(),
     );
     sidebar('[data-group-cancel-create]')?.addEventListener(
       'click',
@@ -809,7 +774,7 @@ export function startGroups(
         )
         .forEach((list) => list.replaceChildren());
     }
-    creating = false;
+    actions.reset();
     notice = 'Abra um grupo para conversar.';
   }
   window.addEventListener('beforeunload', (event) => {
@@ -824,6 +789,8 @@ export function startGroups(
       );
   });
   return {
+    create: () => actions.showCreate(),
+    join: (url = '') => actions.showJoin(url),
     get entries(): readonly GroupSummary[] {
       return controller.entries;
     },
@@ -876,6 +843,7 @@ export function startGroups(
         return;
       }
       session = value;
+      actions.setSession(value);
       externalRows.clear();
       externalAbort.abort();
       externalAbort = new AbortController();
@@ -890,7 +858,8 @@ export function startGroups(
       render();
     },
     suspend(revoked = false): void {
-      controller.hide();
+      if (revoked) controller.revokeAuthority();
+      else controller.hide();
       attachments.clearMedia();
       renderHistory();
       if (revoked) {
@@ -905,8 +874,8 @@ export function startGroups(
       aside = sidebarContainer;
       container.hidden = !controller.selected;
       if (session) container.dataset['voicePeer'] = session.accountId;
-      sidebarContainer.innerHTML = `<button data-group-new type="button">Novo grupo</button><p data-group-mode></p><form data-group-create hidden><label>Nome do grupo<input data-group-name maxlength="160" required></label><button type="submit">Criar grupo</button></form><button data-group-cancel-create type="button" hidden>Descartar pedido local de criação</button><details><summary>Convites e transferências de grupos</summary><div data-group-incoming></div><button data-group-more-incoming type="button" hidden>Mais convites</button></details>`;
-      container.innerHTML = `<header class="chat-header"><button data-chat-back class="chat-icon chat-mobile-back" type="button" aria-label="Voltar às conversas">${chatIcon('back')}</button><span data-group-avatar class="chat-peer-avatar" aria-hidden="true">#</span><div class="chat-peer"><h3 data-group-title></h3><p data-group-count></p></div><details class="chat-options"><summary class="chat-icon" aria-label="Opções do grupo" title="Opções do grupo">${chatIcon('more')}</summary><div class="chat-popover group-options"><details><summary>Participantes e administração</summary><ul data-group-members></ul><form data-group-invite><label>Convidar contato<select data-group-invite-target></select></label><button type="submit">Enviar convite</button></form><p data-group-owner-note>Para sair, ofereça a propriedade a outro membro e aguarde o aceite. A propriedade muda somente após o aceite.</p><button data-group-leave type="button">Sair do grupo</button><button data-group-delete type="button">Excluir grupo</button></details><details data-group-vault><summary>Cofre do grupo</summary><p data-group-usage></p><p data-group-cleanup-warning role="status"></p><ul data-group-cleanup-items></ul><button data-group-cleanup-more type="button" hidden>Próximas mídias selecionadas</button><p><a href="#cofre">Salvar um backup cifrado</a> para conservar uma cópia das mídias antes da limpeza. Status não entra no backup.</p><button data-group-clear type="button">Limpar cofre remoto</button></details></div></details>${chatCollapse()}</header><p data-group-notice class="compose-notice" role="status"></p><div class="chat-thread"><button data-group-older class="chat-older" type="button" hidden>Mensagens anteriores</button><div data-group-history class="chat-history" tabindex="0" aria-label="Mensagens do grupo"></div><ul data-group-pending class="chat-pending" aria-label="Envios pendentes no grupo"></ul></div>${chatComposer('group')}`;
+      sidebarContainer.innerHTML = `<button data-group-new type="button">Novo grupo</button><p data-group-mode></p><button data-group-cancel-create type="button" hidden>Descartar pedido local de criação</button><details><summary>Convites e transferências de grupos</summary><div data-group-incoming></div><button data-group-more-incoming type="button" hidden>Mais convites</button></details>`;
+      container.innerHTML = `<header class="chat-header"><button data-chat-back class="chat-icon chat-mobile-back" type="button" aria-label="Voltar às conversas">${chatIcon('back')}</button><span data-group-avatar class="chat-peer-avatar" aria-hidden="true">#</span><div class="chat-peer"><h3 data-group-title></h3><p data-group-count></p></div><details class="chat-options"><summary class="chat-icon" aria-label="Opções do grupo" title="Opções do grupo">${chatIcon('more')}</summary><div class="chat-popover group-options"><details><summary>Participantes e administração</summary><ul data-group-members></ul><button data-group-manage type="button">Adicionar participantes</button><p data-group-owner-note>Para sair, ofereça a propriedade a outro membro e aguarde o aceite. A propriedade muda somente após o aceite.</p><button data-group-leave type="button">Sair do grupo</button><button data-group-delete type="button">Excluir grupo</button></details><details data-group-vault><summary>Cofre do grupo</summary><p data-group-usage></p><p data-group-cleanup-warning role="status"></p><ul data-group-cleanup-items></ul><button data-group-cleanup-more type="button" hidden>Próximas mídias selecionadas</button><p><a href="#cofre">Salvar um backup cifrado</a> para conservar uma cópia das mídias antes da limpeza. Status não entra no backup.</p><button data-group-clear type="button">Limpar cofre remoto</button></details></div></details>${chatCollapse()}</header><p data-group-notice class="compose-notice" role="status"></p><div class="chat-thread"><button data-group-older class="chat-older" type="button" hidden>Mensagens anteriores</button><div data-group-history class="chat-history" tabindex="0" aria-label="Mensagens do grupo"></div><ul data-group-pending class="chat-pending" aria-label="Envios pendentes no grupo"></ul></div>${chatComposer('group')}`;
       attachments.mount(container, run);
       const form = node('[data-group-compose]');
       if (form) bindChatComposer(form, composerStatus);

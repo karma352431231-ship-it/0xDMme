@@ -29,7 +29,10 @@ import {
 } from '../../src/server/public-media/index.ts';
 import { readWebConfiguration } from '../../src/server/web-configuration/index.ts';
 import { publicModerationBinding } from '../../src/server/public-moderation/index.ts';
-import { createCommunityAccount } from './community-fixture.ts';
+import {
+  createCommunityAccount,
+  rootPostContent,
+} from './community-fixture.ts';
 
 await test('perfil social: métricas, comunidades públicas, follows, feeds e banner moderado', async (t) => {
   const config = readWebConfiguration(process.env);
@@ -165,11 +168,14 @@ await test('perfil social: métricas, comunidades públicas, follows, feeds e ba
     await actor.operate(parent ? 'reply-create' : 'post-create', {
       id: group,
       post: id,
-      content: {
-        title: parent ? '' : 'Post público',
-        text: 'Conteúdo sintético',
-        tag: null,
-      },
+      content: parent
+        ? { title: '', text: 'Conteúdo sintético', tags: [] }
+        : await rootPostContent(
+            communities,
+            group,
+            'Conteúdo sintético',
+            'Post público',
+          ),
       ...(parent ? { parent } : {}),
     });
     return id;

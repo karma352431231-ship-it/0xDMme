@@ -1,3 +1,4 @@
+import { communityMediaLimits } from '../../shared/community-media/index.ts';
 import type { MediaProcessRequest } from './isolated.ts';
 
 export function probeCommand(path: string): string[] {
@@ -23,7 +24,7 @@ type Preparation = 'photo' | 'gif' | 'video' | 'thumbnail';
 const budgets: Record<Preparation, number> = {
   photo: 3_000_000,
   gif: 10_000_000,
-  video: 25_000_000,
+  video: communityMediaLimits.video.result,
   thumbnail: 96_000,
 };
 export function preparationCommand(input: {
@@ -160,10 +161,10 @@ function preparationPaths(
   if (!source.endsWith('/source')) throw new Error('Origem inválida.');
   for (const kind of ['photo', 'gif', 'video', 'thumbnail'] as const) {
     const expected = preparationCommand({ kind, source, output });
-    if (
+    const matches =
       request.maximumBytes === expected.maximumBytes &&
-      sameArgs(request.args, expected.args)
-    ) {
+      sameArgs(request.args, expected.args);
+    if (matches || legacyVideoCommand(request, expected, kind)) {
       return preparationOutputPaths(kind, source, output);
     }
   }
@@ -187,4 +188,17 @@ function sameArgs(actual: string[], expected: string[]): boolean {
     actual.length === expected.length &&
     actual.every((arg, i) => arg === expected[i])
   );
+}
+
+/** Exact prior command only, so the reviewed worker can serve the web rollback without arbitrary options. */
+function legacyVideoCommand(
+  request: MediaProcessRequest,
+  expected: MediaProcessRequest,
+  kind: Preparation,
+): boolean {
+  if (kind !== 'video' || request.maximumBytes !== 25_000_000) return false;
+  const args = expected.args.map((arg, index) =>
+    expected.args[index - 1] === '-fs' ? '25000001' : arg,
+  );
+  return sameArgs(request.args, args);
 }

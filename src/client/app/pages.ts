@@ -46,6 +46,45 @@ export function bindSettingsSections(
   return sections;
 }
 
+/**
+ * The last opened category reopens after a reload. Device-only convenience:
+ * without storage (private mode, blocked site data) the list simply starts closed.
+ */
+export const settingsSectionKey = '0xdmme:settings-section';
+type SectionStorage = Pick<Storage, 'getItem' | 'setItem'>;
+export function savedSettingsSection(storage: SectionStorage): string | null {
+  try {
+    return storage.getItem(settingsSectionKey);
+  } catch {
+    return null;
+  }
+}
+export function saveSettingsSection(storage: SectionStorage, id: string): void {
+  try {
+    storage.setItem(settingsSectionKey, id);
+  } catch {
+    // The category still opens; only the reload memory is unavailable.
+  }
+}
+
+/** `#perfil?secao=<id>` opens that category, e.g. "Editar perfil público". */
+export function requestedSettingsSection(hash: string): string | null {
+  return new URLSearchParams(hash.split('?')[1] ?? '').get('secao');
+}
+/** Opens a category by id; unknown ids leave the page as it is. */
+export function openSettingsSection(
+  host: HTMLElement,
+  id: string | null,
+): void {
+  if (!id) return;
+  const section = [
+    ...host.querySelectorAll<HTMLDetailsElement>('[data-settings-section]'),
+  ].find((node) => node.dataset['settingsSection'] === id);
+  if (!section) return;
+  section.open = true;
+  section.scrollIntoView({ block: 'nearest' });
+}
+
 /** Category list, shortcuts and the always-open category of the wide layout. */
 export function startSettingsCategories(
   host: HTMLElement,
@@ -55,6 +94,10 @@ export function startSettingsCategories(
   const wide = (): boolean => matchMedia(wideSettings).matches;
   for (const section of sections) {
     section.addEventListener('toggle', categories.sync);
+    section.addEventListener('toggle', () => {
+      const id = section.dataset['settingsSection'];
+      if (section.open && id) saveSettingsSection(localStorage, id);
+    });
     // Beside the list the open category is the page itself; it closes on phones.
     section.querySelector('summary')?.addEventListener('click', (event) => {
       if (wide() && section.open) event.preventDefault();
@@ -72,7 +115,14 @@ export function startSettingsCategories(
         if (target) target.open = true;
       });
     });
-  if (wide() && !sections.some((section) => section.open))
+  const saved =
+    requestedSettingsSection(location.hash) ??
+    savedSettingsSection(localStorage);
+  const last = sections.find(
+    (section) => section.dataset['settingsSection'] === saved,
+  );
+  if (last) last.open = true;
+  else if (wide() && !sections.some((section) => section.open))
     categories.first?.click();
 }
 

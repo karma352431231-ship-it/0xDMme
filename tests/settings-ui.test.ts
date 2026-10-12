@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { bindSettingsSections } from '../src/client/app/pages.ts';
+import {
+  bindSettingsSections,
+  saveSettingsSection,
+  savedSettingsSection,
+} from '../src/client/app/pages.ts';
 
 await test('categorias abrem uma por vez e notificam o fechamento de aparelhos', () => {
   const account = Object.assign(new EventTarget(), {
@@ -29,4 +33,27 @@ await test('categorias abrem uma por vez e notificam o fechamento de aparelhos',
   devices.dispatchEvent(new Event('toggle'));
   assert.deepEqual(closed, ['devices']);
   assert.equal(app.open, true);
+});
+
+await test('última categoria aberta volta após recarregar; sem armazenamento nada quebra', () => {
+  const values = new Map<string, string>();
+  const storage = {
+    getItem: (key: string) => values.get(key) ?? null,
+    setItem: (key: string, value: string) => {
+      values.set(key, value);
+    },
+  };
+  assert.equal(savedSettingsSection(storage), null);
+  saveSettingsSection(storage, 'devices');
+  assert.equal(savedSettingsSection(storage), 'devices');
+  const blocked = {
+    getItem: () => {
+      throw new Error('bloqueado');
+    },
+    setItem: () => {
+      throw new Error('bloqueado');
+    },
+  };
+  assert.doesNotThrow(() => saveSettingsSection(blocked, 'app'));
+  assert.equal(savedSettingsSection(blocked), null);
 });

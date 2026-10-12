@@ -31,12 +31,12 @@ function assetEntry(entry: unknown): { path: string; type: string } {
   return { path: entry.path, type: entry.type };
 }
 
-function requireAssetSize(path: string, bytes: number): void {
+function checkAssetSize(path: string, size: number): void {
   // Corresponding source downloads grow with the app and are not PWA assets.
   if (/^\/source-[a-f0-9]{16}\.tar\.gz$/u.test(path)) return;
   const maximum =
     path === '/matrix-crypto-18.9.0.wasm' ? 8 * 1024 * 1024 : 2 * 1024 * 1024;
-  if (bytes > maximum) throw new Error('Asset excedido.');
+  if (size > maximum) throw new Error('Asset excedido.');
 }
 
 export async function loadWebAssets(
@@ -51,7 +51,7 @@ export async function loadWebAssets(
   for (const value of manifest as unknown[]) {
     const entry = assetEntry(value);
     const content = await readFile(new URL(entry.path.slice(1), root));
-    requireAssetSize(entry.path, content.length);
+    checkAssetSize(entry.path, content.length);
     assets.set(entry.path === '/index.html' ? '/' : entry.path, {
       content,
       type: entry.type,

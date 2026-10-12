@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { mkdtemp, rm, readFile, realpath } from 'node:fs/promises';
+import { mkdtemp, rm, readFile, realpath, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createHash } from 'node:crypto';
@@ -46,14 +46,19 @@ await test('mídia pública: conjuntos por post/reply, bytes por arquivo e legen
   }
   const media = crypto.randomUUID();
   assert.equal(
-    postContent({ title: '', text: '', tag: null, media: [media] }).text,
+    postContent({ title: '', text: '', tags: [], media: [media] }).text,
+    '',
+  );
+  // A titled post may have no text; nothing at all is refused.
+  assert.equal(
+    postContent({ title: 'Título', text: '', tags: [], media: [] }).text,
     '',
   );
   assert.throws(() =>
-    postContent({ title: 'Título', text: '', tag: null, media: [] }),
+    postContent({ title: '', text: '', tags: [], media: [] }),
   );
   assert.throws(() =>
-    postContent({ title: '', text: '', tag: null, media: [media, media] }),
+    postContent({ title: '', text: '', tags: [], media: [media, media] }),
   );
 });
 await test('validação efetiva recusa duração excedida, animação disfarçada e resultado fora do contrato', () => {
@@ -62,14 +67,14 @@ await test('validação efetiva recusa duração excedida, animação disfarçad
     format: 'mov,mp4,m4a,3gp,3g2,mj2',
     width: 1920,
     height: 1080,
-    seconds: 60,
+    seconds: 120,
     fps: 60,
-    frames: 3600,
+    frames: 7200,
     audio: true,
   };
   validateMediaSource(source('video'), shape);
   assert.throws(() =>
-    validateMediaSource(source('video'), { ...shape, seconds: 60.01 }),
+    validateMediaSource(source('video'), { ...shape, seconds: 120.01 }),
   );
   assert.throws(() =>
     validateMediaSource(source('video'), { ...shape, format: 'hls' }),
@@ -87,16 +92,17 @@ await test('validação efetiva recusa duração excedida, animação disfarçad
   const result = {
     kind: 'video',
     type: 'video/mp4',
-    bytes: 25_000_000,
+    bytes: 100_000_000,
     width: 1280,
     height: 720,
-    seconds: 60,
+    seconds: 120,
     fps: 30,
     thumbnailBytes: 9000,
     normalized: true,
   };
   communityMediaResult(result);
-  assert.throws(() => communityMediaResult({ ...result, bytes: 25_000_001 }));
+  assert.throws(() => communityMediaResult({ ...result, seconds: 120.11 }));
+  assert.throws(() => communityMediaResult({ ...result, bytes: 100_000_001 }));
   assert.throws(() => communityMediaResult({ ...result, fps: 31 }));
   assert.throws(() => readMediaRuntime({ HASH_TALK_MEDIA_FFMPEG: './ffmpeg' }));
 });
@@ -138,6 +144,31 @@ await test('objetos de mídia: montagem limitada, hash integral, retomada e limp
     await Promise.all([files.discard(input.id), files.discard(input.id)]);
     await files.discard(input.id);
     await assert.rejects(files.read(input.id, 'result', bytes.length));
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+await test('resultado acima de 25 MB mantém hash integral e última parte para a leitura restrita', async () => {
+  const root = await realpath(
+    await mkdtemp(join(tmpdir(), '0xdmme-large-result-')),
+  );
+  const files = new CommunityMediaFiles(root);
+  try {
+    await files.initialize();
+    const id = crypto.randomUUID(),
+      bytes = Buffer.alloc(26_000_001, 42);
+    await files.part(id, 0, new Uint8Array([1]));
+    await writeFile(join(files.root, id, 'result'), bytes);
+    assert.equal(
+      await files.digest(id, 'result', bytes.length),
+      createHash('sha256').update(bytes).digest('hex'),
+    );
+    const index = Math.ceil(bytes.length / communityMediaPartBytes) - 1;
+    assert.deepEqual(
+      await files.slice(id, { name: 'result', index, bytes: bytes.length }),
+      bytes.subarray(index * communityMediaPartBytes),
+    );
   } finally {
     await rm(root, { recursive: true, force: true });
   }

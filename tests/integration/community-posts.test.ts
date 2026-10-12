@@ -129,9 +129,9 @@ await test('posts: publicação aberta, tags locais, privacidade, revisão, excl
     initial = tags.items.find((tag) => tag.label === 'Memes')!,
     post = crypto.randomUUID(),
     content = {
-      title: '',
+      title: 'Post sintético',
       text: 'Um post 😄 https://example.com/teste',
-      tag: initial.id,
+      tags: [initial.id],
     };
   const own = async (who = author, postId = post) =>
     postState(await who.operate('post-state', { id, post: postId }));
@@ -164,7 +164,11 @@ await test('posts: publicação aberta, tags locais, privacidade, revisão, excl
         await author.operate('post-create', { id, post, content }),
       );
       assert.equal(created.post.author?.id, authorProfile.id);
-      assert.equal(created.post.title, '');
+      assert.equal(created.post.title, 'Post sintético');
+      assert.deepEqual(
+        created.post.tags.map((tag) => tag.id),
+        [initial.id],
+      );
       assert.equal(created.canEdit, true);
       assert.equal(
         communityState(await author.operate('state', { id })).following,
@@ -233,7 +237,7 @@ await test('posts: publicação aberta, tags locais, privacidade, revisão, excl
         author.operate('post-create', {
           id,
           post: crypto.randomUUID(),
-          content: { ...content, tag: otherTag.id },
+          content: { ...content, tags: [otherTag.id] },
         }),
         bad(400),
       );
@@ -255,7 +259,7 @@ await test('posts: publicação aberta, tags locais, privacidade, revisão, excl
         bad(409),
       );
       assert.equal(
-        (await communities.post(id, post)).tag?.label,
+        (await communities.post(id, post)).tags[0]?.label,
         'Memes antigos',
       );
       await assert.rejects(
@@ -272,7 +276,7 @@ await test('posts: publicação aberta, tags locais, privacidade, revisão, excl
         revision: (await own()).post.revision,
         content: { ...content, text: 'Texto novo mantendo tag desativada.' },
       });
-      assert.equal((await own()).post.tag?.active, false);
+      assert.equal((await own()).post.tags[0]?.active, false);
       const managed = tagPage(
         await owner.operate('tag-list', { id, after: null }),
       );
@@ -557,10 +561,85 @@ await test('posts: publicação aberta, tags locais, privacidade, revisão, excl
     },
   );
   await t.test(
+    'post exige título e tag, aceita até cinco tags em ordem e o filtro encontra qualquer uma',
+    async () => {
+      const active = (await communities.tags(id, null)).items.map(
+        (tag) => tag.id,
+      );
+      assert.ok(active.length >= 2);
+      const base = { title: 'Várias tags', text: '', tags: active.slice(0, 2) };
+      for (const invalid of [
+        { ...base, title: '' },
+        { ...base, tags: [] },
+        { ...base, tags: [active[0], active[0]] },
+        { ...base, tags: Array.from({ length: 6 }, () => crypto.randomUUID()) },
+      ])
+        await assert.rejects(
+          author.operate('post-create', {
+            id,
+            post: crypto.randomUUID(),
+            content: invalid,
+          }),
+          bad(400),
+        );
+      const tagged = crypto.randomUUID();
+      const created = postState(
+        await author.operate('post-create', {
+          id,
+          post: tagged,
+          content: base,
+        }),
+      );
+      assert.equal(created.post.text, '');
+      assert.deepEqual(
+        created.post.tags.map((tag) => tag.id),
+        base.tags,
+      );
+      assert.deepEqual(created.content?.tags, base.tags);
+      const second = await communities.postPage(id, null, active[1]!);
+      assert.ok(second.items.some((item) => item.id === tagged));
+      await author.operate('post-edit', {
+        id,
+        post: tagged,
+        revision: created.post.revision,
+        content: { ...base, tags: [active[1]!] },
+      });
+      assert.deepEqual(
+        (await communities.post(id, tagged)).tags.map((tag) => tag.id),
+        [active[1]],
+      );
+      const reply = crypto.randomUUID();
+      await assert.rejects(
+        author.operate('reply-create', {
+          id,
+          post: reply,
+          parent: tagged,
+          content: { title: '', text: 'Resposta', tags: [active[0]] },
+        }),
+        bad(400),
+      );
+      await author.operate('post-delete', {
+        id,
+        post: tagged,
+        revision: created.post.revision + 1,
+      });
+      assert.equal(
+        (
+          await inspector.query(
+            'SELECT 1 FROM hash_talk.community_post_extra_tags WHERE post_id=$1',
+            [tagged],
+          )
+        ).rowCount,
+        0,
+      );
+    },
+  );
+  await t.test(
     'arquivamento e sanção bloqueiam publicar/editar, sem impedir exclusão própria',
     async () => {
       const next = crypto.randomUUID(),
-        value = { title: '', text: 'Outro texto.', tag: null };
+        active = (await communities.tags(id, null)).items[0]!.id,
+        value = { title: 'Outro post', text: 'Outro texto.', tags: [active] };
       await author.operate('post-create', { id, post: next, content: value });
       await govern('archive', { archived: true });
       await assert.rejects(
@@ -609,7 +688,11 @@ await test('posts: publicação aberta, tags locais, privacidade, revisão, excl
         await owner.operate('post-create', {
           id,
           post: next,
-          content: { title: '', text: `Página ${i}`, tag: selectedTag.id },
+          content: {
+            title: `Post ${i}`,
+            text: `Página ${i}`,
+            tags: [selectedTag.id],
+          },
         });
       }
       const first = await communities.postPage(id, null, selectedTag.id);
@@ -633,7 +716,11 @@ await test('posts: publicação aberta, tags locais, privacidade, revisão, excl
         data = {
           id,
           post: next,
-          content: { title: '', text: 'Sem capacidade.', tag: null },
+          content: {
+            title: 'Sem capacidade',
+            text: 'Sem capacidade.',
+            tags: [(await communities.tags(id, null)).items[0]!.id],
+          },
         };
       await assert.rejects(
         service.operate(

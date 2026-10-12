@@ -1,8 +1,11 @@
 @import '../communities/community.css';
 @import '../public-profile/profile.css';
 @import '../chat-ui/chat.css';
+@import '../groups/groups.css';
 @import '../contacts/contacts.css';
 @import './settings.css';
+@import '../hover-card/hover-card.css';
+@import '../account-settings/account-settings.css';
 
 /* === Theme tokens: the only place with literal colors (see tests/appearance.test.ts). === */
 /*
@@ -432,6 +435,36 @@
   }
   #app-shell[data-page='conversas'][data-layout='solo'] {
     grid-template-columns: 64px 272px minmax(0, 1fr) 46px;
+  }
+  /* Visitors without local history have no contacts: the login card takes the
+     left column and the feed takes the space the contact list used. */
+  #app-shell[data-page='conversas'][data-account='guest']:not(
+      [data-history='available']
+    )
+    .sidebar {
+    display: none;
+  }
+  #app-shell[data-page='conversas'][data-account='guest']:not(
+      [data-history='available']
+    ):is([data-layout='all'], [data-layout='nochat']) {
+    grid-template-columns: 64px minmax(340px, 440px) minmax(0, 1fr);
+  }
+  #app-shell[data-page='conversas'][data-account='guest']:not(
+      [data-history='available']
+    )[data-layout='solo'] {
+    grid-template-columns: 64px minmax(0, 1fr) 46px;
+  }
+  .app[data-page='conversas'][data-account='guest']:not(
+      [data-history='available']
+    )[data-layout='solo']
+    .account-section {
+    max-width: 560px;
+  }
+  .app[data-page='conversas'][data-account='guest']:not(
+      [data-history='available']
+    )[data-layout='nochat']
+    main {
+    display: flex;
   }
   .app[data-page='conversas']:not([data-layout='solo']) .feed-panel {
     display: flex;
@@ -3617,17 +3650,52 @@ footer {
   stroke-linecap: round;
   stroke-linejoin: round;
 }
-.media-picker-summary {
-  max-width: 240px;
-  overflow: hidden;
-  color: var(--text-muted);
-  font-size: 13px;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
-.media-picker small:empty,
-.media-picker-summary:empty {
+.media-picker small:empty {
   display: none;
+}
+/* One thumbnail per chosen file, each with its own remove button. */
+.media-picker-previews {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 8px 0 0;
+}
+.media-picker-previews[hidden] {
+  display: none;
+}
+.media-picker-tile {
+  position: relative;
+  width: 96px;
+  height: 96px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface-2);
+}
+.media-picker-tile :is(img, video) {
+  display: block;
+  width: 100%;
+  max-width: none;
+  height: 100%;
+  object-fit: cover;
+}
+#app-shell .media-picker-tile .media-picker-remove {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  min-height: 0;
+  height: 24px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--overlay);
+  color: var(--text);
+  font-size: 16px;
+  line-height: 1;
 }
 .media-picker label {
   display: flex;

@@ -12,6 +12,7 @@ import type {
   Sanction,
 } from '../../shared/communities/index.ts';
 import { publicProfile } from '../../shared/public-profile/index.ts';
+import type { PublicProfile } from '../../shared/public-profile/index.ts';
 import {
   communityButton,
   communityCard,
@@ -20,17 +21,19 @@ import {
   communityLink,
 } from './elements.ts';
 export type { CommunityActions } from './actions.ts';
+/** `ownership` receives the owner's transfer/archive card; moderation gets the rest. */
 export function mountCommunityGovernance(
-  container: HTMLElement,
+  hosts: { container: HTMLElement; ownership: HTMLElement },
   state: CommunityState,
   actions: CommunityActions,
 ): void {
+  const { container } = hosts;
   if (state.role !== 'participant') {
     staff(container, state, actions);
     sanctionForm(container, state, actions);
   }
   reviews(container, state, actions);
-  if (state.role === 'owner') ownership(container, state, actions);
+  if (state.role === 'owner') ownership(hosts.ownership, state, actions);
   if (state.transfer && state.role !== 'owner')
     accept(container, state, actions);
   if (state.sanction && !state.sanction.appeal)
@@ -51,34 +54,34 @@ function staff(
   const list = communityElement('div');
   card.append(list);
   let after: string | null = null;
-  communityButton(card, 'Carregar moderadores', () =>
-    actions.query(async () => {
-      const data = object(
-        await actions.request('staff', { id: state.community.id, after }),
-      );
-      keys(data, ['items', 'next']);
-      list.replaceChildren();
-      for (const item of communityArray(data['items'])) {
-        const profile = publicProfile(item),
-          row = communityElement('div', '', 'community-row');
-        communityLink(
-          row,
-          `@${profile.handle}`,
-          `#publico?handle=${encodeURIComponent(profile.handle)}`,
-        );
-        if (state.role === 'owner')
-          communityButton(row, 'Remover moderador', () =>
-            actions.mutate('role', {
-              ...command(state),
-              target: profile.id,
-              moderator: false,
-            }),
-          );
-        list.append(row);
-      }
-      after = communityCursor(data['next']);
-    }),
+  // Loads on open: the screen is drawn inside a running operation, so this
+  // read cannot wait for the shared queue.
+  const load = async (): Promise<void> => {
+    const data = object(
+      await actions.request('staff', { id: state.community.id, after }),
+    );
+    keys(data, ['items', 'next']);
+    list.replaceChildren();
+    for (const item of communityArray(data['items']))
+      list.append(staffRow(publicProfile(item), state, actions));
+    if (!list.children.length)
+      list.append(communityElement('p', 'Nenhum moderador.', 'community-hint'));
+    after = communityCursor(data['next']);
+    more.hidden = after === null;
+  };
+  const more = communityButton(card, 'Mais moderadores', () =>
+    actions.query(load),
   );
+  more.hidden = true;
+  void load().catch(() => {
+    list.replaceChildren(
+      communityElement(
+        'p',
+        'Moderadores indisponíveis agora.',
+        'community-hint',
+      ),
+    );
+  });
   if (state.role !== 'owner') return;
   const target = communityTargetPicker(card, actions);
   communityButton(card, 'Nomear moderador', () =>
@@ -88,6 +91,27 @@ function staff(
       moderator: true,
     }),
   );
+}
+function staffRow(
+  profile: PublicProfile,
+  state: CommunityState,
+  actions: CommunityActions,
+): HTMLElement {
+  const row = communityElement('div', '', 'community-row');
+  communityLink(
+    row,
+    `@${profile.handle}`,
+    `#publico?handle=${encodeURIComponent(profile.handle)}`,
+  );
+  if (state.role === 'owner')
+    communityButton(row, 'Remover', () =>
+      actions.mutate('role', {
+        ...command(state),
+        target: profile.id,
+        moderator: false,
+      }),
+    );
+  return row;
 }
 function sanctionForm(
   container: HTMLElement,

@@ -191,14 +191,47 @@ export async function uploadCommunityMedia(
 }
 const clipIcon =
   '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m20 11-8.5 8.5a5 5 0 0 1-7-7L13 4a3.5 3.5 0 0 1 5 5l-8.5 8.5a2 2 0 0 1-3-3L14 7"/></svg>';
-function selectionSummary(files: readonly File[]): string {
-  if (files.length > 1) return `${files.length} arquivos`;
-  return files[0]?.name ?? '';
+/** One thumbnail per chosen file, each with its own remove button. */
+function renderPreviews(
+  host: HTMLElement,
+  files: readonly File[],
+  remove: (index: number) => void,
+): () => void {
+  const urls: string[] = [];
+  host.replaceChildren(
+    ...files.map((file, index) => {
+      const tile = document.createElement('div'),
+        url = URL.createObjectURL(file),
+        close = document.createElement('button');
+      urls.push(url);
+      tile.className = 'media-picker-tile';
+      const preview = file.type.startsWith('video/')
+        ? Object.assign(document.createElement('video'), {
+            src: url,
+            muted: true,
+            preload: 'metadata',
+          })
+        : Object.assign(document.createElement('img'), { src: url, alt: '' });
+      preview.setAttribute('aria-label', file.name);
+      close.type = 'button';
+      close.className = 'media-picker-remove';
+      close.textContent = '×';
+      close.setAttribute('aria-label', `Remover ${file.name}`);
+      close.title = 'Remover';
+      close.addEventListener('click', () => remove(index));
+      tile.append(preview, close);
+      return tile;
+    }),
+  );
+  host.hidden = files.length === 0;
+  return () => {
+    for (const url of urls) URL.revokeObjectURL(url);
+  };
 }
 /**
- * Photos, GIFs or a video for a post or reply: only the clip button, a short
- * summary of the choice and a drop zone on the whole form. Limit refusals
- * appear as a notice at the bottom of the screen.
+ * Photos, GIFs or a video for a post or reply: the clip button, a thumbnail
+ * per chosen file with its own X, and a drop zone on the whole form. New picks
+ * add to the choice; limit refusals appear as a notice at the bottom.
  */
 export function mediaEditor(
   container: HTMLElement,
@@ -219,42 +252,63 @@ export function mediaEditor(
   pick.innerHTML = clipIcon;
   pick.setAttribute('aria-label', 'Anexar fotos, GIFs ou vídeo');
   pick.title = 'Até 4 fotos, 3 GIFs ou 1 vídeo';
-  const summary = document.createElement('span');
-  summary.className = 'media-picker-summary';
+  const previews = document.createElement('div');
+  previews.className = 'media-picker-previews';
+  previews.hidden = true;
   const status = document.createElement('small');
   status.setAttribute('role', 'status');
   const remove = document.createElement('input');
   remove.type = 'checkbox';
   const removeLabel = document.createElement('label');
   removeLabel.append(remove, document.createTextNode('Remover a mídia atual'));
-  field.append(input, pick, summary, status);
+  field.append(input, pick, status);
   if (ids.length) field.append(removeLabel);
-  container.append(field);
+  container.append(previews, field);
   dropFilesInto(container, input);
   pick.addEventListener('click', () => {
     input.click();
   });
-  let prepared: string[] | null = null;
-  input.addEventListener('change', () => {
+  let chosen: File[] = [],
+    prepared: string[] | null = null,
+    release = (): void => undefined;
+  const show = (): void => {
+    release();
     prepared = null;
+    release = renderPreviews(previews, chosen, (index) => {
+      chosen = chosen.filter((_, position) => position !== index);
+      show();
+    });
+  };
+  access.signal.addEventListener('abort', () => release(), { once: true });
+  input.addEventListener('change', () => {
+    const next = [...chosen, ...Array.from(input.files ?? [])];
+    input.value = '';
     status.textContent = '';
     try {
-      validateMediaSelection(Array.from(input.files ?? []));
+      validateMediaSelection(next);
+      chosen = next;
+      show();
     } catch (error: unknown) {
-      input.value = '';
       showToast(error instanceof Error ? error.message : 'Seleção inválida.');
     }
-    summary.textContent = selectionSummary(Array.from(input.files ?? []));
   });
   return async () => {
-    const files = Array.from(input.files ?? []);
     if (remove.checked) return [];
-    if (!files.length) return ids;
-    prepared ??= await uploadCommunityMedia(access, files, (text) => {
-      if (access.valid() && field.isConnected) status.textContent = text;
-    });
-    status.textContent = '';
-    return prepared;
+    if (!chosen.length) return ids;
+    try {
+      prepared ??= await uploadCommunityMedia(access, chosen, (text) => {
+        if (access.valid() && field.isConnected) status.textContent = text;
+      });
+      status.textContent = '';
+      return prepared;
+    } catch (error: unknown) {
+      if (access.valid() && field.isConnected)
+        status.textContent =
+          error instanceof Error
+            ? error.message
+            : 'Envio de mídia indisponível. Tente novamente.';
+      throw error;
+    }
   };
 }
 export function restrictedMedia(

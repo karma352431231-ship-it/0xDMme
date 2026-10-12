@@ -164,6 +164,8 @@ export function startProfileEditor(
     if (old !== generation) return;
     description = saved;
     paintDescription();
+    const finish = node('[data-description-save]');
+    if (finish) finish.hidden = true;
   }
   async function choose(file: File): Promise<void> {
     const old = generation,
