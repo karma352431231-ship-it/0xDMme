@@ -55,10 +55,11 @@ export class CommunityNode extends EventTarget {
       this.children.push(node);
     }
   }
-  prepend(node: CommunityNode): void {
-    node.remove();
-    node.parent = this;
-    this.children.unshift(node);
+  prepend(...nodes: CommunityNode[]): void {
+    for (const node of nodes) node.remove();
+    for (const node of nodes) node.parent = this;
+    // Like the DOM: the given nodes keep their order before the old children.
+    this.children.unshift(...nodes);
   }
   after(node: CommunityNode): void {
     if (!this.parent) return;

@@ -54,42 +54,88 @@ async function read(
         ),
   );
 }
-/** The existing follower count opens its own page; common members preview below it. */
+/** A small photo for the overlapping row of profiles in common. */
+function stackedAvatar(
+  profile: CommunityFollowers['items'][number],
+  signal: AbortSignal,
+): HTMLElement {
+  const avatar = el(
+    'span',
+    profile.handle.slice(0, 2).toUpperCase(),
+    'community-follower-avatar',
+  );
+  avatar.setAttribute('aria-hidden', 'true');
+  if (profile.avatar) {
+    avatar.textContent = '';
+    showPublicAvatar(avatar, {
+      kind: 'avatar',
+      target: profile.id,
+      reference: profile.avatar,
+      signal,
+    });
+  }
+  return avatar;
+}
+/**
+ * “Seguida por @a, @b e mais N que você segue”, as social networks phrase it:
+ * up to two names, then how many other profiles the reader follows.
+ */
+export function knownFollowersText(page: CommunityFollowers): string {
+  const names = page.items.slice(0, 2).map((profile) => `@${profile.handle}`);
+  const rest = page.total - names.length;
+  if (rest > 0)
+    return `Seguida por ${names.join(', ')} e mais ${rest.toLocaleString('pt-BR')} que você segue`;
+  return `Seguida por ${names.join(' e ')}`;
+}
+/** Overlapping photos and the sentence, one link to the followers page. */
+function knownFollowers(
+  host: HTMLElement,
+  page: CommunityFollowers,
+  input: FollowersAccess,
+): void {
+  const link = el('a', '', 'community-known-link');
+  link.href = `#comunidades?id=${input.id}&view=followers`;
+  const stack = el('span', '', 'community-known-stack');
+  stack.append(
+    ...page.items
+      .slice(0, 3)
+      .map((profile) => stackedAvatar(profile, input.signal)),
+  );
+  const text = knownFollowersText(page);
+  // The line may cut the sentence short; the whole of it stays available.
+  link.title = text;
+  link.append(stack, el('span', text, 'community-known-text'));
+  host.append(link);
+}
+/**
+ * One line under the community name: the follower count, which opens its
+ * own page, then the profiles in common for signed-in readers.
+ */
 export function mountCommunityFollowerPreview(
   host: HTMLElement,
   input: FollowersAccess & { total: number },
 ): void {
-  const section = el('section', '', 'community-followers'),
-    count = el(
-      'a',
-      `${input.total.toLocaleString('pt-BR')} ${input.total === 1 ? 'seguidor' : 'seguidores'}`,
-      'community-followers-link',
-    );
+  const line = el('div', '', 'community-followers'),
+    count = el('a', '', 'community-followers-link');
+  count.append(
+    el('strong', input.total.toLocaleString('pt-BR')),
+    el('span', ` ${input.total === 1 ? 'seguidor' : 'seguidores'}`),
+  );
   count.href = `#comunidades?id=${input.id}&view=followers`;
-  section.append(count);
-  host.append(section);
+  line.append(count);
+  host.append(line);
   if (!input.signedIn) return;
-  const preview = el('div', '', 'community-known-followers');
-  section.append(preview);
+  const preview = el('span', '', 'community-known-followers');
+  line.append(preview);
   void read(input, 'known', null)
     .then((page) => {
-      if (input.signal.aborted || !section.isConnected || !page.items.length)
+      if (input.signal.aborted || !line.isConnected || !page.items.length)
         return;
-      preview.append(
-        el('span', 'Seguida por '),
-        ...page.items
-          .slice(0, 3)
-          .map((profile) => identity(profile, input.signal)),
-      );
-      if (page.total > 3)
-        preview.append(
-          el('span', `e mais ${page.total - 3} perfis que você segue`),
-        );
+      knownFollowers(preview, page, input);
     })
     .catch(() => {
       if (!input.signal.aborted)
-        preview.textContent =
-          'Não foi possível conferir os perfis em comum. Abra os seguidores para tentar novamente.';
+        preview.textContent = 'Perfis em comum indisponíveis agora.';
     });
 }
 /** Separate page with a public roster and signed personalized tab. */

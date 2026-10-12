@@ -213,14 +213,16 @@ export function startDmComposer(options: {
   function bindEmoji(current: DmView): void {
     const anchor = node('[data-public-emoji]');
     anchor?.addEventListener('click', () => {
-      void emojiIntoComposer(emoji, anchor, current.text, (host, close) => {
-        mountGifPane(host, gifs, (url) => {
-          close();
-          // A GIF is its KLIPY link, sent as the usual E2EE text.
-          void options.run(() =>
-            options.submit({ text: url, media: null, pending: false }),
-          );
-        });
+      void emojiIntoComposer(emoji, anchor, current.text, {
+        pane: (host, close) => {
+          mountGifPane(host, gifs, (url) => {
+            close();
+            // A GIF is its KLIPY link, sent as the usual E2EE text.
+            void options.run(() =>
+              options.submit({ text: url, media: null, pending: false }),
+            );
+          });
+        },
       }).catch(() => {
         showToast('Não foi possível abrir os emojis.');
       });

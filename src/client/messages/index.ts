@@ -1155,7 +1155,9 @@ export function startMessages(
       const input = node<HTMLTextAreaElement>('[data-message-text]'),
         anchor = node('[data-message-emoji]');
       if (!input || !anchor) return;
-      void emojiIntoComposer(emojiPicker, anchor, input, gifPane).catch(() => {
+      void emojiIntoComposer(emojiPicker, anchor, input, {
+        pane: gifPane,
+      }).catch(() => {
         message = 'Não foi possível abrir o painel de emojis.';
         status();
       });

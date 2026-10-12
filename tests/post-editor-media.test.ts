@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { postEditorMedia } from '../src/client/communities/post-editor-media.ts';
 import { GifSearch } from '../src/client/gif-search/index.ts';
+import { EmojiPicker } from '../src/client/emoji/index.ts';
 import type { ExternalMediaConsent } from '../src/client/external-media/index.ts';
 import { CommunityNode, communityDocument } from './fixtures/community-dom.ts';
 
@@ -28,9 +29,17 @@ await test('selecionar GIF em post/reply muda apenas o rascunho, sem publicar ou
     const node = create(tag);
     Object.assign(node, {
       focus() {},
+      setSelectionRange() {},
       maxLength: 4000,
       id: '',
       isConnected: true,
+    });
+    // The caret sits at the end of the draft, where the emoji goes.
+    Object.defineProperty(node, 'selectionStart', {
+      get: () => node.value.length,
+    });
+    Object.defineProperty(node, 'selectionEnd', {
+      get: () => node.value.length,
     });
     Object.defineProperty(node, 'parentElement', { get: () => node.parent });
     node.querySelector = (selector) => query(node, selector);
@@ -50,6 +59,7 @@ await test('selecionar GIF em post/reply muda apenas o rascunho, sem publicar ou
   const globals = {
     document,
     HTMLLabelElement: CommunityNode,
+    HTMLTextAreaElement: CommunityNode,
     window: { setTimeout: globalThis.setTimeout },
   };
   const saved = Object.keys(globals).map(
@@ -80,6 +90,39 @@ await test('selecionar GIF em post/reply muda apenas o rascunho, sem publicar ou
   t.mock.method(globalThis, 'fetch', () => {
     throw new Error('No outbound request in synthetic DOM');
   });
+  // The floating panel is a modal dialog; this records how it was opened and
+  // mounts its GIF tab in a plain node instead.
+  const opened: {
+    start: string | undefined;
+    host: CommunityNode;
+    hasGifTab: boolean;
+    closed: boolean;
+    pick: (emoji: string) => void;
+  }[] = [];
+  t.mock.method(
+    EmojiPicker.prototype,
+    'choose',
+    (
+      _anchor: unknown,
+      gifPane?: (host: HTMLElement, close: () => void) => void,
+      start?: string,
+    ) =>
+      new Promise<string | null>((resolve) => {
+        const panel = {
+          start,
+          host: document.createElement('div'),
+          hasGifTab: Boolean(gifPane),
+          closed: false,
+          pick: (emoji: string) => resolve(emoji),
+        };
+        opened.push(panel);
+        if (gifPane && start === 'gif')
+          gifPane(panel.host as unknown as HTMLElement, () => {
+            panel.closed = true;
+            resolve(null);
+          });
+      }),
+  );
   const abort = new AbortController();
   try {
     const container = document.createElement('form'),
@@ -109,11 +152,24 @@ await test('selecionar GIF em post/reply muda apenas o rascunho, sem publicar ou
     assert.equal(reads, 0);
     container.querySelector('.post-gif-button')!.click();
     await new Promise<void>((resolve) => setImmediate(resolve));
+    // The chat's floating panel opened on its GIF tab.
+    assert.equal(opened.at(-1)?.start, 'gif');
     assert.equal(reads, 1);
-    const tile = container.querySelector('.gif-tile')!;
+    const tile = opened.at(-1)!.host.querySelector('.gif-tile')!;
     tile.click();
     assert.equal(text.value, `Legenda\n${url}`);
-    assert.equal(container.querySelector('.post-gif-pane')!.hidden, true);
+    assert.equal(opened.at(-1)!.closed, true);
+    assert.equal(published, 0);
+    // One panel at a time: the next opens once this one has closed.
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    // The emoji button opens the same panel on the emoji tab, GIF tab included.
+    container.querySelector('.post-emoji-button')!.click();
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    assert.equal(opened.at(-1)?.start, 'emoji');
+    assert.equal(opened.at(-1)?.hasGifTab, true);
+    opened.at(-1)!.pick('🙂');
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    assert.ok(text.value.includes('🙂'));
     assert.equal(published, 0);
     assert.deepEqual(await getMedia(), []);
     assert.equal(published, 0);

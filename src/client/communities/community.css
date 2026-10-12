@@ -1730,13 +1730,15 @@
   border-radius: 26px;
   font-size: 30px;
 }
+/* The name and follower line keep a readable width; when the row is too
+   narrow for photo, title and button, the button moves to the next line. */
 .community-hero-title {
-  flex: 1;
+  flex: 1 1 200px;
   min-width: 0;
 }
 .community-hero-title h1 {
   margin: 0;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
   font: 700 24px/1.2 var(--font-display);
   letter-spacing: 0;
 }

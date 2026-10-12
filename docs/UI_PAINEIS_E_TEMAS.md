@@ -395,3 +395,7 @@ Pedido do proprietário: quem entra sem conectar a wallet não vê a lista de co
 - **Mobile:** fica só o cartão, sem “Vamos conversar?” e sem a barra de conexão.
 
 Visitante com histórico salvo neste aparelho continua vendo a lista e a conversa, como antes. Validação: prévia local sem backend em 1.600 px (painel completo e Só conversas) e 375 px; nenhuma regra de sessão ou de dados mudou.
+
+## Linhas mais visíveis — 12/10/2026
+
+Pedido do proprietário: separadores entre posts, abas e painéis estavam apagados demais. Os tokens `--line` e `--line-strong` subiram um degrau nos três temas, mantendo a diferença entre eles: Azul `#27335a` / `#34426e`, Preto `#29292e` / `#3a3a40`, Branco `#d6dce9` / `#bcc6db`. Todas as bordas que usam esses tokens acompanham; nenhuma cor literal saiu do bloco de tema.

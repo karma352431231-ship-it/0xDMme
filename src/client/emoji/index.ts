@@ -63,10 +63,12 @@ export class EmojiPicker {
   /**
    * `gifPane` adds the GIF tab (composer only); it mounts its own content and
    * calls `close` when a GIF was chosen. Reactions keep the emoji panel alone.
+   * `start: 'gif'` opens on that tab, as the GIF button of community posts does.
    */
   choose(
     anchor: HTMLElement,
     gifPane?: (host: HTMLElement, close: () => void) => void,
+    start: 'emoji' | 'gif' = 'emoji',
   ): Promise<string | null> {
     this.finish(null);
     this.anchor = anchor;
@@ -104,7 +106,10 @@ export class EmojiPicker {
     }
     if (gifPane) this.modes(dialog, gifPane);
     place(dialog, anchor);
-    element<HTMLInputElement>(dialog, '[data-query]').focus();
+    if (gifPane && start === 'gif')
+      // The tab's own handler mounts the pane, which focuses its search.
+      element<HTMLButtonElement>(dialog, '[data-mode="gif"]').click();
+    else element<HTMLInputElement>(dialog, '[data-query]').focus();
     void artwork
       .ready()
       .then(() => {
@@ -296,12 +301,15 @@ export async function emojiIntoComposer(
   picker: EmojiPicker,
   anchor: HTMLElement,
   input: HTMLTextAreaElement,
-  gifPane?: (host: HTMLElement, close: () => void) => void,
+  gif: {
+    pane?: (host: HTMLElement, close: () => void) => void;
+    start?: 'emoji' | 'gif';
+  } = {},
 ): Promise<void> {
   const start = input.selectionStart,
     end = input.selectionEnd,
     original = input.value;
-  const emoji = await picker.choose(anchor, gifPane);
+  const emoji = await picker.choose(anchor, gif.pane, gif.start);
   if (!emoji || !input.isConnected || input.value !== original) return;
   const inserted = insertEmoji(original, start, end, emoji);
   input.value = inserted.text;

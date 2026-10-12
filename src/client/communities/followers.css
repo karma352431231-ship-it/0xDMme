@@ -1,5 +1,17 @@
+/*
+ * Under the community name, on one line as on social profiles:
+ * “**2** seguidores · (◉◉◉) Seguida por @a, @b e mais N que você segue”.
+ * A long sentence ends in “…” instead of breaking the line.
+ */
 .community-followers {
-  margin-top: 12px;
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 6px 12px;
+  margin-top: 8px;
+  color: var(--text-muted);
+  font-size: var(--fs-body);
+  line-height: 1.4;
 }
 .community-followers-panel {
   margin-top: 16px;
@@ -45,24 +57,78 @@
   object-fit: cover;
   border: 0;
 }
-.community-known-followers {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-  font-size: var(--fs-caption);
-  color: var(--text-muted);
+.community-known-followers:empty {
+  display: none;
 }
-.community-known-followers .community-follower-avatar {
-  width: 24px;
-  height: 24px;
+.community-known-followers {
+  display: inline-flex;
+  flex: 1 1 auto;
+  align-items: center;
+  min-width: 0;
+}
+/* The dot separates the two parts while they share a line. */
+.community-known-followers::before {
+  content: '·';
+  margin-right: 12px;
+  color: var(--text-faint);
+}
+#app-shell .community-known-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: var(--fs-small);
+  text-decoration: none;
+}
+.community-known-stack {
+  display: inline-flex;
+  flex: none;
+}
+.community-known-stack .community-follower-avatar {
+  width: 28px;
+  height: 28px;
+  border: 2px solid var(--surface);
+  background: var(--surface-3);
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 700;
+}
+.community-known-stack .community-follower-avatar + .community-follower-avatar {
+  margin-left: -10px;
+}
+.community-known-text {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 #app-shell .community-followers-link {
-  display: inline-block;
-  padding: 4px 0;
+  flex: none;
+  display: inline;
+  padding: 0;
   text-decoration: none;
   color: var(--text-muted);
+  white-space: nowrap;
 }
-#app-shell .community-followers-link:hover {
+#app-shell .community-followers-link strong {
+  color: var(--text);
+  font-weight: 700;
+}
+#app-shell .community-followers-link:hover span,
+#app-shell .community-known-link:hover .community-known-text {
   text-decoration: underline;
+}
+/* Phones: profiles in common get their own line, without the dot. */
+@media (max-width: 700px) {
+  .community-followers {
+    flex-wrap: wrap;
+  }
+  .community-known-followers {
+    flex-basis: 100%;
+  }
+  .community-known-followers::before {
+    content: none;
+  }
 }

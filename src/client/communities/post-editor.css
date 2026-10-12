@@ -22,7 +22,9 @@
   gap: 4px;
   margin: 0;
 }
-#app-shell .post-text-tools :is(.post-gif-button, .media-picker-button) {
+#app-shell
+  .post-text-tools
+  :is(.post-emoji-button, .post-gif-button, .media-picker-button) {
   display: grid;
   place-items: center;
   width: 36px;
@@ -45,15 +47,31 @@
   max-width: 240px;
   font-size: var(--fs-caption);
 }
-.post-gif-pane {
-  margin-top: 8px;
-  padding: 12px;
-  background: var(--surface-2);
-  border: 1px solid var(--line);
-  border-radius: 12px;
+/* Same stroke icon as the chat composer's emoji button. */
+.post-emoji-button svg {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
-.post-gif-pane .gif-grid {
-  max-height: 280px;
+/* Emoji and GIF open the chat's floating panel; only its failures show here. */
+.post-gif-status:empty {
+  display: none;
+}
+.post-gif-status {
+  position: absolute;
+  right: 0;
+  bottom: 44px;
+  width: max-content;
+  max-width: 260px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: var(--surface-3);
+  color: var(--text-muted);
+  font-size: var(--fs-caption);
 }
 .community-external-gif .chat-gif {
   width: min(100%, 560px);

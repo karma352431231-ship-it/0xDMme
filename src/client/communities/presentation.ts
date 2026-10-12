@@ -41,6 +41,11 @@ const paths = {
   shield: ['M12 3 4 6v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V6z'],
   clock: ['M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20', 'M12 6v6l4 2'],
   image: ['M3 4h18v16H3z', 'm3 16 5-5 4 4 3-3 6 6', 'M15 9h.01'],
+  emoji: [
+    'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18',
+    'M8 14a4 4 0 0 0 8 0',
+    'M8 9h.01M16 9h.01',
+  ],
 } as const;
 export type CommunityIcon = keyof typeof paths;
 

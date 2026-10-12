@@ -418,7 +418,8 @@ export function startCommunities(
     head.append(avatar, title);
     hero.append(banner, head);
     publicPhoto(avatar, value);
-    mountCommunityFollowerPreview(hero, {
+    // The follower line sits under the name, aligned with it.
+    mountCommunityFollowerPreview(title, {
       id: value.id,
       total: value.followers,
       signedIn: state !== null,
