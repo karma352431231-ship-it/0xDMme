@@ -1340,3 +1340,11 @@ permanecem registradas, incluindo os itens retidos para revisão prevista.
 **Ponto importante:** aceite exato e saúde dos processos não estabelecem precisão
 universal. Preservar os controles de release, a infraestrutura do outro projeto,
 a proteção de conteúdo aprovado e o rollback da conta documentado acima.
+
+## Modularização do chat — autorização de 12/10/2026
+
+O proprietário pediu executar os cortes do plano temporário e ativar na VPS ao concluir. Integrar somente o trabalho deste chat a partir da release `50ea4c9`; a branch independente com outras alterações não entra neste deploy. Revalidar a main remota antes do push e conferir o diff da release. Contratos e escopo em [Bloco 07](BLOCO_07_MENSAGENS.md#organização-interna-do-chat--12102026).
+
+Exigir checkout limpo/enviado e CI integral do commit exato. Reusar `npm run deploy:staging`, build no Mac, verificações de preservação, prontidão dos serviços próprios e rollback já existentes. São mudanças apenas de organização do cliente e testes/documentação; conservar as 61 migrações, backend, dependências, Node, infraestrutura e configuração ativa. Guardar recibos e acesso exclusivamente em `.local/`.
+
+**Ponto importante:** a autorização cobre esta release do chat. Não autoriza incluir a outra branch, trocar o detector de moderação, migrar banco ou alterar serviços compartilhados.

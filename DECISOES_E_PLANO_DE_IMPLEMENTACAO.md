@@ -1770,3 +1770,7 @@ Implementação local conserva o sinal genérico enviado ao serviço isolado/pro
 ### Carregamento da conta após QR — 12/10/2026
 
 O proprietário pediu reduzir a demora depois do sucesso da vinculação. Carregar o runtime público de criptografia fora da serialização de autoridade e em paralelo com a lista autenticada de conversas, preservando preparação de chaves/store, diretório, exclusões e guardas de sessão. Não alterar autenticação, recuperação, retenção, dependências ou migrações. [Contrato e validação](docs/BLOCO_07_MENSAGENS.md#carregamento-após-vinculação-por-qr--12102026).
+
+### Modularização do chat — execução aprovada em 12/10/2026
+
+O proprietário autorizou executar todos os cortes do plano temporário e ativar na VPS após integrar exclusivamente o trabalho deste chat, preservando a outra branch fora da entrega. Nesta tarefa, autorizou continuar após compactações. Diretório/paginação, projeção/filtros, sincronização/cancelamento, eventos de navegador e apresentação do histórico têm módulos próprios; o coordenador conserva sessão, seleção, composição e áudio. Preservar UI, autoridade, serialização, E2EE, persistência, exclusões e inicialização em paralelo já aprovada. Não há mudanças de backend/schema/dependências. Contratos finais, validação e propostas para os hotspots remanescentes substituem o plano temporário em [Organização interna do chat](docs/BLOCO_07_MENSAGENS.md#organização-interna-do-chat--12102026). A divisão completa do controlador e das DMs pelo @ continua fora destes cortes.
