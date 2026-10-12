@@ -342,6 +342,19 @@
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+/* One body tone across split feed, isolated feed and opened posts. */
+#app-shell .community-card p.community-text,
+#app-shell .feed-panel .community-card p.community-text,
+#app-shell[data-page='comunidades']
+  .community-feed
+  .community-card
+  p.community-text,
+#app-shell
+  .community-card:is(.community-post-focus, .community-reply)
+  p.community-text,
+.community-scope .community-card p.community-text {
+  color: var(--post-text);
+}
 .community-feedback {
   overflow-wrap: anywhere;
   color: var(--text-muted);

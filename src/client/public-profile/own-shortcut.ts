@@ -22,7 +22,9 @@ export function startOwnProfileShortcut(controller: PublicProfiles) {
         link.href = `#publico?handle=${encodeURIComponent(own.handle)}`;
         link.setAttribute('aria-label', 'Abrir meu perfil público');
         link.title = `@${own.handle}`;
-        link.textContent = own.handle.slice(0, 2).toLocaleUpperCase('pt-BR');
+        link.textContent = own.avatar
+          ? ''
+          : own.handle.slice(0, 2).toLocaleUpperCase('pt-BR');
         if (own.avatar)
           showPublicAvatar(link, {
             kind: 'avatar',
