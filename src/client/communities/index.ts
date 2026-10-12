@@ -2,7 +2,7 @@ import { communityPresentationEditor } from './presentation-editor.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
 export { renderActivityEntry } from './activity-entry.ts';
 export { ActivityPosts } from './activity-posts.ts';
-export { communityIcon } from './presentation.ts';
+export { communityAvatar, communityIcon } from './presentation.ts';
 import { uuid } from '../../shared/account/index.ts';
 import {
   communityPolicy,

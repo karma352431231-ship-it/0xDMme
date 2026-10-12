@@ -52,12 +52,13 @@ export function preferenceControls(
   iconLabel(summary, 'more');
   menu.append(summary, content);
   container.append(menu);
-  button(content, 'Ocultar ou voltar a mostrar nos meus feeds', () =>
+  const hide = button(content, 'Ocultar ou mostrar nos meus feeds', () =>
     actions.run(async () => {
       const value = await togglePostPreference(post, 'hidden', actions);
       if (value) await actions.changed();
     }),
   );
+  iconLabel(hide, 'hide');
   if (post.status === 'visible') reportControl(content, post, actions);
   if (post.author) {
     const block = button(content, 'Bloquear usuário', () =>
@@ -84,6 +85,8 @@ export function preferenceControls(
       }),
     );
     block.dataset['postBlock'] = 'true';
+    block.classList.add('post-menu-danger');
+    iconLabel(block, 'block');
   }
   if (actions.options) {
     const management = el('div', '', 'post-options');

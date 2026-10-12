@@ -1,0 +1,76 @@
+/* Replies in feeds and profiles: marked as such, after the post they answer. */
+.post-kind-reply {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 6px;
+  padding: 2px 8px;
+  border-radius: 99px;
+  background: var(--accent-soft);
+  color: var(--accent-text);
+  font-size: var(--fs-caption);
+  font-weight: 600;
+  vertical-align: middle;
+}
+.post-kind-reply svg {
+  width: 13px;
+  height: 13px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.replied-post {
+  display: grid;
+  gap: 8px;
+  margin: 0 0 14px;
+}
+.replied-post-label {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--fs-small);
+}
+/* The answered post: quieter surface and a left rule, read as a quotation. */
+.replied-post-card {
+  display: grid;
+  gap: 8px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--line-strong);
+  border-radius: 12px;
+  background: var(--surface-2);
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+.replied-post-card:hover {
+  border-color: var(--line-strong);
+}
+.replied-post-card .community-post-header {
+  margin-bottom: 0;
+}
+.replied-post-card h3 {
+  margin: 0;
+  font: 700 var(--fs-body) / 1.35 var(--font-display);
+}
+.replied-post-card p {
+  margin: 0;
+}
+.replied-post-open,
+.replied-post-root {
+  justify-self: start;
+  color: var(--accent-text);
+  font-size: var(--fs-small);
+  font-weight: 600;
+  text-decoration: none;
+}
+.replied-post-open:hover,
+.replied-post-root:hover {
+  text-decoration: underline;
+}
+/* An opened reply: the answered post sits above it, joined by the thread rule. */
+.community-posts .replied-post {
+  margin: 0 0 6px;
+  padding-left: 14px;
+  border-left: 2px solid var(--line);
+}

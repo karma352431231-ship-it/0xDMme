@@ -1,0 +1,158 @@
+import { communityPost } from '../../shared/community-posts/index.ts';
+import type { CommunityPost } from '../../shared/community-posts/index.ts';
+import { showPublicPostMedia } from '../public-media/index.ts';
+import { communityRead } from './controller.ts';
+import { communityElement as el } from './elements.ts';
+import { postPreview } from './post-preview.ts';
+import { communityIcon, postHeader } from './presentation.ts';
+
+interface Place {
+  id: string;
+  name: string;
+}
+const postHref = (post: CommunityPost) =>
+  `#comunidades?id=${post.community}&post=${post.id}`;
+
+/** “↩ Resposta” chip in a reply's header, so replies never pass for posts. */
+export function markReply(card: HTMLElement): void {
+  card.classList.add('community-post-is-reply');
+  const chip = el('span', 'Resposta', 'post-kind-reply');
+  chip.prepend(communityIcon('reply'));
+  // Right after the author's @, before badges and the byline.
+  const author = card.querySelector('.community-post-author');
+  if (author) author.after(chip);
+  else card.querySelector('.community-post-identity')?.append(chip);
+}
+
+/**
+ * The post a reply answers, shown whole (title, text with Ver tudo, media)
+ * above the reply. Public content only; the card opens that post's discussion.
+ */
+export function repliedPost(input: {
+  parent: CommunityPost;
+  community: Place;
+  /** The thread's first post, linked when the reply answers another reply. */
+  root?: CommunityPost;
+  signal: AbortSignal;
+}): HTMLElement {
+  const { parent, community, root, signal } = input;
+  const section = el('section', '', 'replied-post');
+  section.setAttribute('aria-label', 'Postagem respondida');
+  section.append(
+    el(
+      'p',
+      parent.author
+        ? `Em resposta a @${parent.author.handle}`
+        : 'Em resposta a uma conta removida',
+      'replied-post-label',
+    ),
+  );
+  const quoted = el('article', '', 'replied-post-card');
+  section.append(quoted);
+  if (parent.status !== 'visible') {
+    quoted.append(el('p', 'Postagem respondida indisponível.'));
+    return section;
+  }
+  quotedContent(quoted, parent, community, signal);
+  if (root && root.id !== parent.id) {
+    const original = anchor(
+      `Postagem original: ${root.title || 'sem título'}`,
+      postHref(root),
+    );
+    original.className = 'replied-post-root';
+    section.append(original);
+  }
+  return section;
+}
+function quotedContent(
+  quoted: HTMLElement,
+  parent: CommunityPost,
+  community: Place,
+  signal: AbortSignal,
+): void {
+  postHeader(quoted, parent, community, 'community');
+  if (!parent.parent && parent.title) quoted.append(el('h3', parent.title));
+  if (parent.text) quoted.append(postPreview(parent.text));
+  if (parent.media?.length) showPublicPostMedia(quoted, parent.media, signal);
+  const open = anchor('Ver postagem completa', postHref(parent));
+  open.className = 'replied-post-open';
+  quoted.append(open);
+  quoted.addEventListener('click', (event) => openFromCard(event, open));
+}
+function anchor(text: string, href: string): HTMLAnchorElement {
+  const node = el('a', text);
+  node.href = href;
+  return node;
+}
+
+/**
+ * Above an opened reply: reads the answered post the same way the reply was
+ * read (members through their signed access, visitors through the public
+ * read) and inserts it before the reply.
+ */
+export async function showRepliedAbove(input: {
+  reply: Element | null;
+  post: CommunityPost;
+  community: Place | null;
+  member: boolean;
+  request: (
+    operation: string,
+    data: Record<string, unknown>,
+  ) => Promise<unknown>;
+  valid: () => boolean;
+  signal: AbortSignal;
+}): Promise<void> {
+  const { reply, post } = input;
+  if (!post.parent || !(reply instanceof HTMLElement)) return;
+  let parent: CommunityPost;
+  try {
+    parent = communityPost(
+      input.member
+        ? await input.request('post-public', {
+            id: post.community,
+            post: post.parent,
+          })
+        : await communityRead(
+            `/api/communities/${post.community}/posts/${post.parent}`,
+            input.signal,
+          ),
+    );
+  } catch (error: unknown) {
+    if (!input.valid()) return;
+    // The reply stays readable; only its context failed to load.
+    const fallback = el('section', '', 'replied-post');
+    fallback.append(
+      el(
+        'p',
+        error instanceof Error
+          ? `Postagem respondida indisponível: ${error.message}`
+          : 'Postagem respondida indisponível.',
+        'replied-post-label',
+      ),
+    );
+    reply.before(fallback);
+    return;
+  }
+  if (!input.valid() || !reply.isConnected) return;
+  reply.before(
+    repliedPost({
+      parent,
+      community: input.community ?? { id: post.community, name: '' },
+      signal: input.signal,
+    }),
+  );
+}
+
+function openFromCard(event: MouseEvent, open: HTMLAnchorElement): void {
+  if (!(event.target instanceof Element)) return;
+  if (
+    event.target.closest(
+      'a, button, summary, details, video, audio, img, input, textarea',
+    ) ||
+    window.getSelection()?.toString()
+  )
+    return;
+  // The reply card around it would otherwise open the reply instead.
+  event.preventDefault();
+  open.click();
+}

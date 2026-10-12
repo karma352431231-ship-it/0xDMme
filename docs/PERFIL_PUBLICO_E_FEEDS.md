@@ -49,3 +49,18 @@ Na preparação isolada da publicação, passaram 18 testes unitários e 27 test
 Conferência visual com dados fictícios e componentes reais: desktop de 1.280 px e larguras móveis de 390/320 px, quatro métricas, abas, seguir/deixar de seguir e preparo/remoção de banner. Teste de interface usa API sintética; não substitui aceitação com carteira/aparelho real nem validação do scanner de produção. Evidências ficam em `.local/`, fora do Git.
 
 Na preparação da publicação, uma nova prévia com componentes reais confirmou que avatar e `@` do autor abrem a página individual, com as quatro métricas, comunidades, abas e seguir/deixar de seguir. As respostas conservam o link da discussão e o contexto da comunidade. A entrada do avatar na comunidade agora é um link com nome acessível.
+
+## Respostas, comunidades do perfil e menu "..." — 12/10/2026
+
+Pedido do proprietário: diferenciar post de resposta, mostrar o post respondido ao abrir uma resposta, resumir as comunidades seguidas com fotos e melhorar o visual do menu "...".
+
+- **Resposta nos feeds e no perfil:** perde o título genérico "Resposta" e ganha o selo **↩ Resposta** ao lado do `@`. Acima do texto aparece "Em resposta a @…" e o post respondido inteiro (título, texto com "Ver tudo" e mídia), num quadro destacado que abre aquela postagem. Quando a resposta é a outra resposta, há também o link para a postagem original. Usa o contexto que o servidor já enviava (`context.root` e `context.parent`, completos), sem leitura nova.
+- **Resposta aberta:** a tela da discussão mostra o post respondido acima da resposta, lido do mesmo jeito que a resposta (leitura pública para visitantes, leitura assinada para membros). O link "↑ Resposta anterior" saiu, porque o próprio quadro leva até lá; "Postagem original" continua quando há mais de um nível. Falha nessa leitura mostra um aviso e mantém a resposta legível.
+- **Comunidades do perfil:** até 5 fotos e um botão **+N** com o restante (a partir do total do perfil). Ele abre a lista completa com foto e nome; "Mais comunidades" lê a próxima página do endpoint público e "Mostrar menos" volta ao resumo. Comunidade sem foto mostra as iniciais.
+- **Menu "...":** painel flutuante ancorado na linha de ações (não passa da borda do card nem no celular), com ícones, ações destrutivas em vermelho, divisor entre as ações de quem vê e as de autor/moderação e seta nos itens que abrem formulário. Os formulários (denunciar, editar, excluir, ocultar pela moderação) abrem dentro do painel, com campo de 16 px e botão à direita. Vale também para o "..." do cabeçalho do perfil.
+
+Arquivos: `communities/reply-context.ts` e `.css`, `communities/post-menu.css`, `public-profile/communities-panel.ts`, mais ligações curtas em `activity-entry.ts`, `discovery.ts`, `posts.ts`, `discovery-controls.ts`, `post-forms.ts`, `social-controls.ts` e `page.ts`. Sem mudança no servidor, banco ou permissões.
+
+Validação: lint, tipos, limites de módulos, formatação, build e testes unitários (um teste novo cobre o card de resposta: selo, post respondido antes do texto e links para a resposta respondida e para a original). Prévia local com dados fictícios e o CSS real conferiu o card, o painel compacto e expandido e o menu com formulários. A tela de resposta aberta com servidor real não foi vista; ela reutiliza o mesmo quadro.
+
+`posts.ts` (um `startCommunityPosts` de cerca de 870 linhas) e `discovery.ts` continuam hotspots; aqui receberam só chamadas aos módulos novos. A proposta de divisão registrada acima segue válida.
