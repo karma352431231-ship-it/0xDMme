@@ -1,5 +1,35 @@
 # 0xDMme — Git e envio à VPS
 
+## Experiência social — transição 058→061 preparada em 12/10/2026
+
+O proprietário pediu concluir as mudanças na mesma branch, integrar na main e
+ativar tudo na VPS. A inspeção somente leitura confirmou a predecessora
+`0065abea363920a0ef414f921f56dcd4f281c569`, 58 migrações com checksums exatos,
+web e três workers prontos e preservação dos outros serviços/configurações.
+As fontes de aplicação revisadas são
+`612a6f4c2fc7822cbc0296564563baff1da53ad4`.
+
+O módulo interno `deploy_social_experience.py` reutiliza exclusivamente
+`npm run deploy:staging`. A 059 cria compartilhamentos por referência,
+inicialmente vazios, com cobrança de 256 bytes por relação e gatilho de uso.
+A 060 cria um índice parcial para os follows com sininho ativo, sem gerar
+notificações históricas. A 061 acrescenta `read_epoch` inteiro opcional às
+confirmações das DMs públicas; todos os registros anteriores continuam nulos.
+Nenhuma migração anterior, dependência, Node ou unit muda.
+
+A revisão exige predecessor/fontes exatos e compara todas as linhas anteriores,
+checksums e ledger. O snapshot omite somente o novo `read_epoch`; seus valores
+históricos devem permanecer nulos. Conferir tabela nova vazia, índices, coluna e
+gatilho. Fazer backup integral do banco e objetos, sem os antigos tetos de MiB,
+ensaiar restauração e parar somente web e workers próprios durante manutenção.
+Antes da reabertura, retorno verificado de banco e release; depois dela,
+preservar novas escritas em caso de falha. Usar checkout limpo, commit integrado
+e enviado, CI integral do commit exato e evidências exclusivamente em `.local/`.
+
+**Ponto importante:** esta transição está preparada para aprovação específica das
+três migrações, exigida pelo AGENTS.md. O pedido de integração não comprova essa
+aprovação nem a ativação. O executor recusa fontes diferentes das revisadas.
+
 ## Conexões da conta do app — correção autorizada em 12/10/2026
 
 Após duas falhas de prontidão na ativação, a investigação encontrou um limite
