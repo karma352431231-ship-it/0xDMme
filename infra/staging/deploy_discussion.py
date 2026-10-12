@@ -7,7 +7,7 @@ import deploy_background as background
 import deploy_social_experience as social
 
 BEFORE = 'e22b5e3eac26b78af927e424923bf664567f38ff'
-REVIEWED = 'UNREVIEWED'
+REVIEWED = '7f1d5708b75d0adab4851af7dba8bd673d872bda'
 OLD_TABLES = social.OLD_TABLES + social.NEW_TABLES
 NEW_TABLES = ('community_discussion_participants',)
 OMIT_COLUMNS = {'community_posts': ('discussion_participants', 'discussion_activity', 'discussion_blocked'),
