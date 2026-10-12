@@ -2,7 +2,7 @@
 
 ## Feed/postagem e discussão — preparação de 12/10/2026
 
-O proprietário autorizou revisar o feed pendente, integrar este chat na main e enviar as fontes à VPS. A aplicação revisada é `7f1d5708b75d0adab4851af7dba8bd673d872bda`, sobre a release publicada `e22b5e3eac26b78af927e424923bf664567f38ff`. A transição 061→062 ainda aguarda aprovação específica de ativação. Preservar todas as migrações anteriores, Node, dependências, units e a política de moderação publicada sem julgamento de pose.
+O proprietário autorizou revisar o feed pendente, integrar este chat na main e enviar as fontes à VPS. A aplicação revisada é `09917b96e3ee1fda67fd89da4a5fe99bd3cbf2e3`, sobre a release publicada `e22b5e3eac26b78af927e424923bf664567f38ff`. A transição 061→062 ainda aguarda aprovação específica de ativação. Preservar todas as migrações anteriores, Node, dependências, units e a política de moderação publicada sem julgamento de pose.
 
 O módulo interno `deploy_discussion.py` usa exclusivamente o executor existente (`npm run deploy:staging`). Compara fontes exatas, hashes das linhas antigas e das migrações, relações ancestral/perfil, contadores reconstruídos e ledger esperado (256 bytes por relação nova). A 062 adiciona três colunas, uma tabela e índices/gatilhos; não copia textos nem altera retenção. Antes de ativar, medir volume/capacidade/backfill, exigir CI do commit final, backup integral com ensaio de restauração e manutenção restrita aos serviços próprios; conservar rollback e preservação dos outros serviços.
 
