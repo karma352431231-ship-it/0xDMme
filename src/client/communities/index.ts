@@ -1,7 +1,9 @@
+import { communityPresentationEditor } from './presentation-editor.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
 export { renderActivityEntry } from './activity-entry.ts';
 export { ActivityPosts } from './activity-posts.ts';
-import { encode, uuid } from '../../shared/account/index.ts';
+export { communityIcon } from './presentation.ts';
+import { uuid } from '../../shared/account/index.ts';
 import {
   communityPolicy,
   communityState,
@@ -12,7 +14,6 @@ import type {
   CommunityState,
 } from '../../shared/communities/index.ts';
 import type { VaultAccess } from '../vault-authority/index.ts';
-import { preparePhoto } from '../attachment-images/index.ts';
 import { Communities, readCommunity } from './controller.ts';
 import {
   communityButton,
@@ -22,6 +23,7 @@ import {
   communityLink,
 } from './elements.ts';
 import { mountCommunityGovernance } from './governance.ts';
+import { mountCommunityBadges } from './badges.ts';
 import { startCommunityPosts } from './posts.ts';
 import { replyNotificationPage } from '../../shared/community-posts/index.ts';
 import type { ReplyNotification } from '../../shared/community-posts/index.ts';
@@ -54,7 +56,7 @@ export function startCommunities(
     generation = 0,
     busy = false;
   let abort = new AbortController(),
-    photoUrl: string | null = null;
+    presentation: { dirty: () => boolean; dispose: () => void } | null = null;
   let view = 'feed',
     selectedDm: string | null = null,
     localDm = false,
@@ -87,14 +89,17 @@ export function startCommunities(
       container,
     );
   }
-  function clearPhoto(): void {
-    if (photoUrl) URL.revokeObjectURL(photoUrl);
-    photoUrl = null;
-  }
   function controls(): void {
-    mounted?.querySelectorAll<HTMLButtonElement>('button').forEach((button) => {
-      button.disabled = busy;
-    });
+    mounted
+      ?.querySelectorAll<
+        | HTMLButtonElement
+        | HTMLInputElement
+        | HTMLTextAreaElement
+        | HTMLSelectElement
+      >('button,input,textarea,select')
+      .forEach((button) => {
+        button.disabled = busy;
+      });
   }
   async function run(work: () => Promise<void>): Promise<void> {
     if (busy) return;
@@ -119,7 +124,8 @@ export function startCommunities(
   function navigation(): void {
     if (!mounted) return;
     discoveryMounted = false;
-    clearPhoto();
+    presentation?.dispose();
+    presentation = null;
     clearPublicPhotos(mounted);
     mounted.replaceChildren();
     delete mounted.dataset['communityLayout'];
@@ -205,12 +211,12 @@ export function startCommunities(
       );
     if (old !== generation || !mounted) return;
     navigation();
-    const card = communityCard('Respostas ao seu conteúdo');
+    const card = communityCard('Notificações');
     mounted.append(card);
     card.append(
       communityElement(
         'p',
-        'Somente respostas diretas a posts ou comentários seus.',
+        'Respostas ao seu conteúdo e posts/respostas de contas com o sininho ativado.',
       ),
     );
     for (const item of page.items) {
@@ -218,7 +224,7 @@ export function startCommunities(
       card.append(row);
       communityLink(
         row,
-        item.read ? 'Resposta lida' : 'Nova resposta',
+        item.read ? 'Publicação lida' : 'Nova publicação',
         `#comunidades?id=${item.community}&post=${item.reply}`,
       );
       row.append(
@@ -229,7 +235,7 @@ export function startCommunities(
       );
     }
     if (!page.items.length)
-      card.append(communityElement('p', 'Nenhuma resposta nesta página.'));
+      card.append(communityElement('p', 'Nenhuma notificação nesta página.'));
     const unread = page.items
       .filter((item) => !item.read)
       .map((item) => item.reply);
@@ -247,8 +253,10 @@ export function startCommunities(
       );
     cursor = page.next;
     if (page.next)
-      communityButton(card, 'Respostas anteriores', () => run(notifications));
-    communityButton(card, 'Recarregar respostas', () =>
+      communityButton(card, 'Notificações anteriores', () =>
+        run(notifications),
+      );
+    communityButton(card, 'Recarregar notificações', () =>
       run(async () => {
         cursor = null;
         await notifications();
@@ -352,6 +360,16 @@ export function startCommunities(
     const avatar = communityAvatar(value.name);
     const banner = communityElement('div', '', 'community-banner');
     banner.dataset['tone'] = avatar.dataset['tone'] ?? '0';
+    if (value.banner)
+      publicPhotos.set(
+        showPublicAvatar(banner, {
+          kind: 'community-banner',
+          target: value.id,
+          reference: value.banner,
+          signal: abort.signal,
+        }),
+        banner,
+      );
     const head = communityElement('div', '', 'community-hero-head');
     const title = communityElement('div', '', 'community-hero-title');
     title.append(
@@ -393,13 +411,21 @@ export function startCommunities(
     }
     participant(head, state);
   }
+  function communityFollowControl(
+    card: HTMLElement,
+    own: CommunityState,
+  ): void {
+    if (own.role !== 'owner') {
+      communityButton(card, own.following ? 'Seguindo' : 'Seguir', () =>
+        mutate('follow', { id: own.community.id, following: !own.following }),
+      );
+      const follow = card.lastElementChild;
+      follow?.classList.add('community-follow');
+      follow?.setAttribute('aria-pressed', String(own.following));
+    }
+  }
   function participant(card: HTMLElement, own: CommunityState): void {
-    communityButton(card, own.following ? 'Seguindo' : 'Seguir', () =>
-      mutate('follow', { id: own.community.id, following: !own.following }),
-    );
-    const follow = card.lastElementChild;
-    follow?.classList.add('community-follow');
-    follow?.setAttribute('aria-pressed', String(own.following));
+    communityFollowControl(card, own);
     if (!own.canPost)
       card.after(
         communityElement(
@@ -506,19 +532,16 @@ export function startCommunities(
     const management = communityElement('section', '', 'community-manage');
     management.append(communityElement('h1', 'Gerenciar comunidade'));
     mounted.append(back, management);
-    const card = communityCard('Nome, descrição e regras');
-    management.append(card);
-    const meta = metaForm(card, own.community);
-    communityButton(card, 'Salvar nome, descrição e regras', () =>
-      mutate('edit', {
-        id: own.community.id,
-        revision: own.community.revision,
-        meta: meta(),
-      }),
-    );
-    const photoCard = communityCard('Foto da comunidade');
-    management.append(photoCard);
-    photo(photoCard, own);
+    presentation = communityPresentationEditor(management, own, {
+      signal: abort.signal,
+      run,
+      save: (data) => mutateWork('presentation', data),
+    });
+    mountCommunityBadges(management, own.community.id, {
+      mutate,
+      query: run,
+      request: (op, data) => controller.request(op, data),
+    });
     posts.manageTags(management, own.community.id);
     governance(management, own);
   }
@@ -528,55 +551,6 @@ export function startCommunities(
       query: run,
       request: (operation, data) => controller.request(operation, data),
     });
-  }
-  function photo(card: HTMLElement, own: CommunityState): void {
-    card.append(
-      communityElement(
-        'p',
-        'A foto fica restrita aos gestores até a moderação automática. Arquivos ainda não aprovados são descartados em até sete dias. Quem enviou consulta a análise e pode contestar em Perfil.',
-      ),
-    );
-    if (own.pendingPhoto) {
-      const image = communityElement('img', '', 'public-avatar-preview');
-      image.alt = 'Foto preparada da comunidade, ainda restrita';
-      photoUrl = URL.createObjectURL(
-        new Blob([own.pendingPhoto.bytes], { type: own.pendingPhoto.type }),
-      );
-      image.src = photoUrl;
-      card.append(image);
-    }
-    const file = communityElement('input');
-    file.type = 'file';
-    file.accept = 'image/png,image/jpeg,image/webp';
-    file.hidden = true;
-    card.append(file);
-    communityButton(card, 'Escolher foto da comunidade', () => {
-      file.click();
-      return Promise.resolve();
-    });
-    file.addEventListener('change', () => {
-      const selectedFile = file.files?.[0];
-      file.value = '';
-      if (!selectedFile) return;
-      const old = generation;
-      void run(async () => {
-        const prepared = await preparePhoto(selectedFile);
-        if (old !== generation) return;
-        await mutateWork('photo', {
-          id: own.community.id,
-          revision: own.community.revision,
-          photo: { type: prepared.type, bytes: encode(prepared.bytes) },
-        });
-      });
-    });
-    if (own.pendingPhoto)
-      communityButton(card, 'Remover foto preparada', () =>
-        mutate('photo', {
-          id: own.community.id,
-          revision: own.community.revision,
-          photo: null,
-        }),
-      );
   }
   async function mutateWork(
     operation: string,
@@ -672,7 +646,8 @@ export function startCommunities(
     mounted = null;
     state = null;
     current = null;
-    clearPhoto();
+    presentation?.dispose();
+    presentation = null;
     clearPublicPhotos();
   }
   return {
@@ -750,6 +725,7 @@ export function startCommunities(
     },
     canActivate: () =>
       !busy &&
+      !presentation?.dirty() &&
       posts.canActivate() &&
       discovery.canActivate() &&
       dms.canActivate(),
@@ -764,7 +740,8 @@ export function startCommunities(
       state = null;
       current = null;
       sidebarCursor = null;
-      clearPhoto();
+      presentation?.dispose();
+      presentation = null;
       clearPublicPhotos();
       sidebar?.replaceChildren();
       if (mounted) {

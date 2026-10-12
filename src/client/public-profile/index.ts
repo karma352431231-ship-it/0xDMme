@@ -187,7 +187,7 @@ export function startPublicProfile(
     mount,
     leave,
     ready,
-    canActivate: () => !busy && activity.canActivate(),
+    canActivate: () => !busy && !editor.hasDraft() && activity.canActivate(),
     async exists(): Promise<boolean> {
       return controller.exists();
     },

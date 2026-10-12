@@ -1,5 +1,9 @@
 # 0xDMme — decisões e plano de implementação
 
+Decisão de 11/10/2026: remover o teto de 2 MiB do pacote principal de fontes correspondentes no build, no servidor e na verificação HTTP do deploy. O pacote conserva todos os inputs/licenças, hashes e seleção explícita; mantém os orçamentos independentes de empacotamento e da versão inteira. [Contrato atualizado](docs/FONTES_FRONTEND.md). Substitui somente o teto histórico do pacote principal, sem mudar cotas de arquivos dos usuários.
+
+Atualização solicitada em 11/10/2026: dono como primeiro seguidor, badges de dono/mod e membro novo por **dois dias**, personalizados manuais antes da automação, confirmação das alterações de perfis/comunidades, menu único, edição por uma hora, bloqueio/denúncias, sininho opt-in por conta e expansão de texto. [Contratos e cortes](docs/CONTROLES_SOCIAIS_E_BADGES.md). Substitui salvamento instantâneo e amplia avisos antes restritos a respostas diretas. Notificações privadas e moderação mantêm seus contratos.
+
 Data: 29 de setembro de 2026  
 Estado: bloco 00 concluído; seleção técnica e prova funcional do bloco 01 concluídas; base local web/PWA do bloco 02 implementada, com validação automatizada de persistência; bloco 03 — Wallet, conta e perfil — concluído em 02/10/2026; blocos 04 — Dispositivos, chaves e recuperação — e 05 — Cofre remoto e cópia local — concluídos localmente com revisão no Mac, conforme autorização do proprietário. Testes físicos mobile dos blocos 04–05 ficam para depois. Bloco 06 — Contatos, consentimento e bloqueio — concluído localmente em 03/10/2026. Bloco 07 — Mensagens individuais e fila sem expiração — concluído localmente em 03/10/2026, com Olm/Megolm, recuperação desde a aceitação, confirmação por aparelho, exclusão bilateral, bloqueio, revogação e chat oculto durante sincronização. Validação automatizada e ensaios no navegador concluídos; testes físicos e aceite de segurança posteriores. Ainda não há aplicação de chat para dados reais.
 

@@ -11,6 +11,9 @@ import { publicHandle, publicProfile } from '../public-profile/index.ts';
 import type { PublicProfile } from '../public-profile/index.ts';
 import { publicPostMedia } from '../public-media/index.ts';
 import type { PublicPostMedia } from '../public-media/index.ts';
+import { communityBadges } from '../community-badges/index.ts';
+import type { CommunityBadge } from '../community-badges/index.ts';
+export { withinPostEditWindow, postEditWindowMs } from './edit-window.ts';
 
 export interface PostContent {
   title: string;
@@ -25,6 +28,7 @@ export interface PostTag {
   revision: number;
 }
 export interface CommunityPost {
+  authorBadges?: CommunityBadge[];
   id: string;
   community: string;
   author: PublicProfile | null;
@@ -140,6 +144,21 @@ function publicPostContent(data: Record<string, unknown>) {
     throw new AccountError(400, 'Marcador de post contém dados restritos.');
   return { author, tag, title, text, ...(media.length ? { media } : {}) };
 }
+function postBadgeFields(
+  data: Record<string, unknown>,
+  status: CommunityPost['status'],
+) {
+  if (!Object.hasOwn(data, 'authorBadges')) return {};
+  const authorBadges = communityBadges(data['authorBadges']);
+  if (status !== 'visible' && authorBadges.length)
+    throw new AccountError(400, 'Marcador de post contém badges restritos.');
+  return { authorBadges };
+}
+function postViewFields(data: Record<string, unknown>) {
+  return Object.hasOwn(data, 'views')
+    ? { views: postCount(data['views']) }
+    : {};
+}
 export function communityPost(value: unknown): CommunityPost {
   const data = object(value);
   keys(data, [
@@ -157,6 +176,7 @@ export function communityPost(value: unknown): CommunityPost {
     'root',
     'score',
     'replies',
+    ...(Object.hasOwn(data, 'authorBadges') ? ['authorBadges'] : []),
     ...(Object.hasOwn(data, 'views') ? ['views'] : []),
     ...(Object.hasOwn(data, 'media') ? ['media'] : []),
   ]);
@@ -167,6 +187,7 @@ export function communityPost(value: unknown): CommunityPost {
     id: uuid(data['id']),
     community: uuid(data['community']),
     ...publicPostContent(data),
+    ...postBadgeFields(data, status),
     createdAt: postTime(data['createdAt']),
     editedAt: data['editedAt'] === null ? null : postTime(data['editedAt']),
     revision: communityRevision(data['revision']),
@@ -174,9 +195,7 @@ export function communityPost(value: unknown): CommunityPost {
     ...postTree(data),
     score: postCount(data['score'], true),
     replies: postCount(data['replies']),
-    ...(Object.hasOwn(data, 'views')
-      ? { views: postCount(data['views']) }
-      : {}),
+    ...postViewFields(data),
   };
 }
 export function postPage(value: unknown): PostPage {
@@ -316,6 +335,7 @@ export interface ReplyPreview {
 }
 export const replyPreviewLength = 280;
 export interface ReplyNotification {
+  kind?: 'post' | 'reply';
   reply: string;
   post: string;
   community: string;
@@ -362,13 +382,32 @@ export interface ReplyNotificationPage {
   items: ReplyNotification[];
   next: string | null;
 }
+function notificationKind(data: Record<string, unknown>): {
+  kind?: 'post' | 'reply';
+} {
+  if (!Object.hasOwn(data, 'kind')) return {};
+  const kind = data['kind'];
+  if (kind !== 'post' && kind !== 'reply')
+    throw new AccountError(400, 'Tipo de notificação inválido.');
+  if ((kind === 'post') !== (data['post'] === data['reply']))
+    throw new AccountError(400, 'Referência de notificação inválida.');
+  return { kind };
+}
 export function replyNotificationPage(value: unknown): ReplyNotificationPage {
   const data = object(value);
   keys(data, ['items', 'next']);
   return {
     items: communityArray(data['items']).map((value) => {
       const row = object(value);
-      keys(row, ['reply', 'post', 'community', 'createdAt', 'read', 'preview']);
+      keys(row, [
+        'reply',
+        'post',
+        'community',
+        'createdAt',
+        'read',
+        'preview',
+        ...(Object.hasOwn(row, 'kind') ? ['kind'] : []),
+      ]);
       return {
         reply: uuid(row['reply']),
         post: uuid(row['post']),
@@ -376,6 +415,7 @@ export function replyNotificationPage(value: unknown): ReplyNotificationPage {
         createdAt: postTime(row['createdAt']),
         read: communityBoolean(row['read']),
         preview: parseReplyPreview(row['preview']),
+        ...notificationKind(row),
       };
     }),
     next: postCursor(data['next']),

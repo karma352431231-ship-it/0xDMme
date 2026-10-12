@@ -26,7 +26,7 @@ Banner é uma imagem independente do avatar. Preparo PNG/JPEG/WebP no cliente, r
 
 Descrição (10/10/2026, pedido do proprietário) é texto do próprio dono, público assim que salvo, como o `@`: até 280 caracteres e cinco linhas, só texto e emoji, exibida como texto (sem marcação nem links clicáveis). Quebras são normalizadas, sequências de linhas em branco viram uma, e caracteres invisíveis que escondem ou invertem texto são recusados; o joiner de emoji é aceito. Fica em tabela própria (migração 053) com revisão contra edição concorrente entre aparelhos e cobrança na capacidade global, no mesmo molde do banner. Não passa por análise automática: o plano não modera texto público automaticamente, e a descrição segue a regra do `@`.
 
-Configurações editam o perfil onde ele é visto: tocar no banner ou na foto troca o arquivo, e a descrição é salva ao sair do campo. A prévia mostra a cópia do dono, inclusive um arquivo ainda em análise. Avisos de análise aparecem só quando o arquivo fica fora do público (recusado, incerto, falha, prazo encerrado); aprovado, pendente ou substituído não geram aviso.
+Revisão de 11/10/2026: tocar no banner/foto ou editar a descrição prepara um rascunho local; só “Confirmar alterações” envia. A prévia mostra a cópia do dono, inclusive arquivo em análise após confirmação. Avisos aparecem só quando o arquivo fica fora do público (recusado, incerto, falha, prazo encerrado). [Contrato atualizado](CONTROLES_SOCIAIS_E_BADGES.md).
 
 ## Feed e Seguindo
 

@@ -5,7 +5,7 @@ import {
   communityLink as link,
 } from './elements.ts';
 import { postHeader, postTagLink, postComments } from './presentation.ts';
-import { postText } from './post-text.ts';
+import { postPreview } from './post-preview.ts';
 import { showPublicPostMedia } from '../public-media/index.ts';
 import { showPublicAvatar } from '../public-media/index.ts';
 import { showExternalVideos } from '../external-video/index.ts';
@@ -58,7 +58,7 @@ export function renderActivityEntry(
       signal,
     });
   appendReplyContext(row, entry);
-  row.append(postText(post.text));
+  row.append(postPreview(post.text));
   if (privacy) showExternalVideos(row, post.text, { privacy, signal });
   if (post.media?.length) showPublicPostMedia(row, post.media, signal);
   postTagLink(row, post);

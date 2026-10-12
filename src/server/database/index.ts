@@ -149,6 +149,9 @@ const migrations = [
   '051-public-profile-social.sql',
   '052-profile-conversation-index.sql',
   '053-public-profile-descriptions.sql',
+  '054-community-badges.sql',
+  '055-community-banners.sql',
+  '056-social-notifications-reports.sql',
 ];
 
 export interface MaintenanceSnapshot {
@@ -269,6 +272,7 @@ export class Database {
       profiles: this.publicProfiles,
       capacity: contentCapacity,
     });
+    this.communities.setSocialControls(this.socialDm);
     this.socialCrypto = new SocialCryptoStore(
       this.socialDm,
       this.publicProfiles,

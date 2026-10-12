@@ -37,7 +37,8 @@ import {
   openProfile,
   profileKey,
   sealProfile,
-  validatePhoto,
+  PrivatePhotoDraft,
+  PrivatePreferencesDraft,
 } from '../account-profile/index.ts';
 import type {
   PrivateProfile,
@@ -79,9 +80,9 @@ const template = `<article class="card account-card"><span class="eyebrow">CONTA
 <details data-wallet-diagnostics hidden open><summary>Diagnóstico do login</summary><p class="detail" data-wallet-diagnostic></p><p class="detail">Se falhar, envie esta linha. Ela não contém ticket, endereço ou assinatura.</p></details>
 <div data-profile hidden><div class="profile-identity"><button class="profile-avatar" data-profile-avatar type="button" aria-label="Alterar foto de perfil">#</button><div><strong data-profile-name></strong><p data-account-address class="account-address"></p><div class="settings-actions"><button data-profile-copy type="button">Copiar wallet</button><button data-logout type="button" aria-label="Encerrar sessão">Sair</button></div></div></div>
 <details class="settings-section" data-settings-section="account"><summary><span class="settings-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m4 16 12-12 4 4-12 12H4zM13 7l4 4"/></svg></span><span><strong>Editar perfil e privacidade</strong><small>Nome, presença, leitura e lembrete de backup</small></span><span class="settings-chevron" aria-hidden="true">⌄</span></summary><div class="settings-body">
-<form data-name-form><label>Nome mostrado nas solicitações de contato<input name="display-name" maxlength="80" autocomplete="nickname"></label><button class="primary" type="submit">Salvar nome</button></form>
-<div data-private-profile hidden><h3>Presença e preferências</h3>
-<form data-preferences><label><input type="checkbox" name="online"> Exibir online para contatos aprovados</label><label><input type="checkbox" name="lastSeen"> Exibir último acesso para contatos aprovados</label><label><input type="checkbox" name="readReceipts"> Enviar confirmação de leitura</label><label><input type="checkbox" name="backupReminder"> Lembrar de salvar um backup a cada sete dias</label><button class="primary" type="submit">Salvar preferências</button></form></div>
+<form data-name-form><label>Nome mostrado nas solicitações de contato<input name="display-name" maxlength="80" autocomplete="nickname"></label><button class="primary" type="submit">Confirmar alterações</button></form>
+<div data-private-profile hidden><p data-photo-draft-status></p><button type="button" data-private-photo-remove>Remover foto</button><h3>Presença e preferências</h3>
+<form data-preferences><label><input type="checkbox" name="online"> Exibir online para contatos aprovados</label><label><input type="checkbox" name="lastSeen"> Exibir último acesso para contatos aprovados</label><label><input type="checkbox" name="readReceipts"> Enviar confirmação de leitura</label><label><input type="checkbox" name="backupReminder"> Lembrar de salvar um backup a cada sete dias</label><button class="primary" type="submit">Confirmar alterações</button></form></div>
 </div></details><p data-profile-status role="status"></p></div></article>`;
 
 async function api(
@@ -171,6 +172,8 @@ export function startAccount(options: {
   let selectedWallet: string | null = null;
   let dirtyName = false;
   let dirtyProfile = false;
+  const photoDraft = new PrivatePhotoDraft();
+  const preferencesDraft = new PrivatePreferencesDraft();
   let draftName: string | null = null;
   let providerChanged = false;
   let disposed = false;
@@ -531,6 +534,8 @@ export function startAccount(options: {
     return mounted?.querySelector<T>(selector) ?? null;
   }
   function clearPrivate(): void {
+    photoDraft.clear();
+    preferencesDraft.clear();
     key = null;
     privateProfile?.photo?.bytes.fill(0);
     privateProfile = null;
@@ -569,10 +574,11 @@ export function startAccount(options: {
   }
   function renderPhoto(): void {
     if (photoUrl) URL.revokeObjectURL(photoUrl);
-    photoUrl = privateProfile?.photo
+    const photo = photoDraft.value(privateProfile?.photo ?? null);
+    photoUrl = photo
       ? URL.createObjectURL(
-          new Blob([privateProfile.photo.bytes], {
-            type: privateProfile.photo.type,
+          new Blob([photo.bytes], {
+            type: photo.type,
           }),
         )
       : undefined;
@@ -655,7 +661,10 @@ export function startAccount(options: {
         privateProfile.preferences,
       ) as (keyof ProfilePreferences)[]) {
         const checkbox = node<HTMLInputElement>(`input[name="${name}"]`);
-        if (checkbox) checkbox.checked = privateProfile.preferences[name];
+        if (checkbox)
+          checkbox.checked = preferencesDraft.value(privateProfile.preferences)[
+            name
+          ];
       }
     renderPhoto();
   }
@@ -976,28 +985,48 @@ export function startAccount(options: {
     approvalStep('retorno-manual');
     render();
   }
-  async function saveName(event: Event): Promise<void> {
+  async function confirmPrivate(event: Event): Promise<void> {
     event.preventDefault();
-    const current = session;
+    const original = session,
+      currentKey = key,
+      profile = privateProfile;
+    if (!original) return;
     const name = node<HTMLInputElement>('input[name="display-name"]')?.value;
-    if (!current || name === undefined) return;
     await operation(async () => {
-      const renamed = accountSession(
-        await api('name', { input: { name }, csrf: current.csrf }),
-      );
-      if (session?.accountId === current.accountId) setSession(renamed);
-      status = 'Nome salvo.';
-      dirtyName = false;
-      draftName = null;
+      if (dirtyProfile && (!currentKey || !profile))
+        throw new Error('Abra sua conta para confirmar o perfil.');
+      await confirmPrivateName(original, name);
+      await confirmPrivateContent(original, currentKey, profile);
+      status = 'Alterações confirmadas.';
     });
   }
-  async function savePrivate(event: Event): Promise<void> {
-    event.preventDefault();
-    const current = session;
-    const currentKey = key;
-    const profile = privateProfile;
-    if (!current || !currentKey || !profile) return;
-    await operation(() => persistPrivate(current, currentKey, profile));
+  async function confirmPrivateName(
+    original: AccountSession,
+    name: string | undefined,
+  ): Promise<void> {
+    if (!dirtyName) return;
+    if (name === undefined)
+      throw new Error('Confira o nome antes de confirmar.');
+    const renamed = accountSession(
+      await api('name', { input: { name }, csrf: original.csrf }),
+    );
+    if (session?.accountId !== original.accountId)
+      throw new Error('Sessão alterada durante a confirmação.');
+    setSession(renamed);
+    dirtyName = false;
+    draftName = null;
+  }
+  async function confirmPrivateContent(
+    original: AccountSession,
+    currentKey: CryptoKey | null,
+    profile: PrivateProfile | null,
+  ): Promise<void> {
+    if (!dirtyProfile) return;
+    if (!currentKey || !profile)
+      throw new Error('Abra sua conta para confirmar o perfil.');
+    if (session?.accountId !== original.accountId)
+      throw new Error('Sessão alterada durante a confirmação.');
+    await persistPrivate(session, currentKey, profile);
   }
   async function persistPrivate(
     current: AccountSession,
@@ -1006,7 +1035,11 @@ export function startAccount(options: {
   ): Promise<void> {
     const revision = current.profileRevision + 1;
     const envelope = await sealProfile({
-      profile,
+      profile: {
+        ...profile,
+        preferences: preferencesDraft.value(profile.preferences),
+        photo: photoDraft.value(profile.photo),
+      },
       key: currentKey,
       accountId: current.accountId,
       revision,
@@ -1014,8 +1047,10 @@ export function startAccount(options: {
     if (options.saveProfile)
       await options.saveProfile(current, envelope, currentKey);
     else await api('profile', { input: envelope, csrf: current.csrf });
-    if (session?.accountId === current.accountId)
-      setSession({ ...current, profileRevision: revision });
+    if (session?.csrf !== current.csrf || privateProfile !== profile) return;
+    photoDraft.commit(profile);
+    preferencesDraft.commit(profile);
+    setSession({ ...current, profileRevision: revision });
     await options.privacyChanged?.(profile.preferences);
     status = 'Perfil salvo.';
     dirtyProfile = false;
@@ -1032,24 +1067,14 @@ export function startAccount(options: {
       return;
     }
     await operation(async () => {
-      const bytes = new Uint8Array(await file.arrayBuffer());
-      validatePhoto(file.type, bytes);
+      await photoDraft.choose(file);
       if (privateProfile !== currentProfile) {
-        bytes.fill(0);
+        photoDraft.clear();
+        preferencesDraft.clear();
         return;
       }
-      const previous = currentProfile.photo;
-      currentProfile.photo = { type: file.type, bytes };
-      if (!session || !key)
-        throw new Error('Abra sua conta para alterar a foto.');
-      try {
-        await persistPrivate(session, key, currentProfile);
-        previous?.bytes.fill(0);
-      } catch (error: unknown) {
-        currentProfile.photo = previous;
-        bytes.fill(0);
-        throw error;
-      }
+      dirtyProfile = true;
+      status = 'Foto preparada. Confirme as alterações em Perfil para salvar.';
       renderPhoto();
     });
   }
@@ -1160,11 +1185,16 @@ export function startAccount(options: {
   document.addEventListener('visibilitychange', checkApprovalDeadline);
   void operation(restore);
   function bindProfileControls(): void {
+    node('[data-private-photo-remove]')?.addEventListener('click', () => {
+      photoDraft.remove();
+      dirtyProfile = true;
+      render();
+    });
     node('[data-name-form]')?.addEventListener('submit', (event) => {
-      void saveName(event);
+      void confirmPrivate(event);
     });
     node('[data-preferences]')?.addEventListener('submit', (event) => {
-      void savePrivate(event);
+      void confirmPrivate(event);
     });
     node('[data-name-form]')?.addEventListener('input', () => {
       dirtyName = true;
@@ -1176,8 +1206,11 @@ export function startAccount(options: {
       if (!(target instanceof HTMLInputElement) || !privateProfile) return;
       const name = target.name;
       if (Object.hasOwn(privateProfile.preferences, name))
-        privateProfile.preferences[name as keyof ProfilePreferences] =
-          target.checked;
+        preferencesDraft.set(
+          privateProfile.preferences,
+          name as keyof ProfilePreferences,
+          target.checked,
+        );
       dirtyProfile = true;
     });
   }
@@ -1279,7 +1312,7 @@ export function startAccount(options: {
       render();
     },
     privacyPreferences: () =>
-      privateProfile && !dirtyProfile
+      privateProfile
         ? {
             online: privateProfile.preferences.online,
             lastSeen: privateProfile.preferences.lastSeen,

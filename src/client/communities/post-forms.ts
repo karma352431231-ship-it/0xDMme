@@ -157,15 +157,15 @@ export function postActions(
     hideForm(container, state, actions);
   if (state.removal) removalForms(container, state, actions);
   if (state.own || state.manager) history(container, state, actions);
-  postReportForm(container, state.post, (data) =>
-    actions.mutate('report', data),
-  );
 }
 function deleteForm(
   container: HTMLElement,
   state: PostState,
   actions: PostActions,
 ): void {
+  const form = el('details', '', 'post-delete');
+  form.append(el('summary', 'Excluir postagem'));
+  container.append(form);
   const label = el('label'),
     confirm = el('input');
   confirm.type = 'checkbox';
@@ -175,8 +175,8 @@ function deleteForm(
       'Excluir texto e mídia do banco/armazenamento ativo. Cópias externas e backups podem permanecer.',
     ),
   );
-  container.append(label);
-  button(container, 'Excluir minha postagem', async () => {
+  form.append(label);
+  button(form, 'Excluir minha postagem', async () => {
     if (!confirm.checked) throw new Error('Confirme a exclusão da postagem.');
     await actions.mutate('post-delete', command(state));
   });
@@ -186,12 +186,15 @@ function hideForm(
   state: PostState,
   actions: PostActions,
 ): void {
-  const reason = field(container, 'Motivo da remoção', {
+  const form = el('details', '', 'post-moderate');
+  form.append(el('summary', 'Ocultar pela moderação'));
+  container.append(form);
+  const reason = field(form, 'Motivo da remoção', {
       maximum: 1000,
       multiline: true,
     }),
     record = crypto.randomUUID();
-  button(container, 'Ocultar postagem', () =>
+  button(form, 'Ocultar postagem', () =>
     actions.mutate('post-hide', {
       ...command(state),
       record,
@@ -291,9 +294,10 @@ export function postReportForm(
     record = crypto.randomUUID();
   button(container, 'Denunciar postagem', () =>
     report({
-      id: post.community,
       record,
-      reason: `Post ${post.id}: ${communityText(reason.value, 900)}`,
+      kind: 'post',
+      target: post.id,
+      reason: communityText(reason.value, 900),
     }),
   );
 }

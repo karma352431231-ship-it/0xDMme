@@ -526,11 +526,19 @@ class DeploymentTests(unittest.TestCase):
         with patch.object(remote,'run',return_value=b'\n304') as command:
             self.assertIsNone(remote.fetch('/asset.bin',expected))
             self.assertIn('If-None-Match: "'+expected+'"',command.call_args.args[0])
-        for path,limit in [('/matrix-crypto-18.9.0.wasm',8*1024*1024),('/asset.bin',2*1024*1024)]:
+        for path,limit in [('/matrix-crypto-18.9.0.wasm',8*1024*1024),
+                           ('/source-'+'a'*16+'.tar.gz',remote.MAX_RELEASE),
+                           ('/source-invalid.tar.gz',2*1024*1024),
+                           ('/asset.bin',2*1024*1024)]:
             with patch.object(remote,'run',return_value=b'public\n200') as command:
                 self.assertEqual(remote.fetch(path,expected),b'public')
                 args=command.call_args.args[0]
                 self.assertEqual(args[args.index('--max-filesize')+1],str(limit))
+        sources=b's'*(2*1024*1024+1)
+        with patch.object(remote,'run',return_value=sources):
+            self.assertEqual(remote.fetch('/source-'+'a'*16+'.tar.gz'),sources)
+            with self.assertRaisesRegex(RuntimeError,'Public response budget'):
+                remote.fetch('/asset.bin')
         for body in [b'payload\n304',b'payload\n206',b'no status']:
             with patch.object(remote,'run',return_value=body),self.assertRaises(RuntimeError):
                 remote.fetch('/asset.bin',expected)

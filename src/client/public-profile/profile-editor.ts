@@ -20,7 +20,7 @@ const template = `<div class="profile-editor">
 <div class="profile-editor-identity"><div class="profile-editor-avatar"><button type="button" class="profile-editor-pick" data-pick="avatar" aria-label="Trocar foto"><span data-avatar-slot>@</span></button><button type="button" class="profile-editor-remove" data-remove="avatar" aria-label="Remover foto" title="Remover foto" hidden>${trash}</button></div>
 <div class="profile-editor-title"><h3 data-public-own-handle></h3><a data-public-page>Ver meu perfil público</a></div></div>
 <label class="profile-editor-description"><span>Descrição</span><textarea data-public-description rows="3" placeholder="Conte quem você é. Só texto e emojis."></textarea><small data-description-count></small></label>
-<input type="file" data-pick-file accept="image/png,image/jpeg,image/webp" hidden></div>`;
+<button type="button" class="primary" data-confirm-profile>Confirmar alterações</button><input type="file" data-pick-file accept="image/png,image/jpeg,image/webp" hidden></div>`;
 
 type Target = 'banner' | 'avatar';
 interface Image {
@@ -36,7 +36,7 @@ function decoded(banner: ProfileBanner['banner']): Image | null {
 
 /**
  * The owner edits the public profile where it is seen: a click on the banner
- * or the photo replaces it, the description is saved when the field is left.
+ * or the photo prepares a local preview; confirmation sends the draft.
  * Files are prepared on this device, as before; what is shown is the owner's
  * own copy, so a file under analysis is visible here before it is public.
  */
@@ -53,6 +53,9 @@ export function startProfileEditor(
     generation = 0,
     avatarAbort = new AbortController();
   const urls: string[] = [];
+  let draftAvatar: Image | null | undefined,
+    draftBanner: Image | null | undefined,
+    draftDescription: string | null = null;
   let banner: ProfileBanner = { revision: 0, banner: null };
   let description: ProfileDescription = { revision: 0, description: '' };
   function node<T extends HTMLElement>(selector: string): T | null {
@@ -65,7 +68,7 @@ export function startProfileEditor(
   }
   function paintBanner(): void {
     const image = node<HTMLImageElement>('[data-pick="banner"] img'),
-      bytes = decoded(banner.banner);
+      bytes = draftBanner === undefined ? decoded(banner.banner) : draftBanner;
     if (image) {
       image.hidden = !bytes;
       if (bytes) urls.push((image.src = blobUrl(bytes)));
@@ -80,13 +83,14 @@ export function startProfileEditor(
     if (!slot || !own) return;
     slot.replaceChildren();
     const remove = node('[data-remove="avatar"]');
-    if (remove) remove.hidden = !own.pendingAvatar;
-    if (own.pendingAvatar) {
+    const photo = draftAvatar === undefined ? own.pendingAvatar : draftAvatar;
+    if (remove) remove.hidden = !photo;
+    if (photo) {
       const image = document.createElement('img');
       image.alt = '';
-      urls.push((image.src = blobUrl(own.pendingAvatar)));
+      urls.push((image.src = blobUrl(photo)));
       slot.append(image);
-    } else if (own.profile.avatar)
+    } else if (draftAvatar === undefined && own.profile.avatar)
       showPublicAvatar(slot, {
         kind: 'avatar',
         target: own.profile.id,
@@ -99,7 +103,7 @@ export function startProfileEditor(
     const field = node<HTMLTextAreaElement>('[data-public-description]');
     // Never overwrite what the owner is typing.
     if (field && document.activeElement !== field)
-      field.value = description.description;
+      field.value = draftDescription ?? description.description;
     count();
   }
   function count(): void {
@@ -146,7 +150,6 @@ export function startProfileEditor(
     if (old !== generation) return;
     banner = saved;
     paint();
-    await options.changed();
   }
   async function saveDescription(text: string): Promise<void> {
     const value = profileDescriptionText(text);
@@ -172,11 +175,32 @@ export function startProfileEditor(
       type: photo.type === 'image/png' ? 'image/png' : 'image/jpeg',
       bytes: photo.bytes,
     };
-    if (kind === 'banner') await saveBanner(image);
-    else await saveAvatar(image);
+    if (kind === 'banner') draftBanner = image;
+    else draftAvatar = image;
+    paint();
   }
   async function saveAvatar(image: Image | null): Promise<void> {
     await controller.avatar(image);
+    paint();
+  }
+  async function confirm(): Promise<void> {
+    // Validate before the first write. Successful parts are cleared so a retry
+    // cannot accidentally resend an earlier image after a later failure.
+    const text = profileDescriptionText(
+      draftDescription ?? description.description,
+    );
+    if (draftDescription !== null) {
+      await saveDescription(text);
+      draftDescription = null;
+    }
+    if (draftBanner !== undefined) {
+      await saveBanner(draftBanner);
+      draftBanner = undefined;
+    }
+    if (draftAvatar !== undefined) {
+      await saveAvatar(draftAvatar);
+      draftAvatar = undefined;
+    }
     paint();
     await options.changed();
   }
@@ -194,28 +218,50 @@ export function startProfileEditor(
       if (file) void options.run(() => choose(file));
     });
     node('[data-remove="banner"]')?.addEventListener('click', () => {
-      void options.run(() => saveBanner(null));
+      void options.run(() => {
+        draftBanner = null;
+        paint();
+        return Promise.resolve();
+      });
     });
     node('[data-remove="avatar"]')?.addEventListener('click', () => {
-      void options.run(() => saveAvatar(null));
+      void options.run(() => {
+        draftAvatar = null;
+        paint();
+        return Promise.resolve();
+      });
     });
     const field = node<HTMLTextAreaElement>('[data-public-description]');
-    field?.addEventListener('input', count);
-    field?.addEventListener('change', () => {
-      void options.run(() => saveDescription(field.value));
+    field?.addEventListener('input', () => {
+      draftDescription = field.value;
+      count();
+    });
+    node('[data-confirm-profile]')?.addEventListener('click', () => {
+      void options.run(confirm);
     });
   }
   return {
     paint,
     refresh,
+    hasDraft: () =>
+      draftAvatar !== undefined ||
+      draftBanner !== undefined ||
+      draftDescription !== null,
     disable(busy: boolean): void {
-      host?.querySelectorAll<HTMLButtonElement>('button').forEach((button) => {
-        button.disabled = busy;
-      });
+      host
+        ?.querySelectorAll<
+          HTMLButtonElement | HTMLInputElement | HTMLTextAreaElement
+        >('button,input,textarea')
+        .forEach((button) => {
+          button.disabled = busy;
+        });
     },
     mount(container: HTMLElement | null): void {
       release();
       generation++;
+      draftAvatar = undefined;
+      draftBanner = undefined;
+      draftDescription = null;
       host = container;
       if (!container) return;
       container.innerHTML = template;
@@ -224,6 +270,9 @@ export function startProfileEditor(
     clear(): void {
       release();
       generation++;
+      draftAvatar = undefined;
+      draftBanner = undefined;
+      draftDescription = null;
       banner = { revision: 0, banner: null };
       description = { revision: 0, description: '' };
     },

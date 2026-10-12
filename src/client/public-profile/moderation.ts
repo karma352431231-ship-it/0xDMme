@@ -20,6 +20,7 @@ const kinds = {
   avatar: 'Foto do perfil',
   'profile-banner': 'Banner do perfil',
   'community-photo': 'Foto da comunidade',
+  'community-banner': 'Banner da comunidade',
   'post-media': 'Mídia de post ou resposta',
 };
 export function renderModeration(

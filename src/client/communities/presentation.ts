@@ -3,6 +3,7 @@ import { avatarInitials, avatarTone } from '../appearance/index.ts';
 import { communityElement as el, communityLink as link } from './elements.ts';
 
 const paths = {
+  bell: ['M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9', 'M10 21h4'],
   layers: ['m12 3 10 5-10 5L2 8z', 'm2 12 10 5 10-5', 'm2 16 10 5 10-5'],
   compass: ['M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20', 'm16 8-3 5-5 3 3-5z'],
   globe: [
@@ -87,6 +88,7 @@ export function postHeader(
       `#publico?handle=${encodeURIComponent(post.author.handle)}`,
     );
     identity.lastElementChild?.classList.add('community-post-author');
+    authorBadges(identity, post);
   } else identity.append(el('span', 'Conta removida', 'community-post-author'));
   const byline = el('div', '', 'community-post-byline');
   if (context === 'feed') {
@@ -95,7 +97,7 @@ export function postHeader(
   }
   const time = el(
     'time',
-    `${context === 'feed' ? ' · ' : ''}${relativePostTime(post.createdAt)}${post.editedAt ? ' · Editado' : ''}`,
+    `${context === 'feed' ? ' · ' : ''}${relativePostTime(post.createdAt)}${post.editedAt ? ' · Post Editado' : ''}`,
   );
   time.dateTime = post.createdAt;
   time.title = new Date(post.createdAt).toLocaleString('pt-BR');
@@ -103,6 +105,21 @@ export function postHeader(
   identity.append(byline);
   node.prepend(header);
   return avatar;
+}
+function authorBadges(identity: HTMLElement, post: CommunityPost): void {
+  for (const badge of post.authorBadges ?? []) {
+    const mark = el(
+      'span',
+      badge.kind === 'custom'
+        ? badge.label
+        : { owner: '👑', moderator: '🛡️', new: '🌱' }[badge.kind],
+      'community-author-badge',
+    );
+    mark.title = badge.label;
+    mark.setAttribute('aria-label', badge.label);
+    mark.dataset['kind'] = badge.kind;
+    identity.append(mark);
+  }
 }
 function authorAvatar(post: CommunityPost): HTMLElement {
   const label = post.author?.handle ?? '?';

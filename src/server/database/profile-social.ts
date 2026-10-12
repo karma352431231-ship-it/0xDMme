@@ -1,3 +1,4 @@
+import { profileActivityFilter } from '../../shared/profile-social/index.ts';
 import type pg from 'pg';
 import { AccountError, keys, uuid } from '../../shared/account/index.ts';
 import {
@@ -15,6 +16,8 @@ import type { CommunityStore } from './communities.ts';
 import type { CommunityDiscoveryStore } from './community-discovery.ts';
 import type { ContactAuthority } from './contacts.ts';
 import { assertContentCapacity } from './vault-quota.ts';
+import { profileNotificationSetting } from './profile-notifications.ts';
+import { storePublicReport } from './public-reports.ts';
 
 /** Public pages and private follow operations use stable public profile IDs. */
 interface ProfileSocialOptions {
@@ -95,7 +98,46 @@ export class ProfileSocialStore {
     operation: string,
     authority: ContactAuthority,
     data: Record<string, unknown>,
-  ): Promise<ProfileFollow> {
+  ) {
+    if (operation === 'activity') {
+      keys(data, ['target', 'tab', 'after']);
+      const filter = profileActivityFilter({
+        profile: data['target'],
+        tab: data['tab'],
+      });
+      if (data['after'] !== null && typeof data['after'] !== 'string')
+        throw new AccountError(400, 'Cursor inválido.');
+      const after = data['after'];
+      return this.options.communities.withActor(authority, (context) =>
+        this.options.discovery.profileActivity(
+          filter.profile,
+          filter.tab,
+          after,
+          { client: context.client, actor: context.actor.id },
+        ),
+      );
+    }
+    if (operation === 'block-state' || operation === 'block')
+      return this.options.communities.profileBlock(
+        operation === 'block' ? 'profile-block-set' : 'profile-block-state',
+        authority,
+        data,
+      );
+    if (operation === 'public-report')
+      return this.options.communities.withActor(authority, (context) =>
+        storePublicReport(context, data, this.options.capacity),
+      );
+    if (operation === 'notification-state' || operation === 'notification-set')
+      return this.options.communities.withActor(authority, (context) =>
+        profileNotificationSetting(context, operation, data),
+      );
+    return this.followOperation(operation, authority, data);
+  }
+  private async followOperation(
+    operation: string,
+    authority: ContactAuthority,
+    data: Record<string, unknown>,
+  ) {
     const changing = operation === 'follow';
     keys(data, changing ? ['target', 'following', 'revision'] : ['target']);
     const target = uuid(data['target']);
@@ -128,7 +170,8 @@ export class ProfileSocialStore {
       if (old.following === following) return old;
       const result = await context.client.query<ProfileFollow>(
         `INSERT INTO hash_talk.public_profile_follows(follower,target,following,revision) VALUES($1,$2,$3,1)
-        ON CONFLICT(follower,target) DO UPDATE SET following=$3,revision=hash_talk.public_profile_follows.revision+1 RETURNING following,revision`,
+        ON CONFLICT(follower,target) DO UPDATE SET following=$3,revision=hash_talk.public_profile_follows.revision+1,
+        notifications=false,notification_revision=hash_talk.public_profile_follows.notification_revision+CASE WHEN hash_talk.public_profile_follows.notifications THEN 1 ELSE 0 END RETURNING following,revision`,
         [actor, target, following],
       );
       await assertContentCapacity(context.client, this.options.capacity);

@@ -4,6 +4,9 @@ import { request } from 'node:http';
 import { execFile } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { resolve } from 'node:path';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { pathToFileURL } from 'node:url';
 import { promisify } from 'node:util';
 import { cacheableRequest } from '../src/shared/pwa-policy/index.ts';
 import { readWebConfiguration } from '../src/server/web-configuration/index.ts';
@@ -13,6 +16,29 @@ import {
 } from '../src/server/web-host/index.ts';
 
 const databaseUrl = 'postgresql://hash_talk_dev@127.0.0.1:45432/hash_talk_dev';
+
+await test('pacote principal de fontes acima de 2 MiB é carregado integralmente', async (t) => {
+  const directory = await mkdtemp(resolve(tmpdir(), '0xdmme-source-size-'));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  const source = '/source-0123456789abcdef.tar.gz';
+  const bytes = Buffer.alloc(2 * 1024 * 1024 + 1, 0x61);
+  const manifest = [
+    { path: '/index.html', type: 'text/html' },
+    { path: '/sw.js', type: 'text/javascript' },
+    { path: source, type: 'application/gzip' },
+  ];
+  await writeFile(resolve(directory, 'assets.json'), JSON.stringify(manifest));
+  await writeFile(resolve(directory, 'index.html'), '0xDMme');
+  await writeFile(resolve(directory, 'sw.js'), '');
+  await writeFile(resolve(directory, source.slice(1)), bytes);
+  const root = pathToFileURL(directory + '/');
+  const assets = await loadWebAssets(root);
+  assert.deepEqual(assets.get(source)?.content, bytes);
+  manifest[2] = { path: '/app-0123456789abcdef.js', type: 'text/javascript' };
+  await writeFile(resolve(directory, 'assets.json'), JSON.stringify(manifest));
+  await writeFile(resolve(directory, 'app-0123456789abcdef.js'), bytes);
+  await assert.rejects(loadWebAssets(root), /Asset excedido/u);
+});
 
 await test('fontes públicas incluem instruções/licenças do build e excluem backend/dados privados', async () => {
   const assets = await loadWebAssets();

@@ -267,6 +267,10 @@ def own_state():
 
 def fetch(path, expected=None):
     limit = 8 * 1024 * 1024 if path == '/matrix-crypto-18.9.0.wasm' else 2 * 1024 * 1024
+    # Main corresponding sources have no separate 2 MiB ceiling. Their download
+    # remains bounded by the existing budget for the entire extracted release.
+    if re.fullmatch(r'/source-[a-f0-9]{16}\.tar\.gz', path):
+        limit = MAX_RELEASE
     args = ['curl', '--silent', '--fail', '--max-time', '10', '--max-filesize', str(limit)]
     if expected:
         args += ['--header', 'If-None-Match: "' + expected + '"', '--write-out', '\n%{http_code}']

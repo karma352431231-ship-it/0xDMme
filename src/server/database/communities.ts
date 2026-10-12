@@ -1,3 +1,4 @@
+import { confirmCommunityPresentation } from './community-presentation.ts';
 import type pg from 'pg';
 import type { PublicProfile } from '../../shared/public-profile/index.ts';
 import {
@@ -41,12 +42,20 @@ import type {
 import { communityGovernance } from './community-governance.ts';
 import { communityModeration, sanctionView } from './community-moderation.ts';
 import { seedCommunityTags } from './community-post-tags.ts';
+import { operateCommunityBadge } from './community-badges.ts';
+import type { SocialRelation } from '../../shared/social-dm/index.ts';
+import { storePublicReport } from './public-reports.ts';
+import { postCount } from '../../shared/community-posts/index.ts';
 
 const columns =
   'c.id,c.owner,c.name,c.description,c.rules,c.revision,c.archived,(SELECT count(*)::text FROM hash_talk.community_follows f WHERE f.community_id=c.id) AS followers';
 const privateColumns = columns + ',c.transfer_id,c.transfer_to';
-type CommunityStateWire = Omit<CommunityState, 'pendingPhoto'> & {
+type CommunityStateWire = Omit<
+  CommunityState,
+  'pendingPhoto' | 'pendingBanner'
+> & {
   pendingPhoto: { type: string | null; bytes: string } | null;
+  pendingBanner: { type: string | null; bytes: string } | null;
 };
 function pageRows<T extends { id: string }>(
   rows: T[],
@@ -58,11 +67,53 @@ function pageRows<T extends { id: string }>(
   };
 }
 export class CommunityStore {
+  private socialControls: {
+    state: (
+      authority: ContactAuthority,
+      peer: string,
+    ) => Promise<SocialRelation | null>;
+    block: (
+      authority: ContactAuthority,
+      input: { peer: string; blocked: boolean; revision: number },
+    ) => Promise<void>;
+  } | null = null;
+  setSocialControls(
+    controls: NonNullable<CommunityStore['socialControls']>,
+  ): void {
+    this.socialControls = controls;
+  }
+  async profileBlock(
+    operation: string,
+    authority: ContactAuthority,
+    data: Record<string, unknown>,
+  ) {
+    if (!this.socialControls)
+      throw new AccountError(503, 'Bloqueio indisponível.');
+    keys(
+      data,
+      operation === 'profile-block-set'
+        ? ['target', 'blocked', 'revision']
+        : ['target'],
+    );
+    const peer = uuid(data['target']);
+    if (operation === 'profile-block-set')
+      await this.socialControls.block(authority, {
+        peer,
+        blocked: communityBoolean(data['blocked']),
+        revision: postCount(data['revision']),
+      });
+    const state = await this.socialControls.state(authority, peer);
+    return {
+      blocked: state?.blocked ?? false,
+      revision: state?.blockRevision ?? 0,
+    };
+  }
   private readonly pool: pg.Pool;
   private readonly authority: ContactStore;
   private readonly profiles: PublicProfileStore;
   private readonly capacity: number;
   private readonly photos: CommunityPhotoStore;
+  private readonly banners: CommunityPhotoStore;
   constructor(options: {
     pool: pg.Pool;
     authority: ContactStore;
@@ -75,6 +126,11 @@ export class CommunityStore {
     this.profiles = options.profiles;
     this.capacity = options.capacity;
     this.photos = new CommunityPhotoStore(options.pool, options.moderation);
+    this.banners = new CommunityPhotoStore(
+      options.pool,
+      options.moderation,
+      'banner',
+    );
   }
   private async visible(
     client: Pick<pg.PoolClient, 'query'>,
@@ -88,6 +144,10 @@ export class CommunityStore {
       client,
       rows.map((row) => row.id),
     );
+    const banners = await this.banners.references(
+      client,
+      rows.map((row) => row.id),
+    );
     return rows.map((row) => ({
       id: row.id,
       name: row.name,
@@ -96,6 +156,7 @@ export class CommunityStore {
       revision: row.revision,
       archived: row.archived,
       avatar: photos.get(row.id) ?? null,
+      banner: banners.get(row.id) ?? null,
       owner: row.owner ? (owners.get(row.owner) ?? null) : null,
       followers: Number(row.followers),
     }));
@@ -166,6 +227,10 @@ export class CommunityStore {
         ? null
         : await this.photos.restricted(context.client, row.id);
     const transfer = await this.transfer(next, role);
+    const banner =
+      role === 'participant'
+        ? null
+        : await this.banners.restricted(context.client, row.id);
     return {
       community: (await this.visible(context.client, [row]))[0]!,
       role,
@@ -173,6 +238,9 @@ export class CommunityStore {
       canPost: !row.archived && !sanction,
       pendingPhoto: photo?.bytes
         ? { type: photo.type, bytes: encode(photo.bytes) }
+        : null,
+      pendingBanner: banner?.bytes
+        ? { type: banner.type, bytes: encode(banner.bytes) }
         : null,
       sanction: await sanctionView(next, sanction),
       transfer,
@@ -245,6 +313,10 @@ export class CommunityStore {
       [id, actor.id, meta.name, meta.description, meta.rules],
     );
     await seedCommunityTags(client, id);
+    await client.query(
+      'INSERT INTO hash_talk.community_follows(community_id,profile_id) VALUES($1,$2) ON CONFLICT DO NOTHING',
+      [id, actor.id],
+    );
     await assertContentCapacity(client, this.capacity);
     return this.load(client, id);
   }
@@ -282,22 +354,39 @@ export class CommunityStore {
     );
   }
   moderationCandidate(review: PublicModerationSubject) {
-    return this.photos.candidate(review);
+    return (
+      review.kind === 'community-banner' ? this.banners : this.photos
+    ).candidate(review);
   }
   releasedPhoto(target: string, review: string) {
     return this.photos.releasedPhoto(target, review);
   }
+  releasedBanner(target: string, review: string) {
+    return this.banners.releasedPhoto(target, review);
+  }
   bindPolicy(client: pg.PoolClient, subject: PublicModerationSubject) {
-    return this.photos.bindPolicy(client, subject);
+    return (
+      subject.kind === 'community-banner' ? this.banners : this.photos
+    ).bindPolicy(client, subject);
   }
   bindModeration(client: pg.PoolClient, review: PublicModerationSubject) {
-    return this.photos.bind(client, review);
+    return (
+      review.kind === 'community-banner' ? this.banners : this.photos
+    ).bind(client, review);
   }
-  collectModeration(signal: AbortSignal) {
-    return this.photos.collect(signal);
+  async collectModeration(signal: AbortSignal) {
+    const photos = await this.photos.collect(signal);
+    const banners = await this.banners.collect(signal);
+    return Math.max(photos, banners);
   }
-  nextModerationCollection(): Promise<number | null> {
-    return this.photos.nextCollection();
+  async nextModerationCollection(): Promise<number | null> {
+    const times = (
+      await Promise.all([
+        this.photos.nextCollection(),
+        this.banners.nextCollection(),
+      ])
+    ).filter((time): time is number => time !== null);
+    return times.length ? Math.min(...times) : null;
   }
   private async follow(
     context: CommunityContext,
@@ -305,6 +394,14 @@ export class CommunityStore {
   ): Promise<void> {
     keys(data, ['id', 'following']);
     const following = communityBoolean(data['following']);
+    if (context.row.owner === context.actor.id) {
+      if (!following)
+        throw new AccountError(
+          403,
+          'O dono segue sua comunidade automaticamente.',
+        );
+      return;
+    }
     if (!following) {
       await context.client.query(
         'DELETE FROM hash_talk.community_follows WHERE community_id=$1 AND profile_id=$2',
@@ -325,6 +422,29 @@ export class CommunityStore {
     authority: ContactAuthority,
     data: Record<string, unknown>,
   ): Promise<unknown> {
+    if (operation === 'presentation')
+      return this.withContext(authority, uuid(data['id']), async (context) => {
+        await confirmCommunityPresentation(context, data, {
+          edit: (value) => this.edit(context, value),
+          photos: this.photos,
+          banners: this.banners,
+          capacity: this.capacity,
+        });
+        return this.state(context);
+      });
+    if (
+      operation === 'profile-block-set' ||
+      operation === 'profile-block-state'
+    )
+      return this.profileBlock(operation, authority, data);
+    if (operation.startsWith('badge-'))
+      return this.withContext(authority, uuid(data['id']), (context) =>
+        operateCommunityBadge(context, operation, data, this.capacity),
+      );
+    if (operation === 'public-report')
+      return this.withActor(authority, (context) =>
+        storePublicReport(context, data, this.capacity),
+      );
     return this.authority.withMessageAuthority(authority, async (client) => {
       const actor = await this.profiles.identity(
         client,

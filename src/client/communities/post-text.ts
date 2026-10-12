@@ -1,9 +1,12 @@
 import { postLink } from '../../shared/community-posts/index.ts';
 import { communityElement } from './elements.ts';
+export function postUrls(text: string) {
+  return text.matchAll(/https?:\/\/[^\s<>"']+/gu);
+}
 export function postText(text: string): HTMLElement {
   const node = communityElement('p', '', 'community-text');
   let end = 0;
-  for (const match of text.matchAll(/https?:\/\/[^\s<>"']+/gu)) {
+  for (const match of postUrls(text)) {
     node.append(document.createTextNode(text.slice(end, match.index)));
     const raw = match[0].replace(/[.,!?;:]+$/u, ''),
       href = postLink(raw);

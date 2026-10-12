@@ -58,6 +58,15 @@ function page<T extends RankedRow>(
       : null;
   return { items, next: next ? JSON.stringify(next) : null };
 }
+function activityWindow(profile: string, tab: string, after: string | null) {
+  const filter = profileActivityFilter({ profile, tab });
+  const key = JSON.stringify(filter),
+    cursor = rankCursor(after, key),
+    anchor = cursor?.anchor ?? new Date().toISOString();
+  if (Date.parse(anchor) > Date.now() + 1000)
+    throw new AccountError(400, 'Cursor no futuro.');
+  return { key, cursor, anchor };
+}
 export class CommunityDiscoveryStore {
   private readonly pool: pg.Pool;
   private readonly communities: CommunityStore;
@@ -113,6 +122,8 @@ export class CommunityDiscoveryStore {
         OR EXISTS(SELECT 1 FROM hash_talk.public_profile_follows pf WHERE pf.follower=$1 AND pf.target=p.author AND pf.following))
       AND ($2<>'saved' OR pref.saved) AND ($2<>'hidden' OR pref.hidden)
       AND ($2 IN ('saved','hidden') OR NOT coalesce(pref.hidden,false))
+      AND NOT EXISTS(SELECT 1 FROM hash_talk.social_blocks b WHERE b.actor=$1 AND b.blocked AND
+        (b.target=p.author OR b.target IN (SELECT a.author FROM hash_talk.community_posts a WHERE a.id=p.parent_id OR a.id=p.root_id)))
     ) SELECT * FROM ranked WHERE ($7::bigint IS NULL OR (rank,created_at,id)<($7,$8::timestamptz,$9::uuid))
       ORDER BY rank DESC,created_at DESC,id DESC LIMIT $10`,
       [
@@ -128,26 +139,28 @@ export class CommunityDiscoveryStore {
         communityPageSize + 1,
       ],
     );
-    return this.projectFeed(client, page(found.rows, current), filter.scope);
+    return this.projectFeed(client, page(found.rows, current), {
+      scope: filter.scope,
+      actor,
+    });
   }
   async profileActivity(
     profile: string,
     tab: string,
     after: string | null,
+    reader?: { client: Reader; actor: string },
   ): Promise<FeedPage> {
-    const filter = profileActivityFilter({ profile, tab });
-    const key = JSON.stringify(filter),
-      cursor = rankCursor(after, key),
-      anchor = cursor?.anchor ?? new Date().toISOString();
-    if (Date.parse(anchor) > Date.now() + 1000)
-      throw new AccountError(400, 'Cursor no futuro.');
-    const found = await this.pool.query<FeedRow>(
+    const { key, cursor, anchor } = activityWindow(profile, tab, after);
+    const client = reader?.client ?? this.pool;
+    const found = await client.query<FeedRow>(
       `SELECT p.id,p.community_id,c.name,p.created_at,0::bigint AS rank
       FROM hash_talk.community_posts p JOIN hash_talk.communities c ON c.id=p.community_id
       WHERE p.author=$1 AND NOT p.deleted AND p.active_removal IS NULL AND p.created_at<=$2
       AND (p.root_id IS NULL OR EXISTS(SELECT 1 FROM hash_talk.community_posts root WHERE root.id=p.root_id AND NOT root.deleted AND root.active_removal IS NULL))
       AND ($3='overview' OR ($3='posts' AND p.parent_id IS NULL) OR ($3='replies' AND p.parent_id IS NOT NULL))
       AND ($4::timestamptz IS NULL OR (p.created_at,p.id)<($4,$5::uuid))
+      AND NOT EXISTS(SELECT 1 FROM hash_talk.social_blocks b WHERE b.actor=$7 AND b.blocked AND
+        (b.target=p.author OR b.target IN (SELECT a.author FROM hash_talk.community_posts a WHERE a.id=p.parent_id OR a.id=p.root_id)))
       ORDER BY p.created_at DESC,p.id DESC LIMIT $6`,
       [
         profile,
@@ -156,15 +169,20 @@ export class CommunityDiscoveryStore {
         cursor?.time ?? null,
         cursor?.id ?? null,
         communityPageSize + 1,
+        reader?.actor ?? null,
       ],
     );
-    return this.projectFeed(this.pool, page(found.rows, { key, anchor }));
+    return this.projectFeed(client, page(found.rows, { key, anchor }));
   }
   private async projectFeed(
     client: Reader,
     result: { items: FeedRow[]; next: string | null },
-    scope: FeedFilter['scope'] = 'all',
+    options: { scope: FeedFilter['scope']; actor: string | null } = {
+      scope: 'all',
+      actor: null,
+    },
   ): Promise<FeedPage> {
+    const { scope, actor } = options;
     const publicOnly = scope === 'all' || scope === 'following';
     const primary = await this.posts(
       client,
@@ -175,6 +193,13 @@ export class CommunityDiscoveryStore {
     const photos = await this.communities.photoReferences(client, [
       ...new Set(result.items.map((row) => row.community_id)),
     ]);
+    const owned = actor
+      ? await client.query<{ id: string }>(
+          'SELECT id FROM hash_talk.communities WHERE owner=$1 AND id=ANY($2::uuid[])',
+          [actor, [...new Set(result.items.map((row) => row.community_id))]],
+        )
+      : null;
+    const ownedIds = new Set(owned?.rows.map((row) => row.id));
     return {
       next: result.next,
       items: result.items.flatMap((row) => {
@@ -186,6 +211,7 @@ export class CommunityDiscoveryStore {
         return [
           {
             post,
+            ...(actor ? { ownCommunity: ownedIds.has(row.community_id) } : {}),
             ...(context ? { context } : {}),
             community: {
               id: row.community_id,

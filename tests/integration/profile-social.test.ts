@@ -203,8 +203,8 @@ await test('perfil social: métricas, comunidades públicas, follows, feeds e ba
         await profiles.memberships(identity.handle, null),
       );
       assert.deepEqual(
-        memberships.items.map((item) => item.id),
-        [followedCommunity],
+        new Set(memberships.items.map((item) => item.id)),
+        new Set([followedCommunity, otherCommunity]),
       );
       const activity = feedPage(
         await profiles.activity(identity.handle, 'overview', null),

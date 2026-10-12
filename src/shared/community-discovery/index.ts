@@ -37,6 +37,7 @@ export interface RankCursor {
   id: string;
 }
 export interface FeedEntry {
+  ownCommunity?: boolean;
   post: CommunityPost;
   community: { id: string; name: string; avatar?: string | null };
   context?: { root: CommunityPost; parent: CommunityPost };
@@ -162,12 +163,12 @@ export function feedPage(value: unknown): FeedPage {
     items: communityArray(data['items']).map((value) => {
       const row = object(value),
         group = object(row['community']);
-      keys(
-        row,
-        Object.hasOwn(row, 'context')
-          ? ['post', 'community', 'context']
-          : ['post', 'community'],
-      );
+      keys(row, [
+        'post',
+        'community',
+        ...(Object.hasOwn(row, 'context') ? ['context'] : []),
+        ...(Object.hasOwn(row, 'ownCommunity') ? ['ownCommunity'] : []),
+      ]);
       keys(
         group,
         Object.hasOwn(group, 'avatar')
@@ -180,6 +181,9 @@ export function feedPage(value: unknown): FeedPage {
         throw new AccountError(400, 'Comunidade do feed inválida.');
       return {
         post,
+        ...(Object.hasOwn(row, 'ownCommunity')
+          ? { ownCommunity: communityBoolean(row['ownCommunity']) }
+          : {}),
         ...(Object.hasOwn(row, 'context')
           ? { context: feedContext(row['context'], post) }
           : {}),

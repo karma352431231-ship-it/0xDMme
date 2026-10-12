@@ -34,6 +34,7 @@ import {
 } from './elements.ts';
 import { postActions, postForm, postTagSelect } from './post-forms.ts';
 import { postText } from './post-text.ts';
+import { postPreview } from './post-preview.ts';
 import { postReply } from './post-reply.ts';
 import { showExternalVideos } from '../external-video/index.ts';
 import type { ExternalMediaConsent } from '../external-media/index.ts';
@@ -199,11 +200,7 @@ export function startCommunityPosts(
         after = null;
         await load();
       },
-    });
-    const options = el('div', '', 'post-options');
-    toolbar.after(options);
-    button(toolbar, 'Opções', () =>
-      run(async () => {
+      options: async (options) => {
         const old = generation,
           state = postState(
             await controller.request('post-state', {
@@ -224,9 +221,9 @@ export function startCommunityPosts(
           mediaCleanup.set(disposeMedia, options);
         }
         postActions(options, state, tagSource(), actions());
-      }),
-    );
-    toolbar.lastElementChild?.setAttribute('aria-label', 'Opções da postagem');
+        return state;
+      },
+    });
   }
   /** Author first, with their public photo when they have one. */
   function rowHeader(node: HTMLElement, value: CommunityPost): void {
@@ -276,10 +273,16 @@ export function startCommunityPosts(
         run(async () => {
           const old = generation,
             page = postPage(
-              await communityRead(
-                `/api/communities/${community}/posts/${parent.id}/replies${cursor ? '?after=' + encodeURIComponent(cursor) : ''}`,
-                signal(),
-              ),
+              own
+                ? await controller.request('post-replies', {
+                    id: community,
+                    post: parent.id,
+                    after: cursor,
+                  })
+                : await communityRead(
+                    `/api/communities/${community}/posts/${parent.id}/replies${cursor ? '?after=' + encodeURIComponent(cursor) : ''}`,
+                    signal(),
+                  ),
             );
           if (old !== generation) return;
           clearMedia(children);
@@ -343,10 +346,16 @@ export function startCommunityPosts(
   async function thread(value: CommunityPost): Promise<void> {
     const old = generation;
     const page = postPage(
-      await communityRead(
-        `/api/communities/${community}/posts/${value.id}/replies${after ? '?after=' + encodeURIComponent(after) : ''}`,
-        signal(),
-      ),
+      own
+        ? await controller.request('post-replies', {
+            id: community,
+            post: value.id,
+            after,
+          })
+        : await communityRead(
+            `/api/communities/${community}/posts/${value.id}/replies${after ? '?after=' + encodeURIComponent(after) : ''}`,
+            signal(),
+          ),
     );
     if (old !== generation || !list) return;
     const heading = el('h3', 'Respostas', 'community-thread-heading');
@@ -387,7 +396,10 @@ export function startCommunityPosts(
       );
     if (state) restrictedContent(node, state);
     if (value.status !== 'visible') return;
-    if (value.text) node.append(postText(value.text));
+    if (value.text)
+      node.append(
+        value.id === selected ? postText(value.text) : postPreview(value.text),
+      );
     mediaCleanup.set(
       showExternalVideos(node, value.text, { privacy, signal: abort.signal }),
       node,
@@ -431,10 +443,15 @@ export function startCommunityPosts(
     const old = generation;
     if (selected) {
       const result = communityPost(
-        await communityRead(
-          `/api/communities/${community}/posts/${selected}`,
-          signal(),
-        ),
+        own
+          ? await controller.request('post-public', {
+              id: community,
+              post: selected,
+            })
+          : await communityRead(
+              `/api/communities/${community}/posts/${selected}`,
+              signal(),
+            ),
       );
       if (old !== generation || !list) return;
       list.replaceChildren();
@@ -489,7 +506,7 @@ export function startCommunityPosts(
     if (after)
       button(
         controls,
-        selected ? 'Respostas anteriores' : 'Posts anteriores',
+        selected ? 'Notificações anteriores' : 'Posts anteriores',
         () => run(load),
       );
     button(controls, 'Recarregar postagens', () =>

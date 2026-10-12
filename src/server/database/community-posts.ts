@@ -56,6 +56,9 @@ import {
   postColumns as columns,
 } from './community-post-authority.ts';
 import type { PostRow } from './community-post-authority.ts';
+import { withinPostEditWindow } from '../../shared/community-posts/index.ts';
+import { postAuthorBadges } from './community-badges.ts';
+import type { CommunityBadge } from '../../shared/community-badges/index.ts';
 function content(row: PostRow, own: boolean): PostContent | null {
   // Reviewers keep their existing text authority; media references remain author-only until moderation is ready.
   if (!own && !row.text) return null;
@@ -80,8 +83,36 @@ function sameContent(row: PostRow, value: PostContent): boolean {
     sameMedia(row.media_ids, value.media)
   );
 }
+async function writeEditedContent(
+  context: CommunityContext,
+  row: PostRow,
+  value: PostContent,
+): Promise<void> {
+  const edited = await context.client.query(
+    "UPDATE hash_talk.community_posts SET title=$2,text=$3,tag_id=$4,media_ids=$5,edited_at=clock_timestamp(),revision=revision+1 WHERE id=$1 AND created_at>clock_timestamp()-interval '1 hour' RETURNING id",
+    [row.id, value.title, value.text, value.tag, value.media ?? []],
+  );
+  if (!edited.rowCount)
+    throw new AccountError(
+      403,
+      'A postagem só pode ser editada na primeira hora.',
+    );
+}
+function requireEditWindow(row: PostRow): void {
+  if (!withinPostEditWindow(row.created_at))
+    throw new AccountError(
+      403,
+      'A postagem só pode ser editada na primeira hora.',
+    );
+}
 function editable(row: PostRow, own: boolean, canPost: boolean): boolean {
-  return own && canPost && !row.deleted && !row.active_removal;
+  return (
+    own &&
+    canPost &&
+    !row.deleted &&
+    !row.active_removal &&
+    withinPostEditWindow(row.created_at)
+  );
 }
 function visibleFields(
   row: PostRow,
@@ -89,6 +120,7 @@ function visibleFields(
     authors: Map<string, PublicProfile>;
     tags: Map<string, PostTag>;
     media: Map<string, PublicPostMedia[]>;
+    badges: Map<string, CommunityBadge[]>;
   },
 ) {
   const media = lookup.media.get(row.id);
@@ -98,6 +130,7 @@ function visibleFields(
     author: row.author ? (lookup.authors.get(row.author) ?? null) : null,
     tag: row.tag_id ? (lookup.tags.get(row.tag_id) ?? null) : null,
     ...(media?.length ? { media } : {}),
+    authorBadges: lookup.badges.get(`${row.community_id}/${row.author}`) ?? [],
   };
 }
 function requireCreateRetry(
@@ -181,7 +214,15 @@ export class CommunityPostStore {
         .filter((row) => !row.deleted && !row.active_removal)
         .map((row) => row.id),
     );
-    return { authors, tags, media };
+    const badges = await postAuthorBadges(
+      client,
+      rows.flatMap((row) =>
+        row.author && !row.deleted && !row.active_removal
+          ? [{ community: row.community_id, author: row.author }]
+          : [],
+      ),
+    );
+    return { authors, tags, media, badges };
   }
   private view(
     row: PostRow,
@@ -189,6 +230,7 @@ export class CommunityPostStore {
       authors: Map<string, PublicProfile>;
       tags: Map<string, PostTag>;
       media: Map<string, PublicPostMedia[]>;
+      badges: Map<string, CommunityBadge[]>;
     },
   ): CommunityPost {
     const status = row.deleted
@@ -269,6 +311,7 @@ export class CommunityPostStore {
       tag: string | null;
       author: string | null;
       removed: boolean;
+      viewer?: string;
     },
   ): Promise<PostRow[]> {
     const [time, id] = (options.after ?? '').split('/');
@@ -276,6 +319,7 @@ export class CommunityPostStore {
       `SELECT ${columns} FROM hash_talk.community_posts WHERE community_id=$1 AND ($9 OR parent_id=$8::uuid OR ($8::uuid IS NULL AND parent_id IS NULL)) AND (parent_id IS NOT NULL OR NOT deleted)
       AND ($2::timestamptz IS NULL OR (created_at,id)<($2,$3::uuid)) AND ($4::uuid IS NULL OR tag_id=$4)
       AND ($5::uuid IS NULL OR author=$5) AND ($8::uuid IS NOT NULL OR $5::uuid IS NOT NULL OR (active_removal IS NOT NULL)=$6)
+      AND NOT EXISTS(SELECT 1 FROM hash_talk.social_blocks b WHERE b.actor=$10 AND b.target=author AND b.blocked)
       ORDER BY created_at DESC,id DESC LIMIT $7`,
       [
         options.community,
@@ -287,6 +331,7 @@ export class CommunityPostStore {
         communityPageSize + 1,
         options.parent ?? null,
         options.author !== null || options.removed,
+        options.viewer ?? null,
       ],
     );
     return found.rows;
@@ -469,6 +514,7 @@ export class CommunityPostStore {
       throw new AccountError(400, 'Resposta não admite título/tag.');
     await requirePostTag(context, value.tag, row.tag_id);
     if (sameContent(row, value)) return;
+    requireEditWindow(row);
     // Expiry removes bytes while preserving the post/reply link and its text.
     // Editing text need not reattach historical IDs whose bytes were discarded.
     if (!sameMedia(row.media_ids, ids))
@@ -476,10 +522,7 @@ export class CommunityPostStore {
         post: row.id,
         ids,
       });
-    await context.client.query(
-      'UPDATE hash_talk.community_posts SET title=$2,text=$3,tag_id=$4,media_ids=$5,edited_at=clock_timestamp(),revision=revision+1 WHERE id=$1',
-      [row.id, value.title, value.text, value.tag, ids],
-    );
+    await writeEditedContent(context, row, value);
     await assertContentCapacity(context.client, this.capacity);
   }
   private async remove(
@@ -549,13 +592,39 @@ export class CommunityPostStore {
         return 'items' in page ? this.withPreviews(context.client, page) : page;
       });
     if (operation === 'post-notifications-read')
-      return this.communities.withActor(authority, (context) =>
-        replyNotifications(context, operation, data),
-      );
+      return this.communities.withActor(authority, async (context) => {
+        const result = await replyNotifications(context, operation, data);
+        await assertContentCapacity(context.client, this.capacity);
+        return result;
+      });
     return this.communities.withContext(
       authority,
       uuid(data['id']),
       async (context) => {
+        if (operation === 'post-public') {
+          keys(data, ['id', 'post']);
+          await this.requireVisibleTo(context, uuid(data['post']));
+          return this.read(context.row.id, uuid(data['post']));
+        }
+        if (operation === 'post-replies') {
+          keys(data, ['id', 'post', 'after']);
+          const result = page(
+            await this.rows(context.client, {
+              community: context.row.id,
+              parent: uuid(data['post']),
+              after: postCursor(data['after']),
+              tag: null,
+              author: null,
+              removed: false,
+              viewer: context.actor.id,
+            }),
+          );
+          const lookup = await this.lookups(context.client, result.items);
+          return {
+            ...result,
+            items: result.items.map((row) => this.view(row, lookup)),
+          };
+        }
         if (operation.startsWith('tag-')) {
           const result = await operatePostTag(
             context,
@@ -572,5 +641,16 @@ export class CommunityPostStore {
         return this.state(context, id);
       },
     );
+  }
+  private async requireVisibleTo(
+    context: CommunityContext,
+    id: string,
+  ): Promise<void> {
+    const blocked = await context.client.query(
+      'SELECT 1 FROM hash_talk.community_posts p JOIN hash_talk.social_blocks b ON b.target=p.author AND b.actor=$1 AND b.blocked WHERE p.id=$2',
+      [context.actor.id, id],
+    );
+    if (blocked.rowCount)
+      throw new AccountError(404, 'Postagem indisponível para este perfil.');
   }
 }

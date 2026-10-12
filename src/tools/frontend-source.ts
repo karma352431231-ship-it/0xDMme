@@ -25,6 +25,7 @@ const authored = [
   'src/client/social-dm',
   'src/shared/community-discovery',
   'src/shared/community-posts',
+  'src/shared/community-badges',
   'src/shared/community-views',
   'src/client/communities',
   'src/shared/communities',
@@ -193,7 +194,7 @@ async function dependencySources(
     preferred = ['dist/modules-esm', 'LICENSE', 'README.md', 'package.json'];
   else return collect(root, path);
   // Preserve preferred sources, metadata/licenses and exact incorporated JS;
-  // omit duplicate distribution builds without increasing the resource caps.
+  // Omit duplicate distribution builds while preserving the complete inputs.
   const files: string[] = [];
   for (const source of preferred)
     files.push(...(await collect(root, `${path}/${source}`)));
@@ -226,14 +227,15 @@ export async function frontendSource(
   const { stdout } = await execute(
     'tar',
     ['-cf', '-', '--no-recursion', '-C', root, '--', ...included],
-    { encoding: 'buffer', maxBuffer: 24 * 1024 * 1024, timeout: 30_000 },
+    {
+      encoding: 'buffer',
+      maxBuffer: 24 * 1024 * 1024,
+      timeout: 30_000,
+      // AppleDouble/xattrs are host metadata, not corresponding application source.
+      env: { ...process.env, COPYFILE_DISABLE: '1' },
+    },
   );
-  const archive = gzipSync(stdout, { level: 9 });
-  if (archive.length > 2 * 1024 * 1024)
-    throw new Error(
-      `Fontes comprimidas (${archive.length} bytes) excedem o teto de 2 MiB.`,
-    );
-  return archive;
+  return gzipSync(stdout, { level: 9 });
 }
 function verifyInputs(
   root: string,

@@ -159,7 +159,7 @@ await test('comunidades: criação aberta, privacidade, gestão, sanções, den�
         await owner.operate('create', { id, meta }),
       );
       assert.equal(result.role, 'owner');
-      assert.equal(result.following, false);
+      assert.equal(result.following, true);
       assert.equal(result.canPost, true);
       assert.equal(result.community.owner?.id, ownerProfile.id);
       assert.deepEqual(
@@ -198,6 +198,7 @@ await test('comunidades: criação aberta, privacidade, gestão, sanções, den�
           'revision',
           'archived',
           'avatar',
+          'banner',
           'owner',
           'followers',
         ].sort(),
@@ -212,11 +213,11 @@ await test('comunidades: criação aberta, privacidade, gestão, sanções, den�
       );
       const after = await change(participant, 'follow', { following: true });
       assert.equal(after.following, true);
-      assert.equal(after.community.followers, 1);
+      assert.equal(after.community.followers, 2);
       assert.equal(
         (await change(participant, 'follow', { following: true })).community
           .followers,
-        1,
+        2,
       );
       const following = communityPage(
         await participant.operate('list', { kind: 'following', after: null }),
@@ -227,13 +228,13 @@ await test('comunidades: criação aberta, privacidade, gestão, sanções, den�
       );
       assert.equal(
         ownerFollowing.items.some((item) => item.id === id),
-        false,
+        true,
       );
       const unfollowed = await change(participant, 'follow', {
         following: false,
       });
       assert.equal(unfollowed.canPost, true);
-      assert.equal(unfollowed.community.followers, 0);
+      assert.equal(unfollowed.community.followers, 1);
       const invalid = await fetch(`${origin}/api/communities/${id}/followers`);
       assert.equal(invalid.status, 404);
       await assert.rejects(

@@ -22,6 +22,8 @@ export interface ProfileFollow {
   following: boolean;
   revision: number;
 }
+export { publicBlockState, profileNotifications } from './controls.ts';
+export type { PublicBlockState, ProfileNotifications } from './controls.ts';
 export interface ProfileDescription {
   revision: number;
   description: string;

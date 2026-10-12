@@ -564,3 +564,31 @@
     padding: 14px;
   }
 }
+.public-profile-actions svg {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.public-profile-actions .post-more {
+  position: relative;
+}
+.public-profile-actions .post-more[open] {
+  flex-basis: 100%;
+}
+.public-profile-actions .post-more > summary {
+  width: 40px;
+  padding: 8px;
+  list-style: none;
+  cursor: pointer;
+}
+.public-profile-actions .post-more-content {
+  width: 100%;
+  max-width: 320px;
+  display: grid;
+  gap: 8px;
+  background: var(--surface-2);
+}

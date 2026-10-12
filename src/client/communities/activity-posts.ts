@@ -1,18 +1,15 @@
 import type { AccountSession } from '../../shared/account/index.ts';
 import type { FeedEntry } from '../../shared/community-discovery/index.ts';
-import { postState, tagPage } from '../../shared/community-posts/index.ts';
+import { postState } from '../../shared/community-posts/index.ts';
 import type { PostState } from '../../shared/community-posts/index.ts';
 import { communityState } from '../../shared/communities/index.ts';
 import type { VaultAccess } from '../vault-authority/index.ts';
 import type { ExternalMediaConsent } from '../external-media/index.ts';
-import { Communities, communityRead } from './controller.ts';
+import { Communities } from './controller.ts';
 import { renderActivityEntry } from './activity-entry.ts';
-import {
-  communityButton as button,
-  communityElement as el,
-} from './elements.ts';
+import { communityElement as el } from './elements.ts';
 import { postVoting, preferenceControls } from './discovery-controls.ts';
-import { postActions } from './post-forms.ts';
+import { postManagementMenu } from './post-menu.ts';
 import { postReply } from './post-reply.ts';
 import { postViews } from './post-views.ts';
 
@@ -37,6 +34,27 @@ export class ActivityPosts {
   constructor(access: VaultAccess, privacy: ExternalMediaConsent) {
     this.controller = new Communities(access);
     this.privacy = privacy;
+    globalThis.window?.addEventListener('0xdmme-public-block', (event) =>
+      this.hideBlockedAuthor(event),
+    );
+  }
+  private hideBlockedAuthor(event: Event): void {
+    if (!(event instanceof CustomEvent)) return;
+    const data = event.detail as { target?: unknown; blocked?: unknown };
+    if (typeof data?.target !== 'string' || data?.blocked !== true) return;
+    for (const card of this.cards) {
+      if (this.hasAuthor(card.entry, data.target)) {
+        card.lifetime.abort();
+        card.node.remove();
+      }
+    }
+  }
+  private hasAuthor(entry: FeedEntry, target: string): boolean {
+    return [
+      entry.post.author?.id,
+      entry.context?.root.author?.id,
+      entry.context?.parent.author?.id,
+    ].includes(target);
   }
   setSession(session: AccountSession | null): void {
     if (!this.controller.setSession(session)) return;
@@ -94,6 +112,10 @@ export class ActivityPosts {
       run: (work: () => Promise<void>) => this.run(card, epoch, work),
       changed: (state?: PostState) => {
         if (state) this.counts(card, state);
+        else {
+          card.lifetime.abort();
+          card.node.remove();
+        }
         return Promise.resolve();
       },
     };
@@ -120,12 +142,10 @@ export class ActivityPosts {
           (await this.controller.state(post.community)).canPost,
         replied: (state) => this.replied(card, state),
       });
-      preferenceControls(toolbar, post, actions);
-      const options = el('div', '', 'post-options');
-      status.before(options);
-      button(toolbar, 'Opções', () =>
-        actions.run(() => this.options(card, options)),
-      ).setAttribute('aria-label', 'Opções da postagem');
+      preferenceControls(toolbar, post, {
+        ...actions,
+        options: (host) => this.options(card, host),
+      });
     } else {
       const login = el('a', 'Responder', 'post-action post-comments');
       login.href = '#perfil';
@@ -231,44 +251,15 @@ export class ActivityPosts {
           );
     }
   }
-  private async options(card: ActivityCard, host: HTMLElement): Promise<void> {
-    const access = this.access(card),
-      post = card.entry.post,
-      state = postState(
-        await this.controller.request('post-state', {
-          id: post.community,
-          post: post.id,
-        }),
-      );
-    const tags =
-      state.canEdit && !post.parent
-        ? tagPage(await this.tags(card, null))
-        : { items: [], next: null };
-    if (!access.valid()) return;
-    host.replaceChildren();
-    postActions(
-      host,
-      state,
-      {
-        page: tags,
-        run: access.run,
-        load: async (after) => tagPage(await this.tags(card, after)),
-      },
-      {
-        run: access.run,
-        request: (operation, data) => this.controller.request(operation, data),
-        media: this.media(card),
-        mutate: (operation, data) =>
-          access.run(() => this.mutate(card, operation, data)),
-      },
-    );
-  }
-  private tags(card: ActivityCard, after: string | null): Promise<unknown> {
-    const query = after ? `?after=${encodeURIComponent(after)}` : '';
-    return communityRead(
-      `/api/communities/${card.entry.post.community}/tags${query}`,
-      AbortSignal.any([card.signal, AbortSignal.timeout(8000)]),
-    );
+  private options(card: ActivityCard, host: HTMLElement) {
+    const access = this.access(card);
+    return postManagementMenu(host, card.entry.post, {
+      run: access.run,
+      request: (operation, data) => this.controller.request(operation, data),
+      media: this.media(card),
+      mutate: (operation, data) =>
+        access.run(() => this.mutate(card, operation, data)),
+    });
   }
   private async mutate(
     card: ActivityCard,

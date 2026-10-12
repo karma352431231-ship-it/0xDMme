@@ -12,7 +12,11 @@ export type PublicModerationPolicyVersion =
   '0xdmme-public-explicit-v1' | typeof publicModerationPolicy;
 export const publicModerationRetentionMs = 7 * 24 * 60 * 60 * 1_000;
 export type PublicModerationKind =
-  'avatar' | 'profile-banner' | 'community-photo' | 'post-media';
+  | 'avatar'
+  | 'profile-banner'
+  | 'community-photo'
+  | 'community-banner'
+  | 'post-media';
 export type PublicModerationStatus =
   | 'pending'
   | 'analyzing'
@@ -38,6 +42,7 @@ export function publicModerationKind(value: unknown): PublicModerationKind {
     value !== 'avatar' &&
     value !== 'profile-banner' &&
     value !== 'community-photo' &&
+    value !== 'community-banner' &&
     value !== 'post-media'
   )
     throw new AccountError(400, 'Objeto de análise inválido.');

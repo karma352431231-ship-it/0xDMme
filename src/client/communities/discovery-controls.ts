@@ -1,4 +1,5 @@
-import { communityState } from '../../shared/communities/index.ts';
+import { keys, object } from '../../shared/account/index.ts';
+import { publicBlockState } from '../../shared/profile-social/index.ts';
 import type {
   CommunityPost,
   PostState,
@@ -17,6 +18,7 @@ interface Actions {
   run: (work: () => Promise<void>) => Promise<void>;
   valid: () => boolean;
   changed: (state?: PostState) => Promise<void>;
+  options?: (container: HTMLElement) => Promise<PostState | void>;
 }
 export function preferenceControls(
   container: HTMLElement,
@@ -57,6 +59,52 @@ export function preferenceControls(
     }),
   );
   if (post.status === 'visible') reportControl(content, post, actions);
+  if (post.author) {
+    const block = button(content, 'Bloquear usuário', () =>
+      actions.run(async () => {
+        const target = post.author!.id;
+        const current = publicBlockState(
+          await actions.controller.request('profile-block-state', { target }),
+        );
+        if (!actions.valid()) return;
+        publicBlockState(
+          await actions.controller.request('profile-block-set', {
+            target,
+            blocked: true,
+            revision: current.revision,
+          }),
+        );
+        if (!actions.valid()) return;
+        window.dispatchEvent(
+          new CustomEvent('0xdmme-public-block', {
+            detail: { target, blocked: true },
+          }),
+        );
+        await actions.changed();
+      }),
+    );
+    block.dataset['postBlock'] = 'true';
+  }
+  if (actions.options) {
+    const management = el('div', '', 'post-options');
+    content.append(management);
+    let loaded = false;
+    summary.addEventListener('click', () => {
+      if (loaded || menu.open) return;
+      void actions.run(async () => {
+        const state = await actions.options?.(management);
+        if (state?.own) {
+          content
+            .querySelector<HTMLElement>('[data-post-block]')
+            ?.setAttribute('hidden', '');
+          content
+            .querySelector<HTMLElement>('.post-report')
+            ?.setAttribute('hidden', '');
+        }
+        if (actions.valid()) loaded = true;
+      });
+    });
+  }
 }
 function reportControl(
   container: HTMLElement,
@@ -74,9 +122,13 @@ function reportControl(
   postReportForm(form, post, (data) =>
     actions.run(async () => {
       if (!actions.valid()) return;
-      communityState(await actions.controller.request('report', data));
+      const result = object(
+        await actions.controller.request('public-report', data),
+      );
+      keys(result, ['saved']);
+      if (result['saved'] !== true) throw new Error('Denúncia não confirmada.');
       if (actions.valid())
-        status.textContent = 'Denúncia enviada à moderação da comunidade.';
+        status.textContent = 'Denúncia guardada no backend do app.';
     }),
   );
 }

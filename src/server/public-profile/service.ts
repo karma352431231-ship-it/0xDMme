@@ -98,6 +98,12 @@ export class PublicProfileService {
         'description',
         'follow-state',
         'follow',
+        'block-state',
+        'block',
+        'public-report',
+        'notification-state',
+        'notification-set',
+        'activity',
         'moderation-notices',
         'moderation-appeal',
       ].includes(operation)
@@ -129,7 +135,18 @@ export class PublicProfileService {
     data: Record<string, unknown>,
   ) {
     if (
-      ['follow', 'follow-state', 'banner', 'banner-state'].includes(operation)
+      [
+        'follow',
+        'follow-state',
+        'banner',
+        'banner-state',
+        'block',
+        'block-state',
+        'public-report',
+        'notification-state',
+        'notification-set',
+        'activity',
+      ].includes(operation)
     )
       return this.socialOperation(operation, authority, data);
     if (operation === 'description-state' || operation === 'description')
@@ -189,7 +206,18 @@ export class PublicProfileService {
     authority: ContactAuthority,
     data: Record<string, unknown>,
   ) {
-    if (operation === 'follow' || operation === 'follow-state')
+    if (
+      [
+        'follow',
+        'follow-state',
+        'block',
+        'block-state',
+        'public-report',
+        'notification-state',
+        'notification-set',
+        'activity',
+      ].includes(operation)
+    )
       return this.pages().operate(operation, authority, data);
     if (operation === 'banner-state') {
       keys(data, []);

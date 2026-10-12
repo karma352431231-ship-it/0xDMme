@@ -11,7 +11,10 @@ export function publicModerationBinding(
   return (client, subject) => {
     if (subject.kind === 'avatar' || subject.kind === 'profile-banner')
       return database.publicProfiles.bindModeration(client, subject);
-    if (subject.kind === 'community-photo')
+    if (
+      subject.kind === 'community-photo' ||
+      subject.kind === 'community-banner'
+    )
       return database.communities.bindModeration(client, subject);
     return database.communityMedia.bindModeration(client, subject);
   };
@@ -22,7 +25,10 @@ export function publicModerationRetargeting(
   return (client, subject) => {
     if (subject.kind === 'avatar' || subject.kind === 'profile-banner')
       return database.publicProfiles.bindPolicy(client, subject);
-    if (subject.kind === 'community-photo')
+    if (
+      subject.kind === 'community-photo' ||
+      subject.kind === 'community-banner'
+    )
       return database.communities.bindPolicy(client, subject);
     return database.communityMedia.bindPolicy(client, subject);
   };

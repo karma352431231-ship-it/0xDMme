@@ -88,6 +88,11 @@ export async function admitReplyNotification(
   reply: string,
 ): Promise<void> {
   if (!parent.author || parent.author === context.actor.id) return;
+  const blocked = await context.client.query(
+    'SELECT 1 FROM hash_talk.social_blocks WHERE blocked AND ((actor=$1 AND target=$2) OR (actor=$2 AND target=$1))',
+    [parent.author, context.actor.id],
+  );
+  if (blocked.rowCount) return;
   const inserted = await context.client.query(
     `INSERT INTO hash_talk.community_reply_notifications(recipient,reply_id) VALUES($1,$2) ON CONFLICT DO NOTHING`,
     [parent.author, reply],
@@ -110,6 +115,13 @@ export async function replyNotifications(
       `UPDATE hash_talk.community_reply_notifications SET read=true WHERE recipient=$1 AND reply_id=ANY($2::uuid[]) AND NOT read`,
       [context.actor.id, ids],
     );
+    await context.client.query(
+      `INSERT INTO hash_talk.public_notification_reads(profile_id,post_id)
+       SELECT $1,p.id FROM hash_talk.community_posts p JOIN hash_talk.public_profile_follows f ON f.target=p.author AND f.follower=$1
+       WHERE p.id=ANY($2::uuid[]) AND f.following AND f.notifications AND p.created_at>=f.notification_since
+       ON CONFLICT DO NOTHING`,
+      [context.actor.id, ids],
+    );
     return { saved: true };
   }
   keys(data, ['after']);
@@ -121,7 +133,24 @@ export async function replyNotifications(
     created_at: Date;
     read: boolean;
   }>(
-    `SELECT n.reply_id AS reply,p.root_id AS post,p.community_id AS community,n.created_at,n.read FROM hash_talk.community_reply_notifications n JOIN hash_talk.community_posts p ON p.id=n.reply_id WHERE n.recipient=$1 AND ($2::timestamptz IS NULL OR (n.created_at,n.reply_id)<($2,$3::uuid)) ORDER BY n.created_at DESC,n.reply_id DESC LIMIT $4`,
+    `WITH direct AS (
+       SELECT p.id AS reply,coalesce(p.root_id,p.id) AS post,p.community_id AS community,p.created_at,n.read
+       FROM hash_talk.community_reply_notifications n JOIN hash_talk.community_posts p ON p.id=n.reply_id
+       WHERE n.recipient=$1 AND NOT EXISTS(SELECT 1 FROM hash_talk.social_blocks b WHERE b.actor=$1 AND b.target=p.author AND b.blocked)
+       AND ($2::timestamptz IS NULL OR (p.created_at,p.id)<($2,$3::uuid))
+       ORDER BY p.created_at DESC,p.id DESC LIMIT $4
+     ), watched AS (
+       SELECT p.id AS reply,coalesce(p.root_id,p.id) AS post,p.community_id AS community,p.created_at,r.post_id IS NOT NULL AS read
+       FROM hash_talk.public_profile_follows f JOIN hash_talk.community_posts p ON p.author=f.target
+       LEFT JOIN hash_talk.public_notification_reads r ON r.profile_id=f.follower AND r.post_id=p.id
+       WHERE f.follower=$1 AND f.following AND f.notifications AND p.created_at>=f.notification_since
+       AND NOT p.deleted AND p.active_removal IS NULL
+       AND (p.root_id IS NULL OR EXISTS(SELECT 1 FROM hash_talk.community_posts root WHERE root.id=p.root_id AND NOT root.deleted AND root.active_removal IS NULL))
+       AND NOT EXISTS(SELECT 1 FROM hash_talk.social_blocks b WHERE b.blocked AND ((b.actor=$1 AND b.target=p.author) OR (b.actor=p.author AND b.target=$1)))
+       AND ($2::timestamptz IS NULL OR (p.created_at,p.id)<($2,$3::uuid))
+       ORDER BY p.created_at DESC,p.id DESC LIMIT $4
+     ) SELECT reply,post,community,created_at,bool_and(read) AS read FROM (SELECT * FROM direct UNION ALL SELECT * FROM watched) combined
+       GROUP BY reply,post,community,created_at ORDER BY created_at DESC,reply DESC LIMIT $4`,
     [context.actor.id, time || null, id || null, communityPageSize + 1],
   );
   const items = rows.rows.slice(0, communityPageSize),
@@ -129,6 +158,7 @@ export async function replyNotifications(
   return {
     items: items.map((row) => ({
       reply: row.reply,
+      kind: row.reply === row.post ? ('post' as const) : ('reply' as const),
       post: row.post,
       community: row.community,
       createdAt: row.created_at.toISOString(),

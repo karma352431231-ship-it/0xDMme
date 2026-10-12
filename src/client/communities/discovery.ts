@@ -1,3 +1,4 @@
+import type { FeedEntry } from '../../shared/community-discovery/index.ts';
 import {
   feedFilter,
   discoveryPeriod,
@@ -21,7 +22,9 @@ import {
   communityElement as el,
   communityLink as link,
 } from './elements.ts';
-import { postText } from './post-text.ts';
+import { postPreview } from './post-preview.ts';
+import { postManagementMenu } from './post-menu.ts';
+import { postState } from '../../shared/community-posts/index.ts';
 import { showExternalVideos } from '../external-video/index.ts';
 import type { ExternalMediaConsent } from '../external-media/index.ts';
 import { postViews } from './post-views.ts';
@@ -320,7 +323,7 @@ export function startCommunityDiscovery(
       row.classList.add('community-post');
       const avatar = postHeader(row, post, entry.community);
       appendReplyContext(row, entry);
-      followControl(row, entry.community, old);
+      followControl(row, entry, old);
       if (entry.community.avatar)
         mediaCleanup.add(
           showPublicAvatar(avatar, {
@@ -343,18 +346,40 @@ export function startCommunityDiscovery(
       postComments(toolbar, post);
       mediaCleanup.add(postViews(row, post, toolbar));
       if (signedIn) {
-        preferenceControls(toolbar, post, actions);
+        preferenceControls(toolbar, post, {
+          ...actions,
+          options: (host) =>
+            postManagementMenu(host, post, {
+              run,
+              request: (op, data) => controller.request(op, data),
+              media: {
+                community: post.community,
+                request: (op, data) => controller.request(op, data),
+                valid: actions.valid,
+                signal: abort.signal,
+              },
+              mutate: (op, data) =>
+                run(async () => {
+                  const payload =
+                    typeof data === 'function' ? await data() : data;
+                  if (!actions.valid()) return;
+                  postState(await controller.request(op, payload));
+                  if (actions.valid()) await reload();
+                }),
+            }),
+        });
       }
       list?.append(row);
     }
   }
   function followControl(
     row: HTMLElement,
-    community: { id: string; name: string },
+    entry: Pick<FeedEntry, 'community' | 'ownCommunity'>,
     old: number,
   ): void {
     const header = row.querySelector<HTMLElement>('.community-post-header');
-    if (!header || !signedIn) return;
+    if (!header || !signedIn || entry.ownCommunity) return;
+    const { community } = entry;
     let following = false;
     const node = button(header, '+ Seguir', () =>
       run(async () => {
@@ -381,7 +406,7 @@ export function startCommunityDiscovery(
   }
   function postContent(row: HTMLElement, post: CommunityPost): void {
     if (post.status === 'visible') {
-      row.append(postText(post.text));
+      row.append(postPreview(post.text));
       mediaCleanup.add(
         showExternalVideos(row, post.text, { privacy, signal: abort.signal }),
       );

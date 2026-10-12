@@ -82,6 +82,8 @@ function messageBodyLimit(url: string): number {
   return messageBodyBudgets.get(url.slice(url.lastIndexOf('/') + 1)) ?? 4096;
 }
 function bodyLimit(url: string | undefined): number {
+  if (url === '/api/account/communities/presentation')
+    return 2 * Math.ceil(publicAvatarLimit / 3) * 4 + 28000;
   if (
     url === '/api/account/public-profile/avatar' ||
     url === '/api/account/public-profile/banner' ||
