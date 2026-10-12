@@ -276,7 +276,7 @@ await test('perfil social: métricas, comunidades públicas, follows, feeds e ba
           after: null,
         }),
       );
-      assert.ok(mixed.items.some((item) => item.post.id === selfReply));
+      assert.ok(!mixed.items.some((item) => item.post.id === selfReply));
       await operate(reader, 'follow', {
         target: identity.id,
         following: false,

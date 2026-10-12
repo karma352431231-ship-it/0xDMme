@@ -19,6 +19,7 @@ import type { CommunityPost } from '../../shared/community-posts/index.ts';
 import type { CommunityStore } from './communities.ts';
 import type { ContactAuthority } from './contacts.ts';
 import type { CommunityRankingStore } from './community-ranking.ts';
+import { feedRank, feedSelection } from './community-feed-policy.ts';
 import { operatePostPreference } from './community-preferences.ts';
 import { profileActivityFilter } from '../../shared/profile-social/index.ts';
 
@@ -91,29 +92,24 @@ export class CommunityDiscoveryStore {
   ): Promise<FeedPage> {
     const { filter, actor } = options,
       current = window(filter, options.after, actor);
-    const rank = {
-      mixed: `floor(1000000*(1+ln(1+greatest(p.score,0)+2*p.replies)+
-        CASE WHEN EXISTS(SELECT 1 FROM hash_talk.public_profile_follows pf WHERE pf.follower=$1 AND pf.target=p.author AND pf.following) THEN 3 ELSE 0 END)
-        /power(2+greatest(0,extract(epoch FROM ($6::timestamptz-p.created_at)))/86400,1.5))::bigint`,
-      recent: '0::bigint',
-      votes: 'p.score::bigint',
-      replies: 'p.replies::bigint',
-    }[filter.order];
+    const rank = feedRank(filter.order);
     const found = await client.query<FeedRow>(
-      `WITH ranked AS (
-      SELECT p.id,p.community_id,c.name,p.created_at,${rank} AS rank
+      `WITH candidates AS (
+      SELECT p.id,p.root_id,p.author,p.community_id,c.name,p.created_at,${rank} AS rank
       FROM hash_talk.community_posts p JOIN hash_talk.communities c ON c.id=p.community_id
       LEFT JOIN hash_talk.community_post_preferences pref ON pref.post_id=p.id AND pref.profile_id=$1
       WHERE ($2 IN ('saved','hidden') OR (NOT p.deleted AND p.active_removal IS NULL
         AND (p.root_id IS NULL OR EXISTS(SELECT 1 FROM hash_talk.community_posts root WHERE root.id=p.root_id AND NOT root.deleted AND root.active_removal IS NULL))
-        AND (p.parent_id IS NULL OR EXISTS(SELECT 1 FROM hash_talk.public_profile_follows pf WHERE pf.follower=$1 AND pf.target=p.author AND pf.following))))
+        AND (p.parent_id IS NULL OR (($2='following' OR $3::uuid IS NULL) AND (
+          ($2='all' AND $11='mixed' AND p.author IS NOT NULL AND (p.score>=5 OR p.discussion_participants>=3)) OR
+          (($2='following' OR $11<>'mixed') AND EXISTS(SELECT 1 FROM hash_talk.public_profile_follows pf WHERE pf.follower=$1 AND pf.target=p.author AND pf.following)))))))
       AND ($3::uuid IS NULL OR p.community_id=$3) AND ($4::uuid IS NULL OR p.tag_id=$4)
       AND ($5::timestamptz IS NULL OR p.created_at>=$5) AND p.created_at<=$6
       AND ($2<>'following' OR (p.parent_id IS NULL AND EXISTS(SELECT 1 FROM hash_talk.community_follows f WHERE f.profile_id=$1 AND f.community_id=p.community_id))
         OR EXISTS(SELECT 1 FROM hash_talk.public_profile_follows pf WHERE pf.follower=$1 AND pf.target=p.author AND pf.following))
       AND ($2<>'saved' OR pref.saved) AND ($2<>'hidden' OR pref.hidden)
       AND ($2 IN ('saved','hidden') OR NOT coalesce(pref.hidden,false))
-    ) SELECT * FROM ranked WHERE ($7::bigint IS NULL OR (rank,created_at,id)<($7,$8::timestamptz,$9::uuid))
+    ), ranked AS (${feedSelection(filter)}) SELECT * FROM ranked WHERE representative=1 AND ($7::bigint IS NULL OR (rank,created_at,id)<($7,$8::timestamptz,$9::uuid))
       ORDER BY rank DESC,created_at DESC,id DESC LIMIT $10`,
       [
         actor,
@@ -126,6 +122,7 @@ export class CommunityDiscoveryStore {
         current.cursor?.time ?? null,
         current.cursor?.id ?? null,
         communityPageSize + 1,
+        filter.order,
       ],
     );
     return this.projectFeed(client, page(found.rows, current), filter.scope);

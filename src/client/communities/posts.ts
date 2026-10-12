@@ -1,4 +1,5 @@
 import { restrictedMedia } from '../community-media/index.ts';
+import { PostThread } from './post-thread.ts';
 import { postViews } from './post-views.ts';
 import {
   showPublicPostMedia,
@@ -13,7 +14,6 @@ import {
 import type { CommunityState } from '../../shared/communities/index.ts';
 import {
   communityPost,
-  postPage,
   postState,
   privatePostPage,
   tagPage,
@@ -69,6 +69,7 @@ export function startCommunityPosts(
     after: string | null = null,
     tag: string | null = null,
     scope = 'public';
+  let threadView: PostThread | null = null;
   const mediaCleanup = new Map<() => void, HTMLElement>();
   function clearMedia(container?: HTMLElement): void {
     for (const [cleanup, node] of mediaCleanup) {
@@ -173,7 +174,6 @@ export function startCommunityPosts(
     value: CommunityPost,
     privateState: PostState | null = null,
     container: HTMLElement | null = list,
-    depth = 0,
   ): void {
     if (!container) return;
     const node = postCard(value);
@@ -181,14 +181,13 @@ export function startCommunityPosts(
     container.append(node);
     rowHeader(node, value);
     rowContent(node, value, privateState);
-    rowMeta(node, value, depth);
+    rowMeta(node, value);
     const toolbar = el('div', '', 'post-actions');
     node.append(toolbar);
     voting(toolbar, value);
     if (selected) replyToggle(toolbar, value);
     else postComments(toolbar, value);
     mediaCleanup.set(postViews(node, value, toolbar), node);
-    branch(node, value, depth);
     if (!own) return;
     const old = generation;
     preferenceControls(toolbar, value, {
@@ -257,43 +256,6 @@ export function startCommunityPosts(
     else if (value.parent) node.classList.add('community-reply');
     return node;
   }
-  function branch(
-    container: HTMLElement,
-    parent: CommunityPost,
-    depth: number,
-  ): void {
-    // Bound inline rendering; deeper content is available through the subtree link.
-    if (!selected || parent.id === selected || !parent.replies || depth >= 3)
-      return;
-    const children = el('section', '', 'community-reply-branch');
-    let cursor: string | null = null;
-    button(
-      container,
-      parent.replies === 1
-        ? 'Ver 1 resposta'
-        : `Ver ${parent.replies} respostas`,
-      () =>
-        run(async () => {
-          const old = generation,
-            page = postPage(
-              await communityRead(
-                `/api/communities/${community}/posts/${parent.id}/replies${cursor ? '?after=' + encodeURIComponent(cursor) : ''}`,
-                signal(),
-              ),
-            );
-          if (old !== generation) return;
-          clearMedia(children);
-          children.replaceChildren();
-          for (const reply of page.items) row(reply, null, children, depth + 1);
-          cursor = page.next;
-          // The button stays only while another page of replies exists.
-          more.textContent = 'Ver mais respostas';
-          more.hidden = !page.next;
-        }),
-    );
-    const more = container.lastElementChild as HTMLButtonElement;
-    container.append(children);
-  }
   function voting(node: HTMLElement, value: CommunityPost): void {
     if (own && !own.canPost && value.status === 'visible') {
       const score = el('span', String(value.score), 'post-score');
@@ -310,10 +272,11 @@ export function startCommunityPosts(
             controller,
             run,
             valid: () => old === generation,
-            changed: async () => {
-              after = null;
-              await load();
+            changed: (state) => {
+              const score = node.querySelector('.post-score');
+              if (score && state) score.textContent = String(state.post.score);
               if (feedback) feedback.textContent = 'Alteração salva.';
+              return Promise.resolve();
             },
           }
         : null,
@@ -341,27 +304,18 @@ export function startCommunityPosts(
     );
   }
   async function thread(value: CommunityPost): Promise<void> {
+    if (!list) return;
     const old = generation;
-    const page = postPage(
-      await communityRead(
-        `/api/communities/${community}/posts/${value.id}/replies${after ? '?after=' + encodeURIComponent(after) : ''}`,
-        signal(),
-      ),
-    );
-    if (old !== generation || !list) return;
-    const heading = el('h3', 'Respostas', 'community-thread-heading');
-    if (value.replies)
-      heading.append(el('span', String(value.replies), 'activity-count'));
-    const replies = el('section', '', 'community-thread');
-    replies.setAttribute('aria-label', 'Respostas a esta postagem');
-    list.append(heading, replies);
-    if (!page.items.length)
-      replies.append(
-        el('p', 'Ainda não há respostas.', 'community-thread-empty'),
-      );
-    for (const reply of page.items) row(reply, null, replies);
-    after = page.next;
-    paging();
+    threadView?.dispose();
+    threadView = new PostThread({
+      community,
+      signal: abort.signal,
+      valid: () => old === generation,
+      run,
+      cleanup: clearMedia,
+      render: (container, post) => row(post, null, container),
+    });
+    await threadView.mount(list, value);
   }
   function restrictedContent(node: HTMLElement, state: PostState): void {
     if (state.content && state.post.status === 'removed')
@@ -400,11 +354,7 @@ export function startCommunityPosts(
     else if (!value.text) node.append(el('p', 'Mídia aguardando liberação.'));
     postTagLink(node, value);
   }
-  function rowMeta(
-    node: HTMLElement,
-    value: CommunityPost,
-    depth: number,
-  ): void {
+  function rowMeta(node: HTMLElement, value: CommunityPost): void {
     if (!value.parent) return;
     const nav = el('nav', '', 'post-context');
     nav.setAttribute('aria-label', 'Navegação da resposta');
@@ -418,12 +368,8 @@ export function startCommunityPosts(
       node.prepend(nav);
       return;
     }
-    if (selected && !(depth >= 3 && value.replies)) return;
-    link(
-      nav,
-      selected ? 'Continuar este fio →' : 'Abrir resposta e sua árvore',
-      post(value.id),
-    );
+    if (selected) return;
+    link(nav, 'Abrir resposta e sua árvore', post(value.id));
     node.append(nav);
   }
   async function load(): Promise<void> {
@@ -615,6 +561,8 @@ export function startCommunityPosts(
     });
   }
   function leave(): void {
+    threadView?.dispose();
+    threadView = null;
     clearMedia();
     generation++;
     abort.abort();

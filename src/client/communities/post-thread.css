@@ -1,0 +1,64 @@
+.post-thread-toolbar,
+.post-thread-paging {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 16px 0;
+}
+.post-thread-toolbar .community-thread-heading {
+  margin: 0;
+}
+.post-thread-item {
+  position: relative;
+  min-width: 0;
+}
+.post-thread-branch {
+  margin-left: 11px;
+  padding-left: 20px;
+  border-left: 1px solid var(--line);
+}
+.post-thread-children > .post-thread-item::before {
+  content: '';
+  position: absolute;
+  top: 24px;
+  left: -21px;
+  width: 18px;
+  height: 12px;
+  border-left: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  border-bottom-left-radius: 12px;
+}
+#app-shell .post-thread-item > .community-reply {
+  border-top: 0;
+  padding-top: 14px;
+}
+#app-shell .post-thread :is(.post-thread-toggle, .post-thread-more button) {
+  min-height: 44px;
+  padding: 6px 4px;
+  margin: 0;
+  border: 0;
+  background: transparent;
+  color: var(--accent-text);
+  text-align: left;
+  font-size: 13px;
+}
+.post-thread-children[hidden] {
+  display: none;
+}
+.post-thread-item > a,
+.post-thread-more > a {
+  display: inline-block;
+  padding: 12px 4px;
+  font-size: 13px;
+}
+@media (max-width: 700px) {
+  .post-thread-branch {
+    padding-left: 10px;
+    margin-left: 7px;
+  }
+  .post-thread-children > .post-thread-item::before {
+    left: -11px;
+    width: 8px;
+  }
+}

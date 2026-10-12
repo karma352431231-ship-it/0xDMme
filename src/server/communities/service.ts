@@ -1,4 +1,5 @@
 import type { CommunityMediaService } from '../community-media/index.ts';
+import { discussionOrder } from '../../shared/community-discussion/index.ts';
 import { AccountError, uuid } from '../../shared/account/index.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
 import { directoryEvent, verify } from '../../shared/devices/index.ts';
@@ -65,6 +66,16 @@ export class CommunityService {
       uuid(parent),
       postCursor(after),
     );
+  }
+  discussion(
+    community: unknown,
+    parent: unknown,
+    selection: { order: unknown; after: string | null },
+  ) {
+    return this.requirePosts().discussion(uuid(community), uuid(parent), {
+      order: discussionOrder(selection.order),
+      after: selection.after,
+    });
   }
   tags(community: unknown, after: unknown) {
     return this.requirePosts().tags(uuid(community), communityCursor(after));

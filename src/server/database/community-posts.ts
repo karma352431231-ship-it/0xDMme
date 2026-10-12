@@ -1,4 +1,6 @@
 import type pg from 'pg';
+import { discussionRows } from './community-discussion.ts';
+import type { DiscussionOrder } from '../../shared/community-discussion/index.ts';
 import {
   postVotes,
   setPostVote,
@@ -332,6 +334,28 @@ export class CommunityPostStore {
     return {
       ...result,
       items: result.items.map((row) => this.view(row, lookup)),
+    };
+  }
+  async discussion(
+    community: string,
+    parent: string,
+    selection: { order: DiscussionOrder; after: string | null },
+  ) {
+    await this.read(community, parent);
+    const page = await discussionRows(
+      this.pool,
+      { community, parent },
+      selection,
+    );
+    const posts = new Map(
+      (await this.readMany(this.pool, page.ids)).map((post) => [post.id, post]),
+    );
+    return {
+      items: page.ids.flatMap((id) => {
+        const post = posts.get(id);
+        return post ? [post] : [];
+      }),
+      next: page.next,
     };
   }
   private async states(

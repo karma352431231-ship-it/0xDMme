@@ -24,6 +24,7 @@ const authored = [
   'src/shared/social-dm',
   'src/client/social-dm',
   'src/shared/community-discovery',
+  'src/shared/community-discussion',
   'src/shared/community-posts',
   'src/shared/community-views',
   'src/client/communities',
@@ -228,7 +229,7 @@ export async function frontendSource(
     ['-cf', '-', '--no-recursion', '-C', root, '--', ...included],
     { encoding: 'buffer', maxBuffer: 24 * 1024 * 1024, timeout: 30_000 },
   );
-  const archive = gzipSync(stdout, { level: 9 });
+  const archive = gzipSync(stdout, { level: 9, memLevel: 6 });
   if (archive.length > 2 * 1024 * 1024)
     throw new Error(
       `Fontes comprimidas (${archive.length} bytes) excedem o teto de 2 MiB.`,

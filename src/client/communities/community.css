@@ -1,4 +1,5 @@
 @import './feed-follow.css';
+@import './post-thread.css';
 
 .community-mobile-tabs {
   display: none;
@@ -1545,9 +1546,6 @@
   border-radius: 0;
   background: transparent;
 }
-#app-shell .community-thread > .community-reply:first-child {
-  border-top: 0;
-}
 #app-shell .community-reply .community-post-header {
   gap: 8px;
   margin-bottom: 6px;
@@ -1581,17 +1579,6 @@
   min-width: 28px;
   min-height: 30px;
   padding: 3px;
-}
-.community-reply-branch {
-  margin: 4px 0 0 11px;
-  padding-left: 14px;
-  border-left: 2px solid var(--line);
-}
-.community-reply-branch:empty {
-  display: none;
-}
-#app-shell .community-reply-branch > .community-reply:first-child {
-  border-top: 0;
 }
 /* Post options open from a quiet button in the action row. */
 #app-shell .post-actions > button:not(.post-action) {

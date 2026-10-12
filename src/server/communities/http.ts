@@ -10,6 +10,8 @@ import type {
   CommunityPage,
 } from '../../shared/communities/index.ts';
 import { RequestBudget } from '../request-budget/index.ts';
+import { discussionPage } from '../../shared/community-discussion/index.ts';
+import type { DiscussionPage } from '../../shared/community-discussion/index.ts';
 import { viewRequest } from './views.ts';
 import { postViewsPage } from '../../shared/community-views/index.ts';
 import {
@@ -57,6 +59,11 @@ export function createCommunityHandler(read: {
     parent: string,
     after: string | null,
   ) => Promise<PostPage>;
+  discussion?: (
+    community: string,
+    parent: string,
+    selection: { order: unknown; after: string | null },
+  ) => Promise<DiscussionPage>;
   tags?: (community: string, after: string | null) => Promise<TagPage>;
 }) {
   const budget = new RequestBudget();
@@ -197,14 +204,7 @@ export function createCommunityHandler(read: {
       parts[6] === 'replies' &&
       read.replies
     ) {
-      params(address, ['after']);
-      return postPage(
-        await read.replies(
-          id,
-          uuid(parts[5]),
-          postCursor(address.searchParams.get('after')),
-        ),
-      );
+      return replyLookup(address, id, uuid(parts[5]));
     }
     if (parts.length === 5) return postList(address, id, parts[4]);
     if (
@@ -215,6 +215,30 @@ export function createCommunityHandler(read: {
     )
       return communityPost(await read.post(id, uuid(parts[5])));
     throw new AccountError(404, 'Post indisponível.');
+  }
+  async function replyLookup(
+    address: URL,
+    id: string,
+    parent: string,
+  ): Promise<unknown> {
+    if (!read.replies) throw new AccountError(404, 'Respostas indisponíveis.');
+    if (address.searchParams.has('order') && read.discussion) {
+      params(address, ['after', 'order']);
+      return discussionPage(
+        await read.discussion(id, parent, {
+          order: address.searchParams.get('order'),
+          after: address.searchParams.get('after'),
+        }),
+      );
+    }
+    params(address, ['after']);
+    return postPage(
+      await read.replies(
+        id,
+        parent,
+        postCursor(address.searchParams.get('after')),
+      ),
+    );
   }
   async function postList(
     address: URL,

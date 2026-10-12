@@ -118,6 +118,8 @@ try {
       post: (id, post) => communities.post(id, post),
       postPage: (id, after, tag) => communities.postPage(id, after, tag),
       replies: (id, parent, after) => communities.replies(id, parent, after),
+      discussion: (id, parent, selection) =>
+        communities.discussion(id, parent, selection),
       tags: (id, after) => communities.tags(id, after),
     }),
     account: createAccountHandler({
