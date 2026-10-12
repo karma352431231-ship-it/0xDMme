@@ -48,7 +48,7 @@ class DeploymentTests(unittest.TestCase):
                 backups.matches_export(root,expected,source_only=True)
 
     def test_executor_transport_handles_large_quoted_sources_without_oversized_shell_argument(self):
-        names = ['deploy_sources', 'deploy_runtime', 'deploy_remote', 'deploy_blocks45',
+        names = ['deploy_sources', 'deploy_runtime', 'deploy_remote', 'deploy_backup_io', 'deploy_blocks45',
                  'deploy_request_limit', 'deploy_background', 'deploy_profile_social',
                  'deploy_profile_description', 'deploy_group_links',
                  'deploy_post_tags', 'deploy_media_worker', 'deploy_social_controls']
@@ -694,6 +694,7 @@ class AttachmentDeploymentTests(unittest.TestCase):
                 (remote,'own_state',{'return_value':{}}), (remote,'preservation',{}),
                 (remote,self.verify_name,{}),
                 (backups,'own_free_bytes',{'return_value':2**30}),
+                (backups,'required_backup_space',{'return_value':1024}),
                 (backups,'objects_snapshot',{'return_value':{}}),
                 (backups,'backup',{'return_value':'backup-hash'}),
                 (backups,'validate_restore',{}), (backups,'migrate',{'side_effect':migrate})]:

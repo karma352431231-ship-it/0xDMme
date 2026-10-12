@@ -9,7 +9,6 @@ import json
 import os
 from pathlib import Path
 import re
-import resource
 import shlex
 import shutil
 import subprocess
@@ -17,14 +16,11 @@ import sys
 import tarfile
 
 import deploy_remote as base
+from deploy_backup_io import restore_transaction
 
 BEFORE = 'd64711c0cdcb3024c6728e4328190d545988333e'
 REVIEWED = '203274bb8dac5031a0697cf892c4b96f7d7600ac'
 QR_TREE = '8a55ad125d65d832ae60b9cf6499e1898c4c9034624708c2f1362f9daa2fc389'
-MAX_BACKUP = 64 * 1024 * 1024
-# Owner approved 256 MiB for opaque objects on 11/10/2026 after the existing
-# tree exceeded the old shared guard. Database/SQL remain separate.
-MAX_OBJECT_BACKUP = 256 * 1024 * 1024
 OLD_TABLES = ('accounts', 'login_devices', 'login_challenges', 'login_sessions',
               'login_handoffs', 'service_metadata')
 
@@ -175,8 +171,6 @@ const client = new pg.Client({connectionString:url.href,connectionTimeoutMillis:
 try {
  await client.connect(); await client.query('BEGIN READ ONLY');
  const result={tables:{},versions:(await client.query('SELECT version,checksum FROM hash_talk.schema_migrations ORDER BY version LIMIT 64')).rows};
- const bytes=Number((await client.query('SELECT pg_database_size(current_database())::text AS bytes')).rows[0].bytes);
- if(bytes>67108864) throw new Error('Database backup budget exceeded.');
  const omitted=""" + omitted + """;
  for(const name of """ + tables + """) {
   const count=Number((await client.query('SELECT count(*)::integer AS count FROM hash_talk.'+name)).rows[0].count);
@@ -197,29 +191,25 @@ def pg_environment():
                 PGUSER='hash_talk_stage', PGDATABASE='hash_talk_stage', **values)
 
 
-def pg(args, *, input=None):
-    def limits():
-        resource.setrlimit(resource.RLIMIT_FSIZE, (MAX_BACKUP, MAX_BACKUP))
+def pg(args, *, input=None, input_file=None, output=None):
     return subprocess.run(['nsenter', '--target', str(database_process()), '--net',
                            '/usr/lib/postgresql/16/bin/' + args[0], *args[1:]],
-                          env=pg_environment(), input=input, capture_output=True,
-                          timeout=45, check=True, preexec_fn=limits).stdout
+                          env=pg_environment(), input=input, stdin=input_file,
+                          stdout=output or subprocess.PIPE, stderr=subprocess.PIPE,
+                          timeout=45, check=True).stdout
 
 
 def objects_snapshot():
     root = base.DATA / 'objects/content'
-    files = file_tree(root)
-    if sum((root / name).stat().st_size for name in files) > MAX_OBJECT_BACKUP:
-        raise RuntimeError('Object backup budget exceeded.')
-    return files
+    return file_tree(root)
 
 
 def backup(work):
     dump = work / 'database.dump'
     pg(['pg_dump', '--format=custom', '--no-owner', '--no-acl', '--schema=hash_talk',
         '--lock-wait-timeout=2s', '--file=' + str(dump)])
-    if dump.is_symlink() or not 0 < dump.stat().st_size <= MAX_BACKUP:
-        raise RuntimeError('Database backup budget exceeded.')
+    if dump.is_symlink() or not dump.is_file() or dump.stat().st_size <= 0:
+        raise RuntimeError('Database backup is missing or irregular.')
     dump.chmod(0o600)
     with dump.open('rb') as handle:
         os.fsync(handle.fileno())
@@ -263,29 +253,22 @@ def verify_migration(candidate, before):
         raise RuntimeError('Initial actual-use ledger is inconsistent.')
 
 
-def restore_sql(work, checksum):
+def restore_dump(work, checksum, *, rollback):
     if base.digest(work / 'database.dump') != checksum:
         raise RuntimeError('Backup digest changed; restore refused.')
-    sql = pg(['pg_restore', '--no-owner', '--no-acl', '--file=-', str(work / 'database.dump')])
-    if len(sql) > MAX_BACKUP:
-        raise RuntimeError('Restore SQL budget exceeded.')
-    return sql
+    restore_transaction(work, work / 'database.dump', pg, rollback=rollback)
 
 
 def validate_restore(work, expected, checksum, *, snapshot=None):
-    sql = restore_sql(work, checksum)
     # Exercise DDL, COPY and constraints while our writer is stopped, then roll back everything.
-    pg(['psql', '--no-psqlrc', '--set=ON_ERROR_STOP=1', '--quiet'],
-       input=b'BEGIN; DROP SCHEMA hash_talk CASCADE;\n' + sql + b'\nROLLBACK;\n')
+    restore_dump(work, checksum, rollback=True)
     if (snapshot or database_snapshot)() != expected:
         raise RuntimeError('Restore rehearsal did not preserve the original database.')
 
 
 def restore(work, expected, checksum, *, snapshot=None):
-    sql = restore_sql(work, checksum)
     # Only our schema, in one transaction. Never restore after reopening the writer.
-    pg(['psql', '--no-psqlrc', '--set=ON_ERROR_STOP=1', '--quiet'],
-       input=b'BEGIN; DROP SCHEMA hash_talk CASCADE;\n' + sql + b'\nCOMMIT;\n')
+    restore_dump(work, checksum, rollback=False)
     if (snapshot or database_snapshot)() != expected:
         raise RuntimeError('Database return could not be verified.')
 
@@ -368,8 +351,17 @@ def activate(config, work):
 
 
 def required_backup_space():
-    # Reserve both independent backups as well as the existing release budget.
-    return 2 * base.MAX_RELEASE + 2 * (MAX_BACKUP + MAX_OBJECT_BACKUP)
+    # These are measured sizes, not admissible-size ceilings. Leave room for
+    # the object copy, dump, file-backed SQL and the existing release reserve.
+    database_bytes = int(node(URL_CHECK + """
+import {createRequire} from 'node:module';
+const pg=createRequire('/var/lib/0xdmme/data/release/package.json')('pg');
+const client=new pg.Client({connectionString:url.href,connectionTimeoutMillis:3000,query_timeout:5000});
+try {await client.connect();console.log((await client.query('SELECT pg_database_size(current_database())::text AS bytes')).rows[0].bytes);}finally{await client.end();}
+""").strip())
+    objects = base.DATA / 'objects/content'
+    object_bytes = sum((objects / name).stat().st_size for name in file_tree(objects))
+    return 2 * base.MAX_RELEASE + 3 * database_bytes + 2 * object_bytes
 
 
 def own_free_bytes():

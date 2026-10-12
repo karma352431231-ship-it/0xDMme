@@ -1,5 +1,7 @@
 # 0xDMme — decisões e plano de implementação
 
+Decisão de 11/10/2026: retirar os tetos operacionais de backup de objetos (256 MiB), banco/dump/SQL (64 MiB), inclusive a recusa por tamanho físico do PostgreSQL. Usar medição de espaço real, arquivos temporários privados e hashes por blocos; preservar integridade, isolamento, rollback e CI. Substitui a aprovação anterior de ampliar só o backup de objetos. [Contrato do deploy](docs/GIT_E_DEPLOY.md).
+
 Decisão de 11/10/2026: remover o teto de 2 MiB do pacote principal de fontes correspondentes no build, no servidor e na verificação HTTP do deploy. O pacote conserva todos os inputs/licenças, hashes e seleção explícita; mantém os orçamentos independentes de empacotamento e da versão inteira. [Contrato atualizado](docs/FONTES_FRONTEND.md). Substitui somente o teto histórico do pacote principal, sem mudar cotas de arquivos dos usuários.
 
 Atualização solicitada em 11/10/2026: dono como primeiro seguidor, badges de dono/mod e membro novo por **dois dias**, personalizados manuais antes da automação, confirmação das alterações de perfis/comunidades, menu único, edição por uma hora, bloqueio/denúncias, sininho opt-in por conta e expansão de texto. [Contratos e cortes](docs/CONTROLES_SOCIAIS_E_BADGES.md). Substitui salvamento instantâneo e amplia avisos antes restritos a respostas diretas. Notificações privadas e moderação mantêm seus contratos.

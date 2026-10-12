@@ -179,6 +179,7 @@ class TransitionFailureTests(unittest.TestCase):
             command=stack.enter_context(patch.object(base,'run',return_value=b'0'))
             stack.enter_context(patch.object(transition,'prepare_candidate',return_value=candidate))
             stack.enter_context(patch.object(transition,'own_free_bytes',return_value=2**30))
+            stack.enter_context(patch.object(transition,'required_backup_space',return_value=1024))
             stack.enter_context(patch.object(transition,'database_snapshot',side_effect=lambda:state['value']))
             stack.enter_context(patch.object(transition,'expected_versions',return_value=before['versions']))
             stack.enter_context(patch.object(transition,'objects_snapshot',return_value={}))

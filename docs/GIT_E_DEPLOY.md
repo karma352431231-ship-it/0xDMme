@@ -1,5 +1,27 @@
 # 0xDMme — Git e envio à VPS
 
+## Tetos de backup removidos — decisão de 11/10/2026
+
+O proprietário mandou retirar as travas de 256 MiB para objetos e 64 MiB para
+banco, dump e SQL de restauração. Esta decisão substitui a autorização anterior
+de ampliar apenas objetos. Não rejeitar backup nem migração por esses tamanhos;
+não substituir os números por outro teto fixo.
+
+O executor mede o banco e os objetos para estimar o espaço necessário, além da
+reserva existente para as releases. Confere hashes por blocos, sem carregar cada
+arquivo completo na memória. A restauração usa SQL integral em arquivo temporário
+privado (0600), validado antes de alimentar o `psql`; ensaio termina em ROLLBACK,
+retorno autorizado termina em COMMIT. Falha na decodificação não abre a transação.
+Os arquivos temporários são removidos ao concluir ou falhar normalmente. Espaço
+físico, integridade, isolamento, CI e prazos de execução continuam verificados.
+
+Reutilizar `npm run deploy:staging` para publicar esta correção do executor,
+com checkout limpo e commit integrado/enviado. As 58 migrações e o código da
+aplicação não mudam; o banco não é migrado novamente por esta publicação.
+
+**Ponto importante:** os antigos valores eram limites do executor, não da
+capacidade do PostgreSQL ou do produto. Agora banco e backups podem ultrapassá-los.
+
 ## Controles sociais — ativação autorizada em 11/10/2026
 
 O proprietário pediu alinhar este trabalho com o `main`, enviar à VPS e ativar.

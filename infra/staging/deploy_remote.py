@@ -191,7 +191,11 @@ def run(args, timeout=30):
 
 
 def digest(path):
-    return hashlib.sha256(path.read_bytes()).hexdigest()
+    checksum = hashlib.sha256()
+    with path.open('rb') as content:
+        for chunk in iter(lambda: content.read(1024 * 1024), b''):
+            checksum.update(chunk)
+    return checksum.hexdigest()
 
 
 def valid_release_branch(value):
@@ -1121,7 +1125,10 @@ def retain_migration_backup(work, old):
         raise RuntimeError('Completed transition contents require manual review.')
     if work.stat().st_uid != os.geteuid() or any(p.is_symlink() for p in work.iterdir()):
         raise RuntimeError('Completed transition ownership/link requires review.')
-    for name, limit in [('database.dump',backups.MAX_BACKUP), ('build.tar.gz',MAX_ARCHIVE),
+    dump = work / 'database.dump'
+    if not dump.is_file() or dump.stat().st_size <= 0:
+        raise RuntimeError('Historical database backup is missing or irregular.')
+    for name, limit in [('build.tar.gz',MAX_ARCHIVE),
                         ('result.json',65536), ('qr.tar.gz',2 * 1024 * 1024)]:
         path = work / name
         if path.exists() and (not path.is_file() or path.stat().st_size > limit):
@@ -1129,9 +1136,7 @@ def retain_migration_backup(work, old):
     objects, previous = work / 'objects-backup', work / 'previous'
     if not objects.is_dir() or not previous.is_dir():
         raise RuntimeError('Completed transition directories differ.')
-    object_files = backups.file_tree(objects)
-    if sum((objects / name).stat().st_size for name in object_files) > backups.MAX_OBJECT_BACKUP:
-        raise RuntimeError('Historical object backup budget exceeded.')
+    backups.file_tree(objects)
     allowed = {'src', 'infra', 'dist', 'node_modules', 'package.json', 'package-lock.json', '.nvmrc'}
     if not set(p.name for p in previous.iterdir()).issubset(allowed):
         raise RuntimeError('Old rollback contents require manual review.')
