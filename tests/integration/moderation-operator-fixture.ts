@@ -57,7 +57,10 @@ export async function checkOperatorPreview(input: {
         if (match) accept(match[0]);
       });
     });
-    const response = await fetch(url, { signal: AbortSignal.timeout(3000) });
+    const response = await fetch(url, {
+      headers: { 'Accept-Language': 'en' },
+      signal: AbortSignal.timeout(3000),
+    });
     assert.equal(response.status, 200);
     assert.equal(response.headers.get('cache-control'), 'no-store');
     assert.ok(
@@ -66,7 +69,7 @@ export async function checkOperatorPreview(input: {
         ?.includes("default-src 'none'"),
     );
     const markup = await response.text();
-    assert.ok(markup.includes('Revisão excepcional'));
+    assert.ok(markup.includes('Exceptional review'));
     assert.equal(
       (
         await fetch(url, {
