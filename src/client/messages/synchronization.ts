@@ -1,3 +1,4 @@
+import { AccountError } from '../../shared/account/index.ts';
 import { HistoryPreparation } from './preparation.ts';
 import { LiveUpdates } from '../message-live/index.ts';
 import type { LiveUpdate } from '../message-live/index.ts';
@@ -47,7 +48,10 @@ export class MessageSynchronization {
   constructor(options: SynchronizationOperations) {
     this.options = options;
     this.updates = new LiveUpdates({
-      available: () => this.canPreload() && !options.state().liveConnecting,
+      available: () =>
+        this.canPreload() &&
+        !this.preloadRunning &&
+        !options.state().liveConnecting,
       run: (update) => {
         void this.run(update === 'refresh' ? options.refresh : options.changes);
       },
@@ -177,11 +181,18 @@ export class MessageSynchronization {
           'Não foi possível preparar o histórico das conversas.',
         );
         this.options.status();
-        this.preloadRetryAt = Date.now() + 61000;
+        // A concurrent snapshot change needs another current read, not the
+        // minute backoff reserved for rate limits and operational failures.
+        this.preloadRetryAt =
+          Date.now() +
+          (error instanceof AccountError && error.status === 409
+            ? 1000
+            : 61000);
       }
     } finally {
       this.preloadRunning = false;
       if (this.preloadAbort === abort) this.preloadAbort = null;
+      this.updates.resume();
       this.continuePreload(current);
     }
   }

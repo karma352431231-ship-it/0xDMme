@@ -160,3 +160,9 @@ Validação local: oito regressões novas passaram com os módulos reais de comu
 Os módulos `communities/index.ts` e `communities/posts.ts` continuam hotspots por concentrarem coordenação e telas. Uma tarefa separada pode extrair, em ordem, a tela de gestão/governança, a montagem de detalhe e a janela de posts/respostas, preservando geração, fila, rascunho e descarte de mídia. Deve repetir as regressões de sessão/permissões e o smoke de navegação/paginação; esta correção não faz essa divisão ampla.
 
 **Ponto importante:** este fix trata a reconstrução demonstrada em comunidade/post aberto. Mantém as conferências de autorização e o fechamento aprovado do chat individual; não altera protocolo, criptografia, dependências, migrações, retenção ou infraestrutura. Ativação na VPS e confirmação no navegador real permanecem separadas.
+
+## Continuidade entre conversas — 13/10/2026
+
+O [contrato atualizado do bloco 07](BLOCO_07_MENSAGENS.md#sincronização-ao-trocar-de-conversa-e-retornar-à-aba--13102026) amplia a última janela em memória para candidatos limitados de várias conversas. Substitui a invalidação por simples troca de conversa descrita acima: a visão continua fechada e só reaparece após conferir o snapshot autenticado, entrega e confirmação final. Retorno à aba e handshake SSE usam sondagem; carga inicial, exclusão, erro e mudança de autorização preservam suas guardas. Aviso normal deixa a página limitada de preparação concluir, sem interromper automaticamente seu cursor.
+
+**Ponto importante:** nenhuma publicação acontece com base somente na memória retida. O reuso reduz operações repetidas, sem eliminar a validação atual, prometer tempo absoluto ou alterar a exceção de continuidade do áudio.

@@ -1,3 +1,4 @@
+import { ConfirmedConversations } from './confirmed-conversations.ts';
 import { knownPeerProfile } from './known-profile.ts';
 import { readBackupWindow } from './backup-window.ts';
 import { RemovalIndex } from '../personal-removals/index.ts';
@@ -70,6 +71,7 @@ import {
 import { messageApi, backupMessageApi } from '../message-api/index.ts';
 import {
   MessageIndex,
+  IncompleteMessageIndex,
   VerifiedWindow,
   MessagePrefetch,
   assertMessagePage,
@@ -149,6 +151,8 @@ export class Messages {
   private oldest: number | null = null;
   transportPending = false;
   private confirmed: { snapshot: string; views: MessageView[] } | null = null;
+  private readonly conversations = new ConfirmedConversations<MessageView>();
+  private probedSnapshot: unknown = null;
   private readonly index = new MessageIndex();
   private readonly prefetch = new MessagePrefetch();
   private prefetchAbort: AbortController | null = null;
@@ -200,6 +204,8 @@ export class Messages {
   close(): void {
     this.pauseSynchronization();
     this.prefetch.reset();
+    this.conversations.clear();
+    this.probedSnapshot = null;
     this.confirmed = null;
     this.verified.clear();
     this.generation++;
@@ -210,10 +216,13 @@ export class Messages {
   /** Hide during a normal pause, retaining only a fully confirmed window.
    * probe() must authenticate the current snapshot before publishing it again. */
   pause(): void {
+    this.probedSnapshot = null;
     this.pauseSynchronization();
     this.visibility.close();
   }
   hide(): void {
+    this.conversations.clear();
+    this.probedSnapshot = null;
     this.pauseSynchronization();
     this.index.reset();
     this.confirmed = null;
@@ -222,17 +231,28 @@ export class Messages {
   }
   /** A normal wakeup retains the last verified view, but cannot publish new rows. */
   hint(): void {
+    this.probedSnapshot = null;
     this.visibility.hint();
   }
   select(peer: string | null, older = false): void {
     this.pauseSynchronization();
-    this.confirmed = null;
+    this.probedSnapshot = null;
+    const candidate = peer && !older ? this.conversations.read(peer) : null;
+    this.confirmed = candidate;
     this.verified.clear();
     this.generation++;
     this.visibility.close();
     this.offlineIndex.reset();
     this.selected = peer;
     this.before = older ? this.oldest : null;
+    if (candidate) this.oldest = candidate.oldest;
+  }
+  private rememberConversation(): void {
+    if (!this.selected || this.before !== null || !this.confirmed) return;
+    this.conversations.remember(this.selected, {
+      ...this.confirmed,
+      oldest: this.oldest,
+    });
   }
   private guard(generation: number): void {
     if (generation !== this.generation)
@@ -722,6 +742,8 @@ export class Messages {
     }
   }
   async synchronize(): Promise<void> {
+    const probed = this.probedSnapshot;
+    this.probedSnapshot = null;
     const token = this.visibility.refresh(),
       generation = this.generation,
       selected = this.selected;
@@ -729,7 +751,7 @@ export class Messages {
       const staged = await this.access.withVault(false, async (a) => {
         const api = (op: string, d: Record<string, unknown>) =>
             messageApi(a, op, d, () => this.guard(generation)),
-          snapshot = await api('snapshot', {});
+          snapshot = probed ?? (await api('snapshot', {}));
         const items = await this.synchronizeIndex({
           a,
           generation,
@@ -799,8 +821,11 @@ export class Messages {
       this.guard(generation);
       this.confirmed = { snapshot: JSON.stringify(staged.snapshot), views };
       this.verified.remember(staged.snapshot, staged.window, staged.views);
+      this.rememberConversation();
     } catch (error: unknown) {
-      this.index.reset();
+      if (!(error instanceof IncompleteMessageIndex)) this.index.reset();
+      this.conversations.clear();
+      this.probedSnapshot = null;
       this.confirmed = null;
       this.verified.clear();
       this.visibility.fail(token);
@@ -1497,6 +1522,7 @@ export class Messages {
     });
   }
   async probe(): Promise<boolean> {
+    this.probedSnapshot = null;
     const token = this.visibility.refresh(
         this.confirmed ? 'delivery' : 'history',
       ),
@@ -1516,12 +1542,16 @@ export class Messages {
         await this.confirmVisible(token, snapshot, generation);
         this.guard(generation);
         this.confirmed = { snapshot: JSON.stringify(snapshot), views };
+        this.rememberConversation();
         return false;
       }
       this.confirmed = null;
+      this.probedSnapshot = snapshot;
       this.visibility.discard(token);
       return true;
     } catch (error: unknown) {
+      this.conversations.clear();
+      this.probedSnapshot = null;
       this.confirmed = null;
       this.verified.clear();
       this.visibility.fail(token);

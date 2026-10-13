@@ -1,3 +1,4 @@
+import { AccountError } from '../src/shared/account/index.ts';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { TestContext } from 'node:test';
@@ -204,4 +205,54 @@ await test('prefetch failure is bounded, and session change cannot publish its d
   held.reject(new Error('Old session'));
   await turn();
   assert.deepEqual(f.notices, ['Synthetic failure']);
+});
+
+await test('aviso normal durante pré-carregamento aguarda a página confirmar sem abortar seu progresso', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const f = fixture(t),
+    page = deferred<boolean>();
+  const signals: AbortSignal[] = [];
+  let checks = 0;
+  f.options.preloadDirect = (value) => {
+    signals.push(value);
+    return page.promise;
+  };
+  f.options.changes = () => {
+    checks++;
+    return Promise.resolve();
+  };
+  await f.sync.run(() => Promise.resolve());
+  t.mock.timers.tick(1000);
+  await turn();
+  const signal = signals[0];
+  assert.ok(signal);
+  f.sync.request('probe');
+  t.mock.timers.tick(150);
+  await turn();
+  assert.equal(checks, 0);
+  assert.equal(signal.aborted, false);
+  page.resolve(false);
+  await turn();
+  t.mock.timers.tick(150);
+  await turn();
+  assert.equal(checks, 1);
+});
+
+await test('snapshot atualizado durante preparação repete no próximo turno sem esperar um minuto', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout', 'Date'], now: 100000 });
+  const f = fixture(t);
+  let calls = 0;
+  f.options.preloadDirect = () => {
+    calls++;
+    return calls === 1
+      ? Promise.reject(new AccountError(409, 'Snapshot alterado'))
+      : Promise.resolve(false);
+  };
+  await f.sync.run(() => Promise.resolve());
+  t.mock.timers.tick(1000);
+  await turn();
+  assert.equal(calls, 1);
+  t.mock.timers.tick(1000);
+  await turn();
+  assert.equal(calls, 2);
 });

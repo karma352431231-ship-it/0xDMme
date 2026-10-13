@@ -253,7 +253,9 @@ export function startMessages(
       if (event === 'ready') void checkVoiceAuthority();
       if (event === 'authorization') void checkVoiceAuthority();
       hideLiveHistory(event);
-      requestRefresh(event === 'changed' ? 'probe' : 'refresh');
+      requestRefresh(
+        event === 'changed' || event === 'ready' ? 'probe' : 'refresh',
+      );
     },
   });
   const synchronization = new MessageSynchronization({
@@ -331,6 +333,12 @@ export function startMessages(
       groups.suspend(event === 'revoked' || event === 'ended');
   }
   function hideLiveHistory(event: LiveEvent): void {
+    // Delivery/presence hints may come from the page being prepared. Let that
+    // bounded page confirm and commit its cursor before the queued probe runs.
+    if (event === 'changed') {
+      controller.hint();
+      return;
+    }
     stopPreload();
     if (event === 'revoked' || event === 'ended') {
       voice.cancel();
@@ -346,8 +354,7 @@ export function startMessages(
       groups.suspend();
       menu.close();
       searchPanel.close();
-    } else if (event === 'changed') controller.hint();
-    else controller.pause();
+    } else controller.pause();
   }
   async function checkVoiceAuthority(): Promise<void> {
     await playback.check((peer) => controller.playbackAllowed(peer));
@@ -711,7 +718,9 @@ export function startMessages(
     if (card) await controller.shareProfile(peer.accountId, card);
     await synchronizeVisible();
     await controller.savePins();
-    await dailyTick();
+    // Opening one conversation only needs its read receipts. Account-wide
+    // presence, push settings and peer states keep their periodic lifecycle.
+    await historyUi.markRead(daily);
   }
   function selectPeer(peer: ConversationPeer): void {
     showDirectConversation();
@@ -1060,7 +1069,7 @@ export function startMessages(
       session &&
       navigator.onLine
     )
-      requestRefresh();
+      requestRefresh('probe');
   }
   function controlsChanged(): void {
     suspend('invalidate');

@@ -160,8 +160,20 @@ export function resumeFixture() {
       );
     if (operation === 'snapshot')
       return Promise.resolve(Response.json(data.snapshot));
-    if (operation === 'page')
-      return Promise.resolve(Response.json({ items: data.items, next: null }));
+    if (operation === 'page') {
+      if (typeof input?.body !== 'string') throw new Error('Página ausente.');
+      const body = JSON.parse(input.body) as { payload: { after: number } };
+      const remaining = data.items.filter(
+        (item) => item.sequence > body.payload.after,
+      );
+      const items = remaining.slice(0, 16);
+      return Promise.resolve(
+        Response.json({
+          items,
+          next: remaining.length > 16 ? items.at(-1)!.sequence : null,
+        }),
+      );
+    }
     if (operation === 'relations')
       return Promise.resolve(Response.json({ items: [], next: null }));
     if (operation === 'delivery')
@@ -207,11 +219,11 @@ export function resumeFixture() {
   );
   controller.setSession(session);
   controller.select(peer);
-  const add = async (text: string) => {
+  const add = async (text: string, from = peer) => {
     const item: MessageItem = {
       id: crypto.randomUUID(),
       kind: 'text',
-      sender: peer,
+      sender: from,
       recipient: session.accountId,
       sequence: data.items.length + 1,
       hash: 'c'.repeat(64),

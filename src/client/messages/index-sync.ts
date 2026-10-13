@@ -3,6 +3,16 @@ import { canonical, fingerprint } from '../../shared/devices/index.ts';
 import { messageItems } from './history.ts';
 import type { Api, MessageItem } from './history.ts';
 
+/** A bounded scan needs another turn; its already verified pages remain valid
+ * only for the same snapshot/account/window. No partial history is publishable. */
+export class IncompleteMessageIndex extends Error {
+  constructor() {
+    super(
+      'Índice de mensagens parcialmente conferido. Continue sincronizando; o histórico permanece oculto.',
+    );
+  }
+}
+
 interface Scan {
   identity: string;
   selected: string | null;
@@ -50,10 +60,7 @@ export class MessageIndex {
       scan.complete = page.next === null;
       scan.after = page.next ?? scan.after;
     }
-    if (!scan.complete)
-      throw new Error(
-        'Índice de mensagens parcialmente conferido. Continue sincronizando; o histórico permanece oculto.',
-      );
+    if (!scan.complete) throw new IncompleteMessageIndex();
     return this.window(scan, c.selected);
   }
   /** Background callers have already verified deletions, durable receipts and
