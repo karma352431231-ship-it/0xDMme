@@ -1,12 +1,16 @@
+import { withoutGifLinks } from '../gif-search/index.ts';
 import { renderMentions } from '../public-mentions/index.ts';
 import { postLink } from '../../shared/community-posts/index.ts';
 import { communityElement } from './elements.ts';
 export function postUrls(text: string) {
   return text.matchAll(/https?:\/\/[^\s<>"']+/gu);
 }
-export function postText(text: string): HTMLElement {
+export function postText(
+  text: string,
+  displayedGifs: readonly string[] = [],
+): HTMLElement {
   const node = communityElement('p', '', 'community-text');
-  renderMentions(node, text, plainLinks);
+  renderMentions(node, withoutGifLinks(text, displayedGifs), plainLinks);
   return node;
 }
 function plainLinks(node: HTMLElement, text: string): void {

@@ -42,53 +42,75 @@ await test('PostgreSQL/HTTP: migração autorizada e retorno cifrado preservam d
     throw new Error('Banco exclusivo de testes necessário.');
   const database = new Database(config.databaseUrl);
   const inspector = new pg.Client({ connectionString: config.databaseUrl });
-  const origin = 'http://127.0.0.1:45118';
-  const accounts = new AccountService({
-    store: database.authentication,
-    origin,
-  });
-  const devices = new DeviceService(database.devices, origin);
+  let origin = 'http://127.0.0.1';
+  let handler: ReturnType<typeof createAccountHandler> | null = null;
   const document = new TextEncoder().encode(
     '<!doctype html><html lang="pt-BR"><title>Recuperação privada</title></html>',
   );
   const host = createWebServer({
-    origin,
+    get origin() {
+      return origin;
+    },
     assets: new Map(),
     database,
     objects: { healthy: () => Promise.resolve(true) },
-    account: createAccountHandler({
-      origin,
-      service: accounts,
-      devices,
-      recoveryDocument: document,
-    }),
+    account: {
+      handle: async (request, response) => {
+        assert.ok(
+          handler,
+          'Recovery fixture must be initialized before requests.',
+        );
+        await handler.handle(request, response);
+      },
+      close: () => handler?.close(),
+    },
+  });
+  const ids: string[] = [];
+  // Register cleanup before migrate/connect/listen: startup failure must not keep the runner alive.
+  t.after(async () => {
+    try {
+      if (host.server.listening) await host.close();
+      else handler?.close();
+      if (ids.length) {
+        for (const table of [
+          'device_links',
+          'device_events',
+          'device_directories',
+          'login_sessions',
+          'login_devices',
+        ])
+          await inspector.query(
+            `DELETE FROM hash_talk.${table} WHERE account_id=ANY($1::uuid[])`,
+            [ids],
+          );
+        await inspector.query(
+          'DELETE FROM hash_talk.accounts WHERE id=ANY($1::uuid[])',
+          [ids],
+        );
+      }
+    } finally {
+      await Promise.all([inspector.end(), database.close()]);
+    }
   });
   await database.migrate();
   await inspector.connect();
   await new Promise<void>((resolve, reject) => {
     host.server.once('error', reject);
-    host.server.listen(45118, '127.0.0.1', resolve);
+    host.server.listen(0, '127.0.0.1', resolve);
   });
-  const ids: string[] = [];
-  t.after(async () => {
-    await host.close();
-    for (const table of [
-      'device_links',
-      'device_events',
-      'device_directories',
-      'login_sessions',
-      'login_devices',
-    ])
-      await inspector.query(
-        `DELETE FROM hash_talk.${table} WHERE account_id=ANY($1::uuid[])`,
-        [ids],
-      );
-    await inspector.query(
-      'DELETE FROM hash_talk.accounts WHERE id=ANY($1::uuid[])',
-      [ids],
-    );
-    await inspector.end();
-    await database.close();
+  const address = host.server.address();
+  assert.ok(address && typeof address !== 'string');
+  origin = `http://127.0.0.1:${address.port}`;
+  const accounts = new AccountService({
+    store: database.authentication,
+    origin,
+  });
+  const devices = new DeviceService(database.devices, origin);
+  handler = createAccountHandler({
+    origin,
+    service: accounts,
+    devices,
+    recoveryDocument: document,
   });
   const signer = Wallet.createRandom();
   async function login(

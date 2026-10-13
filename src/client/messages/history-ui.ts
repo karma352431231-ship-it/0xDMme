@@ -5,7 +5,7 @@ import { dailyViews } from '../daily-text/index.ts';
 import type { DailyView } from '../daily-text/index.ts';
 import { messageActions } from '../message-actions/index.ts';
 import { checksIcon, messageChecks } from '../message-status/index.ts';
-import { gifMessageUrl, showExternalGif } from '../gif-search/index.ts';
+import { gifUrls, showGifText } from '../gif-search/index.ts';
 import { showExternalVideos } from '../external-video/index.ts';
 import { externalVideoIds } from '../../shared/external-video/index.ts';
 import { ExternalTextHistory } from '../external-media/index.ts';
@@ -92,7 +92,8 @@ export class MessageHistoryUi {
           id: view.id,
           key:
             view.kind === 'text' &&
-            externalVideoIds(view.content.text).length > 0
+            (externalVideoIds(view.content.text).length > 0 ||
+              gifUrls(view.content.text).length > 0)
               ? JSON.stringify([view.content, view.reactions, view.archived])
               : null,
           render: (signal) => this.renderMessage(view, signal),
@@ -235,7 +236,7 @@ export class MessageHistoryUi {
         load: this.options.media,
         run: this.options.run,
       });
-    } else if (gifMessageUrl(view.content.text))
+    } else if (gifUrls(view.content.text).length)
       this.renderGif(text, view.content.text, signal);
     else if (
       !this.options.representatives?.renderCard(
@@ -254,7 +255,8 @@ export class MessageHistoryUi {
     signal: AbortSignal,
   ): void {
     if (!this.options.externalMedia) return emojiText(text, value);
-    showExternalGif(text, gifMessageUrl(value) ?? '', {
+    showGifText(text, value, {
+      renderText: emojiText,
       privacy: this.options.externalMedia,
       signal,
     });

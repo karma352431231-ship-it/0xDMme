@@ -1,3 +1,4 @@
+import { gifUrls } from '../gif-search/index.ts';
 import type {
   CommunityPost,
   PostState,
@@ -132,7 +133,10 @@ export class ReplyComposer {
     const preview = postPreviewText(this.parent.text);
     if (preview)
       context.append(
-        postText(preview + (preview === this.parent.text ? '' : '…')),
+        postText(
+          preview + (preview === this.parent.text ? '' : '…'),
+          gifUrls(this.parent.text),
+        ),
       );
     if (this.parent.media?.length)
       showPublicPostMedia(context, this.parent.media, signal);

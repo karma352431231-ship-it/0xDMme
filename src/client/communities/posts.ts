@@ -1,3 +1,4 @@
+import { gifUrls } from '../gif-search/index.ts';
 import { postSharing } from './post-sharing.ts';
 import { postInteractionSelection } from './post-interactions.ts';
 import { restrictedMedia } from '../community-media/index.ts';
@@ -390,7 +391,9 @@ export function startCommunityPosts(
     if (value.status !== 'visible') return;
     if (value.text)
       node.append(
-        value.id === selected ? postText(value.text) : postPreview(value.text),
+        value.id === selected
+          ? postText(value.text, gifUrls(value.text))
+          : postPreview(value.text, gifUrls(value.text)),
       );
     mediaCleanup.set(
       showPostExternalMedia(node, value.text, {
@@ -466,6 +469,7 @@ export function startCommunityPosts(
           post: result,
           community: identity,
           member: own !== null,
+          privacy,
           request: (operation, data) => controller.request(operation, data),
           valid: () => old === generation,
           signal: signal(),

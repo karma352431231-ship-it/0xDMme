@@ -1,3 +1,4 @@
+import { gifUrls } from '../gif-search/index.ts';
 import type { FeedEntry } from '../../shared/community-discovery/index.ts';
 import type { CommunityPost } from '../../shared/community-posts/index.ts';
 import { communityCard as card, communityElement as el } from './elements.ts';
@@ -27,6 +28,7 @@ export function appendReplyContext(
   row: HTMLElement,
   entry: FeedEntry,
   signal: AbortSignal,
+  privacy?: ExternalMediaConsent,
 ): void {
   if (entry.post.parent) markReply(row);
   if (!entry.context) return;
@@ -36,6 +38,7 @@ export function appendReplyContext(
       root: entry.context.root,
       community: entry.community,
       signal,
+      ...(privacy ? { privacy } : {}),
     }),
   );
 }
@@ -45,7 +48,9 @@ export function renderActivityEntry(
   privacy?: ExternalMediaConsent,
 ): HTMLElement {
   const { post, community } = entry;
-  const row = entry.share ? sharedEntry(entry, signal) : entryCard(post);
+  const row = entry.share
+    ? sharedEntry(entry, signal, privacy)
+    : entryCard(post);
   if (entry.share) return row;
   const avatar = postHeader(row, post, community);
   if (community.avatar)
@@ -55,8 +60,8 @@ export function renderActivityEntry(
       reference: community.avatar,
       signal,
     });
-  appendReplyContext(row, entry, signal);
-  row.append(postPreview(post.text));
+  appendReplyContext(row, entry, signal, privacy);
+  row.append(postPreview(post.text, privacy ? gifUrls(post.text) : []));
   if (privacy) showPostExternalMedia(row, post.text, { privacy, signal });
   if (post.media?.length) showPublicPostMedia(row, post.media, signal);
   postTagLink(row, post);

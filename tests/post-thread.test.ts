@@ -140,6 +140,20 @@ await test('ramos mostram os mais votados nas primeiras respostas, demais págin
     nested.children.map((child) => child.textContent),
     ['42', '1'],
   );
+  // A counted child may now be unavailable (moderation or the reader's blocks).
+  replies.set(parent.id, []);
+  await host.querySelectorAll('.post-thread-toggle')[0]!.click();
+  await host.querySelectorAll('.post-thread-toggle')[0]!.click();
+  assert.equal(branch.querySelectorAll('.post-thread-item').length, 0);
+  assert.equal(
+    branch.querySelectorAll('.community-thread-empty')[0]!.textContent,
+    'Não há outras respostas disponíveis para exibir.',
+  );
+  replies.set(parent.id, children);
+  await host.querySelectorAll('.post-thread-toggle')[0]!.click();
+  await host.querySelectorAll('.post-thread-toggle')[0]!.click();
+  assert.equal(branch.querySelectorAll('.community-thread-empty').length, 0);
+  assert.equal(branch.querySelectorAll('.post-thread-item').length, 3);
   thread.dispose();
   const continuation = new ThreadElement('main'),
     subtree = new PostThread(actions);

@@ -1,3 +1,4 @@
+import { gifUrls } from '../gif-search/index.ts';
 import { appendOwnProfileShortcut } from '../profile-shortcut/index.ts';
 import { postSharing } from './post-sharing.ts';
 import {
@@ -329,7 +330,7 @@ export function startCommunityDiscovery(
       if (seen.size > 240) seen.delete(seen.values().next().value!);
       const row = entryCard(post);
       const avatar = postHeader(row, post, entry.community);
-      appendReplyContext(row, entry, abort.signal);
+      appendReplyContext(row, entry, abort.signal, privacy);
       followControl(row, entry, old);
       if (entry.community.avatar)
         mediaCleanup.add(
@@ -411,7 +412,7 @@ export function startCommunityDiscovery(
   }
   function postContent(row: HTMLElement, post: CommunityPost): void {
     if (post.status === 'visible') {
-      row.append(postPreview(post.text));
+      row.append(postPreview(post.text, gifUrls(post.text)));
       mediaCleanup.add(
         showPostExternalMedia(row, post.text, {
           privacy,

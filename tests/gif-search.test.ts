@@ -3,6 +3,8 @@ import { test } from 'node:test';
 import {
   GifSearch,
   gifMessageUrl,
+  gifUrls,
+  withoutGifLinks,
   parseGifPage,
 } from '../src/client/gif-search/index.ts';
 import { readWebConfiguration } from '../src/server/web-configuration/index.ts';
@@ -105,4 +107,24 @@ await test('chave do KLIPY é opcional e validada na configuração do servidor'
     () => readWebConfiguration({ ...base, HASH_TALK_KLIPY_API_KEY: 'curta/!' }),
     /KLIPY/u,
   );
+});
+
+await test('GIFs junto ao texto deduplicam e só retiram links efetivamente exibidos', () => {
+  const a = `${host}/a.mp4`,
+    b = `${host}/b.gif`,
+    c = `${host}/c.webp`,
+    d = `${host}/d.gif`;
+  const unknown = 'https://example.org/a.gif';
+  const text = `Concordo!\n${a}\n${unknown}\n${a} ${b}, ${c} ${d}`;
+  assert.deepEqual(gifUrls(text), [a, b, c]);
+  assert.equal(withoutGifLinks(`Concordo!\n${a}`, [a]), 'Concordo!');
+  const visible = withoutGifLinks(text, gifUrls(text));
+  assert.ok(visible.includes(unknown));
+  assert.ok(visible.includes(d));
+  assert.ok(!visible.includes(a));
+  assert.deepEqual(
+    gifUrls(`${a}.evil https://static.klipy.com.evil/ii/x/a.gif`),
+    [],
+  );
+  assert.deepEqual(gifUrls(unknown), []);
 });

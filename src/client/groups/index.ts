@@ -35,7 +35,7 @@ import { AttachmentUi } from '../attachment-ui/index.ts';
 import { EmojiPicker, emojiIntoComposer, emojiText } from '../emoji/index.ts';
 import { showExternalVideos } from '../external-video/index.ts';
 import { externalVideoIds } from '../../shared/external-video/index.ts';
-import { showExternalGif, gifMessageUrl } from '../gif-search/index.ts';
+import { showGifText, gifUrls } from '../gif-search/index.ts';
 import type { ExternalMediaConsent } from '../external-media/index.ts';
 import { ExternalTextHistory } from '../external-media/index.ts';
 import { checksIcon, messageChecks } from '../message-status/index.ts';
@@ -289,7 +289,9 @@ export function startGroups(
       controller.views.map((view) => ({
         id: view.id,
         key:
-          view.kind === 'text' && externalVideoIds(view.text).length > 0
+          view.kind === 'text' &&
+          (externalVideoIds(view.text).length > 0 ||
+            gifUrls(view.text).length > 0)
             ? JSON.stringify([view.text, view.localOnly, view.sender])
             : null,
         render: (signal) => renderView(view, signal),
@@ -372,10 +374,10 @@ export function startGroups(
       privacy: options.externalMedia,
       signal: mediaSignal,
     };
-    const gif = gifMessageUrl(value);
+    const gif = gifUrls(value).length;
     if (gif) {
       text.replaceChildren();
-      showExternalGif(text, gif, settings);
+      showGifText(text, value, { ...settings, renderText: emojiText });
     }
     showExternalVideos(article, value, settings);
   }

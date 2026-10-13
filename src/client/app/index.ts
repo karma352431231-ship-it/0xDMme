@@ -191,6 +191,7 @@ const activity = startActivity(
     clearMissedCalls: () => callLog.clear(),
   },
   {
+    externalMedia,
     countChanged: (count) => {
       document
         .querySelectorAll<HTMLElement>('[data-activity-count]')

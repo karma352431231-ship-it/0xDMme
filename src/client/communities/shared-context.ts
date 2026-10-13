@@ -1,3 +1,4 @@
+import type { ExternalMediaConsent } from '../external-media/index.ts';
 import type { FeedEntry } from '../../shared/community-discovery/index.ts';
 import { communityElement as el } from './elements.ts';
 import { postHeader, communityIcon } from './presentation.ts';
@@ -7,6 +8,7 @@ import { showPublicAvatar } from '../public-media/index.ts';
 export function sharedEntry(
   entry: FeedEntry,
   signal: AbortSignal,
+  privacy?: ExternalMediaConsent,
 ): HTMLElement {
   const share = entry.share!;
   const row = el(
@@ -43,6 +45,7 @@ export function sharedEntry(
       community: entry.community,
       signal,
       kind: 'share',
+      ...(privacy ? { privacy } : {}),
     }),
   );
   return row;

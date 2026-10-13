@@ -222,6 +222,14 @@ export class PostThread {
     const slots = 120 - this.host.querySelectorAll('.post-thread-item').length;
     for (const post of branch.queue.splice(0, Math.min(3, slots)))
       this.row(branch.children, post, branch.depth);
+    if (!branch.children.children.length && !branch.next)
+      branch.children.append(
+        el(
+          'p',
+          'Não há outras respostas disponíveis para exibir.',
+          'community-thread-empty',
+        ),
+      );
     this.moreControl(branch);
   }
   private moreControl(branch: Branch): void {
