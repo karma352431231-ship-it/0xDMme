@@ -125,6 +125,7 @@ export function postHeader(
 }
 function authorBadges(identity: HTMLElement, post: CommunityPost): void {
   for (const badge of post.authorBadges ?? []) {
+    if (badge.kind === 'owner') continue;
     const mark = el(
       'span',
       badge.kind === 'custom'

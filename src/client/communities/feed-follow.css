@@ -1,9 +1,9 @@
 .feed-follow-dialog {
   box-sizing: border-box;
-  width: min(360px, calc(100vw - 32px));
+  width: min(380px, calc(100vw - 24px));
   max-height: calc(100dvh - 32px);
   margin: auto;
-  padding: 20px;
+  padding: 16px;
   overflow: auto;
   border: 1px solid var(--line-strong);
   border-radius: 20px;
@@ -12,30 +12,64 @@
 .feed-follow-dialog::backdrop {
   background: var(--overlay);
 }
-.feed-follow-dialog h2 {
-  margin: 0 0 16px;
+.feed-follow-choice {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 0;
+}
+.feed-follow-choice + .feed-follow-choice {
+  border-top: 1px solid var(--line);
+}
+.feed-follow-choice strong {
+  overflow-wrap: anywhere;
   font-size: var(--fs-body);
 }
-.feed-follow-dialog button {
-  width: 100%;
-  min-height: 44px;
-  padding: 12px;
-  border: 1px solid var(--line);
+.feed-follow-choice .community-avatar {
+  position: relative;
+  width: 40px;
+  height: 40px;
+  overflow: hidden;
   border-radius: 12px;
-  background: var(--surface-2);
-  color: var(--text);
+  background: var(--surface-3);
+}
+.feed-follow-choice .community-avatar.person {
+  border-radius: 50%;
+}
+.feed-follow-choice .community-avatar-initial {
+  display: grid;
+  place-items: center;
+  height: 100%;
+}
+.feed-follow-choice img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.feed-follow-choice .community-avatar [role='status'] {
+  display: none;
+}
+.feed-follow-dialog button {
+  min-height: 44px;
+  padding: 8px 12px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--accent);
+  color: var(--accent-ink);
   font: inherit;
-  text-align: left;
+  font-size: var(--fs-small);
+  font-weight: 600;
   cursor: pointer;
 }
-.feed-follow-dialog .feed-follow-choice {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  margin-bottom: 10px;
-  overflow-wrap: anywhere;
+.feed-follow-dialog .feed-follow-cancel {
+  width: 100%;
+  margin-top: 8px;
+  background: transparent;
+  color: var(--text-muted);
 }
-.feed-follow-choice span,
 .feed-follow-status {
   color: var(--text-muted);
   font-size: var(--fs-caption);

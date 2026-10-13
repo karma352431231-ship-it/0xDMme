@@ -1,5 +1,9 @@
 import { directoryLookup } from './directory.ts';
-import { communityFollowers } from '../../shared/community-followers/index.ts';
+import {
+  communityFollowerTab,
+  communityFollowers,
+} from '../../shared/community-followers/index.ts';
+import type { CommunityFollowerTab } from '../../shared/community-followers/index.ts';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { AccountError, uuid } from '../../shared/account/index.ts';
 import { community, communityCursor } from '../../shared/communities/index.ts';
@@ -37,7 +41,11 @@ import type {
 } from '../../shared/community-posts/index.ts';
 
 export function createCommunityHandler(read: {
-  followers?: (id: string, after: string | null) => Promise<unknown>;
+  followers?: (
+    id: string,
+    after: string | null,
+    tab: CommunityFollowerTab,
+  ) => Promise<unknown>;
   origin?: string;
   suggestions?: (query: string) => Promise<CommunityPage>;
   views?: (input: unknown) => Promise<unknown>;
@@ -90,12 +98,13 @@ export function createCommunityHandler(read: {
   async function followerLookup(address: URL): Promise<unknown> {
     if (!read.followers)
       throw new AccountError(404, 'Seguidores indisponíveis.');
-    params(address, ['after']);
+    params(address, ['after', 'tab']);
     const id = uuid(address.pathname.split('/')[3]);
     return communityFollowers(
       await read.followers(
         id,
         communityCursor(address.searchParams.get('after')),
+        communityFollowerTab(address.searchParams.get('tab') ?? 'all'),
       ),
     );
   }

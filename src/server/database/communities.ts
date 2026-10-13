@@ -449,8 +449,8 @@ export class CommunityStore {
     if (inserted.rowCount)
       await assertContentCapacity(context.client, this.capacity);
   }
-  followerPage(id: unknown, after: unknown) {
-    return this.followers.read({ client: this.pool, id, after, tab: 'all' });
+  followerPage(id: unknown, after: unknown, tab: unknown = 'all') {
+    return this.followers.read({ client: this.pool, id, after, tab });
   }
   async operate(
     operation: string,

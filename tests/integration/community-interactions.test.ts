@@ -135,7 +135,7 @@ await test('corte 5: árvore, votos e avisos diretos com autorização e persist
     await owner.operate('create', {
       id,
       meta: {
-        name: 'Interações sintéticas',
+        name: `Interações sintéticas ${id}`,
         description: 'Teste isolado',
         rules: 'Respeito',
       },

@@ -117,7 +117,7 @@ await test('corte 6: feeds públicos, descoberta e referências privadas', async
   for (const id of ids)
     await owner.operate('create', {
       id,
-      meta: { name: 'Corte 6 sintético', description: '', rules: '' },
+      meta: { name: `Corte 6 sintético ${id}`, description: '', rules: '' },
     });
   const community = ids[0]!,
     other = ids[1]!,
@@ -510,7 +510,7 @@ await test('corte 6: feeds públicos, descoberta e referências privadas', async
       const extra = Array.from({ length: 26 }, () => crypto.randomUUID());
       ids.push(...extra);
       await inspector.query(
-        "INSERT INTO hash_talk.communities(id,owner,name,description,rules) SELECT id,$2,'Descoberta sem atividade','','' FROM unnest($1::uuid[]) AS id",
+        "INSERT INTO hash_talk.communities(id,owner,name,description,rules) SELECT id,$2,'Descoberta sem atividade '||id::text,'','' FROM unnest($1::uuid[]) AS id",
         [extra, ownerProfile.id],
       );
       for (const order of ['size', 'activity']) {

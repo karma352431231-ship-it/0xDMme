@@ -1,6 +1,10 @@
 import { renderMentions } from '../public-mentions/index.ts';
 import { fetchApi, readApiJson } from '../api-response/index.ts';
-import { publicHandle } from '../../shared/public-profile/index.ts';
+import { uuid } from '../../shared/account/index.ts';
+import {
+  publicHandle,
+  publicProfile,
+} from '../../shared/public-profile/index.ts';
 import { profileSummary } from '../../shared/profile-social/index.ts';
 import type { ProfileSummary } from '../../shared/profile-social/index.ts';
 import type { HoverCardProvider } from '../hover-card/index.ts';
@@ -14,33 +18,49 @@ const cache = new Map<string, { at: number; value: ProfileSummary }>();
 
 /** Public summary without cookies, kept briefly so repeated hovers stay cheap. */
 async function summary(
-  handle: string,
+  target: { id: string } | { handle: string },
   signal: AbortSignal,
 ): Promise<ProfileSummary> {
-  const held = cache.get(handle);
+  const key = 'id' in target ? `id:${target.id}` : `handle:${target.handle}`;
+  const held = cache.get(key);
   if (held && Date.now() - held.at < cacheTime) return held.value;
-  const response = await fetchApi(
-    'public-profile/read',
-    `/api/public-profiles/${encodeURIComponent(handle)}/page`,
-    {
-      credentials: 'omit',
-      cache: 'no-store',
-      redirect: 'error',
-      signal: AbortSignal.any([signal, AbortSignal.timeout(8000)]),
-    },
-  );
+  const handle =
+    'id' in target
+      ? publicProfile(
+          await read(`/api/public-profiles/id/${target.id}`, signal),
+        ).handle
+      : target.handle;
   const value = profileSummary(
-    await readApiJson(response, 'public-profile/read'),
+    await read(
+      `/api/public-profiles/${encodeURIComponent(handle)}/page`,
+      signal,
+    ),
   );
+  if ('id' in target && value.profile.id !== target.id)
+    throw new Error('Perfil público alterado.');
   if (cache.size >= cacheSize) cache.delete(cache.keys().next().value!);
-  cache.set(handle, { at: Date.now(), value });
+  cache.set(key, { at: Date.now(), value });
   return value;
 }
-function handleOf(link: HTMLAnchorElement): string | null {
+async function read(path: string, signal: AbortSignal): Promise<unknown> {
+  const response = await fetchApi('public-profile/read', path, {
+    credentials: 'omit',
+    cache: 'no-store',
+    redirect: 'error',
+    signal: AbortSignal.any([signal, AbortSignal.timeout(8000)]),
+  });
+  return readApiJson(response, 'public-profile/read');
+}
+function targetOf(
+  link: HTMLAnchorElement,
+): { id: string } | { handle: string } | null {
   const [path, query = ''] = (link.getAttribute('href') ?? '').split('?');
   if (path !== '#publico') return null;
   try {
-    return publicHandle(new URLSearchParams(query).get('handle'));
+    const params = new URLSearchParams(query);
+    return params.has('id')
+      ? { id: uuid(params.get('id')) }
+      : { handle: publicHandle(params.get('handle')) };
   } catch {
     return null;
   }
@@ -60,10 +80,10 @@ export function profileHoverProvider(
   controller: PublicProfiles,
 ): HoverCardProvider {
   return (link) => {
-    const handle = handleOf(link);
-    if (!handle) return null;
+    const target = targetOf(link);
+    if (!target) return null;
     return async (card, signal) => {
-      const value = await summary(handle, signal);
+      const value = await summary(target, signal);
       if (signal.aborted) return;
       const head = line('div', '', 'hover-card-head'),
         avatar = line('span', '@', 'hover-card-avatar person'),
@@ -79,8 +99,7 @@ export function profileHoverProvider(
       }
       head.append(avatar, actions);
       const name = line('a', `@${value.profile.handle}`, 'hover-card-title');
-      (name as HTMLAnchorElement).href =
-        `#publico?handle=${encodeURIComponent(value.profile.handle)}`;
+      (name as HTMLAnchorElement).href = `#publico?id=${value.profile.id}`;
       const banner = line('div', '', 'public-profile-banner hover-card-banner');
       if (value.banner)
         showPublicAvatar(banner, {

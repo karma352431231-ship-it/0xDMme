@@ -18,7 +18,7 @@ function identity(
   signal: AbortSignal,
 ): HTMLElement {
   const link = el('a', '', 'community-follower');
-  link.href = `#publico?handle=${encodeURIComponent(profile.handle)}`;
+  link.href = `#publico?id=${profile.id}`;
   const avatar = el(
     'span',
     profile.handle.slice(0, 2).toUpperCase(),
@@ -34,6 +34,14 @@ function identity(
     });
   }
   link.append(avatar, el('strong', `@${profile.handle}`));
+  if (profile.role)
+    link.append(
+      el(
+        'span',
+        profile.role === 'owner' ? 'Dono' : 'Moderador',
+        'community-follower-role',
+      ),
+    );
   return link;
 }
 async function read(
@@ -49,7 +57,7 @@ async function read(
           after,
         })
       : await communityRead(
-          `/api/communities/${input.id}/followers${after ? `?after=${encodeURIComponent(after)}` : ''}`,
+          `/api/communities/${input.id}/followers?tab=${kind}${after ? `&after=${encodeURIComponent(after)}` : ''}`,
           input.signal,
         ),
   );
@@ -154,7 +162,7 @@ export function mountCommunityFollowerPage(
   tabs.setAttribute('aria-label', 'Listas de seguidores');
   status.setAttribute('role', 'status');
   more.hidden = true;
-  let tab: CommunityFollowerTab = 'all',
+  let tab: CommunityFollowerTab = 'staff',
     next: string | null = null,
     generation = 0,
     loading = false;
@@ -167,7 +175,7 @@ export function mountCommunityFollowerPage(
     next = page.next;
     more.hidden = !next;
     status.textContent = page.total
-      ? `${page.total.toLocaleString('pt-BR')} ${tab === 'known' ? 'perfis que você segue nesta comunidade' : page.total === 1 ? 'seguidor' : 'seguidores'}`
+      ? `${page.total.toLocaleString('pt-BR')} ${tab === 'staff' ? 'na administração' : tab === 'known' ? 'perfis que você segue nesta comunidade' : page.total === 1 ? 'seguidor' : 'seguidores'}`
       : 'Nenhum perfil nesta lista.';
   }
   async function load(append: boolean): Promise<void> {
@@ -195,6 +203,7 @@ export function mountCommunityFollowerPage(
     button: HTMLButtonElement;
   }> = [];
   for (const [kind, label] of [
+    ['staff', 'Dono e moderadores'],
     ['all', 'Seguidores'],
     ['known', 'Perfis que você segue'],
   ] as const) {

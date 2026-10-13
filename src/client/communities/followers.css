@@ -132,3 +132,16 @@
     content: none;
   }
 }
+
+.community-follower strong {
+  flex: 1;
+  min-width: 0;
+}
+.community-follower-role {
+  flex: none;
+  padding: 4px 8px;
+  border-radius: 8px;
+  background: var(--surface-3);
+  color: var(--text-muted);
+  font-size: var(--fs-caption);
+}

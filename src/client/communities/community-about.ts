@@ -1,27 +1,15 @@
 import type { Community } from '../../shared/communities/index.ts';
-import { communityElement as el, communityLink as link } from './elements.ts';
+import { communityElement as el } from './elements.ts';
 /** About projects the real recorded creation date and only owner-written rules. */
-export function communityAbout(value: Community): HTMLElement {
+export function communityAbout(value: Community): HTMLElement | null {
   const rules = /^nenhuma?$/iu.test(value.rules.trim()) ? '' : value.rules;
+  if (!rules) return null;
   const info = el('details', '', 'community-info');
   info.append(
-    el(
-      'summary',
-      rules ? 'Sobre e regras da comunidade' : 'Sobre a comunidade',
-    ),
+    el('summary', 'Sobre e regras da comunidade'),
+    el('h3', 'Regras da comunidade'),
+    el('p', rules, 'community-text'),
   );
-  if (value.owner)
-    link(
-      info,
-      `Proprietário: @${value.owner.handle}`,
-      `#publico?handle=${encodeURIComponent(value.owner.handle)}`,
-    );
-  else info.append(el('p', 'Proprietário removido; comunidade arquivada.'));
-  if (rules)
-    info.append(
-      el('h3', 'Regras da comunidade'),
-      el('p', rules, 'community-text'),
-    );
   return info;
 }
 

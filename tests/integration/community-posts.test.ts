@@ -120,7 +120,7 @@ await test('posts: publicação aberta, tags locais, privacidade, revisão, excl
     await owner.operate('create', {
       id: community,
       meta: {
-        name: 'Posts sintéticos',
+        name: `Posts sintéticos ${community}`,
         description: 'Somente teste.',
         rules: 'Respeite as regras.',
       },

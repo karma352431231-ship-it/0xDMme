@@ -32,7 +32,7 @@ function communityOf(link: HTMLAnchorElement): string | null {
   return id && [...params.keys()].length === 1 ? id : null;
 }
 
-/** Community preview: photo, name, description, followers, owner and Seguir. */
+/** Community preview: photo, name, description, followers and Seguir. */
 export function communityHoverProvider(input: {
   controller: Communities;
   signedIn: () => boolean;
@@ -67,7 +67,6 @@ export function communityHoverProvider(input: {
       const figures = [
         `${value.followers.toLocaleString('pt-BR')} ${value.followers === 1 ? 'seguidor' : 'seguidores'}`,
       ];
-      if (value.owner) figures.push(`criada por @${value.owner.handle}`);
       if (value.archived) figures.push('arquivada');
       card.append(el('p', figures.join(' · '), 'hover-card-stats'));
       if (input.signedIn() && !value.archived)

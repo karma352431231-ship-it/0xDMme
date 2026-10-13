@@ -75,3 +75,83 @@ await test('trocar perfil por comunidade não cancela a próxima prévia com o t
     }
   }
 });
+
+await test('prévia de menção por UUID mantém identidade estável e recusa @ reutilizado', async (t) => {
+  const { profileHoverProvider } =
+    await import('../src/client/public-profile/profile-hover.ts');
+  const document = communityDocument();
+  const saved = Object.getOwnPropertyDescriptor(globalThis, 'document');
+  Object.defineProperty(globalThis, 'document', {
+    configurable: true,
+    value: document,
+  });
+  const id = crypto.randomUUID(),
+    removed = crypto.randomUUID();
+  const profile = { id, handle: 'pessoa', avatar: null };
+  const requests: string[] = [];
+  t.mock.method(globalThis, 'fetch', (input: string | URL | Request) => {
+    const path =
+      typeof input === 'string'
+        ? input
+        : input instanceof URL
+          ? input.href
+          : input.url;
+    requests.push(path);
+    return Promise.resolve(
+      Response.json(
+        path.includes('/id/')
+          ? profile
+          : {
+              profile,
+              description: '',
+              banner: null,
+              createdAt: null,
+              conversations: 0,
+              posts: 0,
+              replies: 0,
+              communities: 0,
+              followers: 1,
+            },
+      ),
+    );
+  });
+  const provider = profileHoverProvider({
+    hasSession: () => false,
+  } as unknown as import('../src/client/public-profile/controller.ts').PublicProfiles);
+  const link = (target: string) => {
+    const node = new CommunityNode('a');
+    node.setAttribute('href', `#publico?id=${target}`);
+    return node as unknown as HTMLAnchorElement;
+  };
+  try {
+    const card = new CommunityNode('div');
+    await provider(link(id))!(
+      card as unknown as HTMLElement,
+      new AbortController().signal,
+    );
+    assert.deepEqual(requests, [
+      `/api/public-profiles/id/${id}`,
+      '/api/public-profiles/pessoa/page',
+    ]);
+    assert.equal(
+      card.children.find((node) => node.className === 'hover-card-title') &&
+        (
+          card.children.find(
+            (node) => node.className === 'hover-card-title',
+          ) as unknown as HTMLAnchorElement
+        ).href,
+      `#publico?id=${id}`,
+    );
+    await assert.rejects(
+      provider(link(removed))!(
+        card as unknown as HTMLElement,
+        new AbortController().signal,
+      ),
+      /Perfil público alterado/,
+    );
+    assert.equal(provider(link('invalid')), null);
+  } finally {
+    if (saved) Object.defineProperty(globalThis, 'document', saved);
+    else Reflect.deleteProperty(globalThis, 'document');
+  }
+});

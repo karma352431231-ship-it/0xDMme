@@ -22,7 +22,7 @@ interface FollowOptions {
 export function feedFollowControl(
   header: HTMLElement,
   target: {
-    community: { id: string; name: string };
+    community: { id: string; name: string; avatar?: string | null };
     author: PublicProfile | null;
   },
   options: FollowOptions,
@@ -70,7 +70,7 @@ export function feedFollowControl(
   }
   async function choose(): Promise<void> {
     const choice = await chooseFeedFollow({
-      community: target.community.name,
+      community: target.community,
       author: target.author,
       signal: options.signal,
       load: async () => {

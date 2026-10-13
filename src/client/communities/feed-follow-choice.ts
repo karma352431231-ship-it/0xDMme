@@ -1,5 +1,7 @@
 import type { ProfileFollow } from '../../shared/profile-social/index.ts';
 import type { PublicProfile } from '../../shared/public-profile/index.ts';
+import { showPublicAvatar } from '../public-media/index.ts';
+import { communityAvatar } from './presentation.ts';
 import { communityElement as el } from './elements.ts';
 
 export interface FeedFollowStates {
@@ -11,7 +13,7 @@ export type FeedFollowChoice = {
   state: FeedFollowStates;
 };
 interface ChoiceOptions {
-  community: string;
+  community: { id: string; name: string; avatar?: string | null };
   author: PublicProfile | null;
   signal: AbortSignal;
   load: () => Promise<FeedFollowStates>;
@@ -24,15 +26,18 @@ export function chooseFeedFollow(
   if (options.signal.aborted) return Promise.resolve(null);
   return new Promise((resolve, reject) => {
     const dialog = el('dialog', '', 'feed-follow-dialog'),
-      title = el('h2', 'Quem seguir?'),
       status = el('p', 'Carregando opções…', 'feed-follow-status'),
-      cancel = el('button', 'Cancelar');
+      cancel = el('button', 'Cancelar'),
+      lifetime = new AbortController();
+    const signal = AbortSignal.any([options.signal, lifetime.signal]);
+    cancel.className = 'feed-follow-cancel';
     dialog.setAttribute('aria-label', 'Seguir comunidade ou autor');
     status.setAttribute('role', 'status');
     cancel.type = 'button';
     let settled = false;
     const dispose = () => {
       settled = true;
+      lifetime.abort();
       options.signal.removeEventListener('abort', close);
       dialog.close();
       dialog.remove();
@@ -60,7 +65,7 @@ export function chooseFeedFollow(
         close();
     });
     options.signal.addEventListener('abort', close, { once: true });
-    dialog.append(title, status, cancel);
+    dialog.append(status, cancel);
     document.body.append(dialog);
     try {
       dialog.showModal();
@@ -77,21 +82,27 @@ export function chooseFeedFollow(
       .load()
       .then((state) => {
         if (settled) return;
-        const community = choiceButton(
-          state.community ? 'Deixar de seguir comunidade' : 'Seguir comunidade',
-          options.community,
-          () => finish({ target: 'community', state }),
-        );
-        const author = choiceButton(
-          authorLabel(options.author, state.author),
-          options.author ? `@${options.author.handle}` : 'Autor indisponível',
-          () => finish({ target: 'author', state }),
-        );
-        author.disabled = !options.author || !state.author;
+        const community = choiceRow({
+          name: options.community.name,
+          photo: {
+            kind: 'community-photo',
+            target: options.community.id,
+            reference: options.community.avatar ?? null,
+          },
+          following: state.community,
+          signal,
+          choose: () => finish({ target: 'community', state }),
+        });
+        const author = authorChoice({
+          author: options.author,
+          state: state.author,
+          signal,
+          choose: () => finish({ target: 'author', state }),
+        });
         status.textContent = '';
         dialog.insertBefore(community, status);
         dialog.insertBefore(author, status);
-        community.focus();
+        community.querySelector('button')?.focus();
       })
       .catch((error: unknown) => {
         if (settled) return;
@@ -104,18 +115,55 @@ export function chooseFeedFollow(
       });
   });
 }
-function choiceButton(label: string, name: string, choose: () => void) {
-  const node = el('button', '', 'feed-follow-choice');
-  node.type = 'button';
-  node.append(el('strong', label), el('span', name));
-  node.addEventListener('click', choose);
-  return node;
+function authorChoice(input: {
+  author: PublicProfile | null;
+  state: ProfileFollow | null;
+  signal: AbortSignal;
+  choose: () => void;
+}): HTMLElement {
+  return choiceRow({
+    name: input.author ? `@${input.author.handle}` : 'Autor indisponível',
+    photo: {
+      kind: 'avatar',
+      target: input.author?.id ?? '',
+      reference: input.author?.avatar ?? null,
+    },
+    following: input.state?.following ?? false,
+    disabled: !input.author || !input.state,
+    signal: input.signal,
+    choose: input.choose,
+  });
 }
-function authorLabel(
-  author: PublicProfile | null,
-  state: ProfileFollow | null,
-) {
-  if (!author) return 'Autor indisponível';
-  if (!state) return 'Seu perfil';
-  return state.following ? 'Deixar de seguir autor' : 'Seguir autor';
+function choiceRow(input: {
+  name: string;
+  photo: {
+    kind: 'community-photo' | 'avatar';
+    target: string;
+    reference?: string | null;
+  };
+  following: boolean;
+  disabled?: boolean;
+  signal: AbortSignal;
+  choose: () => void;
+}): HTMLElement {
+  const row = el('div', '', 'feed-follow-choice'),
+    avatar = communityAvatar(input.name),
+    button = el('button', input.following ? 'Seguindo' : 'Seguir');
+  if (input.photo.kind === 'avatar') avatar.classList.add('person');
+  button.type = 'button';
+  button.disabled = input.disabled ?? false;
+  button.setAttribute(
+    'aria-label',
+    `${input.following ? 'Deixar de seguir' : 'Seguir'} ${input.name}`,
+  );
+  button.setAttribute('aria-pressed', String(input.following));
+  button.addEventListener('click', input.choose);
+  row.append(avatar, el('strong', input.name), button);
+  if (input.photo.reference)
+    showPublicAvatar(avatar, {
+      ...input.photo,
+      reference: input.photo.reference,
+      signal: input.signal,
+    });
+  return row;
 }

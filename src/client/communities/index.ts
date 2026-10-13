@@ -429,7 +429,8 @@ export function startCommunities(
       renderMentions(description, value.description);
       hero.append(description);
     }
-    hero.append(communityAbout(value));
+    const about = communityAbout(value);
+    if (about) hero.append(about);
     if (!state) {
       communityLink(head, 'Entre pelo Perfil para participar', '#perfil');
       return;

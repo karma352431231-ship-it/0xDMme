@@ -192,7 +192,11 @@ await test('mídia das comunidades: cadeia real, autorização, vínculo atômic
   for (const community of [id, other])
     await author.operate('create', {
       id: community,
-      meta: { name: 'Mídia sintética', description: '', rules: '' },
+      meta: {
+        name: `Mídia sintética ${community}`,
+        description: '',
+        rules: '',
+      },
     });
   const run = promisify(execFile),
     photo = join(root, 'fixture.png'),

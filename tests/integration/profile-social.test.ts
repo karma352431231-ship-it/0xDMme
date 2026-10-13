@@ -20,6 +20,7 @@ import { postState } from '../../src/shared/community-posts/index.ts';
 import { Database } from '../../src/server/database/index.ts';
 import { AccountService } from '../../src/server/account/index.ts';
 import { DeviceService } from '../../src/server/devices/index.ts';
+import { createCommunityHandler } from '../../src/server/communities/index.ts';
 import { CommunityService } from '../../src/server/communities/index.ts';
 import {
   PublicProfileService,
@@ -66,6 +67,11 @@ await test('perfil social: métricas, comunidades públicas, follows, feeds e ba
     assets: new Map(),
     database: db,
     objects: { healthy: () => Promise.resolve(true) },
+    communities: createCommunityHandler({
+      read: (id) => communities.read(id),
+      list: (after) => communities.list(after),
+      followers: (id, after, tab) => communities.followerPage(id, after, tab),
+    }),
     publicProfiles: createPublicProfileHandler(
       (handle) => profiles.read(handle),
       profiles,
@@ -160,7 +166,7 @@ await test('perfil social: métricas, comunidades públicas, follows, feeds e ba
   for (const id of ids)
     await owner.operate('create', {
       id,
-      meta: { name: 'Comunidade fictícia', description: '', rules: '' },
+      meta: { name: `Comunidade fictícia ${id}`, description: '', rules: '' },
     });
   const create = async (
     actor: typeof owner,
@@ -232,6 +238,88 @@ await test('perfil social: métricas, comunidades públicas, follows, feeds e ba
         [identity.id],
       );
       assert.equal((await profiles.summary(identity.handle)).createdAt, null);
+    },
+  );
+  await t.test(
+    'administração pública: dono e moderador sem follow, bloqueios e função revogada',
+    async () => {
+      const state = (await owner.operate('state', { id: otherCommunity })) as {
+        community: { revision: number };
+      };
+      await owner.operate('role', {
+        id: otherCommunity,
+        revision: state.community.revision,
+        target: follower.id,
+        moderator: true,
+      });
+      const read = () =>
+        reader
+          .operate('followers-page', {
+            id: otherCommunity,
+            tab: 'staff',
+            after: null,
+          })
+          .then(communityFollowers);
+      const response = await fetch(
+        `${origin}/api/communities/${otherCommunity}/followers?tab=staff`,
+      );
+      assert.equal(response.status, 200);
+      const roster = communityFollowers(await response.json());
+      assert.equal(roster.total, 2);
+      assert.equal(
+        roster.items.find((item) => item.id === identity.id)?.role,
+        'owner',
+      );
+      assert.equal(
+        roster.items.find((item) => item.id === follower.id)?.role,
+        'moderator',
+      );
+      assert.deepEqual((await read()).items, roster.items);
+      assert.equal(
+        communityFollowers(
+          await reader.operate('followers-page', {
+            id: otherCommunity,
+            tab: 'all',
+            after: null,
+          }),
+        ).items.some((item) => item.id === follower.id),
+        false,
+      );
+      await operate(stranger, 'block', {
+        target: identity.id,
+        blocked: true,
+        revision: 0,
+      });
+      assert.equal(
+        communityFollowers(
+          await stranger.operate('followers-page', {
+            id: otherCommunity,
+            tab: 'staff',
+            after: null,
+          }),
+        ).total,
+        1,
+      );
+      await operate(stranger, 'block', {
+        target: identity.id,
+        blocked: false,
+        revision: 1,
+      });
+      await owner.operate('role', {
+        id: otherCommunity,
+        revision: state.community.revision + 1,
+        target: follower.id,
+        moderator: false,
+      });
+      assert.equal((await read()).total, 1);
+      assert.equal(
+        (
+          await fetch(
+            `${origin}/api/communities/${otherCommunity}/followers?tab=private`,
+          )
+        ).status,
+        400,
+      );
     },
   );
   await t.test(

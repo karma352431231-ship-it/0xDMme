@@ -18,6 +18,17 @@ await test('lista de seguidores limita página e aceita apenas identidades públ
   ])
     assert.throws(() => communityFollowers(invalid), AccountError);
   assert.equal(communityFollowerTab('known'), 'known');
+  assert.equal(communityFollowerTab('staff'), 'staff');
+  for (const role of ['owner', 'moderator', null])
+    assert.deepEqual(
+      communityFollowers({ ...page, items: [{ ...profile, role }] }).items,
+      [{ ...profile, role }],
+    );
+  assert.throws(
+    () =>
+      communityFollowers({ ...page, items: [{ ...profile, role: 'admin' }] }),
+    AccountError,
+  );
   assert.throws(() => communityFollowerTab('private'), AccountError);
 });
 await test('frase de perfis em comum cita até dois e conta os demais que a pessoa segue', () => {

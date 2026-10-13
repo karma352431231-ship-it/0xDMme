@@ -25,6 +25,11 @@ backups.URL_CHECK="const url = new URL(process.env.HASH_TALK_DATABASE_URL);"
 if phase=='before':
     record.write_text(json.dumps(social.snapshot()));record.chmod(0o600)
 elif phase=='after':
-    social.verify_migration(root,json.loads(record.read_text()))
+    # This test applies only 061→062; later repository migrations are separate transitions.
+    with tempfile.TemporaryDirectory() as directory:
+        candidate=Path(directory); target=candidate/'src/server/database/migrations'; target.mkdir(parents=True)
+        for path in sorted((root/'src/server/database/migrations').glob('*.sql'))[:62]:
+            shutil.copyfile(path,target/path.name)
+        social.verify_migration(candidate,json.loads(record.read_text()))
 else: raise RuntimeError('Unknown test phase')
 print(json.dumps({'phase':phase,'verified':True}))

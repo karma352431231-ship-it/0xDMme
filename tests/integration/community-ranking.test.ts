@@ -98,7 +98,7 @@ await test('rankings: métricas exatas, votos agregados, eventos, recuperação 
   for (const id of ids)
     await owner.operate('create', {
       id,
-      meta: { name: 'Ranking sintético', description: '', rules: '' },
+      meta: { name: `Ranking sintético ${id}`, description: '', rules: '' },
     });
   const original = crypto.randomUUID(),
     reply = crypto.randomUUID();
@@ -357,7 +357,7 @@ await test('rankings: métricas exatas, votos agregados, eventos, recuperação 
       );
       ids.push(...extra);
       await inspector.query(
-        "INSERT INTO hash_talk.communities(id,owner,name,description,rules) SELECT id,$2,'Candidata sem atividade','','' FROM unnest($1::uuid[]) id",
+        "INSERT INTO hash_talk.communities(id,owner,name,description,rules) SELECT id,$2,'Candidata sem atividade '||id::text,'','' FROM unnest($1::uuid[]) id",
         [extra, publicUsers[0]!.id],
       );
       await refresh();
@@ -414,7 +414,7 @@ await test('rankings: métricas exatas, votos agregados, eventos, recuperação 
       );
       ids.push(...extra);
       await inspector.query(
-        "INSERT INTO hash_talk.communities(id,owner,name,description,rules) SELECT id,$2,'Candidata do ensaio local','','' FROM unnest($1::uuid[]) id",
+        "INSERT INTO hash_talk.communities(id,owner,name,description,rules) SELECT id,$2,'Candidata do ensaio local '||id::text,'','' FROM unnest($1::uuid[]) id",
         [extra, publicUsers[0]!.id],
       );
       const walStart = (

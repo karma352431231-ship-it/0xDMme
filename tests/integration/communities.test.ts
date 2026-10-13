@@ -249,6 +249,7 @@ await test('comunidades: criação aberta, privacidade, gestão, sanções, den�
         'avatar',
         'handle',
         'id',
+        'role',
       ]);
       assert.equal(
         JSON.stringify(roster).includes(owner.login.session.accountId),
