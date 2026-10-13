@@ -1155,6 +1155,33 @@ class ActivityPreviewCodeTests(CommunityFeedCodeTests):
         }
 
 
+class SavedBookmarkCodeTests(CommunityFeedCodeTests):
+    def setUp(self):
+        super().setUp()
+        for relative in ['communities.ts', 'community-discovery.ts']:
+            (self.candidate / 'src/server/database' / relative).write_bytes(
+                (self.live / 'src/server/database' / relative).read_bytes())
+        for relative in ['community-discovery.ts', 'community-interaction-view.ts', 'community-preferences.ts']:
+            (self.live / 'src/server/database' / relative).write_text('existing bounded reader')
+            (self.candidate / 'src/server/database' / relative).write_text('reviewed private saved preference projection')
+        self.exports = {
+            remote.SAVED_BOOKMARK_BEFORE: self.export(self.live),
+            remote.SAVED_BOOKMARK_REVIEWED: self.export(self.candidate),
+        }
+
+    def test_bookmark_projection_requires_exact_bytes_in_all_three_modules(self):
+        for relative in ['community-discovery.ts', 'community-interaction-view.ts', 'community-preferences.ts']:
+            with self.subTest(path=relative):
+                path = self.candidate / 'src/server/database' / relative
+                original = path.read_bytes(); path.write_text('unreviewed preference write')
+                try:
+                    with (patch.object(backups, 'git_export', side_effect=lambda sha: self.exports[sha]),
+                          self.assertRaises(RuntimeError)):
+                        remote.compatibility(self.candidate, self.live)
+                finally:
+                    path.write_bytes(original)
+
+
 class CallsDeploymentTests(AttachmentDeploymentTests):
     count = 27
     previous_count = 25

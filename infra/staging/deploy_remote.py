@@ -175,6 +175,11 @@ POSE_MODERATION_REVIEWED = '5a54ddbe4a0dbdd91b1965b902dae970f12e646d'
 # Owner-approved 11/10/2026 code-only reservation upgrade; all migrations unchanged.
 MEDIA_OUTPUT_BEFORE = 'feff745968330663f956d26faac583d9b3194340'
 MEDIA_OUTPUT_REVIEWED = '5e024bfa606213f6c99760378a82fed68d2699e2'
+# Owner activation request of 13/10/2026: bounded reads of the current viewer's
+# saved-post preferences. Entire database projections are pinned; all 64 SQL
+# migrations, accounting, write operations and other modules stay identical.
+SAVED_BOOKMARK_BEFORE = 'c2beaf05d3c62826580b752e8b31d94930386a4e'
+SAVED_BOOKMARK_REVIEWED = '877a9f9d80bd08a6dca23e2ad3616c7044f9f1c9'
 COMMUNITIES_TABLES = CALLS_TABLES + CALLS_NEW_TABLES
 COMMUNITIES_NEW_TABLES = ('public_profiles', 'communities', 'community_follows',
     'community_moderators', 'community_sanctions', 'community_reports',
@@ -371,6 +376,8 @@ def database_code_reviewed(candidate, live):
          ACTIVITY_PREVIEW_BEFORE, ACTIVITY_PREVIEW_REVIEWED),
         ({'community-media.ts', 'public-moderation.ts', 'vault-quota.ts'},
          POSE_MODERATION_BEFORE, POSE_MODERATION_REVIEWED),
+        ({'community-discovery.ts', 'community-interaction-view.ts', 'community-preferences.ts'},
+         SAVED_BOOKMARK_BEFORE, SAVED_BOOKMARK_REVIEWED),
     ]
     selected = next((review for review in reviews if changed == review[0]), None)
     if selected is None:

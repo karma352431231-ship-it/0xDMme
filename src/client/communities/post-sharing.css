@@ -6,14 +6,15 @@
 #app-shell .post-share {
   color: var(--text-muted);
 }
-#app-shell .post-votes [data-vote='1'][aria-pressed='true'],
-#app-shell .post-share[aria-pressed='true'] {
+#app-shell[data-page] .post-votes [data-vote][aria-pressed='true'],
+#app-shell[data-page] .post-actions .post-share[aria-pressed='true'],
+.community-scope .post-votes [data-vote][aria-pressed='true'],
+.community-scope .post-actions .post-share[aria-pressed='true'] {
   color: var(--interaction-active);
 }
-#app-shell .post-votes [data-vote='-1'][aria-pressed='true'] {
-  color: var(--interaction-down);
-}
 #app-shell .post-votes [aria-pressed='true'] svg,
-#app-shell .post-share[aria-pressed='true'] svg {
+#app-shell .post-share[aria-pressed='true'] svg,
+.community-scope .post-votes [aria-pressed='true'] svg,
+.community-scope .post-share[aria-pressed='true'] svg {
   stroke-width: 2.7;
 }

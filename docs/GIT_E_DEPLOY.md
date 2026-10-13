@@ -2,9 +2,9 @@
 
 ## Busca, salvos e espaço no ranking — ativação autorizada em 13/10/2026
 
-O proprietário conferiu a prévia e pediu espaço leve entre os filtros e a tabela do ranking, seguido de commit, envio e ativação do conjunto pendente deste chat. Incluir busca de perfis/comunidades públicos, estado confirmado dos bookmarks e 14 px acima da tabela; integrar com a main preservando a release anterior `c2beaf0`.
+O proprietário conferiu a prévia e pediu espaço leve entre os filtros e a tabela do ranking, seguido de commit, envio e ativação do conjunto pendente deste chat. Incluir busca de perfis/comunidades públicos, estado confirmado dos bookmarks, ícones selecionados mais brancos sem mudar o fundo e 14 px acima da tabela; integrar com a main preservando a release anterior `c2beaf0`.
 
-A alteração de backend acrescenta somente leitura limitada/em lote da preferência saved da própria conta nas projeções autenticadas. Não muda gravações, tabelas, schema, migrações, ledger, retenção, Node, dependências ou units. A revisão do executor fixa predecessora e fontes exatas dos três módulos de leitura alterados; toda a árvore do banco precisa corresponder à projeção revisada. Nenhum bypass genérico de compatibilidade.
+A alteração de backend acrescenta somente leitura limitada/em lote da preferência saved da própria conta nas projeções autenticadas. Não muda gravações, tabelas, schema, migrações, ledger, retenção, Node, dependências ou units. A revisão do executor fixa predecessora e fontes exatas dos três módulos de leitura alterados; toda a árvore do banco precisa corresponder à projeção revisada. Nenhum bypass genérico de compatibilidade. A projeção do banco é fixada entre `c2beaf05d3c62826580b752e8b31d94930386a4e` e `877a9f9d80bd08a6dca23e2ad3616c7044f9f1c9`; os commits posteriores acrescentam somente estilo, documentação e essa revisão restrita do executor.
 
 Publicar por `npm run deploy:staging`, checkout integrado/limpo/enviado, CI integral do commit exato e build no Mac. Preservação, retorno da release anterior e prontidão continuam sob o executor vigente. **Ponto importante:** ativação autorizada não equivale a publicação confirmada; conferir recibo e hashes HTTPS. Acesso, artefatos e evidências exclusivamente em `.local/`.
 
