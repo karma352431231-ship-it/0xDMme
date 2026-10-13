@@ -37,6 +37,12 @@ Publicada em 09/10/2026 no commit `41f93e2f32c3170000165ac36ed2acb61e5cbdbc`, de
 
 ## Configurações iniciais por conta — 11/10/2026
 
+**Idiomas — decisão de 13/10/2026:** English e 简体中文 aparecem no início do
+assistente. A escolha usa um registro cifrado independente e pode ser alterada
+em Perfil → Privacidade, inclusive por quem pulou as outras configurações.
+As duas traduções e a migração futura das declarações assinadas estão descritas
+em [Idiomas](I18N.md). O formato de configurações descrito abaixo permanece igual.
+
 Decisão do proprietário: um “pacote de configurações básicas” para quem entra, com as escolhas valendo **por conta, não por aparelho**, e o push pedindo permissão assim que a pessoa escolhe as opções. Registro da decisão na seção 5.11 do [plano](../DECISOES_E_PLANO_DE_IMPLEMENTACAO.md).
 
 **Quando aparece.** Depois que a conta e o aparelho estão prontos (perfil cifrado aberto e cofre carregado), se a conta ainda não tem o registro “Configurações da conta” no cofre. Vale para contas novas e para contas existentes que ainda não passaram pelo assistente. “Agora não” fecha sem mudar nada; o assistente volta na próxima entrada.

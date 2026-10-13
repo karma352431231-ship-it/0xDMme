@@ -1,5 +1,12 @@
 # Bloco 10 — Notificações e experiência diária
 
+**Complemento de 13/10/2026:** os idiomas oficiais agora são English e 简体中文.
+As referências anteriores a busca e nomes portugueses de emojis registram a
+versão histórica. A interface, avisos de push e o repertório completo de emojis
+usam os dois idiomas; CLDR 48.2.3 en/zh original, com a mesma licença já adotada,
+fica nas fontes correspondentes. Busca e recentes continuam locais, e o pacote
+gráfico original/Unicode escolhido não muda. [Contrato atual](I18N.md).
+
 ## Experiência vigente em 04/10/2026
 
 Preferências globais, push, sons e duração de silêncio da conversa selecionada ficam em Configurações. Conversas conserva ações de conteúdo, arquivar/fixar e navegação do histórico. Sincronização, retomada de envios e abertura offline são automáticas; erros oferecem tentativa contextual. Histórico validado de backup aparece junto às mensagens atuais, com busca, paginação e mídia local. Contato sem consentimento atual permite consultar a cópia histórica e exige novo aceite para enviar.

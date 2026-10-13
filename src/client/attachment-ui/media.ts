@@ -1,3 +1,4 @@
+import { t } from '../../shared/i18n/index.ts';
 import { attachmentContent } from '../../shared/attachments/index.ts';
 import type { AttachmentContent } from '../../shared/attachments/index.ts';
 import type { VoiceMetadata } from '../../shared/voice/index.ts';
@@ -34,8 +35,9 @@ function displayType(bytes: Uint8Array, content: AttachmentContent): string {
   if (content.image && content.type === 'image/gif') return 'image/gif';
   return originalImageType(bytes) ?? 'application/octet-stream';
 }
-const defaultSaveNotice =
-  'A cópia salva fica fora do cofre e da exclusão bilateral. Abra arquivos somente se confiar na origem.';
+const defaultSaveNotice = t(
+  'A cópia salva fica fora do cofre e da exclusão bilateral. Abra arquivos somente se confiar na origem.',
+);
 /** Images are only their content in the bubble; saving lives in the viewer. */
 function showImage(
   preview: HTMLElement,
@@ -45,15 +47,16 @@ function showImage(
   const open = document.createElement('button');
   open.type = 'button';
   open.className = 'chat-image-open';
-  open.setAttribute('aria-label', `Ampliar imagem ${input.name}`);
+  open.setAttribute('aria-label', t('Ampliar imagem {0}', [input.name]));
   const image = document.createElement('img');
   image.src = url;
   image.alt = input.name;
   image.loading = 'lazy';
   image.decoding = 'async';
   image.addEventListener('error', () => {
-    preview.textContent =
-      'Não foi possível exibir a imagem. Você pode salvar o arquivo original.';
+    preview.textContent = t(
+      'Não foi possível exibir a imagem. Você pode salvar o arquivo original.',
+    );
   });
   open.append(image);
   open.addEventListener('click', () => {
@@ -77,10 +80,10 @@ function openImageViewer(
   const save = document.createElement('a');
   save.href = url;
   save.download = input.name;
-  save.textContent = 'Salvar no aparelho';
+  save.textContent = t('Salvar no aparelho');
   const close = document.createElement('button');
   close.type = 'button';
-  close.textContent = 'Fechar';
+  close.textContent = t('Fechar');
   close.addEventListener('click', () => {
     viewer.close();
   });
@@ -106,7 +109,7 @@ function offerSave<V extends MediaView>(
   const save = document.createElement('a');
   save.href = url;
   save.download = name;
-  save.textContent = 'Salvar no aparelho';
+  save.textContent = t('Salvar no aparelho');
   const warning = document.createElement('small');
   warning.textContent = input.saveNotice ?? defaultSaveNotice;
   input.article.append(save, warning);
@@ -115,8 +118,12 @@ function offerSave<V extends MediaView>(
 function mediaInfo(content: AttachmentContent, image: boolean): string {
   const caption = decodeDailyText(content.caption).text;
   if (image) return caption;
-  const size = `${(content.file.ref.bytes / 1_000_000).toFixed(2)} MB`;
-  return `${content.name} · ${size}${caption ? ` · ${caption}` : ''}`;
+  const size = t('{0} MB', [(content.file.ref.bytes / 1_000_000).toFixed(2)]);
+  return t('{0} · {1}{2}', [
+    content.name,
+    size,
+    caption ? ` · ${caption}` : '',
+  ]);
 }
 /** A voice is its player; decryption and download wait for the first play. */
 function renderVoice<V extends MediaView>(
@@ -169,7 +176,9 @@ export function renderMedia<V extends MediaView>(input: MediaInput<V>): void {
   info.hidden = !info.textContent;
   preview.className = 'chat-attachment-preview';
   button.type = 'button';
-  button.textContent = image ? 'Carregar imagem' : 'Baixar arquivo original';
+  button.textContent = image
+    ? t('Carregar imagem')
+    : t('Baixar arquivo original');
   input.article.append(...(image ? [preview, info] : [info, preview]), button);
   button.hidden = image;
   let pending = false;
@@ -192,8 +201,9 @@ export function renderMedia<V extends MediaView>(input: MediaInput<V>): void {
         return;
       }
       if (image)
-        preview.textContent =
-          'Prévia indisponível para esta imagem. O arquivo original está preservado.';
+        preview.textContent = t(
+          'Prévia indisponível para esta imagem. O arquivo original está preservado.',
+        );
       offerSave(input, url, content.name);
     } finally {
       bytes.fill(0);
@@ -214,15 +224,16 @@ export function renderMedia<V extends MediaView>(input: MediaInput<V>): void {
     void input.run(request);
   });
   if (image) {
-    preview.textContent = 'Carregando imagem…';
+    preview.textContent = t('Carregando imagem…');
     // Rendering precedes DOM insertion; the serial queue starts after insertion.
     void Promise.resolve()
       .then(request)
       .catch(() => {
         if (!input.current()) return;
-        preview.textContent =
-          'Imagem indisponível. Conecte ou toque para tentar novamente.';
-        button.textContent = 'Tentar carregar imagem';
+        preview.textContent = t(
+          'Imagem indisponível. Conecte ou toque para tentar novamente.',
+        );
+        button.textContent = t('Tentar carregar imagem');
         button.hidden = false;
       });
   }

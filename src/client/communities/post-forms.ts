@@ -1,3 +1,4 @@
+import { t, currentLanguage } from '../../shared/i18n/index.ts';
 import { mentionValue, mountMentionInput } from '../public-mentions/index.ts';
 import { postEditorMedia } from './post-editor-media.ts';
 import type { PostEditorAccess } from './post-editor-media.ts';
@@ -62,7 +63,7 @@ export function postTagSelect(
   function render(page: TagPage, first: boolean): void {
     const selected = initialized ? select.value : (options.value ?? ''),
       previous =
-        select.selectedOptions[0]?.textContent || 'Tag anterior ou do link';
+        select.selectedOptions[0]?.textContent || t('Tag anterior ou do link');
     initialized = true;
     const none = el('option', options.empty);
     none.value = '';
@@ -80,11 +81,11 @@ export function postTagSelect(
     select.value = selected;
     controls.replaceChildren();
     if (page.next)
-      button(controls, 'Outras tags', () =>
+      button(controls, t('Outras tags'), () =>
         source.run(async () => render(await source.load(page.next), false)),
       );
     if (!first)
-      button(controls, 'Primeiras tags', () =>
+      button(controls, t('Primeiras tags'), () =>
         source.run(async () => render(await source.load(null), true)),
       );
   }
@@ -103,7 +104,10 @@ function postTagChips(
   const group = el('fieldset', '', 'post-tag-chips'),
     chips = el('div', '', 'post-tag-chip-list'),
     more = el('div', '', 'post-toolbar');
-  group.append(el('legend', `Tags (escolha de 1 a ${postTagLimit})`), chips);
+  group.append(
+    el('legend', t('Tags (escolha de 1 a {0})', [postTagLimit])),
+    chips,
+  );
   container.append(group, more);
   let chosen = [...value],
     page = source.page;
@@ -115,7 +119,7 @@ function postTagChips(
     ];
     chips.replaceChildren(
       ...ids.map((id) => {
-        const chip = el('button', known.get(id) ?? 'Tag anterior');
+        const chip = el('button', known.get(id) ?? t('Tag anterior'));
         chip.type = 'button';
         const on = chosen.includes(id);
         chip.setAttribute('aria-pressed', String(on));
@@ -129,7 +133,7 @@ function postTagChips(
     );
     more.replaceChildren();
     if (page.next)
-      button(more, 'Mais tags', () =>
+      button(more, t('Mais tags'), () =>
         source.run(async () => {
           const next = await source.load(page.next);
           page = { items: [...page.items, ...next.items], next: next.next };
@@ -146,11 +150,11 @@ export function postForm(
   tags: PostTags,
   access: PostEditorAccess,
 ): () => Promise<PostContent> {
-  const title = field(container, 'Título', {
+  const title = field(container, t('Título'), {
       value: value.title,
       maximum: 200,
     }),
-    text = field(container, 'Texto (opcional)', {
+    text = field(container, t('Texto (opcional)'), {
       value: value.text,
       maximum: 4000,
       multiline: true,
@@ -185,7 +189,7 @@ export function replyForm(
   value: PostContent,
   access: PostEditorAccess,
 ): () => Promise<PostContent> {
-  const text = field(container, 'Texto da resposta (opcional com mídia)', {
+  const text = field(container, t('Texto da resposta (opcional com mídia)'), {
     value: value.text,
     maximum: 4000,
     multiline: true,
@@ -219,12 +223,12 @@ export function postActions(
 ): void {
   if (state.canEdit) {
     const form = el('details', '', 'post-edit');
-    form.append(menuSummary('Editar postagem', 'pencil'));
+    form.append(menuSummary(t('Editar postagem'), 'pencil'));
     container.append(form);
     const content = state.post.parent
       ? replyForm(form, state.content!, actions.media)
       : postForm(form, state.content!, tags, actions.media);
-    button(form, 'Salvar postagem', () =>
+    button(form, t('Salvar postagem'), () =>
       actions.mutate('post-edit', async () => ({
         ...command(state),
         content: await content(),
@@ -243,7 +247,7 @@ function deleteForm(
   actions: PostActions,
 ): void {
   const form = el('details', '', 'post-delete');
-  form.append(menuSummary('Excluir postagem', 'trash'));
+  form.append(menuSummary(t('Excluir postagem'), 'trash'));
   container.append(form);
   const label = el('label'),
     confirm = el('input');
@@ -251,11 +255,13 @@ function deleteForm(
   label.append(
     confirm,
     document.createTextNode(
-      'Excluir texto e mídia do banco/armazenamento ativo. Cópias externas e backups podem permanecer.',
+      t(
+        'Excluir texto e mídia do banco/armazenamento ativo. Cópias externas e backups podem permanecer.',
+      ),
     ),
   );
   form.append(label);
-  button(form, 'Excluir minha postagem', async () => {
+  button(form, t('Excluir minha postagem'), async () => {
     if (!confirm.checked) throw new Error('Confirme a exclusão da postagem.');
     await actions.mutate('post-delete', command(state));
   });
@@ -266,14 +272,14 @@ function hideForm(
   actions: PostActions,
 ): void {
   const form = el('details', '', 'post-moderate');
-  form.append(menuSummary('Ocultar pela moderação', 'shield'));
+  form.append(menuSummary(t('Ocultar pela moderação'), 'shield'));
   container.append(form);
-  const reason = field(form, 'Motivo da remoção', {
+  const reason = field(form, t('Motivo da remoção'), {
       maximum: 1000,
       multiline: true,
     }),
     record = crypto.randomUUID();
-  button(form, 'Ocultar postagem', () =>
+  button(form, t('Ocultar postagem'), () =>
     actions.mutate('post-hide', {
       ...command(state),
       record,
@@ -287,17 +293,17 @@ function removalForms(
   actions: PostActions,
 ): void {
   const removal = state.removal!;
-  container.append(el('p', `Motivo: ${removal.reason}`));
+  container.append(el('p', t('Motivo: {0}', [removal.reason])));
   if (removal.appeal)
-    container.append(el('p', `Contestação: ${removal.appeal}`));
+    container.append(el('p', t('Contestação: {0}', [removal.appeal])));
   if (removal.decision)
-    container.append(el('p', `Resposta: ${removal.decision}`));
+    container.append(el('p', t('Resposta: {0}', [removal.decision])));
   if (state.own && !removal.appeal) {
-    const text = field(container, 'Contestação da remoção', {
+    const text = field(container, t('Contestação da remoção'), {
       maximum: 2000,
       multiline: true,
     });
-    button(container, 'Contestar remoção', () =>
+    button(container, t('Contestar remoção'), () =>
       actions.mutate('post-appeal', {
         id: state.post.community,
         post: state.post.id,
@@ -307,7 +313,7 @@ function removalForms(
     );
   }
   if (!state.manager) return;
-  const decision = field(container, 'Resposta da moderação', {
+  const decision = field(container, t('Resposta da moderação'), {
       maximum: 1000,
       multiline: true,
     }),
@@ -316,11 +322,11 @@ function removalForms(
       record: removal.id,
       decision: decision.value,
     });
-  button(container, 'Restaurar postagem', () =>
+  button(container, t('Restaurar postagem'), () =>
     actions.mutate('post-decide', { ...data(), restore: true }),
   );
   if (removal.appeal && !removal.decision)
-    button(container, 'Manter remoção e responder', () =>
+    button(container, t('Manter remoção e responder'), () =>
       actions.mutate('post-decide', { ...data(), restore: false }),
     );
 }
@@ -332,7 +338,7 @@ function history(
   const list = el('div');
   container.append(list);
   let after: string | null = null;
-  const consult = button(container, 'Consultar histórico de moderação', () =>
+  const consult = button(container, t('Consultar histórico de moderação'), () =>
     actions.run(async () => {
       const data = object(
         await actions.request('post-moderations', {
@@ -348,13 +354,17 @@ function history(
         list.append(
           el(
             'p',
-            `${new Date(record.createdAt).toLocaleString('pt-BR')} · ${record.restored ? 'Restaurado' : 'Remoção'} · ${record.reason}`,
+            t('{0} · {1} · {2}', [
+              new Date(record.createdAt).toLocaleString(currentLanguage()),
+              record.restored ? t('Restaurado') : t('Remoção'),
+              record.reason,
+            ]),
           ),
         );
         if (record.appeal)
-          list.append(el('p', `Contestação: ${record.appeal}`));
+          list.append(el('p', t('Contestação: {0}', [record.appeal])));
         if (record.decision)
-          list.append(el('p', `Resposta: ${record.decision}`));
+          list.append(el('p', t('Resposta: {0}', [record.decision])));
       }
       after = communityCursor(data['next']);
     }),
@@ -368,12 +378,12 @@ export function postReportForm(
   report: (data: Record<string, unknown>) => Promise<void>,
 ): void {
   if (post.status !== 'visible') return;
-  const reason = field(container, 'Motivo da denúncia do post', {
+  const reason = field(container, t('Motivo da denúncia do post'), {
       maximum: 900,
       multiline: true,
     }),
     record = crypto.randomUUID();
-  button(container, 'Denunciar postagem', () =>
+  button(container, t('Denunciar postagem'), () =>
     report({
       record,
       kind: 'post',

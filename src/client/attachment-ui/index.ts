@@ -1,3 +1,4 @@
+import { t, translatedError } from '../../shared/i18n/index.ts';
 import { dropFilesInto } from '../file-drop/index.ts';
 import { showToast } from '../toast/index.ts';
 import type { AttachmentContent } from '../../shared/attachments/index.ts';
@@ -84,7 +85,9 @@ export class AttachmentUi {
             (error: unknown) => {
               input.value = '';
               showToast(
-                error instanceof Error ? error.message : 'Arquivo inválido.',
+                error instanceof Error
+                  ? translatedError(error.message)
+                  : t('Arquivo inválido.'),
               );
               return null;
             },
@@ -120,7 +123,7 @@ export class AttachmentUi {
         id = this.previewId();
       // Recorded audio lives only in this page's memory until Enviar.
       label.className = 'voice-preview-note';
-      label.textContent = 'Não enviado · some se a página recarregar';
+      label.textContent = t('Não enviado · some se a página recarregar');
       area.replaceChildren(
         this.playback.element({
           id,
@@ -134,7 +137,10 @@ export class AttachmentUi {
       );
       return;
     }
-    label.textContent = `${value.name} · ${(value.bytes.length / 1_000_000).toFixed(2)} MB. Original preservado; pode conter GPS/EXIF ou outros metadados. Clique em Enviar para compartilhar.`;
+    label.textContent = t(
+      '{0} · {1} MB. Original preservado; pode conter GPS/EXIF ou outros metadados. Clique em Enviar para compartilhar.',
+      [value.name, (value.bytes.length / 1_000_000).toFixed(2)],
+    );
     area.replaceChildren(label);
     if (value.image) {
       const image = document.createElement('img');
@@ -142,7 +148,7 @@ export class AttachmentUi {
         new Blob([value.bytes], { type: value.type }),
       );
       image.src = this.previewUrl;
-      image.alt = 'Prévia local da imagem original';
+      image.alt = t('Prévia local da imagem original');
       area.append(image);
     }
   }

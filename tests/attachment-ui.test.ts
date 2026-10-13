@@ -224,7 +224,7 @@ await test('falha automática permite uma tentativa explícita, sem duplicar dow
   });
   await flush();
   assert.equal(loads, 1);
-  assert.match(preview.textContent, /indisponível/);
+  assert.match(preview.textContent, /unavailable/);
   button.click();
   button.click();
   await flush();

@@ -1,3 +1,4 @@
+import { t, currentLanguage } from '../../shared/i18n/index.ts';
 import { mountPublicSearch } from '../public-search/index.ts';
 import { startGroupEntrypoints } from './group-entrypoints.ts';
 import { paintAvatar, startAppearance } from '../appearance/index.ts';
@@ -38,6 +39,7 @@ import { startActivity } from '../activity/index.ts';
 import { ExternalMediaConsent } from '../external-media/index.ts';
 import { startAccountSettings } from './account-settings.ts';
 import type { PageKey } from './pages.ts';
+import { mountLanguageSettings, startLanguage } from '../language/index.ts';
 
 function element<T extends HTMLElement>(id: string): T {
   const result = document.getElementById(id);
@@ -46,6 +48,7 @@ function element<T extends HTMLElement>(id: string): T {
 }
 
 // A file dropped outside a composer must not navigate away from the app.
+startLanguage();
 keepPageOnStrayDrop();
 // Theme first, so the first render already uses the saved device choice.
 const appearance = startAppearance();
@@ -57,8 +60,7 @@ conversationContent.className = 'conversation-content';
 // Public @ conversations share the chat column with private ones; static markup only.
 const publicChat = document.createElement('div');
 publicChat.className = 'public-chat community-scope';
-publicChat.innerHTML =
-  '<div class="public-chat-bar"><span>Mensagem pública pelo @</span><button data-chat-collapse class="icon-button" type="button" aria-label="Recolher conversa" title="Recolher conversa"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12H9M13 7l-5 5 5 5M4 5v14"/></svg></button></div><div class="public-chat-body"></div>';
+publicChat.innerHTML = t('html.6b9c4f752db1');
 document
   .querySelectorAll<HTMLElement>('[data-public-search]')
   .forEach((host) => mountPublicSearch(host, new AbortController().signal));
@@ -207,6 +209,7 @@ const activity = startActivity(
   },
 );
 const accountSettings = startAccountSettings({
+  languageBlocked: interruptionReason,
   access: devices,
   sync: vault.sync,
   appearance,
@@ -257,8 +260,8 @@ const account = startAccount({
     const label = document.getElementById('account-label');
     if (label)
       label.textContent = session
-        ? session.name || 'Conta conectada'
-        : 'Conta não conectada';
+        ? session.name || t('Conta conectada')
+        : t('Conta não conectada');
     railAvatar(session);
     if (profileSessionChanged(currentPage, profileAuthenticated, !!session)) {
       currentPage = '';
@@ -298,23 +301,26 @@ const pwa = account.approvalPage
   ? null
   : startPwa({
       waitForIdle: true,
-      blockedReason: () =>
-        updateBlockReason({
-          authenticated: () => !!connectedAccount,
-          account,
-          devices,
-          vault,
-          backups,
-          contacts,
-          messages,
-          statuses,
-          representatives,
-          activity,
-          publicProfiles,
-          communities,
-          calls,
-        }),
+      blockedReason: interruptionReason,
     });
+
+function interruptionReason(): string | null {
+  return updateBlockReason({
+    authenticated: () => !!connectedAccount,
+    account,
+    devices,
+    vault,
+    backups,
+    contacts,
+    messages,
+    statuses,
+    representatives,
+    activity,
+    publicProfiles,
+    communities,
+    calls,
+  });
+}
 
 /** Every page feature releases its view before the next page mounts. */
 function leaveFeatures(next: PageKey): void {
@@ -391,26 +397,34 @@ function renderPageHeader(key: PageKey): void {
     key === 'comunidades' &&
     new URLSearchParams(location.hash.split('?')[1] ?? '').get('view') ===
       'dms';
-  const title = dm ? 'Mensagens pelo @' : pages[key].title;
+  const title = dm ? t('Mensagens pelo @') : pages[key].title;
   element('page-title').textContent = title;
   // Phones name the screen in the top bar (the page heading is read, not shown).
   const mobileTitle = document.querySelector('[data-mobile-title]');
   if (mobileTitle) mobileTitle.textContent = title;
-  element('breadcrumb').textContent = title.toLocaleUpperCase('pt-BR');
+  element('breadcrumb').textContent =
+    title.toLocaleUpperCase(currentLanguage());
   element('page-phase').textContent = dm
-    ? 'DMs individuais · E2EE'
+    ? t('DMs individuais · E2EE')
     : key === 'publico'
-      ? 'Perfil público · Leitura aberta'
+      ? t('Perfil público · Leitura aberta')
       : key === 'comunidades'
-        ? 'Comunidades · Leitura aberta'
-        : 'Conta EVM / Solana · Mensagens privadas';
-  document.title = `${title} · 0xDMme`;
+        ? t('Comunidades · Leitura aberta')
+        : t('Conta EVM / Solana · Mensagens privadas');
+  document.title = t('{0} · 0xDMme', [title]);
 }
 function mountProfileSettings(content: HTMLElement): void {
   const privacySettings = content.querySelector<HTMLElement>(
     '[data-privacy-settings]',
   );
-  if (privacySettings) account.mountPrivacy(privacySettings);
+  if (privacySettings) {
+    account.mountPrivacy(privacySettings);
+    mountLanguageSettings(
+      privacySettings,
+      (language) => accountSettings.saveLanguage(language),
+      interruptionReason,
+    );
+  }
   const appearanceSettings = content.querySelector<HTMLElement>(
     '[data-appearance-settings]',
   );
@@ -541,12 +555,12 @@ function mountAccountPanels(key: PageKey): void {
 }
 
 function renderApprovalPage(): void {
-  element('page-title').textContent = 'Confirmar assinatura';
-  element('breadcrumb').textContent = 'CONTA';
+  element('page-title').textContent = t('Confirmar assinatura');
+  element('breadcrumb').textContent = t('CONTA');
   const container = document.createElement('div');
   element('page-content').replaceChildren(container);
   account.mount(container);
-  document.title = 'Confirmar assinatura · 0xDMme';
+  document.title = t('Confirmar assinatura · 0xDMme');
 }
 
 function connection(): void {
@@ -576,10 +590,10 @@ function renderConnection(): void {
   element('connection').textContent = navigator.onLine
     ? connectedAccount
       ? devices.authorized()
-        ? 'Conta conectada'
-        : 'Sessão conectada · abertura da conta em Perfil → Aparelhos'
-      : 'Conexão disponível · nenhuma conta conectada'
-    : 'Sem conexão · histórico salvo disponível neste aparelho';
+        ? t('Conta conectada')
+        : t('Sessão conectada · abertura da conta em Perfil → Aparelhos')
+      : t('Conexão disponível · nenhuma conta conectada')
+    : t('Sem conexão · histórico salvo disponível neste aparelho');
 }
 
 /** Initials on the rail profile link; the photo stays in Perfil. */

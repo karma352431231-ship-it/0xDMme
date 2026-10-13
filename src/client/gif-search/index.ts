@@ -1,3 +1,8 @@
+import {
+  t,
+  translatedError,
+  currentLanguage,
+} from '../../shared/i18n/index.ts';
 /**
  * GIF catalog through KLIPY (owner decision of 09/10/2026, plan §5.11).
  *
@@ -108,7 +113,7 @@ export class GifSearch {
     const params = new URLSearchParams({
       page: String(input.page),
       per_page: String(perPage),
-      locale: 'pt_BR',
+      locale: currentLanguage() === 'zh-CN' ? 'zh_CN' : 'en_US',
     });
     if (query) params.set('q', query);
     const response = await fetch(
@@ -154,7 +159,7 @@ export function mountGifPane(
   search: GifSearch,
   chosen: (url: string) => void,
 ): void {
-  host.innerHTML = `<label class="emoji-search gif-search"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></svg><span class="visually-hidden">Buscar GIF</span><input type="search" maxlength="100" autocomplete="off" data-gif-query placeholder="Search KLIPY"></label><div class="gif-grid" data-gif-grid></div><p class="emoji-empty" data-gif-status role="status"></p><small class="emoji-credit">Powered by KLIPY · buscas e GIFs passam pelo KLIPY</small>`;
+  host.innerHTML = t('html.201618052901');
   const query = host.querySelector<HTMLInputElement>('[data-gif-query]'),
     grid = host.querySelector<HTMLElement>('[data-gif-grid]'),
     status = host.querySelector<HTMLElement>('[data-gif-status]');
@@ -168,7 +173,9 @@ export function mountGifPane(
     for (const item of result.items) grid.append(gifTile(item, chosen));
     next = result.next;
     page++;
-    status.textContent = grid.children.length ? '' : 'Nenhum GIF encontrado.';
+    status.textContent = grid.children.length
+      ? ''
+      : t('Nenhum GIF encontrado.');
   };
   const load = async (fresh: boolean): Promise<void> => {
     if (!canLoad(fresh)) return;
@@ -178,7 +185,7 @@ export function mountGifPane(
       grid.replaceChildren();
     }
     loading = true;
-    status.textContent = 'Carregando GIFs…';
+    status.textContent = t('Carregando GIFs…');
     try {
       const result = await search.page({ query: query.value, page });
       if (current === generation && host.isConnected) show(result);
@@ -208,7 +215,9 @@ export function mountGifPane(
   query.focus();
 }
 function failure(error: unknown): string {
-  return error instanceof Error ? error.message : 'GIFs indisponíveis.';
+  return error instanceof Error
+    ? translatedError(error.message)
+    : t('GIFs indisponíveis.');
 }
 function gifTile(
   item: GifResult,
@@ -218,7 +227,10 @@ function gifTile(
   tile.type = 'button';
   tile.className = 'gif-tile';
   tile.title = item.title;
-  tile.setAttribute('aria-label', item.title ? `GIF: ${item.title}` : 'GIF');
+  tile.setAttribute(
+    'aria-label',
+    item.title ? t('GIF: {0}', [item.title]) : 'GIF',
+  );
   const image = document.createElement('img');
   image.src = item.preview;
   image.alt = '';

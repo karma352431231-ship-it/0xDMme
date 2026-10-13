@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { lstat, readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
+import { matrixSourceDocument } from './frontend-source-document.ts';
 const version = '18.9.0';
 const sourceHash =
   '1da81a1b9089e833800becb0fbd3ac46dd323d445cd8856c53695db13d4bfc60';
@@ -8,6 +9,7 @@ export const matrixSourcePage = 'matrix-crypto-18.9.0-sources.html';
 /** Full preferred Rust sources, lock, original crate archives and notices; no registry access at build time. */
 export async function frontendMatrixSources(
   root: string,
+  document: { script: string; style: string },
 ): Promise<Map<string, Uint8Array>> {
   const path = resolve(
       root,
@@ -53,7 +55,7 @@ export async function frontendMatrixSources(
   assets.set(
     matrixSourcePage,
     Buffer.from(
-      `<!doctype html><html lang="pt-BR"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Fontes Matrix · 0xDMme</title><h1>Fontes e licenças Matrix ${version}</h1><p>Baixe as partes na ordem abaixo e concatene-as em preferred-source.tar.xz. SHA-256: ${sourceHash}. Copie o arquivo para vendor/matrix-crypto-${version}/ antes de reconstruir o frontend. O arquivo inclui a tag oficial, Cargo.lock, as 323 fontes de registry fixadas e seus avisos. As instruções completas estão no README do pacote principal de fontes.</p><ol>${links}</ol></html>`,
+      matrixSourceDocument({ ...document, version, hash: sourceHash, links }),
     ),
   );
   return assets;

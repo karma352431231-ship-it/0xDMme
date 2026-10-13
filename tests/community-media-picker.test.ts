@@ -73,7 +73,7 @@ await test('erro de preparação sai do progresso e permite retomar a mesma míd
     const status = picker.querySelector('small');
     assert.ok(status);
     await assert.rejects(send(), /Processador isolado indisponível/u);
-    assert.equal(status.textContent, 'Processador isolado indisponível.');
+    assert.equal(status.textContent, 'Isolated processor unavailable.');
     fail = false;
     assert.deepEqual(await send(), [state.source.id]);
     assert.equal(status.textContent, '');

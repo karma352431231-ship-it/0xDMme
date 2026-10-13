@@ -1,3 +1,8 @@
+import {
+  t,
+  translatedError,
+  currentLanguage,
+} from '../../shared/i18n/index.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
 import { vaultQuota } from '../../shared/vault/index.ts';
 import type { VaultAccess } from '../vault-authority/index.ts';
@@ -11,7 +16,7 @@ export function startVault(access: VaultAccess) {
   let meter: HTMLElement | null = null;
   let busy = false;
   let known = false;
-  let message = 'Entre na sua conta para consultar o armazenamento.';
+  let message = t('Entre na sua conta para consultar o armazenamento.');
   function render(): void {
     const status = mounted?.querySelector('[data-vault-status]');
     if (status) status.textContent = message;
@@ -21,8 +26,12 @@ export function startVault(access: VaultAccess) {
     const quota = mounted?.querySelector('[data-vault-quota]');
     if (quota)
       quota.textContent = known
-        ? `${(sync.state.used / 1_000_000).toFixed(2)} MB usados · ${(Math.max(0, vaultQuota - sync.state.used) / 1_000_000).toFixed(2)} MB disponíveis de ${vaultQuota / 1_000_000} MB`
-        : 'Consultando uso da conta…';
+        ? t('{0} MB usados · {1} MB disponíveis de {2} MB', [
+            (sync.state.used / 1_000_000).toFixed(2),
+            (Math.max(0, vaultQuota - sync.state.used) / 1_000_000).toFixed(2),
+            vaultQuota / 1_000_000,
+          ])
+        : t('Consultando uso da conta…');
     const retry =
       mounted?.querySelector<HTMLButtonElement>('[data-vault-retry]');
     if (retry) retry.disabled = busy;
@@ -34,8 +43,11 @@ export function startVault(access: VaultAccess) {
     const label = meter.querySelector('[data-vault-meter-label]');
     if (label)
       label.textContent = known
-        ? `${storageSize(sync.state.used)} de ${storageSize(vaultQuota)}`
-        : 'Consultando…';
+        ? t('{0} de {1}', [
+            storageSize(sync.state.used),
+            storageSize(vaultQuota),
+          ])
+        : t('Consultando…');
     renderUsage(meter.querySelector<HTMLProgressElement>('progress'));
   }
   function renderUsage(usage: HTMLProgressElement | null): void {
@@ -55,7 +67,7 @@ export function startVault(access: VaultAccess) {
   async function refresh(): Promise<void> {
     if (!canRefresh()) return;
     busy = true;
-    message = 'Consultando armazenamento…';
+    message = t('Consultando armazenamento…');
     render();
     try {
       await sync.refresh();
@@ -63,14 +75,16 @@ export function startVault(access: VaultAccess) {
       if (sync.pending) await sync.retry();
       message =
         sync.state.used >= vaultQuota * 0.9
-          ? 'Seu armazenamento está próximo do limite.'
-          : 'Conversas e arquivos ficam cifrados. Salvar um backup não libera espaço automaticamente.';
+          ? t('Seu armazenamento está próximo do limite.')
+          : t(
+              'Conversas e arquivos ficam cifrados. Salvar um backup não libera espaço automaticamente.',
+            );
       retryVisible(false);
     } catch (error: unknown) {
       message =
         error instanceof Error
-          ? error.message
-          : 'Não foi possível consultar o armazenamento.';
+          ? translatedError(error.message)
+          : t('Não foi possível consultar o armazenamento.');
       retryVisible(true);
     } finally {
       busy = false;
@@ -94,12 +108,14 @@ export function startVault(access: VaultAccess) {
           accountId: session.accountId,
           deviceId: session.deviceId,
         }).catch(() => {
-          message = 'Não foi possível guardar o acesso local neste aparelho.';
+          message = t(
+            'Não foi possível guardar o acesso local neste aparelho.',
+          );
           render();
         });
         void refresh();
       } else {
-        message = 'Entre na sua conta para consultar o armazenamento.';
+        message = t('Entre na sua conta para consultar o armazenamento.');
         render();
       }
     },
@@ -111,12 +127,12 @@ export function startVault(access: VaultAccess) {
     },
     mountMeter(container: HTMLElement): void {
       meter = container;
-      container.innerHTML = `<div class="vault-meter-row"><span>Cofre</span><span data-vault-meter-label></span></div><progress max="${vaultQuota}" aria-label="Uso do cofre"></progress>`;
+      container.innerHTML = t('html.a00be4e55c2e', [vaultQuota]);
       renderMeter();
     },
     mount(container: HTMLElement): void {
       mounted = container;
-      container.innerHTML = `<article class="card vault-card"><h2>Armazenamento da conta</h2><progress data-vault-usage max="${vaultQuota}" value="0" aria-label="Uso do armazenamento"></progress><p data-vault-quota></p><p data-vault-status role="status"></p><button data-vault-retry type="button" hidden>Tentar novamente</button></article>`;
+      container.innerHTML = t('html.659a7a617631', [vaultQuota]);
       container
         .querySelector('[data-vault-retry]')
         ?.addEventListener('click', () => {
@@ -131,7 +147,15 @@ export function startVault(access: VaultAccess) {
 /** 312 MB, 1,2 GB: short labels for the meter; the card keeps the exact figures. */
 export function storageSize(bytes: number): string {
   if (bytes >= 1_000_000_000)
-    return `${(bytes / 1_000_000_000).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} GB`;
+    return t('{0} GB', [
+      (bytes / 1_000_000_000).toLocaleString(currentLanguage(), {
+        maximumFractionDigits: 1,
+      }),
+    ]);
   const megabytes = bytes / 1_000_000;
-  return `${megabytes.toLocaleString('pt-BR', { maximumFractionDigits: megabytes < 10 ? 1 : 0 })} MB`;
+  return t('{0} MB', [
+    megabytes.toLocaleString(currentLanguage(), {
+      maximumFractionDigits: megabytes < 10 ? 1 : 0,
+    }),
+  ]);
 }

@@ -1,3 +1,4 @@
+import { t } from '../../shared/i18n/index.ts';
 /**
  * Small preview cards shown while a mouse rests on a profile or community
  * link. Each feature registers what it previews; touch screens keep the plain
@@ -53,7 +54,7 @@ function install(): void {
     const next = document.createElement('div');
     next.className = 'hover-card';
     next.setAttribute('role', 'dialog');
-    next.setAttribute('aria-label', 'Prévia');
+    next.setAttribute('aria-label', t('Prévia'));
     next.addEventListener('pointerenter', () => clearTimeout(closeTimer));
     next.addEventListener('pointerleave', scheduleClose);
     document.body.append(next);

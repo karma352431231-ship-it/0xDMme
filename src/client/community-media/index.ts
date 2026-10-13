@@ -1,3 +1,4 @@
+import { t, translatedError } from '../../shared/i18n/index.ts';
 // SPDX-License-Identifier: GPL-3.0-only
 import {
   AccountError,
@@ -117,7 +118,9 @@ async function upload(
     index < parts && state.status === 'uploading';
     index++
   ) {
-    onProgress(`Enviando arquivo: ${Math.round((index / parts) * 100)}%.`);
+    onProgress(
+      t('Enviando arquivo: {0}%.', [Math.round((index / parts) * 100)]),
+    );
     const bytes = new Uint8Array(
       await blob
         .slice(
@@ -141,7 +144,7 @@ async function upload(
   const deadline = Date.now() + 390_000;
   while (state.status === 'processing') {
     onProgress(
-      'Preparando arquivo e miniatura. Isso pode reduzir a qualidade.',
+      t('Preparando arquivo e miniatura. Isso pode reduzir a qualidade.'),
     );
     if (Date.now() > deadline)
       throw new Error(
@@ -215,9 +218,9 @@ function renderPreviews(
       preview.setAttribute('aria-label', file.name);
       close.type = 'button';
       close.className = 'media-picker-remove';
-      close.textContent = '×';
-      close.setAttribute('aria-label', `Remover ${file.name}`);
-      close.title = 'Remover';
+      close.textContent = t('×');
+      close.setAttribute('aria-label', t('Remover {0}', [file.name]));
+      close.title = t('Remover');
       close.addEventListener('click', () => remove(index));
       tile.append(preview, close);
       return tile;
@@ -251,8 +254,8 @@ export function mediaEditor(
   pick.type = 'button';
   pick.className = 'media-picker-button';
   pick.innerHTML = clipIcon;
-  pick.setAttribute('aria-label', 'Anexar fotos, GIFs ou vídeo');
-  pick.title = 'Até 4 fotos, 3 GIFs ou 1 vídeo';
+  pick.setAttribute('aria-label', t('Anexar fotos, GIFs ou vídeo'));
+  pick.title = t('Até 4 fotos, 3 GIFs ou 1 vídeo');
   const previews = document.createElement('div');
   previews.className = 'media-picker-previews';
   previews.hidden = true;
@@ -261,7 +264,10 @@ export function mediaEditor(
   const remove = document.createElement('input');
   remove.type = 'checkbox';
   const removeLabel = document.createElement('label');
-  removeLabel.append(remove, document.createTextNode('Remover a mídia atual'));
+  removeLabel.append(
+    remove,
+    document.createTextNode(t('Remover a mídia atual')),
+  );
   field.append(input, pick, status);
   if (ids.length) container.append(removeLabel);
   container.append(previews);
@@ -291,7 +297,11 @@ export function mediaEditor(
       chosen = next;
       show();
     } catch (error: unknown) {
-      showToast(error instanceof Error ? error.message : 'Seleção inválida.');
+      showToast(
+        error instanceof Error
+          ? translatedError(error.message)
+          : t('Seleção inválida.'),
+      );
     }
   });
   return async () => {
@@ -307,8 +317,8 @@ export function mediaEditor(
       if (access.valid() && field.isConnected)
         status.textContent =
           error instanceof Error
-            ? error.message
-            : 'Envio de mídia indisponível. Tente novamente.';
+            ? translatedError(error.message)
+            : t('Envio de mídia indisponível. Tente novamente.');
       throw error;
     }
   };
@@ -328,7 +338,7 @@ export function restrictedMedia(
   for (const id of ids) {
     const button = document.createElement('button');
     button.type = 'button';
-    button.textContent = 'Ver minha mídia preparada (restrita)';
+    button.textContent = t('Ver minha mídia preparada (restrita)');
     container.append(button);
     button.addEventListener('click', () => {
       button.disabled = true;
@@ -336,7 +346,9 @@ export function restrictedMedia(
         .catch((e: unknown) => {
           if (!stopped)
             button.textContent =
-              e instanceof Error ? e.message : 'Prévia indisponível.';
+              e instanceof Error
+                ? translatedError(e.message)
+                : t('Prévia indisponível.');
         })
         .finally(() => {
           button.disabled = false;
@@ -359,7 +371,7 @@ export function restrictedMedia(
       if (node instanceof HTMLVideoElement) {
         node.controls = true;
         node.preload = 'metadata';
-      } else node.alt = 'Mídia preparada restrita ao autor';
+      } else node.alt = t('Mídia preparada restrita ao autor');
       node.src = url;
       button.replaceWith(node);
     }

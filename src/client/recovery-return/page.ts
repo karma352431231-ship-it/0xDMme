@@ -1,3 +1,5 @@
+import { t } from '../../shared/i18n/index.ts';
+import { startLanguage } from '../language/index.ts';
 import { keys, object, boundedText } from '../../shared/account/index.ts';
 import { canonical, digest } from '../../shared/devices/index.ts';
 import {
@@ -13,6 +15,7 @@ import { signRecovery } from '../wallet-recovery/index.ts';
 import { applyTheme, storedTheme } from '../appearance/index.ts';
 import { recoveryApi } from './index.ts';
 
+startLanguage();
 applyTheme(storedTheme().theme);
 
 const status = document.querySelector<HTMLElement>('[data-status]');
@@ -58,7 +61,13 @@ async function prepare(): Promise<void> {
   const deadline = recoveryDeadline(data);
   if (prepared !== generation) return;
   message.textContent = recoveryMessage(transfer.config);
-  status.textContent = `Você está ${transfer.count === 2 ? 'configurando' : 'recuperando'} seus dados com ${transfer.wallet}. Confirme somente o pedido que abriu no seu navegador. Depois volte a ele.`;
+  status.textContent = t(
+    'Você está {0} seus dados com {1}. Confirme somente o pedido que abriu no seu navegador. Depois volte a ele.',
+    [
+      transfer.count === 2 ? t('configurando') : t('recuperando'),
+      transfer.wallet,
+    ],
+  );
   button.disabled = false;
   button.onclick = () => {
     button.disabled = true;
@@ -92,18 +101,21 @@ async function prepare(): Promise<void> {
       current();
       await recoveryApi('submit', { ...entry, envelope });
       current();
-      status.textContent =
-        'Resultado cifrado enviado. Volte ao navegador original; a abertura da conta será concluída automaticamente. Esta página não cria uma sessão ou autoriza aparelhos.';
+      status.textContent = t(
+        'Resultado cifrado enviado. Volte ao navegador original; a abertura da conta será concluída automaticamente. Esta página não cria uma sessão ou autoriza aparelhos.',
+      );
     };
     void send().catch(() => {
       if (token === generation)
-        status.textContent =
-          'Recuperação não concluída. Confira a conta e a conexão; reinicie o pedido no navegador original.';
+        status.textContent = t(
+          'Recuperação não concluída. Confira a conta e a conexão; reinicie o pedido no navegador original.',
+        );
     });
   };
 }
 void prepare().catch(() => {
   if (status)
-    status.textContent =
-      'Pedido inválido, alterado, expirado ou indisponível. Reinicie pelo navegador original.';
+    status.textContent = t(
+      'Pedido inválido, alterado, expirado ou indisponível. Reinicie pelo navegador original.',
+    );
 });

@@ -1,3 +1,4 @@
+import { t } from '../../shared/i18n/index.ts';
 import { noticeLink, bindNoticeRow } from './notice-link.ts';
 export interface ModerationActivity {
   id: string;
@@ -44,7 +45,7 @@ export function moderationRows(
       copy = document.createElement('div'),
       controls = document.createElement('div');
     const link = noticeLink({
-      label: 'Ver análise e contestar',
+      label: t('Ver análise e contestar'),
       href: `#analise?id=${encodeURIComponent(item.review ?? item.id.split(':')[0] ?? '')}`,
       read: item.read === true,
       acknowledge: () => actions.acknowledge(item.id),

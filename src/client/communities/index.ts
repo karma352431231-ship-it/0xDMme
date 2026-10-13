@@ -1,3 +1,8 @@
+import {
+  t,
+  translatedError,
+  currentLanguage,
+} from '../../shared/i18n/index.ts';
 import { publicationNotificationRow } from './notification-row.ts';
 import { communityAbout, communityCreationDate } from './community-about.ts';
 import {
@@ -151,7 +156,9 @@ export function startCommunities(
     } catch (error: unknown) {
       if (old === generation && output)
         output.textContent =
-          error instanceof Error ? error.message : 'Comunidade indisponível.';
+          error instanceof Error
+            ? translatedError(error.message)
+            : t('Comunidade indisponível.');
     } finally {
       busy = false;
       controls();
@@ -203,11 +210,15 @@ export function startCommunities(
     }
     if (!page.items.length)
       container.append(
-        communityElement('p', 'Nenhuma comunidade nesta lista.'),
+        communityElement('p', t('Nenhuma comunidade nesta lista.')),
       );
   }
   function followerLabel(value: Community): string {
-    return `${value.followers} ${value.followers === 1 ? 'seguidor' : 'seguidores'}${value.archived ? ' · Arquivada' : ''}`;
+    return t('{0} {1}{2}', [
+      value.followers,
+      value.followers === 1 ? t('seguidor') : t('seguidores'),
+      value.archived ? t(' · Arquivada') : '',
+    ]);
   }
   async function dmSidebar(): Promise<void> {
     if (!sidebar) return;
@@ -225,7 +236,7 @@ export function startCommunities(
     }
     if (!session) {
       sidebar.append(
-        communityElement('p', 'Entre para ver suas comunidades seguidas.'),
+        communityElement('p', t('Entre para ver suas comunidades seguidas.')),
       );
       return;
     }
@@ -236,7 +247,7 @@ export function startCommunities(
       rows(sidebar, page);
       sidebarCursor = page.next;
       if (page.next)
-        communityButton(sidebar, 'Mais comunidades', () => run(directory));
+        communityButton(sidebar, t('Mais comunidades'), () => run(directory));
     } catch (error: unknown) {
       directoryProblem(old, error);
     }
@@ -246,7 +257,9 @@ export function startCommunities(
     sidebar.append(
       communityElement(
         'p',
-        error instanceof Error ? error.message : 'Lista indisponível.',
+        error instanceof Error
+          ? translatedError(error.message)
+          : t('Lista indisponível.'),
       ),
     );
   }
@@ -258,12 +271,14 @@ export function startCommunities(
       );
     if (old !== generation || !mounted) return;
     navigation();
-    const card = communityCard('Notificações');
+    const card = communityCard(t('Notificações'));
     mounted.append(card);
     card.append(
       communityElement(
         'p',
-        'Respostas ao seu conteúdo e posts/respostas de contas com o sininho ativado.',
+        t(
+          'Respostas ao seu conteúdo e posts/respostas de contas com o sininho ativado.',
+        ),
       ),
     );
     for (const item of page.items)
@@ -278,13 +293,15 @@ export function startCommunities(
         }),
       );
     if (!page.items.length)
-      card.append(communityElement('p', 'Nenhuma notificação nesta página.'));
+      card.append(
+        communityElement('p', t('Nenhuma notificação nesta página.')),
+      );
     cursor = page.next;
     if (page.next)
-      communityButton(card, 'Notificações anteriores', () =>
+      communityButton(card, t('Notificações anteriores'), () =>
         run(notifications),
       );
-    communityButton(card, 'Recarregar notificações', () =>
+    communityButton(card, t('Recarregar notificações'), () =>
       run(async () => {
         cursor = null;
         await notifications();
@@ -301,26 +318,27 @@ export function startCommunities(
     navigation();
     const card = communityCard(
       view === 'invitations'
-        ? 'Transferências de comunidades'
-        : 'Minhas comunidades',
+        ? t('Transferências de comunidades')
+        : t('Minhas comunidades'),
     );
     mounted.append(card);
     if (view === 'communities') {
       const links = communityElement('nav', '', 'community-personal-links');
-      links.setAttribute('aria-label', 'Suas listas');
+      links.setAttribute('aria-label', t('Suas listas'));
       for (const [key, label] of [
-        ['following', 'Feed de seguidos'],
-        ['saved', 'Salvos'],
-        ['replies', 'Respostas'],
-        ['create', 'Criar comunidade'],
+        ['following', t('Feed de seguidos')],
+        ['saved', t('Salvos')],
+        ['replies', t('Respostas')],
+        ['create', t('Criar comunidade')],
       ] as const)
         communityLink(links, label, `#comunidades?view=${key}`);
       card.append(links);
     }
     rows(card, page);
     cursor = page.next;
-    if (page.next) communityButton(card, 'Próxima página', () => run(listing));
-    communityButton(card, 'Recarregar lista', () => {
+    if (page.next)
+      communityButton(card, t('Próxima página'), () => run(listing));
+    communityButton(card, t('Recarregar lista'), () => {
       cursor = null;
       return run(listing);
     });
@@ -329,16 +347,16 @@ export function startCommunities(
     card: HTMLElement,
     value: { name: string; description: string; rules: string },
   ) {
-    const name = communityField(card, 'Nome da comunidade', {
+    const name = communityField(card, t('Nome da comunidade'), {
       value: value.name,
       maximum: 100,
     });
-    const description = communityField(card, 'Descrição', {
+    const description = communityField(card, t('Descrição'), {
       value: value.description,
       maximum: 1000,
       multiline: true,
     });
-    const rules = communityField(card, 'Regras locais', {
+    const rules = communityField(card, t('Regras locais'), {
       value: value.rules,
       maximum: 4000,
       multiline: true,
@@ -353,21 +371,23 @@ export function startCommunities(
   function creation(): void {
     if (!mounted) return;
     navigation();
-    const card = communityCard('Criar comunidade');
+    const card = communityCard(t('Criar comunidade'));
     mounted.append(card);
     card.append(
       communityElement(
         'p',
-        'Comunidades são públicas e gratuitas. Qualquer perfil público autorizado pode participar sem precisar seguir.',
+        t(
+          'Comunidades são públicas e gratuitas. Qualquer perfil público autorizado pode participar sem precisar seguir.',
+        ),
       ),
     );
     card.append(
-      communityElement('h3', 'Aviso sobre conteúdo público'),
-      communityElement('p', communityPolicy, 'community-hint'),
+      communityElement('h3', t('Aviso sobre conteúdo público')),
+      communityElement('p', t(communityPolicy), 'community-hint'),
     );
     const meta = metaForm(card, { name: '', description: '', rules: '' }),
       id = crypto.randomUUID();
-    communityButton(card, 'Criar comunidade', () =>
+    communityButton(card, t('Criar comunidade'), () =>
       run(async () => {
         const old = generation;
         const result = communityState(
@@ -385,7 +405,7 @@ export function startCommunities(
   function summary(value: Community): void {
     if (!mounted) return;
     const hero = communityElement('section', '', 'community-hero');
-    hero.setAttribute('aria-label', `Comunidade ${value.name}`);
+    hero.setAttribute('aria-label', t('Comunidade {0}', [value.name]));
     mounted.append(hero);
     const avatar = communityAvatar(value.name);
     const banner = communityElement('div', '', 'community-banner');
@@ -405,7 +425,7 @@ export function startCommunities(
     title.append(
       communityElement('h1', value.name),
       ...(value.archived
-        ? [communityElement('p', 'Arquivada', 'community-hero-meta')]
+        ? [communityElement('p', t('Arquivada'), 'community-hero-meta')]
         : []),
     );
     head.append(avatar, title);
@@ -432,7 +452,7 @@ export function startCommunities(
     const about = communityAbout(value);
     if (about) hero.append(about);
     if (!state) {
-      communityLink(head, 'Entre pelo Perfil para participar', '#perfil');
+      communityLink(head, t('Entre pelo Perfil para participar'), '#perfil');
       return;
     }
     participant(head, state);
@@ -442,7 +462,7 @@ export function startCommunities(
     own: CommunityState,
   ): void {
     if (own.role !== 'owner') {
-      communityButton(card, own.following ? 'Seguindo' : 'Seguir', () =>
+      communityButton(card, own.following ? t('Seguindo') : t('Seguir'), () =>
         mutate('follow', { id: own.community.id, following: !own.following }),
       );
       const follow = card.lastElementChild;
@@ -457,26 +477,28 @@ export function startCommunities(
         communityElement(
           'p',
           own.community.archived
-            ? 'Participação encerrada: comunidade arquivada.'
-            : 'Sua participação está suspensa.',
+            ? t('Participação encerrada: comunidade arquivada.')
+            : t('Sua participação está suspensa.'),
           'community-hero-notice',
         ),
       );
     if (own.sanction) {
       const s = own.sanction;
       card.append(
-        communityElement('p', `Motivo: ${s.reason}`),
+        communityElement('p', t('Motivo: {0}', [s.reason])),
         communityElement(
           'p',
           s.until
-            ? `Até ${new Date(s.until).toLocaleString('pt-BR')}`
-            : 'Banimento reversível',
+            ? t('Até {0}', [
+                new Date(s.until).toLocaleString(currentLanguage()),
+              ])
+            : t('Banimento reversível'),
         ),
       );
       if (s.appeal)
-        card.append(communityElement('p', `Contestação: ${s.appeal}`));
+        card.append(communityElement('p', t('Contestação: {0}', [s.appeal])));
       if (s.decision)
-        card.append(communityElement('p', `Resposta: ${s.decision}`));
+        card.append(communityElement('p', t('Resposta: {0}', [s.decision])));
     }
   }
   /**
@@ -489,8 +511,8 @@ export function startCommunities(
       identity = communityElement('a', '', 'community-post-back-identity'),
       avatar = communityAvatar(value.name);
     arrow.href = href;
-    arrow.title = 'Voltar';
-    arrow.setAttribute('aria-label', 'Voltar');
+    arrow.title = t('Voltar');
+    arrow.setAttribute('aria-label', t('Voltar'));
     identity.href = `#comunidades?id=${value.id}`;
     identity.append(avatar, communityElement('span', value.name));
     header.append(arrow, identity);
@@ -560,12 +582,12 @@ export function startCommunities(
         'community-management',
       );
       management.append(
-        communityElement('summary', 'Participação e denúncias'),
+        communityElement('summary', t('Participação e denúncias')),
       );
       mounted.append(management);
       governance(management, state);
     }
-    communityButton(mounted, 'Recarregar comunidade', () => run(refresh));
+    communityButton(mounted, t('Recarregar comunidade'), () => run(refresh));
   }
   /** Isolated settings screen for owners and moderators. */
   function manageScreen(value: Community, own: CommunityState): void {
@@ -573,7 +595,7 @@ export function startCommunities(
     mounted.dataset['communityLayout'] = 'manage';
     const back = backHeader(value, `#comunidades?id=${value.id}`);
     const management = communityElement('section', '', 'community-manage');
-    management.append(communityElement('h1', 'Gerenciar comunidade'));
+    management.append(communityElement('h1', t('Gerenciar comunidade')));
     mounted.append(back, management);
     const groups = manageGroups(
       management,
@@ -615,7 +637,7 @@ export function startCommunities(
     state = result;
     current = result.community;
     details();
-    if (output) output.textContent = 'Alteração salva.';
+    if (output) output.textContent = t('Alteração salva.');
     sidebarCursor = null;
     await directory();
   }
@@ -748,7 +770,7 @@ export function startCommunities(
       } catch {
         selected = null;
         navigation();
-        if (output) output.textContent = 'Link de comunidade inválido.';
+        if (output) output.textContent = t('Link de comunidade inválido.');
         return;
       }
       view = communityView(view, selected);

@@ -116,10 +116,10 @@ await test('delete capability is offered only on own live messages; archived and
     { ...row('archived', true), archived: true },
   ]);
   const [incoming, own, archived] = f.history.children;
-  assert.doesNotMatch(incoming!.textContent, /Apagar para ambos/u);
-  assert.match(own!.textContent, /Apagar para ambos/u);
-  assert.doesNotMatch(archived!.textContent, /Apagar para ambos/u);
-  assert.match(incoming!.textContent, /Responder/u);
+  assert.doesNotMatch(incoming!.textContent, /Delete for both/u);
+  assert.match(own!.textContent, /Delete for both/u);
+  assert.doesNotMatch(archived!.textContent, /Delete for both/u);
+  assert.match(incoming!.textContent, /Reply/u);
 });
 await test('read receipts patch checks without replacing the message and suppress stale completion after the gate closes', async (t) => {
   const f = fixture(t),

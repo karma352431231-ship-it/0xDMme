@@ -343,7 +343,7 @@ await test('atalho com foto pública não mistura iniciais; sem foto mantém fal
     for (const link of links) {
       assert.equal(link.textContent, '');
       assert.ok(link.querySelector('img'));
-      assert.equal(link.getAttribute('aria-label'), 'Abrir meu perfil público');
+      assert.equal(link.getAttribute('aria-label'), 'Open my public profile');
     }
     avatar = null;
     shortcut.clear();

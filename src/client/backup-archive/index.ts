@@ -1,3 +1,4 @@
+import { t } from '../../shared/i18n/index.ts';
 import {
   base64,
   encode,
@@ -199,7 +200,7 @@ export class BackupWriter {
   abort(): void {
     this.finished = true;
     void this.output.dispose().catch(() => {
-      console.warn('Limpeza do arquivo temporário de backup pendente.');
+      console.warn(t('Limpeza do arquivo temporário de backup pendente.'));
     });
     this.records.length = 0;
     this.ids.clear();

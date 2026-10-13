@@ -1,3 +1,4 @@
+import { t, translatedError } from '../../shared/i18n/index.ts';
 import { AccountError, object, uuid } from '../../shared/account/index.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
 import { callSnapshot, leaseMs, pollMs } from '../../shared/calls/index.ts';
@@ -54,7 +55,7 @@ export class VoiceCalls {
   private targets: string[] = [];
   private busy = false;
   private polling = false;
-  private notice = 'Chamadas: entre e autorize este aparelho.';
+  private notice = t('Chamadas: entre e autorize este aparelho.');
   private settledNotice = false;
   private generation = 0;
   private lastLease = 0;
@@ -90,7 +91,7 @@ export class VoiceCalls {
       session?.deviceId === this.session?.deviceId
     )
       return;
-    this.clear('Chamadas: entre e autorize este aparelho.');
+    this.clear(t('Chamadas: entre e autorize este aparelho.'));
     this.transport.reset();
     this.security.clear();
     this.session = session;
@@ -134,11 +135,11 @@ export class VoiceCalls {
           this.started ||= Date.now();
           this.recovery = 0;
           this.restartAttempts = 0;
-          this.notice = 'Chamada conectada · voz criptografada.';
+          this.notice = t('Chamada conectada · voz criptografada.');
         }
         if (state === 'disconnected') {
           this.recovery ||= Date.now();
-          this.notice = 'Reconectando pelo TURN…';
+          this.notice = t('Reconectando pelo TURN…');
         }
         this.render();
       },
@@ -156,7 +157,7 @@ export class VoiceCalls {
   async start(peer: string): Promise<void> {
     await this.run(async (g) => {
       if (this.active) {
-        this.notice = 'Encerre a chamada atual primeiro.';
+        this.notice = t('Encerre a chamada atual primeiro.');
         return;
       }
       if (!this.snapshot.configured)
@@ -181,7 +182,7 @@ export class VoiceCalls {
       const values: unknown[] = devices;
       this.targets = values.map(uuid);
       this.sequence = 1;
-      this.notice = 'Chamando…';
+      this.notice = t('Chamando…');
       this.render();
       const config = iceConfiguration(
         await this.transport.request('turn', { id: this.require().id }),
@@ -213,7 +214,7 @@ export class VoiceCalls {
       rtc.create(config);
       await this.sendAnswer(description, g);
       this.guard(g);
-      this.notice = 'Conectando…';
+      this.notice = t('Conectando…');
     });
   }
   private prepareAudio(): boolean {
@@ -224,8 +225,8 @@ export class VoiceCalls {
     } catch (error: unknown) {
       this.notice =
         error instanceof Error
-          ? error.message
-          : 'Pare a gravação de voz antes de usar o microfone.';
+          ? translatedError(error.message)
+          : t('Pare a gravação de voz antes de usar o microfone.');
       return false;
     }
   }
@@ -329,16 +330,16 @@ export class VoiceCalls {
     ) {
       this.clear(
         this.active
-          ? 'Chamada encerrada: autorização indisponível.'
-          : error.message,
+          ? t('Chamada encerrada: autorização indisponível.')
+          : translatedError(error.message),
       );
       return;
     }
     if (!this.active)
       this.notice =
         error instanceof Error
-          ? error.message
-          : 'Chamadas indisponíveis agora.';
+          ? translatedError(error.message)
+          : t('Chamadas indisponíveis agora.');
   }
   private async applySnapshot(g: number): Promise<void> {
     const next = this.snapshot.call;
@@ -353,7 +354,7 @@ export class VoiceCalls {
       this.verified = description;
       if (!this.call) {
         this.call = next;
-        this.notice = 'Chamada de voz recebida.';
+        this.notice = t('Chamada de voz recebida.');
       }
       await this.receive(next, description, g);
     }
@@ -370,13 +371,13 @@ export class VoiceCalls {
           peer: this.call.peer,
           at: Date.now(),
         });
-      this.clear('Chamada encerrada ou indisponível.');
+      this.clear(t('Chamada encerrada ou indisponível.'));
       return;
     }
     if (this.settledNotice) return;
     this.notice = this.snapshot.configured
-      ? 'Chamadas disponíveis com o app aberto.'
-      : 'Chamadas aguardam a configuração do TURN próprio.';
+      ? t('Chamadas disponíveis com o app aberto.')
+      : t('Chamadas aguardam a configuração do TURN próprio.');
   }
   private connectingDeadline(view: CallView): void {
     if (
@@ -387,7 +388,7 @@ export class VoiceCalls {
       this.recovery = Date.now();
     if (view.phase === 'active' && view.deadline !== null) {
       this.recovery ||= Date.now();
-      this.notice = 'Reconectando pelo TURN…';
+      this.notice = t('Reconectando pelo TURN…');
     }
   }
   private async description(
@@ -408,7 +409,7 @@ export class VoiceCalls {
         .request('end', { id: view.id })
         .catch(() => undefined);
       this.guard(g);
-      this.clear('Chamada rejeitada: identidade ou negociação inválida.');
+      this.clear(t('Chamada rejeitada: identidade ou negociação inválida.'));
       throw error;
     }
   }
@@ -445,11 +446,11 @@ export class VoiceCalls {
       return;
     }
     if (this.recovery && Date.now() - this.recovery >= leaseMs) {
-      void this.end('Não foi possível reconectar em 20 segundos.');
+      void this.end(t('Não foi possível reconectar em 20 segundos.'));
       return;
     }
     if (this.call?.deadline && this.call.deadline <= Date.now()) {
-      void this.end('Chamada encerrada ou indisponível.');
+      void this.end(t('Chamada encerrada ou indisponível.'));
       return;
     }
     this.maybeRestart();
@@ -458,9 +459,9 @@ export class VoiceCalls {
   private expiredAuthorization(): string | null {
     const now = Date.now();
     if (this.lastLease && now - this.lastLease >= leaseMs)
-      return 'Chamada encerrada: conexão com o servidor perdida.';
+      return t('Chamada encerrada: conexão com o servidor perdida.');
     if (this.authorizationUntil && now >= this.authorizationUntil)
-      return 'Chamada encerrada: autorização indisponível.';
+      return t('Chamada encerrada: autorização indisponível.');
     return null;
   }
   private maybeRestart(): void {
@@ -495,9 +496,9 @@ export class VoiceCalls {
         error instanceof AccountError &&
         [401, 403, 409].includes(error.status)
       )
-        await this.end('Chamada encerrada: autorização mudou.');
+        await this.end(t('Chamada encerrada: autorização mudou.'));
       else {
-        this.notice = 'Reconectando pelo TURN…';
+        this.notice = t('Reconectando pelo TURN…');
         this.render();
       }
     } finally {
@@ -525,8 +526,8 @@ export class VoiceCalls {
       if (g === this.generation)
         await this.end(
           error instanceof Error
-            ? error.message
-            : 'Não foi possível iniciar a chamada.',
+            ? translatedError(error.message)
+            : t('Não foi possível iniciar a chamada.'),
         );
     } finally {
       if (g === this.generation) this.busy = false;
@@ -534,7 +535,7 @@ export class VoiceCalls {
       this.ready();
     }
   }
-  async end(notice = 'Chamada encerrada.'): Promise<void> {
+  async end(notice = t('Chamada encerrada.')): Promise<void> {
     const id = this.call?.id;
     // Queue the signed end before invalidating local resources; authorization remains checked.
     const sent = id ? this.transport.request('end', { id }) : null;
@@ -545,9 +546,10 @@ export class VoiceCalls {
     } catch {
       // Local media is already stopped. A signed idle heartbeat or lease expiry
       // closes the remote side; never claim that the server acknowledged it.
-      if (closed === this.generation && notice === 'Chamada encerrada.') {
-        this.notice =
-          'Áudio encerrado neste aparelho. Sem confirmação do servidor; o outro lado encerra em até 20 segundos.';
+      if (closed === this.generation && notice === t('Chamada encerrada.')) {
+        this.notice = t(
+          'Áudio encerrado neste aparelho. Sem confirmação do servidor; o outro lado encerra em até 20 segundos.',
+        );
         this.render();
       }
     }
@@ -591,8 +593,8 @@ export class VoiceCalls {
       this.guard(g);
       this.snapshot.enabled = enabled;
       this.notice = enabled
-        ? 'Recebimento de chamadas ativado.'
-        : 'Recebimento de chamadas desativado.';
+        ? t('Recebimento de chamadas ativado.')
+        : t('Recebimento de chamadas desativado.');
     });
   }
   dispose(): void {

@@ -1,4 +1,5 @@
 import { approvalPathRequest } from '../../shared/wallet-approval/index.ts';
+import { t } from '../../shared/i18n/index.ts';
 
 /** Classify a generated Backpack link without exposing any request capability. */
 export function openingDiagnostics(
@@ -23,16 +24,25 @@ export function openingDiagnostics(
     );
     if (!outer.pathname.startsWith(prefix))
       throw new Error('Rota desconhecida.');
-    return `D2 · protocolo=doc-3 · plataforma=${agent} · ${targetSummary(target)} · ref=${outer.searchParams.has('ref') ? 'presente' : 'ausente'}`;
+    return t('D2 · protocolo=doc-3 · plataforma={0} · {1} · ref={2}', [
+      agent,
+      targetSummary(target),
+      outer.searchParams.has('ref') ? 'presente' : 'ausente',
+    ]);
   } catch {
-    return `D2 · protocolo=doc-3 · plataforma=${agent} · destino=invalido`;
+    return t('D2 · protocolo=doc-3 · plataforma={0} · destino=invalido', [
+      agent,
+    ]);
   }
 }
 
 function targetSummary(target: URL): string {
   const path = approvalPathRequest(target.pathname);
   if (path)
-    return `destino=entrada-caminho · modo=documento · pedido=presente · rede=${path.ecosystem}`;
+    return t(
+      'destino=entrada-caminho · modo=documento · pedido=presente · rede={0}',
+      [path.ecosystem],
+    );
   const params = target.hash.startsWith('#configuracoes?')
     ? new URLSearchParams(target.hash.slice('#configuracoes?'.length))
     : target.searchParams;
@@ -45,7 +55,12 @@ function targetSummary(target: URL): string {
         : 'invalido';
   const network = params.get('ecosystem');
   const { route, mode } = routeMode(target);
-  return `destino=${route} · modo=${mode} · pedido=${request} · rede=${network === 'evm' || network === 'solana' ? network : 'outra'}`;
+  return t('destino={0} · modo={1} · pedido={2} · rede={3}', [
+    route,
+    mode,
+    request,
+    network === 'evm' || network === 'solana' ? network : 'outra',
+  ]);
 }
 
 function routeMode(target: URL) {

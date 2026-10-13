@@ -1,46 +1,44 @@
 <!doctype html>
-<html lang="pt-BR">
+<html lang="en">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Hash-Talk · ensaio de cofre</title>
+    <title>0xDMme · vault test</title>
     <link rel="stylesheet" href="/probe.css" />
     <script type="module" src="/src/client/vault.ts"></script>
   </head>
   <body>
     <main>
-      <h1>Cofre e recuperação</h1>
+      <h1>Vault and recovery</h1>
       <p>
-        Use somente texto e segredo fictícios. Identidade sintética: Alice. Esta
-        página não usa o estado dos clientes de mensagens.
+        Use fictional text and secrets only. Synthetic identity: Alice. This
+        page does not use messaging clients' state.
       </p>
-      <label for="secret">Segredo fictício de recuperação</label>
+      <label for="secret">Fictional recovery secret</label>
       <input id="secret" type="password" maxlength="44" autocomplete="off" />
-      <button id="generate-secret">Gerar segredo fictício</button>
+      <button id="generate-secret">Generate fictional secret</button>
       <p>
-        Guarde o segredo para o teste; ele nunca é enviado ao relay. Abrir esta
-        página em outro navegador e buscar o envelope permite testar a
-        recuperação limpa.
+        Keep the secret for the test; it is never sent to the relay. Open this
+        page in another browser and fetch the envelope to test recovery in a
+        clean environment.
       </p>
-      <label for="history-message">Texto fictício do histórico</label>
+      <label for="history-message">Fictional history text</label>
       <textarea id="history-message" maxlength="1000" rows="2">
-Histórico fictício recuperado em navegador limpo.</textarea>
-      <label for="revision">Revisão do snapshot</label>
+Fictional history recovered in a clean browser.</textarea>
+      <label for="revision">Snapshot revision</label>
       <input id="revision" type="number" min="1" max="32" value="1" />
-      <button id="seal">Criar cofre cifrado</button>
-      <label for="envelope">Envelope cifrado</label>
+      <button id="seal">Create encrypted vault</button>
+      <label for="envelope">Encrypted envelope</label>
       <textarea id="envelope" maxlength="65536" rows="5"></textarea>
-      <button id="store">Guardar envelope no relay</button>
-      <button id="load">Buscar envelope do relay</button>
-      <button id="open">Abrir histórico localmente</button>
-      <p id="vault-status" role="status">
-        Ensaio pronto; nenhuma wallet real é necessária.
-      </p>
-      <p id="restored" aria-label="Histórico recuperado"></p>
+      <button id="store">Store envelope on relay</button>
+      <button id="load">Fetch envelope from relay</button>
+      <button id="open">Open history locally</button>
+      <p id="vault-status" role="status">Test ready; no real wallet needed.</p>
+      <p id="restored" aria-label="Recovered history"></p>
       <p>
-        O relay é temporário. Backups históricos válidos podem ser abertos, mas
-        não reautorizam aparelhos. Autenticação por wallet e defesa contra
-        rollback de estado atual ficam para a integração.
+        The relay is temporary. Valid historical backups can be opened, but do
+        not reauthorize devices. Wallet authentication and protection against
+        current-state rollback are deferred to integration.
       </p>
     </main>
   </body>

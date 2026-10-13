@@ -1,3 +1,4 @@
+import { t, translatedError } from '../../shared/i18n/index.ts';
 import { renderMentions } from '../public-mentions/index.ts';
 /** DOM builders scoped to community forms. User/server text never enters HTML. */
 export function communityElement<K extends keyof HTMLElementTagNameMap>(
@@ -45,7 +46,9 @@ export function communityButton(
       .catch((error: unknown) => {
         const output = communityElement(
           'p',
-          error instanceof Error ? error.message : 'Operação indisponível.',
+          error instanceof Error
+            ? translatedError(error.message)
+            : t('Operação indisponível.'),
         );
         output.setAttribute('role', 'status');
         container.append(output);

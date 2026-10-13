@@ -107,7 +107,7 @@ await test('QR abre confirmação sem autenticar; consentimento conecta e remove
   window.dispatchEvent(new Event('0xdmme-device-status'));
   assert.equal(
     dialog.querySelector('h2')!.textContent,
-    'Conectado com sucesso',
+    'Successfully connected',
   );
   assert.equal(dialog.querySelector('[data-enrollment-confirm]')!.hidden, true);
   dialog

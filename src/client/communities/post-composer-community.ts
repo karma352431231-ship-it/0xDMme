@@ -1,3 +1,4 @@
+import { t, currentLanguage } from '../../shared/i18n/index.ts';
 import type { Community } from '../../shared/communities/index.ts';
 import { showPublicAvatar } from '../public-media/index.ts';
 import { communityElement as el } from './elements.ts';
@@ -29,8 +30,11 @@ export function composerCommunityIdentity(
     el(
       'small',
       group.archived
-        ? 'Comunidade arquivada'
-        : `${group.followers.toLocaleString('pt-BR')} ${group.followers === 1 ? 'seguidor' : 'seguidores'}`,
+        ? t('Comunidade arquivada')
+        : t('{0} {1}', [
+            group.followers.toLocaleString(currentLanguage()),
+            group.followers === 1 ? t('seguidor') : t('seguidores'),
+          ]),
     ),
   );
   identity.append(avatar, copy);

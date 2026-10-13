@@ -1,3 +1,4 @@
+import { t } from '../../shared/i18n/index.ts';
 import { openFile, sealFile } from '../attachment-crypto/index.ts';
 import {
   imageShape,
@@ -45,8 +46,9 @@ scope.addEventListener('message', (event) => {
     .catch(() => {
       scope.postMessage(
         {
-          error:
+          error: t(
             'Não foi possível processar o anexo. Confira formato, tamanho, pixels e suporte do navegador.',
+          ),
         },
         [],
       );

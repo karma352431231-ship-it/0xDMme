@@ -1,3 +1,4 @@
+import { t, currentLanguage } from '../../shared/i18n/index.ts';
 import { validReaction } from '../../shared/daily/index.ts';
 import {
   EmojiCatalog,
@@ -7,11 +8,9 @@ import {
 } from './catalog.ts';
 import type { EmojiRow } from './catalog.ts';
 import { EmojiArtwork } from './artwork.ts';
+import { emojiCatalogs } from './data.ts';
 
-declare const EMOJI_CATALOG: readonly EmojiRow[];
-const catalog = new EmojiCatalog(
-  typeof EMOJI_CATALOG === 'undefined' ? [] : EMOJI_CATALOG,
-);
+const catalog = new EmojiCatalog(emojiCatalogs[currentLanguage()]);
 const artwork = new EmojiArtwork();
 export { EmojiCatalog, insertEmoji };
 export type { EmojiRow };
@@ -46,13 +45,13 @@ const categoryIcons = [
   '<path d="M5 21V4M5 4h11l-2 4 2 4H5"/>',
 ] as const;
 const tones = [
-  ['all', '✋', 'Todos os tons'],
-  ['none', '✋', 'Sem modificador'],
-  ['🏻', '✋🏻', 'Clara'],
-  ['🏼', '✋🏼', 'Média clara'],
-  ['🏽', '✋🏽', 'Média'],
-  ['🏾', '✋🏾', 'Média escura'],
-  ['🏿', '✋🏿', 'Escura'],
+  ['all', '✋', t('Todos os tons')],
+  ['none', '✋', t('Sem modificador')],
+  ['🏻', '✋🏻', t('Clara')],
+  ['🏼', '✋🏼', t('Média clara')],
+  ['🏽', '✋🏽', t('Média')],
+  ['🏾', '✋🏾', t('Média escura')],
+  ['🏿', '✋🏿', t('Escura')],
 ] as const;
 export class EmojiPicker {
   private recent: string[] = [];
@@ -74,9 +73,9 @@ export class EmojiPicker {
     this.anchor = anchor;
     const dialog = document.createElement('dialog');
     dialog.className = 'emoji-picker';
-    dialog.setAttribute('aria-label', 'Escolher emoji');
+    dialog.setAttribute('aria-label', t('Escolher emoji'));
     // Authored markup only; emoji names enter through textContent/attributes.
-    dialog.innerHTML = `<nav class="picker-modes" data-modes hidden aria-label="Emoji ou GIF"><button type="button" data-mode="emoji" aria-pressed="true">Emoji</button><button type="button" data-mode="gif" aria-pressed="false">GIF</button></nav><div class="gif-pane" data-gif-pane hidden></div><div class="emoji-top"><label class="emoji-search"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></svg><span class="visually-hidden">Buscar emoji</span><input type="search" maxlength="128" autocomplete="off" data-query placeholder="Buscar emoji"></label><label class="emoji-tone"><span class="visually-hidden">Tom de pele</span><select data-tone></select></label><button type="button" class="emoji-close" data-close aria-label="Fechar painel de emojis">×</button></div><section class="emoji-recent" data-recent-section hidden><h3>Recentes</h3><div class="emoji-recent-row" data-recent></div></section><h3 class="emoji-section-title" data-section-title></h3><div data-grid class="emoji-grid" role="listbox" aria-label="Emojis"></div><p data-result class="emoji-empty" role="status"></p><button type="button" class="emoji-custom" data-custom hidden>Usar emoji digitado</button><nav class="emoji-dock" data-dock aria-label="Categorias de emoji"></nav><small class="emoji-credit" data-art role="status">Carregando desenhos…</small>`;
+    dialog.innerHTML = t('html.81724dfa0bc5');
     this.dialog = dialog;
     document.body.append(dialog);
     const promise = new Promise<string | null>((resolve) => {
@@ -114,13 +113,15 @@ export class EmojiPicker {
       .ready()
       .then(() => {
         if (dialog.isConnected)
-          element(dialog, '[data-art]').textContent =
-            'Desenhos Twemoji · CC-BY-4.0 · Recentes só nesta sessão';
+          element(dialog, '[data-art]').textContent = t(
+            'Desenhos Twemoji · CC-BY-4.0 · Recentes só nesta sessão',
+          );
       })
       .catch(() => {
         if (dialog.isConnected)
-          element(dialog, '[data-art]').textContent =
-            'Desenhos indisponíveis. Você ainda pode escolher o emoji com a aparência deste aparelho.';
+          element(dialog, '[data-art]').textContent = t(
+            'Desenhos indisponíveis. Você ainda pode escolher o emoji com a aparência deste aparelho.',
+          );
       });
     return promise;
   }
@@ -222,11 +223,11 @@ export class EmojiPicker {
         ),
       );
       element(dialog, '[data-section-title]').textContent = searching
-        ? 'Resultados'
+        ? t('Resultados')
         : (emojiCategories[Number(category)] ?? '');
       element(dialog, '[data-result]').textContent = total
         ? ''
-        : 'Nenhum emoji encontrado.';
+        : t('Nenhum emoji encontrado.');
       this.renderRecent(dialog, searching, tone.value);
       const typed = query.value.trim();
       element<HTMLButtonElement>(dialog, '[data-custom]').hidden =

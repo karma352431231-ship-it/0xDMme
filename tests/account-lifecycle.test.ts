@@ -395,7 +395,7 @@ await test('sessão de 160 dias permanece conectada entre timers e expira apenas
   }
   assert.equal(clock.now, expiresAt);
   assert.equal(browser.attributes.get('data-connected'), 'false');
-  assert.match(browser.status.textContent, /Sessão expirada/u);
+  assert.match(browser.status.textContent, /Session expired/u);
   browser.dispose();
 });
 
@@ -424,7 +424,7 @@ await test('restaurar sessão abre somente chaves locais; novo login pode solici
   await tick();
   assert.deepEqual(modes, ['restore']);
   assert.equal(browser.account.canActivate(), true);
-  assert.match(browser.status.textContent, /Sessão conectada/);
+  assert.match(browser.status.textContent, /Session connected/);
   assert.equal(browser.attributes.get('data-connected'), 'true');
   browser.click();
   await tick();
@@ -453,7 +453,7 @@ await test('sessão anterior não oculta o pedido assinado nem sua confirmação
   assert.equal(browser.returnPanel.hidden, false);
   assert.equal(browser.attributes.get('data-connected'), 'false');
   assert.equal(browser.returnConfirm.hidden, false);
-  assert.match(browser.returnCandidate.textContent, /Endereço verificado/u);
+  assert.match(browser.returnCandidate.textContent, /Verified address/u);
   assert.equal(
     (browser.view as typeof browser.view & { hidden: boolean }).hidden,
     false,
@@ -531,7 +531,7 @@ await test('entrada de aprovação aceita assinatura sem criar sessão independe
   assert.equal(browser.approve.hidden, false);
   assert.match(browser.approve.textContent, /MetaMask/u);
   assert.equal(browser.intro.hidden, false);
-  assert.match(browser.diagnostic.textContent, /etapa=pedido-lido/u);
+  assert.match(browser.diagnostic.textContent, /stage=pedido-lido/u);
   assert.equal(browser.historyWrites.length, 1);
   assert.deepEqual(Object.keys(browser.historyWrites[0] as object), [
     'xdmmeApprovalDiagnostic',
@@ -543,16 +543,16 @@ await test('entrada de aprovação aceita assinatura sem criar sessão independe
     '/api/account/handoff-challenge',
     '/api/account/handoff-sign',
   ]);
-  assert.match(browser.diagnostic.textContent, /etapa=assinatura-enviada/u);
+  assert.match(browser.diagnostic.textContent, /stage=assinatura-enviada/u);
   signed.resolve({ status: 'signed' });
   await tick();
   assert.equal(browser.approve.hidden, true);
   assert.equal(browser.intro.hidden, true);
-  assert.match(browser.status.textContent, /Assinatura confirmada/u);
+  assert.match(browser.status.textContent, /Signature confirmed/u);
   assert.deepEqual(browser.navigated, []);
   assert.deepEqual(browser.states, []);
   assert.equal(browser.storage.size, 0);
-  assert.match(browser.diagnostic.textContent, /etapa=retorno-manual/u);
+  assert.match(browser.diagnostic.textContent, /stage=retorno-manual/u);
   assert.doesNotMatch(browser.diagnostic.textContent, /a{64}|0x|https:/u);
   browser.dispose();
 });
@@ -580,7 +580,7 @@ await test('pedido salvo antes de limpar URL sobrevive reabertura sem marcador, 
   });
   await tick();
   assert.equal(reopened.approve.hidden, false);
-  assert.match(reopened.diagnostic.textContent, /etapa=pedido-restaurado/u);
+  assert.match(reopened.diagnostic.textContent, /stage=pedido-restaurado/u);
   assert.deepEqual(reopened.requests, ['/api/account/approval-request']);
   assert.deepEqual(reopened.states, []);
   assert.equal([...reopened.storage.values()][0], record);
@@ -602,7 +602,7 @@ await test('prazo local encerra pedido ao retomar e ao reabrir; novo fragmento i
   live.resume();
   assert.equal(live.storage.size, 0);
   assert.equal(live.approve.hidden, true);
-  assert.match(live.diagnostic.textContent, /etapa=pedido-expirado/u);
+  assert.match(live.diagnostic.textContent, /stage=pedido-expirado/u);
   live.dispose();
   const another = scope({
     pathname: '/wallet.html',
@@ -646,7 +646,7 @@ await test('armazenamento bloqueado mantém só pedido recebido em memória, sem
   });
   await tick();
   assert.equal(browser.approve.hidden, false);
-  assert.match(browser.diagnostic.textContent, /armazenamento=indisponivel/u);
+  assert.match(browser.diagnostic.textContent, /storage=indisponivel/u);
   browser.confirmApproval();
   await tick();
   assert.equal(browser.storage.size, 0);
@@ -732,10 +732,10 @@ await test('assinatura aceita de pedido anterior não apaga nem confirma um novo
   signed.resolve({ status: 'signed' });
   await tick();
   assert.equal([...browser.storage.values()][0], replacement);
-  assert.doesNotMatch(browser.status.textContent, /Assinatura confirmada/u);
+  assert.doesNotMatch(browser.status.textContent, /Signature confirmed/u);
   assert.equal(browser.approve.hidden, false);
   assert.deepEqual(browser.navigated, []);
-  assert.match(browser.diagnostic.textContent, /etapa=pedido-lido/u);
+  assert.match(browser.diagnostic.textContent, /stage=pedido-lido/u);
   browser.dispose();
 });
 
@@ -757,7 +757,7 @@ await test('aprovação sem ticket ou com ticket inválido não restaura sessão
     assert.deepEqual(browser.navigated, []);
     assert.equal(browser.picker.hidden, true);
     assert.equal(browser.approve.hidden, true);
-    assert.doesNotMatch(browser.status.textContent, /Assinatura confirmada/u);
+    assert.doesNotMatch(browser.status.textContent, /Signature confirmed/u);
     assert.match(browser.diagnostic.textContent, /provider=nao-avaliado/u);
     browser.dispose();
   }
@@ -795,8 +795,8 @@ await test('falha HTTP do desafio informa somente categoria e etapa, sem assinat
   await tick();
   browser.confirmApproval();
   await tick();
-  assert.match(browser.diagnostic.textContent, /etapa=desafio-solicitado/u);
-  assert.match(browser.diagnostic.textContent, /falha=HTTP-403/u);
+  assert.match(browser.diagnostic.textContent, /stage=desafio-solicitado/u);
+  assert.match(browser.diagnostic.textContent, /failure=HTTP-403/u);
   assert.doesNotMatch(
     browser.diagnostic.textContent,
     /Pedido rejeitado|a{64}|0x|https:/u,
@@ -805,7 +805,7 @@ await test('falha HTTP do desafio informa somente categoria e etapa, sem assinat
   assert.equal(browser.providerRequests.includes('personal_sign'), false);
   assert.deepEqual(browser.states, []);
   assert.deepEqual(browser.navigated, []);
-  assert.doesNotMatch(browser.status.textContent, /Assinatura confirmada/u);
+  assert.doesNotMatch(browser.status.textContent, /Signature confirmed/u);
   browser.dispose();
 });
 
@@ -877,9 +877,9 @@ await test('diagnóstico distingue pedido ausente, inválido, recarga após frag
     await tick();
     assert.match(
       browser.diagnostic.textContent,
-      new RegExp(`etapa=${stage}`, 'u'),
+      new RegExp(`stage=${stage}`, 'u'),
     );
-    assert.ok(browser.diagnostic.textContent.includes(`entrada=${input}`));
+    assert.ok(browser.diagnostic.textContent.includes(`input=${input}`));
     if (input.startsWith('entrada-rejeitada')) {
       assert.doesNotMatch(
         browser.intro.textContent,
@@ -898,12 +898,12 @@ await test('diagnóstico distingue pedido ausente, inválido, recarga após frag
         ? ['/api/account/approval-request']
         : [],
     );
-    assert.doesNotMatch(browser.status.textContent, /Assinatura confirmada/u);
+    assert.doesNotMatch(browser.status.textContent, /Signature confirmed/u);
     if (options.navigationType === 'reload') {
-      assert.match(browser.diagnostic.textContent, /navegacao=reload/u);
+      assert.match(browser.diagnostic.textContent, /navigation=reload/u);
       assert.match(
         browser.diagnostic.textContent,
-        /historico=fragmento-recebido-antes/u,
+        /history=fragmento-recebido-antes/u,
       );
     }
     browser.dispose();
@@ -927,9 +927,9 @@ await test('novo pedido durante desafio descarta resposta antiga sem abrir promp
   assert.equal(browser.providerRequests.includes('personal_sign'), false);
   assert.deepEqual(browser.navigated, []);
   assert.deepEqual(browser.states, [null]);
-  assert.match(browser.diagnostic.textContent, /chegada=novo-fragmento/u);
-  assert.match(browser.diagnostic.textContent, /etapa=pedido-lido/u);
-  assert.match(browser.diagnostic.textContent, /falha=nao/u);
+  assert.match(browser.diagnostic.textContent, /arrival=novo-fragmento/u);
+  assert.match(browser.diagnostic.textContent, /stage=pedido-lido/u);
+  assert.match(browser.diagnostic.textContent, /failure=nao/u);
   browser.dispose();
 });
 
@@ -959,7 +959,7 @@ await test('documento final conserva o pedido sem mudar URL, sem sessão de arma
     assert.equal(browser.approve.hidden, false);
     assert.match(
       browser.diagnostic.textContent,
-      /entrada=entrada-documento.*etapa=pedido-lido/u,
+      /input=entrada-documento.*stage=pedido-lido/u,
     );
     if (ecosystem === 'evm') {
       browser.confirmApproval();
@@ -970,7 +970,7 @@ await test('documento final conserva o pedido sem mudar URL, sem sessão de arma
       ]);
       assert.deepEqual(browser.historyWrites, []);
       assert.deepEqual(browser.states, []);
-      assert.match(browser.status.textContent, /Assinatura confirmada/u);
+      assert.match(browser.status.textContent, /Signature confirmed/u);
     }
     browser.dispose();
   }
@@ -993,12 +993,9 @@ await test('documento final com cookie ausente ou recusado não restaura pedido 
     assert.deepEqual(browser.historyWrites, []);
     assert.deepEqual(browser.requests, []);
     assert.deepEqual(browser.providerRequests, []);
-    assert.match(browser.diagnostic.textContent, /etapa=pedido-invalido/u);
+    assert.match(browser.diagnostic.textContent, /stage=pedido-invalido/u);
     if (reason === 'missing')
-      assert.match(
-        browser.diagnostic.textContent,
-        /entrada=entrada-sem-cookie/u,
-      );
+      assert.match(browser.diagnostic.textContent, /input=entrada-sem-cookie/u);
     browser.dispose();
   }
 });
@@ -1017,8 +1014,8 @@ await test('documento entrega Backpack EVM/Solana sem fragmento ou cookie e remo
     assert.equal(browser.documentRemoved(), true);
     assert.deepEqual(browser.storedBeforeHistory, [true]);
     assert.equal(browser.storage.size, 1);
-    assert.match(browser.diagnostic.textContent, /entrada=entrada-documento/u);
-    assert.match(browser.diagnostic.textContent, /etapa=pedido-lido/u);
+    assert.match(browser.diagnostic.textContent, /input=entrada-documento/u);
+    assert.match(browser.diagnostic.textContent, /stage=pedido-lido/u);
     assert.doesNotMatch(browser.diagnostic.textContent, /a{64}|0x|https:/u);
     if (ecosystem === 'evm') {
       assert.equal(browser.approve.hidden, false);
@@ -1038,11 +1035,11 @@ await test('documento entrega Backpack EVM/Solana sem fragmento ou cookie e remo
       );
       assert.deepEqual(browser.states, []);
       assert.equal(browser.storage.size, 0);
-      assert.match(browser.status.textContent, /Assinatura confirmada/u);
+      assert.match(browser.status.textContent, /Signature confirmed/u);
       browser.incoming('b'.repeat(64));
       await tick();
-      assert.match(browser.diagnostic.textContent, /chegada=novo-fragmento/u);
-      assert.match(browser.diagnostic.textContent, /etapa=pedido-lido/u);
+      assert.match(browser.diagnostic.textContent, /arrival=novo-fragmento/u);
+      assert.match(browser.diagnostic.textContent, /stage=pedido-lido/u);
       assert.match(browser.intro.textContent, /MetaMask/u);
     }
     browser.dispose();
@@ -1073,7 +1070,7 @@ await test('documento ausente, inválido ou expirado não recupera pedido antigo
     assert.deepEqual(browser.requests, []);
     assert.deepEqual(browser.providerRequests, []);
     assert.deepEqual(browser.states, []);
-    assert.match(browser.diagnostic.textContent, /etapa=pedido-invalido/u);
+    assert.match(browser.diagnostic.textContent, /stage=pedido-invalido/u);
     browser.dispose();
   }
 });
@@ -1093,10 +1090,10 @@ await test('rejeição documental chega sem redirecionamento ou fragmento e não
     assert.equal(browser.storage.size, 0);
     assert.deepEqual(browser.requests, []);
     assert.deepEqual(browser.providerRequests, []);
-    assert.ok(browser.diagnostic.textContent.includes(`entrada=${category}`));
+    assert.ok(browser.diagnostic.textContent.includes(`input=${category}`));
     assert.match(
       browser.diagnostic.textContent,
-      /etapa=pedido-invalido.*protocolo=doc-3/u,
+      /stage=pedido-invalido.*protocol=doc-3/u,
     );
     assert.doesNotMatch(
       browser.diagnostic.textContent,
@@ -1126,7 +1123,7 @@ await test('URL limpa recupera pedido pelo cookie sem armazenamento novo, sessã
   assert.deepEqual(browser.requests, ['/api/account/approval-request']);
   assert.equal(browser.storage.size, 0);
   assert.equal(browser.approve.hidden, false);
-  assert.match(browser.diagnostic.textContent, /etapa=pedido-cookie-recebido/u);
+  assert.match(browser.diagnostic.textContent, /stage=pedido-cookie-recebido/u);
   assert.deepEqual(browser.providerRequests, []);
   browser.confirmApproval();
   await tick();
@@ -1138,7 +1135,7 @@ await test('URL limpa recupera pedido pelo cookie sem armazenamento novo, sessã
   assert.equal(browser.requests.includes('/api/account/login'), false);
   assert.equal(browser.requests.includes('/api/account/session'), false);
   assert.deepEqual(browser.states, []);
-  assert.match(browser.status.textContent, /Assinatura confirmada/u);
+  assert.match(browser.status.textContent, /Signature confirmed/u);
   browser.dispose();
 });
 
@@ -1173,7 +1170,7 @@ await test('recuperação por cookie substitui registro antigo; cancelamento nã
   await tick();
   assert.equal(failed.approve.hidden, true);
   assert.deepEqual(failed.providerRequests, []);
-  assert.match(failed.diagnostic.textContent, /falha=HTTP-401/u);
+  assert.match(failed.diagnostic.textContent, /failure=HTTP-401/u);
   failed.dispose();
 });
 
@@ -1232,7 +1229,7 @@ await test('prazo inválido do cookie bloqueia aprovação; expiração local su
   browser.resume();
   await tick();
   assert.equal(browser.approve.hidden, true);
-  assert.match(browser.diagnostic.textContent, /etapa=pedido-expirado/u);
+  assert.match(browser.diagnostic.textContent, /stage=pedido-expirado/u);
   browser.dispose();
 });
 
@@ -1265,7 +1262,7 @@ await test('assinatura aceita mostra somente aviso de retorno manual, inclusive 
   browser.confirmApproval();
   await tick();
   assert.deepEqual(browser.navigated, []);
-  assert.doesNotMatch(browser.status.textContent, /Assinatura confirmada/u);
+  assert.doesNotMatch(browser.status.textContent, /Signature confirmed/u);
   signed.resolve({ status: 'signed' });
   await tick();
   assert.equal(browser.intro.hidden, true);
@@ -1275,7 +1272,7 @@ await test('assinatura aceita mostra somente aviso de retorno manual, inclusive 
   assert.equal(browser.approve.hidden, true);
   assert.equal(
     browser.status.textContent,
-    'Assinatura confirmada. Feche a MetaMask e volte ao navegador onde iniciou o login para confirmar o endereço.',
+    'Signature confirmed. Close MetaMask and return to the browser where you started signing in to confirm the address.',
   );
   assert.deepEqual(browser.navigated, []);
   browser.resume();
@@ -1357,7 +1354,7 @@ await test(
     );
     assert.equal(browser.requests.includes('/api/account/login'), false);
     assert.equal(browser.navigated.length, 0);
-    assert.match(browser.status.textContent, /Assinatura confirmada/u);
+    assert.match(browser.status.textContent, /Signature confirmed/u);
     browser.dispose();
   },
 );

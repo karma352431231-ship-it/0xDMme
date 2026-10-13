@@ -1,3 +1,4 @@
+import { t } from '../../shared/i18n/index.ts';
 import { startNotificationNavigation } from './notification-navigation.ts';
 /** Explicit shell activation waits for private operations and unsaved drafts. */
 export function startPwa(
@@ -8,7 +9,7 @@ export function startPwa(
   } = {},
 ) {
   let registration: ServiceWorkerRegistration | undefined;
-  let state = 'Preparando interface offline…';
+  let state = t('Preparando interface offline…');
   let busy = false;
   let attempts = 0;
   let deadline: number | undefined;
@@ -33,25 +34,29 @@ export function startPwa(
   const failed = () =>
     finish(
       registration?.active
-        ? 'Atualização offline indisponível. A versão instalada permanece disponível.'
-        : 'Interface offline indisponível. Tente novamente com conexão.',
+        ? t(
+            'Atualização offline indisponível. A versão instalada permanece disponível.',
+          )
+        : t('Interface offline indisponível. Tente novamente com conexão.'),
     );
   const begin = () => {
-    state = 'Preparando interface offline…';
+    state = t('Preparando interface offline…');
     render();
     window.clearTimeout(deadline);
     deadline = window.setTimeout(() => {
       // Browser registration/update promises cannot be cancelled. Keep the
       // concurrency lock until they settle rather than accumulating retries.
       finish(
-        'O preparo offline continua. Mantenha o app aberto e conectado; a versão atual segue disponível.',
+        t(
+          'O preparo offline continua. Mantenha o app aberto e conectado; a versão atual segue disponível.',
+        ),
       );
     }, 10_000);
   };
 
   function status(): void {
     if (registration?.waiting) {
-      finish('Nova versão pronta. Escolha quando atualizar.');
+      finish(t('Nova versão pronta. Escolha quando atualizar.'));
       return;
     }
     if (registration?.installing) {
@@ -59,7 +64,7 @@ export function startPwa(
       return;
     }
     if (registration?.active) {
-      finish('Interface pública instalada para uso offline.');
+      finish(t('Interface pública instalada para uso offline.'));
       return;
     }
     failed();
@@ -99,7 +104,9 @@ export function startPwa(
     if (busy || disposed) return;
     if (attempts >= 2) {
       finish(
-        'O navegador não concluiu o modo offline. Reabra a página para tentar novamente.',
+        t(
+          'O navegador não concluiu o modo offline. Reabra a página para tentar novamente.',
+        ),
       );
       return;
     }
@@ -123,7 +130,7 @@ export function startPwa(
     const blocked = options.blockedReason?.();
     if (blocked) return blocked;
     return options.canActivate?.() === false
-      ? 'Conclua a operação ou salve suas alterações antes de atualizar.'
+      ? t('Conclua a operação ou salve suas alterações antes de atualizar.')
       : null;
   }
   let activationRetry: number | undefined;
@@ -165,8 +172,9 @@ export function startPwa(
       stop();
       const result = document.getElementById('update-result');
       if (result)
-        result.textContent =
-          'Atualização não concluída. Reabra a página quando for conveniente.';
+        result.textContent = t(
+          'Atualização não concluída. Reabra a página quando for conveniente.',
+        );
     };
     const timer = window.setTimeout(failedActivation, 10_000);
     navigator.serviceWorker.addEventListener('controllerchange', changed, {
@@ -206,8 +214,9 @@ export function startPwa(
 
   if (supported) void prepare();
   else
-    state =
-      'Instalação e modo offline exigem navegador compatível e HTTPS ou loopback.';
+    state = t(
+      'Instalação e modo offline exigem navegador compatível e HTTPS ou loopback.',
+    );
   document
     .getElementById('apply-update')
     ?.addEventListener('click', requestApply);
@@ -220,7 +229,9 @@ export function startPwa(
         return;
       }
       if (busy || registration?.installing) {
-        state = 'Atualização em andamento. Mantenha o app aberto e conectado.';
+        state = t(
+          'Atualização em andamento. Mantenha o app aberto e conectado.',
+        );
         render();
         return;
       }

@@ -1,3 +1,4 @@
+import { t, translatedError } from '../../shared/i18n/index.ts';
 import { mentionNotificationPage } from '../../shared/mention-notifications/index.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
 import type { VaultAccess } from '../vault-authority/index.ts';
@@ -16,15 +17,7 @@ import { registerHoverCard } from '../hover-card/index.ts';
 import type { ExternalMediaConsent } from '../external-media/index.ts';
 import { ActivityPosts } from '../communities/index.ts';
 
-const template = `<article class="card public-profile-card"><h2>Perfil público</h2>
-<div data-public-create><p>Seu @, atividade pública e todas as comunidades que você segue ficam visíveis na web. Wallet, nome e foto privados não são incluídos neste perfil.</p><label>@ público<input data-public-input type="text" minlength="3" maxlength="31" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="seu_nome"></label>
-<p>3–30 letras sem acento, números ou _. Seu @ é único e fixo enquanto a conta existir.</p>
-<button type="button" class="primary" data-public-action="create">Criar perfil público</button></div>
-<div data-public-owned hidden></div>
-<section data-public-moderation aria-label="Arquivos públicos recusados"></section>
-<div><button type="button" data-public-action="moderation-latest" hidden>Avisos mais recentes</button><button type="button" data-public-action="moderation-older" hidden>Avisos anteriores</button></div>
-<p data-external-media-status role="status"></p><button type="button" data-public-action="external-media">Mídias externas</button>
-<p data-public-status role="status"></p><button type="button" data-public-action="reload" hidden>Tentar de novo</button></article>`;
+const template = t('html.d3072845e018');
 
 /**
  * Only outcomes that keep a file off the public profile reach the owner;
@@ -106,7 +99,7 @@ export function startPublicProfile(
       appeal: (id, reason) => {
         void run(async () => {
           await controller.appeal(id, reason);
-          status = 'Contestação registrada para revisão excepcional.';
+          status = t('Contestação registrada para revisão excepcional.');
         });
       },
     });
@@ -123,8 +116,8 @@ export function startPublicProfile(
       if (current === generation)
         status =
           error instanceof Error
-            ? error.message
-            : 'Perfil público indisponível.';
+            ? translatedError(error.message)
+            : t('Perfil público indisponível.');
     } finally {
       busy = false;
       if (current === generation) render();
@@ -143,7 +136,7 @@ export function startPublicProfile(
       failed = false;
       status = controller.profile
         ? ''
-        : 'Você ainda não criou um perfil público.';
+        : t('Você ainda não criou um perfil público.');
     });
   }
   function bindModeration(): void {

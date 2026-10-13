@@ -1,3 +1,4 @@
+import { t, translatedError } from '../../shared/i18n/index.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
 import type { DiscoveryMode } from '../../shared/contacts/index.ts';
 import { defaultPushPreferences } from '../../shared/daily/index.ts';
@@ -17,9 +18,16 @@ import type {
 import { SettingsRecord } from './vault-record.ts';
 import type { SettingsSync } from './vault-record.ts';
 import { openSettingsWizard } from './wizard.ts';
+import { currentLanguage } from '../../shared/i18n/index.ts';
+import type { AppLanguage } from '../../shared/i18n/index.ts';
+import { LanguageRecord } from '../language-record/index.ts';
 
 /** What each owning module lets account-settings read and apply. */
 export interface SettingsPorts {
+  language?: {
+    set: (value: AppLanguage) => Promise<void>;
+    blocked?: () => string | null;
+  };
   sync: SettingsSync;
   theme: { current: () => Theme; set: (theme: Theme) => void };
   sound: { current: () => boolean; set: (enabled: boolean) => Promise<void> };
@@ -52,7 +60,12 @@ const pendingLimit = 32;
 const offerKey = (accountId: string) => `0xdmme:push-offer:${accountId}`;
 
 function failure(label: string, error: unknown): string {
-  return `${label}: ${error instanceof Error ? error.message : 'não aplicado.'}`;
+  return t('{0}: {1}', [
+    label,
+    error instanceof Error
+      ? translatedError(error.message)
+      : t('não aplicado.'),
+  ]);
 }
 function pushKinds(push: AccountSettings['push']): PushPreferences {
   return {
@@ -77,6 +90,9 @@ function samePush(a: PushPreferences, b: PushPreferences): boolean {
 export class AccountSettingsController {
   private readonly ports: SettingsPorts;
   private readonly record: SettingsRecord;
+  private readonly languageRecord: LanguageRecord;
+  private savedLanguage: AppLanguage | null = null;
+  private languageReady = false;
   private session: AccountSession | null = null;
   private generation = 0;
   private context = new AbortController();
@@ -90,6 +106,7 @@ export class AccountSettingsController {
   constructor(ports: SettingsPorts) {
     this.ports = ports;
     this.record = new SettingsRecord(ports.sync);
+    this.languageRecord = new LanguageRecord(ports.sync);
     onPreference((change) => this.changed(change));
     // The encrypted profile opens after the device key, which is when the
     // account module announces its preferences; readiness is checked again then.
@@ -105,6 +122,8 @@ export class AccountSettingsController {
       this.state = 'idle';
       this.attempts = 0;
       this.saved = null;
+      this.savedLanguage = null;
+      this.languageReady = false;
       this.pending = [];
     }
     this.session = session;
@@ -125,6 +144,11 @@ export class AccountSettingsController {
   private async start(session: AccountSession, generation: number) {
     try {
       const value = await this.record.load(session.accountId);
+      const language = await this.languageRecord.load(session.accountId);
+      if (generation !== this.generation) return;
+      this.savedLanguage = language;
+      this.languageReady = true;
+      if (language) await this.ports.language?.set(language);
       if (generation !== this.generation) return;
       if (value) await this.adopt(session, value);
       else await this.offerWizard(session, generation);
@@ -133,7 +157,7 @@ export class AccountSettingsController {
       if (generation !== this.generation) return;
       this.state = 'idle';
       if (this.attempts >= loadAttempts)
-        showToast(failure('Configurações da conta', error));
+        showToast(failure(t('Configurações da conta'), error));
     }
   }
   /** Another device saved the account copy: apply it here, then keep it current. */
@@ -173,7 +197,7 @@ export class AccountSettingsController {
       if (!samePush(current, pushKinds(push)))
         await this.ports.push.configurePush(pushKinds(push));
     } catch (error: unknown) {
-      showToast(failure('Notificações deste aparelho', error));
+      showToast(failure(t('Notificações deste aparelho'), error));
     }
   }
   /** True when this device is subscribed afterwards. */
@@ -217,6 +241,8 @@ export class AccountSettingsController {
     await openSettingsWizard({
       initial: await this.currentPack(),
       confirm: (pack) => this.confirm(session, generation, pack),
+      saveLanguage: (language) => this.saveLanguage(language),
+      languageBlocked: () => this.ports.language?.blocked?.() ?? null,
       signal: this.context.signal,
     });
   }
@@ -256,9 +282,13 @@ export class AccountSettingsController {
             subscribed ? this.ports.push.disablePush() : undefined,
           );
     const problems = await this.applyPack(pack, pushStarted);
-    if (generation !== this.generation)
-      throw new Error('A conta mudou antes de salvar as configurações.');
+    this.guard(generation);
     await this.record.save(session.accountId, pack.settings);
+    this.guard(generation);
+    await this.saveLanguage(this.savedLanguage ?? currentLanguage());
+    this.guard(generation);
+    await this.ports.language?.set(this.savedLanguage ?? currentLanguage());
+    this.guard(generation);
     this.saved = pack.settings;
     return problems;
   }
@@ -268,17 +298,17 @@ export class AccountSettingsController {
   ): Promise<string[]> {
     const steps: [string, () => Promise<void>][] = [
       [
-        'Notificações push',
+        t('Notificações push'),
         async () => {
           await pushStarted;
           if (pack.settings.push.enabled)
             await this.ports.push.configurePush(pushKinds(pack.settings.push));
         },
       ],
-      ['Tema, sons e mídias', () => this.applyDevice(pack.settings)],
-      ['Privacidade', () => this.ports.privacy.save(pack.privacy)],
+      [t('Tema, sons e mídias'), () => this.applyDevice(pack.settings)],
+      [t('Privacidade'), () => this.ports.privacy.save(pack.privacy)],
       [
-        'Quem pode pedir conversa',
+        t('Quem pode pedir conversa'),
         () => this.ports.discovery.set(pack.discovery),
       ],
     ];
@@ -318,10 +348,30 @@ export class AccountSettingsController {
       .catch((error: unknown) => {
         showToast(
           failure(
-            'Configuração aplicada neste aparelho, mas não salva na conta',
+            t('Configuração aplicada neste aparelho, mas não salva na conta'),
             error,
           ),
         );
       });
+  }
+  /** Explicit language changes wait for account durability before reloading the UI. */
+  async saveLanguage(language: AppLanguage): Promise<void> {
+    const session = this.session;
+    if (!session || !this.languageReady)
+      throw new Error('Abra sua conta para salvar o idioma.');
+    const generation = this.generation;
+    const current = () => this.guard(generation);
+    const write = this.writes.then(async () => {
+      current();
+      if (this.savedLanguage === language) return;
+      await this.languageRecord.save(session.accountId, language, current);
+      this.savedLanguage = language;
+    });
+    this.writes = write.catch(() => undefined);
+    await write;
+  }
+  private guard(generation: number): void {
+    if (generation !== this.generation)
+      throw new Error('A conta mudou antes de salvar as configurações.');
   }
 }

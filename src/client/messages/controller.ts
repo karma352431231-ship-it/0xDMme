@@ -1,3 +1,5 @@
+import { t } from '../../shared/i18n/index.ts';
+import { messageStates } from '../message-state/index.ts';
 import { knownPeerProfile } from './known-profile.ts';
 import { readBackupWindow } from './backup-window.ts';
 import { RemovalIndex } from '../personal-removals/index.ts';
@@ -91,7 +93,7 @@ import {
 import type { MessageItem } from './history.ts';
 import { PeerIdentity } from '../peer-identity/index.ts';
 /** Normal state of an accepted message; the bubble shows it only as a tooltip to keep the thread quiet. */
-export const receivedState = 'Recebida e preservada';
+export const receivedState = messageStates.received;
 export interface MessageView {
   archived?: boolean;
   delivery?: DeliveryState;
@@ -827,7 +829,7 @@ export class Messages {
       ...row,
       archived: true,
       author: row.own ? a.session.accountId : row.peer,
-      state: 'Histórico local',
+      state: messageStates.history,
     };
   }
   async archivedPeers(after: string | null) {
@@ -977,8 +979,8 @@ export class Messages {
         id: item.id,
         peer: messagePeer(c.a.session.accountId, item),
         own: item.sender === c.a.session.accountId,
-        text: 'Entrega suspensa: é necessário novo consentimento.',
-        state: 'Suspensa',
+        text: t('Entrega suspensa: é necessário novo consentimento.'),
+        state: messageStates.suspended,
         hash: item.hash,
       };
     }
@@ -1067,9 +1069,7 @@ export class Messages {
       peer: messagePeer(a.session.accountId, item),
       own: item.sender === a.session.accountId,
       text,
-      state: item.queue_active
-        ? 'Aceita · entrega por aparelho pendente'
-        : receivedState,
+      state: item.queue_active ? messageStates.accepted : receivedState,
     };
   }
   private async decryptPacket(c: {
@@ -1579,7 +1579,7 @@ export class Messages {
         throw new Error('Estado de entrega divergente.');
       return {
         ...view,
-        ...(view.state === 'Suspensa'
+        ...(view.state === messageStates.suspended
           ? {}
           : {
               delivery: state.received
@@ -1587,10 +1587,10 @@ export class Messages {
                 : ('accepted' as const),
             }),
         state:
-          view.state === 'Suspensa'
+          view.state === messageStates.suspended
             ? view.state
             : state.pending
-              ? 'Aceita · entrega por aparelho pendente'
+              ? messageStates.accepted
               : receivedState,
       };
     });
@@ -1626,7 +1626,7 @@ export class Messages {
             own: value.own,
             text: await openLocal(a, value),
             hash: value.hash,
-            state: 'Cópia local offline · estado remoto ainda não conferido',
+            state: messageStates.offline,
           });
         }
         if (peer) await this.offlineProfiles(a, peer, views);
@@ -1672,7 +1672,7 @@ export class Messages {
         own,
         hash: row.hash,
         text,
-        state: 'Perfil recebido · cópia local offline',
+        state: messageStates.profileOffline,
       });
     }
   }

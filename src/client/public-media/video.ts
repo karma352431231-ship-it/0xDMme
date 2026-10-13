@@ -1,3 +1,4 @@
+import { t } from '../../shared/i18n/index.ts';
 import type { PublicPostMedia } from '../../shared/public-media/index.ts';
 
 /** Keep full video bytes only while the player is near the viewport. Playback stays user initiated. */
@@ -25,7 +26,7 @@ export function mountPublicVideo(
   video.setAttribute('playsinline', '');
   caption.setAttribute('role', 'status');
   retry.type = 'button';
-  retry.textContent = 'Tentar carregar vídeo';
+  retry.textContent = t('Tentar carregar vídeo');
   retry.hidden = true;
   slot.append(video, caption, retry);
   let visible = false,
@@ -66,7 +67,7 @@ export function mountPublicVideo(
     const controller = new AbortController();
     current = controller;
     const signal = AbortSignal.any([options.signal, controller.signal]);
-    caption.textContent = 'Carregando vídeo…';
+    caption.textContent = t('Carregando vídeo…');
     retry.hidden = true;
     loadPoster(signal);
     try {
@@ -77,7 +78,7 @@ export function mountPublicVideo(
       video.load();
     } catch {
       if (usable(signal)) {
-        caption.textContent = 'Vídeo indisponível. Tente novamente.';
+        caption.textContent = t('Vídeo indisponível. Tente novamente.');
         retry.hidden = false;
       }
     } finally {

@@ -1,3 +1,4 @@
+import { t } from '../../shared/i18n/index.ts';
 import { PrivacyControls } from './privacy-controls.ts';
 import { accountSession, profileEnvelope } from '../../shared/account/index.ts';
 import type {
@@ -114,10 +115,12 @@ export class AccountPrivateProfile {
       ? await this.options.privateKey(current, walletOpening)
       : await profileKey(current.accountId, current.profileRevision === 0);
     if (!localKey) {
-      this.core.status =
-        'Sessão conectada. Abra sua conta em Perfil → Aparelhos.';
-      this.core.profileStatus =
-        'Perfil bloqueado. Autorize este aparelho por vinculação ou recuperação.';
+      this.core.status = t(
+        'Sessão conectada. Abra sua conta em Perfil → Aparelhos.',
+      );
+      this.core.profileStatus = t(
+        'Perfil bloqueado. Autorize este aparelho por vinculação ou recuperação.',
+      );
       return;
     }
     const stored = await api('profile');
@@ -140,8 +143,8 @@ export class AccountPrivateProfile {
     this.key = localKey;
     this.profile = opened;
     window.dispatchEvent(new Event('0xdmme-profile-preferences'));
-    this.core.status = 'Conta pronta.';
-    this.core.profileStatus = 'Perfil disponível.';
+    this.core.status = t('Conta pronta.');
+    this.core.profileStatus = t('Perfil disponível.');
   }
   /** Reloads the session and profile unless a form has an unsaved draft. */
   async refresh(): Promise<void> {
@@ -218,7 +221,7 @@ export class AccountPrivateProfile {
       if (this.photoUrl) {
         const image = document.createElement('img');
         image.src = this.photoUrl;
-        image.alt = 'Sua foto de perfil';
+        image.alt = t('Sua foto de perfil');
         avatar.append(image);
       } else avatar.textContent = this.core.session?.name.slice(0, 1) || '#';
     }
@@ -228,7 +231,7 @@ export class AccountPrivateProfile {
       document.querySelector<HTMLInputElement>('#account-photo')?.files?.[0];
     const currentProfile = this.profile;
     if (!file || !currentProfile || file.size > 3_000_000) {
-      this.core.status = 'Selecione uma foto de até 3 MB.';
+      this.core.status = t('Selecione uma foto de até 3 MB.');
       this.host.render();
       return;
     }
@@ -239,8 +242,9 @@ export class AccountPrivateProfile {
         return;
       }
       this.dirtyProfile = true;
-      this.core.status =
-        'Foto preparada. Confirme as alterações em Perfil para salvar.';
+      this.core.status = t(
+        'Foto preparada. Confirme as alterações em Perfil para salvar.',
+      );
       this.renderPhoto();
     });
   }
@@ -324,7 +328,7 @@ export class AccountPrivateProfile {
         throw new Error('Abra sua conta para confirmar o perfil.');
       await this.confirmName(original, name);
       await this.confirmContent(original, currentKey, profile);
-      this.core.status = 'Alterações confirmadas.';
+      this.core.status = t('Alterações confirmadas.');
     });
   }
   private async confirmName(
@@ -381,7 +385,7 @@ export class AccountPrivateProfile {
     this.preferencesDraft.commit(profile);
     this.host.setSession({ ...current, profileRevision: revision });
     await this.options.privacyChanged?.(profile.preferences);
-    this.core.status = 'Perfil salvo.';
+    this.core.status = t('Perfil salvo.');
     this.dirtyProfile = false;
     window.dispatchEvent(new Event('0xdmme-profile-preferences'));
     this.host.renderSidebar();

@@ -1,8 +1,11 @@
+import { t } from '../../shared/i18n/index.ts';
 import type { MediaScope } from './preferences.ts';
-export const externalMediaNotice =
-  'GIFs e vídeos externos conectam você aos provedores, que recebem seu IP e podem coletar buscas, dados do navegador, cookies e dados de reprodução. A criptografia das conversas permanece; o app não envia sua wallet, chaves ou histórico de conversas a eles.';
-export const klipyNotice =
-  'Ao buscar ou carregar GIFs, seu aparelho se conecta ao KLIPY, que recebe seu IP e pode coletar suas buscas, GIFs acessados e dados do navegador. O app não envia sua wallet, chaves ou histórico de conversas ao KLIPY.';
+export const externalMediaNotice = t(
+  'GIFs e vídeos externos conectam você aos provedores, que recebem seu IP e podem coletar buscas, dados do navegador, cookies e dados de reprodução. A criptografia das conversas permanece; o app não envia sua wallet, chaves ou histórico de conversas a eles.',
+);
+export const klipyNotice = t(
+  'Ao buscar ou carregar GIFs, seu aparelho se conecta ao KLIPY, que recebe seu IP e pode coletar suas buscas, GIFs acessados e dados do navegador. O app não envia sua wallet, chaves ou histórico de conversas ao KLIPY.',
+);
 
 /** No provider resources are present in this dialog. Closing is not consent. */
 export function mediaConsentDialog(
@@ -13,15 +16,17 @@ export function mediaConsentDialog(
   return new Promise((resolve, reject) => {
     const dialog = document.createElement('dialog');
     dialog.className = 'external-media-consent card';
-    dialog.setAttribute('aria-label', 'Privacidade de mídias externas');
+    dialog.setAttribute('aria-label', t('Privacidade de mídias externas'));
     const title = document.createElement('h2'),
       notice = document.createElement('p'),
       detail = document.createElement('small'),
       actions = document.createElement('div');
-    title.textContent = scope === 'all' ? 'Mídias externas' : 'GIFs do KLIPY';
+    title.textContent =
+      scope === 'all' ? t('Mídias externas') : t('GIFs do KLIPY');
     notice.textContent = scope === 'all' ? externalMediaNotice : klipyNotice;
-    detail.textContent =
-      'Com a conta conectada, a escolha acompanha a conta e pode ser alterada no Perfil.';
+    detail.textContent = t(
+      'Com a conta conectada, a escolha acompanha a conta e pode ser alterada no Perfil.',
+    );
     actions.className = 'settings-actions';
     const finish = (choice: boolean | null) => {
       signal.removeEventListener('abort', cancel);
@@ -30,8 +35,11 @@ export function mediaConsentDialog(
     };
     const cancel = () => finish(null);
     for (const [choice, label] of [
-      [true, scope === 'all' ? 'Permitir mídias externas' : 'Permitir GIFs'],
-      [false, 'Manter somente links'],
+      [
+        true,
+        scope === 'all' ? t('Permitir mídias externas') : t('Permitir GIFs'),
+      ],
+      [false, t('Manter somente links')],
     ] as const) {
       const button = document.createElement('button');
       button.type = 'button';

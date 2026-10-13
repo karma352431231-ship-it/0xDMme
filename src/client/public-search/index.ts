@@ -1,3 +1,4 @@
+import { t, translatedError } from '../../shared/i18n/index.ts';
 import { searchMentions } from '../public-mentions/index.ts';
 import type { MentionChoice } from '../public-mentions/index.ts';
 import { mentionHref } from '../../shared/public-mentions/index.ts';
@@ -13,7 +14,7 @@ export function mountPublicSearch(
   signal: AbortSignal,
 ): void {
   host.classList.add('public-search');
-  host.innerHTML = `<form role="search" aria-label="Buscar usuários e comunidades"><label class="public-search-field">${searchIcon}<input type="search" placeholder="Search" aria-label="Buscar usuários e comunidades" maxlength="100" autocomplete="off" spellcheck="false" aria-expanded="false"></label></form><div class="public-search-results" hidden><p class="public-search-status" role="status"></p><div class="public-search-list"></div></div>`;
+  host.innerHTML = t('html.3b7e1f6a5e79', [searchIcon]);
   const input = host.querySelector<HTMLInputElement>('input')!,
     panel = host.querySelector<HTMLElement>('.public-search-results')!,
     status = host.querySelector<HTMLElement>('.public-search-status')!,
@@ -45,7 +46,7 @@ export function mountPublicSearch(
   const search = async () => {
     timer = null;
     const value = query;
-    show('Buscando…');
+    show(t('Buscando…'));
     try {
       const choices = await requests.search(value);
       if (choices === null || signal.aborted || value !== query) return;
@@ -55,13 +56,13 @@ export function mountPublicSearch(
       selected = -1;
       const lifetime = AbortSignal.any([signal, media.signal]);
       renderResults(list, choices, lifetime);
-      show(choices.length ? '' : 'Nenhum usuário ou comunidade encontrado.');
+      show(choices.length ? '' : t('Nenhum usuário ou comunidade encontrado.'));
     } catch (error: unknown) {
       if (!signal.aborted && value === query)
         show(
           error instanceof Error
-            ? error.message
-            : 'Não foi possível buscar. Tente novamente.',
+            ? translatedError(error.message)
+            : t('Não foi possível buscar. Tente novamente.'),
         );
     }
   };
@@ -70,7 +71,11 @@ export function mountPublicSearch(
     try {
       query = publicSearchQuery(input.value);
     } catch (error: unknown) {
-      show(error instanceof Error ? error.message : 'Busca inválida.');
+      show(
+        error instanceof Error
+          ? translatedError(error.message)
+          : t('Busca inválida.'),
+      );
       return;
     }
     if (!query) return;
@@ -164,7 +169,8 @@ function searchChoice(
   avatar.textContent = avatarInitials(choice.label);
   avatar.setAttribute('aria-hidden', 'true');
   name.textContent = choice.kind === 'user' ? '@' + choice.label : choice.label;
-  kind.textContent = choice.kind === 'user' ? 'Perfil público' : 'Comunidade';
+  kind.textContent =
+    choice.kind === 'user' ? t('Perfil público') : t('Comunidade');
   copy.className = 'public-search-copy';
   copy.append(name, kind);
   link.append(avatar, copy);
@@ -187,7 +193,7 @@ function renderResults(
     const items = choices.filter((choice) => choice.kind === kind);
     if (!items.length) continue;
     const heading = document.createElement('h3');
-    heading.textContent = kind === 'user' ? 'Usuários' : 'Comunidades';
+    heading.textContent = kind === 'user' ? t('Usuários') : t('Comunidades');
     list.append(heading);
     for (const item of items) list.append(searchChoice(item, signal));
   }

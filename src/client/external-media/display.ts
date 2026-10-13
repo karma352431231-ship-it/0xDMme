@@ -1,3 +1,4 @@
+import { t, translatedError } from '../../shared/i18n/index.ts';
 import type { ExternalMediaConsent, ExternalMediaKind } from './consent.ts';
 
 /** The link remains outside this gate. Only render may allocate provider URLs. */
@@ -34,8 +35,9 @@ export function externalMediaGate(
     button.disabled = true;
     try {
       if (!(await options.consent.authorize(options.kind, signal))) {
-        notice.textContent =
-          'Mídia externa mantida como link. Altere a permissão no Perfil.';
+        notice.textContent = t(
+          'Mídia externa mantida como link. Altere a permissão no Perfil.',
+        );
         return;
       }
       if (signal.aborted || !field.isConnected) return;
@@ -45,7 +47,9 @@ export function externalMediaGate(
       notice.textContent = '';
     } catch (error: unknown) {
       notice.textContent =
-        error instanceof Error ? error.message : 'Mídia externa indisponível.';
+        error instanceof Error
+          ? translatedError(error.message)
+          : t('Mídia externa indisponível.');
     } finally {
       button.disabled = false;
     }

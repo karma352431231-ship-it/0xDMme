@@ -1,3 +1,4 @@
+import { t } from '../../shared/i18n/index.ts';
 import { externalMediaGate } from '../external-media/index.ts';
 import type { ExternalMediaConsent } from '../external-media/index.ts';
 import { gifMessageUrl, gifUrls, withoutGifLinks } from './links.ts';
@@ -44,7 +45,7 @@ export function showExternalGif(
     consent: options.privacy,
     kind: 'gifs',
     signal: options.signal,
-    label: 'Mostrar GIF',
+    label: t('Mostrar GIF'),
     automatic: true,
     render: (target) => renderGif(target, url),
   });
@@ -63,7 +64,7 @@ export function renderGif(host: HTMLElement, url: string): void {
     () => {
       if (!host.isConnected) return;
       const status = document.createElement('small');
-      status.textContent = 'GIF indisponível agora.';
+      status.textContent = t('GIF indisponível agora.');
       status.setAttribute('role', 'status');
       host.replaceChildren(status);
     },

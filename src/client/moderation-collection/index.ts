@@ -1,7 +1,15 @@
+import {
+  t,
+  translatedError,
+  currentLanguage,
+} from '../../shared/i18n/index.ts';
 // SPDX-License-Identifier: GPL-3.0-only
 import { CollectionApi } from './api.ts';
 import type { Collection, ImageCase, Reference } from './api.ts';
 import { ImageQueue } from './queue.ts';
+import { startLanguage } from '../language/index.ts';
+
+startLanguage();
 
 function element<T extends HTMLElement>(id: string, type: { new (): T }): T {
   const node = document.getElementById(id);
@@ -34,7 +42,9 @@ let previewReady = false;
 
 function message(error: unknown): void {
   status.textContent =
-    error instanceof Error ? error.message : 'Coleta indisponível.';
+    error instanceof Error
+      ? translatedError(error.message)
+      : t('Coleta indisponível.');
 }
 function clearPreview(): void {
   previewReady = false;
@@ -81,10 +91,10 @@ async function showQueue(): Promise<void> {
   clearPreview();
   const current = queue.current;
   if (!current) {
-    title.textContent = 'Selecione imagens ou conclua o envio.';
+    title.textContent = t('Selecione imagens ou conclua o envio.');
     return;
   }
-  title.textContent = `${current.name} · ${queue.length} na fila`;
+  title.textContent = t('{0} · {1} na fila', [current.name, queue.length]);
   try {
     await showImage(current);
   } catch {
@@ -98,7 +108,10 @@ async function edit(entry: ImageCase): Promise<void> {
   editing = entry;
   back.hidden = false;
   skip.hidden = true;
-  title.textContent = `Corrigir imagem ${entry.ordinal} · marcação atual: ${entry.reference === 'allow' ? 'Passa' : 'Bloqueia'}`;
+  title.textContent = t('Corrigir imagem {0} · marcação atual: {1}', [
+    entry.ordinal,
+    entry.reference === 'allow' ? t('Passa') : t('Bloqueia'),
+  ]);
   await showImage(await api.image(entry.id));
 }
 function historyEntry(entry: ImageCase): HTMLDivElement {
@@ -106,10 +119,13 @@ function historyEntry(entry: ImageCase): HTMLDivElement {
     label = document.createElement('span'),
     button = document.createElement('button');
   row.className = 'case';
-  label.textContent = `${entry.ordinal}. ${entry.reference === 'allow' ? 'Passa' : 'Bloqueia'}`;
+  label.textContent = t('{0}. {1}', [
+    entry.ordinal,
+    entry.reference === 'allow' ? t('Passa') : t('Bloqueia'),
+  ]);
   label.className = entry.reference;
   button.type = 'button';
-  button.textContent = 'Corrigir';
+  button.textContent = t('Corrigir');
   button.addEventListener('click', () => action(() => edit(entry)));
   row.append(label, button);
   return row;
@@ -119,18 +135,25 @@ function render(): void {
   const allowed = snapshot.cases.filter(
     (entry) => entry.reference === 'allow',
   ).length;
-  const expires = new Date(snapshot.expiresAt).toLocaleString('pt-BR', {
-    timeZone: 'America/Fortaleza',
-    dateStyle: 'short',
-    timeStyle: 'short',
-  });
-  summary.textContent = `${snapshot.cases.length} salvas · ${allowed} passam · ${snapshot.cases.length - allowed} bloqueiam · expira em ${expires} (Fortaleza)`;
+  const expires = new Date(snapshot.expiresAt).toLocaleString(
+    currentLanguage(),
+    {
+      timeZone: 'America/Fortaleza',
+      dateStyle: 'short',
+      timeStyle: 'short',
+    },
+  );
+  summary.textContent = t(
+    '{0} salvas · {1} passam · {2} bloqueiam · expira em {3} (Fortaleza)',
+    [snapshot.cases.length, allowed, snapshot.cases.length - allowed, expires],
+  );
   savedCases.replaceChildren(...snapshot.cases.map(historyEntry));
   if (snapshot.completedAt !== null) {
     clearPreview();
-    title.textContent = 'Envio concluído';
-    status.textContent =
-      'Sua rodada está pronta para calibração. Pode fechar esta aba; mantenha o Mac ligado e sem repouso.';
+    title.textContent = t('Envio concluído');
+    status.textContent = t(
+      'Sua rodada está pronta para calibração. Pode fechar esta aba; mantenha o Mac ligado e sem repouso.',
+    );
   }
   controls();
 }
@@ -143,14 +166,17 @@ async function mark(reference: Reference): Promise<void> {
     await api.annotate(editing.id, reference);
     await refresh();
     await showQueue();
-    status.textContent = 'Marcação corrigida.';
+    status.textContent = t('Marcação corrigida.');
     return;
   }
   const current = queue.current;
   if (!current) throw new Error('Selecione uma imagem.');
   const saved = await api.save(current, reference);
   queue.next();
-  status.textContent = `Imagem ${saved.ordinal} salva: ${reference === 'allow' ? 'Passa' : 'Bloqueia'}.`;
+  status.textContent = t('Imagem {0} salva: {1}.', [
+    saved.ordinal,
+    reference === 'allow' ? t('Passa') : t('Bloqueia'),
+  ]);
   await refresh();
   await showQueue();
 }
@@ -159,8 +185,9 @@ file.addEventListener('change', () => {
   action(async () => {
     queue.add(selected);
     file.value = '';
-    status.textContent =
-      'Marque cada imagem. Cada clique salva o original e avança.';
+    status.textContent = t(
+      'Marque cada imagem. Cada clique salva o original e avança.',
+    );
     await showQueue();
   });
 });
@@ -170,8 +197,9 @@ back.addEventListener('click', () => action(showQueue));
 skip.addEventListener('click', () => {
   action(async () => {
     queue.next();
-    status.textContent =
-      'Arquivo removido da fila; nenhuma marcação foi salva para ele.';
+    status.textContent = t(
+      'Arquivo removido da fila; nenhuma marcação foi salva para ele.',
+    );
     await showQueue();
   });
 });

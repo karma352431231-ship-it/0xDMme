@@ -1,59 +1,56 @@
 <!doctype html>
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
-<html lang="pt-BR">
+<html lang="en">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>0xDMme — avaliação restrita</title>
+    <title>0xDMme — restricted evaluation</title>
     <link rel="stylesheet" href="/style.css" />
     <script type="module" src="/client.js"></script>
   </head>
   <body>
     <main>
-      <p class="badge">AVALIAÇÃO EXPERIMENTAL RESTRITA</p>
-      <h1>Teste suas artes</h1>
+      <p class="badge">RESTRICTED EXPERIMENTAL EVALUATION</p>
+      <h1>Test your artwork</h1>
       <p>
-        O candidato Viddexa Nano analisa a imagem na VPS e mostra suas cinco
-        classes, usando ONNX Runtime 1.24.4 em CPU. Ele ainda não é a proteção
-        aceita do 0xDMme.
+        The Viddexa Nano candidate analyzes the image on the VPS and shows its
+        five classes, using ONNX Runtime 1.24.4 on CPU. It is not yet the
+        accepted protection for 0xDMme.
       </p>
       <p>
-        Nudez artística em pinturas é permitida pela política; atos sexuais
-        explícitos continuam proibidos. A classe <code>porn</code> do modelo não
-        decide essa distinção.
+        Policy allows artistic nudity in paintings; explicit sexual acts remain
+        prohibited. The model's <code>porn</code> class does not decide this
+        distinction.
       </p>
-      <label for="image">Imagem estática (PNG, JPEG ou WebP, até 8 MiB)</label
+      <label for="image">Still image (PNG, JPEG or WebP, up to 8 MiB)</label
       ><input id="image" type="file" accept="image/png,image/jpeg,image/webp" />
-      <label for="expected">Qual resultado você espera pela política?</label
+      <label for="expected">What result do you expect under the policy?</label
       ><select id="expected">
-        <option value="">Escolha sua avaliação desta imagem</option>
-        <option value="safe">Permitido / safe</option>
-        <option value="unsafe">Proibido / não safe</option>
-        <option value="uncertain">Incerto / revisar</option>
+        <option value="">Choose your assessment of this image</option>
+        <option value="safe">Allowed / safe</option>
+        <option value="unsafe">Prohibited / unsafe</option>
+        <option value="uncertain">Uncertain / review</option>
       </select>
       <p class="small">
-        Imagem, scores e sua referência ficam juntos nesta rodada temporária,
-        somente em memória na VPS. Sua referência não influencia o modelo. Não
-        há treinamento nem envio automático a serviços externos.
+        The image, scores and your reference remain together in this temporary
+        round, only in VPS memory. Your reference does not influence the model.
+        There is no training or automatic sending to external services.
       </p>
-      <img id="preview" alt="Prévia local da imagem escolhida" hidden />
-      <button id="evaluate" type="button">Analisar na VPS</button>
+      <img id="preview" alt="Local preview of the selected image" hidden />
+      <button id="evaluate" type="button">Analyze on the VPS</button>
       <p id="status" role="status" aria-live="polite"></p>
       <section aria-labelledby="gallery-title">
-        <h2 id="gallery-title">Rodada de calibração</h2>
+        <h2 id="gallery-title">Calibration round</h2>
         <p class="small">
-          Os casos permanecem enquanto este ambiente estiver ativo, até 24
-          horas. Reiniciar o processo perde a rodada. Reabra o endereço privado
-          para recuperar os casos. Ao terminar, exporte se precisar e apague a
-          rodada. Até 256 casos ou 512 MiB; originais preservados sem
-          recompressão.
+          Cases remain while this environment is active, for up to 24 hours.
+          Restarting the process loses the round. Reopen the private address to
+          retrieve cases. When finished, export if needed and delete the round.
+          Up to 256 cases or 512 MiB; originals preserved without recompression.
         </p>
         <div class="actions">
-          <button id="reload" type="button">Atualizar galeria</button>
-          <button id="export" type="button">
-            Exportar imagens + resultados
-          </button>
-          <button id="clear" type="button">Apagar esta rodada</button>
+          <button id="reload" type="button">Refresh gallery</button>
+          <button id="export" type="button">Export images + results</button>
+          <button id="clear" type="button">Delete this round</button>
         </div>
         <p id="round"></p>
         <div id="original"></div>
@@ -62,7 +59,7 @@
       </section>
       <p class="small">
         <a href="/source.tar.gz" download
-          >Fontes correspondentes da interface (GPL-3.0-only)</a
+          >Corresponding interface source code (GPL-3.0-only)</a
         >
       </p>
     </main>

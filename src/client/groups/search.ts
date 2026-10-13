@@ -1,3 +1,4 @@
+import { currentLanguage } from '../../shared/i18n/index.ts';
 import { searchTerm } from '../message-search/index.ts';
 import { attachmentContent } from '../../shared/attachments/index.ts';
 import { object } from '../../shared/account/index.ts';
@@ -31,7 +32,12 @@ export async function searchGroupCopies(c: {
     c.guard();
     for (const view of result.views) {
       const text = searchableText(view);
-      if (text.normalize('NFKC').toLocaleLowerCase('pt-BR').includes(term))
+      if (
+        text
+          .normalize('NFKC')
+          .toLocaleLowerCase(currentLanguage())
+          .includes(term)
+      )
         items.push({
           id: view.id,
           peer: group,

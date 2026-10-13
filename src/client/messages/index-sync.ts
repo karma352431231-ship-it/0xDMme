@@ -1,3 +1,4 @@
+import { messageStates } from '../message-state/index.ts';
 import { object } from '../../shared/account/index.ts';
 import { canonical, fingerprint } from '../../shared/devices/index.ts';
 import { messageItems } from './history.ts';
@@ -191,7 +192,8 @@ export class VerifiedWindow<T extends VerifiedView> {
     const byId = new Map(views.map((view) => [view.id, view]));
     for (const item of items) {
       const view = byId.get(item.id);
-      if (!view || view.archived || view.state === 'Suspensa') continue;
+      if (!view || view.archived || view.state === messageStates.suspended)
+        continue;
       if (item.deleted || item.hash !== view.hash) continue;
       this.entries.set(item.id, {
         identity: packetIdentity(item),

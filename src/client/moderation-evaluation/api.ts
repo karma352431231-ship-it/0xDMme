@@ -1,3 +1,4 @@
+import { t } from '../../shared/i18n/index.ts';
 // SPDX-License-Identifier: GPL-3.0-only
 import type {
   EvaluationCase,
@@ -27,9 +28,11 @@ async function boundedBody(response: Response, maximum: number): Promise<Blob> {
 }
 function responseFailure(status: number): Error {
   const messages: Record<number, string> = {
-    401: 'Acesso inválido. Reabra o endereço privado fornecido.',
-    410: 'Esta rodada expirou.',
-    507: 'A galeria está cheia. Exporte e apague a rodada antes de enviar mais imagens.',
+    401: t('Acesso inválido. Reabra o endereço privado fornecido.'),
+    410: t('Esta rodada expirou.'),
+    507: t(
+      'A galeria está cheia. Exporte e apague a rodada antes de enviar mais imagens.',
+    ),
   };
   return new Error(
     messages[status] ??

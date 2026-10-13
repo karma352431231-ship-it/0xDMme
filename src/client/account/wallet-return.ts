@@ -1,3 +1,4 @@
+import { t } from '../../shared/i18n/index.ts';
 import {
   AccountError,
   accountSession,
@@ -126,7 +127,9 @@ export function createWalletReturn(options: {
     } catch {
       if (!closed && current === generation)
         options.message(
-          'Não foi possível consultar o retorno. Confira a conexão e volte a esta tela.',
+          t(
+            'Não foi possível consultar o retorno. Confira a conexão e volte a esta tela.',
+          ),
         );
     } finally {
       checking = false;
@@ -206,8 +209,14 @@ export function createWalletReturn(options: {
     const attempted = options.openWallet?.(link) ?? false;
     options.message(
       attempted
-        ? `Abrindo ${wallet}… Se o app não abrir, toque em Abrir ${wallet}. Conecte e assine; depois volte aqui para confirmar o endereço.`
-        : `Toque em Abrir ${wallet}, conecte e assine. Depois volte a este navegador para confirmar o endereço.`,
+        ? t(
+            'Abrindo {0}… Se o app não abrir, toque em Abrir {1}. Conecte e assine; depois volte aqui para confirmar o endereço.',
+            [wallet, wallet],
+          )
+        : t(
+            'Toque em Abrir {0}, conecte e assine. Depois volte a este navegador para confirmar o endereço.',
+            [wallet],
+          ),
     );
     options.changed();
     schedule();

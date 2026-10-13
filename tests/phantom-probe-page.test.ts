@@ -24,6 +24,14 @@ const built = await build({
     {
       name: 'controlled-protocol-clock',
       setup(builder) {
+        builder.onResolve({ filter: /language\/index\.ts$/ }, () => ({
+          path: 'language',
+          namespace: 'fixture',
+        }));
+        builder.onLoad({ filter: /^language$/, namespace: 'fixture' }, () => ({
+          contents: 'export const startLanguage = () => {};',
+          loader: 'js',
+        }));
         builder.onResolve({ filter: /^\.\/index\.ts$/ }, () => ({
           path: 'protocol',
           namespace: 'fixture',
@@ -166,7 +174,7 @@ await test('prova grava canal antes de abrir a wallet e cancelar apaga o registr
   });
   assert.equal(late.storage.size, 0);
   assert.equal(late.controls.launch.hidden, true);
-  assert.match(late.controls.status.textContent, /Prova não concluída/u);
+  assert.match(late.controls.status.textContent, /Proof not completed/u);
 });
 
 await test('retomar a página rearma prazo original e expiração apaga o canal', async () => {
@@ -182,7 +190,7 @@ await test('retomar a página rearma prazo original e expiração apaga o canal'
   assert.equal(view.timers.size, 0);
   assert.equal(view.storage.size, 0);
   assert.equal(view.controls.launch.hidden, true);
-  assert.match(view.controls.status.textContent, /Prova expirada/u);
+  assert.match(view.controls.status.textContent, /Proof expired/u);
 });
 
 await test('registro expirado ao abrir é removido sem navegar para a wallet', async () => {
@@ -202,5 +210,5 @@ await test('armazenamento bloqueado falha antes de iniciar conexão', async () =
   assert.equal(view.controls.start.disabled, true);
   assert.equal(view.controls.launch.hidden, true);
   assert.equal(view.navigations.length, 0);
-  assert.match(view.controls.status.textContent, /Prova não concluída/u);
+  assert.match(view.controls.status.textContent, /Proof not completed/u);
 });

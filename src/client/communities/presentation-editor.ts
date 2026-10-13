@@ -1,3 +1,4 @@
+import { t } from '../../shared/i18n/index.ts';
 import { encode } from '../../shared/account/index.ts';
 import { communityMeta } from '../../shared/communities/index.ts';
 import type { CommunityState } from '../../shared/communities/index.ts';
@@ -43,7 +44,10 @@ export function communityPresentationEditor(
         `community-image-pick community-image-${slot}`,
       ),
       image = el('img'),
-      hint = el('span', slot === 'photo' ? 'Trocar foto' : 'Trocar banner');
+      hint = el(
+        'span',
+        slot === 'photo' ? t('Trocar foto') : t('Trocar banner'),
+      );
     button.type = 'button';
     button.setAttribute('aria-label', hint.textContent ?? '');
     button.append(image, hint);
@@ -90,29 +94,29 @@ export function communityPresentationEditor(
             });
         });
     });
-    const remove = el('button', '×', 'community-image-remove');
+    const remove = el('button', t('×'), 'community-image-remove');
     remove.type = 'button';
     remove.setAttribute(
       'aria-label',
-      slot === 'photo' ? 'Remover foto' : 'Remover banner',
+      slot === 'photo' ? t('Remover foto') : t('Remover banner'),
     );
-    remove.title = slot === 'photo' ? 'Remover foto' : 'Remover banner';
+    remove.title = slot === 'photo' ? t('Remover foto') : t('Remover banner');
     remove.hidden = !current;
     remove.addEventListener('click', () => set(null));
     slotNode.append(remove);
   };
   pick('banner', banner);
   pick('photo', photo);
-  const name = field(section, 'Nome', {
+  const name = field(section, t('Nome'), {
       maximum: 100,
       value: state.community.name,
     }),
-    description = field(section, 'Descrição', {
+    description = field(section, t('Descrição'), {
       maximum: 1000,
       multiline: true,
       value: state.community.description,
     }),
-    rules = field(section, 'Regras', {
+    rules = field(section, t('Regras'), {
       maximum: 4000,
       multiline: true,
       value: state.community.rules,
@@ -123,12 +127,14 @@ export function communityPresentationEditor(
   section.append(
     el(
       'p',
-      'As alterações ficam como prévia neste aparelho até confirmar. Imagens confirmadas passam pela análise do app.',
+      t(
+        'As alterações ficam como prévia neste aparelho até confirmar. Imagens confirmadas passam pela análise do app.',
+      ),
     ),
   );
   const wire = (value: PendingPublicAvatar | null) =>
     value ? { type: value.type, bytes: encode(value.bytes) } : null;
-  const confirm = el('button', 'Confirmar alterações', 'primary');
+  const confirm = el('button', t('Confirmar alterações'), 'primary');
   confirm.type = 'button';
   confirm.addEventListener('click', () => {
     void access.run(async () => {

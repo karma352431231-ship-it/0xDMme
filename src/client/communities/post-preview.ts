@@ -1,3 +1,4 @@
+import { t } from '../../shared/i18n/index.ts';
 import { withoutGifLinks } from '../gif-search/index.ts';
 import {
   mentionPlainText,
@@ -29,7 +30,7 @@ export function postPreview(
   const host = el('div', '', 'post-preview');
   let content = postText(preview === text ? text : preview + '…');
   host.append(content);
-  const toggle = el('button', 'Ver tudo', 'post-preview-toggle');
+  const toggle = el('button', t('Ver tudo'), 'post-preview-toggle');
   toggle.type = 'button';
   toggle.setAttribute('aria-expanded', 'false');
   let expanded = false;
@@ -38,7 +39,7 @@ export function postPreview(
     const next = postText(expanded ? text : preview + '…');
     content.replaceWith(next);
     content = next;
-    toggle.textContent = expanded ? 'Ver menos' : 'Ver tudo';
+    toggle.textContent = expanded ? t('Ver menos') : t('Ver tudo');
     toggle.setAttribute('aria-expanded', String(expanded));
   });
   host.append(toggle);

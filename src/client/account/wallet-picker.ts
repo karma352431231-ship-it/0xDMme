@@ -1,3 +1,4 @@
+import { t } from '../../shared/i18n/index.ts';
 import type { discoverWallets } from '../wallet/index.ts';
 import { mobileWalletBrowser } from './wallet-return.ts';
 import { node } from './core.ts';
@@ -183,12 +184,12 @@ function option(labelText: string): HTMLButtonElement {
   label.textContent = labelText;
   const indicator = document.createElement('span');
   indicator.className = 'wallet-detection is-detected';
-  indicator.textContent = 'Detectada';
+  indicator.textContent = t('Detectada');
   button.append(label, indicator);
   return button;
 }
 
 function detectionLabel(detected: boolean): string {
-  if (detected) return 'Disponível neste navegador';
-  return mobileWalletBrowser() ? 'Abrir no app' : 'Não detectada aqui';
+  if (detected) return t('Disponível neste navegador');
+  return mobileWalletBrowser() ? t('Abrir no app') : t('Não detectada aqui');
 }

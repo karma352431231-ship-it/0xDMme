@@ -1,3 +1,8 @@
+import {
+  t,
+  translatedError,
+  currentLanguage,
+} from '../../shared/i18n/index.ts';
 import { renderMentions } from '../public-mentions/index.ts';
 import type { Community } from '../../shared/communities/index.ts';
 import type { HoverCardProvider } from '../hover-card/index.ts';
@@ -65,7 +70,10 @@ export function communityHoverProvider(input: {
         card.append(description);
       }
       const figures = [
-        `${value.followers.toLocaleString('pt-BR')} ${value.followers === 1 ? 'seguidor' : 'seguidores'}`,
+        t('{0} {1}', [
+          value.followers.toLocaleString(currentLanguage()),
+          value.followers === 1 ? t('seguidor') : t('seguidores'),
+        ]),
       ];
       if (value.archived) figures.push('arquivada');
       card.append(el('p', figures.join(' · '), 'hover-card-stats'));
@@ -88,7 +96,7 @@ async function followButton(
   const button = el('button');
   button.type = 'button';
   const paint = (): void => {
-    button.textContent = following ? 'Seguindo' : 'Seguir';
+    button.textContent = following ? t('Seguindo') : t('Seguir');
     button.setAttribute('aria-pressed', String(following));
   };
   button.addEventListener('click', () => {
@@ -105,7 +113,9 @@ async function followButton(
         input.card.append(
           el(
             'p',
-            error instanceof Error ? error.message : 'Ação indisponível.',
+            error instanceof Error
+              ? translatedError(error.message)
+              : t('Ação indisponível.'),
             'hover-card-error',
           ),
         );

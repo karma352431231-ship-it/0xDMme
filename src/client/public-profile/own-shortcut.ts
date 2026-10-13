@@ -1,3 +1,4 @@
+import { t, currentLanguage } from '../../shared/i18n/index.ts';
 import { watchProfileShortcuts } from '../profile-shortcut/index.ts';
 import { ownPublicProfile } from '../../shared/public-profile/index.ts';
 import type { OwnPublicProfile } from '../../shared/public-profile/index.ts';
@@ -20,11 +21,11 @@ export function startOwnProfileShortcut(controller: PublicProfiles) {
         link.replaceChildren();
         if (!own) return;
         link.href = `#publico?handle=${encodeURIComponent(own.handle)}`;
-        link.setAttribute('aria-label', 'Abrir meu perfil público');
+        link.setAttribute('aria-label', t('Abrir meu perfil público'));
         link.title = `@${own.handle}`;
         link.textContent = own.avatar
           ? ''
-          : own.handle.slice(0, 2).toLocaleUpperCase('pt-BR');
+          : own.handle.slice(0, 2).toLocaleUpperCase(currentLanguage());
         if (own.avatar)
           showPublicAvatar(link, {
             kind: 'avatar',

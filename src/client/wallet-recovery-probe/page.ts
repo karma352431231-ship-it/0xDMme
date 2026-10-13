@@ -1,3 +1,5 @@
+import { t, translatedError } from '../../shared/i18n/index.ts';
+import { startLanguage } from '../language/index.ts';
 import { discoverWallets } from '../wallet/index.ts';
 import type { WalletConnection } from '../wallet/index.ts';
 import {
@@ -11,6 +13,7 @@ import {
 } from './index.ts';
 import { ProbePacketSelection } from './packet-selection.ts';
 
+startLanguage();
 const storageKey = '0xdmme.wallet-recovery-experiment.v1';
 const discovery = discoverWallets();
 function element<T extends HTMLElement>(id: string, type: { new (): T }): T {
@@ -47,15 +50,23 @@ function render(): void {
     !consent.checked || target === null;
   element('download', HTMLButtonElement).disabled ||= target === null;
   if (!target) {
-    summary.textContent = 'Nenhum pacote ativo para recuperação.';
+    summary.textContent = t('Nenhum pacote ativo para recuperação.');
     return;
   }
   const { context } = target.packet;
   const source =
     target.source.kind === 'file'
-      ? `Arquivo importado: ${target.source.name}`
-      : 'Pacote do armazenamento deste navegador';
-  summary.textContent = `${source}. Conta de origem: ${context.address} (${context.ecosystem.toUpperCase()}). Identificador do pacote: ${context.id.slice(0, 12)}.`;
+      ? t('Arquivo importado: {0}', [target.source.name])
+      : t('Pacote do armazenamento deste navegador');
+  summary.textContent = t(
+    '{0}. Conta de origem: {1} ({2}). Identificador do pacote: {3}.',
+    [
+      source,
+      context.address,
+      context.ecosystem.toUpperCase(),
+      context.id.slice(0, 12),
+    ],
+  );
 }
 function refreshWallets(): void {
   const selected = walletSelect.value;
@@ -76,14 +87,18 @@ function refreshWallets(): void {
   for (const wallet of wallets) {
     const option = document.createElement('option');
     option.value = wallet.id;
-    option.textContent = `${wallet.name} — ${wallet.ecosystem.toUpperCase()}`;
+    option.textContent = t('{0} — {1}', [
+      wallet.name,
+      wallet.ecosystem.toUpperCase(),
+    ]);
     walletSelect.append(option);
   }
   if (wallets.some((wallet) => wallet.id === selected))
     walletSelect.value = selected;
   if (!wallets.length) {
-    status.textContent =
-      'Nenhuma wallet detectada. Abra este endereço em um navegador com sua wallet de teste; não use uma conta com fundos.';
+    status.textContent = t(
+      'Nenhuma wallet detectada. Abra este endereço em um navegador com sua wallet de teste; não use uma conta com fundos.',
+    );
   }
 }
 function selectedWallet(): WalletConnection {
@@ -99,7 +114,7 @@ function current(token: number): void {
 }
 async function run(
   operation: (token: number) => Promise<string>,
-  pending = 'Ensaio em andamento. Confira a mensagem exclusiva na wallet.',
+  pending = t('Ensaio em andamento. Confira a mensagem exclusiva na wallet.'),
 ): Promise<void> {
   if (busy || blocked) return;
   busy = true;
@@ -109,8 +124,9 @@ async function run(
   const timeout = setTimeout(() => {
     blocked = true;
     generation++;
-    status.textContent =
-      'A wallet não concluiu em dois minutos. Recarregue antes de tentar novamente.';
+    status.textContent = t(
+      'A wallet não concluiu em dois minutos. Recarregue antes de tentar novamente.',
+    );
     render();
   }, 120_000);
   try {
@@ -121,8 +137,10 @@ async function run(
     if (token === generation)
       status.textContent =
         error instanceof ProbeError
-          ? error.message
-          : 'Ensaio recusado. Confira a conta, a assinatura e a disponibilidade do armazenamento; nenhum sucesso foi confirmado.';
+          ? translatedError(error.message)
+          : t(
+              'Ensaio recusado. Confira a conta, a assinatura e a disponibilidade do armazenamento; nenhum sucesso foi confirmado.',
+            );
   } finally {
     clearTimeout(timeout);
     busy = false;
@@ -156,7 +174,9 @@ async function create(token: number): Promise<string> {
     identity: actual,
   });
   selection.created(sealed);
-  return 'Duas assinaturas iguais; pacote fictício cifrado e guardado. Recarregue e teste recuperar. Isto não comprova outro aparelho ou outra implementação da wallet.';
+  return t(
+    'Duas assinaturas iguais; pacote fictício cifrado e guardado. Recarregue e teste recuperar. Isto não comprova outro aparelho ou outra implementação da wallet.',
+  );
 }
 async function recover(token: number): Promise<string> {
   if (!consent.checked)
@@ -180,7 +200,10 @@ async function recover(token: number): Promise<string> {
     signature,
   });
   current(token);
-  return `Pacote ${value.context.id.slice(0, 12)} recuperado com nova assinatura da conta ${value.context.address}. Nenhuma assinatura ou chave anterior foi guardada pelo laboratório.`;
+  return t(
+    'Pacote {0} recuperado com nova assinatura da conta {1}. Nenhuma assinatura ou chave anterior foi guardada pelo laboratório.',
+    [value.context.id.slice(0, 12), value.context.address],
+  );
 }
 function download(): void {
   const packet = selection.active?.packet;
@@ -206,9 +229,11 @@ element('erase', HTMLButtonElement).onclick = () => {
   try {
     localStorage.removeItem(storageKey);
     selection.clear();
-    status.textContent = 'Somente o pacote fictício deste ensaio foi apagado.';
+    status.textContent = t(
+      'Somente o pacote fictício deste ensaio foi apagado.',
+    );
   } catch {
-    status.textContent = 'Não foi possível apagar o pacote fictício.';
+    status.textContent = t('Não foi possível apagar o pacote fictício.');
   }
   render();
 };
@@ -220,12 +245,16 @@ fileInput.onchange = () => {
   render();
   void run(async (token) => {
     const target = await selection.importFile(file, () => current(token));
-    return `Arquivo importado. O pacote ativo agora é ${target.packet.context.id.slice(0, 12)}. Selecione a conta de origem e clique em Testar este pacote.`;
-  }, 'Lendo e validando o arquivo escolhido.');
+    return t(
+      'Arquivo importado. O pacote ativo agora é {0}. Selecione a conta de origem e clique em Testar este pacote.',
+      [target.packet.context.id.slice(0, 12)],
+    );
+  }, t('Lendo e validando o arquivo escolhido.'));
 };
 walletSelect.onchange = () => {
-  status.textContent =
-    'Wallet selecionada mudou. Confira a conta de origem do pacote ativo e teste novamente.';
+  status.textContent = t(
+    'Wallet selecionada mudou. Confira a conta de origem do pacote ativo e teste novamente.',
+  );
 };
 consent.onchange = render;
 discovery.onChange(refreshWallets);
@@ -233,8 +262,9 @@ document.addEventListener('visibilitychange', () => {
   if (!document.hidden || !busy) return;
   generation++;
   blocked = true;
-  status.textContent =
-    'O ensaio foi ocultado durante a operação. Recarregue; nenhum resultado atrasado será guardado.';
+  status.textContent = t(
+    'O ensaio foi ocultado durante a operação. Recarregue; nenhum resultado atrasado será guardado.',
+  );
   render();
 });
 window.addEventListener('pagehide', () => {
@@ -246,8 +276,9 @@ try {
   if (stored) selection.restore(stored);
 } catch {
   blocked = true;
-  status.textContent =
-    'Armazenamento indisponível ou pacote inválido. Use um perfil de navegador de teste limpo.';
+  status.textContent = t(
+    'Armazenamento indisponível ou pacote inválido. Use um perfil de navegador de teste limpo.',
+  );
 }
 refreshWallets();
 render();

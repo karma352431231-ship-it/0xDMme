@@ -1,3 +1,4 @@
+import { t, translatedError } from '../../shared/i18n/index.ts';
 import { gifUrls } from '../gif-search/index.ts';
 import { postSharing } from './post-sharing.ts';
 import { postInteractionSelection } from './post-interactions.ts';
@@ -135,7 +136,9 @@ export function startCommunityPosts(
     } catch (error: unknown) {
       if (old === generation && feedback)
         feedback.textContent =
-          error instanceof Error ? error.message : 'Posts indisponíveis.';
+          error instanceof Error
+            ? translatedError(error.message)
+            : t('Posts indisponíveis.');
     } finally {
       busy = false;
       disabled();
@@ -189,7 +192,7 @@ export function startCommunityPosts(
       else postState(result);
       after = null;
       await load();
-      if (feedback) feedback.textContent = 'Alteração salva.';
+      if (feedback) feedback.textContent = t('Alteração salva.');
     });
   }
   function row(
@@ -281,7 +284,7 @@ export function startCommunityPosts(
   function postCard(value: CommunityPost): HTMLElement {
     const node = value.parent
       ? el('article', '', 'card community-card')
-      : card(value.title || 'Postagem');
+      : card(value.title || t('Postagem'));
     if (value.parent && value.title) node.append(el('h2', value.title));
     node.classList.add('community-post');
     if (value.id === selected) node.classList.add('community-post-focus');
@@ -295,7 +298,7 @@ export function startCommunityPosts(
   ): void {
     if (own && !own.canPost && value.status === 'visible') {
       const score = el('span', String(value.score), 'post-score');
-      score.title = 'Votação indisponível nesta comunidade.';
+      score.title = t('Votação indisponível nesta comunidade.');
       node.append(score);
       return;
     }
@@ -312,7 +315,7 @@ export function startCommunityPosts(
             changed: (state) => {
               const score = node.querySelector('.post-score');
               if (score && state) score.textContent = String(state.post.score);
-              if (feedback) feedback.textContent = 'Alteração salva.';
+              if (feedback) feedback.textContent = t('Alteração salva.');
               return Promise.resolve();
             },
           }
@@ -334,7 +337,7 @@ export function startCommunityPosts(
             replied: async () => {
               after = null;
               await load();
-              if (feedback) feedback.textContent = 'Resposta publicada.';
+              if (feedback) feedback.textContent = t('Resposta publicada.');
             },
           }
         : null,
@@ -368,7 +371,7 @@ export function startCommunityPosts(
   function restrictedContent(node: HTMLElement, state: PostState): void {
     if (state.content && state.post.status === 'removed')
       node.append(
-        el('p', 'Conteúdo restrito ao autor e gestores.'),
+        el('p', t('Conteúdo restrito ao autor e gestores.')),
         el('h3', state.content.title),
         postText(state.content.text),
       );
@@ -383,8 +386,8 @@ export function startCommunityPosts(
         el(
           'p',
           value.status === 'deleted'
-            ? 'Postagem excluída pelo autor.'
-            : 'Postagem ocultada pela moderação.',
+            ? t('Postagem excluída pelo autor.')
+            : t('Postagem ocultada pela moderação.'),
         ),
       );
     if (state) restrictedContent(node, state);
@@ -407,26 +410,27 @@ export function startCommunityPosts(
         showPublicPostMedia(node, value.media, abort.signal),
         node,
       );
-    else if (!value.text) node.append(el('p', 'Mídia aguardando liberação.'));
+    else if (!value.text)
+      node.append(el('p', t('Mídia aguardando liberação.')));
     postTagLink(node, value);
   }
   function rowMeta(node: HTMLElement, value: CommunityPost): void {
     if (!value.parent) return;
     const nav = el('nav', '', 'post-context');
-    nav.setAttribute('aria-label', 'Navegação da resposta');
+    nav.setAttribute('aria-label', t('Navegação da resposta'));
     const post = (id: string | null) =>
       `#comunidades?id=${community}&post=${id}`;
     if (value.id === selected) {
       // An opened reply has the answered post above it (reply-context.ts);
       // a deeper reply also links to the thread's first post.
       if (value.root !== value.parent) {
-        link(nav, 'Postagem original', post(value.root));
+        link(nav, t('Postagem original'), post(value.root));
         node.prepend(nav);
       }
       return;
     }
     if (selected) return;
-    link(nav, 'Abrir resposta e sua árvore', post(value.id));
+    link(nav, t('Abrir resposta e sua árvore'), post(value.id));
     node.append(nav);
   }
   async function load(): Promise<void> {
@@ -487,7 +491,7 @@ export function startCommunityPosts(
   /** A filtered list says so; an empty community invites its first post. */
   function empty(host: HTMLElement): void {
     if (scope !== 'public' || tag || period !== 'all') {
-      host.append(el('p', 'Nenhuma postagem nesta lista.'));
+      host.append(el('p', t('Nenhuma postagem nesta lista.')));
       return;
     }
     emptyCommunity(host, {
@@ -555,10 +559,10 @@ export function startCommunityPosts(
     if (after)
       button(
         controls,
-        selected ? 'Respostas anteriores' : 'Posts anteriores',
+        selected ? t('Respostas anteriores') : t('Posts anteriores'),
         () => run(load),
       );
-    button(controls, 'Recarregar postagens', () =>
+    button(controls, t('Recarregar postagens'), () =>
       run(async () => {
         after = null;
         await load();
@@ -568,7 +572,7 @@ export function startCommunityPosts(
   function composer(): void {
     // An opened post answers through its own reply box.
     if (!mounted || !own?.canPost || selected) return;
-    button(mounted, 'Criar postagem', () => {
+    button(mounted, t('Criar postagem'), () => {
       openComposer(community);
       return Promise.resolve();
     });
@@ -587,9 +591,9 @@ export function startCommunityPosts(
   function orderTabs(bar: HTMLElement): void {
     const tabs = el('div', '', 'community-post-tabs');
     tabs.setAttribute('role', 'group');
-    tabs.setAttribute('aria-label', 'Ordenar postagens');
+    tabs.setAttribute('aria-label', t('Ordenar postagens'));
     const choices: (readonly [string, string])[] = [...feedOrders];
-    if (own) choices.push(['own', 'Meus posts']);
+    if (own) choices.push(['own', t('Meus posts')]);
     const paint = (): void => {
       tabs.querySelectorAll('button').forEach((node) => {
         const current =
@@ -627,13 +631,13 @@ export function startCommunityPosts(
       summary = el('summary'),
       panel = el('div', '', 'community-post-more-panel');
     iconLabel(summary, 'more');
-    summary.setAttribute('aria-label', 'Mais filtros');
-    summary.title = 'Mais filtros';
+    summary.setAttribute('aria-label', t('Mais filtros'));
+    summary.title = t('Mais filtros');
     menu.append(summary, panel);
     bar.append(menu);
     discoveryMenu(
       panel,
-      'Publicadas no período',
+      t('Publicadas no período'),
       { value: period, options: discoveryPeriods },
       (value) => {
         period = feedFilter({
@@ -649,7 +653,7 @@ export function startCommunityPosts(
     );
     const select = postTagSelect(
       panel,
-      { value: tag, label: 'Filtrar por tag', empty: 'Todas as tags' },
+      { value: tag, label: t('Filtrar por tag'), empty: t('Todas as tags') },
       tagSource(),
     );
     select.addEventListener('change', () => {
@@ -658,7 +662,7 @@ export function startCommunityPosts(
       void run(load);
     });
     if (!own || own.role === 'participant') return;
-    button(panel, 'Posts e respostas ocultos', () =>
+    button(panel, t('Posts e respostas ocultos'), () =>
       run(async () => {
         scope = 'removed';
         after = null;
@@ -738,15 +742,15 @@ export function startCommunityPosts(
     feedback = null;
   }
   function mountTags(container: HTMLElement): void {
-    const section = card('Tags da comunidade');
+    const section = card(t('Tags da comunidade'));
     management = section;
     container.append(section);
-    const label = field(section, 'Nome da nova tag', { maximum: 36 }),
+    const label = field(section, t('Nome da nova tag'), { maximum: 36 }),
       rows = el('div');
     section.append(rows);
     let id = crypto.randomUUID();
     let cursor: string | null = null;
-    button(section, 'Criar tag', async () => {
+    button(section, t('Criar tag'), async () => {
       if (
         await saveTag(
           { id: community, tag: id, label: label.value },
@@ -770,29 +774,32 @@ export function startCommunityPosts(
       rows.replaceChildren();
       for (const value of page.items) tagRow(rows, value);
       if (!page.items.length)
-        rows.append(el('p', 'Nenhuma tag criada.', 'community-hint'));
+        rows.append(el('p', t('Nenhuma tag criada.'), 'community-hint'));
       cursor = communityCursor(page.next);
       more.hidden = cursor === null;
     };
-    const more = button(section, 'Mais tags', () => run(load));
+    const more = button(section, t('Mais tags'), () => run(load));
     more.hidden = true;
     void load().catch(() => {
       rows.replaceChildren(
-        el('p', 'Tags indisponíveis agora.', 'community-hint'),
+        el('p', t('Tags indisponíveis agora.'), 'community-hint'),
       );
     });
   }
   function tagRow(container: HTMLElement, value: PostTag): void {
     const row = el('div', '', 'community-row'),
-      label = field(row, 'Nome da tag', { value: value.label, maximum: 36 }),
+      label = field(row, t('Nome da tag'), { value: value.label, maximum: 36 }),
       wrap = el('label'),
       active = el('input');
     active.type = 'checkbox';
     active.checked = value.active;
-    wrap.append(active, document.createTextNode('Disponível para novos posts'));
+    wrap.append(
+      active,
+      document.createTextNode(t('Disponível para novos posts')),
+    );
     row.append(wrap);
     container.append(row);
-    button(row, 'Salvar tag', async () => {
+    button(row, t('Salvar tag'), async () => {
       await saveTag(
         {
           id: community,
@@ -819,8 +826,9 @@ export function startCommunityPosts(
       if (old !== generation) return;
       saved = true;
       if (feedback)
-        feedback.textContent =
-          'Tag salva. Recarregue a comunidade para atualizar os seletores e as revisões.';
+        feedback.textContent = t(
+          'Tag salva. Recarregue a comunidade para atualizar os seletores e as revisões.',
+        );
     });
     return saved;
   }

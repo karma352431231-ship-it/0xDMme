@@ -1,3 +1,4 @@
+import { t, translatedError } from '../../shared/i18n/index.ts';
 interface GroupEntrypoints {
   available: () => boolean;
   create: () => void;
@@ -27,7 +28,9 @@ export function startGroupEntrypoints(options: GroupEntrypoints): {
     if (!button) return;
     button.closest('details')?.removeAttribute('open');
     if (!options.available()) {
-      window.alert('Entre e autorize este aparelho para usar grupos privados.');
+      window.alert(
+        t('Entre e autorize este aparelho para usar grupos privados.'),
+      );
       return;
     }
     try {
@@ -46,6 +49,8 @@ export function startGroupEntrypoints(options: GroupEntrypoints): {
 }
 function showError(error: unknown): void {
   window.alert(
-    error instanceof Error ? error.message : 'Não foi possível abrir o grupo.',
+    error instanceof Error
+      ? translatedError(error.message)
+      : t('Não foi possível abrir o grupo.'),
   );
 }

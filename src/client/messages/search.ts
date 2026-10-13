@@ -1,3 +1,4 @@
+import { t, translatedError } from '../../shared/i18n/index.ts';
 import { conversationButton, matchingConversations } from './directory.ts';
 import type { ConversationEntry } from './directory.ts';
 export interface SearchPage {
@@ -21,7 +22,7 @@ export class ConversationSearch {
     this.search = search;
     this.dialog.className = 'conversation-search';
     this.dialog.setAttribute('aria-labelledby', 'conversation-search-title');
-    this.dialog.innerHTML = `<div class="search-heading"><h2 id="conversation-search-title">Pesquisar</h2><button type="button" data-search-close aria-label="Fechar pesquisa">×</button></div><form><label for="conversation-query">Chats, contatos ou palavras nas mensagens</label><div class="search-input-row"><input id="conversation-query" type="search" maxlength="128" autocomplete="off" spellcheck="false"><button type="submit">Buscar mensagens</button></div></form><p class="search-scope">Busca local nos chats carregados e nas mensagens sincronizadas ou importadas neste aparelho.</p><h3>Chats e contatos</h3><div data-search-chats class="chat-contacts"></div><h3>Mensagens</h3><p data-search-notice role="status">Digite para encontrar uma conversa ou busque palavras nas mensagens.</p><ul data-search-messages></ul><button type="button" data-search-next hidden>Continuar busca</button>`;
+    this.dialog.innerHTML = t('html.bc850aca5a52');
     document.body.append(this.dialog);
     this.node('[data-search-close]').addEventListener('click', () =>
       this.close(),
@@ -70,8 +71,9 @@ export class ConversationSearch {
     this.query = '';
     this.node('[data-search-messages]').replaceChildren();
     this.node('[data-search-next]').hidden = true;
-    this.node('[data-search-notice]').textContent =
-      'Digite para encontrar uma conversa ou busque palavras nas mensagens.';
+    this.node('[data-search-notice]').textContent = t(
+      'Digite para encontrar uma conversa ou busque palavras nas mensagens.',
+    );
   }
   private renderChats(): void {
     const query = this.node<HTMLInputElement>('input').value;
@@ -89,7 +91,7 @@ export class ConversationSearch {
         }),
       );
     if (!matches.length)
-      host.textContent = 'Nenhuma conversa carregada corresponde à busca.';
+      host.textContent = t('Nenhuma conversa carregada corresponde à busca.');
   }
   private async find(more: boolean): Promise<void> {
     if (this.busy) return;
@@ -101,7 +103,9 @@ export class ConversationSearch {
     this.busy = true;
     this.node<HTMLButtonElement>('button[type="submit"]').disabled = true;
     this.node('[data-search-next]').hidden = true;
-    this.node('[data-search-notice]').textContent = 'Buscando neste aparelho…';
+    this.node('[data-search-notice]').textContent = t(
+      'Buscando neste aparelho…',
+    );
     try {
       const page = await this.search(query, this.next);
       if (generation !== this.generation || !this.dialog.open) return;
@@ -110,8 +114,8 @@ export class ConversationSearch {
       this.node('[data-search-next]').hidden = page.next === null;
       this.node('[data-search-notice]').textContent =
         page.next === null
-          ? 'Busca concluída nas cópias disponíveis neste aparelho.'
-          : 'Há mais histórico para consultar. Continue a busca.';
+          ? t('Busca concluída nas cópias disponíveis neste aparelho.')
+          : t('Há mais histórico para consultar. Continue a busca.');
     } catch (error: unknown) {
       this.failed(error, generation);
     } finally {
@@ -122,7 +126,9 @@ export class ConversationSearch {
   private failed(error: unknown, generation: number): void {
     if (generation !== this.generation) return;
     this.node('[data-search-notice]').textContent =
-      error instanceof Error ? error.message : 'Não foi possível pesquisar.';
+      error instanceof Error
+        ? translatedError(error.message)
+        : t('Não foi possível pesquisar.');
   }
   private renderMessages(page: SearchPage): void {
     const host = this.node('[data-search-messages]');
@@ -131,7 +137,7 @@ export class ConversationSearch {
       const title = document.createElement('strong');
       title.textContent =
         this.entries.find((entry) => entry.id === item.peer)?.title ??
-        'Conversa do histórico local';
+        t('Conversa do histórico local');
       const text = document.createElement('p');
       text.textContent = item.excerpt;
       row.append(title, text);
@@ -139,14 +145,14 @@ export class ConversationSearch {
       host.append(row);
     }
     if (!host.children.length && page.next === null)
-      host.textContent = 'Nenhuma mensagem encontrada.';
+      host.textContent = t('Nenhuma mensagem encontrada.');
   }
   private appendOpen(row: HTMLElement, peer: string): void {
     const entry = this.entries.find((entry) => entry.id === peer);
     if (!entry) return;
     const button = document.createElement('button');
     button.type = 'button';
-    button.textContent = 'Abrir conversa';
+    button.textContent = t('Abrir conversa');
     button.addEventListener('click', () => {
       this.close();
       entry.open();

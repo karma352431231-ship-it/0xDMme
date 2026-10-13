@@ -1,3 +1,4 @@
+import { t, translatedError } from '../../shared/i18n/index.ts';
 import { chatIcon } from '../chat-ui/index.ts';
 import { paintAvatar } from '../appearance/index.ts';
 import { groupManager } from '../../shared/groups/index.ts';
@@ -48,8 +49,8 @@ export class GroupPhotoUi {
     const dialog = document.createElement('dialog');
     this.dialog = dialog;
     dialog.className = 'group-dialog group-photo-dialog';
-    dialog.setAttribute('aria-label', 'Foto do grupo');
-    dialog.innerHTML = `<header><div><span class="group-eyebrow">GRUPO PRIVADO</span><h2>Foto do grupo</h2></div><button data-close class="group-close" type="button" aria-label="Fechar foto do grupo">${chatIcon('close')}</button></header><div data-preview class="group-photo-preview" aria-hidden="true"></div><p class="group-hint">Escolha uma foto para o grupo. Ela será recortada em formato quadrado.</p><input data-file type="file" accept="image/png,image/jpeg,image/webp" hidden><div class="group-button-row"><button data-pick type="button">Escolher foto</button><button data-remove class="group-danger" type="button">Remover foto</button></div><div class="group-form-footer"><button data-save class="group-primary" type="button" disabled>Salvar foto</button></div><p data-feedback class="group-feedback" role="status"></p>`;
+    dialog.setAttribute('aria-label', t('Foto do grupo'));
+    dialog.innerHTML = t('html.b63f4d3d54aa', [chatIcon('close')]);
     const preview = dialog.querySelector<HTMLElement>('[data-preview]')!,
       file = dialog.querySelector<HTMLInputElement>('[data-file]')!,
       save = dialog.querySelector<HTMLButtonElement>('[data-save]')!;
@@ -153,8 +154,8 @@ export class GroupPhotoUi {
       if (this.dialog === dialog)
         feedback.textContent =
           error instanceof Error
-            ? error.message
-            : 'Foto não confirmada. Tente novamente.';
+            ? translatedError(error.message)
+            : t('Foto não confirmada. Tente novamente.');
     } finally {
       this.busy = false;
       controls.forEach((node, index) => {
@@ -201,7 +202,7 @@ export class GroupPhotoView {
       .catch(() => {
         if (epoch === this.epoch)
           nodes.forEach((node) => {
-            node.title = 'Foto do grupo indisponível neste aparelho.';
+            node.title = t('Foto do grupo indisponível neste aparelho.');
           });
       });
   }

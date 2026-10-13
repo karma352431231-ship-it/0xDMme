@@ -101,14 +101,14 @@ await test('resposta aparece direto na Atividade; ocultas e excluídas não most
   for (const [preview, expected] of [
     [null, ''],
     [{ text: 'Concordo!', media: false, status: 'visible' }, 'Concordo!'],
-    [{ text: '', media: true, status: 'visible' }, 'Enviou uma mídia.'],
+    [{ text: '', media: true, status: 'visible' }, 'Sent media.'],
     [
       { text: '', media: false, status: 'removed' },
-      'Resposta ocultada pela moderação.',
+      'Reply hidden by moderation.',
     ],
     [
       { text: '', media: false, status: 'deleted' },
-      'Resposta excluída pelo autor.',
+      'Reply deleted by the author.',
     ],
   ] as const)
     assert.equal(replyQuote(preview), expected);

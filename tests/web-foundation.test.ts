@@ -48,7 +48,7 @@ await test('fontes públicas incluem instruções/licenças do build e excluem b
   assert.ok(sourcePath);
   assert.match(
     Buffer.from(assets.get('/')?.content ?? []).toString(),
-    /Código e licenças/u,
+    /Source code and licenses/u,
   );
   const { stdout } = await promisify(execFile)(
     'tar',
@@ -72,7 +72,16 @@ await test('fontes públicas incluem instruções/licenças do build e excluem b
     'src/client/emoji/index.ts',
     'src/client/emoji/catalog.ts',
     'src/client/emoji/artwork.ts',
+    'src/client/language/index.ts',
+    'src/client/language-record/index.ts',
+    'src/shared/i18n/catalog.ts',
     'src/tools/frontend-emoji.ts',
+    'src/tools/frontend-emoji-locales.ts',
+    'src/tools/frontend-localization.ts',
+    'vendor/emoji/annotations-en.json',
+    'vendor/emoji/annotations-zh.json',
+    'vendor/emoji/annotationsDerived-en.json',
+    'vendor/emoji/annotationsDerived-zh.json',
     'vendor/emoji/README.md',
     'vendor/emoji/LICENSE-GRAPHICS.txt',
     'vendor/emoji/LICENSE-UNICODE.txt',
@@ -153,7 +162,7 @@ function verifyEmojiSources(
   assert.ok(worker.includes(emojiPath));
   assert.match(
     Buffer.from(assets.get('/')?.content ?? []).toString(),
-    /Desenhos e licenças dos emojis/u,
+    /Emoji artwork and licenses/u,
   );
 }
 function verifyMatrixSources(
@@ -412,7 +421,7 @@ await test('servidor recusa origem, mutação, traversal e dados privados; saúd
   );
   const approval = await get('/wallet.html', navigationHeaders);
   assert.equal(approval.status, 200);
-  assert.match(approval.body, /Confirmar assinatura/u);
+  assert.match(approval.body, /Confirm signature/u);
   assert.equal(approval.headers['cache-control'], 'no-store');
   assert.doesNotMatch(
     String(approval.headers['content-security-policy']),
@@ -423,7 +432,7 @@ await test('servidor recusa origem, mutação, traversal e dados privados; saúd
     navigationHeaders,
   );
   assert.equal(nativeProbe.status, 200);
-  assert.match(nativeProbe.body, /Não\s+cria uma conta/u);
+  assert.match(nativeProbe.body, /not create an account/u);
   assert.equal(nativeProbe.headers['cache-control'], 'no-store');
   assert.equal(nativeProbe.headers['referrer-policy'], 'no-referrer');
   assert.match(

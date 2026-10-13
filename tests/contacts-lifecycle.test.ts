@@ -138,7 +138,7 @@ for (const withInvite of [false, true])
     assert.equal(button.disabled, false);
     assert.match(
       status.textContent,
-      withInvite ? /Convite indisponível/u : /Contatos atualizados/u,
+      withInvite ? /Invitation unavailable/u : /Contacts updated/u,
     );
     if (withInvite) {
       assert.equal(dialog.open, true);
@@ -234,7 +234,7 @@ await test('salvar e solicitar por endereço completo identificam EVM/Solana sem
   await new Promise<void>((resolve) => setImmediate(resolve));
   form.dispatchEvent(new Event('submit', { cancelable: true }));
   await new Promise<void>((resolve) => setImmediate(resolve));
-  assert.match(status.textContent, /Wallet inválida/u);
+  assert.match(status.textContent, /Invalid wallet/u);
   assert.equal(discovered.length, 2);
   assert.equal(requested.length, 2);
   assert.equal(stored.length, 2);

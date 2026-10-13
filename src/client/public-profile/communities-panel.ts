@@ -1,3 +1,4 @@
+import { t, currentLanguage } from '../../shared/i18n/index.ts';
 import { communityPage } from '../../shared/communities/index.ts';
 import type { Community } from '../../shared/communities/index.ts';
 import { communityAvatar } from '../communities/index.ts';
@@ -40,12 +41,12 @@ export function profileCommunities(
   const compact = element('div', '', 'profile-communities-compact'),
     list = element('ul', '', 'profile-communities-list'),
     footer = element('div', '', 'profile-communities-footer'),
-    more = button('Mais comunidades', 'profile-communities-more'),
-    less = button('Mostrar menos', 'profile-communities-less'),
+    more = button(t('Mais comunidades'), 'profile-communities-more'),
+    less = button(t('Mostrar menos'), 'profile-communities-less'),
     toggle = button('', 'profile-communities-toggle');
   footer.append(more, less);
   list.hidden = footer.hidden = true;
-  host.replaceChildren(element('h2', 'Comunidades'), compact, list, footer);
+  host.replaceChildren(element('h2', t('Comunidades')), compact, list, footer);
   const loaded: Community[] = [];
   let next: string | null = null;
   const avatar = (group: Community) => {
@@ -70,7 +71,7 @@ export function profileCommunities(
   }
   function fillCompact(total: number): void {
     if (!loaded.length) {
-      compact.append(element('p', 'Nenhuma comunidade seguida.'));
+      compact.append(element('p', t('Nenhuma comunidade seguida.')));
       return;
     }
     for (const group of loaded.slice(0, compactCount)) {
@@ -83,10 +84,14 @@ export function profileCommunities(
     }
     const hidden = total - Math.min(loaded.length, compactCount);
     toggle.textContent =
-      hidden > 0 ? `+${hidden.toLocaleString('pt-BR')}` : 'Ver nomes';
+      hidden > 0
+        ? `+${hidden.toLocaleString(currentLanguage())}`
+        : t('Ver nomes');
     toggle.setAttribute(
       'aria-label',
-      `Ver a lista das ${total.toLocaleString('pt-BR')} comunidades`,
+      t('Ver a lista das {0} comunidades', [
+        total.toLocaleString(currentLanguage()),
+      ]),
     );
     toggle.setAttribute('aria-expanded', 'false');
     compact.append(toggle);

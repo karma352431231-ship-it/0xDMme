@@ -16,6 +16,8 @@ const { SettingsRecord } =
   await import('../src/client/account-settings/vault-record.ts');
 const { AccountSettingsController } =
   await import('../src/client/account-settings/index.ts');
+const { LanguageRecord, languageRecordLabel } =
+  await import('../src/client/language-record/index.ts');
 const { announcePreference } =
   await import('../src/client/preference-events/index.ts');
 type AccountSettings = ReturnType<typeof accountSettings>;
@@ -79,6 +81,7 @@ class FakeSync {
 }
 
 await test('registro da conta aceita só o formato conhecido', () => {
+  assert.throws(() => accountSettings({ ...base, language: 'zh-CN' }));
   assert.deepEqual(accountSettings(base), base);
   for (const invalid of [
     { ...base, version: 2 },
@@ -265,6 +268,132 @@ function ports(sync: FakeSync) {
   };
 }
 const settle = () => new Promise((resolve) => setTimeout(resolve, 20));
+async function waitFor(predicate: () => boolean): Promise<void> {
+  for (let attempt = 0; attempt < 50; attempt++) {
+    if (predicate()) return;
+    await settle();
+  }
+  assert.ok(predicate(), 'The account settings did not finish loading.');
+}
+
+await test('language follows the account and an explicit change waits for the vault write', async () => {
+  const sync = new FakeSync();
+  const account = session();
+  await new SettingsRecord(sync).save(account.accountId, base);
+  const languageRecord = new LanguageRecord(sync);
+  await languageRecord.save(account.accountId, 'zh-CN', () => {});
+  const fake = ports(sync);
+  const applied: string[] = [];
+  const controller = new AccountSettingsController({
+    ...fake.value,
+    language: {
+      set: (value) => {
+        applied.push(value);
+        return Promise.resolve();
+      },
+    },
+  });
+  controller.setSession(account);
+  controller.ready();
+  await waitFor(() => applied.length === 1 && fake.calls.length === 2);
+  assert.deepEqual(applied, ['zh-CN']);
+  assert.equal(sync.entries.size, 2);
+  await controller.saveLanguage('en');
+  assert.equal(await languageRecord.load(account.accountId), 'en');
+  assert.deepEqual(
+    await new SettingsRecord(sync).load(account.accountId),
+    base,
+  );
+  announcePreference({ sound: false });
+  await settle();
+  assert.equal(await languageRecord.load(account.accountId), 'en');
+  controller.setSession(null);
+  await assert.rejects(controller.saveLanguage('zh-CN'), /Abra sua conta/u);
+});
+
+await test('changing account while adopting its language cannot apply the old settings', async () => {
+  const sync = new FakeSync();
+  const account = session();
+  await new SettingsRecord(sync).save(account.accountId, base);
+  await new LanguageRecord(sync).save(account.accountId, 'zh-CN', () => {});
+  const fake = ports(sync);
+  let entered = false;
+  let finish: () => void = () => {};
+  const pending = new Promise<void>((resolve) => {
+    finish = resolve;
+  });
+  const controller = new AccountSettingsController({
+    ...fake.value,
+    language: {
+      set: () => {
+        entered = true;
+        return pending;
+      },
+    },
+  });
+  controller.setSession(account);
+  controller.ready();
+  await waitFor(() => entered);
+  controller.setSession(session());
+  finish();
+  await settle();
+  assert.deepEqual(fake.calls, []);
+  controller.setSession(null);
+});
+
+await test('failed language writes do not report success or discard the account preference', async () => {
+  const sync = new FakeSync();
+  const account = session();
+  await new SettingsRecord(sync).save(account.accountId, base);
+  const languageRecord = new LanguageRecord(sync);
+  await languageRecord.save(account.accountId, 'en', () => {});
+  const fake = ports(sync);
+  const controller = new AccountSettingsController(fake.value);
+  controller.setSession(account);
+  controller.ready();
+  await waitFor(() => fake.calls.length === 2);
+  const save = sync.save.bind(sync);
+  sync.save = () => Promise.reject(new Error('storage failure'));
+  await assert.rejects(controller.saveLanguage('zh-CN'), /storage failure/u);
+  sync.save = save;
+  assert.equal(await languageRecord.load(account.accountId), 'en');
+  await controller.saveLanguage('zh-CN');
+  assert.equal(await languageRecord.load(account.accountId), 'zh-CN');
+  controller.setSession(null);
+});
+
+await test('a language-only choice preserves missing initial setup and rejects invalid records', async () => {
+  const sync = new FakeSync();
+  const account = crypto.randomUUID();
+  const record = new LanguageRecord(sync);
+  assert.equal(await record.load(account), null);
+  await record.save(account, 'zh-CN', () => {});
+  assert.equal(await record.load(account), 'zh-CN');
+  assert.equal(await new SettingsRecord(sync).load(account), null);
+  const entry = [...sync.entries.values()].find(
+    (value) => value.change.label === languageRecordLabel,
+  )!;
+  entry.value = JSON.stringify({ version: 1, language: 'pt-BR' });
+  await assert.rejects(record.load(account), /Invalid language preference/u);
+  sync.complete = false;
+  await assert.rejects(record.load(account), /still syncing/u);
+});
+
+await test('changing account during a language write prevents a stale successful result', async () => {
+  const sync = new FakeSync();
+  const account = session();
+  await new SettingsRecord(sync).save(account.accountId, base);
+  const controller = new AccountSettingsController(ports(sync).value);
+  controller.setSession(account);
+  controller.ready();
+  await settle();
+  const save = sync.save.bind(sync);
+  sync.save = async (input) => {
+    await save(input);
+    controller.setSession(null);
+  };
+  await assert.rejects(controller.saveLanguage('zh-CN'), /A conta mudou/u);
+});
 
 await test('outro aparelho aplica a cópia da conta e só grava quando algo muda', async () => {
   const sync = new FakeSync();
@@ -279,7 +408,7 @@ await test('outro aparelho aplica a cópia da conta e só grava quando algo muda
   const controller = new AccountSettingsController(fake.value);
   controller.setSession(account);
   controller.ready();
-  await settle();
+  await waitFor(() => fake.calls.length === 3);
   assert.deepEqual(fake.calls, ['theme:black', 'media:true', 'sound:false']);
   assert.equal(sync.entries.size, 1);
   // Echoes of the applied values do not write; a real change does.

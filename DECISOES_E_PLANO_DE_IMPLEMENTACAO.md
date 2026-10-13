@@ -346,6 +346,30 @@ Dividir a implementação em **10 cortes**: (1) Perfil e navegação; (2) identi
 
 ### 5.11 Painéis e temas — redesign aprovado em 09/10/2026
 
+**Idiomas oficiais — decisão do proprietário em 13/10/2026:** inglês e chinês
+simplificado (`en`, `zh-CN`), apresentados como English e 简体中文. Traduzir a
+interface inteira, acessibilidade, datas, avisos e erros; conteúdo dos usuários,
+nomes, wallets, identificadores e formatos persistidos permanecem intactos.
+Na primeira entrada com a conta e o cofre prontos, oferecer o idioma no início
+das configurações básicas. Permitir a troca em Perfil → Privacidade. A escolha
+acompanha a conta em um registro próprio do cofre cifrado; não acrescentar campos
+ao registro antigo de configurações, pois seus leitores validam chaves exatas.
+Antes de abrir a conta, usar o idioma suportado preferido do navegador, com
+inglês como padrão. Uma cópia local não identificadora permite a abertura
+imediata e os avisos em segundo plano. Troca explícita aguarda a gravação no
+cofre e respeita operações e rascunhos antes de recarregar.
+
+O proprietário optou por deixar os textos criptográficos de assinatura para
+uma migração separada: mesmo sem lançamento público, ela será feita depois.
+Nesta entrega, conservar os bytes das declarações, assinaturas, derivação de
+chaves e formatos de recuperação existentes. O proprietário autorizou continuar
+esta tarefa após compactações e enviar a branch nova ao GitHub; merge na `main`
+e ativação na VPS ficam para depois. Contrato em [Idiomas](docs/I18N.md).
+
+**Ponto importante:** as duas traduções não autorizam traduzir mensagens,
+publicações ou dados privados dos usuários, nem alterar declarações assinadas
+sem a migração futura. A entrega é uma branch para revisão, sem ativação.
+
 O proprietário declarou que a interface atual é uma base de MVP e aprovou a proposta de redesign apresentada em 09/10/2026, com ajustes próprios. Esta seção substitui, onde conflitam, a navegação das seções 5.7 e 5.9, a localização das DMs pelo `@`, o tema claro de Conversas aprovado em 07/10/2026 e a organização de [Contatos](docs/UI_CONTATOS.md). Regras de consentimento, criptografia, histórico, identidade pública e Perfil/Configurações reunidos (seção 5.10) continuam.
 
 Após as alterações visuais dessa entrega, o proprietário confirmou em 09/10/2026 que a UI atual é o modelo final adotado; próximas mudanças visuais devem preservar seu esquema e padrão. A correção do travamento mobile na confirmação de assinatura conserva essa UI e impede que o documento avulso da wallet inicialize painéis exclusivos do app. [Registro da correção](docs/BLOCO_03_CONTA_E_PERFIL.md#inicialização-da-confirmação-após-o-redesign--09102026).

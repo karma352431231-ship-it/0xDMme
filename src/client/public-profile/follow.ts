@@ -1,3 +1,4 @@
+import { t } from '../../shared/i18n/index.ts';
 import { profileFollow } from '../../shared/profile-social/index.ts';
 import type { ProfileFollow } from '../../shared/profile-social/index.ts';
 import type { PublicProfiles } from './controller.ts';
@@ -28,17 +29,17 @@ export async function followControl(
 ): Promise<void> {
   const { controller, signal } = input;
   if (!controller?.hasSession()) {
-    link(host, 'Entrar para seguir', editPublicProfileHash);
+    link(host, t('Entrar para seguir'), editPublicProfileHash);
     return;
   }
   if (!controller.profile) await controller.refresh();
   if (signal.aborted) return;
   if (!controller.profile) {
-    link(host, 'Criar perfil para seguir', editPublicProfileHash);
+    link(host, t('Criar perfil para seguir'), editPublicProfileHash);
     return;
   }
   if (controller.profile.profile.id === input.target) {
-    link(host, 'Editar perfil público', editPublicProfileHash);
+    link(host, t('Editar perfil público'), editPublicProfileHash);
     return;
   }
   let state: ProfileFollow = profileFollow(
@@ -48,7 +49,7 @@ export async function followControl(
   const button = document.createElement('button');
   button.type = 'button';
   const paint = (): void => {
-    button.textContent = state.following ? 'Seguindo' : 'Seguir';
+    button.textContent = state.following ? t('Seguindo') : t('Seguir');
     button.setAttribute('aria-pressed', String(state.following));
   };
   button.addEventListener('click', () => {

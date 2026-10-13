@@ -1,3 +1,4 @@
+import { t } from '../../shared/i18n/index.ts';
 import type { DirectoryEvent } from '../../shared/devices/index.ts';
 import {
   canonical,
@@ -69,7 +70,7 @@ export async function openingReceiverIdentity(): Promise<LocalIdentity> {
   }
   const identity = await createIdentity(
     crypto.randomUUID(),
-    'Abertura de conta',
+    t('Abertura de conta'),
   );
   const record = await transaction(
     'wallet-opening-receiver',

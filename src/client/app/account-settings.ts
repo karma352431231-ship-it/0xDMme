@@ -10,9 +10,12 @@ import {
   storedSoundPreference,
 } from '../notification-sound/index.ts';
 import type { VaultAccess } from '../vault-authority/index.ts';
+import { applyLanguage } from '../language/index.ts';
+import { currentLanguage } from '../../shared/i18n/index.ts';
 
 /** Connects Configurações iniciais to the modules that own each setting. */
 export function startAccountSettings(input: {
+  languageBlocked: () => string | null;
   access: VaultAccess;
   sync: SettingsPorts['sync'] & ConstructorParameters<typeof Daily>[1];
   appearance: { current: () => Theme; set: (theme: Theme) => void };
@@ -33,6 +36,15 @@ export function startAccountSettings(input: {
   const { access, sync, appearance, externalMedia, account, contacts } = input;
   return new AccountSettingsController({
     sync,
+    language: {
+      set: async (language) => {
+        const prior = currentLanguage();
+        await applyLanguage(language);
+        if (prior === language) return;
+        if (!input.languageBlocked()) location.reload();
+      },
+      blocked: input.languageBlocked,
+    },
     theme: appearance,
     sound: {
       current: () => storedSoundPreference(),

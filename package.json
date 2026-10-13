@@ -22,7 +22,7 @@
     "format:check": "prettier --check .",
     "format": "prettier --write .",
     "test": "node --test tests/*.test.ts",
-    "check": "npm run lint && npm run typecheck && npm run boundaries && npm run licenses && npm run format:check && npm run build && npm run build:evaluation && npm run build:collection && npm test && npm run test:deploy && npm run test:evaluation",
+    "check": "npm run lint && npm run typecheck && npm run boundaries && npm run licenses && npm run format:check && npm run i18n:check && npm run build && npm run build:evaluation && npm run build:collection && npm test && npm run test:deploy && npm run test:evaluation",
     "build:evaluation": "node src/tools/build-moderation-evaluation.ts",
     "build:collection": "node src/tools/build-moderation-collection.ts",
     "test:evaluation": "python3 -m unittest discover -s tests -p 'moderation*_test.py'",
@@ -34,6 +34,7 @@
     "build": "node src/tools/build-web.ts",
     "test:integration": "node --env-file-if-exists=.local/web-test.env --test --test-concurrency=1 tests/integration/*.test.ts",
     "licenses": "node src/tools/check-licenses.ts",
+    "i18n:check": "node src/tools/check-localization.ts",
     "observe:database": "node --env-file-if-exists=.env src/tools/observe-database.ts",
     "dev:mobile": "npm run build && node --env-file=.local/web-test.env src/server/web-mobile.ts"
   },

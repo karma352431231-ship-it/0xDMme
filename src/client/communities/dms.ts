@@ -1,3 +1,4 @@
+import { t, translatedError } from '../../shared/i18n/index.ts';
 import { dmMessageMenu } from './dm-message-menu.ts';
 import { refreshDmChecks } from './dm-checks.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
@@ -130,7 +131,11 @@ export function startSocialDmUi(
       await work();
     } catch (error: unknown) {
       if (old === generation)
-        status(error instanceof Error ? error.message : 'DM indisponível.');
+        status(
+          error instanceof Error
+            ? translatedError(error.message)
+            : t('DM indisponível.'),
+        );
     } finally {
       busy = false;
       if (old === generation) composer.update(composerState());
@@ -164,7 +169,7 @@ export function startSocialDmUi(
     if (page) listRows(host, page);
     await copiesList(host);
     cursor = page?.next ?? null;
-    if (cursor) moreButton(host, 'Mais conversas', list);
+    if (cursor) moreButton(host, t('Mais conversas'), list);
   }
   function listRows(
     host: HTMLElement,
@@ -175,7 +180,9 @@ export function startSocialDmUi(
       host.append(
         communityElement(
           'p',
-          'Nenhuma conversa @ ainda. Abra um perfil público para mandar mensagem.',
+          t(
+            'Nenhuma conversa @ ainda. Abra um perfil público para mandar mensagem.',
+          ),
           'chat-gate',
         ),
       );
@@ -188,16 +195,18 @@ export function startSocialDmUi(
       page = await controller.copies(after);
     if (old !== generation) return;
     if (page.items.length && !after)
-      host.append(communityElement('h4', 'Neste aparelho', 'dm-list-title'));
+      host.append(communityElement('h4', t('Neste aparelho'), 'dm-list-title'));
     for (const row of page.items)
       host.append(
         directoryRow(
-          { peer: row.peer, label: 'Cópia local' },
+          { peer: row.peer, label: t('Cópia local') },
           `&history=local`,
         ),
       );
     if (page.next)
-      moreButton(host, 'Mais cópias locais', () => copiesList(host, page.next));
+      moreButton(host, t('Mais cópias locais'), () =>
+        copiesList(host, page.next),
+      );
   }
   function moreButton(
     host: HTMLElement,
@@ -283,7 +292,7 @@ export function startSocialDmUi(
     data: Awaited<ReturnType<typeof loadConversation>>,
   ): void {
     if (!data.profile) {
-      current.title.textContent = 'Histórico de DM no aparelho';
+      current.title.textContent = t('Histórico de DM no aparelho');
       return;
     }
     paintDmPeer(current, {
@@ -330,22 +339,26 @@ export function startSocialDmUi(
   ): void {
     current.options.replaceChildren();
     if (profile) {
-      const link = communityElement('a', 'Ver perfil público');
+      const link = communityElement('a', t('Ver perfil público'));
       link.href = `#publico?handle=${encodeURIComponent(profile.handle)}`;
       current.options.append(link);
     }
     if (localOnly || !navigator.onLine) return;
     const blocked = value?.blocked ?? false;
-    optionButton(current, blocked ? 'Desbloquear' : 'Bloquear', async () => {
-      await controller.request('block', {
-        peer: selected,
-        blocked: !blocked,
-        revision: value?.blockRevision ?? 0,
-      });
-      before = null;
-      await conversation();
-    });
-    optionButton(current, 'Recarregar conversa', async () => {
+    optionButton(
+      current,
+      blocked ? t('Desbloquear') : t('Bloquear'),
+      async () => {
+        await controller.request('block', {
+          peer: selected,
+          blocked: !blocked,
+          revision: value?.blockRevision ?? 0,
+        });
+        before = null;
+        await conversation();
+      },
+    );
+    optionButton(current, t('Recarregar conversa'), async () => {
       before = null;
       await conversation();
     });
@@ -374,9 +387,9 @@ export function startSocialDmUi(
     if (!request) return;
     current.request.append(communityElement('p', request.text));
     const labels: Record<DmRequestAction, string> = {
-      request: 'Solicitar DM',
-      accept: 'Aceitar',
-      reject: 'Recusar',
+      request: t('Solicitar DM'),
+      accept: t('Aceitar'),
+      reject: t('Recusar'),
     };
     for (const action of request.actions) {
       const button = communityElement(
@@ -441,7 +454,7 @@ export function startSocialDmUi(
       else current.history.insertBefore(row, cursorNode);
     }
     if (!page.items.length)
-      current.gate.textContent = 'Nenhuma mensagem ainda.';
+      current.gate.textContent = t('Nenhuma mensagem ainda.');
     current.older.hidden = page.next === null;
     before = page.next;
     restore();
@@ -467,8 +480,9 @@ export function startSocialDmUi(
       mediaUi.render({
         article: bubble.row,
         view: { ...item, peer: input.selected, archived: input.localMedia },
-        saveNotice:
+        saveNotice: t(
           'A cópia salva fica fora do cofre e da limpeza pessoal. Abra arquivos somente se confiar na origem.',
+        ),
         content: socialAttachment(JSON.parse(item.text) as unknown, item.media),
         load: (_view, thumbnail) =>
           controller.media(item, thumbnail, false, input.localMedia),
@@ -520,13 +534,13 @@ export function startSocialDmUi(
         node.replaceChildren(
           communityElement(
             'p',
-            'Entre pelo Perfil para abrir suas mensagens pelo @.',
+            t('Entre pelo Perfil para abrir suas mensagens pelo @.'),
             'chat-gate',
           ),
         );
         return;
       }
-      status(id ? 'Abrindo conversa…' : 'Carregando mensagens pelo @…');
+      status(id ? t('Abrindo conversa…') : t('Carregando mensagens pelo @…'));
       const old = generation;
       void run(async () => {
         const profile =
@@ -553,7 +567,10 @@ export function startSocialDmUi(
     async directory(node: HTMLElement, valid: () => boolean): Promise<void> {
       if (!session) {
         node.append(
-          communityElement('p', 'Entre pela wallet para ver suas mensagens @.'),
+          communityElement(
+            'p',
+            t('Entre pela wallet para ver suas mensagens @.'),
+          ),
         );
         return;
       }
@@ -565,10 +582,12 @@ export function startSocialDmUi(
           node.append(
             communityElement(
               'p',
-              'Nenhuma conversa @ ainda. Abra um perfil público para mandar mensagem.',
+              t(
+                'Nenhuma conversa @ ainda. Abra um perfil público para mandar mensagem.',
+              ),
             ),
           );
-        const all = communityElement('a', 'Todas as mensagens @ e pedidos');
+        const all = communityElement('a', t('Todas as mensagens @ e pedidos'));
         all.href = '#comunidades?view=dms';
         node.append(all);
       } catch (error: unknown) {
@@ -576,7 +595,9 @@ export function startSocialDmUi(
           node.append(
             communityElement(
               'p',
-              error instanceof Error ? error.message : 'DMs indisponíveis.',
+              error instanceof Error
+                ? translatedError(error.message)
+                : t('DMs indisponíveis.'),
             ),
           );
       }
@@ -613,11 +634,11 @@ function directoryRow(
   return link;
 }
 function relationLabel(row: SocialRelation): string {
-  if (row.blocked) return 'Bloqueada';
+  if (row.blocked) return t('Bloqueada');
   return {
-    approved: 'Conversa',
-    pending: 'Solicitação',
-    rejected: 'Recusada',
-    none: 'Sem consentimento',
+    approved: t('Conversa'),
+    pending: t('Solicitação'),
+    rejected: t('Recusada'),
+    none: t('Sem consentimento'),
   }[row.state];
 }

@@ -1,3 +1,4 @@
+import { t } from '../../shared/i18n/index.ts';
 import { announcePreference } from '../preference-events/index.ts';
 
 export const soundPreferenceKey = '0xdmme:sound-enabled';
@@ -102,10 +103,13 @@ export class NotificationSound {
       this.problem =
         value === null || value === 'true' || value === 'false'
           ? ''
-          : 'Preferência de som inválida. Som ativado nesta abertura; escolha novamente nas configurações.';
+          : t(
+              'Preferência de som inválida. Som ativado nesta abertura; escolha novamente nas configurações.',
+            );
     } catch {
-      this.problem =
-        'Não foi possível carregar a preferência de som. A escolha atual vale nesta abertura.';
+      this.problem = t(
+        'Não foi possível carregar a preferência de som. A escolha atual vale nesta abertura.',
+      );
     }
     this.changed();
   }
@@ -114,8 +118,9 @@ export class NotificationSound {
     try {
       this.storage.setItem(soundPreferenceKey, String(value));
     } catch {
-      this.problem =
-        'Preferência de som alterada só nesta abertura: o navegador não permitiu salvá-la.';
+      this.problem = t(
+        'Preferência de som alterada só nesta abertura: o navegador não permitiu salvá-la.',
+      );
       this.changed();
       throw new Error(this.problem);
     }
@@ -130,14 +135,16 @@ export class NotificationSound {
     try {
       this.audio ??= this.createAudio();
     } catch {
-      this.problem =
-        'Som ativado, mas este navegador não conseguiu preparar o áudio.';
+      this.problem = t(
+        'Som ativado, mas este navegador não conseguiu preparar o áudio.',
+      );
       this.changed();
       return false;
     }
     if (this.audio.state !== 'running') {
-      this.problem =
-        'Som ativado. O navegador pode aguardar um toque para liberar a reprodução.';
+      this.problem = t(
+        'Som ativado. O navegador pode aguardar um toque para liberar a reprodução.',
+      );
       this.changed();
     }
     return true;
@@ -156,11 +163,14 @@ export class NotificationSound {
         this.problem =
           audio.state === 'running'
             ? ''
-            : 'Som ativado, mas a reprodução está bloqueada pelo navegador ou sistema.';
+            : t(
+                'Som ativado, mas a reprodução está bloqueada pelo navegador ou sistema.',
+              );
     } catch {
       if (this.audio === audio)
-        this.problem =
-          'Som ativado, mas a reprodução está bloqueada pelo navegador ou sistema.';
+        this.problem = t(
+          'Som ativado, mas a reprodução está bloqueada pelo navegador ou sistema.',
+        );
     } finally {
       this.resuming = false;
       this.changed();

@@ -1,3 +1,4 @@
+import { t } from '../../shared/i18n/index.ts';
 import { postBookmark } from './post-bookmark.ts';
 import { keys, object } from '../../shared/account/index.ts';
 import { publicBlockState } from '../../shared/profile-social/index.ts';
@@ -29,12 +30,12 @@ export function preferenceControls(
 ): void {
   postBookmark(container, post, actions);
   const menu = el('details', '', 'post-more'),
-    summary = el('summary', 'Mais opções da postagem'),
+    summary = el('summary', t('Mais opções da postagem')),
     content = el('div', '', 'post-more-content');
   iconLabel(summary, 'more');
   menu.append(summary, content);
   container.append(menu);
-  const hide = button(content, 'Ocultar ou mostrar nos meus feeds', () =>
+  const hide = button(content, t('Ocultar ou mostrar nos meus feeds'), () =>
     actions.run(async () => {
       const value = await togglePostPreference(post, 'hidden', actions);
       if (value) await actions.changed();
@@ -43,7 +44,7 @@ export function preferenceControls(
   iconLabel(hide, 'hide');
   if (post.status === 'visible') reportControl(content, post, actions);
   if (post.author) {
-    const block = button(content, 'Bloquear usuário', () =>
+    const block = button(content, t('Bloquear usuário'), () =>
       actions.run(async () => {
         const target = post.author!.id;
         const current = publicBlockState(
@@ -97,7 +98,7 @@ function reportControl(
   actions: Actions,
 ): void {
   const form = el('details', '', 'post-report'),
-    summary = el('summary', 'Denunciar');
+    summary = el('summary', t('Denunciar'));
   iconLabel(summary, 'flag');
   form.append(summary);
   container.append(form);
@@ -113,7 +114,7 @@ function reportControl(
       keys(result, ['saved']);
       if (result['saved'] !== true) throw new Error('Denúncia não confirmada.');
       if (actions.valid())
-        status.textContent = 'Denúncia guardada no backend do app.';
+        status.textContent = t('Denúncia guardada no backend do app.');
     }),
   );
 }
@@ -124,11 +125,11 @@ export function postVoting(
 ): void {
   if (post.status !== 'visible') return;
   const controls = el('div', '', 'post-votes');
-  controls.setAttribute('aria-label', 'Votos da postagem');
+  controls.setAttribute('aria-label', t('Votos da postagem'));
   container.append(controls);
   for (const [position, title, icon] of [
-    [1, 'Votar a favor; tocar novamente retira o voto', 'up'],
-    [-1, 'Votar contra; tocar novamente retira o voto', 'down'],
+    [1, t('Votar a favor; tocar novamente retira o voto'), 'up'],
+    [-1, t('Votar contra; tocar novamente retira o voto'), 'down'],
   ] as const) {
     const node = actions
       ? button(controls, '', () =>
@@ -141,7 +142,7 @@ export function postVoting(
     if (node instanceof HTMLAnchorElement) node.href = '#perfil';
     node.setAttribute(
       'aria-label',
-      actions ? title : 'Entre pelo Perfil para votar',
+      actions ? title : t('Entre pelo Perfil para votar'),
     );
     node.dataset['vote'] = String(position);
     node.setAttribute('aria-pressed', String(actions?.position === position));
@@ -171,7 +172,7 @@ export function discoveryMenu(
     const title =
       selection.options.find(([key]) => key === current)?.[1] ?? current;
     value.textContent = title;
-    summary.setAttribute('aria-label', `${label}: ${title}`);
+    summary.setAttribute('aria-label', t('{0}: {1}', [label, title]));
     options.querySelectorAll('button').forEach((node) => {
       node.setAttribute('aria-pressed', String(node.value === current));
     });
@@ -194,14 +195,14 @@ export function discoveryMenu(
   return menu;
 }
 export const feedOrders = [
-  ['mixed', 'Destaques'],
-  ['recent', 'Recentes'],
-  ['votes', 'Mais votados'],
-  ['replies', 'Mais comentados'],
+  ['mixed', t('Destaques')],
+  ['recent', t('Recentes')],
+  ['votes', t('Mais votados')],
+  ['replies', t('Mais comentados')],
 ] as const;
 export const discoveryPeriods = [
-  ['day', '24 horas'],
-  ['week', '7 dias'],
-  ['month', '30 dias'],
-  ['all', 'Todo o histórico'],
+  ['day', t('24 horas')],
+  ['week', t('7 dias')],
+  ['month', t('30 dias')],
+  ['all', t('Todo o histórico')],
 ] as const;

@@ -1,3 +1,4 @@
+import { t } from '../../shared/i18n/index.ts';
 import { mountMentionInput } from '../public-mentions/index.ts';
 import { mediaEditor } from '../community-media/index.ts';
 import type { CommunityMediaAccess } from '../community-media/index.ts';
@@ -52,10 +53,10 @@ function gifControl(
     gif = el('button', 'GIF', 'post-gif-button'),
     status = el('span', '', 'post-gif-status');
   emoji.type = gif.type = 'button';
-  emoji.setAttribute('aria-label', 'Escolher emoji');
-  emoji.title = 'Emoji';
+  emoji.setAttribute('aria-label', t('Escolher emoji'));
+  emoji.title = t('Emoji');
   emoji.append(communityIcon('emoji'));
-  gif.setAttribute('aria-label', 'Escolher GIF');
+  gif.setAttribute('aria-label', t('Escolher GIF'));
   gif.title = 'GIF';
   status.setAttribute('role', 'status');
   controls.prepend(emoji, gif, status);
@@ -75,8 +76,9 @@ function gifControl(
       if (!input.access.valid()) return;
       if (appendGif(input.text, url)) close();
       else
-        host.querySelector('[data-gif-status]')!.textContent =
-          'Remova um pouco do texto para adicionar o GIF.';
+        host.querySelector('[data-gif-status]')!.textContent = t(
+          'Remova um pouco do texto para adicionar o GIF.',
+        );
     });
   let pending = false;
   // Without KLIPY the emoji panel still opens, only without its GIF tab.
@@ -90,8 +92,9 @@ function gifControl(
         if (!input.access.valid() || !anchor.isConnected) return;
         const gifs = available ? search : null;
         if (!gifs && start === 'gif') {
-          status.textContent =
-            'Busca de GIFs indisponível. Você pode anexar um arquivo GIF.';
+          status.textContent = t(
+            'Busca de GIFs indisponível. Você pode anexar um arquivo GIF.',
+          );
           return;
         }
         return emojiIntoComposer(
@@ -103,7 +106,7 @@ function gifControl(
       })
       .catch(() => {
         if (!input.access.signal.aborted)
-          status.textContent = 'Não foi possível abrir o painel.';
+          status.textContent = t('Não foi possível abrir o painel.');
       })
       .finally(() => {
         pending = false;

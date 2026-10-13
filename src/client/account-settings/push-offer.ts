@@ -1,3 +1,4 @@
+import { t, translatedError } from '../../shared/i18n/index.ts';
 /**
  * The account wants push, but this browser never granted it. Permission prompts
  * need a tap, so the account choice is offered once per device instead of being
@@ -13,10 +14,9 @@ export function offerPushOnDevice(input: {
   return new Promise((resolve) => {
     const dialog = document.createElement('dialog');
     dialog.className = 'settings-pack card';
-    dialog.setAttribute('aria-label', 'Notificações neste aparelho');
+    dialog.setAttribute('aria-label', t('Notificações neste aparelho'));
     // Static authored markup only.
-    dialog.innerHTML =
-      '<h2>Notificações neste aparelho</h2><p>Sua conta recebe notificações push. Ative também aqui para receber avisos de mensagens e chamadas.</p><p data-push-offer-status role="status"></p><div class="settings-actions"><button type="button" data-push-offer-later>Agora não</button><button type="button" class="primary" data-push-offer-enable>Ativar notificações</button></div>';
+    dialog.innerHTML = t('html.5ee9df8dde64');
     const status = dialog.querySelector('[data-push-offer-status]')!;
     /** Resolves true once the person saw the offer, whatever they chose. */
     const finish = () => {
@@ -36,8 +36,8 @@ export function offerPushOnDevice(input: {
         button.disabled = false;
         status.textContent =
           error instanceof Error
-            ? error.message
-            : 'Não foi possível ativar as notificações.';
+            ? translatedError(error.message)
+            : t('Não foi possível ativar as notificações.');
       });
     });
     dialog.addEventListener('cancel', finish);

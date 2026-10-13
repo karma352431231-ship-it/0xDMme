@@ -1,3 +1,8 @@
+import {
+  t,
+  translatedError,
+  currentLanguage,
+} from '../../shared/i18n/index.ts';
 import { dropFilesInto } from '../file-drop/index.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
 import type { Peer } from '../../shared/contacts/index.ts';
@@ -25,7 +30,7 @@ export function startStatus(access: VaultAccess, sync: VaultSync) {
     moreContacts: string | null = null,
     view: StatusView | null = null,
     selection: AttachmentSelection | null = null;
-  let notice = 'Entre e autorize este aparelho para abrir os status.',
+  let notice = t('Entre e autorize este aparelho para abrir os status.'),
     generation = 0;
   const urls = new Set<string>();
   let preview: string | null = null;
@@ -68,8 +73,8 @@ export function startStatus(access: VaultAccess, sync: VaultSync) {
     const submit = node<HTMLButtonElement>('[data-status-publish]');
     if (submit)
       submit.textContent = controller.pending
-        ? 'Tentar publicação novamente'
-        : 'Publicar status';
+        ? t('Tentar publicação novamente')
+        : t('Publicar status');
     const cancel = node<HTMLButtonElement>('[data-status-cancel]');
     if (cancel) cancel.hidden = !controller.pending;
     const input = node<HTMLTextAreaElement>('[data-status-text]');
@@ -98,8 +103,8 @@ export function startStatus(access: VaultAccess, sync: VaultSync) {
         clearOpened();
         notice =
           error instanceof Error
-            ? error.message
-            : 'Não foi possível concluir o status.';
+            ? translatedError(error.message)
+            : t('Não foi possível concluir o status.');
       }
     } finally {
       busy = false;
@@ -112,9 +117,9 @@ export function startStatus(access: VaultAccess, sync: VaultSync) {
   }
   function name(account: string): string {
     return account === session?.accountId
-      ? 'Você'
+      ? t('Você')
       : peers.find((p) => p.accountId === account)?.name ||
-          `Contato ${account.slice(0, 8)}`;
+          t('Contato {0}', [account.slice(0, 8)]);
   }
   function renderList(): void {
     const list = node('[data-status-list]');
@@ -128,7 +133,11 @@ export function startStatus(access: VaultAccess, sync: VaultSync) {
         button = document.createElement('button');
       article.className = 'status-row';
       button.type = 'button';
-      button.textContent = `${name(item.author)} · ${item.kind === 'photo' ? 'Foto' : 'Texto'} · ${new Date(item.publishedAt).toLocaleString('pt-BR')}`;
+      button.textContent = t('{0} · {1} · {2}', [
+        name(item.author),
+        item.kind === 'photo' ? t('Foto') : t('Texto'),
+        new Date(item.publishedAt).toLocaleString(currentLanguage()),
+      ]);
       button.addEventListener(
         'click',
         () =>
@@ -136,28 +145,29 @@ export function startStatus(access: VaultAccess, sync: VaultSync) {
             clearOpened();
             view = await controller.open(item.id);
             renderOpened();
-            notice = 'Status aberto.';
+            notice = t('Status aberto.');
           }),
       );
       article.append(button);
       if (item.author === session?.accountId) {
         const remove = document.createElement('button');
         remove.type = 'button';
-        remove.textContent = 'Excluir';
+        remove.textContent = t('Excluir');
         remove.addEventListener('click', () => {
-          if (!window.confirm('Excluir este status?')) return;
+          if (!window.confirm(t('Excluir este status?'))) return;
           void run(async () => {
             await controller.remove(item.id);
             clearOpened();
             renderList();
-            notice = 'Status excluído.';
+            notice = t('Status excluído.');
           });
         });
         article.append(remove);
       }
       list.append(article);
     }
-    if (!items.length) list.textContent = 'Nenhum status ativo nesta página.';
+    if (!items.length)
+      list.textContent = t('Nenhum status ativo nesta página.');
   }
   async function openNewest(author: string): Promise<void> {
     const item = controller.items.find(
@@ -166,13 +176,13 @@ export function startStatus(access: VaultAccess, sync: VaultSync) {
         statusIsActive({ publishedAt: candidate.publishedAt, now: Date.now() }),
     );
     if (!item) {
-      notice = 'Esse status já expirou ou não está nesta página.';
+      notice = t('Esse status já expirou ou não está nesta página.');
       return;
     }
     clearOpened();
     view = await controller.open(item.id);
     renderOpened();
-    notice = 'Status aberto.';
+    notice = t('Status aberto.');
   }
   function renderOpened(): void {
     const container = node('[data-status-open]');
@@ -192,7 +202,7 @@ export function startStatus(access: VaultAccess, sync: VaultSync) {
     container.append(text);
     const photo = document.createElement('button');
     photo.type = 'button';
-    photo.textContent = 'Abrir foto';
+    photo.textContent = t('Abrir foto');
     photo.addEventListener(
       'click',
       () =>
@@ -211,7 +221,7 @@ export function startStatus(access: VaultAccess, sync: VaultSync) {
           urls.add(url);
           const image = document.createElement('img');
           image.src = url;
-          image.alt = content.caption || 'Foto do status';
+          image.alt = content.caption || t('Foto do status');
           image.className = 'attachment-image';
           photo.replaceWith(image);
         }),
@@ -226,7 +236,7 @@ export function startStatus(access: VaultAccess, sync: VaultSync) {
         controller.hide();
         clearOpened();
         renderList();
-        notice = 'Este status expirou.';
+        notice = t('Este status expirou.');
         status();
       },
       Math.max(0, opened.item.publishedAt + 86400000 - Date.now()),
@@ -251,8 +261,9 @@ export function startStatus(access: VaultAccess, sync: VaultSync) {
     const conflict = node('[data-status-privacy-conflict]');
     if (conflict) {
       conflict.hidden = !controller.preferences.conflict;
-      conflict.textContent =
-        'Há escolhas diferentes em seus aparelhos. As exclusões foram reunidas; confira e salve a lista para resolver.';
+      conflict.textContent = t(
+        'Há escolhas diferentes em seus aparelhos. As exclusões foram reunidas; confira e salve a lista para resolver.',
+      );
     }
   }
   async function refreshContacts(more = false): Promise<void> {
@@ -275,8 +286,12 @@ export function startStatus(access: VaultAccess, sync: VaultSync) {
     await refreshContacts();
     renderList();
     notice = controller.pending
-      ? 'Publicação pendente. Retome o envio ou cancele antes de preparar outro status.'
-      : 'Status duram 24 horas. Seus contatos aprovados podem ver, conforme as exclusões abaixo.';
+      ? t(
+          'Publicação pendente. Retome o envio ou cancele antes de preparar outro status.',
+        )
+      : t(
+          'Status duram 24 horas. Seus contatos aprovados podem ver, conforme as exclusões abaixo.',
+        );
   }
   async function prepare(): Promise<void> {
     const file = node<HTMLInputElement>('[data-status-file]')?.files?.[0];
@@ -295,10 +310,10 @@ export function startStatus(access: VaultAccess, sync: VaultSync) {
     );
     const image = document.createElement('img');
     image.src = preview;
-    image.alt = 'Prévia do próximo status';
+    image.alt = t('Prévia do próximo status');
     image.className = 'attachment-image';
     node('[data-status-preview]')?.append(image);
-    notice = 'Confira a foto e toque em Publicar status.';
+    notice = t('Confira a foto e toque em Publicar status.');
   }
   function bind(selector: string, action: () => void): void {
     node(selector)?.addEventListener('click', action);
@@ -316,7 +331,7 @@ export function startStatus(access: VaultAccess, sync: VaultSync) {
       (event) => {
         event.preventDefault();
         void run(async () => {
-          notice = 'Publicando status…';
+          notice = t('Publicando status…');
           status();
           await controller.publish(
             node<HTMLTextAreaElement>('[data-status-text]')?.value ?? '',
@@ -326,7 +341,7 @@ export function startStatus(access: VaultAccess, sync: VaultSync) {
           const text = node<HTMLTextAreaElement>('[data-status-text]');
           if (text) text.value = '';
           await refresh();
-          notice = 'Status publicado.';
+          notice = t('Status publicado.');
         });
       },
     );
@@ -343,7 +358,7 @@ export function startStatus(access: VaultAccess, sync: VaultSync) {
         void run(async () => {
           await controller.cancel();
           clearSelection();
-          notice = 'Publicação cancelada.';
+          notice = t('Publicação cancelada.');
         }),
     );
     bind('[data-status-refresh]', () => void run(refresh));
@@ -374,8 +389,9 @@ export function startStatus(access: VaultAccess, sync: VaultSync) {
             });
           await controller.preferences.save(excluded);
           renderAudience();
-          notice =
-            'Privacidade salva para os próximos status. As publicações atuais conservam sua audiência.';
+          notice = t(
+            'Privacidade salva para os próximos status. As publicações atuais conservam sua audiência.',
+          );
         }),
     );
     bind('[data-status-emoji]', () => {
@@ -383,7 +399,7 @@ export function startStatus(access: VaultAccess, sync: VaultSync) {
         anchor = node('[data-status-emoji]');
       if (!input || !anchor || controller.pending) return;
       void emojiIntoComposer(emoji, anchor, input).catch(() => {
-        notice = 'Não foi possível abrir os emojis.';
+        notice = t('Não foi possível abrir os emojis.');
         status();
       });
     });
@@ -402,7 +418,7 @@ export function startStatus(access: VaultAccess, sync: VaultSync) {
     ) {
       controller.hide();
       clearOpened();
-      notice = 'Este status expirou.';
+      notice = t('Este status expirou.');
       status();
     }
     renderList();
@@ -419,7 +435,7 @@ export function startStatus(access: VaultAccess, sync: VaultSync) {
   window.addEventListener('offline', () => {
     controller.hide();
     clearOpened();
-    notice = 'Conecte-se para abrir os status atuais.';
+    notice = t('Conecte-se para abrir os status atuais.');
     status();
   });
   window.addEventListener('online', () => {
@@ -480,7 +496,9 @@ export function startStatus(access: VaultAccess, sync: VaultSync) {
       clearOpened();
       if (['invalidated', 'revoked', 'ended'].includes(event)) {
         controller.hide();
-        notice = 'Confira a autorização deste aparelho para abrir os status.';
+        notice = t(
+          'Confira a autorização deste aparelho para abrir os status.',
+        );
         status();
       }
       if (host?.isConnected) {
@@ -493,7 +511,7 @@ export function startStatus(access: VaultAccess, sync: VaultSync) {
     /** `author` opens that contact's newest active status (from the status row). */
     mount(container: HTMLElement, author: string | null = null): void {
       host = container;
-      container.innerHTML = `<article class="card status-card"><h2>Status</h2><p data-status-notice role="status"></p><button data-status-refresh type="button">Atualizar</button><div data-status-list></div><button data-status-more type="button" hidden>Mais status</button><section data-status-open aria-live="polite"></section></article><article class="card status-card"><h2>Seu próximo status</h2><form data-status-compose><label>Texto ou legenda<textarea data-status-text rows="3"></textarea></label><button data-status-emoji type="button">Escolher emoji</button><input data-status-file type="file" accept="image/*" hidden aria-label="Foto do status"><button data-status-attach type="button" class="media-picker-button" aria-label="Anexar foto" title="Anexar foto"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m20 11-8.5 8.5a5 5 0 0 1-7-7L13 4a3.5 3.5 0 0 1 5 5l-8.5 8.5a2 2 0 0 1-3-3L14 7"/></svg></button><div data-status-preview></div><button data-status-clear-photo type="button">Remover foto</button><button data-status-publish class="primary" type="submit">Publicar status</button><button data-status-cancel type="button" hidden>Cancelar publicação pendente</button></form><p>Texto e foto desaparecem após 24 horas e ficam fora dos backups.</p><details><summary>Quem pode ver seus próximos status</summary><p>Todos os contatos aprovados podem ver por padrão. Desmarque quem você deseja excluir. Novos contatos entram nas próximas publicações.</p><p data-status-privacy-conflict hidden></p><div data-status-audience></div><button data-status-more-contacts type="button" hidden>Mais contatos</button><button data-status-save-audience type="button">Salvar privacidade</button></details></article>`;
+      container.innerHTML = t('html.198650fde984');
       bindControls();
       renderList();
       status();

@@ -1,3 +1,4 @@
+import { t } from '../../shared/i18n/index.ts';
 import { communityState } from '../../shared/communities/index.ts';
 import type { ProfileFollow } from '../../shared/profile-social/index.ts';
 import type { PublicProfile } from '../../shared/public-profile/index.ts';
@@ -30,7 +31,7 @@ export function feedFollowControl(
   let following = false;
   const mobile = () =>
     options.chooseOnMobile && matchMedia('(max-width: 700px)').matches;
-  const node = button(header, '+ Seguir', () =>
+  const node = button(header, t('+ Seguir'), () =>
     options
       .run(async () => {
         if (!options.valid()) return;
@@ -43,12 +44,15 @@ export function feedFollowControl(
   );
   node.className = 'community-post-follow';
   const describe = () => {
-    node.textContent = following ? 'Seguindo' : '+ Seguir';
+    node.textContent = following ? t('Seguindo') : t('+ Seguir');
     node.setAttribute(
       'aria-label',
       mobile()
-        ? 'Escolher entre seguir comunidade ou autor'
-        : `${following ? 'Deixar de seguir' : 'Seguir'} a comunidade ${target.community.name}`,
+        ? t('Escolher entre seguir comunidade ou autor')
+        : t('{0} a comunidade {1}', [
+            following ? t('Deixar de seguir') : t('Seguir'),
+            target.community.name,
+          ]),
     );
     if (mobile()) node.setAttribute('aria-haspopup', 'dialog');
     else {

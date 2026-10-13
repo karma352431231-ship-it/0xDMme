@@ -122,13 +122,13 @@ await test('D1 recebe somente categoria fixa de conexão, mantendo HTTP e erro g
   diagnostic.fail(new SolanaConnectionError('conta-solana-ausente'));
   assert.match(
     diagnostic.text(true),
-    /etapa=conexao-solicitada.*falha=conta-solana-ausente/u,
+    /stage=conexao-solicitada.*failure=conta-solana-ausente/u,
   );
   assert.doesNotMatch(diagnostic.text(true), /Selecione|0x|PRIVATE|signature/u);
   diagnostic.fail(403);
-  assert.match(diagnostic.text(true), /falha=HTTP-403/u);
+  assert.match(diagnostic.text(true), /failure=HTTP-403/u);
   diagnostic.fail();
-  assert.match(diagnostic.text(true), /falha=local-ou-provider/u);
+  assert.match(diagnostic.text(true), /failure=local-ou-provider/u);
   diagnostic.step('conexao-recebida');
-  assert.match(diagnostic.text(true), /falha=nao/u);
+  assert.match(diagnostic.text(true), /failure=nao/u);
 });

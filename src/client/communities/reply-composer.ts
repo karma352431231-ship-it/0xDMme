@@ -1,3 +1,4 @@
+import { t, translatedError } from '../../shared/i18n/index.ts';
 import { gifUrls } from '../gif-search/index.ts';
 import type {
   CommunityPost,
@@ -58,13 +59,13 @@ export class ReplyComposer {
     if (!this.access.valid() || this.access.media.signal.aborted) return;
     const heading = el('header', '', 'post-composer-heading'),
       copy = el('div', '', 'post-composer-heading-copy');
-    copy.append(el('h2', 'Responder'), el('p', 'Continue a conversa.'));
+    copy.append(el('h2', t('Responder')), el('p', t('Continue a conversa.')));
     heading.append(copy);
-    button(heading, 'Fechar', () => {
+    button(heading, t('Fechar'), () => {
       this.requestClose();
       return Promise.resolve();
     });
-    this.dialog.setAttribute('aria-label', 'Responder à postagem');
+    this.dialog.setAttribute('aria-label', t('Responder à postagem'));
     this.feedback.setAttribute('role', 'status');
     this.dialog.append(heading, this.context(), this.draft, this.feedback);
     const signal = AbortSignal.any([
@@ -81,11 +82,12 @@ export class ReplyComposer {
       },
     );
     const text = this.draft.querySelector('textarea');
-    if (text) text.placeholder = 'Escreva sua resposta…';
+    if (text) text.placeholder = t('Escreva sua resposta…');
     const footer = el('footer', '', 'post-composer-footer');
     this.draft.append(footer);
-    button(footer, 'Publicar resposta', () => this.publish(content)).className =
-      'post-composer-publish';
+    button(footer, t('Publicar resposta'), () =>
+      this.publish(content),
+    ).className = 'post-composer-publish';
     this.dialog.addEventListener('cancel', (event) => {
       event.preventDefault();
       this.requestClose();
@@ -111,7 +113,7 @@ export class ReplyComposer {
   }
   private context(): HTMLElement {
     const context = el('section', '', 'reply-parent-preview');
-    context.setAttribute('aria-label', 'Postagem que você está respondendo');
+    context.setAttribute('aria-label', t('Postagem que você está respondendo'));
     const avatar = postHeader(
       context,
       this.parent,
@@ -183,8 +185,8 @@ export class ReplyComposer {
         } catch (error: unknown) {
           this.feedback.textContent =
             error instanceof Error
-              ? error.message
-              : 'Não foi possível publicar a resposta.';
+              ? translatedError(error.message)
+              : t('Não foi possível publicar a resposta.');
           throw error;
         }
       });
@@ -203,7 +205,7 @@ export class ReplyComposer {
     }
     confirmComposerDiscard(this.dialog, {
       draft: this.draft,
-      label: 'Descartar resposta?',
+      label: t('Descartar resposta?'),
       close: () => this.close(),
     });
   }

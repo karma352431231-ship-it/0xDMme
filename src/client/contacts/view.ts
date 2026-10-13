@@ -1,3 +1,4 @@
+import { t, currentLanguage } from '../../shared/i18n/index.ts';
 import { paintAvatar } from '../appearance/index.ts';
 import { chatIcon } from '../chat-ui/index.ts';
 import type { Peer } from '../../shared/contacts/index.ts';
@@ -7,7 +8,7 @@ function searchText(value: string): string {
     .normalize('NFD')
     .replace(/\p{Diacritic}/gu, '')
     .trim()
-    .toLocaleLowerCase('pt-BR');
+    .toLocaleLowerCase(currentLanguage());
 }
 export function contactSearchMatches(text: string, query: string): boolean {
   return searchText(text).includes(searchText(query));
@@ -20,7 +21,7 @@ export function searchContacts<T extends Peer>(
 ): T[] {
   return items.filter((item) =>
     contactSearchMatches(
-      `${item.name} ${item.address} ${item.ecosystem}`,
+      t('{0} {1} {2}', [item.name, item.address, item.ecosystem]),
       query,
     ),
   );
@@ -66,12 +67,12 @@ export function contactMenu(
   trigger.type = close.type = 'button';
   trigger.className = 'contact-menu-trigger';
   trigger.innerHTML = chatIcon('more');
-  trigger.setAttribute('aria-label', `Opções de ${name}`);
+  trigger.setAttribute('aria-label', t('Opções de {0}', [name]));
   trigger.setAttribute('aria-haspopup', 'dialog');
   menu.className = 'contact-menu';
-  menu.setAttribute('aria-label', `Opções de ${name}`);
+  menu.setAttribute('aria-label', t('Opções de {0}', [name]));
   heading.textContent = name;
-  close.textContent = 'Fechar';
+  close.textContent = t('Fechar');
   close.className = 'contact-menu-close';
   close.type = 'button';
   close.addEventListener('click', () => menu.close());

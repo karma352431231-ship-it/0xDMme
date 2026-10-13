@@ -1,3 +1,4 @@
+import { t } from '../../shared/i18n/index.ts';
 import type { ConversationEntry } from './directory.ts';
 
 export function keepConversationMenu(
@@ -145,13 +146,13 @@ export class ConversationMenu {
     const dialog = document.createElement('dialog');
     this.dialog = dialog;
     dialog.className = 'conversation-menu';
-    dialog.setAttribute('aria-label', `Opções de ${entry.title}`);
+    dialog.setAttribute('aria-label', t('Opções de {0}', [entry.title]));
     const title = document.createElement('strong');
     title.textContent = entry.title;
     const close = document.createElement('button');
     close.type = 'button';
     close.className = 'menu-close';
-    close.textContent = 'Fechar';
+    close.textContent = t('Fechar');
     close.addEventListener('click', () => this.close());
     dialog.append(title, close);
     for (const action of entry.actions) {

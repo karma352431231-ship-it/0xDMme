@@ -1,3 +1,4 @@
+import { t } from '../../shared/i18n/index.ts';
 import {
   AccountError,
   accountSession,
@@ -72,7 +73,7 @@ export class WalletLogin {
     }
     if (!this.approval.incoming && this.walletReturn.state())
       await this.walletReturn.cancel();
-    this.core.status = `Confirme a conexão na ${instance.name}.`;
+    this.core.status = t('Confirme a conexão na {0}.', [instance.name]);
     this.host.render();
     const proof = await this.createLoginProof(instance);
     if (request) {
@@ -189,8 +190,9 @@ export class WalletLogin {
     );
     this.checkEpoch(currentEpoch);
     this.approval.step('desafio-recebido');
-    this.core.status =
-      'Confira domínio e endereço na wallet e assine somente o pedido de login.';
+    this.core.status = t(
+      'Confira domínio e endereço na wallet e assine somente o pedido de login.',
+    );
     this.host.render();
     this.progress('assinatura-solicitada');
     const signature = await instance.sign(
@@ -275,7 +277,7 @@ export class WalletLogin {
       return;
     }
     this.host.setSession(authenticated);
-    this.core.status = 'Abrindo sua conta…';
+    this.core.status = t('Abrindo sua conta…');
     await this.host.openAccount(authenticated);
   }
   private async finishIncomingOpening(
@@ -285,8 +287,9 @@ export class WalletLogin {
   ): Promise<void> {
     const opening = this.approval.opening;
     if (opening) {
-      this.core.status =
-        'Continue nesta wallet para abrir as chaves da sua conta.';
+      this.core.status = t(
+        'Continue nesta wallet para abrir as chaves da sua conta.',
+      );
       this.host.render();
       const encrypted = await signLoginOpening({
         request: opening,
@@ -298,7 +301,10 @@ export class WalletLogin {
     }
     this.checkEpoch(currentEpoch);
     this.approval.confirmed(request.ticket);
-    this.core.status = `Assinatura confirmada. Feche a ${instance.name} e volte ao navegador onde iniciou o login para confirmar o endereço.`;
+    this.core.status = t(
+      'Assinatura confirmada. Feche a {0} e volte ao navegador onde iniciou o login para confirmar o endereço.',
+      [instance.name],
+    );
     this.approval.step('retorno-manual');
     this.host.render();
   }

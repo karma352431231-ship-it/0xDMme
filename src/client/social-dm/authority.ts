@@ -1,3 +1,4 @@
+import { t } from '../../shared/i18n/index.ts';
 import { object, uuid } from '../../shared/account/index.ts';
 import {
   canonical,
@@ -123,7 +124,11 @@ export async function socialAuthority(input: {
 }): Promise<VaultAuthority> {
   const { directory, secret, api } = input,
     profile = directory.profile;
-  let identity = await localIdentity(profile, input.alias, 'Aparelho de DMs'),
+  let identity = await localIdentity(
+      profile,
+      input.alias,
+      t('Aparelho de DMs'),
+    ),
     current = directory.events.at(-1) ?? null;
   const events = [...directory.events];
   let ring;
@@ -155,7 +160,7 @@ export async function socialAuthority(input: {
       identity = await localIdentity(
         profile,
         crypto.randomUUID(),
-        'Aparelho de DMs',
+        t('Aparelho de DMs'),
       );
     const recovered = await recoverSecrets(current, secret);
     ring = freshKeyring(profile, recovered.ring);

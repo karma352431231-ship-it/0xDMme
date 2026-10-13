@@ -1,3 +1,4 @@
+import { t } from '../../shared/i18n/index.ts';
 import { decodeQrFrame, readQrPayload } from './codec.ts';
 import type { QrKind } from './codec.ts';
 
@@ -23,7 +24,9 @@ export class QrCamera {
     this.stop();
     if (!navigator.mediaDevices?.getUserMedia) {
       this.options.failed(
-        'Câmera indisponível. Use HTTPS e permita a câmera, ou copie o código.',
+        t(
+          'Câmera indisponível. Use HTTPS e permita a câmera, ou copie o código.',
+        ),
       );
       return;
     }
@@ -32,13 +35,17 @@ export class QrCamera {
     this.options.state(true);
     this.deadline = setTimeout(() => {
       this.fail(
-        'O prazo para abrir a câmera terminou. Tente novamente ou copie o código.',
+        t(
+          'O prazo para abrir a câmera terminou. Tente novamente ou copie o código.',
+        ),
       );
     }, 10_000);
     void this.open(kind, generation).catch(() => {
       if (this.active && generation === this.generation)
         this.fail(
-          'Não foi possível ler pela câmera. Confira a permissão ou copie o código.',
+          t(
+            'Não foi possível ler pela câmera. Confira a permissão ou copie o código.',
+          ),
         );
     });
   }
@@ -62,7 +69,7 @@ export class QrCamera {
         () => {
           if (this.active && generation === this.generation)
             this.fail(
-              'A câmera foi encerrada. Tente novamente ou copie o código.',
+              t('A câmera foi encerrada. Tente novamente ou copie o código.'),
             );
         },
         { once: true },
@@ -76,7 +83,7 @@ export class QrCamera {
     if (!this.active || generation !== this.generation) return;
     clearTimeout(this.deadline);
     this.deadline = setTimeout(
-      () => this.fail('Leitura encerrada após um minuto. Tente novamente.'),
+      () => this.fail(t('Leitura encerrada após um minuto. Tente novamente.')),
       60_000,
     );
     this.tick(kind, generation);
@@ -94,7 +101,9 @@ export class QrCamera {
       this.frameTimer = setTimeout(() => this.tick(kind, generation), 250);
     } catch {
       this.fail(
-        'Não foi possível ler este QR Code. Use o QR desta etapa ou copie o código.',
+        t(
+          'Não foi possível ler este QR Code. Use o QR desta etapa ou copie o código.',
+        ),
       );
     }
   }

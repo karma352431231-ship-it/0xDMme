@@ -1,3 +1,8 @@
+import {
+  t,
+  translatedError,
+  currentLanguage,
+} from '../../shared/i18n/index.ts';
 import { mutualFollowers } from '../../shared/profile-social/index.ts';
 import type { MutualFollowers } from '../../shared/profile-social/index.ts';
 import { showPublicAvatar } from '../public-media/index.ts';
@@ -19,7 +24,7 @@ function preview(
   const avatars = document.createElement('span'),
     text = document.createElement('span');
   avatars.className = 'mutual-followers-avatars';
-  text.append('Seguido por ');
+  text.append(t('Seguido por '));
   const visible = page.items.slice(0, 3);
   for (const [index, profile] of visible.entries()) {
     const avatar = profileLink(profile);
@@ -47,9 +52,12 @@ function preview(
   const others = page.total - visible.length;
   if (others)
     text.append(
-      ` e mais ${others.toLocaleString('pt-BR')} ${others === 1 ? 'pessoa que você segue' : 'pessoas que você segue'}`,
+      t(' e mais {0} {1}', [
+        others.toLocaleString(currentLanguage()),
+        others === 1 ? t('pessoa que você segue') : t('pessoas que você segue'),
+      ]),
     );
-  else text.append(', que você segue');
+  else text.append(t(', que você segue'));
   host.append(avatars, text);
 }
 /** No anonymous graph read. Keep this personalized projection out of the public summary/cache. */
@@ -67,7 +75,7 @@ export function mountMutualFollowers(
   const section = document.createElement('section'),
     status = document.createElement('p');
   section.className = 'mutual-followers';
-  section.setAttribute('aria-label', 'Seguidores em comum');
+  section.setAttribute('aria-label', t('Seguidores em comum'));
   status.setAttribute('role', 'status');
   host.append(section);
   const usable = () => !signal.aborted && section.isConnected;
@@ -75,8 +83,8 @@ export function mountMutualFollowers(
     if (usable())
       status.textContent =
         error instanceof Error
-          ? error.message
-          : 'Seguidores em comum indisponíveis.';
+          ? translatedError(error.message)
+          : t('Seguidores em comum indisponíveis.');
   };
   const read = async (after: string | null): Promise<MutualFollowers> =>
     mutualFollowers(
@@ -92,7 +100,7 @@ export function mountMutualFollowers(
       more = document.createElement('button');
     list.className = 'mutual-followers-list';
     more.type = 'button';
-    more.textContent = 'Ver seguidores em comum';
+    more.textContent = t('Ver seguidores em comum');
     more.setAttribute('aria-expanded', 'false');
     let next = page.next,
       expanded = false;
@@ -100,7 +108,7 @@ export function mountMutualFollowers(
       list.append(...value.items.map(profileLink));
       next = value.next;
       more.hidden = !next;
-      more.textContent = 'Ver mais';
+      more.textContent = t('Ver mais');
     };
     more.addEventListener('click', () => {
       if (more.disabled) return;

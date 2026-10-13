@@ -1,3 +1,4 @@
+import { t } from '../../shared/i18n/index.ts';
 import { gifUrls } from '../gif-search/index.ts';
 import type { FeedEntry } from '../../shared/community-discovery/index.ts';
 import type { CommunityPost } from '../../shared/community-posts/index.ts';
@@ -15,7 +16,7 @@ import type { ExternalMediaConsent } from '../external-media/index.ts';
 export function entryCard(post: CommunityPost): HTMLElement {
   const row = post.parent
     ? el('article', '', 'card community-card')
-    : card(post.title || 'Postagem');
+    : card(post.title || t('Postagem'));
   row.classList.add('community-post');
   row.dataset['postId'] = post.id;
   return row;
@@ -66,7 +67,7 @@ export function renderActivityEntry(
   if (post.media?.length) showPublicPostMedia(row, post.media, signal);
   postTagLink(row, post);
   const actions = el('div', '', 'post-actions');
-  actions.append(el('span', `${post.score} votos`));
+  actions.append(el('span', t('{0} votos', [post.score])));
   postComments(actions, post);
   row.append(actions);
   return row;

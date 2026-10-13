@@ -1,3 +1,4 @@
+import { t, currentLanguage } from '../../shared/i18n/index.ts';
 export type EmojiRow = readonly [
   emoji: string,
   name: string,
@@ -6,15 +7,15 @@ export type EmojiRow = readonly [
   artwork: string | null,
 ];
 export const emojiCategories = [
-  'Rostos e emoções',
-  'Pessoas e corpo',
-  'Animais e natureza',
-  'Comida e bebida',
-  'Viagens e lugares',
-  'Atividades',
-  'Objetos',
-  'Símbolos',
-  'Bandeiras',
+  t('Rostos e emoções'),
+  t('Pessoas e corpo'),
+  t('Animais e natureza'),
+  t('Comida e bebida'),
+  t('Viagens e lugares'),
+  t('Atividades'),
+  t('Objetos'),
+  t('Símbolos'),
+  t('Bandeiras'),
 ] as const;
 export const emojiPageSize = 72;
 const skinTones = /[\u{1F3FB}-\u{1F3FF}]/gu;
@@ -23,7 +24,7 @@ function normalize(value: string): string {
   return value
     .normalize('NFD')
     .replace(/[\u0300-\u036F\uFE0F]/gu, '')
-    .toLocaleLowerCase('pt-BR');
+    .toLocaleLowerCase(currentLanguage());
 }
 export class EmojiCatalog {
   readonly rows: readonly EmojiRow[];

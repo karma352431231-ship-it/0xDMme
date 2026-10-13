@@ -1,3 +1,4 @@
+import { t } from '../../shared/i18n/index.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
 import { announcePreference } from '../preference-events/index.ts';
 import { mediaConsentDialog } from './dialog.ts';
@@ -130,11 +131,16 @@ export class ExternalMediaConsent {
     const choice = this.choices[scope];
     const status =
       choice === null
-        ? 'Permissão ainda não escolhida.'
+        ? t('Permissão ainda não escolhida.')
         : choice
-          ? 'Mídias externas permitidas.'
-          : 'Mídias externas somente como links.';
-    return `${status} ${this.durable ? 'A escolha acompanha sua conta.' : 'Não foi possível salvar; escolha válida só neste acesso.'}`;
+          ? t('Mídias externas permitidas.')
+          : t('Mídias externas somente como links.');
+    return t('{0} {1}', [
+      status,
+      this.durable
+        ? t('A escolha acompanha sua conta.')
+        : t('Não foi possível salvar; escolha válida só neste acesso.'),
+    ]);
   }
   storageChanged(key: string | null): void {
     if (key !== null && key !== this.key) return;

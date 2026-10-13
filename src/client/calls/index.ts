@@ -1,3 +1,4 @@
+import { t } from '../../shared/i18n/index.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
 import type { VaultAccess } from '../vault-authority/index.ts';
 import type { VaultSync } from '../vault-sync/index.ts';
@@ -36,22 +37,22 @@ export function startCalls(options: {
   const dock = document.createElement('aside');
   dock.className = 'call-dock card';
   dock.hidden = true;
-  dock.setAttribute('aria-label', 'Chamada de voz');
+  dock.setAttribute('aria-label', t('Chamada de voz'));
   const title = document.createElement('strong'),
     notice = document.createElement('p'),
     duration = document.createElement('p'),
     buttons = document.createElement('div');
   notice.setAttribute('role', 'status');
   buttons.className = 'call-actions';
-  const accept = button('Atender', () => calls.accept()),
-    reject = button('Recusar', () => calls.end('Chamada recusada.')),
-    hangup = button('Encerrar', () => calls.end()),
-    mute = button('Silenciar microfone', () => {
+  const accept = button(t('Atender'), () => calls.accept()),
+    reject = button(t('Recusar'), () => calls.end(t('Chamada recusada.'))),
+    hangup = button(t('Encerrar'), () => calls.end()),
+    mute = button(t('Silenciar microfone'), () => {
       calls.mute();
       return Promise.resolve();
     }),
-    play = button('Ouvir chamada', () => calls.play()),
-    close = button('Fechar aviso', () => {
+    play = button(t('Ouvir chamada'), () => calls.play()),
+    close = button(t('Fechar aviso'), () => {
       dock.hidden = true;
       return Promise.resolve();
     });
@@ -101,7 +102,9 @@ export function startCalls(options: {
     element.textContent = label;
     element.addEventListener('click', () => {
       void work().catch(() => {
-        notice.textContent = 'Não foi possível concluir a operação de chamada.';
+        notice.textContent = t(
+          'Não foi possível concluir a operação de chamada.',
+        );
       });
     });
     return element;
@@ -111,8 +114,8 @@ export function startCalls(options: {
     const active = state.call !== null;
     if (active || state.busy) dock.hidden = false;
     title.textContent = state.call
-      ? `Chamada de voz · ${options.label(state.call.peer)}`
-      : 'Chamada de voz';
+      ? t('Chamada de voz · {0}', [options.label(state.call.peer)])
+      : t('Chamada de voz');
     notice.textContent = state.notice;
     duration.textContent = state.connected
       ? `${Math.floor(state.seconds / 60)}:${String(state.seconds % 60).padStart(2, '0')}`
@@ -126,13 +129,13 @@ export function startCalls(options: {
     accept.hidden = !incoming;
     reject.hidden = !incoming;
     hangup.hidden = (!active && !state.busy) || !!incoming;
-    hangup.textContent = active ? 'Encerrar' : 'Cancelar chamada';
+    hangup.textContent = active ? t('Encerrar') : t('Cancelar chamada');
     mute.hidden = !state.connected;
     play.hidden = !state.autoplay;
     close.hidden = active || state.busy;
     mute.textContent = state.muted
-      ? 'Reativar microfone'
-      : 'Silenciar microfone';
+      ? t('Reativar microfone')
+      : t('Silenciar microfone');
     mute.setAttribute('aria-pressed', String(state.muted));
     for (const b of [accept, reject, mute, play]) b.disabled = state.busy;
   }
@@ -141,8 +144,8 @@ export function startCalls(options: {
       settings?.querySelector<HTMLButtonElement>('[data-call-toggle]');
     if (toggle) {
       toggle.textContent = state.enabled
-        ? 'Desativar recebimento de chamadas'
-        : 'Ativar recebimento de chamadas';
+        ? t('Desativar recebimento de chamadas')
+        : t('Ativar recebimento de chamadas');
       toggle.setAttribute('aria-pressed', String(state.enabled));
       toggle.disabled = state.busy;
     }
@@ -150,7 +153,7 @@ export function startCalls(options: {
     if (status) status.textContent = state.notice;
   }
   function suspend(): void {
-    void calls.end('Chamada encerrada ao sair desta página.');
+    void calls.end(t('Chamada encerrada ao sair desta página.'));
   }
   window.addEventListener('online', () => calls.ready(), {
     signal: events.signal,
@@ -188,13 +191,12 @@ export function startCalls(options: {
     start: (peer: string) => calls.start(peer),
     event: (event: string) => {
       if (event === 'revoked' || event === 'ended' || event === 'invalidated')
-        void calls.end('Chamada encerrada: autorização mudou.');
+        void calls.end(t('Chamada encerrada: autorização mudou.'));
       else if (event === 'authorization') calls.ready();
     },
     mountSettings: (host: HTMLElement) => {
       settings = host;
-      host.innerHTML =
-        '<article class="card call-settings"><h2>Chamadas de voz</h2><p>Receba chamadas de contatos aprovados com o app aberto e conectado. Conversas silenciadas ou arquivadas não tocam. Não há histórico de chamadas.</p><button data-call-toggle type="button" aria-pressed="true">Desativar recebimento de chamadas</button><p data-call-status role="status"></p></article>';
+      host.innerHTML = t('html.dc84c57fff55');
       host
         .querySelector('[data-call-toggle]')
         ?.addEventListener('click', () => {

@@ -1,3 +1,4 @@
+import { t } from '../../shared/i18n/index.ts';
 import encodeQR from 'qr';
 import decodeQR from 'qr/decode.js';
 import { canonical, linkCode } from '../../shared/devices/index.ts';
@@ -58,7 +59,7 @@ export function qrMatrix(payload: string): boolean[][] {
 export function renderQr(
   container: HTMLElement,
   payload: string,
-  label = 'QR Code de vinculação de aparelho',
+  label = t('QR Code de vinculação de aparelho'),
 ): void {
   if (container.dataset['qrPayload'] === payload) return;
   const matrix = qrMatrix(payload);

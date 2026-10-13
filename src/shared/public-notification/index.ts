@@ -31,5 +31,5 @@ export function publicNotificationText(title: string, text: string): string {
   const characters = [...value];
   return characters.length > 160
     ? characters.slice(0, 159).join('') + '…'
-    : value || 'Nova publicação com mídia.';
+    : value;
 }

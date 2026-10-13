@@ -1,3 +1,4 @@
+import { t } from '../../shared/i18n/index.ts';
 const icons = {
   profile:
     '<circle cx="12" cy="8" r="4"/><path d="M4 21v-2a8 8 0 0 1 16 0v2"/>',
@@ -133,7 +134,7 @@ function categoryList(
 ): { first: HTMLButtonElement | null; sync: () => void } {
   const nav = document.createElement('nav');
   nav.className = 'profile-categories';
-  nav.setAttribute('aria-label', 'Categorias de configurações');
+  nav.setAttribute('aria-label', t('Categorias de configurações'));
   const buttons = new Map<HTMLDetailsElement, HTMLButtonElement>();
   for (const section of sections) {
     if (section.dataset['settingsSection'] === 'account') continue;
@@ -159,49 +160,90 @@ function categoryList(
   return { first: buttons.values().next().value ?? null, sync };
 }
 
-const profileContent = `<section class="profile-settings" aria-label="Configurações da conta"><h2>Configurações</h2><p class="settings-intro">Abra a categoria que você quer ajustar.</p>
-${settingsSection({ id: 'privacy', title: 'Privacidade', description: 'Presença, leitura e quem pode me encontrar', content: '<div data-privacy-settings></div><div data-contact-settings-container></div>' })}
-${settingsSection({ id: 'profile', title: 'Perfil público', description: 'Seu @ e sua foto nas comunidades', content: '<div data-public-profile-settings></div>' })}
-${settingsSection({ id: 'alerts', title: 'Notificações e chamadas', description: 'Push, sons e silêncio das conversas', content: '<div data-daily-settings></div><div data-call-settings></div>' })}
-${settingsSection({ id: 'devices', title: 'Dispositivos conectados', description: 'Vincular, recuperar e gerenciar acessos', content: '<div data-device-settings></div>' })}
-${settingsSection({ id: 'vault', title: 'Cofre e backup', description: 'Uso do armazenamento, salvar e restaurar', content: '<div class="cards" data-vault-settings></div>' })}
-${settingsSection({ id: 'representatives', title: 'Organizações e representantes', description: 'Organizações e autorizações assinadas', content: '<div data-representatives-settings></div>' })}
-${settingsSection({ id: 'appearance', title: 'Aparência', description: 'Tema Azul, Preto ou Branco', content: '<div data-appearance-settings></div>' })}
-${settingsSection({ id: 'app', title: 'Sobre o app', description: 'Versão, atualizações, código e licenças', content: '<article class="card"><p id="pwa-state" role="status">Verificando atualização…</p><button id="check-updates" type="button">Verificar atualização</button></article><nav class="about-app-links" aria-label="Código e licenças" data-about-links></nav>' })}
-<div class="profile-content-links"><button type="button" data-open-section="account">Editar perfil</button><a href="#status">Meu status</a><a href="#contatos">Contatos</a></div></section>`;
+const profileContent = t('html.148d3089e900', [
+  settingsSection({
+    id: 'privacy',
+    title: t('Privacidade'),
+    description: t('Presença, leitura e quem pode me encontrar'),
+    content:
+      '<div data-privacy-settings></div><div data-contact-settings-container></div>',
+  }),
+  settingsSection({
+    id: 'profile',
+    title: t('Perfil público'),
+    description: t('Seu @ e sua foto nas comunidades'),
+    content: '<div data-public-profile-settings></div>',
+  }),
+  settingsSection({
+    id: 'alerts',
+    title: t('Notificações e chamadas'),
+    description: t('Push, sons e silêncio das conversas'),
+    content: '<div data-daily-settings></div><div data-call-settings></div>',
+  }),
+  settingsSection({
+    id: 'devices',
+    title: t('Dispositivos conectados'),
+    description: t('Vincular, recuperar e gerenciar acessos'),
+    content: '<div data-device-settings></div>',
+  }),
+  settingsSection({
+    id: 'vault',
+    title: t('Cofre e backup'),
+    description: t('Uso do armazenamento, salvar e restaurar'),
+    content: '<div class="cards" data-vault-settings></div>',
+  }),
+  settingsSection({
+    id: 'representatives',
+    title: t('Organizações e representantes'),
+    description: t('Organizações e autorizações assinadas'),
+    content: '<div data-representatives-settings></div>',
+  }),
+  settingsSection({
+    id: 'appearance',
+    title: t('Aparência'),
+    description: t('Tema Azul, Preto ou Branco'),
+    content: '<div data-appearance-settings></div>',
+  }),
+  settingsSection({
+    id: 'app',
+    title: t('Sobre o app'),
+    description: t('Versão, atualizações, código e licenças'),
+    content: t('html.33d7dbf67efc'),
+  }),
+]);
 
 export const pages = {
-  conversas: { title: 'Conversas', content: '' },
+  conversas: { title: t('Conversas'), content: '' },
   atividade: {
-    title: 'Atividade',
+    title: t('Atividade'),
     content: '<div class="activity" data-activity></div>',
   },
   comunidades: {
-    title: 'Comunidades',
+    title: t('Comunidades'),
     content: '<div data-communities></div>',
   },
   perfil: {
-    title: 'Perfil',
+    title: t('Perfil'),
     content: profileContent,
   },
   analise: {
-    title: 'Análise do conteúdo',
+    title: t('Análise do conteúdo'),
     content: '<div data-moderation-review></div>',
   },
   publico: {
-    title: 'Perfil público',
+    title: t('Perfil público'),
     content: '<div data-public-profile-view></div>',
   },
   status: {
-    title: 'Status',
+    title: t('Status'),
     content: '<div class="cards" data-status-container></div>',
   },
   contatos: {
-    title: 'Contatos',
+    title: t('Contatos'),
     content: '<div class="cards" data-contacts-container></div>',
   },
   cofre: {
-    title: 'Cofre',
+    title: t('Cofre'),
     content: '<div class="cards" data-vault-container></div>',
   },
 };

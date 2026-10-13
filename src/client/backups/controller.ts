@@ -1,3 +1,5 @@
+import { t } from '../../shared/i18n/index.ts';
+import { vaultLabel } from '../vault-labels/index.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
 import { encode } from '../../shared/account/index.ts';
 import { attachmentContent } from '../../shared/attachments/index.ts';
@@ -143,7 +145,10 @@ export class Backups {
       this.choose({
         type: 'vault',
         id: entry.commit.id,
-        label: `${entry.change.label} · versão ${entry.commit.sequence}`,
+        label: t('{0} · versão {1}', [
+          vaultLabel(entry.change),
+          entry.commit.sequence,
+        ]),
         bytes: entry.commit.block.bytes,
         hash: await commitHash(entry.commit),
       });
@@ -160,16 +165,24 @@ export class Backups {
   }
   private messageChoice(item: MessageItem, account: string): BackupChoice {
     const names = {
-      attachment: 'Foto/arquivo',
-      profile: 'Perfil compartilhado',
-      text: 'Mensagem',
+      attachment: t('Foto/arquivo'),
+      profile: t('Perfil compartilhado'),
+      text: t('Mensagem'),
     };
     return {
       type: 'message',
       id: item.id,
       hash: item.hash,
       item,
-      label: `${item.relation ? (item.relation.type === 'edit' ? 'Edição' : 'Reação') : names[item.kind]} · #${item.sequence} · ${item.sender === account ? 'enviada' : 'recebida'}`,
+      label: t('{0} · #{1} · {2}', [
+        item.relation
+          ? item.relation.type === 'edit'
+            ? t('Edição')
+            : t('Reação')
+          : names[item.kind],
+        item.sequence,
+        item.sender === account ? t('enviada') : t('recebida'),
+      ]),
       bytes: item.kind === 'profile' ? 4_100_000 : 16_384,
     };
   }
@@ -257,7 +270,7 @@ export class Backups {
         c.guard();
       } catch {
         c.guard();
-        c.omitted.push(`${choice.type}:${choice.id} indisponível`);
+        c.omitted.push(t('{0}:{1} indisponível', [choice.type, choice.id]));
         continue;
       }
       const existing = c.historical.get(`${row.type}:${row.id}`);
@@ -429,7 +442,10 @@ export class Backups {
           throw new Error('Mídia histórica divergente.');
         continue;
       }
-      const omission = `media:${file.ref.id} ${c.media ? 'indisponível' : 'não selecionada'}`;
+      const omission = t('media:{0} {1}', [
+        file.ref.id,
+        c.media ? t('indisponível') : t('não selecionada'),
+      ]);
       if (!c.media) {
         c.omitted.push(omission);
         continue;
@@ -437,7 +453,7 @@ export class Backups {
       let bytes: Uint8Array<ArrayBuffer>;
       try {
         bytes = await this.messages.backupMedia(
-          { ...c.row, state: 'Exportação' },
+          { ...c.row, state: t('Exportação') },
           thumbnail,
         );
         c.guard();
@@ -541,6 +557,6 @@ export class Backups {
     );
     return last && Date.now() - last < 7 * 86400000
       ? null
-      : 'Salve um backup completo para manter uma cópia com você.';
+      : t('Salve um backup completo para manter uma cópia com você.');
   }
 }

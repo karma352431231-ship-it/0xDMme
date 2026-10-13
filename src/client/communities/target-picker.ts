@@ -1,3 +1,4 @@
+import { t } from '../../shared/i18n/index.ts';
 import { fetchApi, readApiJson } from '../api-response/index.ts';
 import {
   publicHandle,
@@ -14,7 +15,7 @@ export function communityTargetPicker(
   container: HTMLElement,
   actions: CommunityActions,
 ): () => PublicProfile {
-  const handle = communityField(container, '@ do perfil público', {
+  const handle = communityField(container, t('@ do perfil público'), {
     maximum: 31,
   });
   const result = communityElement('p');
@@ -24,7 +25,7 @@ export function communityTargetPicker(
     selected = null;
     result.textContent = '';
   });
-  communityButton(container, 'Buscar perfil', () =>
+  communityButton(container, t('Buscar perfil'), () =>
     actions.query(async () => {
       selected = null;
       const requested = handle.value;
@@ -43,7 +44,10 @@ export function communityTargetPicker(
       );
       if (handle.value !== requested) return;
       selected = profile;
-      result.textContent = `Perfil selecionado: @${selected.handle}. Confira antes de confirmar.`;
+      result.textContent = t(
+        'Perfil selecionado: @{0}. Confira antes de confirmar.',
+        [selected.handle],
+      );
     }),
   );
   return () => {

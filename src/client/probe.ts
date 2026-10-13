@@ -1,3 +1,5 @@
+import { t } from '../shared/i18n/index.ts';
+import { startLanguage } from './language/index.ts';
 import { ProbeClient } from './crypto-probe/index.ts';
 import { boundedResponse } from './probe-transport/index.ts';
 import { element } from './probe-ui/index.ts';
@@ -10,6 +12,7 @@ import {
 } from '../shared/crypto-probe/index.ts';
 import type { ProbeTransport, Role } from '../shared/crypto-probe/index.ts';
 
+startLanguage();
 const status = element('status', HTMLParagraphElement);
 const confirm = element('confirm', HTMLButtonElement);
 const send = element('send', HTMLButtonElement);
@@ -22,7 +25,7 @@ const displayed = new Set<string>();
 let client: ProbeClient | undefined;
 let authorized = false;
 let busy = false;
-let stage = 'preparação da sessão';
+let stage = t('preparação da sessão');
 
 function controls(): void {
   confirm.disabled = busy || !client;
@@ -39,9 +42,12 @@ async function run(operation: () => Promise<void>): Promise<void> {
   } catch (error: unknown) {
     const kind =
       error instanceof WebAssembly.CompileError
-        ? 'WASM incompatível'
-        : 'operação rejeitada';
-    status.textContent = `Falha na ${stage} (${kind}). Confira as chaves e a sessão; nenhum envio em texto aberto será feito.`;
+        ? t('WASM incompatível')
+        : t('operação rejeitada');
+    status.textContent = t(
+      'Falha na {0} ({1}). Confira as chaves e a sessão; nenhum envio em texto aberto será feito.',
+      [stage, kind],
+    );
   } finally {
     busy = false;
     controls();
@@ -72,9 +78,9 @@ async function initialize(): Promise<void> {
   });
   if (!config.ok) throw new Error('Configuração indisponível.');
   const token = text(parseObject(await boundedResponse(config))[role]);
-  stage = 'inicialização do motor criptográfico';
+  stage = t('inicialização do motor criptográfico');
   const initialized = await ProbeClient.create(role, transport(role, token));
-  stage = 'publicação das chaves públicas';
+  stage = t('publicação das chaves públicas');
   try {
     await initialized.publishKeys();
   } catch (error: unknown) {
@@ -82,13 +88,15 @@ async function initialize(): Promise<void> {
     throw error;
   }
   client = initialized;
-  stage = 'operação solicitada';
-  element('name', HTMLHeadingElement).textContent =
-    `Cliente ${role === 'alice' ? 'Alice' : 'Bob'}`;
+  stage = t('operação solicitada');
+  element('name', HTMLHeadingElement).textContent = t('Cliente {0}', [
+    role === 'alice' ? 'Alice' : 'Bob',
+  ]);
   element('fingerprint', HTMLTextAreaElement).value = client.fingerprint;
-  status.textContent =
-    'Cliente iniciado. Copie a chave pública da outra tela para autorizar.';
-  document.title = `Hash-Talk · ${role}`;
+  status.textContent = t(
+    'Cliente iniciado. Copie a chave pública da outra tela para autorizar.',
+  );
+  document.title = t('Hash-Talk · {0}', [role]);
   confirm.addEventListener('click', () => {
     void run(async () => {
       authorized = false;
@@ -96,7 +104,7 @@ async function initialize(): Promise<void> {
       await client.confirmPeer(expected.value);
       authorized = true;
       expected.readOnly = true;
-      status.textContent = 'Chave confirmada. Pronto para enviar e receber.';
+      status.textContent = t('Chave confirmada. Pronto para enviar e receber.');
     });
   });
   send.addEventListener('click', () => {
@@ -104,8 +112,9 @@ async function initialize(): Promise<void> {
       if (!client) throw new Error('Cliente indisponível.');
       await client.send(message.value);
       message.value = '';
-      status.textContent =
-        'Pacote cifrado recebido pelo laboratório. O destinatário pode buscar.';
+      status.textContent = t(
+        'Pacote cifrado recebido pelo laboratório. O destinatário pode buscar.',
+      );
     });
   });
   receive.addEventListener('click', () => {
@@ -121,8 +130,9 @@ async function initialize(): Promise<void> {
         messages.append(item);
         displayed.add(id);
       }
-      status.textContent =
-        'Busca concluída. As mensagens recebidas estão abaixo.';
+      status.textContent = t(
+        'Busca concluída. As mensagens recebidas estão abaixo.',
+      );
     });
   });
   revoke.addEventListener('click', () => {
@@ -131,10 +141,11 @@ async function initialize(): Promise<void> {
       if (!client) throw new Error('Cliente indisponível.');
       await client.revokePeer();
       await client.send(
-        'Texto fictício posterior à revogação; somente para o remetente.',
+        t('Texto fictício posterior à revogação; somente para o remetente.'),
       );
-      status.textContent =
-        'Dispositivo revogado e sessão rotacionada. O outro cliente não abre o novo pacote; cópias anteriores continuam legíveis.';
+      status.textContent = t(
+        'Dispositivo revogado e sessão rotacionada. O outro cliente não abre o novo pacote; cópias anteriores continuam legíveis.',
+      );
     });
   });
 }

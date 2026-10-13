@@ -4,9 +4,10 @@ import { gunzipSync } from 'node:zlib';
 import { frontendEmoji, emojiAsset } from '../src/tools/frontend-emoji.ts';
 import { EmojiCatalog, insertEmoji } from '../src/client/emoji/index.ts';
 import { validReaction } from '../src/shared/daily/index.ts';
+import { setActiveLanguage } from '../src/shared/i18n/index.ts';
 
 const packed = await frontendEmoji(process.cwd());
-const catalog = new EmojiCatalog(packed.catalog);
+const catalog = new EmojiCatalog(packed.catalog.en);
 const defaults = {
   query: '',
   category: 'all',
@@ -44,26 +45,26 @@ await test('catálogo completo mantém variantes Unicode válidas e arte com pro
   assert.match(data.licenses['unicode'] ?? '', /UNICODE LICENSE V3/u);
   assert.match(data.emojiTest, /Version: 18.0/u);
 });
-await test('busca em português ignora acentos e filtra categorias sem perder bandeiras/tons mistos', () => {
+await test('English search normalizes accents and filters categories without losing flags or mixed skin tones', () => {
   assert.ok(
     catalog
-      .search({ ...defaults, query: 'coracao' })
+      .search({ ...defaults, query: 'heart' })
       .entries.some((row) => row[0] === '❤️'),
   );
   assert.deepEqual(
-    catalog.search({ ...defaults, query: 'coração' }),
-    catalog.search({ ...defaults, query: 'coracao' }),
+    catalog.search({ ...defaults, query: 'heárt' }),
+    catalog.search({ ...defaults, query: 'heart' }),
   );
   assert.ok(
     catalog
-      .search({ ...defaults, query: 'brasil', category: '8' })
+      .search({ ...defaults, query: 'brazil', category: '8' })
       .entries.some((row) => row[0] === '🇧🇷'),
   );
   assert.ok(
-    catalog.search({ ...defaults, query: 'gato', category: '2' }).total > 0,
+    catalog.search({ ...defaults, query: 'cat', category: '2' }).total > 0,
   );
   assert.equal(
-    catalog.search({ ...defaults, query: 'gato', category: '8' }).total,
+    catalog.search({ ...defaults, query: 'cat', category: '8' }).total,
     0,
   );
   assert.ok(
@@ -79,7 +80,7 @@ await test('busca em português ignora acentos e filtra categorias sem perder ba
   assert.equal(catalog.find('👩🏿‍❤️‍👩🏻')?.[3], 1);
   assert.ok(
     catalog
-      .search({ ...defaults, query: 'brasil', tone: '🏽' })
+      .search({ ...defaults, query: 'brazil', tone: '🏽' })
       .entries.some((row) => row[0] === '🇧🇷'),
   );
   assert.equal(
@@ -88,6 +89,35 @@ await test('busca em português ignora acentos e filtra categorias sem perder ba
     0,
   );
 });
+await test('Chinese emoji names and local search cover the complete repertoire without changing Unicode or artwork', (context) => {
+  context.after(() => setActiveLanguage('en'));
+  setActiveLanguage('zh-CN');
+  const chinese = new EmojiCatalog(packed.catalog['zh-CN']);
+  assert.deepEqual(
+    chinese.rows.map((row) => [row[0], row[3], row[4]]),
+    catalog.rows.map((row) => [row[0], row[3], row[4]]),
+  );
+  for (const row of chinese.rows)
+    assert.ok(row[1].trim() && row[2].trim(), row[0]);
+  assert.equal(chinese.find('❤️')?.[1], '红心');
+  assert.equal(chinese.find('👍🏽')?.[1], '拇指向上: 中等肤色');
+  for (const [query, emoji] of [
+    ['红心', '❤️'],
+    ['巴西', '🇧🇷'],
+    ['拇指', '👍🏽'],
+  ] as const)
+    assert.ok(
+      chinese
+        .search({ ...defaults, query })
+        .entries.some((row) => row[0] === emoji),
+    );
+  assert.equal(
+    chinese.search({ ...defaults, query: '巴西', category: '0' }).total,
+    0,
+  );
+  assert.ok(chinese.find('🫪')?.[1]);
+});
+
 await test('paginação limita DOM e recentes respeitam ordem/limite da sessão', () => {
   const first = catalog.search(defaults),
     second = catalog.search({ ...defaults, offset: 72 });

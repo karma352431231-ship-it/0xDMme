@@ -1,3 +1,5 @@
+import { t } from '../shared/i18n/index.ts';
+import { startLanguage } from './language/index.ts';
 import { element } from './probe-ui/index.ts';
 import { boundedResponse } from './probe-transport/index.ts';
 import {
@@ -8,6 +10,7 @@ import {
 import { identity, parseObject, text } from '../shared/crypto-probe/index.ts';
 import { parseEnvelope } from '../shared/vault-probe/index.ts';
 
+startLanguage();
 const owner = identity('alice').user;
 const secret = element('secret', HTMLInputElement);
 const envelope = element('envelope', HTMLTextAreaElement);
@@ -25,8 +28,9 @@ async function run(action: () => Promise<void>): Promise<void> {
   try {
     await action();
   } catch {
-    status.textContent =
-      'Operação rejeitada. Confira segredo, identidade, revisão e integridade; nenhum histórico foi enviado em texto aberto.';
+    status.textContent = t(
+      'Operação rejeitada. Confira segredo, identidade, revisão e integridade; nenhum histórico foi enviado em texto aberto.',
+    );
   } finally {
     busy = false;
     for (const button of buttons) button.disabled = false;
@@ -57,8 +61,9 @@ async function relay(
 
 element('generate-secret', HTMLButtonElement).addEventListener('click', () => {
   secret.value = newRecoverySecret();
-  status.textContent =
-    'Segredo fictício gerado somente neste navegador. Copie para o ensaio de recuperação.';
+  status.textContent = t(
+    'Segredo fictício gerado somente neste navegador. Copie para o ensaio de recuperação.',
+  );
 });
 element('seal', HTMLButtonElement).addEventListener('click', () => {
   void run(async () => {
@@ -72,7 +77,10 @@ element('seal', HTMLButtonElement).addEventListener('click', () => {
       secret.value,
     );
     envelope.value = JSON.stringify(sealed);
-    status.textContent = `Cofre cifrado localmente em ${(performance.now() - started).toFixed(1)} ms. Apenas o envelope pode ser guardado no relay.`;
+    status.textContent = t(
+      'Cofre cifrado localmente em {0} ms. Apenas o envelope pode ser guardado no relay.',
+      [(performance.now() - started).toFixed(1)],
+    );
   });
 });
 element('store', HTMLButtonElement).addEventListener('click', () => {
@@ -80,8 +88,9 @@ element('store', HTMLButtonElement).addEventListener('click', () => {
     const sealed = parseEnvelope(envelope.value);
     if (sealed.owner !== owner) throw new Error('Identidade inválida.');
     await relay('vault-save', JSON.stringify(sealed));
-    status.textContent =
-      'Relay recebeu apenas o envelope cifrado, em memória. Segredo e histórico ficaram no cliente.';
+    status.textContent = t(
+      'Relay recebeu apenas o envelope cifrado, em memória. Segredo e histórico ficaram no cliente.',
+    );
   });
 });
 element('load', HTMLButtonElement).addEventListener('click', () => {
@@ -89,8 +98,9 @@ element('load', HTMLButtonElement).addEventListener('click', () => {
     envelope.value = JSON.stringify(
       parseEnvelope(await relay('vault-load', '{}')),
     );
-    status.textContent =
-      'Envelope cifrado obtido. Informe o segredo para abrir localmente.';
+    status.textContent = t(
+      'Envelope cifrado obtido. Informe o segredo para abrir localmente.',
+    );
   });
 });
 element('open', HTMLButtonElement).addEventListener('click', () => {
@@ -101,6 +111,9 @@ element('open', HTMLButtonElement).addEventListener('click', () => {
     restored.textContent = snapshot.messages
       .map((entry) => entry.body)
       .join('\n');
-    status.textContent = `Histórico recuperado localmente em ${(performance.now() - started).toFixed(1)} ms (revisão ${snapshot.revision}). Nenhuma sessão ou permissão de aparelho foi restaurada.`;
+    status.textContent = t(
+      'Histórico recuperado localmente em {0} ms (revisão {1}). Nenhuma sessão ou permissão de aparelho foi restaurada.',
+      [(performance.now() - started).toFixed(1), snapshot.revision],
+    );
   });
 });

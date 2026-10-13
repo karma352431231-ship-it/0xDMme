@@ -1,3 +1,4 @@
+import { t } from '../../shared/i18n/index.ts';
 // SPDX-License-Identifier: GPL-3.0-only
 interface QueuedRead {
   start: () => void;
@@ -38,7 +39,7 @@ export function withPublicRead(
         const index = pending.indexOf(job);
         if (index !== -1) pending.splice(index, 1);
         signal.removeEventListener('abort', job.cancel);
-        reject(new DOMException('Leitura pública cancelada.', 'AbortError'));
+        reject(new DOMException(t('Leitura pública cancelada.'), 'AbortError'));
       },
     };
     if (active < 4) job.start();

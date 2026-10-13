@@ -1,44 +1,45 @@
 <!doctype html>
-<html lang="pt-BR">
+<html lang="en">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Hash-Talk · laboratório de criptografia</title>
+    <title>0xDMme · cryptography laboratory</title>
     <link rel="stylesheet" href="/probe.css" />
+    <script type="module" src="/src/client/language/start.ts"></script>
   </head>
   <body>
     <main>
-      <h1>Laboratório de criptografia</h1>
+      <h1>Cryptography laboratory</h1>
       <p>
-        Use somente texto fictício. Compare as chaves das duas telas, autorize e
-        envie uma mensagem.
+        Use fictional text only. Compare the keys on both screens, authorize and
+        send a message.
       </p>
       <p>
-        Esta sessão é temporária: reiniciar o laboratório descarta mensagens e
-        chaves. Ainda não é o chat do produto.
+        This session is temporary: restarting the laboratory discards messages
+        and keys. It is not yet the product's chat.
       </p>
       <div class="clients">
-        <iframe src="/client.html#alice" title="Cliente Alice"></iframe>
-        <iframe src="/client.html#bob" title="Cliente Bob"></iframe>
+        <iframe src="/client.html#alice" title="Alice client"></iframe>
+        <iframe src="/client.html#bob" title="Bob client"></iframe>
       </div>
       <p>
         <a href="/api/inspect" target="_blank" rel="noopener"
-          >Ver os pacotes recebidos pelo servidor</a
+          >View packets received by the server</a
         >
       </p>
       <p>
-        Para usar abas separadas: <a href="/client.html#alice">Alice</a> e
-        <a href="/client.html#bob">Bob</a>. Escolha uma forma por sessão; para
-        começar de novo, reinicie o comando.
+        To use separate tabs: <a href="/client.html#alice">Alice</a> and
+        <a href="/client.html#bob">Bob</a>. Choose one method per session;
+        restart the command to begin again.
       </p>
       <p>
-        Outros ensaios:
+        Other tests:
         <a href="/vault.html" target="_blank" rel="noopener"
-          >Cofre e recuperação limpa</a
+          >Vault and clean recovery</a
         >
         ·
         <a href="/zk.html" target="_blank" rel="noopener"
-          >Geração e verificação ZK</a
+          >ZK generation and verification</a
         >.
       </p>
     </main>

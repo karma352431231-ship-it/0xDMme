@@ -1,3 +1,4 @@
+import { t, translatedError } from '../../shared/i18n/index.ts';
 import type { VoicePlayback } from '../voice-playback/index.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
 import type { VaultAccess } from '../vault-authority/index.ts';
@@ -18,8 +19,9 @@ export function startBackups(
   let mounted: HTMLElement | null = null,
     busy = false,
     armed = false;
-  let status =
-    'O backup completo inclui conversas, áudios, imagens e arquivos.';
+  let status = t(
+    'O backup completo inclui conversas, áudios, imagens e arquivos.',
+  );
   let downloadUrl: string | null = null;
   let session: AccountSession | null = null;
   function renderDownload(): void {
@@ -47,7 +49,9 @@ export function startBackups(
     );
     if (clean) {
       clean.disabled = busy || controller.cleanupCount === 0;
-      clean.textContent = armed ? 'Confirmar reset do cofre' : 'Resetar cofre';
+      clean.textContent = armed
+        ? t('Confirmar reset do cofre')
+        : t('Resetar cofre');
     }
     const cancel = mounted?.querySelector<HTMLElement>('[data-backup-cancel]');
     if (cancel) cancel.hidden = !busy;
@@ -65,8 +69,8 @@ export function startBackups(
     } catch (error: unknown) {
       status =
         error instanceof Error
-          ? error.message
-          : 'Não foi possível concluir o backup.';
+          ? translatedError(error.message)
+          : t('Não foi possível concluir o backup.');
     } finally {
       busy = false;
       render();
@@ -75,7 +79,7 @@ export function startBackups(
   async function save(): Promise<void> {
     clearDownload();
     armed = false;
-    status = 'Preparando o backup completo…';
+    status = t('Preparando o backup completo…');
     render();
     const report = await controller.generateComplete();
     const file = controller.file;
@@ -86,8 +90,13 @@ export function startBackups(
     link.download = `0xDMme-backup-${new Date().toISOString().slice(0, 10)}.0xdm`;
     link.click();
     status = report.omitted.length
-      ? `Backup incompleto: ${report.omitted.length} itens indisponíveis. O reset permanece bloqueado; tente salvar novamente.`
-      : 'Backup preparado. Guarde o arquivo e use “Validar arquivo” para conferir a cópia salva.';
+      ? t(
+          'Backup incompleto: {0} itens indisponíveis. O reset permanece bloqueado; tente salvar novamente.',
+          [report.omitted.length],
+        )
+      : t(
+          'Backup preparado. Guarde o arquivo e use “Validar arquivo” para conferir a cópia salva.',
+        );
   }
   async function validate(): Promise<void> {
     armed = false;
@@ -95,35 +104,44 @@ export function startBackups(
       mounted?.querySelector<HTMLInputElement>('[data-backup-file]')
         ?.files?.[0];
     if (!file) return;
-    status = 'Validando e importando o histórico cifrado…';
+    status = t('Validando e importando o histórico cifrado…');
     render();
     const reader = await controller.open(file);
     status = reader.complete
-      ? 'Arquivo íntegro e completo. Histórico importado para Conversas neste aparelho.'
-      : 'Arquivo íntegro, com conteúdo incompleto. Os itens presentes foram importados; o reset permanece bloqueado.';
+      ? t(
+          'Arquivo íntegro e completo. Histórico importado para Conversas neste aparelho.',
+        )
+      : t(
+          'Arquivo íntegro, com conteúdo incompleto. Os itens presentes foram importados; o reset permanece bloqueado.',
+        );
   }
   async function reset(): Promise<void> {
     if (session?.walletConfirmed !== true) {
       armed = false;
-      status =
-        'Confirme sua wallet uma vez nesta sessão e volte ao Cofre para concluir o reset.';
+      status = t(
+        'Confirme sua wallet uma vez nesta sessão e volte ao Cofre para concluir o reset.',
+      );
       options.confirmWallet();
       return;
     }
     if (!armed) {
       armed = true;
-      status =
-        'Resetar os dados preservados neste backup somente do seu cofre no servidor? Mensagens posteriores e cópias de outras pessoas permanecem.';
+      status = t(
+        'Resetar os dados preservados neste backup somente do seu cofre no servidor? Mensagens posteriores e cópias de outras pessoas permanecem.',
+      );
       return;
     }
     armed = false;
     const result = await controller.cleanup();
-    status = `Cofre resetado: ${(result.released / 1_000_000).toFixed(2)} MB liberados. O histórico importado continua neste aparelho.`;
+    status = t(
+      'Cofre resetado: {0} MB liberados. O histórico importado continua neste aparelho.',
+      [(result.released / 1_000_000).toFixed(2)],
+    );
   }
   window.addEventListener('0xdmme-backup-progress', (event) => {
     const detail = (event as CustomEvent<{ done: number; total: number }>)
       .detail;
-    status = `Preparando backup: ${detail.done} itens.`;
+    status = t('Preparando backup: {0} itens.', [detail.done]);
     render();
   });
   window.addEventListener('pagehide', () => {
@@ -163,7 +181,7 @@ export function startBackups(
     },
     mount(container: HTMLElement): void {
       mounted = container;
-      container.innerHTML = `<article class="card"><h2>Backup local</h2><p>Guarde uma cópia completa cifrada. Importar um arquivo integra o histórico às conversas deste aparelho.</p><p data-backup-status role="status"></p><button data-backup-save class="primary" type="button">Salvar arquivo de backup</button><a data-backup-download hidden>Baixar arquivo preparado</a><button data-backup-validate type="button">Validar arquivo</button><input data-backup-file type="file" accept=".0xdm,application/octet-stream" hidden><button data-backup-clean type="button" disabled>Resetar cofre</button><button data-backup-cancel type="button" hidden>Cancelar</button></article>`;
+      container.innerHTML = t('html.eedc51d31423');
       container
         .querySelector('[data-backup-save]')
         ?.addEventListener('click', () => {
@@ -191,8 +209,9 @@ export function startBackups(
         ?.addEventListener('click', () => {
           controller.cancel();
           armed = false;
-          status =
-            'Operação interrompida. Se o reset já foi enviado, confira o armazenamento antes de repetir.';
+          status = t(
+            'Operação interrompida. Se o reset já foi enviado, confira o armazenamento antes de repetir.',
+          );
           render();
         });
       render();

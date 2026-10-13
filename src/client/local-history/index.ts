@@ -1,3 +1,4 @@
+import { t, currentLanguage } from '../../shared/i18n/index.ts';
 import { base64, encode } from '../../shared/account/index.ts';
 import { backupChunk, backupRecordLimit } from '../../shared/backups/index.ts';
 import { bytesHash } from '../../shared/vault/index.ts';
@@ -705,7 +706,7 @@ export async function historyPeers(
     items.push(
       record.participant ?? {
         accountId: record.peer,
-        name: 'Conversa do backup',
+        name: t('Conversa do backup'),
         address: record.peer,
         ecosystem: 'evm',
       },
@@ -817,7 +818,10 @@ export async function searchHistory(
   cursor: string | null,
   guard: () => void,
 ) {
-  const term = query.normalize('NFKC').toLocaleLowerCase('pt-BR').trim();
+  const term = query
+    .normalize('NFKC')
+    .toLocaleLowerCase(currentLanguage())
+    .trim();
   if (!term || term.length > 128)
     throw new Error('Busque entre 1 e 128 caracteres.');
   let after: IDBValidKey | null = searchCursor(cursor);
@@ -852,7 +856,7 @@ export async function searchHistory(
       if (
         row.content.text
           .normalize('NFKC')
-          .toLocaleLowerCase('pt-BR')
+          .toLocaleLowerCase(currentLanguage())
           .includes(term)
       )
         items.push({

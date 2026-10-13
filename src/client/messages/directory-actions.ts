@@ -1,3 +1,4 @@
+import { t } from '../../shared/i18n/index.ts';
 import type { Daily } from '../daily/index.ts';
 import type { ConversationAction } from './directory.ts';
 
@@ -14,7 +15,7 @@ export function organizationActions(options: {
   return [
     {
       id: 'archive',
-      label: settings.archived ? 'Desarquivar' : 'Arquivar',
+      label: settings.archived ? t('Desarquivar') : t('Arquivar'),
       perform: () =>
         perform(() =>
           daily.organize(
@@ -26,7 +27,7 @@ export function organizationActions(options: {
     },
     {
       id: 'pin',
-      label: settings.pinned ? 'Desafixar' : 'Fixar',
+      label: settings.pinned ? t('Desafixar') : t('Fixar'),
       perform: () =>
         perform(() =>
           daily.organize(
@@ -38,7 +39,9 @@ export function organizationActions(options: {
     },
     {
       id: 'favorite',
-      label: favorite ? 'Remover dos favoritos' : 'Adicionar aos favoritos',
+      label: favorite
+        ? t('Remover dos favoritos')
+        : t('Adicionar aos favoritos'),
       perform: () => perform(() => daily.setFavorite(favoriteId, !favorite)),
     },
   ];

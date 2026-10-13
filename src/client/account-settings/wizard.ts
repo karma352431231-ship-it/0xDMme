@@ -1,42 +1,44 @@
+import { t, translatedError } from '../../shared/i18n/index.ts';
 import { themes } from '../appearance/index.ts';
 import { externalMediaNotice } from '../external-media/index.ts';
 import { presetPack, presets } from './record.ts';
 import type { PresetId, SettingsPack } from './record.ts';
+import {
+  languageSelect,
+  saveLanguageChoice,
+  languageFailure,
+} from '../language/index.ts';
+import { isAppLanguage } from '../../shared/i18n/index.ts';
 
 const discoveryOptions = [
-  ['invite', 'Somente com meu link de convite'],
-  ['wallet', 'Por wallet exata ou convite'],
-  ['contacts', 'Somente contatos já aprovados'],
+  ['invite', t('Somente com meu link de convite')],
+  ['wallet', t('Por wallet exata ou convite')],
+  ['contacts', t('Somente contatos já aprovados')],
 ] as const;
 
 // Static authored markup; values are set through DOM properties afterwards.
-const choiceStep = `<section data-wizard-step="choose"><h2>Configurações iniciais</h2><p>Escolha um ponto de partida. Você revisa cada opção antes de salvar e pode mudar tudo depois em Perfil.</p><div class="settings-pack-presets">${presets
-  .map(
-    (preset) =>
-      `<button type="button" class="settings-pack-preset" data-preset="${preset.id}"><strong>${preset.label}</strong><small>${preset.hint}</small></button>`,
-  )
-  .join(
-    '',
-  )}</div><div class="settings-actions"><button type="button" data-wizard-skip>Agora não</button></div></section>`;
+const choiceStep = t('html.12c90e74741c', [
+  presets
+    .map(
+      (preset) =>
+        `<button type="button" class="settings-pack-preset" data-preset="${preset.id}"><strong>${preset.label}</strong><small>${preset.hint}</small></button>`,
+    )
+    .join(''),
+]);
 
-const reviewStep = `<form data-wizard-step="review" hidden><h2>Revise suas configurações</h2><p>Valem para a sua conta em todos os aparelhos.</p>
-<fieldset><legend>Aparência</legend><div class="settings-pack-themes">${themes
-  .map(
-    (theme) =>
-      `<label><input type="radio" name="theme" value="${theme.id}"> ${theme.label}</label>`,
-  )
-  .join('')}</div></fieldset>
-<fieldset><legend>Privacidade</legend><label>Quem pode pedir conversa<select name="discovery">${discoveryOptions
-  .map(([value, label]) => `<option value="${value}">${label}</option>`)
-  .join(
-    '',
-  )}</select></label><label><input type="checkbox" name="online"> Exibir online para contatos aprovados</label><label><input type="checkbox" name="readReceipts"> Enviar confirmação de leitura</label></fieldset>
-<fieldset><legend>Mídias externas</legend><label><input type="checkbox" name="externalMedia"> Mostrar GIFs e vídeos externos</label><small data-wizard-media></small></fieldset>
-<fieldset><legend>Notificações</legend><label><input type="checkbox" name="pushEnabled"> Receber notificações push</label><div class="settings-pack-push"><label><input type="checkbox" name="messages"> Mensagens e respostas</label><label><input type="checkbox" name="calls"> Chamadas</label><label><input type="checkbox" name="showCalls"> Identificar aviso como chamada de voz</label></div><small>Ao salvar, o navegador pede a permissão de notificações. O nome do contato nunca aparece.</small><label><input type="checkbox" name="sound"> Sons dentro do app</label></fieldset>
-<fieldset><legend>Backup</legend><label><input type="checkbox" name="backupReminder"> Lembrar de salvar um backup a cada sete dias</label></fieldset>
-<div class="settings-actions"><button type="button" data-wizard-back>Voltar</button><button type="submit" class="primary">Salvar e começar</button></div></form>`;
+const reviewStep = t('html.0930613867e2', [
+  themes
+    .map(
+      (theme) =>
+        `<label><input type="radio" name="theme" value="${theme.id}"> ${theme.label}</label>`,
+    )
+    .join(''),
+  discoveryOptions
+    .map(([value, label]) => `<option value="${value}">${label}</option>`)
+    .join(''),
+]);
 
-const resultStep = `<section data-wizard-step="result" hidden><h2>Configurações iniciais</h2><p data-wizard-result role="status"></p><ul data-wizard-problems></ul><div class="settings-actions"><button type="button" class="primary" data-wizard-close>Fechar</button></div></section>`;
+const resultStep = t('html.91580e468fc5');
 
 function field(form: HTMLFormElement, name: string): HTMLInputElement {
   return form.elements.namedItem(name) as HTMLInputElement;
@@ -113,8 +115,10 @@ function show(dialog: HTMLDialogElement, step: string): void {
 
 function showResult(dialog: HTMLDialogElement, problems: string[]): void {
   dialog.querySelector('[data-wizard-result]')!.textContent = problems.length
-    ? 'Parte das configurações não foi aplicada. Ajuste o que faltou em Perfil.'
-    : 'Pronto. Suas configurações foram salvas na conta.';
+    ? t(
+        'Parte das configurações não foi aplicada. Ajuste o que faltou em Perfil.',
+      )
+    : t('Pronto. Suas configurações foram salvas na conta.');
   const list = dialog.querySelector('[data-wizard-problems]')!;
   list.replaceChildren(
     ...problems.map((problem) => {
@@ -134,6 +138,8 @@ function showResult(dialog: HTMLDialogElement, problems: string[]): void {
 export function openSettingsWizard(input: {
   initial: SettingsPack;
   confirm: (pack: SettingsPack) => Promise<string[]>;
+  saveLanguage?: (language: 'en' | 'zh-CN') => Promise<void>;
+  languageBlocked?: () => string | null;
   signal: AbortSignal;
 }): Promise<'saved' | 'skipped'> {
   const { initial, confirm, signal } = input;
@@ -141,8 +147,44 @@ export function openSettingsWizard(input: {
   return new Promise((resolve, reject) => {
     const dialog = document.createElement('dialog');
     dialog.className = 'settings-pack card';
-    dialog.setAttribute('aria-label', 'Configurações iniciais');
+    dialog.setAttribute('aria-label', t('Configurações iniciais'));
     dialog.innerHTML = choiceStep + reviewStep + resultStep;
+    const languageLabel = document.createElement('label');
+    languageLabel.className = 'settings-pack-language';
+    languageLabel.textContent = t('Idioma do aplicativo');
+    const language = languageSelect();
+    languageLabel.append(language);
+    dialog
+      .querySelector('[data-wizard-step="choose"] h2')!
+      .after(languageLabel);
+    language.addEventListener('change', () => {
+      if (!isAppLanguage(language.value)) return;
+      const reason = input.languageBlocked?.();
+      if (reason) {
+        showResult(dialog, [reason]);
+        return;
+      }
+      language.disabled = true;
+      dialog.inert = true;
+      saving = true;
+      const choice = language.value;
+      void saveLanguageChoice({
+        language: choice,
+        save: input.saveLanguage ?? (() => Promise.resolve()),
+        blocked: input.languageBlocked ?? (() => null),
+        signal,
+      })
+        .then(() => location.reload())
+        .catch((error: unknown) => {
+          if (signal.aborted) return;
+          saving = false;
+          dialog.inert = false;
+          language.disabled = false;
+          dialog.querySelector('[data-wizard-result]')!.textContent =
+            languageFailure(error);
+          show(dialog, 'result');
+        });
+    });
     dialog
       .querySelectorAll('h2')
       .forEach((heading) => heading.setAttribute('tabindex', '-1'));
@@ -181,8 +223,8 @@ export function openSettingsWizard(input: {
           saving = false;
           showResult(dialog, [
             error instanceof Error
-              ? error.message
-              : 'Não foi possível salvar as configurações.',
+              ? translatedError(error.message)
+              : t('Não foi possível salvar as configurações.'),
           ]);
         });
     });

@@ -1,3 +1,4 @@
+import { t, translatedError } from '../../shared/i18n/index.ts';
 import { withoutBookmarkState } from './post-bookmark.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
 import type { FeedEntry } from '../../shared/community-discovery/index.ts';
@@ -181,15 +182,15 @@ export class ActivityPosts {
         options: (host) => this.options(card, host),
       });
     } else {
-      const login = el('a', 'Responder', 'post-action post-comments');
+      const login = el('a', t('Responder'), 'post-action post-comments');
       login.href = '#perfil';
-      login.setAttribute('aria-label', 'Entre pelo Perfil para responder');
+      login.setAttribute('aria-label', t('Entre pelo Perfil para responder'));
       toolbar.append(login);
       postSharing(toolbar, post, null);
     }
     const discussion = el(
       'a',
-      'Abrir discussão',
+      t('Abrir discussão'),
       'post-action post-discussion',
     );
     discussion.href = `#comunidades?id=${post.community}&post=${post.id}`;
@@ -237,7 +238,9 @@ export class ActivityPosts {
       if (!card.signal.aborted && epoch === this.epoch)
         this.status(
           card,
-          error instanceof Error ? error.message : 'Operação indisponível.',
+          error instanceof Error
+            ? translatedError(error.message)
+            : t('Operação indisponível.'),
         );
     } finally {
       this.pending--;
@@ -266,13 +269,13 @@ export class ActivityPosts {
       replies = card.node.querySelector('.post-comments span');
     if (score) score.textContent = String(state.post.score);
     if (replies) replies.textContent = String(state.post.replies);
-    this.status(card, 'Alteração salva.');
+    this.status(card, t('Alteração salva.'));
   }
   private async replied(card: ActivityCard, reply: PostState): Promise<void> {
     const { valid } = this.access(card),
       post = card.entry.post;
-    this.status(card, 'Resposta publicada.');
-    const link = el('a', 'Ver resposta publicada');
+    this.status(card, t('Resposta publicada.'));
+    const link = el('a', t('Ver resposta publicada'));
     link.href = `#comunidades?id=${post.community}&post=${reply.post.id}`;
     card.node.querySelector('.activity-post-status')?.append(' ', link);
     try {
@@ -284,7 +287,7 @@ export class ActivityPosts {
       );
       if (!valid()) return;
       this.counts(card, parent);
-      this.status(card, 'Resposta publicada.');
+      this.status(card, t('Resposta publicada.'));
       card.node.querySelector('.activity-post-status')?.append(' ', link);
     } catch (error: unknown) {
       if (valid())
@@ -294,8 +297,10 @@ export class ActivityPosts {
             el(
               'span',
               error instanceof Error
-                ? ` Contagem indisponível: ${error.message}`
-                : ' Contagem indisponível.',
+                ? t(' Contagem indisponível: {0}', [
+                    translatedError(error.message),
+                  ])
+                : t(' Contagem indisponível.'),
             ),
           );
     }
@@ -322,7 +327,7 @@ export class ActivityPosts {
     if (!valid()) return;
     if (operation === 'report') {
       communityState(result);
-      this.status(card, 'Denúncia enviada.');
+      this.status(card, t('Denúncia enviada.'));
       return;
     }
     const state = postState(result);

@@ -270,13 +270,13 @@ await test('pedido Backpack conserva o destino completo no caminho do documento 
       await controller.start('Backpack', ecosystem);
       const diagnostic = controller.openingDiagnostic();
       assert.ok(diagnostic);
-      assert.match(diagnostic, /^D2 · protocolo=doc-3/u);
-      assert.match(diagnostic, /pedido=presente/u);
+      assert.match(diagnostic, /^D2 · protocol=doc-3/u);
+      assert.match(diagnostic, /request=present/u);
       assert.match(
         diagnostic,
         agent === 'iPhone'
-          ? /plataforma=ios.*modo=documento/u
-          : /plataforma=android.*modo=documento/u,
+          ? /platform=ios.*mode=document/u
+          : /platform=android.*mode=document/u,
       );
       assert.doesNotMatch(diagnostic, /a{64}|0x|https:|ticket=/u);
       assert.equal(opened.length, 1);
@@ -455,7 +455,7 @@ await test('recusa de navegação mantém o pedido e oferece o link explícito s
   assert.equal(mobile.navigated.length, 0);
   assert.ok(controller.link());
   assert.ok(controller.state());
-  assert.match(messages.at(-1) ?? '', /^Toque em Abrir Phantom/u);
+  assert.match(messages.at(-1) ?? '', /^Tap Open Phantom/u);
   controller.close();
 });
 await test('confirmação tardia após cancelar é revogada e não abre a conta nem seu perfil', async () => {

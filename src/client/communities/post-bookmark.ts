@@ -1,3 +1,4 @@
+import { t, translatedError } from '../../shared/i18n/index.ts';
 import type { FeedEntry } from '../../shared/community-discovery/index.ts';
 import type { CommunityPost } from '../../shared/community-posts/index.ts';
 import type { Communities } from './controller.ts';
@@ -27,14 +28,16 @@ export function postBookmark(
         if (!value) return;
         paint(value.saved);
         showToast(
-          value.saved ? 'Postagem salva.' : 'Postagem removida dos salvos.',
+          value.saved
+            ? t('Postagem salva.')
+            : t('Postagem removida dos salvos.'),
         );
       } catch (error: unknown) {
         if (actions.valid())
           showToast(
             error instanceof Error
-              ? error.message
-              : 'Não foi possível salvar. Tente novamente.',
+              ? translatedError(error.message)
+              : t('Não foi possível salvar. Tente novamente.'),
           );
         throw error;
       }
@@ -44,14 +47,14 @@ export function postBookmark(
   function paint(saved: boolean): void {
     save.replaceChildren(
       communityIcon('bookmark'),
-      el('span', saved ? 'Salvo' : 'Salvar', 'post-action-caption'),
+      el('span', saved ? t('Salvo') : t('Salvar'), 'post-action-caption'),
     );
     save.setAttribute('aria-pressed', String(saved));
     save.setAttribute(
       'aria-label',
-      saved ? 'Remover postagem dos salvos' : 'Salvar postagem',
+      saved ? t('Remover postagem dos salvos') : t('Salvar postagem'),
     );
-    save.title = saved ? 'Postagem salva' : 'Salvar postagem';
+    save.title = saved ? t('Postagem salva') : t('Salvar postagem');
   }
   paint(actions.saved ?? post.viewer?.saved ?? false);
 }

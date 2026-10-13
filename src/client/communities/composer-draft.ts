@@ -1,3 +1,4 @@
+import { t } from '../../shared/i18n/index.ts';
 export function hasPostDraft(container: HTMLElement): boolean {
   if (
     container.querySelector(
@@ -30,11 +31,12 @@ export function confirmComposerDiscard(
     keep = document.createElement('button'),
     discard = document.createElement('button');
   heading.textContent = options.label;
-  copy.textContent =
-    'O que você escreveu e os anexos selecionados serão perdidos.';
+  copy.textContent = t(
+    'O que você escreveu e os anexos selecionados serão perdidos.',
+  );
   keep.type = discard.type = 'button';
-  keep.textContent = 'Continuar editando';
-  discard.textContent = 'Descartar';
+  keep.textContent = t('Continuar editando');
+  discard.textContent = t('Descartar');
   const content = [...dialog.children].filter(
     (node): node is HTMLElement => node instanceof HTMLElement,
   );

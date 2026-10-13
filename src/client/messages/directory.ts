@@ -1,3 +1,4 @@
+import { t, currentLanguage } from '../../shared/i18n/index.ts';
 import { displayName, paintAvatar } from '../appearance/index.ts';
 export interface DirectoryMenu {
   update: (entries: readonly ConversationEntry[]) => void;
@@ -53,11 +54,14 @@ export function matchingConversations(
   entries: readonly ConversationEntry[],
   query: string,
 ): readonly ConversationEntry[] {
-  const term = query.normalize('NFKC').toLocaleLowerCase('pt-BR').trim();
+  const term = query
+    .normalize('NFKC')
+    .toLocaleLowerCase(currentLanguage())
+    .trim();
   return entries.filter((entry) =>
     entry.searchText
       .normalize('NFKC')
-      .toLocaleLowerCase('pt-BR')
+      .toLocaleLowerCase(currentLanguage())
       .includes(term),
   );
 }
@@ -76,7 +80,7 @@ export function conversationButton(
   paintAvatar(avatar, { label: entry.title, seed: entry.seed ?? entry.id });
   if (entry.status) {
     avatar.classList.add('has-status');
-    avatar.title = 'Status ativo';
+    avatar.title = t('Status ativo');
   }
   const text = document.createElement('span');
   text.className = 'conversation-copy';
@@ -91,7 +95,10 @@ export function conversationButton(
     const unread = document.createElement('span');
     unread.className = 'conversation-unread';
     unread.textContent = entry.unread > 99 ? '99+' : String(entry.unread);
-    unread.setAttribute('aria-label', `${entry.unread} mensagens não lidas`);
+    unread.setAttribute(
+      'aria-label',
+      t('{0} mensagens não lidas', [entry.unread]),
+    );
     button.append(unread);
   }
   button.addEventListener('click', entry.open);
@@ -117,8 +124,8 @@ export function renderDirectory(
     const trigger = document.createElement('button');
     trigger.type = 'button';
     trigger.className = 'conversation-menu-trigger';
-    trigger.textContent = '⌄';
-    trigger.setAttribute('aria-label', `Opções de ${entry.title}`);
+    trigger.textContent = t('⌄');
+    trigger.setAttribute('aria-label', t('Opções de {0}', [entry.title]));
     trigger.setAttribute('aria-haspopup', 'dialog');
     row.append(button, trigger);
     options.menu.bind(row, entry, trigger);
@@ -129,7 +136,9 @@ export function renderDirectory(
   empty.className = 'directory-empty';
   empty.textContent =
     options.empty ??
-    'Suas conversas aparecem aqui depois de adicionar um contato ou entrar em um grupo.';
+    t(
+      'Suas conversas aparecem aqui depois de adicionar um contato ou entrar em um grupo.',
+    );
   host.append(empty);
 }
 
@@ -155,7 +164,7 @@ export function renderStatusStrip(
     input.ownActive
       ? `#status?autor=${encodeURIComponent(input.ownActive)}`
       : '#status',
-    'Seu status',
+    t('Seu status'),
     null,
   );
   own
@@ -195,7 +204,7 @@ function statusTile(
   tile.append(ring, name);
   tile.setAttribute(
     'aria-label',
-    avatar ? `Ver status de ${label}` : 'Seu status: publicar ou ver',
+    avatar ? t('Ver status de {0}', [label]) : t('Seu status: publicar ou ver'),
   );
   return tile;
 }

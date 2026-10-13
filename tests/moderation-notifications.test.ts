@@ -24,17 +24,17 @@ function controller(): PublicProfiles {
 }
 await test('aviso explica a remoção e distingue falha/incerteza de recusa; sucesso e espera não acusam o autor', () => {
   const refused = moderationNotification(notice);
-  assert.match(refused!.title, /retirada do público/u);
-  assert.match(refused!.reason, /indicou conteúdo explícito/u);
+  assert.match(refused!.title, /removed from public view/u);
+  assert.match(refused!.reason, /detected explicit content/u);
   for (const status of ['approved', 'pending', 'analyzing', 'removed'] as const)
     assert.equal(moderationNotification({ ...notice, status }), null);
   assert.match(
     moderationNotification({ ...notice, status: 'failed' })!.reason,
-    /Não foi possível concluir/u,
+    /Could not safely complete analysis/u,
   );
   assert.match(
     moderationNotification({ ...notice, status: 'held' })!.reason,
-    /incerta/u,
+    /uncertain/u,
   );
 });
 await test('ler um aviso é limitado ao aparelho/conta, e uma mudança de status gera novo aviso', async (t) => {

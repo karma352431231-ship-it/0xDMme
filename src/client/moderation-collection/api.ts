@@ -1,3 +1,4 @@
+import { t } from '../../shared/i18n/index.ts';
 // SPDX-License-Identifier: GPL-3.0-only
 export type Reference = 'allow' | 'reject';
 export interface ImageCase {
@@ -15,14 +16,18 @@ export interface Collection {
   cases: ImageCase[];
 }
 const messages: Record<string, string> = {
-  round_expired: 'A rodada expirou. As imagens temporárias foram descartadas.',
-  round_completed: 'O envio desta rodada já foi concluído.',
-  round_empty: 'Marque pelo menos uma imagem antes de concluir.',
-  round_full:
+  round_expired: t(
+    'A rodada expirou. As imagens temporárias foram descartadas.',
+  ),
+  round_completed: t('O envio desta rodada já foi concluído.'),
+  round_empty: t('Marque pelo menos uma imagem antes de concluir.'),
+  round_full: t(
     'A rodada chegou ao limite. As imagens já enviadas continuam preservadas.',
-  conflicting_reference:
+  ),
+  conflicting_reference: t(
     'Esta imagem já foi enviada com outra marcação. Use “Corrigir” no caso salvo.',
-  invalid_image: 'O arquivo não corresponde a uma imagem PNG, JPEG ou WebP.',
+  ),
+  invalid_image: t('O arquivo não corresponde a uma imagem PNG, JPEG ou WebP.'),
 };
 function record(value: unknown): Record<string, unknown> {
   if (value === null || typeof value !== 'object' || Array.isArray(value))

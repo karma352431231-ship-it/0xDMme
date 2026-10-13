@@ -161,7 +161,7 @@ await test('permissão negada e resposta antiga após cancelamento não ressusci
   });
   await rejected.start();
   assert.equal(rejected.active, false);
-  assert.match(rejected.state.notice, /Permissão recusada/);
+  assert.match(rejected.state.notice, /The operation could not be completed/);
   const delayed = new VoiceRecording({
     changed: () => {},
     completed: (selection) => previews.push(selection),

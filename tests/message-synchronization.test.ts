@@ -192,7 +192,9 @@ await test('prefetch failure is bounded, and session change cannot publish its d
   await f.sync.run(() => Promise.resolve());
   t.mock.timers.tick(1000);
   await turn();
-  assert.deepEqual(f.notices, ['Synthetic failure']);
+  assert.deepEqual(f.notices, [
+    'The operation could not be completed. Please try again.',
+  ]);
   t.mock.timers.tick(60000);
   await turn();
   assert.equal(calls, 1);
@@ -203,5 +205,7 @@ await test('prefetch failure is bounded, and session change cannot publish its d
   f.sync.reset();
   held.reject(new Error('Old session'));
   await turn();
-  assert.deepEqual(f.notices, ['Synthetic failure']);
+  assert.deepEqual(f.notices, [
+    'The operation could not be completed. Please try again.',
+  ]);
 });

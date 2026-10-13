@@ -1,3 +1,4 @@
+import { t } from '../../shared/i18n/index.ts';
 import type { CaptureEvents, VoiceCapture } from './types.ts';
 declare const VOICE_WORKLET_URL: string;
 
@@ -71,16 +72,16 @@ export class BrowserCapture implements VoiceCapture {
     node.port.onmessage = (event: MessageEvent<unknown>) =>
       this.receive(event.data);
     node.onprocessorerror = () =>
-      this.interrupt('O processamento do microfone foi interrompido.');
+      this.interrupt(t('O processamento do microfone foi interrompido.'));
     for (const track of stream.getAudioTracks()) {
       track.addEventListener(
         'ended',
-        () => this.interrupt('O microfone foi desconectado.'),
+        () => this.interrupt(t('O microfone foi desconectado.')),
         { once: true },
       );
       track.addEventListener(
         'mute',
-        () => this.interrupt('O sistema interrompeu o microfone.'),
+        () => this.interrupt(t('O sistema interrompeu o microfone.')),
         { once: true },
       );
     }
@@ -95,7 +96,7 @@ export class BrowserCapture implements VoiceCapture {
       throw new Error('O navegador não liberou a gravação. Tente novamente.');
     context.onstatechange = () => {
       if (context.state !== 'running')
-        this.interrupt('O navegador suspendeu o microfone.');
+        this.interrupt(t('O navegador suspendeu o microfone.'));
     };
   }
   private receive(value: unknown): void {
@@ -143,7 +144,7 @@ export class BrowserCapture implements VoiceCapture {
         .close()
         .catch(() =>
           this.events.interrupted(
-            'Não foi possível encerrar o contexto do microfone.',
+            t('Não foi possível encerrar o contexto do microfone.'),
           ),
         );
     }

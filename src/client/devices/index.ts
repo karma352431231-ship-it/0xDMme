@@ -1,3 +1,4 @@
+import { t, translatedError } from '../../shared/i18n/index.ts';
 import type {
   AccountSession,
   EncryptedProfile,
@@ -30,7 +31,7 @@ export function startDevices(options: {
   let mounted: HTMLElement | null = null,
     busy = false,
     failed = false;
-  let message = 'Entre com a wallet ou use um código de vinculação.';
+  let message = t('Entre com a wallet ou use um código de vinculação.');
   let invitation: EnrollmentCode | null = null,
     waiting = false,
     deadline = 0;
@@ -94,12 +95,14 @@ export function startDevices(options: {
         label = document.createElement('span');
       label.textContent =
         device.name +
-        (device.id === controller.session?.deviceId ? ' · este aparelho' : '');
+        (device.id === controller.session?.deviceId
+          ? t(' · este aparelho')
+          : '');
       item.append(label);
       if (device.id !== controller.session?.deviceId) {
         const button = document.createElement('button');
         button.type = 'button';
-        button.textContent = 'Revogar';
+        button.textContent = t('Revogar');
         button.disabled = busy;
         button.addEventListener('click', () => {
           if (controller.session?.walletConfirmed !== true) {
@@ -108,13 +111,13 @@ export function startDevices(options: {
           }
           if (
             !window.confirm(
-              'Revogar este aparelho? Ele perderá acesso aos novos dados.',
+              t('Revogar este aparelho? Ele perderá acesso aos novos dados.'),
             )
           )
             return;
           void run(async () => {
             await controller.revoke(device.id);
-            message = 'Aparelho revogado.';
+            message = t('Aparelho revogado.');
             await changed();
           });
         });
@@ -141,8 +144,8 @@ export function startDevices(options: {
       waiting = false;
       message =
         error instanceof Error
-          ? error.message
-          : 'Não foi possível concluir a operação.';
+          ? translatedError(error.message)
+          : t('Não foi possível concluir a operação.');
     } finally {
       busy = false;
       render();
@@ -161,8 +164,9 @@ export function startDevices(options: {
     if (!controller.expireWalletRecovery()) return;
     clearTimeout(timer);
     failed = true;
-    message =
-      'O pedido na wallet expirou. Toque em Abrir conta para tentar novamente.';
+    message = t(
+      'O pedido na wallet expirou. Toque em Abrir conta para tentar novamente.',
+    );
     render();
   }
   async function poll(): Promise<void> {
@@ -173,7 +177,7 @@ export function startDevices(options: {
     await run(async () => {
       if (controller.walletPending) {
         if (await controller.finishWalletRecovery()) {
-          message = 'Conta pronta.';
+          message = t('Conta pronta.');
           await changed();
         }
         return;
@@ -183,7 +187,7 @@ export function startDevices(options: {
       if (invitation) {
         if (await controller.approveEnrollment(invitation)) {
           invitation = null;
-          message = 'Novo aparelho vinculado.';
+          message = t('Novo aparelho vinculado.');
           await changed();
         }
         return;
@@ -192,7 +196,7 @@ export function startDevices(options: {
         await controller.refresh();
         if (controller.authorized) {
           waiting = false;
-          message = 'Aparelho vinculado. Sua conta está pronta.';
+          message = t('Aparelho vinculado. Sua conta está pronta.');
           await changed();
         }
       }
@@ -210,12 +214,12 @@ export function startDevices(options: {
     const wallet =
       localStorage.getItem('0xdmme:login-wallet') ||
       (session.ecosystem === 'solana' ? 'Phantom' : 'MetaMask');
-    message = 'Confirme a abertura da conta na sua wallet.';
+    message = t('Confirme a abertura da conta na sua wallet.');
     render();
     return controller.beginWalletRecovery({
       mode: controller.current ? 'recover' : 'initialize',
       wallet,
-      name: 'Meu aparelho',
+      name: t('Meu aparelho'),
       revoked: [],
       revision: controller.current?.revision ?? 0,
     });
@@ -253,13 +257,14 @@ export function startDevices(options: {
     }
     if (walletOpening === 'login' && needsWalletOpening(session)) {
       attempted = session.csrf;
-      message = 'Confirme a abertura da conta na sua wallet.';
+      message = t('Confirme a abertura da conta na sua wallet.');
       render();
       const completed = await authorizeWallet(session);
       if (!completed) {
         controller.openWalletRecovery();
-        message =
-          'Assine na wallet e volte a este navegador. A conclusão será automática.';
+        message = t(
+          'Assine na wallet e volte a este navegador. A conclusão será automática.',
+        );
         schedule();
         render();
         return null;
@@ -272,10 +277,11 @@ export function startDevices(options: {
   }
   function renderOpeningStatus(): void {
     if (controller.authorized)
-      message = 'Sua conta está pronta neste aparelho.';
+      message = t('Sua conta está pronta neste aparelho.');
     else if (!controller.walletPending)
-      message =
-        'A sessão está conectada. Abra sua conta para autorizar as chaves neste navegador.';
+      message = t(
+        'A sessão está conectada. Abra sua conta para autorizar as chaves neste navegador.',
+      );
     schedule();
     render();
   }
@@ -283,8 +289,9 @@ export function startDevices(options: {
     const session = await controller.joinEnrollment(code);
     waiting = true;
     deadline = Date.now() + 300_000;
-    message =
-      'Aguardando autorização automática. Mantenha aberto o aparelho que gerou o código.';
+    message = t(
+      'Aguardando autorização automática. Mantenha aberto o aparelho que gerou o código.',
+    );
     await options.linked?.(session);
   }
   channel?.addEventListener('message', () => {
@@ -366,9 +373,13 @@ export function startDevices(options: {
     updateBlockReason(): string | null {
       expireWalletRequest();
       if (controller.walletPending)
-        return 'Há uma abertura de conta pendente na wallet. Em Perfil → Aparelhos, conclua ou cancele o pedido antes de atualizar.';
+        return t(
+          'Há uma abertura de conta pendente na wallet. Em Perfil → Aparelhos, conclua ou cancele o pedido antes de atualizar.',
+        );
       if (invitation || waiting || camera?.active)
-        return 'Conclua a vinculação ou feche a câmera em Perfil → Aparelhos antes de atualizar.';
+        return t(
+          'Conclua a vinculação ou feche a câmera em Perfil → Aparelhos antes de atualizar.',
+        );
       return null;
     },
     canActivate(): boolean {
@@ -384,7 +395,7 @@ export function startDevices(options: {
     mount(container: HTMLElement): void {
       camera?.stop();
       mounted = container;
-      container.innerHTML = `<article class="card"><h2>Aparelhos</h2><p data-device-status role="status"></p><button data-device-wallet type="button" hidden>Confirmar wallet para ações sensíveis</button><button data-device-retry type="button" hidden>Tentar novamente</button><div data-wallet-pending hidden><button data-wallet-open type="button">Abrir wallet</button><button data-wallet-cancel type="button">Cancelar</button></div><div data-devices-connected hidden><ul data-device-list></ul><button data-device-create type="button">Vincular outro aparelho</button><div data-enrollment-code hidden><div data-link-qr class="device-qr"></div><textarea data-device-code readonly aria-label="Código de vinculação"></textarea><button data-device-copy type="button">Copiar código</button><p>Mantenha este app aberto durante a vinculação. Código válido por cinco minutos.</p></div></div><form data-device-join><label>Código de vinculação<textarea data-device-received required spellcheck="false"></textarea></label><button type="submit">Vincular este aparelho</button><button data-device-scan type="button">Ler QR Code</button></form><div data-camera hidden><video muted playsinline aria-label="Ler código de vinculação"></video><button data-stop-camera type="button">Fechar câmera</button></div></article>`;
+      container.innerHTML = t('html.63049f816b60');
       const video = node<HTMLVideoElement>('[data-camera] video');
       if (video)
         camera = new QrCamera({
@@ -410,7 +421,7 @@ export function startDevices(options: {
         void run(async () => {
           invitation = await controller.createEnrollment();
           deadline = Date.parse(invitation.expiresAt);
-          message = 'Use este QR ou código somente no seu outro aparelho.';
+          message = t('Use este QR ou código somente no seu outro aparelho.');
         });
       });
       listen('[data-device-copy]', 'click', () => {
@@ -448,7 +459,7 @@ export function startDevices(options: {
         });
       });
       const retry = node('[data-device-retry]');
-      if (retry) retry.textContent = 'Abrir conta';
+      if (retry) retry.textContent = t('Abrir conta');
       render();
     },
   };

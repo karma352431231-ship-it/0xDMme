@@ -1,3 +1,4 @@
+import { t } from '../../shared/i18n/index.ts';
 import { encode, object } from '../../shared/account/index.ts';
 import { SocialDms } from '../social-dm/index.ts';
 import type { VaultAccess } from '../vault-authority/index.ts';
@@ -93,7 +94,7 @@ export class SocialBackups {
         input.guard();
       } catch {
         input.guard();
-        input.omitted.push(`dm-media:${file.ref.id} indisponível`);
+        input.omitted.push(t('dm-media:{0} indisponível', [file.ref.id]));
         continue;
       }
       try {

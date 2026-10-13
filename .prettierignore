@@ -4,3 +4,6 @@ build/
 coverage/
 .local/
 INVENTARIO_BLOCO_00.md
+# Preserve original, hash-pinned CLDR inputs.
+vendor/emoji/annotations-*.json
+vendor/emoji/annotationsDerived-*.json

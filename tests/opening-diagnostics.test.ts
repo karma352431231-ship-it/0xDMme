@@ -11,7 +11,7 @@ await test('diagnóstico de abertura não reproduz valores privados nem admite t
   );
   assert.match(
     result ?? '',
-    /plataforma=other.*destino=entrada.*modo=padrao.*pedido=invalido.*rede=outra/u,
+    /platform=other.*destination=entrada.*mode=padrao.*request=invalido.*network=outra/u,
   );
   assert.doesNotMatch(result ?? '', /PRIVATE|ticket=|https:/u);
   assert.equal(openingDiagnostics('invalid PRIVATE', 'ios'), null);
@@ -21,6 +21,6 @@ await test('diagnóstico de abertura não reproduz valores privados nem admite t
   );
   assert.match(
     openingDiagnostics('https://backpack.app/ul/v1/browse/%', 'ios') ?? '',
-    /destino=invalido/u,
+    /destination=invalid/u,
   );
 });

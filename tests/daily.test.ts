@@ -126,8 +126,7 @@ await test('checks só mostram verde com leitura compartilhada, cinza com ACK de
     {
       text: '✓',
       color: 'gray',
-      label:
-        'Aceita pelo servidor; recebimento do destinatário ainda não confirmado',
+      label: 'Accepted by the server; recipient receipt is not yet confirmed',
     },
   );
   assert.equal(
@@ -182,7 +181,7 @@ await test('som inicia ligado; só escolha explícita persiste desligamento; blo
   sound.prepare();
   const blocked = new Promise<void>((resolve) =>
     sound.observe(() => {
-      if (sound.notice.includes('bloqueada')) resolve();
+      if (sound.notice.includes('blocked')) resolve();
     }),
   );
   sound.unlock();
@@ -205,9 +204,9 @@ await test('falha de armazenamento informa que o desligamento de som só vale ne
       throw new Error('Storage bloqueado');
     },
   });
-  await assert.rejects(sound.setEnabled(false), /só nesta abertura/);
+  await assert.rejects(sound.setEnabled(false), /for this visit only/);
   assert.equal(sound.enabled, false);
-  assert.match(sound.notice, /não permitiu salvá-la/);
+  assert.match(sound.notice, /did not allow saving/);
 });
 await test('ações cifradas preservam texto legado, resposta e encaminhamento; edição e reação respeitam autoria e versão', () => {
   assert.deepEqual(decodeDailyText('Legado'), {

@@ -103,13 +103,13 @@ await test('preferências ativas não mudam durante o rascunho e podem ser desca
   assert.equal(profile.preferences.online, true);
 });
 await test('avisos distinguem posts de replies e nunca mostram texto oculto', () => {
-  assert.equal(publicationTitle('teste', 'post'), '@teste publicou');
-  assert.equal(publicationTitle('teste', 'reply'), '@teste respondeu');
+  assert.equal(publicationTitle('teste', 'post'), '@teste posted');
+  assert.equal(publicationTitle('teste', 'reply'), '@teste replied');
   assert.equal(
     publicationQuote(
       { text: 'Conteúdo oculto', media: false, status: 'removed' },
       'post',
     ),
-    'Publicação ocultada pela moderação.',
+    'Publication hidden by moderation.',
   );
 });

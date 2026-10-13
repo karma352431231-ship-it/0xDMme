@@ -1,3 +1,4 @@
+import { t } from '../../shared/i18n/index.ts';
 import { explorePage } from '../../shared/community-discovery/index.ts';
 import type { Community } from '../../shared/communities/index.ts';
 import { showPublicAvatar } from '../public-media/index.ts';
@@ -23,11 +24,11 @@ export function emptyCommunity(
 ): void {
   const card = el('section', '', 'community-empty');
   card.append(
-    el('h3', 'Nenhuma postagem ainda'),
-    el('p', 'Comece a conversa nesta comunidade.'),
+    el('h3', t('Nenhuma postagem ainda')),
+    el('p', t('Comece a conversa nesta comunidade.')),
   );
   if (options.compose) {
-    const start = el('button', 'Escrever a primeira postagem', 'primary');
+    const start = el('button', t('Escrever a primeira postagem'), 'primary');
     start.type = 'button';
     start.addEventListener('click', options.compose);
     card.append(start);
@@ -55,7 +56,7 @@ async function suggestions(
   if (!items.length || options.signal.aborted || !card.isConnected) return;
   const list = el('div', '', 'community-empty-suggestions');
   for (const item of items) list.append(row(item, options.signal));
-  card.append(el('h4', 'Outras comunidades em alta'), list);
+  card.append(el('h4', t('Outras comunidades em alta')), list);
 }
 
 function row(item: Community, signal: AbortSignal): HTMLElement {
@@ -67,7 +68,10 @@ function row(item: Community, signal: AbortSignal): HTMLElement {
     el('strong', item.name),
     el(
       'small',
-      `${item.followers} ${item.followers === 1 ? 'seguidor' : 'seguidores'}`,
+      t('{0} {1}', [
+        item.followers,
+        item.followers === 1 ? t('seguidor') : t('seguidores'),
+      ]),
     ),
   );
   link.append(avatar, copy);

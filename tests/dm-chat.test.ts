@@ -46,17 +46,17 @@ await test('chat público só mostra o compositor numa conversa aceita e enviáv
 
 await test('subtítulo do chat público segue a relação, como a presença do privado', () => {
   for (const [value, local, label] of [
-    [relation({}), false, 'Mensagem pública pelo @'],
-    [relation({}), true, 'Cópia neste aparelho'],
-    [null, false, 'Sem conversa ainda'],
-    [relation({ blocked: true }), false, 'Bloqueada'],
-    [relation({ state: 'pending' }), false, 'Aguardando aceite'],
+    [relation({}), false, 'Message via @'],
+    [relation({}), true, 'Copy on this device'],
+    [null, false, 'No conversations yet'],
+    [relation({ blocked: true }), false, 'Blocked'],
+    [relation({ state: 'pending' }), false, 'Awaiting acceptance'],
     [
       relation({ state: 'pending', requester: 'ana' }),
       false,
-      'Pedido de conversa',
+      'Conversation request',
     ],
-    [relation({ state: 'rejected' }), false, 'Pedido recusado'],
+    [relation({ state: 'rejected' }), false, 'Declined request'],
   ] as const)
     assert.equal(dmStateLabel(value, 'eu', local), label);
 });

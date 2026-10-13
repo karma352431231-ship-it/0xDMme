@@ -127,7 +127,7 @@ await test('ramos mostram os mais votados nas primeiras respostas, demais págin
   for (let i = 0; i < 8; i++) {
     const more = host
       .querySelectorAll('button')
-      .find((node) => node.textContent.includes('outras respostas'))!;
+      .find((node) => node.textContent.includes('more replies'))!;
     await more.click();
   }
   assert.deepEqual(
@@ -147,7 +147,7 @@ await test('ramos mostram os mais votados nas primeiras respostas, demais págin
   assert.equal(branch.querySelectorAll('.post-thread-item').length, 0);
   assert.equal(
     branch.querySelectorAll('.community-thread-empty')[0]!.textContent,
-    'Não há outras respostas disponíveis para exibir.',
+    'No more replies available to display.',
   );
   replies.set(parent.id, children);
   await host.querySelectorAll('.post-thread-toggle')[0]!.click();

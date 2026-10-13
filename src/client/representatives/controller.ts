@@ -1,3 +1,4 @@
+import { t, translatedError } from '../../shared/i18n/index.ts';
 import { AccountError, object } from '../../shared/account/index.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
 import { canonical } from '../../shared/devices/index.ts';
@@ -262,7 +263,7 @@ export class Representatives {
     this.guard(generation);
     if (c.issuedAt > Date.now() + 60_000) throw new Error('Emissão no futuro.');
     if (c.expiresAt <= Date.now())
-      return { status: 'Expirada', domain: null, domainCurrent: false };
+      return { status: t('Expirada'), domain: null, domainCurrent: false };
     const raw = object(
       await this.api('representative-status', {
         id: c.id,
@@ -274,7 +275,7 @@ export class Representatives {
     this.checkReceipt(card, raw);
     if (raw['revocation'] !== null) {
       this.checkRevocation(card, hash, raw['revocation']);
-      return { status: 'Revogada', domain: null, domainCurrent: false };
+      return { status: t('Revogada'), domain: null, domainCurrent: false };
     }
     return this.checkedDomain(card, raw['domain']);
   }
@@ -323,8 +324,8 @@ export class Representatives {
   ): CheckedRepresentative {
     const result = {
       status: card.acceptance
-        ? 'Vigente — aceite verificado'
-        : 'Vigente — aguardando aceite',
+        ? t('Vigente — aceite verificado')
+        : t('Vigente — aguardando aceite'),
       domain: null as string | null,
       domainCurrent: false,
     };
@@ -358,7 +359,7 @@ export class Representatives {
       throw new Error('Esta autorização pertence a outra conta.');
     const checked = await this.check(card);
     this.guard(generation);
-    if (checked.status === 'Revogada' || checked.status === 'Expirada')
+    if (checked.status === t('Revogada') || checked.status === t('Expirada'))
       throw new Error(checked.status);
     const body = {
       credentialHash: await representativeHash(card.credential),
@@ -425,6 +426,6 @@ export class Representatives {
 }
 export function representativeFailure(error: unknown): string {
   if (error instanceof AccountError || error instanceof Error)
-    return error.message;
-  return 'Não foi possível concluir a autorização.';
+    return translatedError(error.message);
+  return t('Não foi possível concluir a autorização.');
 }

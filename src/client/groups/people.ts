@@ -1,3 +1,4 @@
+import { t } from '../../shared/i18n/index.ts';
 import { paintAvatar, displayName } from '../appearance/index.ts';
 import type { ProfileCard } from '../message-profile/index.ts';
 
@@ -49,7 +50,7 @@ export class GroupPeople {
         avatar.replaceChildren(image);
       } catch {
         if (this.usable(identity, epoch))
-          avatar.title = 'Foto privada indisponível neste aparelho.';
+          avatar.title = t('Foto privada indisponível neste aparelho.');
       }
     });
     queueMicrotask(() => this.pump());

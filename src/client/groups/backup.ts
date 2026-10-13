@@ -1,3 +1,4 @@
+import { t } from '../../shared/i18n/index.ts';
 import { groupQuota } from '../../shared/group-quota/index.ts';
 import { object, uuid, encode } from '../../shared/account/index.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
@@ -198,7 +199,7 @@ async function cachedSummary(
     state: group.state,
     title:
       raw === null
-        ? `Grupo ${group.state.groupId.slice(0, 8)}`
+        ? t('Grupo {0}', [group.state.groupId.slice(0, 8)])
         : groupTitle(raw),
     profileSequence:
       raw === null
@@ -232,7 +233,7 @@ function recordUnavailable(
   for (const row of rows) {
     const id = uuid(object(row)['id']);
     if (!views.some((v) => v.id === id))
-      omitted.push(`group-message:${id} indisponível`);
+      omitted.push(t('group-message:{0} indisponível', [id]));
   }
 }
 async function writeView(
@@ -299,7 +300,7 @@ async function writeMedia(
       c.guard();
     } catch {
       c.guard();
-      c.omitted.push(`group-media:${file.ref.id} indisponível`);
+      c.omitted.push(t('group-media:{0} indisponível', [file.ref.id]));
       continue;
     }
     try {

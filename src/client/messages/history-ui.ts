@@ -1,3 +1,5 @@
+import { t } from '../../shared/i18n/index.ts';
+import { messageStates, messageStateText } from '../message-state/index.ts';
 import { historyPosition, updateMessageStates } from '../chat-ui/index.ts';
 import { displayName, paintAvatar } from '../appearance/index.ts';
 import type { HistoryUpdate } from '../message-visibility/index.ts';
@@ -74,8 +76,9 @@ export class MessageHistoryUi {
     const gate = this.options.node('[data-message-gate]');
     if (gate) {
       gate.hidden = rows !== null;
-      gate.textContent =
-        'Sincronizando mensagens… O histórico abre após conferir as atualizações e exclusões.';
+      gate.textContent = t(
+        'Sincronizando mensagens… O histórico abre após conferir as atualizações e exclusões.',
+      );
     }
     const older = this.options.node('[data-message-older]');
     if (older) older.hidden = dailyViews(rows ?? []).length === 0;
@@ -117,7 +120,7 @@ export class MessageHistoryUi {
   private peerLabel(): string {
     const { selected } = this.options.context();
     return (
-      selected?.name || selected?.address || 'Selecione um contato aprovado'
+      selected?.name || selected?.address || t('Selecione um contato aprovado')
     );
   }
   private renderPeer(): void {
@@ -150,12 +153,16 @@ export class MessageHistoryUi {
     const checks = messageChecks({ ...view, read: this.readIds.has(view.id) });
     if (checks)
       detail.append(
-        checksIcon({ ...checks, label: `${checks.label}. ${view.state}` }),
+        checksIcon({
+          ...checks,
+          label: t('{0}. {1}', [checks.label, messageStateText(view.state)]),
+        }),
       );
-    else if (view.state === receivedState) detail.title = view.state;
-    else detail.textContent = view.state;
+    else if (view.state === receivedState)
+      detail.title = messageStateText(view.state);
+    else detail.textContent = messageStateText(view.state);
     if (view.edited)
-      detail.prepend(detail.childNodes.length ? 'Editada · ' : 'Editada');
+      detail.prepend(detail.childNodes.length ? t('Editada · ') : t('Editada'));
     return detail;
   }
   private renderAnnotations(
@@ -168,13 +175,13 @@ export class MessageHistoryUi {
         (row) => row.id === view.content.reply,
       );
       reply.textContent = original
-        ? `Em resposta: ${original.content.text.slice(0, 120)}`
-        : 'Resposta: mensagem original fora desta página ou indisponível.';
+        ? t('Em resposta: {0}', [original.content.text.slice(0, 120)])
+        : t('Resposta: mensagem original fora desta página ou indisponível.');
       article.append(reply);
     }
     if (view.content.forwarded) {
       const forwarded = document.createElement('small');
-      forwarded.textContent = 'Encaminhada';
+      forwarded.textContent = t('Encaminhada');
       article.append(forwarded);
     }
     if (view.reactions.length) {
@@ -194,8 +201,8 @@ export class MessageHistoryUi {
     article.setAttribute(
       'aria-label',
       view.own
-        ? 'Mensagem enviada por você'
-        : `Mensagem recebida de ${this.peerLabel()}`,
+        ? t('Mensagem enviada por você')
+        : t('Mensagem recebida de {0}', [this.peerLabel()]),
     );
     const text = document.createElement('p');
     this.renderMessageContent({ article, text, view, signal });
@@ -294,7 +301,7 @@ export class MessageHistoryUi {
           !row.archived &&
           !row.relation &&
           row.kind !== 'profile' &&
-          row.state !== 'Suspensa',
+          row.state !== messageStates.suspended,
       )
       .map((row) => row.id);
     if (incoming.length) await daily.read(peer, incoming);

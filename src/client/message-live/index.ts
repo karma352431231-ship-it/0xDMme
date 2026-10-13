@@ -1,3 +1,4 @@
+import { t, translatedError } from '../../shared/i18n/index.ts';
 import { AccountError } from '../../shared/account/index.ts';
 import {
   ApiResponseError,
@@ -117,7 +118,7 @@ export class LiveMessages {
   get connecting(): boolean {
     return this.wanted && this.connection !== null && !this.connected;
   }
-  notice = 'Atualização imediata disponível após autorizar o aparelho.';
+  notice = t('Atualização imediata disponível após autorizar o aparelho.');
   constructor(options: {
     access: VaultAccess;
     event: (event: LiveEvent) => void;
@@ -145,8 +146,9 @@ export class LiveMessages {
     this.connection = null;
     if (this.retryTimer) clearTimeout(this.retryTimer);
     this.retryTimer = null;
-    this.notice =
-      'Recebimento em tempo real pausado. Ao retornar, o app confere o estado atual.';
+    this.notice = t(
+      'Recebimento em tempo real pausado. Ao retornar, o app confere o estado atual.',
+    );
     this.changed();
   }
   private connect(): void {
@@ -156,7 +158,7 @@ export class LiveMessages {
     this.readyAt = 0;
     this.connection = controller;
     this.attempts++;
-    this.notice = 'Conectando recebimento em tempo real…';
+    this.notice = t('Conectando recebimento em tempo real…');
     this.changed();
     void this.consume(controller, generation)
       .catch((error: unknown) => {
@@ -171,8 +173,12 @@ export class LiveMessages {
           return;
         }
         this.notice =
-          (error instanceof ApiResponseError ? error.message + ' ' : '') +
-          'Recebimento em tempo real indisponível. O app continua conferindo a cada 30 segundos; você também pode sincronizar.';
+          (error instanceof ApiResponseError
+            ? translatedError(error.message) + ' '
+            : '') +
+          t(
+            'Recebimento em tempo real indisponível. O app continua conferindo a cada 30 segundos; você também pode sincronizar.',
+          );
       })
       .finally(() => {
         if (generation !== this.generation) return;
@@ -230,14 +236,15 @@ export class LiveMessages {
     if (event === 'ready') {
       this.connected = true;
       this.readyAt = Date.now();
-      this.notice = 'Recebimento em tempo real conectado.';
+      this.notice = t('Recebimento em tempo real conectado.');
       this.changed();
     }
     if (['invalidated', 'revoked', 'ended'].includes(event)) {
       this.wanted = false;
       this.connected = false;
-      this.notice =
-        'A autorização mudou. O app confere o estado atual do aparelho.';
+      this.notice = t(
+        'A autorização mudou. O app confere o estado atual do aparelho.',
+      );
       this.changed();
     }
     this.event(event);

@@ -1,3 +1,4 @@
+import { t } from '../../shared/i18n/index.ts';
 import { MentionDraft } from './draft.ts';
 import { searchMentions } from './search.ts';
 import type { MentionChoice } from './search.ts';
@@ -26,7 +27,7 @@ class MentionInput {
     this.panel.id = 'mentions-' + crypto.randomUUID();
     this.panel.hidden = true;
     this.panel.setAttribute('role', 'listbox');
-    this.panel.setAttribute('aria-label', 'Usuários e comunidades');
+    this.panel.setAttribute('aria-label', t('Usuários e comunidades'));
     field.setAttribute('aria-controls', this.panel.id);
     field.setAttribute('aria-autocomplete', 'list');
     field.setAttribute('aria-expanded', 'false');
@@ -101,12 +102,14 @@ class MentionInput {
       this.choices = choices;
       this.selected = 0;
       this.paint(
-        choices.length ? '' : 'Nenhum perfil ou comunidade encontrado.',
+        choices.length ? '' : t('Nenhum perfil ou comunidade encontrado.'),
       );
     } catch {
       if (old === this.generation)
         this.paint(
-          'Não foi possível buscar. Continue escrevendo para tentar de novo.',
+          t(
+            'Não foi possível buscar. Continue escrevendo para tentar de novo.',
+          ),
         );
     }
   }
@@ -137,12 +140,15 @@ class MentionInput {
     button.setAttribute('role', 'option');
     button.setAttribute(
       'aria-label',
-      `@${choice.label} ${choice.kind === 'user' ? 'Usuário' : 'Comunidade'}`,
+      t('@{0} {1}', [
+        choice.label,
+        choice.kind === 'user' ? t('Usuário') : t('Comunidade'),
+      ]),
     );
     avatar.className = 'mention-avatar';
     avatar.textContent = avatarInitials(choice.label);
     title.textContent = '@' + choice.label;
-    type.textContent = choice.kind === 'user' ? 'Usuário' : 'Comunidade';
+    type.textContent = choice.kind === 'user' ? t('Usuário') : t('Comunidade');
     copy.append(title, type);
     button.append(avatar, copy);
     if (choice.avatar)
@@ -203,7 +209,7 @@ class MentionInput {
         this.field.maxLength > 0 ? this.field.maxLength : 560,
       );
     } catch {
-      this.paint('Sem espaço para esta menção. Remova um pouco do texto.');
+      this.paint(t('Sem espaço para esta menção. Remova um pouco do texto.'));
       return;
     }
     this.draft.reset(candidate.value());

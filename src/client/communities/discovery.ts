@@ -1,3 +1,8 @@
+import {
+  t,
+  translatedError,
+  currentLanguage,
+} from '../../shared/i18n/index.ts';
 import { mountPublicSearchToolbar } from '../public-search/index.ts';
 import { gifUrls } from '../gif-search/index.ts';
 import { appendOwnProfileShortcut } from '../profile-shortcut/index.ts';
@@ -103,7 +108,9 @@ export function startCommunityDiscovery(
       snapshot.clear();
       if (old === generation && feedback)
         feedback.textContent =
-          error instanceof Error ? error.message : 'Feed indisponível.';
+          error instanceof Error
+            ? translatedError(error.message)
+            : t('Feed indisponível.');
     } finally {
       busy = false;
       disabled();
@@ -117,10 +124,10 @@ export function startCommunityDiscovery(
     mounted.append(toolbar);
     if (view === 'feed' || view === 'following') {
       const scopes = el('nav', '', 'community-feed-scopes');
-      scopes.setAttribute('aria-label', 'Escolher feed');
+      scopes.setAttribute('aria-label', t('Escolher feed'));
       for (const [key, label] of [
-        ['feed', 'Descobrir'],
-        ['following', 'Seguindo'],
+        ['feed', t('Descobrir')],
+        ['following', t('Seguindo')],
       ] as const) {
         link(scopes, label, `#comunidades?view=${key}`);
         if (view === key)
@@ -132,13 +139,13 @@ export function startCommunityDiscovery(
     if (view === 'explore')
       discoveryMenu(
         toolbar,
-        'Classificar comunidades',
+        t('Classificar comunidades'),
         {
           value: exploreOrder,
           options: [
-            ['trending', 'Trending'],
-            ['size', 'Maiores'],
-            ['new', 'Comunidades recém-criadas'],
+            ['trending', t('Trending')],
+            ['size', t('Maiores')],
+            ['new', t('Comunidades recém-criadas')],
           ],
         },
         (value) => {
@@ -150,7 +157,7 @@ export function startCommunityDiscovery(
     else
       discoveryMenu(
         toolbar,
-        'Ordenar',
+        t('Ordenar'),
         { value: order, options: feedOrders },
         (value) => {
           order = feedFilter({
@@ -167,14 +174,14 @@ export function startCommunityDiscovery(
     periodPanel.hidden = view === 'explore' && exploreOrder === 'size';
     discoveryMenu(
       periodPanel,
-      'Período',
+      t('Período'),
       {
         value: period,
         options:
           view === 'explore'
             ? [
-                ['day', '24 horas'],
-                ['week', '7 dias'],
+                ['day', t('24 horas')],
+                ['week', t('7 dias')],
               ]
             : discoveryPeriods,
       },
@@ -192,7 +199,7 @@ export function startCommunityDiscovery(
   /** Posting starts from the community the person chooses. */
   function postShortcut(toolbar: HTMLElement): void {
     if (!signedIn || (view !== 'feed' && view !== 'following')) return;
-    button(toolbar, 'Postar', () => {
+    button(toolbar, t('Postar'), () => {
       openComposer();
       return Promise.resolve();
     });
@@ -261,12 +268,12 @@ export function startCommunityDiscovery(
       list.append(
         el(
           'p',
-          'Nenhum conteúdo nesta página com estes filtros.',
+          t('Nenhum conteúdo nesta página com estes filtros.'),
           'community-empty',
         ),
       );
-    if (after) button(paging, 'Próxima página', () => run(load));
-    button(paging, 'Recarregar do início', () => run(reload));
+    if (after) button(paging, t('Próxima página'), () => run(load));
+    button(paging, t('Recarregar do início'), () => run(reload));
   }
   function renderExplore(page: ReturnType<typeof explorePage>): void {
     if (!list) return;
@@ -303,7 +310,7 @@ export function startCommunityDiscovery(
   function rankingStats(
     item: ReturnType<typeof explorePage>['items'][number],
   ): HTMLElement[] {
-    const number = (value: number) => value.toLocaleString('pt-BR');
+    const number = (value: number) => value.toLocaleString(currentLanguage());
     const stat = (value: string, label: string, className = '') => {
       const node = el('span', '', `ranking-stat ${className}`.trim());
       node.append(el('strong', value), el('small', label));
@@ -311,16 +318,18 @@ export function startCommunityDiscovery(
     };
     const followers = stat(
       number(item.community.followers),
-      item.community.archived ? 'seguidores · arquivada' : 'seguidores',
+      item.community.archived ? t('seguidores · arquivada') : t('seguidores'),
     );
     if (exploreOrder === 'size') return [followers];
     const growth = stat(
       `+${number(item.upvotes)}`,
-      item.historyComplete ? 'upvotes em alta' : 'em formação',
+      item.historyComplete ? t('upvotes em alta') : t('em formação'),
       'ranking-growth',
     );
     if (!item.historyComplete)
-      growth.title = 'Histórico em formação; crescimento ainda não comparável.';
+      growth.title = t(
+        'Histórico em formação; crescimento ainda não comparável.',
+      );
     return [followers, stat(number(item.participants), 'ativos'), growth];
   }
   function renderFeed(page: ReturnType<typeof feedPage>, old: number): void {
@@ -424,15 +433,16 @@ export function startCommunityDiscovery(
       );
       if (post.media?.length)
         mediaCleanup.add(showPublicPostMedia(row, post.media, abort.signal));
-      else if (!post.text) row.append(el('p', 'Mídia aguardando liberação.'));
+      else if (!post.text)
+        row.append(el('p', t('Mídia aguardando liberação.')));
       postTagLink(row, post);
     } else
       row.append(
         el(
           'p',
           post.status === 'deleted'
-            ? 'Conteúdo excluído pelo autor.'
-            : 'Conteúdo ocultado pela moderação.',
+            ? t('Conteúdo excluído pelo autor.')
+            : t('Conteúdo ocultado pela moderação.'),
         ),
       );
   }
@@ -521,24 +531,24 @@ export function startCommunityDiscovery(
       followChanged = options.followChanged ?? (() => Promise.resolve());
       initialFilters(options.bookmark);
       const titles: Record<string, string> = {
-        feed: 'Feed',
-        following: 'Seguindo',
-        explore: 'Ranking de comunidades',
-        saved: 'Suas postagens salvas',
-        hidden: 'Conteúdo oculto dos seus feeds',
+        feed: t('Feed'),
+        following: t('Seguindo'),
+        explore: t('Ranking de comunidades'),
+        saved: t('Suas postagens salvas'),
+        hidden: t('Conteúdo oculto dos seus feeds'),
       };
       const heading = el('header', '', 'community-heading'),
         text = el('div');
-      text.append(el('h1', titles[view] ?? 'Feed'));
+      text.append(el('h1', titles[view] ?? t('Feed')));
       heading.append(text);
       mounted.append(heading);
       if (!signedIn && view !== 'feed' && view !== 'explore') {
-        link(mounted, 'Entre pelo Perfil para acessar sua lista', '#perfil');
+        link(mounted, t('Entre pelo Perfil para acessar sua lista'), '#perfil');
         return;
       }
       const label = el(
         'p',
-        'Leitura pública · participação com conta',
+        t('Leitura pública · participação com conta'),
         'community-public-label',
       );
       label.prepend(communityIcon('globe'));
@@ -546,7 +556,7 @@ export function startCommunityDiscovery(
       if (view === 'following')
         link(
           mounted,
-          'Ver comunidades seguidas',
+          t('Ver comunidades seguidas'),
           '#comunidades?view=communities',
         );
       filters();

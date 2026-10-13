@@ -1,3 +1,4 @@
+import { t } from '../../shared/i18n/index.ts';
 import type { CommunityPost } from '../../shared/community-posts/index.ts';
 import {
   discussionOrder,
@@ -53,9 +54,9 @@ export class PostThread {
   }
   async mount(container: HTMLElement, parent: CommunityPost): Promise<void> {
     this.order = parent.parent ? 'votes' : 'discussed';
-    this.host.setAttribute('aria-label', 'Discussão da postagem');
+    this.host.setAttribute('aria-label', t('Discussão da postagem'));
     const toolbar = el('div', '', 'post-thread-toolbar');
-    const heading = el('h3', 'Respostas', 'community-thread-heading');
+    const heading = el('h3', t('Respostas'), 'community-thread-heading');
     if (parent.replies)
       heading.append(el('span', String(parent.replies), 'activity-count'));
     toolbar.append(heading);
@@ -69,8 +70,13 @@ export class PostThread {
     this.ordering.replaceChildren();
     discoveryMenu(
       this.ordering,
-      'Ordenar comentários',
-      { value: this.order, options: discussionOrders },
+      t('Ordenar comentários'),
+      {
+        value: this.order,
+        options: discussionOrders.map(
+          ([value, label]) => [value, t(label)] as const,
+        ),
+      },
       (value) => {
         const order = discussionOrder(value);
         void this.actions.run(async () => {
@@ -122,15 +128,15 @@ export class PostThread {
     for (const post of page.items) this.row(this.replies, post, 0);
     if (!page.items.length)
       this.replies.append(
-        el('p', 'Ainda não há respostas.', 'community-thread-empty'),
+        el('p', t('Ainda não há respostas.'), 'community-thread-empty'),
       );
     this.paging.replaceChildren();
     if (after)
-      button(this.paging, 'Voltar ao início', () =>
+      button(this.paging, t('Voltar ao início'), () =>
         this.actions.run(() => this.page(parent, null)),
       );
     if (page.next)
-      button(this.paging, 'Ver outros comentários', () =>
+      button(this.paging, t('Ver outros comentários'), () =>
         this.actions.run(() => this.page(parent, page.next)),
       );
   }
@@ -152,7 +158,7 @@ export class PostThread {
   private continue(container: HTMLElement, post: CommunityPost): void {
     link(
       container,
-      'Continuar este fio →',
+      t('Continuar este fio →'),
       `#comunidades?id=${this.actions.community}&post=${post.id}`,
     );
   }
@@ -164,10 +170,13 @@ export class PostThread {
     const wrap = el('section', '', 'post-thread-branch'),
       children = el('div', '', 'post-thread-children'),
       controls = el('div', '', 'post-thread-more');
-    wrap.setAttribute('aria-label', 'Respostas a este comentário');
+    wrap.setAttribute('aria-label', t('Respostas a este comentário'));
     const toggle = button(
       wrap,
-      `＋ Ver ${parent.replies} ${parent.replies === 1 ? 'resposta' : 'respostas'}`,
+      t('＋ Ver {0} {1}', [
+        parent.replies,
+        parent.replies === 1 ? t('resposta') : t('respostas'),
+      ]),
       () => this.actions.run(() => this.toggle(branch)),
     );
     toggle.className = 'post-thread-toggle';
@@ -195,14 +204,16 @@ export class PostThread {
       branch.queue = [];
       branch.next = null;
       branch.children.hidden = true;
-      branch.toggle.textContent = `＋ Ver ${branch.parent.replies} respostas`;
+      branch.toggle.textContent = t('＋ Ver {0} respostas', [
+        branch.parent.replies,
+      ]);
       branch.toggle.setAttribute('aria-expanded', 'false');
       return;
     }
     await this.more(branch);
     if (!this.valid()) return;
     branch.children.hidden = false;
-    branch.toggle.textContent = '− Recolher respostas';
+    branch.toggle.textContent = t('− Recolher respostas');
     branch.toggle.setAttribute('aria-expanded', 'true');
   }
   private async more(branch: Branch): Promise<void> {
@@ -226,7 +237,7 @@ export class PostThread {
       branch.children.append(
         el(
           'p',
-          'Não há outras respostas disponíveis para exibir.',
+          t('Não há outras respostas disponíveis para exibir.'),
           'community-thread-empty',
         ),
       );
@@ -239,7 +250,7 @@ export class PostThread {
       1,
       branch.parent.replies - branch.children.children.length,
     );
-    button(branch.controls, `＋ Ver ${remaining} outras respostas`, () =>
+    button(branch.controls, t('＋ Ver {0} outras respostas', [remaining]), () =>
       this.actions.run(() => this.more(branch)),
     );
   }

@@ -1,3 +1,4 @@
+import { t } from '../../shared/i18n/index.ts';
 import { AccountError } from '../../shared/account/index.ts';
 import { validateVoice, voiceDuration } from '../../shared/voice/index.ts';
 import type { VoiceMetadata } from '../../shared/voice/index.ts';
@@ -39,7 +40,7 @@ function paintPlayer(host: HTMLElement, state: PlayerState | null): void {
   toggle.innerHTML = icon(shown.playing ? 'pause' : 'play');
   toggle.setAttribute(
     'aria-label',
-    shown.playing ? 'Pausar mensagem de voz' : 'Ouvir mensagem de voz',
+    shown.playing ? t('Pausar mensagem de voz') : t('Ouvir mensagem de voz'),
   );
   paintProgress(progress, {
     total: shown.duration,
@@ -190,11 +191,11 @@ export class VoicePlayback {
     const dock = document.createElement('aside'),
       close = document.createElement('button');
     dock.className = 'voice-dock';
-    dock.setAttribute('aria-label', 'Mensagem de voz em reprodução');
+    dock.setAttribute('aria-label', t('Mensagem de voz em reprodução'));
     close.type = 'button';
     close.className = 'voice-dock-close';
     close.innerHTML = icon('close');
-    close.setAttribute('aria-label', 'Fechar áudio');
+    close.setAttribute('aria-label', t('Fechar áudio'));
     close.addEventListener('click', () => {
       this.close();
     });
@@ -225,7 +226,7 @@ export class VoicePlayback {
     host.dataset['duration'] = String(seconds(input.voice));
     host.setAttribute(
       'aria-label',
-      `Mensagem de voz · ${voiceDuration(input.voice)}`,
+      t('Mensagem de voz · {0}', [voiceDuration(input.voice)]),
     );
     toggle.type = 'button';
     toggle.className = 'voice-toggle';
@@ -233,7 +234,7 @@ export class VoicePlayback {
     progress.className = 'voice-progress';
     progress.min = '0';
     progress.step = '0.1';
-    progress.setAttribute('aria-label', 'Posição do áudio');
+    progress.setAttribute('aria-label', t('Posição do áudio'));
     time.className = 'voice-time';
     toggle.addEventListener('click', () => {
       if (this.toggle(input.id)) return;
@@ -242,8 +243,9 @@ export class VoicePlayback {
       input
         .load()
         .catch(() => {
-          host.title =
-            'Não foi possível carregar o áudio. Toque para tentar de novo.';
+          host.title = t(
+            'Não foi possível carregar o áudio. Toque para tentar de novo.',
+          );
         })
         .finally(() => {
           toggle.disabled = false;
@@ -296,7 +298,9 @@ export class VoicePlayback {
       else
         this.dock?.setAttribute(
           'aria-description',
-          'Não foi possível conferir a autorização agora. Uma nova atualização tentará novamente.',
+          t(
+            'Não foi possível conferir a autorização agora. Uma nova atualização tentará novamente.',
+          ),
         );
     }
   }

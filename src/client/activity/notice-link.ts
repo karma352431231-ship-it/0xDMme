@@ -1,3 +1,4 @@
+import { t, translatedError } from '../../shared/i18n/index.ts';
 /** A read receipt must succeed before the current notification opens its target. */
 export function noticeLink(input: {
   href: string;
@@ -25,11 +26,11 @@ export function noticeLink(input: {
       location.hash = input.href;
     } catch (error: unknown) {
       if (input.current()) {
-        link.textContent = 'Tentar abrir novamente';
+        link.textContent = t('Tentar abrir novamente');
         link.title =
           error instanceof Error
-            ? error.message
-            : 'Não foi possível marcar como lida.';
+            ? translatedError(error.message)
+            : t('Não foi possível marcar como lida.');
       }
     } finally {
       pending = false;

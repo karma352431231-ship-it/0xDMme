@@ -1,11 +1,12 @@
+import { t } from '../../shared/i18n/index.ts';
 import { communityElement as el } from './elements.ts';
 
 export type ManageGroup = 'general' | 'tags' | 'moderation' | 'ownership';
 const titles: Record<ManageGroup, string> = {
-  general: 'Geral',
-  tags: 'Tags',
-  moderation: 'Moderação',
-  ownership: 'Propriedade',
+  general: t('Geral'),
+  tags: t('Tags'),
+  moderation: t('Moderação'),
+  ownership: t('Propriedade'),
 };
 // Saving re-renders the whole screen; the open tab survives that redraw.
 let openGroup: ManageGroup = 'general';
@@ -20,7 +21,7 @@ export function manageGroups(
 ): Record<ManageGroup, HTMLElement> {
   const tabs = el('nav', '', 'community-manage-tabs'),
     panels = {} as Record<ManageGroup, HTMLElement>;
-  tabs.setAttribute('aria-label', 'Seções da configuração');
+  tabs.setAttribute('aria-label', t('Seções da configuração'));
   if (!groups.includes(openGroup)) openGroup = 'general';
   const buttons = groups.map((group) => {
     const button = el('button', titles[group]),

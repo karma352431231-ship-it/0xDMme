@@ -5,6 +5,7 @@ import { Database } from '../server/database/index.ts';
 import { PublicModerationOperator } from '../server/public-moderation/index.ts';
 import { AccountError, keys, object, uuid } from '../shared/account/index.ts';
 import { readOperatorConfiguration } from './moderation-operator-access.ts';
+import { moderationPreviewDocument } from './moderation-preview-document.ts';
 
 async function decision(): Promise<{
   id: string;
@@ -49,10 +50,6 @@ async function preview(
   const secret = randomBytes(32).toString('hex'),
     path = `/${secret}`;
   const type = (await operator.preview(id)).type;
-  const element =
-    type === 'video/mp4'
-      ? `<video controls src="${path}/file"></video>`
-      : `<img src="${path}/file" alt="Candidato de imagem">`;
   const pending = new Set<Promise<void>>();
   let busy = false;
   const server = createServer((request, response) => {
@@ -73,7 +70,11 @@ async function preview(
     if (request.url === path) {
       response.setHeader('Content-Type', 'text/html; charset=utf-8');
       response.end(
-        `<!doctype html><html lang="pt-BR"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>0xDMme — revisão restrita</title><h1>Revisão excepcional</h1><p>Verifique a mídia completa. Nudez artística em pinturas é permitida, inclusive em pinturas digitais/IA que sejam de fato pinturas. Atos sexuais explícitos continuam proibidos. Fotos e desenhos fora dessa exceção não permitem genitais/seios femininos expostos. Decida pelo comando restrito, após conferir a contestação.</p>${element}<p>A prévia encerra em até cinco minutos.</p></html>`,
+        moderationPreviewDocument({
+          type,
+          path,
+          acceptLanguage: request.headers['accept-language'],
+        }),
       );
       return;
     }

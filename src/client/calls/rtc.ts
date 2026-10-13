@@ -1,3 +1,4 @@
+import { t } from '../../shared/i18n/index.ts';
 import { leaseMs, relaySdp } from '../../shared/calls/index.ts';
 import type { MediaState } from '../../shared/calls/index.ts';
 import { object } from '../../shared/account/index.ts';
@@ -87,7 +88,7 @@ export class VoiceConnection {
     for (const track of stream.getTracks())
       track.addEventListener(
         'ended',
-        () => this.failed('O sistema interrompeu o microfone.'),
+        () => this.failed(t('O sistema interrompeu o microfone.')),
         { signal: this.abort.signal },
       );
   }
@@ -103,7 +104,7 @@ export class VoiceConnection {
       'track',
       (event) => {
         if (event.track.kind !== 'audio') {
-          this.failed('Mídia não permitida.');
+          this.failed(t('Mídia não permitida.'));
           return;
         }
         this.audio.srcObject = new MediaStream([event.track]);
@@ -139,7 +140,7 @@ export class VoiceConnection {
         .catch(() => {
           if (g === this.generation)
             this.failed(
-              'O caminho de mídia não confirmou TURN nos dois extremos.',
+              t('O caminho de mídia não confirmou TURN nos dois extremos.'),
             );
         });
     } else if (state === 'failed' || state === 'disconnected')

@@ -1,5 +1,14 @@
 # 0xDMme — Licenças e distribuição
 
+Idiomas oficiais em 13/10/2026: as anotações originais en/zh do CLDR 48.2.3
+complementam o pacote de emojis já aprovado, sob **Unicode-3.0**; o aviso
+upstream da versão exata permanece idêntico ao arquivo `LICENSE-CLDR.txt`.
+Os quatro originais e seus hashes/proveniência são entregues nas fontes
+correspondentes, conforme [registro dos emojis](vendor/emoji/README.md).
+Os módulos de idioma e scripts autorais de derivação continuam GPL-3.0-only.
+Não há nova dependência npm, alteração da licença dos gráficos nem serviço
+externo de tradução.
+
 Avaliação experimental restrita em 06/10/2026: interface/contrato em `src/client/moderation-evaluation/`, `src/shared/moderation-evaluation/` e HTML/CSS de `infra/moderation-evaluation/` são autorais GPL-3.0-only. O servidor e o candidato permanecem separados do aplicativo; nenhum peso/runtime de avaliação entra no pacote npm ou na release pública. ONNX Runtime/Pillow/NumPy e seus avisos transitivos, pesos Apache-2.0 e sua conversão fixada permanecem no pacote privado conferido para o teste. Isso não aceita o detector como política de publicação nem altera a licença do backend.
 
 Base do corte 10 em 06/10/2026: `src/shared/public-moderation/`, `src/shared/public-media/`, `src/client/public-media/` e `src/client/public-profile/moderation.ts` são módulos autorais GPL-3.0-only e integram as fontes correspondentes do frontend. A fila, o executor de frames e os caminhos de publicação não incorporam um modelo ao aplicativo. Artefatos/dependências de avaliação continuam isolados em `.local/`; a seleção e revisão da distribuição do runtime permanecem no [registro da moderação](docs/MODERACAO_AUTOMATICA_COMUNIDADES.md).

@@ -1,3 +1,4 @@
+import { t } from '../../shared/i18n/index.ts';
 import { keys, object } from '../../shared/account/index.ts';
 import type { DiscoveryMode } from '../../shared/contacts/index.ts';
 import { pushPreferences } from '../../shared/daily/index.ts';
@@ -92,8 +93,10 @@ interface Preset {
 export const presets: readonly Preset[] = [
   {
     id: 'reserved',
-    label: 'Reservado',
-    hint: 'O mínimo de exposição: só convite, sem presença, GIFs como link e sem push.',
+    label: t('Reservado'),
+    hint: t(
+      'O mínimo de exposição: só convite, sem presença, GIFs como link e sem push.',
+    ),
     externalMedia: false,
     push: { enabled: false, messages: true, calls: true, showCalls: false },
     privacy: { online: false, lastSeen: false, readReceipts: false },
@@ -101,8 +104,10 @@ export const presets: readonly Preset[] = [
   },
   {
     id: 'balanced',
-    label: 'Equilibrado',
-    hint: 'Avisos e GIFs ligados, presença escondida e confirmação de leitura.',
+    label: t('Equilibrado'),
+    hint: t(
+      'Avisos e GIFs ligados, presença escondida e confirmação de leitura.',
+    ),
     externalMedia: true,
     push: { enabled: true, messages: true, calls: true, showCalls: true },
     privacy: { online: false, lastSeen: false, readReceipts: true },
@@ -110,8 +115,8 @@ export const presets: readonly Preset[] = [
   },
   {
     id: 'social',
-    label: 'Social',
-    hint: 'Tudo ligado: online, leitura, GIFs e avisos completos.',
+    label: t('Social'),
+    hint: t('Tudo ligado: online, leitura, GIFs e avisos completos.'),
     externalMedia: true,
     push: { enabled: true, messages: true, calls: true, showCalls: true },
     privacy: { online: true, lastSeen: false, readReceipts: true },

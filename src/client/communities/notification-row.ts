@@ -1,3 +1,4 @@
+import { t, currentLanguage } from '../../shared/i18n/index.ts';
 import { noticeLink, bindNoticeRow } from '../activity/index.ts';
 import type { ReplyNotification } from '../../shared/community-posts/index.ts';
 import { communityElement as el } from './elements.ts';
@@ -9,7 +10,7 @@ export function publicationNotificationRow(
   const row = el('div', '', 'community-row community-notification-row');
   row.dataset['read'] = String(item.read);
   const link = noticeLink({
-    label: item.read ? 'Publicação lida' : 'Nova publicação',
+    label: item.read ? t('Publicação lida') : t('Nova publicação'),
     href: `#comunidades?id=${item.community}&post=${item.reply}`,
     read: item.read,
     acknowledge: () => actions.open(item.reply),
@@ -21,7 +22,7 @@ export function publicationNotificationRow(
   });
   row.append(
     link,
-    el('small', new Date(item.createdAt).toLocaleString('pt-BR')),
+    el('small', new Date(item.createdAt).toLocaleString(currentLanguage())),
   );
   bindNoticeRow(row, link);
   return row;

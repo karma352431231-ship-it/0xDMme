@@ -1,12 +1,12 @@
 <!doctype html>
-<html lang="pt-BR">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#000000" />
     <meta
       name="description"
-      content="0xDMme: mensageiro privado web em desenvolvimento."
+      content="0xDMme: a private web messenger in development."
     />
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="icon" href="/icon.svg" type="image/svg+xml" />
@@ -16,9 +16,9 @@
     <title>0xDMme</title>
   </head>
   <body>
-    <a class="skip" href="#workspace">Ir para o conteúdo</a>
+    <a class="skip" href="#workspace">Skip to content</a>
     <div class="app" id="app-shell" data-account="guest" data-chat-open="false">
-      <nav class="rail" aria-label="Organização da tela">
+      <nav class="rail" aria-label="Screen layout">
         <a class="rail-logo" href="#conversas" aria-label="0xDMme"
           ><img src="/icon.svg" alt=""
         /></a>
@@ -27,8 +27,8 @@
           class="rail-button"
           data-layout-mode="all"
           aria-pressed="false"
-          aria-label="Contatos, conversa e comunidades"
-          title="Contatos, conversa e comunidades"
+          aria-label="Contacts, conversation and communities"
+          title="Contacts, conversation and communities"
         >
           <svg viewBox="0 0 24 24" aria-hidden="true">
             <rect x="3" y="4" width="18" height="16" rx="2.5" />
@@ -40,8 +40,8 @@
           class="rail-button"
           data-layout-mode="solo"
           aria-pressed="false"
-          aria-label="Só conversas"
-          title="Só conversas"
+          aria-label="Conversations only"
+          title="Conversations only"
         >
           <svg viewBox="0 0 24 24" aria-hidden="true">
             <path d="M4 4h16v12H8l-4 4z" />
@@ -51,8 +51,8 @@
           class="rail-button"
           href="#comunidades"
           data-route="comunidades"
-          aria-label="Só comunidades"
-          title="Só comunidades"
+          aria-label="Communities only"
+          title="Communities only"
           ><svg viewBox="0 0 24 24" aria-hidden="true">
             <rect x="3" y="3" width="7" height="7" rx="2" />
             <rect x="14" y="3" width="7" height="7" rx="2" />
@@ -63,8 +63,8 @@
           class="rail-button"
           href="#atividade"
           data-route="atividade"
-          aria-label="Atividade"
-          title="Atividade"
+          aria-label="Activity"
+          title="Activity"
           ><svg viewBox="0 0 24 24" aria-hidden="true">
             <path d="M6 8a6 6 0 1 1 12 0c0 7 3 8 3 8H3s3-1 3-8" />
             <path d="M10 20a2 2 0 0 0 4 0" /></svg
@@ -73,40 +73,40 @@
         <span class="rail-spacer"></span>
         <span
           class="rail-test"
-          title="Chat em teste: use somente contas e mensagens fictícias."
-          >Teste</span
+          title="Chat under test: use fictional accounts and messages only."
+          >Test</span
         >
         <a
           class="rail-profile"
           href="#perfil"
           data-route="perfil"
-          aria-label="Perfil e configurações"
-          title="Perfil e configurações"
+          aria-label="Profile and settings"
+          title="Profile and settings"
           ><span class="rail-avatar" data-rail-avatar aria-hidden="true"
             >#</span
           ></a
         >
       </nav>
-      <aside class="sidebar" aria-label="Contatos e perfil">
+      <aside class="sidebar" aria-label="Contacts and profile">
         <div class="brand-bar">
           <a class="brand" href="#conversas"
             ><img class="brand-mark" src="/icon.svg" alt="" /><span
               >0xDMme</span
             ></a
           ><span class="mobile-title" data-mobile-title aria-hidden="true"
-            >Conversas</span
+            >Conversations</span
           ><span
             class="test-badge"
-            title="Chat em teste: use somente contas e mensagens fictícias."
-            >Teste<span class="visually-hidden"
-              >: use somente contas e mensagens fictícias</span
+            title="Chat under test: use fictional accounts and messages only."
+            >Test<span class="visually-hidden"
+              >: use fictional accounts and messages only</span
             ></span
           >
           <a
             class="icon-button activity-entry"
             href="#atividade"
             data-route="atividade"
-            aria-label="Atividade"
+            aria-label="Activity"
             ><svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="M6 8a6 6 0 1 1 12 0c0 7 3 8 3 8H3s3-1 3-8" />
               <path d="M10 20a2 2 0 0 0 4 0" /></svg
@@ -116,7 +116,7 @@
             id="open-search"
             class="icon-button"
             type="button"
-            aria-label="Pesquisar chats, contatos e mensagens"
+            aria-label="Search chats, contacts and messages"
           >
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <circle cx="10.5" cy="10.5" r="6.5" />
@@ -124,47 +124,47 @@
             </svg>
           </button>
         </div>
-        <nav class="area-nav" aria-label="Área do aplicativo">
-          <a href="#conversas" data-route="conversas">Conversas</a>
-          <a href="#comunidades" data-route="comunidades">Comunidades</a>
+        <nav class="area-nav" aria-label="App workspace">
+          <a href="#conversas" data-route="conversas">Conversations</a>
+          <a href="#comunidades" data-route="comunidades">Communities</a>
         </nav>
         <section
           id="community-directory"
           class="community-directory"
-          aria-label="Comunidades seguidas"
+          aria-label="Followed communities"
         ></section>
         <section
           id="chat-directory"
           class="chat-directory"
-          aria-label="Contatos e grupos"
+          aria-label="Contacts and groups"
         >
           <div class="directory-heading">
             <h2>
-              <span class="label-wide">Contatos</span
-              ><span class="label-narrow">Conversas</span>
+              <span class="label-wide">Contacts</span
+              ><span class="label-narrow">Conversations</span>
             </h2>
             <div class="directory-actions">
               <details class="directory-create-menu">
                 <summary
                   class="icon-button directory-add"
-                  aria-label="Adicionar contato ou criar grupo"
-                  title="Adicionar contato ou criar grupo"
+                  aria-label="Add contact or create group"
+                  title="Add contact or create group"
                 >
                   +
                 </summary>
                 <div class="directory-create-actions">
-                  <a href="#contatos">Adicionar contato</a>
+                  <a href="#contatos">Add contact</a>
                   <button data-private-group-action="create" type="button">
-                    Criar grupo
+                    Create group
                   </button>
                   <button data-private-group-action="join" type="button">
-                    Entrar por link
+                    Join by link
                   </button>
                 </div>
               </details>
             </div>
           </div>
-          <div class="contact-scope" role="group" aria-label="Tipo de contato">
+          <div class="contact-scope" role="group" aria-label="Contact type">
             <button
               type="button"
               data-scope-choice="private"
@@ -174,7 +174,7 @@
                 <rect x="5" y="11" width="14" height="10" rx="2" />
                 <path d="M8 11V8a4 4 0 0 1 8 0v3" />
               </svg>
-              Privados
+              Private
             </button>
             <button
               type="button"
@@ -185,51 +185,51 @@
                 <circle cx="12" cy="12" r="4" />
                 <path d="M16 8v5a3 3 0 0 0 6 0v-1a10 10 0 1 0-4 8" />
               </svg>
-              Públicos
+              Public
             </button>
           </div>
           <nav
             class="status-strip"
             data-status-strip
-            aria-label="Status dos contatos"
+            aria-label="Contact statuses"
           ></nav>
           <button type="button" class="directory-search" data-open-search>
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <circle cx="10.5" cy="10.5" r="6.5" />
               <path d="m16 16 5 5" />
             </svg>
-            <span>Buscar contatos e mensagens</span>
+            <span>Search contacts and messages</span>
             <kbd aria-hidden="true">/</kbd>
           </button>
-          <div class="directory-filters" aria-label="Filtrar conversas">
+          <div class="directory-filters" aria-label="Filter conversations">
             <button
               type="button"
               data-conversation-filter="all"
               aria-pressed="true"
             >
-              Todos
+              All
             </button>
             <button
               type="button"
               data-conversation-filter="unread"
               aria-pressed="false"
             >
-              Não lidas
+              Unread
             </button>
             <button
               type="button"
               data-conversation-filter="groups"
               aria-pressed="false"
             >
-              Grupos
+              Groups
             </button>
             <button
               type="button"
               data-conversation-filter="favorites"
               aria-pressed="false"
-              aria-label="Favoritos"
+              aria-label="Favorites"
             >
-              <span class="chip-full">Favoritos</span
+              <span class="chip-full">Favorites</span
               ><span class="chip-short" aria-hidden="true">Fav.</span>
             </button>
             <button
@@ -237,7 +237,7 @@
               data-conversation-filter="archived"
               aria-pressed="false"
             >
-              Arquivadas
+              Archived
             </button>
           </div>
           <button
@@ -250,17 +250,17 @@
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="M6 3h12v18l-6-4-6 4z" />
             </svg>
-            Arquivadas
+            Archived
           </button>
           <details class="directory-tools" data-group-tools hidden>
-            <summary>Opções de grupos</summary>
+            <summary>Group options</summary>
             <div data-group-sidebar></div>
           </details>
           <p data-directory-status class="directory-status" role="status"></p>
           <div
             class="directory-scroll"
             tabindex="0"
-            aria-label="Lista de conversas"
+            aria-label="Conversation list"
           >
             <div data-message-contacts class="chat-contacts"></div>
             <button
@@ -269,14 +269,14 @@
               type="button"
               hidden
             >
-              Mais conversas
+              More conversations
             </button>
           </div>
           <div
             id="public-directory"
             class="public-directory"
             tabindex="0"
-            aria-label="Mensagens públicas pelo @"
+            aria-label="Messages via @"
           ></div>
           <div class="directory-foot">
             <button
@@ -289,7 +289,7 @@
                 <rect x="3" y="4" width="18" height="16" rx="2.5" />
                 <path d="M12 4v16M15.5 10l2 2-2 2" />
               </svg>
-              Conversa ao lado
+              Conversation alongside
             </button>
           </div>
         </section>
@@ -298,7 +298,7 @@
             class="avatar"
             id="account-avatar"
             type="button"
-            aria-label="Alterar foto de perfil"
+            aria-label="Change profile photo"
           >
             #
           </button>
@@ -310,30 +310,30 @@
           />
           <div class="account-copy">
             <div class="account-heading">
-              <a href="#perfil" id="account-label">Conta não conectada</a
+              <a href="#perfil" id="account-label">No account connected</a
               ><a
                 class="icon-button account-settings"
                 href="#perfil"
-                aria-label="Abrir perfil e configurações"
+                aria-label="Open profile and settings"
                 ><svg viewBox="0 0 24 24" aria-hidden="true">
                   <circle cx="12" cy="5" r="1" />
                   <circle cx="12" cy="12" r="1" />
                   <circle cx="12" cy="19" r="1" /></svg
               ></a>
             </div>
-            <small id="account-wallet">Entrar na conta</small
+            <small id="account-wallet">Sign in to your account</small
             ><button
               id="copy-wallet"
               type="button"
-              aria-label="Copiar endereço completo da wallet"
+              aria-label="Copy full wallet address"
               hidden
             >
-              Copiar</button
+              Copy</button
             ><small id="account-profile-feedback" role="status"></small>
           </div>
         </div>
       </aside>
-      <nav class="community-mobile-tabs" aria-label="Comunidades">
+      <nav class="community-mobile-tabs" aria-label="Communities">
         <a href="#comunidades?view=feed" data-community-view="feed">Feed</a>
         <a href="#comunidades?view=explore" data-community-view="explore"
           >Ranking</a
@@ -341,51 +341,49 @@
         <a
           href="#comunidades?view=communities"
           data-community-view="communities"
-          >Minhas</a
+          >Mine</a
         >
       </nav>
       <main id="workspace" tabindex="-1">
         <header class="page-heading">
           <div>
             <p class="section-label">
-              0xDMme / <span id="breadcrumb">CONVERSAS</span>
+              0xDMme / <span id="breadcrumb">CONVERSATIONS</span>
             </p>
-            <h1 id="page-title">Conversas</h1>
+            <h1 id="page-title">Conversations</h1>
           </div>
           <span class="phase" id="page-phase"
-            >Conta EVM / Solana · Mensagens privadas</span
+            >EVM / Solana account · Private messages</span
           >
         </header>
         <section id="page-content" aria-labelledby="page-title"></section>
         <p id="connection" class="visually-hidden" role="status">
-          Verificando conexão…
+          Checking connection…
         </p>
         <!-- Source offer: shown in Perfil → Sobre o app, open to visitors too. -->
         <template id="about-app-links">
-          <a href="{{SOURCES}}" download>Código e licenças</a>
-          <a href="{{EMOJI_SOURCES}}" download
-            >Desenhos e licenças dos emojis</a
-          >
+          <a href="{{SOURCES}}" download>Source code and licenses</a>
+          <a href="{{EMOJI_SOURCES}}" download>Emoji artwork and licenses</a>
           <a href="/matrix-crypto-18.9.0-sources.html"
-            >Fontes do motor de mensagens</a
+            >Messaging engine sources</a
           >
-          <p>Conteúdo e segredos pertencem aos seus dispositivos.</p>
+          <p>Content and secrets belong to your devices.</p>
         </template>
       </main>
       <section
         id="feed-panel"
         class="feed-panel community-scope"
-        aria-label="Comunidades ao lado"
+        aria-label="Communities alongside"
       >
         <header class="feed-panel-heading">
-          <h2>Comunidades</h2>
-          <nav class="feed-panel-tabs" aria-label="Seções das comunidades">
+          <h2>Communities</h2>
+          <nav class="feed-panel-tabs" aria-label="Community sections">
             <a href="#comunidades?view=feed" data-feed-tab="feed">Feed</a>
             <a href="#comunidades?view=explore" data-feed-tab="explore"
               >Ranking</a
             >
             <a href="#comunidades?view=communities" data-feed-tab="communities"
-              >Minhas</a
+              >Mine</a
             >
           </nav>
           <div data-public-search></div>
@@ -393,12 +391,12 @@
             type="button"
             class="feed-panel-post"
             data-community-compose
-            title="Escolha a comunidade onde postar"
+            title="Choose a community to post in"
           >
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="M4 20h4L19 9l-4-4L4 16z" />
               <path d="m13.5 6.5 4 4" /></svg
-            >Postar
+            >Post
           </button>
           <a
             class="own-public-profile-shortcut"
@@ -409,8 +407,8 @@
             type="button"
             class="icon-button"
             data-feed-collapse
-            aria-label="Recolher comunidades"
-            title="Recolher comunidades"
+            aria-label="Collapse communities"
+            title="Collapse communities"
           >
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="M4 12h11M11 7l5 5-5 5M20 5v14" />
@@ -423,8 +421,8 @@
         type="button"
         class="feed-strip"
         data-layout-mode="all"
-        aria-label="Abrir comunidades ao lado"
-        title="Abrir comunidades ao lado"
+        aria-label="Open communities alongside"
+        title="Open communities alongside"
       >
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <rect x="3" y="3" width="7" height="7" rx="2" />
@@ -432,26 +430,26 @@
           <rect x="3" y="14" width="7" height="7" rx="2" />
           <rect x="14" y="14" width="7" height="7" rx="2" />
         </svg>
-        <span>Comunidades</span>
+        <span>Communities</span>
       </button>
-      <nav class="mobile-nav" aria-label="Navegação principal">
+      <nav class="mobile-nav" aria-label="Main navigation">
         <a href="#conversas" data-route="conversas"
           ><svg viewBox="0 0 24 24" aria-hidden="true">
             <path d="M4 4h16v12H8l-4 4z" /></svg
-          ><span>Conversas</span></a
+          ><span>Conversations</span></a
         >
         <a href="#comunidades" data-route="comunidades"
           ><svg viewBox="0 0 24 24" aria-hidden="true">
             <circle cx="8" cy="8" r="3" />
             <circle cx="17" cy="9" r="2" />
             <path d="M2 21v-3a6 6 0 0 1 12 0v3M16 14a4 4 0 0 1 6 4v3" /></svg
-          ><span>Comunidades</span></a
+          ><span>Communities</span></a
         >
         <a href="#atividade" data-route="atividade"
           ><svg viewBox="0 0 24 24" aria-hidden="true">
             <path d="M6 8a6 6 0 1 1 12 0c0 7 3 8 3 8H3s3-1 3-8" />
             <path d="M10 20a2 2 0 0 0 4 0" /></svg
-          ><span>Atividade</span
+          ><span>Activity</span
           ><span class="activity-badge" data-activity-count hidden></span
         ></a>
         <a href="#perfil" data-route="perfil"
@@ -459,13 +457,13 @@
             <circle cx="12" cy="12" r="10" />
             <circle cx="12" cy="9" r="3" />
             <path d="M5 19a7 7 0 0 1 14 0" /></svg
-          ><span>Perfil</span></a
+          ><span>Profile</span></a
         >
       </nav>
     </div>
     <div id="update" class="update" hidden role="status">
-      <span>Uma nova versão está pronta.</span
-      ><button id="apply-update" type="button">Atualizar agora</button
+      <span>A new version is ready.</span
+      ><button id="apply-update" type="button">Update now</button
       ><span id="update-result"></span>
     </div>
   </body>

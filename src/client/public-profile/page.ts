@@ -1,3 +1,8 @@
+import {
+  t,
+  currentLanguage,
+  translatedError,
+} from '../../shared/i18n/index.ts';
 import { renderMentions } from '../public-mentions/index.ts';
 import { uuid } from '../../shared/account/index.ts';
 import { publicProfile } from '../../shared/public-profile/index.ts';
@@ -39,29 +44,32 @@ function link(host: HTMLElement, text: string, href: string) {
 }
 function about(host: HTMLElement, summary: ProfileSummary): void {
   const metrics = element('dl', '', 'public-profile-metrics');
-  const number = (count: number) => count.toLocaleString('pt-BR');
+  const number = (count: number) => count.toLocaleString(currentLanguage());
   for (const [value, label] of [
-    [number(summary.conversations), 'Conversas geradas'],
+    [number(summary.conversations), t('Conversas geradas')],
     [
-      `${number(summary.posts)} posts · ${number(summary.replies)} respostas`,
-      'Participação',
+      t('{0} posts · {1} respostas', [
+        number(summary.posts),
+        number(summary.replies),
+      ]),
+      t('Participação'),
     ],
     [
       summary.createdAt
-        ? new Date(summary.createdAt).toLocaleDateString('pt-BR', {
+        ? new Date(summary.createdAt).toLocaleDateString(currentLanguage(), {
             month: 'long',
             year: 'numeric',
           })
-        : 'Data não registrada',
-      'Perfil público desde',
+        : t('Data não registrada'),
+      t('Perfil público desde'),
     ],
-    [number(summary.communities), 'Comunidades seguidas'],
+    [number(summary.communities), t('Comunidades seguidas')],
   ] as const) {
     const item = element('div');
     item.append(element('dd', value), element('dt', label));
     metrics.append(item);
   }
-  host.append(element('h2', 'Sobre'), metrics);
+  host.append(element('h2', t('Sobre')), metrics);
 }
 
 /** Activity reads omit cookies; explicit social actions use signed account access. */
@@ -78,7 +86,11 @@ export function showProfilePage(
     tab = 'overview',
     generation = 0;
   const page = element('section', '', 'public-profile-page'),
-    status = element('p', 'Carregando perfil público…', 'community-feedback');
+    status = element(
+      'p',
+      t('Carregando perfil público…'),
+      'community-feedback',
+    );
   status.setAttribute('role', 'status');
   page.append(status);
   container.replaceChildren(page);
@@ -100,8 +112,8 @@ export function showProfilePage(
     )
       status.textContent =
         message instanceof Error
-          ? message.message
-          : 'Perfil público indisponível.';
+          ? translatedError(message.message)
+          : t('Perfil público indisponível.');
   }
   async function currentHandle(): Promise<string> {
     if (typeof handle === 'string' && handle.length === 36) {
@@ -168,7 +180,12 @@ export function showProfilePage(
       actions = element('div', '', 'public-profile-actions');
     title.append(
       element('h1', `@${summary.profile.handle}`),
-      element('p', `${summary.followers.toLocaleString('pt-BR')} seguidores`),
+      element(
+        'p',
+        t('{0} seguidores', [
+          summary.followers.toLocaleString(currentLanguage()),
+        ]),
+      ),
     );
     identity.append(avatar, title, actions);
     header.append(banner, identity);
@@ -183,11 +200,11 @@ export function showProfilePage(
       tabs = element('nav', '', 'public-profile-tabs'),
       items = element('section', '', 'public-profile-activity community-scope'),
       paging = element('div', '', 'post-toolbar');
-    tabs.setAttribute('aria-label', 'Atividade do perfil público');
+    tabs.setAttribute('aria-label', t('Atividade do perfil público'));
     for (const [value, label] of [
-      ['overview', 'Visão geral'],
-      ['posts', 'Posts'],
-      ['replies', 'Respostas'],
+      ['overview', t('Visão geral')],
+      ['posts', t('Posts')],
+      ['replies', t('Respostas')],
     ] as const) {
       const button = element('button', label);
       button.type = 'button';
@@ -199,7 +216,9 @@ export function showProfilePage(
           timeline.replaceChildren(
             element(
               'p',
-              'Este usuário está bloqueado. Suas publicações e respostas ficam ocultas para você.',
+              t(
+                'Este usuário está bloqueado. Suas publicações e respostas ficam ocultas para você.',
+              ),
             ),
           );
         } else void activity(null).catch(error);
@@ -222,7 +241,7 @@ export function showProfilePage(
     if (!block.blocked)
       link(
         actions,
-        'Solicitar DM',
+        t('Solicitar DM'),
         `#comunidades?view=dms&dm=${summary.profile.id}`,
       );
     void follow(actions, summary, block).catch(error);
@@ -241,7 +260,7 @@ export function showProfilePage(
       contentAbort = new AbortController();
       const signal = AbortSignal.any([lifetime.signal, contentAbort.signal]),
         old = ++generation;
-      status.textContent = 'Carregando atividade…';
+      status.textContent = t('Carregando atividade…');
       const query = new URLSearchParams({ tab });
       if (after) query.set('after', after);
       const response = feedPage(
@@ -271,14 +290,14 @@ export function showProfilePage(
         items.append(
           element(
             'p',
-            'Nenhuma publicação pública nesta aba.',
+            t('Nenhuma publicação pública nesta aba.'),
             'public-profile-empty',
           ),
         );
       paging.replaceChildren();
       if (response.next)
-        control(paging, 'Próxima página', () => activity(response.next));
-      if (after) control(paging, 'Voltar ao início', () => activity(null));
+        control(paging, t('Próxima página'), () => activity(response.next));
+      if (after) control(paging, t('Voltar ao início'), () => activity(null));
       status.textContent = '';
     }
   }
@@ -308,17 +327,17 @@ export function showProfilePage(
   ): Promise<void> {
     const controller = options.controller;
     if (!controller?.hasSession()) {
-      link(host, 'Entrar para seguir', '#perfil');
+      link(host, t('Entrar para seguir'), '#perfil');
       return;
     }
     if (!controller.profile) await controller.refresh();
     if (lifetime.signal.aborted) return;
     if (!controller.profile) {
-      link(host, 'Criar perfil para seguir', '#perfil');
+      link(host, t('Criar perfil para seguir'), '#perfil');
       return;
     }
     if (controller.profile.profile.id === summary.profile.id) {
-      link(host, 'Editar perfil público', editPublicProfileHash);
+      link(host, t('Editar perfil público'), editPublicProfileHash);
       return;
     }
     await profileSocialControls(host, summary, {

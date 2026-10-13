@@ -1,3 +1,4 @@
+import { t } from '../../shared/i18n/index.ts';
 import { shortAddress } from '../appearance/index.ts';
 import type { Daily, PeerState } from '../daily/index.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
@@ -90,7 +91,7 @@ export class MessageDirectoryUi {
       kind: 'contact',
       seed: peer.address,
       status: this.options.snapshot().statusAuthors.has(peer.accountId),
-      searchText: `${contact.alias} ${peer.name} ${peer.address}`,
+      searchText: t('{0} {1} {2}', [contact.alias, peer.name, peer.address]),
       selected: this.options.snapshot().selected?.accountId === peer.accountId,
       hidden: contact.removed,
       ...settings,
@@ -101,8 +102,9 @@ export class MessageDirectoryUi {
         settingsId,
         peer.localOnly ? null : peer.accountId,
       ),
-      menuNote:
+      menuNote: t(
         'Remover contato preserva histórico e permissões. Arquivar silencia; desarquivar não retoma alertas automaticamente.',
+      ),
       open: () => {
         this.options.openPeer(peer);
       },
@@ -122,18 +124,22 @@ export class MessageDirectoryUi {
     return {
       id: entity,
       title: contact.alias || contact.address,
-      detail: `${settings.pinned ? '📌 ' : ''}${shortAddress(contact.address)} · salvo na agenda`,
+      detail: t('{0}{1} · salvo na agenda', [
+        settings.pinned ? '📌 ' : '',
+        shortAddress(contact.address),
+      ]),
       kind: 'contact',
       seed: contact.address,
-      searchText: `${contact.alias} ${contact.address}`,
+      searchText: t('{0} {1}', [contact.alias, contact.address]),
       selected: false,
       hidden: contact.removed,
       ...settings,
       favorite: this.options.daily.favorite(entity),
       unread: 0,
       actions: this.options.contactActions(contact, entity, null),
-      menuNote:
+      menuNote: t(
         'Salvar ou remover da agenda não altera o consentimento nem apaga o histórico.',
+      ),
       open: () => this.options.openContact(contact),
     };
   }
@@ -160,8 +166,9 @@ export class MessageDirectoryUi {
           mutePeer: group.localOnly ? null : id,
           perform: this.options.perform,
         }),
-        menuNote:
+        menuNote: t(
           'Arquivar silencia alertas. Desarquivar não retoma alertas automaticamente.',
+        ),
         open: () => {
           this.options.openGroup(group);
         },
@@ -205,8 +212,8 @@ export class MessageDirectoryUi {
       menu: this.options.menu,
       empty:
         this.filter === 'all'
-          ? 'Adicione um contato ou entre em um grupo para começar.'
-          : 'Nenhuma conversa neste filtro.',
+          ? t('Adicione um contato ou entre em um grupo para começar.')
+          : t('Nenhuma conversa neste filtro.'),
     });
     this.options
       .host()
@@ -227,9 +234,9 @@ export class MessageDirectoryUi {
     const state = this.options.snapshot().states.get(peer.accountId),
       settings = this.options.daily.conversation(settingsId);
     const conflict = this.options.daily.organizationConflict(settingsId)
-      ? ' · organização em conflito'
+      ? t(' · organização em conflito')
       : '';
     const address = shortAddress(peer.address);
-    return `${settings.pinned ? '📌 ' : ''}${address}${state && state.mutedUntil > Date.now() ? ' · silenciada' : ''}${conflict}`;
+    return `${settings.pinned ? '📌 ' : ''}${address}${state && state.mutedUntil > Date.now() ? t(' · silenciada') : ''}${conflict}`;
   }
 }

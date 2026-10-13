@@ -1,3 +1,5 @@
+import { t } from '../../shared/i18n/index.ts';
+import { startLanguage } from '../language/index.ts';
 // SPDX-License-Identifier: GPL-3.0-only
 import {
   evaluationCase,
@@ -12,6 +14,7 @@ function element<T extends HTMLElement>(id: string, type: { new (): T }): T {
     throw new Error('Tela de avaliação indisponível.');
   return node;
 }
+startLanguage();
 const file = element('image', HTMLInputElement),
   expected = element('expected', HTMLSelectElement);
 const status = element('status', HTMLParagraphElement),
@@ -77,7 +80,9 @@ function action(operation: () => Promise<void>): void {
 async function evaluate(): Promise<void> {
   const image = selectedImage(),
     reference = evaluationReference(expected.value);
-  status.textContent = 'Analisando e guardando este caso na rodada temporária…';
+  status.textContent = t(
+    'Analisando e guardando este caso na rodada temporária…',
+  );
   const saved = evaluationCase(
     await api.json('/api/evaluate', {
       method: 'POST',
@@ -98,11 +103,14 @@ async function evaluate(): Promise<void> {
   ).join('');
   if (saved.imageHash !== hash || saved.reference !== reference)
     throw new Error('O caso recebido diverge da imagem enviada.');
-  status.textContent = `Caso ${saved.id.slice(0, 8)} salvo com imagem, scores e sua referência.`;
+  status.textContent = t(
+    'Caso {0} salvo com imagem, scores e sua referência.',
+    [saved.id.slice(0, 8)],
+  );
   await gallery.refresh(true);
 }
 async function exportRound(): Promise<void> {
-  status.textContent = 'Preparando ZIP privado com originais e resultados…';
+  status.textContent = t('Preparando ZIP privado com originais e resultados…');
   const blob = await api.archive(),
     url = URL.createObjectURL(blob);
   const anchor = document.createElement('a');
@@ -112,13 +120,16 @@ async function exportRound(): Promise<void> {
   anchor.click();
   anchor.remove();
   setTimeout(() => URL.revokeObjectURL(url), 30_000);
-  status.textContent =
-    'Exportação solicitada. O arquivo baixado contém as imagens e fica sob seu controle.';
+  status.textContent = t(
+    'Exportação solicitada. O arquivo baixado contém as imagens e fica sob seu controle.',
+  );
 }
 async function clearRound(): Promise<void> {
   if (
     !window.confirm(
-      'Apagar todas as imagens e resultados desta rodada temporária? Arquivos já baixados permanecem no seu dispositivo.',
+      t(
+        'Apagar todas as imagens e resultados desta rodada temporária? Arquivos já baixados permanecem no seu dispositivo.',
+      ),
     )
   )
     return;
@@ -127,7 +138,9 @@ async function clearRound(): Promise<void> {
   file.value = '';
   expected.value = '';
   await gallery.refresh(true);
-  status.textContent = 'Imagens e resultados da rodada apagados do avaliador.';
+  status.textContent = t(
+    'Imagens e resultados da rodada apagados do avaliador.',
+  );
 }
 analyze.addEventListener('click', () => action(evaluate));
 exportButton.addEventListener('click', () => action(exportRound));

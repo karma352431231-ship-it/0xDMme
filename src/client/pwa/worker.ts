@@ -1,8 +1,11 @@
+import { t } from '../../shared/i18n/index.ts';
 import { cacheableRequest } from '../../shared/pwa-policy/index.ts';
 import { genericNotification } from '../../shared/daily/index.ts';
 import { publicNotificationPreview } from '../../shared/public-notification/index.ts';
 import { pushSoundEnabled } from '../notification-sound/index.ts';
 import { fetchApi, readApiJson } from '../api-response/index.ts';
+import { pushLanguage } from '../language/index.ts';
+import { setActiveLanguage } from '../../shared/i18n/index.ts';
 
 // Narrow structural interfaces keep DOM client and worker contexts independent.
 interface WorkerScope {
@@ -210,6 +213,7 @@ async function notify(): Promise<void> {
     )
       return;
     const sound = await pushSoundEnabled();
+    setActiveLanguage(await pushLanguage());
     const appearance = notificationAppearance(data);
     await scope.registration.showNotification(appearance.title, {
       ...appearance,
@@ -233,8 +237,10 @@ function notificationAppearance(data: object): {
   if (!call && 'publicPreview' in data) {
     const preview = publicNotificationPreview(data.publicPreview);
     return {
-      title: `@${preview.author.handle} ${preview.reply ? 'respondeu' : 'publicou'} · 0xDMme`,
-      body: preview.text,
+      title: preview.reply
+        ? t('@{0} respondeu · 0xDMme', [preview.author.handle])
+        : t('@{0} publicou · 0xDMme', [preview.author.handle]),
+      body: preview.text || t('Nova publicação com mídia.'),
       tag: '0xdmme-public-activity',
       data: {
         href: `/#comunidades?id=${preview.community}&post=${preview.post}`,
@@ -244,8 +250,8 @@ function notificationAppearance(data: object): {
   return {
     title: genericNotification.title,
     body: showCall
-      ? 'Chamada de voz recebida. Abra o app para atender.'
-      : genericNotification.body,
+      ? t('Chamada de voz recebida. Abra o app para atender.')
+      : t(genericNotification.body),
     tag: call ? '0xdmme-call' : '0xdmme-activity',
   };
 }

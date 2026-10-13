@@ -1,7 +1,8 @@
+import { t } from '../../shared/i18n/index.ts';
 import type { ProfilePreferences } from '../account-profile/index.ts';
 
 const choices = ['online', 'readReceipts'] as const;
-const template = `<article class="card"><h2>Presença e leitura</h2><form data-privacy-preferences><label><input type="checkbox" name="online"> Exibir online para contatos aprovados</label><label><input type="checkbox" name="readReceipts"> Enviar confirmação de leitura</label><p>As escolhas valem para a conta. Confirme para aplicá-las.</p><button class="primary" type="submit">Confirmar alterações</button></form><p data-privacy-status role="status"></p></article>`;
+const template = t('html.7eb60c98aba6');
 
 /** The privacy category edits the same committed encrypted profile as account settings. */
 export class PrivacyControls {
@@ -41,7 +42,7 @@ export class PrivacyControls {
     if (status)
       status.textContent = value
         ? this.ports.status()
-        : 'Abra sua conta para alterar a privacidade.';
+        : t('Abra sua conta para alterar a privacidade.');
   }
   private renderChoices(value: ProfilePreferences | null): void {
     if (!this.host) return;

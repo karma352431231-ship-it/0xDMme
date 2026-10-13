@@ -1,3 +1,4 @@
+import { t } from '../../shared/i18n/index.ts';
 import { prepareMessageRuntime } from '../message-runtime/index.ts';
 import { dmMessageStates } from './read-receipts.ts';
 import {
@@ -431,7 +432,7 @@ export class SocialDms {
         const item = object(value),
           id = uuid(item['id']);
         if (item['packet'] === undefined) {
-          unavailable.push(`dm-message:${id} indisponível`);
+          unavailable.push(t('dm-message:{0} indisponível', [id]));
           continue;
         }
         const packet = socialPacket(item['packet']);

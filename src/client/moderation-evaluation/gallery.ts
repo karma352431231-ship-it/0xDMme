@@ -1,3 +1,8 @@
+import {
+  t,
+  translatedError,
+  currentLanguage,
+} from '../../shared/i18n/index.ts';
 // SPDX-License-Identifier: GPL-3.0-only
 import {
   evaluationCase,
@@ -14,9 +19,9 @@ import type {
 import type { EvaluationApi } from './api.ts';
 
 const names: Record<EvaluationReference, string> = {
-  safe: 'Permitido / safe',
-  unsafe: 'Proibido / não safe',
-  uncertain: 'Incerto / revisar',
+  safe: t('Permitido / safe'),
+  unsafe: t('Proibido / não safe'),
+  uncertain: t('Incerto / revisar'),
 };
 interface GalleryElements {
   container: HTMLDivElement;
@@ -60,7 +65,9 @@ export class CalibrationGalleryView {
 
   message(error: unknown): void {
     this.elements.status.textContent =
-      error instanceof Error ? error.message : 'Galeria indisponível.';
+      error instanceof Error
+        ? translatedError(error.message)
+        : t('Galeria indisponível.');
   }
   dispose(): void {
     this.controller.abort();
@@ -88,7 +95,14 @@ export class CalibrationGalleryView {
       this.page,
       Math.max(0, Math.ceil(round.cases.length / 12) - 1),
     );
-    this.elements.summary.textContent = `${round.cases.length} casos · ${(round.usedBytes / 1024 / 1024).toFixed(1)} MiB · expira até ${new Date(round.expiresAt).toLocaleString('pt-BR')}.`;
+    this.elements.summary.textContent = t(
+      '{0} casos · {1} MiB · expira até {2}.',
+      [
+        round.cases.length,
+        (round.usedBytes / 1024 / 1024).toFixed(1),
+        new Date(round.expiresAt).toLocaleString(currentLanguage()),
+      ],
+    );
     this.elements.container.replaceChildren();
     const pending = round.cases
       .slice(this.page * 12, this.page * 12 + 12)
@@ -118,12 +132,12 @@ export class CalibrationGalleryView {
       this.page += delta;
       void this.render().catch((error: unknown) => this.message(error));
     };
-    const previous = button('Anteriores', () => move(-1)),
-      next = button('Próximos', () => move(1));
+    const previous = button(t('Anteriores'), () => move(-1)),
+      next = button(t('Próximos'), () => move(1));
     previous.disabled = this.page === 0;
     next.disabled = this.page + 1 >= pages;
     const label = document.createElement('span');
-    label.textContent = `Página ${this.page + 1} de ${pages}`;
+    label.textContent = t('Página {0} de {1}', [this.page + 1, pages]);
     this.elements.pagination.replaceChildren(previous, label, next);
   }
   private card(entry: EvaluationCase): {
@@ -134,19 +148,22 @@ export class CalibrationGalleryView {
       title = document.createElement('h3');
     const identity = document.createElement('code'),
       image = document.createElement('img');
-    title.textContent = `Caso ${entry.id.slice(0, 8)}`;
+    title.textContent = t('Caso {0}', [entry.id.slice(0, 8)]);
     identity.textContent = entry.id;
-    image.alt = `Miniatura do caso ${entry.id.slice(0, 8)}`;
+    image.alt = t('Miniatura do caso {0}', [entry.id.slice(0, 8)]);
     image.width = 320;
     image.height = 320;
     const info = document.createElement('p');
     info.className = 'small';
-    info.textContent = `${new Date(entry.createdAt).toLocaleString('pt-BR')} · inferência ${(entry.elapsedMs / 1000).toFixed(2)} s`;
+    info.textContent = t('{0} · inferência {1} s', [
+      new Date(entry.createdAt).toLocaleString(currentLanguage()),
+      (entry.elapsedMs / 1000).toFixed(2),
+    ]);
     const label = document.createElement('label'),
       reference = document.createElement('select');
     reference.id = `reference-${entry.id}`;
     label.htmlFor = reference.id;
-    label.textContent = 'Sua avaliação deste caso';
+    label.textContent = t('Sua avaliação deste caso');
     for (const value of evaluationReferences) {
       const option = document.createElement('option');
       option.value = value;
@@ -165,7 +182,7 @@ export class CalibrationGalleryView {
           reference.disabled = false;
         });
     });
-    const open = button('Ver imagem original', () => {
+    const open = button(t('Ver imagem original'), () => {
       open.disabled = true;
       void this.openOriginal(entry)
         .catch((error: unknown) => this.message(error))
@@ -196,7 +213,10 @@ export class CalibrationGalleryView {
     if (saved.id !== entry.id || saved.imageHash !== entry.imageHash)
       throw new Error('Anotação divergente do caso.');
     entry.reference = saved.reference;
-    this.elements.status.textContent = `Referência do caso ${entry.id.slice(0, 8)} salva. Scores preservados.`;
+    this.elements.status.textContent = t(
+      'Referência do caso {0} salva. Scores preservados.',
+      [entry.id.slice(0, 8)],
+    );
   }
   private async openOriginal(entry: EvaluationCase): Promise<void> {
     const signal = this.controller.signal;
@@ -206,13 +226,15 @@ export class CalibrationGalleryView {
     this.originalUrl = URL.createObjectURL(blob);
     const title = document.createElement('h3'),
       image = document.createElement('img');
-    title.textContent = `Original do caso ${entry.id.slice(0, 8)} — SHA-256 conferido`;
-    image.alt = `Imagem original do caso ${entry.id}`;
+    title.textContent = t('Original do caso {0} — SHA-256 conferido', [
+      entry.id.slice(0, 8),
+    ]);
+    image.alt = t('Imagem original do caso {0}', [entry.id]);
     image.src = this.originalUrl;
     this.elements.original.append(
       title,
       image,
-      button('Fechar original', () => this.closeOriginal()),
+      button(t('Fechar original'), () => this.closeOriginal()),
     );
     this.elements.original.scrollIntoView({
       behavior: 'smooth',

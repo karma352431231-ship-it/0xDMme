@@ -1,3 +1,4 @@
+import { t, translatedError } from '../../shared/i18n/index.ts';
 import type { SocialMedia } from '../../shared/social-media/index.ts';
 import type { AttachmentSelection } from '../attachments/index.ts';
 import {
@@ -107,7 +108,7 @@ export function startDmComposer(options: {
     if (pending && !chosen) {
       area.replaceChildren(
         Object.assign(document.createElement('p'), {
-          textContent: 'Mídia pendente neste aparelho. Envie ou remova.',
+          textContent: t('Mídia pendente neste aparelho. Envie ou remova.'),
         }),
       );
       return;
@@ -138,7 +139,7 @@ export function startDmComposer(options: {
       new Blob([selection.bytes], { type: selection.type }),
     );
     image.src = previewUrl;
-    image.alt = 'Prévia da imagem escolhida';
+    image.alt = t('Prévia da imagem escolhida');
     area.replaceChildren(image);
   }
   async function send(): Promise<void> {
@@ -174,7 +175,9 @@ export function startDmComposer(options: {
         })
         .catch((error: unknown) => {
           showToast(
-            error instanceof Error ? error.message : 'Imagem inválida.',
+            error instanceof Error
+              ? translatedError(error.message)
+              : t('Imagem inválida.'),
           );
         });
     });
@@ -224,7 +227,7 @@ export function startDmComposer(options: {
           });
         },
       }).catch(() => {
-        showToast('Não foi possível abrir os emojis.');
+        showToast(t('Não foi possível abrir os emojis.'));
       });
     });
   }

@@ -1,3 +1,4 @@
+import { t } from '../../shared/i18n/index.ts';
 import type { CommunityPost } from '../../shared/community-posts/index.ts';
 import { postShareState } from '../../shared/post-sharing/index.ts';
 import type { Communities } from './controller.ts';
@@ -21,7 +22,7 @@ export function postSharing(
   container.append(button);
   if (button instanceof HTMLAnchorElement) button.href = '#perfil';
   if (!(button instanceof HTMLButtonElement) || !access) {
-    button.setAttribute('aria-label', 'Entre pelo Perfil para compartilhar');
+    button.setAttribute('aria-label', t('Entre pelo Perfil para compartilhar'));
     return;
   }
   button.type = 'button';
@@ -30,10 +31,10 @@ export function postSharing(
     button.setAttribute(
       'aria-label',
       shared
-        ? 'Retirar compartilhamento do meu perfil'
-        : 'Compartilhar no meu perfil',
+        ? t('Retirar compartilhamento do meu perfil')
+        : t('Compartilhar no meu perfil'),
     );
-    button.title = shared ? 'Compartilhado' : 'Compartilhar';
+    button.title = shared ? t('Compartilhado') : t('Compartilhar');
   };
   paint(access.shared ?? false);
   button.addEventListener('click', () => {

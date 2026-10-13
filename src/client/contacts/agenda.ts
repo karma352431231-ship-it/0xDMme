@@ -1,3 +1,4 @@
+import { t, currentLanguage } from '../../shared/i18n/index.ts';
 import {
   addressBookEntry,
   invitation,
@@ -36,13 +37,13 @@ export class AddressBook {
     this.sync = sync;
   }
   versions(search = ''): VaultEntry[] {
-    const query = search.normalize('NFC').toLocaleLowerCase('pt-BR');
+    const query = search.normalize('NFC').toLocaleLowerCase(currentLanguage());
     return [...this.sync.currentHeads().values()]
       .flat()
       .filter(
         (e) =>
           e.change.kind === 'address-book' &&
-          e.change.label.toLocaleLowerCase('pt-BR').includes(query),
+          e.change.label.toLocaleLowerCase(currentLanguage()).includes(query),
       );
   }
   async open(id: string): Promise<BookVersion> {
@@ -94,7 +95,7 @@ export class AddressBook {
         parents: previous,
         label:
           validated.alias ||
-          `${validated.ecosystem} · ${validated.address.slice(0, 12)}`,
+          t('{0} · {1}', [validated.ecosystem, validated.address.slice(0, 12)]),
       },
       value: JSON.stringify(validated),
     });
@@ -193,7 +194,7 @@ export class AddressBook {
         entity,
         kind: 'contact-invite',
         parents,
-        label: 'Link particular de convite',
+        label: t('Link particular de convite'),
       },
       value: JSON.stringify(invitation(value)),
     });

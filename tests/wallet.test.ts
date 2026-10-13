@@ -261,7 +261,7 @@ await test('descobre outra wallet EIP-6963 e MetaMask Solana anunciada após a p
     wallets.list().some((item) => item.name === 'Solflare'),
     false,
   );
-  await assert.rejects(sol.identity(false), /Selecione uma conta Solana/u);
+  await assert.rejects(sol.identity(false), /Select a Solana account/u);
   assert.equal((await sol.identity(true)).address, account.address);
   let changes = 0;
   const off = sol.observe(() => changes++);

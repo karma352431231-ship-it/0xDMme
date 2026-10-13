@@ -1,3 +1,4 @@
+import { t } from '../../shared/i18n/index.ts';
 // SPDX-License-Identifier: GPL-3.0-only
 import {
   publicAvatar,
@@ -168,7 +169,7 @@ export function showPublicAvatar(
   const image = document.createElement('img'),
     status = document.createElement('span');
   image.className = 'public-avatar-preview';
-  image.alt = 'Foto pública aprovada';
+  image.alt = t('Foto pública aprovada');
   image.hidden = true;
   status.setAttribute('role', 'status');
   container.append(image, status);
@@ -194,7 +195,7 @@ export function showPublicAvatar(
     })
     .catch(() => {
       if (!stopped && !input.signal.aborted)
-        status.textContent = 'Foto indisponível.';
+        status.textContent = t('Foto indisponível.');
     });
   return stop;
 }

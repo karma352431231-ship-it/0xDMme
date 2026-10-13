@@ -1,7 +1,10 @@
+import { t } from '../../shared/i18n/index.ts';
 import { paintAvatar } from '../appearance/index.ts';
 import { chatIcon } from '../chat-ui/index.ts';
 /** The chat keeps its selectors and authority; this module owns settings presentation. */
-export const groupSettingsTemplate = `<dialog data-group-settings class="group-dialog group-settings" aria-label="Configurações do grupo"><header><div><span class="group-eyebrow">GRUPO PRIVADO</span><h2>Configurações do grupo</h2></div><button data-group-settings-close class="group-close" type="button" aria-label="Fechar configurações">${chatIcon('close')}</button></header><div class="group-settings-identity"><button data-group-settings-avatar data-group-photo class="group-person-avatar group-photo-trigger" type="button" aria-label="Alterar foto do grupo" title="Alterar foto do grupo"></button><div><strong data-group-settings-title></strong><p data-group-settings-count></p></div></div><section class="group-members-section"><div class="group-section-heading"><h3>Participantes</h3><button data-group-manage class="group-primary" type="button">Adicionar</button></div><ul data-group-members class="group-people-list"></ul></section><details data-group-vault class="group-vault"><summary>Cofre do grupo<span aria-hidden="true">⌄</span></summary><div class="group-vault-body"><p data-group-usage></p><p data-group-cleanup-warning role="status"></p><ul data-group-cleanup-items></ul><button data-group-cleanup-more type="button" hidden>Próximas mídias selecionadas</button><p><a href="#cofre">Salvar um backup cifrado</a> para conservar uma cópia das mídias antes da limpeza. Status não entra no backup.</p><button data-group-clear class="group-danger" type="button">Limpar cofre remoto</button></div></details><footer class="group-settings-footer"><p data-group-owner-note class="group-hint">Para sair, ofereça a propriedade a outro membro e aguarde o aceite.</p><div class="group-button-row"><button data-group-leave class="group-danger" type="button">Sair do grupo</button><button data-group-delete class="group-danger" type="button">Excluir grupo</button></div></footer><p data-group-settings-notice role="status" class="group-feedback"></p></dialog>`;
+export const groupSettingsTemplate = t('html.6f2aac1c9ed0', [
+  chatIcon('close'),
+]);
 export function bindGroupSettings(
   host: HTMLElement,
   lifecycle: { opened: () => void; closed: () => void },
@@ -27,7 +30,7 @@ export function groupMemberActions(
     actions = document.createElement('div');
   menu.className = 'group-member-menu';
   trigger.innerHTML = chatIcon('more');
-  trigger.setAttribute('aria-label', `Administrar ${name}`);
+  trigger.setAttribute('aria-label', t('Administrar {0}', [name]));
   actions.className = 'group-member-actions';
   actions.addEventListener('click', (event) => {
     if (event.target instanceof Element && event.target.closest('button'))
@@ -49,7 +52,8 @@ export function updateGroupSettingsIdentity(
     count = host?.querySelector('[data-group-settings-count]'),
     avatar = host?.querySelector<HTMLElement>('[data-group-settings-avatar]');
   if (title) title.textContent = group.title;
-  if (count) count.textContent = `${group.state.members.length} participantes`;
+  if (count)
+    count.textContent = t('{0} participantes', [group.state.members.length]);
   if (avatar)
     paintAvatar(avatar, { label: group.title, seed: group.state.groupId });
 }

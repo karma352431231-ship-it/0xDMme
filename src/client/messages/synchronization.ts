@@ -1,3 +1,4 @@
+import { t, translatedError } from '../../shared/i18n/index.ts';
 import { HistoryPreparation } from './preparation.ts';
 import { LiveUpdates } from '../message-live/index.ts';
 import type { LiveUpdate } from '../message-live/index.ts';
@@ -100,7 +101,7 @@ export class MessageSynchronization {
     } catch (error: unknown) {
       if (this.current(current)) {
         this.failed = true;
-        this.report(error, 'Não foi possível concluir a operação.');
+        this.report(error, t('Não foi possível concluir a operação.'));
       }
     } finally {
       await this.finishRun(current);
@@ -114,7 +115,7 @@ export class MessageSynchronization {
       } catch {
         if (this.current(current))
           this.options.notice(
-            'Não foi possível abrir os envios pendentes deste aparelho.',
+            t('Não foi possível abrir os envios pendentes deste aparelho.'),
           );
       }
     }
@@ -174,7 +175,7 @@ export class MessageSynchronization {
       if (!abort.signal.aborted && this.current(current)) {
         this.report(
           error,
-          'Não foi possível preparar o histórico das conversas.',
+          t('Não foi possível preparar o histórico das conversas.'),
         );
         this.options.status();
         this.preloadRetryAt = Date.now() + 61000;
@@ -216,7 +217,7 @@ export class MessageSynchronization {
       .presence()
       .catch((error: unknown) => {
         if (!this.current(current)) return;
-        this.report(error, 'Não foi possível atualizar a presença.');
+        this.report(error, t('Não foi possível atualizar a presença.'));
         if (!this.busy) this.options.status();
       })
       .finally(() => {
@@ -251,11 +252,13 @@ export class MessageSynchronization {
       await this.run(this.options.periodic);
     } catch (error: unknown) {
       if (!this.current(current)) return;
-      this.report(error, 'Não foi possível conferir os envios pendentes.');
+      this.report(error, t('Não foi possível conferir os envios pendentes.'));
       this.options.status();
     }
   }
   private report(error: unknown, fallback: string): void {
-    this.options.notice(error instanceof Error ? error.message : fallback);
+    this.options.notice(
+      error instanceof Error ? translatedError(error.message) : fallback,
+    );
   }
 }

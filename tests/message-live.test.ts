@@ -519,7 +519,7 @@ await test('stream não mantém trava do cofre; quedas reconectam com ready e tr
     'changed',
   ]);
   assert.equal(live.connected, false);
-  assert.match(live.notice, /30 segundos/);
+  assert.match(live.notice, /30 seconds/);
 });
 await test('cancelar antes da assinatura impede abrir conexão com sessão antiga', async (t) => {
   const original = globalThis.fetch;

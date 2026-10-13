@@ -1,3 +1,4 @@
+import { t } from '../../shared/i18n/index.ts';
 import { keys, object } from '../../shared/account/index.ts';
 import { communityArray } from '../../shared/communities/index.ts';
 import { customBadge } from '../../shared/community-badges/index.ts';
@@ -16,15 +17,17 @@ export function mountCommunityBadges(
   id: string,
   actions: CommunityActions,
 ): void {
-  const section = card('Badges personalizados');
+  const section = card(t('Badges personalizados'));
   host.append(section);
   section.append(
     el(
       'p',
-      'Atribuição manual, sem poderes de gestão. Até 20 badges e três por pessoa.',
+      t(
+        'Atribuição manual, sem poderes de gestão. Até 20 badges e três por pessoa.',
+      ),
     ),
   );
-  const label = field(section, 'Nome do badge (texto ou emoji)', {
+  const label = field(section, t('Nome do badge (texto ou emoji)'), {
     maximum: 32,
   });
   const list = el('div');
@@ -38,8 +41,8 @@ export function mountCommunityBadges(
       const badge = customBadge(raw),
         row = el('section', '', 'community-badge-editor');
       row.append(el('h3', badge.label));
-      const name = field(row, 'Nome', { maximum: 32, value: badge.label });
-      button(row, 'Confirmar alterações', () =>
+      const name = field(row, t('Nome'), { maximum: 32, value: badge.label });
+      button(row, t('Confirmar alterações'), () =>
         actions.query(async () => {
           await actions.request('badge-edit', {
             id,
@@ -52,8 +55,8 @@ export function mountCommunityBadges(
       );
       const target = communityTargetPicker(row, actions);
       for (const [enabled, title] of [
-        [true, 'Atribuir badge'],
-        [false, 'Remover badge do membro'],
+        [true, t('Atribuir badge')],
+        [false, t('Remover badge do membro')],
       ] as const)
         button(row, title, () =>
           actions.query(async () => {
@@ -63,18 +66,18 @@ export function mountCommunityBadges(
               target: target().id,
               enabled,
             });
-            feedback.textContent = 'Badge atualizado.';
+            feedback.textContent = t('Badge atualizado.');
           }),
         );
       const confirm = el('input');
       confirm.type = 'checkbox';
       const remove = el(
         'label',
-        'Excluir a definição deste badge quando não houver atribuições',
+        t('Excluir a definição deste badge quando não houver atribuições'),
       );
       remove.prepend(confirm);
       row.append(remove);
-      button(row, 'Excluir badge', () =>
+      button(row, t('Excluir badge'), () =>
         actions.query(async () => {
           if (!confirm.checked)
             throw new Error('Confirme a exclusão do badge.');
@@ -92,7 +95,7 @@ export function mountCommunityBadges(
   const feedback = el('p');
   feedback.setAttribute('role', 'status');
   section.append(feedback);
-  button(section, 'Criar badge', () =>
+  button(section, t('Criar badge'), () =>
     actions.query(async () => {
       await actions.request('badge-create', {
         id,
@@ -104,5 +107,5 @@ export function mountCommunityBadges(
       await load();
     }),
   );
-  button(section, 'Carregar badges', () => actions.query(load));
+  button(section, t('Carregar badges'), () => actions.query(load));
 }

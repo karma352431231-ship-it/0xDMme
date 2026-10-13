@@ -1,3 +1,4 @@
+import { t, currentLanguage } from '../../shared/i18n/index.ts';
 import type { EmojiCatalog } from './catalog.ts';
 declare const EMOJI_ASSET_URL: string;
 const maximum = 2 * 1024 * 1024;
@@ -97,7 +98,7 @@ export class EmojiArtwork {
         if (span.isConnected && svg) this.paint(span, svg);
       })
       .catch(() => {
-        span.title = 'Desenho do aparelho: pacote gráfico indisponível.';
+        span.title = t('Desenho do aparelho: pacote gráfico indisponível.');
       });
     return span;
   }
@@ -132,7 +133,7 @@ export class EmojiArtwork {
   }
   text(host: HTMLElement, text: string, catalog: EmojiCatalog): void {
     host.replaceChildren();
-    const segments = new Intl.Segmenter('pt-BR', {
+    const segments = new Intl.Segmenter(currentLanguage(), {
       granularity: 'grapheme',
     }).segment(text);
     let plain = '',

@@ -1,3 +1,4 @@
+import { t, translatedError } from '../../shared/i18n/index.ts';
 import { hasPostDraft, confirmComposerDiscard } from './composer-draft.ts';
 export { hasPostDraft } from './composer-draft.ts';
 import { postState, tagPage } from '../../shared/community-posts/index.ts';
@@ -36,7 +37,7 @@ export class PostComposer {
         return;
       event.preventDefault();
       if (signedIn()) this.open();
-      else showToast('Entre pelo Perfil para criar uma postagem.');
+      else showToast(t('Entre pelo Perfil para criar uma postagem.'));
     });
   }
 
@@ -48,18 +49,18 @@ export class PostComposer {
     const header = el('header', '', 'post-composer-heading');
     const heading = el('div', '', 'post-composer-heading-copy');
     heading.append(
-      el('h2', 'Criar postagem'),
-      el('p', 'Compartilhe com uma comunidade.'),
+      el('h2', t('Criar postagem')),
+      el('p', t('Compartilhe com uma comunidade.')),
     );
     header.append(heading);
-    button(header, 'Fechar', () => {
+    button(header, t('Fechar'), () => {
       this.requestClose();
       return Promise.resolve();
     });
     this.feedback = el('p', '', 'community-feedback');
     this.feedback.setAttribute('role', 'status');
     this.draft = el('div', '', 'post-composer-content');
-    dialog.setAttribute('aria-label', 'Criar postagem');
+    dialog.setAttribute('aria-label', t('Criar postagem'));
     dialog.append(header, this.feedback, this.draft);
     dialog.addEventListener('cancel', (event) => {
       event.preventDefault();
@@ -98,7 +99,9 @@ export class PostComposer {
     } catch (error: unknown) {
       if (current === this.dialog && this.feedback)
         this.feedback.textContent =
-          error instanceof Error ? error.message : 'Postagem indisponível.';
+          error instanceof Error
+            ? translatedError(error.message)
+            : t('Postagem indisponível.');
     } finally {
       this.busy = false;
       if (current === this.dialog) this.disable(false);
@@ -128,14 +131,14 @@ export class PostComposer {
     this.stage = new AbortController();
     const page = await this.controller.list('following', after);
     if (lifetime.signal.aborted || !this.draft) return;
-    this.draft.replaceChildren(el('h3', 'Suas comunidades seguidas'));
+    this.draft.replaceChildren(el('h3', t('Suas comunidades seguidas')));
     for (const group of page.items) this.choice(group);
     if (!page.items.length)
       this.draft.append(
-        el('p', 'Siga uma comunidade em Explorar para encontrá-la aqui.'),
+        el('p', t('Siga uma comunidade em Explorar para encontrá-la aqui.')),
       );
     if (page.next)
-      button(this.draft, 'Mais comunidades', () =>
+      button(this.draft, t('Mais comunidades'), () =>
         this.run(() => this.choose(page.next)),
       );
   }
@@ -209,7 +212,7 @@ export class PostComposer {
     const post = crypto.randomUUID();
     const footer = el('footer', '', 'post-composer-footer');
     this.draft.append(footer);
-    const publish = button(footer, 'Publicar postagem', () =>
+    const publish = button(footer, t('Publicar postagem'), () =>
       this.run(async () => {
         const value = await content();
         postState(
@@ -221,7 +224,7 @@ export class PostComposer {
         );
         if (lifetime.signal.aborted) return;
         this.close();
-        showToast('Postagem publicada.');
+        showToast(t('Postagem publicada.'));
       }),
     );
     publish.className = 'post-composer-publish';
@@ -244,7 +247,7 @@ export class PostComposer {
     }
     confirmComposerDiscard(this.dialog, {
       draft: this.draft,
-      label: 'Descartar postagem?',
+      label: t('Descartar postagem?'),
       close: () => this.close(),
     });
   }

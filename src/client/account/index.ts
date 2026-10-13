@@ -1,3 +1,4 @@
+import { t, translatedError } from '../../shared/i18n/index.ts';
 import { fetchApi, readApiJson } from '../api-response/index.ts';
 import { AccountError, accountSession } from '../../shared/account/index.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
@@ -73,7 +74,7 @@ export function startAccount(
     },
     authenticated: async (authenticated) => {
       setSession(authenticated);
-      core.status = 'Abrindo sua conta…';
+      core.status = t('Abrindo sua conta…');
       await profile.load(authenticated, 'login');
     },
   });
@@ -131,7 +132,7 @@ export function startAccount(
         core.epoch++;
         profile.clear();
         setSession(null);
-        core.status = 'Sessão expirada. Entre novamente.';
+        core.status = t('Sessão expirada. Entre novamente.');
         render();
       },
       Math.min(remaining, 2_147_483_647),
@@ -146,8 +147,9 @@ export function startAccount(
       // Injected wallet prompts cannot be cancelled by the dapp. Invalidate
       // their result and keep one operation until the provider settles.
       core.epoch++;
-      core.status =
-        'A wallet não concluiu o pedido. Feche ou recuse a solicitação na wallet antes de tentar novamente.';
+      core.status = t(
+        'A wallet não concluiu o pedido. Feche ou recuse a solicitação na wallet antes de tentar novamente.',
+      );
       render();
     }, approval.operationTimeout());
     try {
@@ -156,8 +158,10 @@ export function startAccount(
       approval.reportFailure(error, approvalRequest);
       core.status =
         error instanceof AccountError || error instanceof SolanaConnectionError
-          ? error.message
-          : 'Operação não concluída. Confira a wallet e a conexão; tente novamente.';
+          ? translatedError(error.message)
+          : t(
+              'Operação não concluída. Confira a wallet e a conexão; tente novamente.',
+            );
     } finally {
       window.clearTimeout(timer);
       core.busy = false;
@@ -172,14 +176,14 @@ export function startAccount(
     login.stopObserving();
     profile.clear();
     setSession(null);
-    core.status = 'Encerrando sessão…';
+    core.status = t('Encerrando sessão…');
     render();
     try {
       if (options.mobileOpening) await forgetLoginOpening();
     } finally {
       if (current) await api('logout', { input: {}, csrf: current.csrf });
     }
-    core.status = 'Sessão encerrada.';
+    core.status = t('Sessão encerrada.');
   }
   async function restore(): Promise<void> {
     if (approval.only) {
@@ -212,13 +216,15 @@ export function startAccount(
       // A resumed/new tab can have the old session cookie while a newly signed
       // handoff is still awaiting the original browser's explicit confirmation.
       if (options.mobileOpening) await walletReturn.refresh();
-      core.status = 'Abrindo sua conta…';
+      core.status = t('Abrindo sua conta…');
       await profile.load(restored);
     } catch (error: unknown) {
       core.status =
         error instanceof AccountError
-          ? error.message
-          : 'Não foi possível recuperar a sessão ou abrir o perfil privado. Confira a conexão.';
+          ? translatedError(error.message)
+          : t(
+              'Não foi possível recuperar a sessão ou abrir o perfil privado. Confira a conexão.',
+            );
     }
     render();
   }
@@ -280,7 +286,9 @@ export function startAccount(
     profile.bind();
     node(core, '[data-account-finish]')?.addEventListener('click', () => {
       requestPicker(
-        'Escolha a wallet desta conta para concluir a entrada e abrir suas chaves.',
+        t(
+          'Escolha a wallet desta conta para concluir a entrada e abrir suas chaves.',
+        ),
       );
     });
     node(core, '[data-profile-avatar]')?.addEventListener('click', () => {
@@ -305,8 +313,9 @@ export function startAccount(
     confirmWallet(): void {
       picker.request();
       location.hash = '#configuracoes';
-      core.status =
-        'Confirme a wallet da sua conta para liberar as ações sensíveis nesta sessão.';
+      core.status = t(
+        'Confirme a wallet da sua conta para liberar as ações sensíveis nesta sessão.',
+      );
       render();
     },
     mountPrivacy: (host: HTMLElement) => profile.mountPrivacy(host),

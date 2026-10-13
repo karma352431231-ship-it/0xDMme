@@ -40,6 +40,11 @@ const assets = new Map([
     'src/client/vault-probe/index.ts',
     'src/shared/vault-probe/index.ts',
     'src/client/zk.ts',
+    'src/client/language/start.ts',
+    'src/client/language/index.ts',
+    'src/shared/i18n/index.ts',
+    'src/shared/i18n/catalog.ts',
+    'src/shared/i18n/error-templates.ts',
   ].map((path) => [`/${path}`, [path, 'text/javascript']]),
   ...[
     'index.mjs',

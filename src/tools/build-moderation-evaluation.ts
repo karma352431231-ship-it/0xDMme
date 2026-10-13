@@ -13,6 +13,7 @@ await build({
   platform: 'browser',
   target: 'es2023',
   minify: true,
+  charset: 'utf8',
 });
 for (const name of ['index.html', 'style.css'])
   await copyFile(
@@ -31,6 +32,10 @@ await promisify(execFile)(
     'package-lock.json',
     'src/client/moderation-evaluation',
     'src/shared/moderation-evaluation',
+    'src/shared/account',
+    'src/shared/i18n',
+    'src/client/api-response',
+    'src/client/language/index.ts',
     'src/tools/build-moderation-evaluation.ts',
     'infra/moderation-evaluation/index.html',
     'infra/moderation-evaluation/style.css',

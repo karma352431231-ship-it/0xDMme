@@ -1,3 +1,8 @@
+import {
+  t,
+  translatedError,
+  currentLanguage,
+} from '../../shared/i18n/index.ts';
 export { noticeLink, bindNoticeRow } from './notice-link.ts';
 import { ActivitySeen } from './seen.ts';
 import { mentionRows } from './mentions.ts';
@@ -124,7 +129,9 @@ async function load<T>(read: () => Promise<readonly T[]>): Promise<Loaded<T>> {
     return {
       items: [],
       problem:
-        error instanceof Error ? error.message : 'Não foi possível carregar.',
+        error instanceof Error
+          ? translatedError(error.message)
+          : t('Não foi possível carregar.'),
     };
   }
 }
@@ -145,9 +152,9 @@ function relativeTime(iso: string): string {
     Math.floor((Date.now() - Date.parse(iso)) / 60_000),
   );
   if (minutes < 1) return 'agora';
-  if (minutes < 60) return `há ${minutes} min`;
-  if (minutes < 1440) return `há ${Math.floor(minutes / 60)} h`;
-  return new Date(iso).toLocaleDateString('pt-BR');
+  if (minutes < 60) return t('há {0} min', [minutes]);
+  if (minutes < 1440) return t('há {0} h', [Math.floor(minutes / 60)]);
+  return new Date(iso).toLocaleDateString(currentLanguage());
 }
 function element<K extends keyof HTMLElementTagNameMap>(
   tag: K,
@@ -249,7 +256,9 @@ export function startActivity(
       feedback = done;
     } catch (error: unknown) {
       feedback =
-        error instanceof Error ? error.message : 'A ação não foi concluída.';
+        error instanceof Error
+          ? translatedError(error.message)
+          : t('A ação não foi concluída.');
     } finally {
       busy = false;
     }
@@ -338,18 +347,23 @@ export function startActivity(
       row({
         avatar: { label: peer.name || peer.address, seed: peer.address },
         title: displayName(peer.name || peer.address),
-        detail: `Quer conversar · ${peer.ecosystem.toUpperCase()} · ${shortAddress(peer.address)}`,
+        detail: t('Quer conversar · {0} · {1}', [
+          peer.ecosystem.toUpperCase(),
+          shortAddress(peer.address),
+        ]),
         actions: [
           button(
-            'Aceitar',
+            t('Aceitar'),
             () => sources.respondRequest(peer.accountId, true),
-            'Contato aprovado nos dois sentidos.',
+            t('Contato aprovado nos dois sentidos.'),
             true,
           ),
           button(
-            'Recusar',
+            t('Recusar'),
             () => sources.respondRequest(peer.accountId, false),
-            'Pedido recusado. A mesma identidade não pode repetir este pedido.',
+            t(
+              'Pedido recusado. A mesma identidade não pode repetir este pedido.',
+            ),
           ),
         ],
       }),
@@ -360,25 +374,25 @@ export function startActivity(
       row({
         title:
           invite.kind === 'invite'
-            ? `${invite.actor} convidou você para um grupo`
-            : `${invite.actor} ofereceu a propriedade de um grupo`,
+            ? t('{0} convidou você para um grupo', [invite.actor])
+            : t('{0} ofereceu a propriedade de um grupo', [invite.actor]),
         detail:
           invite.kind === 'invite'
-            ? 'Entrar mostra o grupo na sua lista de conversas.'
-            : 'A administração só muda depois do seu aceite.',
+            ? t('Entrar mostra o grupo na sua lista de conversas.')
+            : t('A administração só muda depois do seu aceite.'),
         actions: [
           button(
-            invite.kind === 'invite' ? 'Entrar' : 'Aceitar propriedade',
+            invite.kind === 'invite' ? t('Entrar') : t('Aceitar propriedade'),
             () => sources.respondGroupInvite(invite.id, true),
             invite.kind === 'invite'
-              ? 'Você entrou no grupo.'
-              : 'Propriedade aceita.',
+              ? t('Você entrou no grupo.')
+              : t('Propriedade aceita.'),
             true,
           ),
           button(
-            'Recusar',
+            t('Recusar'),
             () => sources.respondGroupInvite(invite.id, false),
-            'Convite recusado.',
+            t('Convite recusado.'),
           ),
         ],
       }),
@@ -398,7 +412,7 @@ export function startActivity(
         detail: relativeTime(reply.createdAt),
         actions: [
           noticeLink({
-            label: 'Abrir',
+            label: t('Abrir'),
             href: `#comunidades?id=${reply.community}&post=${reply.reply}`,
             read: reply.read === true,
             acknowledge: () => sources.markRepliesRead([reply.reply]),
@@ -417,8 +431,8 @@ export function startActivity(
       row({
         avatar: { label: community.name, seed: community.id },
         title: community.name,
-        detail: 'Transferência de comunidade aguardando você',
-        actions: [link('Ver', '#comunidades?view=invitations')],
+        detail: t('Transferência de comunidade aguardando você'),
+        actions: [link(t('Ver'), '#comunidades?view=invitations')],
       }),
     );
   }
@@ -427,7 +441,9 @@ export function startActivity(
       row({
         avatar: { label: call.label, seed: call.peer },
         title: displayName(call.label),
-        detail: `Chamada de voz não atendida · ${new Date(call.at).toLocaleString('pt-BR')}`,
+        detail: t('Chamada de voz não atendida · {0}', [
+          new Date(call.at).toLocaleString(currentLanguage()),
+        ]),
         actions: [],
       }),
     );
@@ -436,10 +452,14 @@ export function startActivity(
     publicationPreview.clear();
     if (!host) return;
     const heading = element('header', '', 'activity-heading');
-    heading.append(element('h2', 'Atividade'));
+    heading.append(element('h2', t('Atividade')));
     if (session)
       heading.append(
-        button('Atualizar', () => Promise.resolve(), 'Atividade atualizada.'),
+        button(
+          t('Atualizar'),
+          () => Promise.resolve(),
+          t('Atividade atualizada.'),
+        ),
       );
     const status = element('p', feedback, 'activity-feedback');
     status.setAttribute('role', 'status');
@@ -448,7 +468,7 @@ export function startActivity(
       host.append(
         element(
           'p',
-          'Entre na conta para ver pedidos, convites e publicações.',
+          t('Entre na conta para ver pedidos, convites e publicações.'),
           'activity-empty',
         ),
       );
@@ -461,16 +481,16 @@ export function startActivity(
       .map(([, node]) => node)
       .filter((node): node is HTMLElement => node !== null);
     if (groups.length) host.append(...groups);
-    else host.append(element('p', 'Nada novo por aqui.', 'activity-empty'));
+    else host.append(element('p', t('Nada novo por aqui.'), 'activity-empty'));
   }
   function filters(): HTMLElement {
     const nav = element('nav', '', 'activity-filters');
-    nav.setAttribute('aria-label', 'Filtrar atividade');
+    nav.setAttribute('aria-label', t('Filtrar atividade'));
     for (const [key, label] of [
-      ['all', 'Tudo'],
-      ['requests', 'Pedidos'],
-      ['replies', 'Publicações'],
-      ['mentions', 'Menções'],
+      ['all', t('Tudo')],
+      ['requests', t('Pedidos')],
+      ['replies', t('Publicações')],
+      ['mentions', t('Menções')],
     ] as const) {
       const choice = element('button', label);
       choice.type = 'button';
@@ -488,19 +508,21 @@ export function startActivity(
     return [
       [
         'requests',
-        section('Pedidos de conversa', snapshot.requests, requestRows()),
+        section(t('Pedidos de conversa'), snapshot.requests, requestRows()),
       ],
       [
         'calls',
         section(
-          'Chamadas perdidas',
+          t('Chamadas perdidas'),
           snapshot.calls,
           callRows(),
           snapshot.calls.items.length
             ? button(
-                'Limpar',
+                t('Limpar'),
                 () => sources.clearMissedCalls(),
-                'Chamadas perdidas removidas da lista em todos os aparelhos.',
+                t(
+                  'Chamadas perdidas removidas da lista em todos os aparelhos.',
+                ),
               )
             : undefined,
         ),
@@ -508,7 +530,7 @@ export function startActivity(
       [
         'moderation',
         section(
-          'Moderação automática',
+          t('Moderação automática'),
           snapshot.moderation,
           moderationRows(snapshot.moderation.items, {
             acknowledge: async (id) => {
@@ -527,7 +549,7 @@ export function startActivity(
       [
         'mentions',
         section(
-          'Menções a você',
+          t('Menções a você'),
           snapshot.mentions,
           mentionRows(snapshot.mentions.items, {
             open: async (id) => {
@@ -540,15 +562,22 @@ export function startActivity(
           }),
         ),
       ],
-      ['invites', section('Convites de grupo', snapshot.invites, inviteRows())],
+      [
+        'invites',
+        section(t('Convites de grupo'), snapshot.invites, inviteRows()),
+      ],
       [
         'replies',
-        section('Publicações nas comunidades', snapshot.replies, replyRows()),
+        section(
+          t('Publicações nas comunidades'),
+          snapshot.replies,
+          replyRows(),
+        ),
       ],
       [
         'transfers',
         section(
-          'Transferências de comunidade',
+          t('Transferências de comunidade'),
           snapshot.transfers,
           transferRows(),
         ),

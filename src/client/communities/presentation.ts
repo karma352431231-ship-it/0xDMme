@@ -1,3 +1,4 @@
+import { t, currentLanguage } from '../../shared/i18n/index.ts';
 import type { CommunityPost } from '../../shared/community-posts/index.ts';
 import { avatarInitials, avatarTone } from '../appearance/index.ts';
 import { communityElement as el, communityLink as link } from './elements.ts';
@@ -79,9 +80,9 @@ export function relativePostTime(createdAt: string, now = Date.now()): string {
     Math.floor((now - Date.parse(createdAt)) / 60_000),
   );
   if (minutes < 1) return 'agora';
-  if (minutes < 60) return `há ${minutes} min`;
-  if (minutes < 1440) return `há ${Math.floor(minutes / 60)} h`;
-  return `há ${Math.floor(minutes / 1440)} d`;
+  if (minutes < 60) return t('há {0} min', [minutes]);
+  if (minutes < 1440) return t('há {0} h', [Math.floor(minutes / 60)]);
+  return t('há {0} d', [Math.floor(minutes / 1440)]);
 }
 /**
  * Who posted leads; the community is secondary. Feeds mixing communities show
@@ -106,7 +107,8 @@ export function postHeader(
     );
     identity.lastElementChild?.classList.add('community-post-author');
     authorBadges(identity, post);
-  } else identity.append(el('span', 'Conta removida', 'community-post-author'));
+  } else
+    identity.append(el('span', t('Conta removida'), 'community-post-author'));
   const byline = el('div', '', 'community-post-byline');
   if (context === 'feed') {
     link(byline, group.name, `#comunidades?id=${group.id}`);
@@ -114,10 +116,10 @@ export function postHeader(
   }
   const time = el(
     'time',
-    `${context === 'feed' ? ' · ' : ''}${relativePostTime(post.createdAt)}${post.editedAt ? ' · Post Editado' : ''}`,
+    `${context === 'feed' ? ' · ' : ''}${relativePostTime(post.createdAt)}${post.editedAt ? t(' · Post Editado') : ''}`,
   );
   time.dateTime = post.createdAt;
-  time.title = new Date(post.createdAt).toLocaleString('pt-BR');
+  time.title = new Date(post.createdAt).toLocaleString(currentLanguage());
   byline.append(time);
   identity.append(byline);
   node.prepend(header);
@@ -146,7 +148,10 @@ function authorAvatar(post: CommunityPost): HTMLElement {
     : el('span', '', 'community-avatar person');
   if (avatar instanceof HTMLAnchorElement && post.author) {
     avatar.href = `#publico?handle=${encodeURIComponent(post.author.handle)}`;
-    avatar.setAttribute('aria-label', `Abrir perfil de @${post.author.handle}`);
+    avatar.setAttribute(
+      'aria-label',
+      t('Abrir perfil de @{0}', [post.author.handle]),
+    );
   } else avatar.setAttribute('aria-hidden', 'true');
   avatar.append(
     el('span', avatarInitials(label) || '?', 'community-avatar-initial'),
@@ -162,12 +167,12 @@ export function postComments(
   a.href = `#comunidades?id=${post.community}&post=${post.id}`;
   a.setAttribute(
     'aria-label',
-    `Abrir postagem e ${post.replies} respostas diretas`,
+    t('Abrir postagem e {0} respostas diretas', [post.replies]),
   );
   a.append(
     communityIcon('comment'),
     el('span', String(post.replies)),
-    el('span', 'comentários', 'post-action-caption'),
+    el('span', t('comentários'), 'post-action-caption'),
   );
   container.append(a);
 }

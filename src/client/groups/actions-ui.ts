@@ -1,3 +1,8 @@
+import {
+  t,
+  translatedError,
+  currentLanguage,
+} from '../../shared/i18n/index.ts';
 import { GroupPeople } from './people.ts';
 import type { GroupProfile } from './people.ts';
 import { paintAvatar } from '../appearance/index.ts';
@@ -48,7 +53,7 @@ export class GroupActionsUi {
     const dialog = document.createElement('dialog');
     dialog.className = 'group-dialog group-actions-dialog';
     dialog.setAttribute('aria-labelledby', 'group-dialog-title');
-    dialog.innerHTML = `<header><div><span class="group-eyebrow">GRUPO PRIVADO</span><h2 id="group-dialog-title"></h2></div><button data-close class="group-close" type="button" aria-label="Fechar">${chatIcon('close')}</button></header>${content}<p data-feedback class="group-feedback" role="status"></p>`;
+    dialog.innerHTML = t('html.8f97d3de1ea5', [chatIcon('close'), content]);
     const heading = dialog.querySelector('h2');
     if (heading) heading.textContent = title;
     dialog
@@ -72,7 +77,7 @@ export class GroupActionsUi {
     if (!dialog || this.busy || this.options.isBusy()) return;
     this.busy = true;
     this.buttons(dialog, true);
-    this.feedback(dialog, 'Processando…');
+    this.feedback(dialog, t('Processando…'));
     try {
       await this.options.run(async () => {
         try {
@@ -97,10 +102,7 @@ export class GroupActionsUi {
     if (node) node.textContent = text;
   }
   showCreate(): void {
-    const dialog = this.show(
-      'Criar grupo privado',
-      '<div class="group-create-preview"><span data-create-avatar class="group-create-avatar" aria-hidden="true">#</span><p>Um espaço para conversar<br>com as suas pessoas.</p></div><form><label>Nome do grupo<input name="title" maxlength="160" required autocomplete="off" placeholder="Como o grupo vai se chamar?"></label><p class="group-hint">Depois de criar, adicione contatos ou compartilhe um convite.</p><div class="group-form-footer"><button class="group-primary" type="submit">Criar grupo</button></div></form>',
-    );
+    const dialog = this.show(t('Criar grupo privado'), t('html.c392c59440f2'));
     const titleInput =
       dialog.querySelector<HTMLInputElement>('input[name=title]');
     titleInput?.addEventListener('input', () => {
@@ -125,8 +127,8 @@ export class GroupActionsUi {
   }
   showJoin(url = ''): void {
     const dialog = this.show(
-      'Entrar em grupo privado',
-      '<form><label>Link de convite<input name="invitation" type="url" required autocomplete="off" spellcheck="false"></label><p>Ao entrar, os participantes verão seu perfil privado. Você receberá mensagens a partir da sua entrada.</p><div class="group-form-footer"><button class="group-primary" type="submit">Entrar no grupo</button></div></form>',
+      t('Entrar em grupo privado'),
+      t('html.9012ccf1c0d4'),
     );
     const input = dialog.querySelector('input');
     if (input) input.value = url;
@@ -149,8 +151,8 @@ export class GroupActionsUi {
     if (!selected || selected.localOnly)
       throw new Error('Abra um grupo conectado primeiro.');
     const dialog = this.show(
-      'Adicionar participantes',
-      '<p class="group-hint">Adicione seus contatos ao grupo. Eles poderão sair quando quiserem.</p><label class="group-search">Buscar nesta lista<input data-contact-search type="search" placeholder="Nome ou wallet" autocomplete="off"></label><ul data-contacts class="group-people-list"></ul><button data-more-contacts type="button" hidden>Mais contatos</button><section class="group-invitation-section"><h3>Convidar por link</h3><p class="group-hint">Quem tiver o link poderá entrar. Gerar em outro aparelho pode substituir o convite atual.</p><div class="group-button-row"><button data-link class="group-primary" type="button">Gerar / copiar link</button><button data-revoke class="group-secondary" type="button">Revogar link</button></div><label data-invitation-label hidden>Convite compartilhável<input data-invitation readonly></label></section>',
+      t('Adicionar participantes'),
+      t('html.ea146116f72c'),
     );
     dialog
       .querySelector<HTMLInputElement>('[data-contact-search]')
@@ -176,7 +178,7 @@ export class GroupActionsUi {
         }
         this.feedback(
           dialog,
-          'Link revogado. Quem já entrou continua no grupo.',
+          t('Link revogado. Quem já entrou continua no grupo.'),
         );
       });
     });
@@ -218,7 +220,7 @@ export class GroupActionsUi {
     this.feedback(
       dialog,
       !list?.children.length && !next
-        ? 'Nenhum contato disponível para adicionar.'
+        ? t('Nenhum contato disponível para adicionar.')
         : '',
     );
   }
@@ -226,26 +228,27 @@ export class GroupActionsUi {
     const item = document.createElement('li'),
       button = document.createElement('button');
     button.type = 'button';
-    item.dataset['search'] = `${peer.name} ${peer.address}`.toLocaleLowerCase(
-      'pt-BR',
-    );
+    item.dataset['search'] = t('{0} {1}', [
+      peer.name,
+      peer.address,
+    ]).toLocaleLowerCase(currentLanguage());
     button.className = 'group-contact-choice';
     button.append(
       this.people.identity(
         peer.accountId,
         peer.name || peer.address,
-        'Contato',
+        t('Contato'),
       ),
     );
     const add = document.createElement('span');
     add.className = 'group-add-label';
-    add.textContent = 'Adicionar';
+    add.textContent = t('Adicionar');
     button.append(add);
     button.addEventListener('click', () => {
       void this.perform(async () => {
         await this.options.controller.admission('add', peer.accountId);
         item.remove();
-        this.feedback(dialog, 'Contato adicionado ao grupo.');
+        this.feedback(dialog, t('Contato adicionado ao grupo.'));
         await this.options.refresh();
       });
     });
@@ -257,7 +260,7 @@ export class GroupActionsUi {
       dialog
         .querySelector<HTMLInputElement>('[data-contact-search]')
         ?.value.trim()
-        .toLocaleLowerCase('pt-BR') ?? '';
+        .toLocaleLowerCase(currentLanguage()) ?? '';
     dialog
       .querySelectorAll<HTMLElement>('[data-contacts] > li')
       .forEach((item) => {
@@ -276,17 +279,17 @@ export class GroupActionsUi {
     }
     try {
       await navigator.clipboard.writeText(link);
-      this.feedback(dialog, 'Link copiado.');
+      this.feedback(dialog, t('Link copiado.'));
     } catch {
-      this.feedback(dialog, 'Link pronto. Copie o endereço acima.');
+      this.feedback(dialog, t('Link pronto. Copie o endereço acima.'));
     }
   }
 }
 
 function errorMessage(error: unknown): string {
   return error instanceof Error
-    ? error.message
-    : 'Operação não confirmada. Tente novamente.';
+    ? translatedError(error.message)
+    : t('Operação não confirmada. Tente novamente.');
 }
 
 export function showGroupManagement(

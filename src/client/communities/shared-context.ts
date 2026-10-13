@@ -1,3 +1,4 @@
+import { t } from '../../shared/i18n/index.ts';
 import type { ExternalMediaConsent } from '../external-media/index.ts';
 import type { FeedEntry } from '../../shared/community-discovery/index.ts';
 import { communityElement as el } from './elements.ts';
@@ -29,7 +30,7 @@ export function sharedEntry(
     entry.community,
     'community',
   );
-  const chip = el('span', 'Compartilhou', 'post-kind-reply post-kind-share');
+  const chip = el('span', t('Compartilhou'), 'post-kind-reply post-kind-share');
   chip.prepend(communityIcon('share'));
   row.querySelector('.community-post-author')?.after(chip);
   if (share.author.avatar)

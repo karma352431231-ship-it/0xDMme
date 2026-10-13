@@ -1,3 +1,4 @@
+import { t, currentLanguage } from '../../shared/i18n/index.ts';
 import type { CommunityPost } from '../../shared/community-posts/index.ts';
 import { postViewsPage } from '../../shared/community-views/index.ts';
 import { communityElement as el } from './elements.ts';
@@ -49,8 +50,8 @@ function confirmed(item: PendingView): void {
 }
 function labelCount(label: HTMLElement, views: number): void {
   const value = label.querySelector('span');
-  if (value) value.textContent = views.toLocaleString('pt-BR');
-  label.setAttribute('aria-label', `${views} visualizações estimadas`);
+  if (value) value.textContent = views.toLocaleString(currentLanguage());
+  label.setAttribute('aria-label', t('{0} visualizações estimadas', [views]));
 }
 /** One observer/timer and bounded batches for public and signed-in post cards. */
 class ViewExposure {
@@ -201,8 +202,9 @@ class ViewExposure {
     for (const item of batch) {
       this.pending.delete(item.post);
       for (const label of item.labels)
-        label.title =
-          'Contagem disponível; esta visualização não pôde ser confirmada.';
+        label.title = t(
+          'Contagem disponível; esta visualização não pôde ser confirmada.',
+        );
     }
     this.retry = 0;
   }
@@ -224,12 +226,13 @@ export function postViews(
     return () => {};
   }
   const label = el('span', '', 'post-action post-views');
-  label.title =
-    'Estimativa de navegadores únicos por post, incluindo visitantes sem login.';
+  label.title = t(
+    'Estimativa de navegadores únicos por post, incluindo visitantes sem login.',
+  );
   label.append(
     communityIcon('eye'),
     el('span', '—'),
-    el('span', 'visualizações', 'post-action-caption'),
+    el('span', t('visualizações'), 'post-action-caption'),
   );
   if (post.views !== undefined) labelCount(label, post.views);
   toolbar.append(label);

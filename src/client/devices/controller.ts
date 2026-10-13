@@ -1,3 +1,4 @@
+import { t } from '../../shared/i18n/index.ts';
 import { authoritySignature } from './authority-signature.ts';
 import { fetchApi, readApiJson } from '../api-response/index.ts';
 import {
@@ -208,7 +209,7 @@ export class DeviceController {
     const identity = await localIdentity(
       invitation.accountId,
       deviceId,
-      'Meu aparelho',
+      t('Meu aparelho'),
     );
     const checkpoint = await readCheckpoint(invitation.accountId);
     if (checkpoint.trustedRoot && checkpoint.trustedRoot !== invitation.root)
@@ -308,7 +309,7 @@ export class DeviceController {
     let identity = await localIdentity(
       session.accountId,
       session.deviceId,
-      name || 'Meu aparelho',
+      name || t('Meu aparelho'),
     );
     this.assertSession(session);
     if (
@@ -553,7 +554,7 @@ export class DeviceController {
     return this.run((session) =>
       this.startWalletRecovery(session, {
         ...input,
-        name: input.name || 'Meu aparelho',
+        name: input.name || t('Meu aparelho'),
       }),
     );
   }
@@ -580,7 +581,7 @@ export class DeviceController {
         const plan: RecoveryPlan = {
           mode: previous ? 'recover' : 'initialize',
           config: proof.config,
-          name: 'Meu aparelho',
+          name: t('Meu aparelho'),
           revoked: [],
           revision: previous?.revision ?? 0,
           head: previous ? await eventHash(previous) : null,
@@ -980,7 +981,7 @@ export class DeviceController {
     return this.run(async (session) => {
       await this.synchronize(session);
       if (this.authorized) throw new Error('Este aparelho já está autorizado.');
-      await this.loadIdentity(session, name || 'Novo aparelho');
+      await this.loadIdentity(session, name || t('Novo aparelho'));
       if (!this.identity) throw new Error('Identidade local ausente.');
       const code: LinkCode = {
         version: 1,
@@ -1017,7 +1018,10 @@ export class DeviceController {
       const code = linkCode(JSON.parse(serialized) as unknown);
       await api(session, 'devices/inspect', code);
       this.approvalCode = code;
-      return `${code.device.name} · impressão ${await digest(canonical(code.device))}`;
+      return t('{0} · impressão {1}', [
+        code.device.name,
+        await digest(canonical(code.device)),
+      ]);
     });
   }
   async approveLink(): Promise<void> {
@@ -1130,7 +1134,7 @@ export class DeviceController {
           'A lista de aparelhos mudou. Confira sua escolha novamente.',
         );
       const retained = recoveryIdentities(this.current, input.revoked);
-      await this.loadIdentity(session, input.name || 'Aparelho recuperado');
+      await this.loadIdentity(session, input.name || t('Aparelho recuperado'));
       if (!this.identity) throw new Error('Identidade local ausente.');
       const recovered = await recoverSecrets(this.current, input.secret.trim());
       this.assertSession(session);

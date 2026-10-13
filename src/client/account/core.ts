@@ -1,3 +1,4 @@
+import { t } from '../../shared/i18n/index.ts';
 import { fetchApi, readApiJson } from '../api-response/index.ts';
 import { uuid } from '../../shared/account/index.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
@@ -26,7 +27,7 @@ export interface AccountCore {
 export function createCore(): AccountCore {
   return {
     session: null,
-    status: 'Conecte sua wallet para entrar.',
+    status: t('Conecte sua wallet para entrar.'),
     profileStatus: '',
     busy: false,
     epoch: 0,

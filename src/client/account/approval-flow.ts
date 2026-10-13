@@ -1,3 +1,4 @@
+import { t } from '../../shared/i18n/index.ts';
 import { AccountError } from '../../shared/account/index.ts';
 import {
   approvalDocumentUrl,
@@ -137,15 +138,19 @@ export class ApprovalFlow {
     this.diagnostics.beginFragment();
     this.incoming = this.read();
     this.core.status = this.incoming
-      ? 'Confirme a assinatura do pedido iniciado no seu navegador.'
-      : 'Pedido inválido. Volte ao navegador e crie um novo pedido.';
+      ? t('Confirme a assinatura do pedido iniciado no seu navegador.')
+      : t('Pedido inválido. Volte ao navegador e crie um novo pedido.');
     this.host.render();
   }
   async restore(): Promise<void> {
     if (this.cookieEligible && !(await this.restoreCookie())) return;
     this.core.status = this.incoming
-      ? 'Confirme a assinatura para concluir o login no navegador que iniciou o pedido. Recuse pedidos recebidos de terceiros.'
-      : 'Pedido ausente ou perdido. Volte ao navegador original e crie um novo pedido.';
+      ? t(
+          'Confirme a assinatura para concluir o login no navegador que iniciou o pedido. Recuse pedidos recebidos de terceiros.',
+        )
+      : t(
+          'Pedido ausente ou perdido. Volte ao navegador original e crie um novo pedido.',
+        );
   }
   checkDeadline(): void {
     if (this.deadline !== undefined && Date.now() >= this.deadline)
@@ -209,8 +214,9 @@ export class ApprovalFlow {
     this.deadline = undefined;
     this.incoming = null;
     this.step('pedido-expirado');
-    this.core.status =
-      'Pedido expirou. Volte ao navegador original e inicie um novo pedido.';
+    this.core.status = t(
+      'Pedido expirou. Volte ao navegador original e inicie um novo pedido.',
+    );
     this.host.render();
   }
   private async restoreCookie(): Promise<boolean> {
@@ -218,7 +224,7 @@ export class ApprovalFlow {
     const legacy = this.incoming;
     this.incoming = null;
     this.step('pedido-cookie-solicitado');
-    this.core.status = 'Recuperando o pedido iniciado no seu navegador…';
+    this.core.status = t('Recuperando o pedido iniciado no seu navegador…');
     this.host.render();
     let state;
     try {
@@ -250,7 +256,7 @@ export class ApprovalFlow {
   private renderApproval(): void {
     if (!this.only) return;
     const title = this.find('[data-account-title]');
-    if (title) title.textContent = 'Confirme o login no seu navegador';
+    if (title) title.textContent = t('Confirme o login no seu navegador');
     const intro = this.find('[data-account-intro]');
     if (intro) {
       intro.hidden = this.signed;
@@ -259,14 +265,24 @@ export class ApprovalFlow {
     const approve = this.find<HTMLButtonElement>('[data-wallet-approve]');
     if (!approve) return;
     approve.hidden = !this.incoming || this.signed;
-    approve.textContent = `Confirmar assinatura na ${this.incoming?.wallet ?? 'wallet'}`;
+    approve.textContent = t('Confirmar assinatura na {0}', [
+      this.incoming?.wallet ?? 'wallet',
+    ]);
     approve.disabled =
       this.core.busy || !this.host.walletAvailable(this.walletId());
   }
   private description(): string {
     return this.incoming
-      ? `${this.incoming.wallet} · ${this.incoming.ecosystem === 'solana' ? 'Solana' : 'EVM'}. Confirme somente o pedido que você iniciou. A wallet pedirá assinaturas para entrar e abrir seus dados cifrados no navegador original. Não há transação ou autorização de tokens.`
+      ? t(
+          '{0} · {1}. Confirme somente o pedido que você iniciou. A wallet pedirá assinaturas para entrar e abrir seus dados cifrados no navegador original. Não há transação ou autorização de tokens.',
+          [
+            this.incoming.wallet,
+            this.incoming.ecosystem === 'solana' ? 'Solana' : 'EVM',
+          ],
+        )
       : (this.diagnostics.rejectionMessage() ??
-          'Pedido ausente ou perdido. Volte à aba que iniciou o login e crie um novo pedido.');
+          t(
+            'Pedido ausente ou perdido. Volte à aba que iniciou o login e crie um novo pedido.',
+          ));
   }
 }

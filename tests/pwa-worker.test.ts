@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { readFile } from 'node:fs/promises';
 import { runInNewContext } from 'node:vm';
+import { publicNotificationText } from '../src/shared/public-notification/index.ts';
 
 interface WorkerEvent {
   notification?: { close(): void; data?: unknown };
@@ -10,6 +11,18 @@ interface WorkerEvent {
   source?: { url: string };
   waitUntil(promise: Promise<unknown>): void;
   respondWith(promise: Promise<Response>): void;
+}
+
+function initializeDevicePreferences(
+  cache: Map<string, Response>,
+  origin: string,
+  choices: { sound?: string | undefined; language?: string | undefined },
+): void {
+  for (const [path, value] of [
+    ['/.0xdmme/sound-preference', choices.sound],
+    ['/.0xdmme/language-preference', choices.language],
+  ] as const)
+    if (value !== undefined) cache.set(origin + path, new Response(value));
 }
 
 async function worker(
@@ -22,6 +35,7 @@ async function worker(
     publicPreview?: unknown;
     pushCheckFails?: boolean;
     pushSound?: string;
+    language?: string;
     pushCall?: boolean;
     showCall?: boolean;
     networkStatus?: number;
@@ -68,11 +82,10 @@ async function worker(
     Object.defineProperty(response, 'type', { value: 'basic' });
     stores.get('hash-talk-shell-old')?.set(origin + path, response);
   }
-  if (options.pushSound !== undefined)
-    cache.set(
-      origin + '/.0xdmme/sound-preference',
-      new Response(options.pushSound),
-    );
+  initializeDevicePreferences(cache, origin, {
+    sound: options.pushSound,
+    language: options.language,
+  });
   function fetchPath(input: string | Request, request: RequestInit): string {
     if (typeof input === 'string') {
       assert.ok(request.signal instanceof AbortSignal);
@@ -266,7 +279,7 @@ await test('aviso de chamada mostra tipo por padrão, opção de privacidade fic
   await visible.dispatch('push');
   assert.equal(
     visible.notifications[0]?.options.body,
-    'Chamada de voz recebida. Abra o app para atender.',
+    'Incoming voice call. Open the app to answer.',
   );
   assert.equal(visible.notifications[0]?.options.tag, '0xdmme-call');
   const hidden = await worker({
@@ -277,7 +290,7 @@ await test('aviso de chamada mostra tipo por padrão, opção de privacidade fic
   await hidden.dispatch('push');
   assert.equal(
     hidden.notifications[0]?.options.body,
-    'Há nova atividade. Abra o app para sincronizar.',
+    'New activity. Open the app to sync.',
   );
   assert.equal(hidden.notifications[0]?.options.tag, '0xdmme-call');
   const stale = await worker({ pushAllowed: false, pushCall: true });
@@ -365,7 +378,7 @@ await test('push revalida mute/sessão, ignora conteúdo recebido e abre somente
   assert.equal(scope.notifications[0]?.title, '0xDMme');
   assert.equal(
     scope.notifications[0]?.options.body,
-    'Há nova atividade. Abra o app para sincronizar.',
+    'New activity. Open the app to sync.',
   );
   assert.equal(
     JSON.stringify(scope.notifications).includes('malicioso'),
@@ -496,7 +509,7 @@ await test('push público mostra autor e prévia validada, com símbolo monocrom
   const scope = await worker({ pushAllowed: true, publicPreview });
   await scope.dispatch('push');
   const notification = scope.notifications[0]!;
-  assert.match(notification.title, /@sintetico respondeu/u);
+  assert.match(notification.title, /@sintetico replied/u);
   assert.equal(notification.options.body, publicPreview.text);
   assert.equal(notification.options.badge, '/notification-badge.png');
   await scope.dispatch('notificationclick', {
@@ -515,6 +528,55 @@ await test('push público mostra autor e prévia validada, com símbolo monocrom
       author: { ...publicPreview.author, wallet: 'private' },
     },
   });
+  await invalid.dispatch('push');
+  assert.equal(invalid.notifications.length, 0);
+});
+
+await test('Chinese background alerts localize app text without translating public content', async () => {
+  const generic = await worker({ pushAllowed: true, language: 'zh-CN' });
+  await generic.dispatch('push');
+  assert.equal(generic.notifications[0]?.title, '0xDMme');
+  assert.equal(
+    generic.notifications[0]?.options.body,
+    '有新动态。请打开应用以同步。',
+  );
+  const call = await worker({
+    pushAllowed: true,
+    pushCall: true,
+    language: 'zh-CN',
+  });
+  await call.dispatch('push');
+  assert.equal(
+    call.notifications[0]?.options.body,
+    '收到语音来电。请打开应用接听。',
+  );
+  const preview = {
+    author: { id: crypto.randomUUID(), handle: 'sintetico', avatar: null },
+    post: crypto.randomUUID(),
+    community: crypto.randomUUID(),
+    text: publicNotificationText('', ''),
+    reply: true,
+  };
+  assert.equal(preview.text, '');
+  const media = await worker({
+    pushAllowed: true,
+    publicPreview: preview,
+    language: 'zh-CN',
+  });
+  await media.dispatch('push');
+  assert.equal(media.notifications[0]?.title, '@sintetico 回复了 · 0xDMme');
+  assert.equal(media.notifications[0]?.options.body, '新的媒体发布。');
+  const content = await worker({
+    pushAllowed: true,
+    publicPreview: { ...preview, text: 'Nova publicação com mídia.' },
+    language: 'zh-CN',
+  });
+  await content.dispatch('push');
+  assert.equal(
+    content.notifications[0]?.options.body,
+    'Nova publicação com mídia.',
+  );
+  const invalid = await worker({ pushAllowed: true, language: 'pt-BR' });
   await invalid.dispatch('push');
   assert.equal(invalid.notifications.length, 0);
 });

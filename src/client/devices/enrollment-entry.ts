@@ -1,3 +1,4 @@
+import { t, translatedError } from '../../shared/i18n/index.ts';
 import {
   enrollmentPayload,
   readEnrollment,
@@ -25,7 +26,9 @@ export function startEnrollmentEntry(access: EnrollmentAccess): void {
     try {
       code = enrollmentPayload(readEnrollment(incoming, location.origin));
     } catch {
-      window.alert('Este link de vinculação é inválido. Gere outro QR Code.');
+      window.alert(
+        t('Este link de vinculação é inválido. Gere outro QR Code.'),
+      );
       return;
     }
     showConfirmation(access, code);
@@ -38,8 +41,7 @@ function showConfirmation(access: EnrollmentAccess, code: string): void {
   const dialog = document.createElement('dialog');
   active.set(access, dialog);
   dialog.className = 'device-enrollment-entry';
-  dialog.innerHTML =
-    '<h2>Entrar neste aparelho?</h2><p>Conectar este navegador à conta do aparelho que gerou o QR Code.</p><p data-enrollment-status role="status">Mantenha o aparelho de origem aberto até a conexão terminar.</p><button type="button" data-enrollment-confirm class="primary">Confirmar entrada</button><button type="button" data-enrollment-close>Cancelar</button>';
+  dialog.innerHTML = t('html.73a1fbbc7e77');
   document.body.append(dialog);
   const confirm = dialog.querySelector<HTMLButtonElement>(
       '[data-enrollment-confirm]',
@@ -55,9 +57,9 @@ function showConfirmation(access: EnrollmentAccess, code: string): void {
     const success = state.authorized && !state.waiting;
     confirm.hidden = success;
     if (state.failed) confirm.disabled = false;
-    close.textContent = success ? 'Concluído' : 'Fechar';
+    close.textContent = success ? t('Concluído') : t('Fechar');
     if (success)
-      dialog.querySelector('h2')!.textContent = 'Conectado com sucesso';
+      dialog.querySelector('h2')!.textContent = t('Conectado com sucesso');
   };
   confirm.addEventListener('click', () => {
     confirm.disabled = true;
@@ -68,8 +70,8 @@ function showConfirmation(access: EnrollmentAccess, code: string): void {
       .catch((error: unknown) => {
         status.textContent =
           error instanceof Error
-            ? error.message
-            : 'Não foi possível conectar este aparelho.';
+            ? translatedError(error.message)
+            : t('Não foi possível conectar este aparelho.');
         confirm.disabled = false;
       });
   });
@@ -99,8 +101,7 @@ export function mountEnrollmentLogin(
 ): void {
   const panel = document.createElement('details');
   panel.className = 'enrollment-login';
-  panel.innerHTML =
-    '<summary>Entrar com código de outro aparelho</summary><p>Em um aparelho conectado, abra Perfil → Dispositivos conectados e gere um código.</p><label>Código ou link de vinculação<textarea data-enrollment-code spellcheck="false"></textarea></label><button type="button">Continuar</button><p role="status"></p>';
+  panel.innerHTML = t('html.5acc35953618');
   panel.querySelector('button')!.addEventListener('click', () => {
     try {
       const code = panel.querySelector('textarea')!.value;
@@ -109,8 +110,9 @@ export function mountEnrollmentLogin(
         enrollmentPayload(readEnrollment(code, location.origin)),
       );
     } catch {
-      panel.querySelector('[role="status"]')!.textContent =
-        'Código inválido. Copie um código ou link válido do aparelho conectado.';
+      panel.querySelector('[role="status"]')!.textContent = t(
+        'Código inválido. Copie um código ou link válido do aparelho conectado.',
+      );
     }
   });
   host.append(panel);

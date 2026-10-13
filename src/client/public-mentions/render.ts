@@ -1,3 +1,4 @@
+import { t } from '../../shared/i18n/index.ts';
 import {
   mentionHref,
   mentionSpans,
@@ -18,9 +19,13 @@ export function renderMentions(
     link.textContent = '@' + span.label;
     link.setAttribute(
       'aria-label',
-      `@${span.label}, ${span.kind === 'user' ? 'perfil' : 'comunidade'}`,
+      t('@{0}, {1}', [
+        span.label,
+        span.kind === 'user' ? 'perfil' : 'comunidade',
+      ]),
     );
-    link.title = span.kind === 'user' ? 'Abrir perfil' : 'Abrir comunidade';
+    link.title =
+      span.kind === 'user' ? t('Abrir perfil') : t('Abrir comunidade');
     host.append(link);
     end = span.end;
   }

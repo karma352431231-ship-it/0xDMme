@@ -1,3 +1,4 @@
+import { t } from '../../shared/i18n/index.ts';
 import { voiceDuration, voiceRate } from '../../shared/voice/index.ts';
 import { showToast } from '../toast/index.ts';
 import type { RecordingState } from '../voice-recording/index.ts';
@@ -40,7 +41,7 @@ export function bindRecordGesture(
     }
     lastTap = event.timeStamp;
     hint = window.setTimeout(() => {
-      showToast('Segure para gravar ou toque duas vezes.');
+      showToast(t('Segure para gravar ou toque duas vezes.'));
     }, doubleTap);
   };
   button.addEventListener('pointerdown', (event) => {

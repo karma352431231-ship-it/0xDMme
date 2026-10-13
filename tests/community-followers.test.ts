@@ -38,11 +38,11 @@ await test('frase de perfis em comum cita até dois e conta os demais que a pess
     avatar: null,
   }));
   const cases: [number, number, string][] = [
-    [1, 1, 'Seguida por @ana'],
-    [2, 2, 'Seguida por @ana e @bia'],
-    [3, 3, 'Seguida por @ana, @bia e mais 1 que você segue'],
+    [1, 1, 'Followed by @ana'],
+    [2, 2, 'Followed by @ana and @bia'],
+    [3, 3, 'Followed by @ana, @bia and 1 more you follow'],
     // The page may hold fewer profiles than the total in common.
-    [3, 12, 'Seguida por @ana, @bia e mais 10 que você segue'],
+    [3, 12, 'Followed by @ana, @bia and 10 more you follow'],
   ];
   for (const [shown, total, text] of cases)
     assert.equal(

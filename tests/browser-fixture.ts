@@ -36,7 +36,8 @@ import {
   readTurnConfiguration,
 } from '../src/server/calls/index.ts';
 import { NotificationService } from '../src/server/notifications/index.ts';
-import { frontendEmoji, emojiAsset } from '../src/tools/frontend-emoji.ts';
+import { emojiAsset } from '../src/tools/frontend-emoji.ts';
+import { localizationPlugin } from '../src/tools/frontend-localization.ts';
 import type { WebAsset } from '../src/server/web-host/index.ts';
 
 // Explicit manual-browser fixture, excluded from production build/entry point.
@@ -123,13 +124,13 @@ for (const path of ['/', '/wallet.html', '/recovery.html']) {
     content: new TextEncoder().encode(
       pageHtml
         .replace(
-          '<html lang="pt-BR">',
-          `<html lang="pt-BR" data-test-app="${pageScript}">`,
+          '<html lang="en">',
+          `<html lang="en" data-test-app="${pageScript}">`,
         )
         .replace(`src="${pageScript}"`, `src="${fixtureWalletPath}"`)
         .replace(
-          'Chat em teste: use somente contas e mensagens fictícias.',
-          'TESTE ISOLADO: wallet sintética, sem fundos, sem dados reais.',
+          'Chat under test: use fictional accounts and messages only.',
+          'ISOLATED TEST: synthetic wallet, no funds, no real data.',
         ),
     ),
   });
@@ -249,7 +250,10 @@ function fixtureDocuments(): {
   return { approvalDocument, recoveryDocument };
 }
 async function emojiFixture(assets: Map<string, WebAsset>): Promise<void> {
-  const data = await frontendEmoji(process.cwd());
+  const catalogPath = [...assets.keys()].find((path) =>
+    /^\/emoji-catalog-[a-f0-9]+\.js$/u.test(path),
+  );
+  if (!catalogPath) throw new Error('Catálogo de emojis do build ausente.');
   const result = await build({
     entryPoints: ['tests/fixtures/emoji-browser.ts'],
     bundle: true,
@@ -257,9 +261,9 @@ async function emojiFixture(assets: Map<string, WebAsset>): Promise<void> {
     format: 'esm',
     write: false,
     define: {
-      EMOJI_CATALOG: JSON.stringify(data.catalog),
       EMOJI_ASSET_URL: JSON.stringify(`/${emojiAsset}`),
     },
+    plugins: [localizationPlugin(undefined, catalogPath)],
   });
   const script = result.outputFiles[0]?.contents;
   if (!script) throw new Error('Fixture de emojis ausente.');

@@ -1,10 +1,11 @@
+import { t, translatedError } from '../../shared/i18n/index.ts';
 import type { Daily } from '../daily/index.ts';
 
 /** Preferences belong to this authorized account/device; browser permission remains explicit. */
 export function mountPushSettings(host: HTMLElement, daily: Daily) {
   const fieldset = document.createElement('fieldset');
   fieldset.className = 'push-preferences';
-  fieldset.innerHTML = `<legend>O que notificar</legend><label><input type="checkbox" data-push-messages checked> Mensagens e respostas</label><label><input type="checkbox" data-push-calls checked> Chamadas</label><label><input type="checkbox" data-push-show-calls checked> Identificar aviso como chamada de voz</label><p>Desligue a última opção para um aviso genérico. O nome do contato nunca aparece; tela bloqueada e som dependem do sistema.</p><button type="button">Salvar preferências de push</button>`;
+  fieldset.innerHTML = t('html.2d4c3af2bfc7');
   host.append(fieldset);
   const messages = fieldset.querySelector<HTMLInputElement>(
       '[data-push-messages]',
@@ -17,7 +18,7 @@ export function mountPushSettings(host: HTMLElement, daily: Daily) {
     retry = document.createElement('button');
   notice.setAttribute('role', 'status');
   retry.type = 'button';
-  retry.textContent = 'Tentar carregar preferências';
+  retry.textContent = t('Tentar carregar preferências');
   retry.hidden = true;
   host.append(notice, retry);
   let loaded = false,
@@ -41,8 +42,8 @@ export function mountPushSettings(host: HTMLElement, daily: Daily) {
       if (current === generation) {
         notice.textContent =
           error instanceof Error
-            ? error.message
-            : 'Não foi possível carregar preferências.';
+            ? translatedError(error.message)
+            : t('Não foi possível carregar preferências.');
         retry.hidden = false;
       }
     } finally {
@@ -64,13 +65,13 @@ export function mountPushSettings(host: HTMLElement, daily: Daily) {
         showCalls: showCalls.checked,
       });
       if (current === generation)
-        notice.textContent = 'Preferências de push salvas neste aparelho.';
+        notice.textContent = t('Preferências de push salvas neste aparelho.');
     } catch (error: unknown) {
       if (current === generation)
         notice.textContent =
           error instanceof Error
-            ? error.message
-            : 'Não foi possível salvar preferências.';
+            ? translatedError(error.message)
+            : t('Não foi possível salvar preferências.');
     } finally {
       if (current === generation) {
         busy = false;

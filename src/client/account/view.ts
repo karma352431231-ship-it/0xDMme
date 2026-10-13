@@ -1,3 +1,4 @@
+import { t } from '../../shared/i18n/index.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
 import { shortAddress } from '../appearance/index.ts';
 import type { ApprovalFlow } from './approval-flow.ts';
@@ -62,17 +63,17 @@ export class AccountView {
     const label = document.getElementById('account-label');
     if (label)
       label.textContent =
-        session?.name || (session ? 'Minha conta' : 'Entrar na conta');
+        session?.name || (session ? t('Minha conta') : t('Entrar na conta'));
     const wallet = document.getElementById('account-wallet');
     if (wallet)
       wallet.textContent = session
         ? `${session.address.slice(0, 6)}…${session.address.slice(-4)}`
-        : 'Login por wallet ou vinculação';
+        : t('Login por wallet ou vinculação');
     const copy = document.getElementById('copy-wallet');
     if (copy) copy.hidden = !session;
     const feedback = document.getElementById('account-profile-feedback');
     if (feedback)
-      feedback.textContent = this.core.busy ? 'Aguarde…' : this.core.status;
+      feedback.textContent = this.core.busy ? t('Aguarde…') : this.core.status;
     this.profile.renderPhoto();
   }
   bindSidebar(): void {
@@ -96,12 +97,13 @@ export class AccountView {
     void navigator.clipboard
       .writeText(session.address)
       .then(() => {
-        this.core.status = this.core.profileStatus = 'Wallet copiada.';
+        this.core.status = this.core.profileStatus = t('Wallet copiada.');
         this.render();
       })
       .catch(() => {
-        this.core.status = this.core.profileStatus =
-          'Não foi possível copiar a wallet.';
+        this.core.status = this.core.profileStatus = t(
+          'Não foi possível copiar a wallet.',
+        );
         this.render();
       });
   }
@@ -122,8 +124,13 @@ export class AccountView {
     const candidate = this.find('[data-wallet-candidate]');
     if (candidate)
       candidate.textContent = pending?.address
-        ? `Endereço verificado (${pending.ecosystem}): ${pending.address}. Confirme somente se é a conta que você escolheu.`
-        : 'Aguardando assinatura na wallet. Volte ao navegador que abriu o pedido.';
+        ? t(
+            'Endereço verificado ({0}): {1}. Confirme somente se é a conta que você escolheu.',
+            [pending.ecosystem, pending.address],
+          )
+        : t(
+            'Aguardando assinatura na wallet. Volte ao navegador que abriu o pedido.',
+          );
     const confirm = this.find<HTMLButtonElement>('[data-wallet-confirm]');
     if (confirm) confirm.hidden = !pending?.address;
   }
@@ -161,15 +168,18 @@ export class AccountView {
   }
   private renderIdentity(current: AccountSession): void {
     const label = this.find('[data-profile-name]');
-    if (label) label.textContent = current.name || 'Minha conta';
+    if (label) label.textContent = current.name || t('Minha conta');
     const address = this.find('[data-account-address]');
     if (address) {
       // Short form on screen; the full address stays in the title and in Copiar.
       const network = current.ecosystem === 'evm' ? 'EVM' : 'Solana';
-      address.textContent = `${network} · ${shortAddress(current.address)}`;
-      address.title = `Wallet ${network}: ${current.address}`;
+      address.textContent = t('{0} · {1}', [
+        network,
+        shortAddress(current.address),
+      ]);
+      address.title = t('Wallet {0}: {1}', [network, current.address]);
     }
     const identity = this.find('[data-account-id]');
-    if (identity) identity.textContent = `Conta: ${current.accountId}`;
+    if (identity) identity.textContent = t('Conta: {0}', [current.accountId]);
   }
 }

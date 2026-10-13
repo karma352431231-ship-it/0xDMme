@@ -343,7 +343,7 @@ await test('foto do feed carrega bytes completos ao entrar na tela e libera ao s
     assert.equal(host.querySelector('img')!.hidden, false);
     assert.equal(
       host.querySelector('button')!.getAttribute('aria-label'),
-      'Ampliar imagem',
+      'Zoom in on image',
     );
     visible([{ isIntersecting: false }]);
     assert.equal(host.querySelector('img')!.hidden, true);

@@ -180,7 +180,7 @@ await test('verificação no cliente exige estado recente e revogação assinada
     assert.ok(!body.includes(c.scope));
     return Promise.resolve(Response.json(result));
   });
-  assert.match((await controller.check(card)).status, /Vigente/u);
+  assert.match((await controller.check(card)).status, /Active/u);
   result = { ...result, checkedAt: Date.now() - 120000 };
   await assert.rejects(controller.check(card), /atualização/u);
   result = { ...result, checkedAt: Date.now(), expiresAt: c.expiresAt + 1 };
@@ -199,7 +199,7 @@ await test('verificação no cliente exige estado recente e revogação assinada
       signature: await issuer.signMessage(revocationStatement(body)),
     },
   };
-  assert.equal((await controller.check(card)).status, 'Revogada');
+  assert.equal((await controller.check(card)).status, 'Revoked');
   result = {
     ...result,
     revocation: {

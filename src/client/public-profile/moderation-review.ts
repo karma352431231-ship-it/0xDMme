@@ -1,3 +1,8 @@
+import {
+  t,
+  translatedError,
+  currentLanguage,
+} from '../../shared/i18n/index.ts';
 import { renderMentions } from '../public-mentions/index.ts';
 import { uuid } from '../../shared/account/index.ts';
 import { publicModerationPolicy } from '../../shared/public-moderation/index.ts';
@@ -28,12 +33,16 @@ function postIdentity(detail: PublicModerationDetails): HTMLElement {
   const post = detail.post;
   if (!post) {
     section.append(
-      el('h2', 'Conteúdo analisado'),
+      el('h2', t('Conteúdo analisado')),
       el(
         'p',
         detail.notice.kind === 'post-media'
-          ? 'Este arquivo não está mais vinculado a uma postagem disponível. O registro da análise permanece abaixo.'
-          : 'Arquivo do perfil ou da comunidade identificado pelo registro abaixo.',
+          ? t(
+              'Este arquivo não está mais vinculado a uma postagem disponível. O registro da análise permanece abaixo.',
+            )
+          : t(
+              'Arquivo do perfil ou da comunidade identificado pelo registro abaixo.',
+            ),
       ),
     );
     return section;
@@ -41,26 +50,29 @@ function postIdentity(detail: PublicModerationDetails): HTMLElement {
   section.append(
     el(
       'small',
-      `${post.reply ? 'Resposta' : 'Postagem'} em ${post.communityName}`,
+      t('{0} em {1}', [
+        post.reply ? t('Resposta') : t('Postagem'),
+        post.communityName,
+      ]),
     ),
   );
   section.append(
     el(
       'h2',
       post.title ||
-        (post.reply ? 'Resposta na discussão' : 'Postagem com mídia'),
+        (post.reply ? t('Resposta na discussão') : t('Postagem com mídia')),
     ),
   );
   if (post.deleted)
     section.append(
       el(
         'p',
-        'A postagem foi excluída. Seu conteúdo anterior não é conservado.',
+        t('A postagem foi excluída. Seu conteúdo anterior não é conservado.'),
       ),
     );
   else if (post.text)
     section.append(el('p', post.text, 'community-text moderation-post-text'));
-  const link = el('a', 'Abrir a discussão');
+  const link = el('a', t('Abrir a discussão'));
   link.href = `#comunidades?id=${post.community}&post=${post.id}`;
   section.append(link);
   return section;
@@ -68,48 +80,57 @@ function postIdentity(detail: PublicModerationDetails): HTMLElement {
 function analysisFacts(detail: PublicModerationDetails): HTMLElement {
   const facts = el('section', '', 'moderation-facts');
   const results = {
-    allow: 'Permitido',
-    reject: 'Indicação de conteúdo explícito',
-    hold: 'Resultado incerto',
+    allow: t('Permitido'),
+    reject: t('Indicação de conteúdo explícito'),
+    hold: t('Resultado incerto'),
   };
   facts.append(
-    el('h2', 'Resultado da análise'),
+    el('h2', t('Resultado da análise')),
     el(
       'p',
       detail.automaticVerdict
         ? results[detail.automaticVerdict]
-        : 'A análise automática não foi concluída.',
+        : t('A análise automática não foi concluída.'),
     ),
   );
   if (detail.frames !== null)
     facts.append(
       el(
         'p',
-        `${detail.frames.toLocaleString('pt-BR')} ${detail.frames === 1 ? 'quadro analisado' : 'quadros analisados'}.`,
+        t('{0} {1}.', [
+          detail.frames.toLocaleString(currentLanguage()),
+          detail.frames === 1 ? t('quadro analisado') : t('quadros analisados'),
+        ]),
       ),
     );
   facts.append(
     el(
       'p',
-      `Enviado em ${new Date(detail.notice.createdAt).toLocaleString('pt-BR')}.`,
+      t('Enviado em {0}.', [
+        new Date(detail.notice.createdAt).toLocaleString(currentLanguage()),
+      ]),
     ),
   );
   facts.append(
     el(
       'p',
-      'A avaliação se aplica à mídia identificada nesta página. Uma contestação permite solicitar a revisão desse resultado.',
+      t(
+        'A avaliação se aplica à mídia identificada nesta página. Uma contestação permite solicitar a revisão desse resultado.',
+      ),
     ),
   );
   if (detail.policy !== publicModerationPolicy)
     facts.append(
       el(
         'p',
-        'Este registro usa uma versão anterior da política. A revisão considera as regras públicas atuais.',
+        t(
+          'Este registro usa uma versão anterior da política. A revisão considera as regras públicas atuais.',
+        ),
       ),
     );
   facts.append(
-    el('small', `Arquivo: ${detail.notice.target}`),
-    el('small', `Análise: ${detail.notice.id}`),
+    el('small', t('Arquivo: {0}', [detail.notice.target])),
+    el('small', t('Análise: {0}', [detail.notice.id])),
   );
   return facts;
 }
@@ -120,13 +141,15 @@ function showFailure(
 ): void {
   const status = el(
     'p',
-    error instanceof Error ? error.message : 'Análise indisponível.',
+    error instanceof Error
+      ? translatedError(error.message)
+      : t('Análise indisponível.'),
     'moderation-feedback',
   );
   status.setAttribute('role', 'alert');
-  const back = el('a', 'Voltar à Atividade');
+  const back = el('a', t('Voltar à Atividade'));
   back.href = '#atividade';
-  const button = el('button', 'Tentar novamente');
+  const button = el('button', t('Tentar novamente'));
   button.type = 'button';
   button.addEventListener('click', retry);
   container.replaceChildren(back, status, button);
@@ -162,7 +185,7 @@ export function startModerationReview(
     const current = generation;
     busy = true;
     disable(true);
-    feedback('Registrando contestação…');
+    feedback(t('Registrando contestação…'));
     try {
       const result = await controller.perform('moderation-appeal', {
         id: detail.notice.id,
@@ -171,13 +194,13 @@ export function startModerationReview(
       if (current !== generation) return;
       detail = publicModerationDetails({ ...detail, notice: result });
       renderOutcome();
-      feedback('Contestação registrada para revisão excepcional.');
+      feedback(t('Contestação registrada para revisão excepcional.'));
     } catch (error: unknown) {
       if (current === generation)
         feedback(
           error instanceof Error
-            ? error.message
-            : 'Não foi possível registrar a contestação.',
+            ? translatedError(error.message)
+            : t('Não foi possível registrar a contestação.'),
         );
     } finally {
       if (current === generation) {
@@ -199,12 +222,12 @@ export function startModerationReview(
   }
   function render(value: PublicModerationDetails): void {
     if (!host) return;
-    const back = el('a', '← Voltar à Atividade', 'moderation-back');
+    const back = el('a', t('← Voltar à Atividade'), 'moderation-back');
     back.href = '#atividade';
     const card = el('article', '', 'moderation-review-card');
     card.append(
-      el('h1', 'Análise do conteúdo'),
-      el('p', 'Esta página é restrita à sua conta.', 'moderation-private'),
+      el('h1', t('Análise do conteúdo')),
+      el('p', t('Esta página é restrita à sua conta.'), 'moderation-private'),
     );
     card.append(postIdentity(value));
     if (
@@ -260,17 +283,17 @@ export function startModerationReview(
     host = container;
     abort = new AbortController();
     host.className = 'moderation-review';
-    const status = el('p', 'Carregando sua análise…', 'moderation-feedback');
+    const status = el('p', t('Carregando sua análise…'), 'moderation-feedback');
     status.dataset['reviewFeedback'] = '';
     status.setAttribute('role', 'status');
-    const back = el('a', '← Voltar à Atividade');
+    const back = el('a', t('← Voltar à Atividade'));
     back.href = '#atividade';
     host.replaceChildren(back, status);
     try {
       id = uuid(value);
       void ready();
     } catch {
-      feedback('Identificador de análise inválido.');
+      feedback(t('Identificador de análise inválido.'));
     }
   }
   return {

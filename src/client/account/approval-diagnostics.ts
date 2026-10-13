@@ -1,3 +1,4 @@
+import { t } from '../../shared/i18n/index.ts';
 import { SolanaConnectionError } from '../wallet/index.ts';
 import {
   approvalDocumentId,
@@ -109,13 +110,21 @@ export function createApprovalDiagnostics() {
   return {
     rejectionMessage(): string | null {
       if (input === 'entrada-sem-cookie')
-        return 'O pedido não chegou à página de aprovação. Volte ao navegador original e crie um novo pedido.';
+        return t(
+          'O pedido não chegou à página de aprovação. Volte ao navegador original e crie um novo pedido.',
+        );
       if (input === 'entrada-rejeitada-parametros')
-        return 'O link chegou com parâmetros inválidos ou incompletos. Volte ao navegador original e crie um novo pedido.';
+        return t(
+          'O link chegou com parâmetros inválidos ou incompletos. Volte ao navegador original e crie um novo pedido.',
+        );
       if (input === 'entrada-rejeitada-pedido')
-        return 'O pedido foi recusado na entrada: pode ter expirado, sido cancelado ou já assinado, ou não corresponder ao ecossistema. Volte ao navegador original e crie um novo pedido.';
+        return t(
+          'O pedido foi recusado na entrada: pode ter expirado, sido cancelado ou já assinado, ou não corresponder ao ecossistema. Volte ao navegador original e crie um novo pedido.',
+        );
       if (input === 'entrada-rejeitada')
-        return 'O pedido foi recusado na entrada. Volte ao navegador original e crie um novo pedido.';
+        return t(
+          'O pedido foi recusado na entrada. Volte ao navegador original e crie um novo pedido.',
+        );
       return null;
     },
     beginFragment() {
@@ -145,7 +154,19 @@ export function createApprovalDiagnostics() {
       // Fixed categories only: never stringify input, errors or provider data.
       const availability =
         provider === null ? 'nao-avaliado' : provider ? 'presente' : 'ausente';
-      return `D1 · entrada=${input} · chegada=${source} · navegacao=${navigation} · historico=${previous} · etapa=${stage} · provider=${availability} · armazenamento=${storageAvailable ? 'disponivel' : 'indisponivel'} · falha=${failure} · protocolo=doc-3`;
+      return t(
+        'D1 · entrada={0} · chegada={1} · navegacao={2} · historico={3} · etapa={4} · provider={5} · armazenamento={6} · falha={7} · protocolo=doc-3',
+        [
+          input,
+          source,
+          navigation,
+          previous,
+          stage,
+          availability,
+          storageAvailable ? 'disponivel' : 'indisponivel',
+          failure,
+        ],
+      );
     },
   };
 }

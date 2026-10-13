@@ -24,7 +24,7 @@ await test('atualização ignora painéis privados desconectados e preserva bloq
   };
   assert.equal(updateBlockReason(features), null);
   authenticated = true;
-  assert.match(updateBlockReason(features) ?? '', /Perfil → Perfil público/u);
+  assert.match(updateBlockReason(features) ?? '', /Profile → Public profile/u);
   deviceReason = 'Conclua a vinculação.';
   authenticated = false;
   assert.equal(updateBlockReason(features), deviceReason);

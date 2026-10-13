@@ -6,6 +6,12 @@ import { promisify } from 'node:util';
 
 const execute = promisify(execFile);
 const authored = [
+  'src/shared/i18n',
+  'src/client/language',
+  'src/client/language-record',
+  'src/client/vault-labels',
+  'src/client/message-state',
+  'src/tools/frontend-localization.ts',
   'src/client/public-search',
   'src/client/public-mentions',
   'src/shared/public-mentions',
@@ -57,6 +63,11 @@ const authored = [
   'src/client/file-drop',
   'src/client/hover-card',
   'src/tools/frontend-emoji.ts',
+  'src/tools/frontend-emoji-locales.ts',
+  'vendor/emoji/annotations-en.json',
+  'vendor/emoji/annotations-zh.json',
+  'vendor/emoji/annotationsDerived-en.json',
+  'vendor/emoji/annotationsDerived-zh.json',
   'vendor/emoji/README.md',
   'vendor/emoji/LICENSE-GRAPHICS.txt',
   'vendor/emoji/LICENSE-UNICODE.txt',
@@ -114,6 +125,7 @@ const authored = [
   'src/shared/group-retention',
   'src/shared/status',
   'src/tools/frontend-matrix-source.ts',
+  'src/tools/frontend-source-document.ts',
   'vendor/matrix-crypto-18.9.0/README.md',
   'src/client/account',
   'src/client/wallet-opening',

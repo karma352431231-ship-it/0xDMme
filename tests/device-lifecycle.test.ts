@@ -114,7 +114,7 @@ await test('restauração não abre wallet; login abre somente sem chaves e pedi
   assert.equal(requests, 1);
   assert.equal(opened, 1);
   assert.equal(devices.canActivate(), false);
-  assert.match(devices.updateBlockReason() ?? '', /Ap\S*relhos/);
+  assert.match(devices.updateBlockReason() ?? '', /Devices/);
   await devices.privateKey(session);
   assert.equal(opened, 1);
   const storageKey = `0xdmme:private-recovery-return:${session.accountId}:${session.deviceId}`;

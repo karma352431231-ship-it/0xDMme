@@ -1,5 +1,16 @@
 # 0xDMme — fontes correspondentes do frontend
 
+**Idiomas oficiais em 13/10/2026:** o pacote inclui `src/shared/i18n/`,
+`src/client/language/`, os adaptadores de rótulos/estados e os scripts de catálogo.
+Inclui também os quatro originais CLDR 48.2.3 en/zh, com hashes e avisos em
+`vendor/emoji/README.md`. O build gera módulos públicos separados para os
+textos e nomes/busca dos emojis, contendo ambos os idiomas e incluídos no
+shell offline. O pacote gráfico original continua intacto. Nenhum download
+adicional acontece no build e nenhum termo de busca vai para fora do aparelho.
+As referências anteriores à busca portuguesa são históricas e foram
+substituídas por English/简体中文. Não alterar os orçamentos atuais para
+acomodar os catálogos; preservar a seleção de fontes e todos os inputs.
+
 **Regra vigente, alterada pelo proprietário em 10/10/2026:** removido o teto de 2 MiB do pacote principal `source-<hash>.tar.gz` no empacotamento, no carregamento pelo servidor e na verificação HTTP do deploy. O pacote não tem mais um limite individual de tamanho comprimido. Permanecem a seleção explícita de fontes públicas, a conferência de inputs/licenças, até 1024 arquivos, o tar intermediário de até 24 MiB e os orçamentos totais do artefato/release do deploy. As referências históricas abaixo a 2 MiB para o pacote principal foram substituídas por esta decisão; os limites de outros assets e de anexos não mudam. O pacote principal continua fora do cache offline da PWA e é baixado ao abrir “Código e licenças”.
 
 O empacotamento usa tar USTAR, proprietários numéricos e não transporta ACLs/xattrs do computador de build. Isso remove metadados extras sem excluir fontes, avisos ou licenças, preservando gzip nível 9. A reconstrução verifica os bytes extraídos dos novos fluxos de grupo e dos demais fontes; uma regressão adicional empacota e carrega pelo servidor fontes maiores que 2 MiB.

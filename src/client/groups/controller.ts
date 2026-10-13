@@ -1,3 +1,4 @@
+import { t, translatedError } from '../../shared/i18n/index.ts';
 import { groupManager } from '../../shared/groups/index.ts';
 import { cachedGroupPhoto } from './photo.ts';
 import { groupPhoto } from '../../shared/group-messages/index.ts';
@@ -263,7 +264,7 @@ export class GroupController {
                     ),
               title:
                 cached === null
-                  ? `Grupo ${raw.groupId.slice(0, 8)}`
+                  ? t('Grupo {0}', [raw.groupId.slice(0, 8)])
                   : groupTitle(cached),
             };
             entries.push(summary);
@@ -498,7 +499,7 @@ export class GroupController {
       const profile = await cache.get('profile'),
         title =
           profile === null
-            ? `Grupo ${groupId.slice(0, 8)}`
+            ? t('Grupo {0}', [groupId.slice(0, 8)])
             : groupTitle(profile);
       this.selected = { ...group, title };
       this.warning = '';
@@ -558,8 +559,9 @@ export class GroupController {
       this.selected = { ...group, localOnly: true };
       this.views = page.views;
       this.before = page.before;
-      this.warning =
-        'Cópia local independente. Envio e administração exigem participação atual verificada.';
+      this.warning = t(
+        'Cópia local independente. Envio e administração exigem participação atual verificada.',
+      );
     });
   }
   historyChanged(): void {
@@ -596,8 +598,9 @@ export class GroupController {
     } catch (error: unknown) {
       if (!(error instanceof AccountError) || error.status !== 413) throw error;
       await this.confirm(api, group);
-      this.warning =
-        'Mensagens abertas. Cofre pessoal cheio: a leitura não pôde ser registrada.';
+      this.warning = t(
+        'Mensagens abertas. Cofre pessoal cheio: a leitura não pôde ser registrada.',
+      );
     }
   }
   private applyReceipts(raw: unknown): void {
@@ -695,7 +698,11 @@ export class GroupController {
       await this.identities.save();
     } catch (error: unknown) {
       if (created === null) throw error;
-      this.warning = `Grupo criado. Nome ou sincronização pendente: ${error instanceof Error ? error.message : 'retome ao abrir o grupo.'}`;
+      this.warning = t('Grupo criado. Nome ou sincronização pendente: {0}', [
+        error instanceof Error
+          ? translatedError(error.message)
+          : t('retome ao abrir o grupo.'),
+      ]);
     }
     if (created === null)
       throw new Error('Criação não confirmada. Retome o mesmo pedido.');
@@ -874,7 +881,7 @@ export class GroupController {
           id: uuid(d['id']),
           text:
             d['kind'] === 'profile'
-              ? 'Atualização do grupo pendente'
+              ? t('Atualização do grupo pendente')
               : typeof d['text'] === 'string'
                 ? d['text']
                 : '',

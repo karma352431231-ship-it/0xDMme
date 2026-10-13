@@ -1,3 +1,4 @@
+import { t } from '../../shared/i18n/index.ts';
 import { AccountError } from '../../shared/account/index.ts';
 
 export type ApiFailure =
@@ -24,33 +25,33 @@ function responseType(response: Response): ResponseType {
 function statusMessage(status: number): string {
   switch (status) {
     case 401:
-      return 'Sessão encerrada ou login rejeitado.';
+      return t('Sessão encerrada ou login rejeitado.');
     case 403:
-      return 'Pedido sem autorização atual.';
+      return t('Pedido sem autorização atual.');
     case 413:
-      return 'Pedido excede o tamanho permitido.';
+      return t('Pedido excede o tamanho permitido.');
     case 429:
-      return 'Muitos pedidos ao servidor. Aguarde e tente novamente.';
+      return t('Muitos pedidos ao servidor. Aguarde e tente novamente.');
     case 502:
-      return 'Falha na comunicação com o serviço.';
+      return t('Falha na comunicação com o serviço.');
     case 503:
-      return 'Serviço indisponível. Tente novamente.';
+      return t('Serviço indisponível. Tente novamente.');
     case 504:
-      return 'O serviço demorou a responder. Tente novamente.';
+      return t('O serviço demorou a responder. Tente novamente.');
     default:
-      return 'O servidor recusou o pedido.';
+      return t('O servidor recusou o pedido.');
   }
 }
 function failureMessage(failure: ApiFailure): string {
   switch (failure) {
     case 'network':
-      return 'Não foi possível conectar ao servidor.';
+      return t('Não foi possível conectar ao servidor.');
     case 'timeout':
-      return 'O pedido excedeu o tempo de espera.';
+      return t('O pedido excedeu o tempo de espera.');
     case 'cancelled':
-      return 'O pedido foi interrompido.';
+      return t('O pedido foi interrompido.');
     default:
-      return 'Resposta inválida do servidor.';
+      return t('Resposta inválida do servidor.');
   }
 }
 export class ApiResponseError extends AccountError {
@@ -71,10 +72,18 @@ export class ApiResponseError extends AccountError {
       (input.status >= 400
         ? statusMessage(input.status)
         : failureMessage(input.failure));
-    const http = input.status ? `HTTP ${input.status}` : 'sem resposta HTTP';
+    const http = input.status
+      ? t('HTTP {0}', [input.status])
+      : t('sem resposta HTTP');
     super(
       input.status,
-      `${reason} [${operation} · ${http} · ${input.failure} · ${type}]`,
+      t('{0} [{1} · {2} · {3} · {4}]', [
+        reason,
+        operation,
+        http,
+        input.failure,
+        type,
+      ]),
     );
     this.operation = operation;
     this.failure = input.failure;

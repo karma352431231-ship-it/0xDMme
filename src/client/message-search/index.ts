@@ -1,3 +1,5 @@
+import { currentLanguage } from '../../shared/i18n/index.ts';
+import { messageStates } from '../message-state/index.ts';
 import { attachmentContent } from '../../shared/attachments/index.ts';
 import { dailyViews } from '../daily-text/index.ts';
 import type { DailyRow } from '../daily-text/index.ts';
@@ -22,7 +24,7 @@ export async function indexSearch(
 ): Promise<void> {
   for (const row of dailyViews(rows)) {
     if (row.kind === 'profile') continue;
-    if (row.state === 'Suspensa') {
+    if (row.state === messageStates.suspended) {
       await localDelete(a.session.accountId, `search:${row.id}`);
       continue;
     }
@@ -47,7 +49,10 @@ export async function indexSearch(
   }
 }
 export function searchTerm(query: string): string {
-  const term = query.normalize('NFKC').toLocaleLowerCase('pt-BR').trim();
+  const term = query
+    .normalize('NFKC')
+    .toLocaleLowerCase(currentLanguage())
+    .trim();
   if (!term || term.length > 128)
     throw new Error('Busque entre 1 e 128 caracteres.');
   return term;
@@ -75,7 +80,12 @@ export async function searchMessages(c: {
       c.guard();
       const text = await openLocal(c.a, row.value.cipher);
       after = row.name;
-      if (text.normalize('NFKC').toLocaleLowerCase('pt-BR').includes(term))
+      if (
+        text
+          .normalize('NFKC')
+          .toLocaleLowerCase(currentLanguage())
+          .includes(term)
+      )
         items.push({
           id: row.value.cipher.id,
           peer: row.value.peer,

@@ -1,3 +1,4 @@
+import { t, translatedError } from '../../shared/i18n/index.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
 import {
   addressBookEntry,
@@ -45,7 +46,7 @@ export function startContacts(
     busy = false,
     generation = 0,
     offset = 0;
-  let status = 'Conecte e autorize o aparelho para sincronizar.';
+  let status = t('Conecte e autorize o aparelho para sincronizar.');
   let editing: BookVersion | null = null,
     parents: string[] | undefined;
   let found: Peer | null = null,
@@ -91,8 +92,8 @@ export function startContacts(
       if (current === generation)
         status =
           error instanceof Error
-            ? error.message
-            : 'Operação indisponível. Confira o estado antes de repetir.';
+            ? translatedError(error.message)
+            : t('Operação indisponível. Confira o estado antes de repetir.');
     } finally {
       busy = false;
       render();
@@ -100,9 +101,9 @@ export function startContacts(
     }
   }
   function render(): void {
-    text('[data-contact-status]', busy ? 'Atualizando contatos…' : status);
-    text('[data-contact-editor-status]', busy ? 'Processando…' : status);
-    text('[data-contact-invite-status]', busy ? 'Processando…' : status);
+    text('[data-contact-status]', busy ? t('Atualizando contatos…') : status);
+    text('[data-contact-editor-status]', busy ? t('Processando…') : status);
+    text('[data-contact-invite-status]', busy ? t('Processando…') : status);
     renderInvite();
     renderBook();
     renderLists();
@@ -133,11 +134,11 @@ export function startContacts(
     if (input) input.value = ownLink ?? '';
     const rotate = node('[data-contact-action="rotate"]');
     if (rotate)
-      rotate.textContent = ownLink ? 'Trocar convite' : 'Criar convite';
+      rotate.textContent = ownLink ? t('Trocar convite') : t('Criar convite');
     if (!ownLink) return;
     const qr = node('[data-contact-invite-qr]');
     if (qr && node<HTMLDialogElement>('[data-contact-invites]')?.open)
-      renderQr(qr, ownLink, 'QR Code de convite para contato');
+      renderQr(qr, ownLink, t('QR Code de convite para contato'));
   }
   function resetEditor(): void {
     editing = null;
@@ -145,7 +146,7 @@ export function startContacts(
     found = null;
     prepared = null;
     node<HTMLFormElement>('[data-book-form]')?.reset();
-    text('[data-book-title]', 'Adicionar contato');
+    text('[data-book-title]', t('Adicionar contato'));
     text('[data-contact-discovery]', '');
     node('[data-contact-discovery-actions]')?.replaceChildren();
   }
@@ -163,8 +164,9 @@ export function startContacts(
   function bindEditor(): void {
     node('[data-contact-add]')?.addEventListener('click', () => {
       resetEditor();
-      status =
-        'Salvar guarda o apelido na agenda; solicitar conversa depende do aceite.';
+      status = t(
+        'Salvar guarda o apelido na agenda; solicitar conversa depende do aceite.',
+      );
       render();
       openEditor('wallet');
     });
@@ -214,13 +216,15 @@ export function startContacts(
         contacts.state.inviteHash,
       );
     status = sync.complete
-      ? 'Contatos atualizados.'
-      : 'Permissões conferidas. Continue carregando o índice do cofre antes de editar a agenda.';
+      ? t('Contatos atualizados.')
+      : t(
+          'Permissões conferidas. Continue carregando o índice do cofre antes de editar a agenda.',
+        );
     if (received && node('[data-contact-invite-form]')) await inspectInvite();
   }
   function renderBook(): void {
     const entries = bookEntries();
-    text('[data-book-state]', `Versões carregadas: ${entries.length}`);
+    text('[data-book-state]', t('Versões carregadas: {0}', [entries.length]));
     const list = node('[data-book-list]');
     if (!list) return;
     list.replaceChildren();
@@ -231,15 +235,15 @@ export function startContacts(
         seed: entry.change.entity,
         detail:
           conflicts > 1
-            ? `${conflicts} versões em conflito`
-            : 'Registro da sua agenda particular',
+            ? t('{0} versões em conflito', [conflicts])
+            : t('Registro da sua agenda particular'),
       });
       actions.append(
-        button('Abrir contato', async () => edit(entry.commit.id, false)),
+        button(t('Abrir contato'), async () => edit(entry.commit.id, false)),
       );
       if (conflicts > 1)
         contactMenu(actions, entry.change.label).append(
-          button('Resolver usando esta versão', async () =>
+          button(t('Resolver usando esta versão'), async () =>
             edit(entry.commit.id, true),
           ),
         );
@@ -249,8 +253,10 @@ export function startContacts(
       emptyContacts(
         list,
         value('[data-book-search]')
-          ? 'Nenhum registro encontrado nesta agenda.'
-          : 'Sua agenda está vazia. Adicione uma wallet para guardar um apelido particular.',
+          ? t('Nenhum registro encontrado nesta agenda.')
+          : t(
+              'Sua agenda está vazia. Adicione uma wallet para guardar um apelido particular.',
+            ),
       );
   }
   function bookEntries(): VaultEntry[] {
@@ -279,16 +285,23 @@ export function startContacts(
     text(
       '[data-book-title]',
       resolve
-        ? 'Resolver contato: confira antes de salvar'
-        : 'Editar contato particular',
+        ? t('Resolver contato: confira antes de salvar')
+        : t('Editar contato particular'),
     );
     text(
       '[data-contact-discovery]',
-      `Wallet ${c.ecosystem}: ${c.address}${c.identity ? ' · referência de identidade guardada' : ''}${c.removed ? ' · removido da agenda ativa' : ''}`,
+      t('Wallet {0}: {1}{2}{3}', [
+        c.ecosystem,
+        c.address,
+        c.identity ? t(' · referência de identidade guardada') : '',
+        c.removed ? t(' · removido da agenda ativa') : '',
+      ]),
     );
     status = resolve
-      ? 'Salvar preservará as versões anteriores e resolverá os ramos escolhidos.'
-      : 'Contato aberto apenas neste aparelho.';
+      ? t(
+          'Salvar preservará as versões anteriores e resolverá os ramos escolhidos.',
+        )
+      : t('Contato aberto apenas neste aparelho.');
     openEditor('wallet');
   }
   function referenceContact(
@@ -322,8 +335,8 @@ export function startContacts(
     if (expected !== generation) throw new Error('Sessão alterada.');
     await options.saved?.(contact);
     status = sync.pending
-      ? 'Contato salvo neste aparelho. Será enviado quando a conexão voltar.'
-      : 'Contato particular confirmado no cofre. Isso não aprovou conversa.';
+      ? t('Contato salvo neste aparelho. Será enviado quando a conexão voltar.')
+      : t('Contato particular confirmado no cofre. Isso não aprovou conversa.');
     resetEditor();
     node<HTMLDialogElement>('[data-contact-editor]')?.close();
   }
@@ -334,8 +347,14 @@ export function startContacts(
     text(
       '[data-contact-discovery]',
       found
-        ? `${found.name || 'Sem nome'} · nome escolhido pelo usuário · ${found.ecosystem} · ${found.address}`
-        : 'Wallet indisponível para solicitação por endereço. Salve na agenda e compartilhe seu convite.',
+        ? t('{0} · nome escolhido pelo usuário · {1} · {2}', [
+            found.name || t('Sem nome'),
+            found.ecosystem,
+            found.address,
+          ])
+        : t(
+            'Wallet indisponível para solicitação por endereço. Salve na agenda e compartilhe seu convite.',
+          ),
     );
     const actions = node('[data-contact-discovery-actions]');
     actions?.replaceChildren();
@@ -359,7 +378,9 @@ export function startContacts(
       if (!items.length) emptyContacts(list, emptyList(kind, !!page));
       text(
         `[data-contact-page-state="${kind}"]`,
-        page ? `${page.items.length}${page.next ? '+' : ''} nesta página` : '',
+        page
+          ? t('{0}{1} nesta página', [page.items.length, page.next ? '+' : ''])
+          : '',
       );
     }
     renderRequestCount();
@@ -374,21 +395,22 @@ export function startContacts(
       count.textContent = `${amount}${incoming?.next ? '+' : ''}`;
       count.setAttribute(
         'aria-label',
-        `Pedidos recebidos nesta página: ${amount}`,
+        t('Pedidos recebidos nesta página: {0}', [amount]),
       );
     }
   }
   function emptyList(kind: ContactList, loaded: boolean): string {
-    if (!loaded) return 'Entre e sincronize para conferir esta lista.';
+    if (!loaded) return t('Entre e sincronize para conferir esta lista.');
     if (value('[data-book-search]'))
-      return 'Nenhum resultado nos itens desta página.';
+      return t('Nenhum resultado nos itens desta página.');
     const labels = {
-      approved:
+      approved: t(
         'Nenhuma conversa liberada. Adicione um contato ou aceite uma solicitação.',
-      incoming: 'Nenhum pedido recebido. Os novos pedidos aparecem aqui.',
-      outgoing: 'Você não tem pedidos enviados nesta página.',
-      rejected: 'Nenhum pedido recusado nesta página.',
-      blocked: 'Nenhum bloqueio nesta página.',
+      ),
+      incoming: t('Nenhum pedido recebido. Os novos pedidos aparecem aqui.'),
+      outgoing: t('Você não tem pedidos enviados nesta página.'),
+      rejected: t('Nenhum pedido recusado nesta página.'),
+      blocked: t('Nenhum bloqueio nesta página.'),
     };
     return labels[kind];
   }
@@ -400,11 +422,14 @@ export function startContacts(
     const { row, actions } = contactRow({
       title,
       seed: contact.address,
-      detail: `${contact.ecosystem.toUpperCase()} · ${shortAddress(contact.address)}`,
+      detail: t('{0} · {1}', [
+        contact.ecosystem.toUpperCase(),
+        shortAddress(contact.address),
+      ]),
     });
     if (kind === 'approved' && options.open) {
       const open = options.open;
-      const converse = button('Conversar', () => open(contact));
+      const converse = button(t('Conversar'), () => open(contact));
       converse.className = 'primary';
       actions.append(converse);
     }
@@ -413,40 +438,44 @@ export function startContacts(
       details = document.createElement('details'),
       summary = document.createElement('summary'),
       wallet = document.createElement('p');
-    summary.textContent = 'Wallet e nome informado';
-    wallet.textContent = `${contact.ecosystem.toUpperCase()} · ${contact.address}. Nome escolhido pelo usuário.`;
+    summary.textContent = t('Wallet e nome informado');
+    wallet.textContent = t('{0} · {1}. Nome escolhido pelo usuário.', [
+      contact.ecosystem.toUpperCase(),
+      contact.address,
+    ]);
     details.append(summary, wallet);
     menu.append(
       details,
-      button('Salvar na minha agenda', async () => selectPeer(contact)),
+      button(t('Salvar na minha agenda'), async () => selectPeer(contact)),
     );
     if (kind === 'outgoing')
       menu.append(
-        button('Cancelar solicitação', async () => {
+        button(t('Cancelar solicitação'), async () => {
           await contacts.api('cancel', {
             revision: contacts.state.revision,
             target: contact.accountId,
           });
           await refresh();
-          status = 'Solicitação pendente cancelada.';
+          status = t('Solicitação pendente cancelada.');
         }),
       );
     return row;
   }
   function requestActions(actions: HTMLElement, contact: Peer): void {
-    const accept = button('Aceitar', async () => {
+    const accept = button(t('Aceitar'), async () => {
       await contacts.respond(contact.accountId, true);
       await refresh();
-      status = 'Contato aprovado nos dois sentidos.';
+      status = t('Contato aprovado nos dois sentidos.');
     });
     accept.className = 'primary';
     actions.append(
       accept,
-      button('Recusar', async () => {
+      button(t('Recusar'), async () => {
         await contacts.respond(contact.accountId, false);
         await refresh();
-        status =
-          'Solicitação recusada. A mesma identidade não pode repetir este pedido.';
+        status = t(
+          'Solicitação recusada. A mesma identidade não pode repetir este pedido.',
+        );
       }),
     );
   }
@@ -458,23 +487,27 @@ export function startContacts(
     for (const hash of contacts.pages.get('blocked')?.blocks ?? []) {
       if (!hash.toLowerCase().includes(query)) continue;
       const { row, actions } = contactRow({
-        title: 'Wallet bloqueada',
+        title: t('Wallet bloqueada'),
         seed: hash,
-        detail: `Referência · ${shortAddress(hash)}`,
+        detail: t('Referência · {0}', [shortAddress(hash)]),
       });
-      const menu = contactMenu(actions, `bloqueio ${shortAddress(hash)}`),
+      const menu = contactMenu(
+          actions,
+          t('bloqueio {0}', [shortAddress(hash)]),
+        ),
         reference = document.createElement('p');
-      reference.textContent = `Referência do bloqueio: ${hash}`;
+      reference.textContent = t('Referência do bloqueio: {0}', [hash]);
       menu.append(reference);
       actions.prepend(
-        button('Desbloquear', async () => {
+        button(t('Desbloquear'), async () => {
           await contacts.api('unblock', {
             revision: contacts.state.revision,
             walletHash: hash,
           });
           await refresh();
-          status =
-            'Bloqueio removido. Uma nova solicitação e aprovação continuam necessárias.';
+          status = t(
+            'Bloqueio removido. Uma nova solicitação e aprovação continuam necessárias.',
+          );
         }),
       );
       list.append(row);
@@ -488,7 +521,9 @@ export function startContacts(
       alias = node<HTMLInputElement>('[data-book-alias]');
     if (a) a.value = contact.address;
     if (alias) alias.value = contact.name;
-    status = 'Confira o apelido particular e salve explicitamente na agenda.';
+    status = t(
+      'Confira o apelido particular e salve explicitamente na agenda.',
+    );
     openEditor('wallet');
     await Promise.resolve();
   }
@@ -497,8 +532,9 @@ export function startContacts(
       discoveryMode(value('[data-contact-mode]')),
       contacts.state.inviteHash,
     );
-    status =
-      'Visibilidade aplicada no servidor. Contatos já aprovados foram preservados.';
+    status = t(
+      'Visibilidade aplicada no servidor. Contatos já aprovados foram preservados.',
+    );
   }
   async function rotate(): Promise<void> {
     if (!sync.complete || sync.pending)
@@ -518,14 +554,19 @@ export function startContacts(
     try {
       await book.saveInvite(invite);
     } catch (error: unknown) {
-      status =
-        'Convite ativo, mas a cópia cifrada não foi confirmada. Guarde o link ou revogue-o antes de sair.';
+      status = t(
+        'Convite ativo, mas a cópia cifrada não foi confirmada. Guarde o link ou revogue-o antes de sair.',
+      );
       render();
       throw error;
     }
     status = sync.pending
-      ? 'Convite ativo; a cópia cifrada será enviada automaticamente ao reconectar.'
-      : 'Novo convite ativo e preservado no cofre. O anterior foi invalidado.';
+      ? t(
+          'Convite ativo; a cópia cifrada será enviada automaticamente ao reconectar.',
+        )
+      : t(
+          'Novo convite ativo e preservado no cofre. O anterior foi invalidado.',
+        );
   }
   async function inspectInvite(): Promise<void> {
     const link = value('[data-contact-received]');
@@ -535,18 +576,23 @@ export function startContacts(
     const target = node('[data-contact-invite-peer]');
     target?.replaceChildren();
     if (!invitePeer) {
-      status =
-        'Convite indisponível, revogado ou restrito pela privacidade atual.';
+      status = t(
+        'Convite indisponível, revogado ou restrito pela privacidade atual.',
+      );
       return;
     }
     const selected = invitePeer,
       invite = received;
     const p = document.createElement('p');
-    p.textContent = `${selected.name || 'Sem nome'} · nome escolhido pelo usuário · ${selected.ecosystem} · ${selected.address}`;
+    p.textContent = t('{0} · nome escolhido pelo usuário · {1} · {2}', [
+      selected.name || t('Sem nome'),
+      selected.ecosystem,
+      selected.address,
+    ]);
     target?.append(p);
     if (!node('[data-contact-invite-form]'))
       target?.append(
-        button('Solicitar conversa', () =>
+        button(t('Solicitar conversa'), () =>
           requestInvite(selected, invite.token),
         ),
       );
@@ -557,7 +603,7 @@ export function startContacts(
     invitePeer = null;
     node('[data-contact-invite-peer]')?.replaceChildren();
     await refresh();
-    status = 'Solicitação enviada. Aguarde o aceite.';
+    status = t('Solicitação enviada. Aguarde o aceite.');
   }
   async function sendInvite(): Promise<void> {
     await inspectInvite();
@@ -568,7 +614,7 @@ export function startContacts(
     if (found) {
       await contacts.request(found.accountId, null);
       await refresh();
-      status = 'Solicitação enviada. Aguarde o aceite.';
+      status = t('Solicitação enviada. Aguarde o aceite.');
     }
   }
   const actions: Record<string, () => Promise<void>> = {
@@ -578,13 +624,14 @@ export function startContacts(
     revoke: async () => {
       await contacts.configure(contacts.state.mode, null);
       ownLink = null;
-      status =
-        'Convite revogado. Links antigos não permitem novas solicitações.';
+      status = t(
+        'Convite revogado. Links antigos não permitem novas solicitações.',
+      );
     },
     copy: async () => {
       if (!ownLink) throw new Error('Crie um convite primeiro.');
       await navigator.clipboard.writeText(ownLink);
-      status = 'Link copiado. Compartilhe manualmente com o destinatário.';
+      status = t('Link copiado. Compartilhe manualmente com o destinatário.');
     },
     'book-more': async () => {
       offset = offset + 16 < bookEntries().length ? offset + 16 : 0;
@@ -621,7 +668,7 @@ export function startContacts(
       qr?.replaceChildren();
       if (qr) delete qr.dataset['qrPayload'];
     }
-    status = 'Consultando contatos da conta…';
+    status = t('Consultando contatos da conta…');
   }
   function sessionChanged(session: AccountSession | null): boolean {
     return (
@@ -643,7 +690,7 @@ export function startContacts(
       received = invite;
     } catch {
       received = null;
-      status = 'Convite inválido. Confira o link completo.';
+      status = t('Convite inválido. Confira o link completo.');
     }
     if (location.hash.startsWith('#contatos?'))
       history.replaceState(null, '', location.pathname + '#contatos');
@@ -719,8 +766,9 @@ export function startContacts(
         );
         if (input) input.value = value ?? '';
       }
-      status =
-        'Salvar guarda o contato; pedir conversa continua sujeito ao aceite.';
+      status = t(
+        'Salvar guarda o contato; pedir conversa continua sujeito ao aceite.',
+      );
       render();
       openEditor('wallet');
     },

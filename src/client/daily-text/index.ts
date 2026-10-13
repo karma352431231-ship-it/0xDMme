@@ -1,3 +1,4 @@
+import { messageStates } from '../message-state/index.ts';
 import { decodeDailyText, validReaction } from '../../shared/daily/index.ts';
 import { attachmentContent } from '../../shared/attachments/index.ts';
 import type { DailyText, MessageRelation } from '../../shared/daily/index.ts';
@@ -48,7 +49,7 @@ function applyAction<T extends DailyRow>(
   byId: Map<string, DailyView<T>>,
   reacted: Map<string, Map<string, string>>,
 ): void {
-  if (row.state === 'Suspensa') return;
+  if (row.state === messageStates.suspended) return;
   const relation = row.relation;
   if (!relation) return;
   const target = byId.get(relation.id);

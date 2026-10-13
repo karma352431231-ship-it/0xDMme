@@ -1,22 +1,22 @@
 <!doctype html>
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
-<html lang="pt-BR">
+<html lang="en">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>0xDMme — coleta para calibração</title>
+    <title>0xDMme — calibration collection</title>
     <link rel="stylesheet" href="/style.css" />
     <script type="module" src="/client.js"></script>
   </head>
   <body>
     <main>
-      <p class="badge">0xDMme · GALERIA PRIVADA</p>
-      <h1>Você marca. Eu calibro.</h1>
+      <p class="badge">0xDMme · PRIVATE GALLERY</p>
+      <h1>You label. I calibrate.</h1>
       <p>
-        Selecione suas imagens de uma vez e marque apenas se devem passar ou ser
-        bloqueadas. Ao terminar, conclua o envio.
+        Select your images together and mark only whether they should pass or be
+        blocked. When finished, complete the submission.
       </p>
-      <label class="picker" for="images">Selecionar imagens</label>
+      <label class="picker" for="images">Select images</label>
       <input
         id="images"
         type="file"
@@ -24,38 +24,37 @@
         multiple
       />
       <p class="small">
-        PNG, JPEG ou WebP · até 8 MiB por imagem. Você pode adicionar mais
-        imagens depois.
+        PNG, JPEG or WebP · up to 8 MiB per image. You can add more images
+        later.
       </p>
-      <p id="summary" class="summary">Abrindo sua rodada…</p>
+      <p id="summary" class="summary">Opening your round…</p>
       <section class="review" aria-labelledby="current">
-        <p id="current">Selecione imagens para começar.</p>
-        <img id="preview" alt="Imagem a ser marcada" hidden />
+        <p id="current">Select images to begin.</p>
+        <img id="preview" alt="Image to label" hidden />
         <div class="choices">
-          <button id="allow" type="button" disabled>Passa</button>
-          <button id="reject" type="button" disabled>Bloqueia</button>
+          <button id="allow" type="button" disabled>Pass</button>
+          <button id="reject" type="button" disabled>Block</button>
         </div>
-        <button id="skip" type="button" hidden>Remover arquivo da fila</button>
-        <button id="back" type="button" hidden>Voltar à fila</button>
+        <button id="skip" type="button" hidden>Remove file from queue</button>
+        <button id="back" type="button" hidden>Return to queue</button>
       </section>
       <p id="status" role="status" aria-live="polite"></p>
       <button id="finish" class="finish" type="button" disabled>
-        Concluir envio
+        Complete submission
       </button>
       <details>
-        <summary>Imagens salvas e correções</summary>
+        <summary>Saved images and corrections</summary>
         <div id="history"></div>
       </details>
       <p class="small">
-        Originais preservados na memória deste processo local por até 24 horas,
-        sem treinamento nem análise externa. As marcações não alimentam o
-        detector. Imagens já salvas sobrevivem ao recarregamento da aba; a fila
-        ainda não marcada precisa ser selecionada novamente. Mantenha o Mac
-        ligado e sem repouso durante a calibração.
+        Originals are preserved in this local process's memory for up to 24
+        hours, without training or external analysis. Labels do not feed the
+        detector. Saved images survive tab reloads; the unlabelled queue must be
+        selected again. Keep the Mac on and awake during calibration.
       </p>
       <p class="small">
         <a href="/source.tar.gz" download
-          >Fontes correspondentes desta interface (GPL-3.0-only)</a
+          >Corresponding source code for this interface (GPL-3.0-only)</a
         >
       </p>
     </main>

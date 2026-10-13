@@ -8,6 +8,7 @@ import type { AccountSession } from '../src/shared/account/index.ts';
 // Exercise the real entry point, routing and panels against the IDs in each
 // authored document. Feature controllers have their own behavioral tests.
 const featureExports: Record<string, string[]> = {
+  language: ['startLanguage', 'mountLanguageSettings', 'applyLanguage'],
   'public-search': ['mountPublicSearch'],
   appearance: ['startAppearance', 'paintAvatar'],
   pwa: ['startPwa'],
@@ -184,12 +185,12 @@ await test('documento da wallet inicializa a confirmação em Android e iPhone s
     assert.equal(view.nodes.has('public-directory'), false);
     assert.equal(view.mounted.length, 1);
     assert.equal(view.nodes.get('page-content')?.children[0], view.mounted[0]);
-    assert.equal(view.document.title, 'Confirmar assinatura · 0xDMme');
+    assert.equal(view.document.title, 'Confirm signature · 0xDMme');
     assert.equal(view.pwaStarts, 0);
     view.changed(null);
     assert.match(
       view.nodes.get('connection')?.textContent ?? '',
-      /Conexão disponível/u,
+      /Connection available/u,
     );
   }
 });
@@ -204,7 +205,7 @@ await test('app completo conserva os painéis e a inicialização da PWA no desk
   view.changed(null);
   assert.match(
     view.nodes.get('connection')?.textContent ?? '',
-    /Conexão disponível/u,
+    /Connection available/u,
   );
 });
 

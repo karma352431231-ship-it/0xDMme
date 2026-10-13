@@ -1,3 +1,8 @@
+import {
+  t,
+  translatedError,
+  currentLanguage,
+} from '../../shared/i18n/index.ts';
 import { renderMentions } from '../public-mentions/index.ts';
 import { fetchApi, readApiJson } from '../api-response/index.ts';
 import { uuid } from '../../shared/account/index.ts';
@@ -72,7 +77,10 @@ function line(tag: string, text: string, className: string): HTMLElement {
   return node;
 }
 function count(value: number, one: string, many: string): string {
-  return `${value.toLocaleString('pt-BR')} ${value === 1 ? one : many}`;
+  return t('{0} {1}', [
+    value.toLocaleString(currentLanguage()),
+    value === 1 ? one : many,
+  ]);
 }
 
 /** Profile preview: photo, @, description, a few figures and Seguir. */
@@ -118,9 +126,9 @@ export function profileHoverProvider(
         line(
           'p',
           [
-            count(value.followers, 'seguidor', 'seguidores'),
+            count(value.followers, t('seguidor'), t('seguidores')),
             count(value.posts, 'post', 'posts'),
-            count(value.replies, 'resposta', 'respostas'),
+            count(value.replies, t('resposta'), t('respostas')),
           ].join(' · '),
           'hover-card-stats',
         ),
@@ -133,7 +141,9 @@ export function profileHoverProvider(
           card.append(
             line(
               'p',
-              error instanceof Error ? error.message : 'Ação indisponível.',
+              error instanceof Error
+                ? translatedError(error.message)
+                : t('Ação indisponível.'),
               'hover-card-error',
             ),
           );

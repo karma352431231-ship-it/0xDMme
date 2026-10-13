@@ -1,3 +1,4 @@
+import { t } from '../../shared/i18n/index.ts';
 import {
   mountMentionInput,
   mentionValue,
@@ -21,12 +22,7 @@ import type { PublicProfiles } from './controller.ts';
 
 const trash =
   '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>';
-const template = `<div class="profile-editor">
-<div class="profile-editor-banner"><button type="button" class="profile-editor-pick" data-pick="banner" aria-label="Trocar banner"><img alt="" hidden><span class="profile-editor-hint">Trocar banner</span></button><button type="button" class="profile-editor-remove" data-remove="banner" aria-label="Remover banner" title="Remover banner" hidden>${trash}</button></div>
-<div class="profile-editor-identity"><div class="profile-editor-avatar"><button type="button" class="profile-editor-pick" data-pick="avatar" aria-label="Trocar foto"><span data-avatar-slot>@</span></button><button type="button" class="profile-editor-remove" data-remove="avatar" aria-label="Remover foto" title="Remover foto" hidden>${trash}</button></div>
-<div class="profile-editor-title"><h3 data-public-own-handle></h3><a data-public-page>Ver meu perfil público</a></div></div>
-<label class="profile-editor-description"><span>Descrição</span><textarea data-public-description rows="3" placeholder="Conte quem você é. Use @ para mencionar usuários e comunidades."></textarea><small data-description-count></small></label>
-<button type="button" class="primary" data-confirm-profile>Confirmar alterações</button><input type="file" data-pick-file accept="image/png,image/jpeg,image/webp" hidden></div>`;
+const template = t('html.b1c18c8a59fa', [trash, trash]);
 
 type Target = 'banner' | 'avatar';
 interface Image {

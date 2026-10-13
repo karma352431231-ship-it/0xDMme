@@ -1,3 +1,5 @@
+import { t } from '../../shared/i18n/index.ts';
+import { startLanguage } from '../language/index.ts';
 import {
   beginProbe,
   readProbe,
@@ -7,6 +9,7 @@ import {
 } from './index.ts';
 import type { NativeProbe } from './index.ts';
 
+startLanguage();
 const storageKey = '0xdmme:phantom-native-probe:v1';
 const start = document.querySelector<HTMLButtonElement>('[data-probe-start]');
 const cancel = document.querySelector<HTMLButtonElement>('[data-probe-cancel]');
@@ -39,8 +42,8 @@ function save(state: NativeProbe, link: string): void {
   controls.launch.hidden = false;
   controls.launch.textContent =
     state.phase === 'connect'
-      ? 'Abrir Phantom'
-      : 'Confirmar mensagem na Phantom';
+      ? t('Abrir Phantom')
+      : t('Confirmar mensagem na Phantom');
   controls.cancel.hidden = false;
   controls.start.disabled = true;
   window.clearTimeout(timer);
@@ -60,7 +63,7 @@ function expire(): void {
     );
   } catch {
     fail();
-    controls.status.textContent = 'Prova expirada. Inicie uma nova conexão.';
+    controls.status.textContent = t('Prova expirada. Inicie uma nova conexão.');
   }
 }
 function stored(): NativeProbe | null {
@@ -78,8 +81,9 @@ function fail(): void {
     controls.cancel.hidden = true;
     controls.start.disabled = true;
   }
-  controls.status.textContent =
-    'Prova não concluída. Confira a wallet e a conexão. Se o armazenamento estiver bloqueado, permita-o antes de iniciar uma nova prova.';
+  controls.status.textContent = t(
+    'Prova não concluída. Confira a wallet e a conexão. Se o armazenamento estiver bloqueado, permita-o antes de iniciar uma nova prova.',
+  );
 }
 async function initialize(): Promise<void> {
   await ready();
@@ -87,29 +91,33 @@ async function initialize(): Promise<void> {
   const previous = stored();
   if (!callback.size) {
     clear();
-    controls.status.textContent =
-      'Pronto para testar conexão, assinatura e retorno. Nenhuma conta do 0xDMme será conectada.';
+    controls.status.textContent = t(
+      'Pronto para testar conexão, assinatura e retorno. Nenhuma conta do 0xDMme será conectada.',
+    );
     return;
   }
   if (!previous) throw new Error('Prova ausente.');
   const result = receiveProbe(previous, callback, location.origin);
   if (result.complete) {
     clear();
-    controls.status.textContent =
-      'Assinatura de teste confirmada. A Phantom devolveu a resposta a este navegador. Nenhuma conta do 0xDMme foi conectada. Se esta for outra aba, volte à aba original para comparar o retorno.';
+    controls.status.textContent = t(
+      'Assinatura de teste confirmada. A Phantom devolveu a resposta a este navegador. Nenhuma conta do 0xDMme foi conectada. Se esta for outra aba, volte à aba original para comparar o retorno.',
+    );
     return;
   }
   save(result.state, result.link);
-  controls.status.textContent =
-    'Conexão confirmada. Toque em “Confirmar mensagem na Phantom”, confira a mensagem de teste e assine. A wallet solicitará o retorno a este site.';
+  controls.status.textContent = t(
+    'Conexão confirmada. Toque em “Confirmar mensagem na Phantom”, confira a mensagem de teste e assine. A wallet solicitará o retorno a este site.',
+  );
 }
 controls.start.addEventListener('click', () => {
   if (!initialized || current) return;
   try {
     const pending = beginProbe(location.origin);
     save(pending.state, pending.link);
-    controls.status.textContent =
-      'Confirme a conexão na Phantom. Se a abertura for bloqueada, toque em “Abrir Phantom”.';
+    controls.status.textContent = t(
+      'Confirme a conexão na Phantom. Se a abertura for bloqueada, toque em “Abrir Phantom”.',
+    );
     location.assign(pending.link);
   } catch {
     fail();
@@ -118,8 +126,9 @@ controls.start.addEventListener('click', () => {
 controls.cancel.addEventListener('click', () => {
   try {
     clear();
-    controls.status.textContent =
-      'Prova cancelada. Retornos antigos não serão aceitos.';
+    controls.status.textContent = t(
+      'Prova cancelada. Retornos antigos não serão aceitos.',
+    );
   } catch {
     fail();
   }

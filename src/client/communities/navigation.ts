@@ -1,3 +1,4 @@
+import { t } from '../../shared/i18n/index.ts';
 import { communityElement as el, communityLink as link } from './elements.ts';
 import { iconLabel } from './presentation.ts';
 
@@ -22,32 +23,32 @@ export function communityNavigation(
       else a.removeAttribute('aria-current');
     });
   const tools = el('nav', '', 'community-tools');
-  tools.setAttribute('aria-label', 'Acessos de comunidades');
-  if (options.selected) link(tools, '← Feed', '#comunidades?view=feed');
+  tools.setAttribute('aria-label', t('Acessos de comunidades'));
+  if (options.selected) link(tools, t('← Feed'), '#comunidades?view=feed');
   const menu = el('details', '', 'community-more'),
-    summary = el('summary', 'Mais opções');
+    summary = el('summary', t('Mais opções'));
   iconLabel(summary, 'more');
   menu.append(summary);
   const choices = el('nav');
-  choices.setAttribute('aria-label', 'Listas e gestão de comunidades');
+  choices.setAttribute('aria-label', t('Listas e gestão de comunidades'));
   if (options.manage)
     link(
       choices,
-      'Gerenciar comunidade',
+      t('Gerenciar comunidade'),
       `#comunidades?id=${options.manage}&view=manage`,
     );
   for (const [key, title] of [
-    ['communities', 'Minhas comunidades'],
-    ['following', 'Feed de seguidos'],
-    ['saved', 'Salvos'],
-    ['hidden', 'Ocultos'],
-    ['replies', 'Respostas ao seu conteúdo'],
-    ['invitations', 'Transferências'],
-    ['create', 'Criar comunidade'],
+    ['communities', t('Minhas comunidades')],
+    ['following', t('Feed de seguidos')],
+    ['saved', t('Salvos')],
+    ['hidden', t('Ocultos')],
+    ['replies', t('Respostas ao seu conteúdo')],
+    ['invitations', t('Transferências')],
+    ['create', t('Criar comunidade')],
   ] as const) {
     if (options.signedIn) link(choices, title, `#comunidades?view=${key}`);
   }
-  if (!options.signedIn) link(choices, 'Entrar pelo Perfil', '#perfil');
+  if (!options.signedIn) link(choices, t('Entrar pelo Perfil'), '#perfil');
   menu.append(choices);
   tools.append(menu);
   container.append(tools);
@@ -59,28 +60,28 @@ export function communityDirectoryNavigation(
   selected: string | null,
 ): void {
   const head = el('header', '', 'community-directory-head');
-  head.append(el('h2', 'Comunidades'));
+  head.append(el('h2', t('Comunidades')));
   link(head, '', '#comunidades?view=create');
   const create = head.lastElementChild as HTMLAnchorElement;
   create.className = 'icon-button';
-  create.setAttribute('aria-label', 'Criar comunidade');
-  create.title = 'Criar comunidade';
+  create.setAttribute('aria-label', t('Criar comunidade'));
+  create.title = t('Criar comunidade');
   iconLabel(create, 'plus');
   const tabs = el('nav', '', 'community-directory-tabs');
-  tabs.setAttribute('aria-label', 'Comunidades ou mensagens pelo @');
+  tabs.setAttribute('aria-label', t('Comunidades ou mensagens pelo @'));
   for (const [key, title] of [
-    ['feed', 'Comunidades'],
-    ['dms', 'Mensagens @'],
+    ['feed', t('Comunidades')],
+    ['dms', t('Mensagens @')],
   ] as const) {
     link(tabs, title, `#comunidades?view=${key}`);
     if ((view === 'dms') === (key === 'dms'))
       tabs.lastElementChild?.setAttribute('aria-current', 'page');
   }
   const nav = el('nav', '', 'community-directory-nav');
-  nav.setAttribute('aria-label', 'Navegação de comunidades');
+  nav.setAttribute('aria-label', t('Navegação de comunidades'));
   for (const [key, title, icon] of [
-    ['feed', 'Feed', 'layers'],
-    ['explore', 'Ranking', 'compass'],
+    ['feed', t('Feed'), 'layers'],
+    ['explore', t('Ranking'), 'compass'],
   ] as const) {
     link(nav, title, `#comunidades?view=${key}`);
     const a = nav.lastElementChild as HTMLAnchorElement;
@@ -92,7 +93,7 @@ export function communityDirectoryNavigation(
     head,
     tabs,
     nav,
-    el('h2', view === 'dms' ? 'Mensagens @' : 'Seguidas'),
+    el('h2', view === 'dms' ? t('Mensagens @') : t('Seguidas')),
   );
 }
 

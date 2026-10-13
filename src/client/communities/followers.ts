@@ -1,3 +1,8 @@
+import {
+  t,
+  translatedError,
+  currentLanguage,
+} from '../../shared/i18n/index.ts';
 import { communityFollowers } from '../../shared/community-followers/index.ts';
 import type {
   CommunityFollowerTab,
@@ -38,7 +43,7 @@ function identity(
     link.append(
       el(
         'span',
-        profile.role === 'owner' ? 'Dono' : 'Moderador',
+        profile.role === 'owner' ? t('Dono') : t('Moderador'),
         'community-follower-role',
       ),
     );
@@ -92,8 +97,13 @@ export function knownFollowersText(page: CommunityFollowers): string {
   const names = page.items.slice(0, 2).map((profile) => `@${profile.handle}`);
   const rest = page.total - names.length;
   if (rest > 0)
-    return `Seguida por ${names.join(', ')} e mais ${rest.toLocaleString('pt-BR')} que você segue`;
-  return `Seguida por ${names.join(' e ')}`;
+    return t('Seguida por {0} e mais {1} que você segue', [
+      names.join(', '),
+      rest.toLocaleString(currentLanguage()),
+    ]);
+  return t('Seguida por {0}', [
+    new Intl.ListFormat(currentLanguage()).format(names),
+  ]);
 }
 /** Overlapping photos and the sentence, one link to the followers page. */
 function knownFollowers(
@@ -126,8 +136,8 @@ export function mountCommunityFollowerPreview(
   const line = el('div', '', 'community-followers'),
     count = el('a', '', 'community-followers-link');
   count.append(
-    el('strong', input.total.toLocaleString('pt-BR')),
-    el('span', ` ${input.total === 1 ? 'seguidor' : 'seguidores'}`),
+    el('strong', input.total.toLocaleString(currentLanguage())),
+    el('span', ` ${input.total === 1 ? t('seguidor') : t('seguidores')}`),
   );
   count.href = `#comunidades?id=${input.id}&view=followers`;
   line.append(count);
@@ -143,7 +153,7 @@ export function mountCommunityFollowerPreview(
     })
     .catch(() => {
       if (!input.signal.aborted)
-        preview.textContent = 'Perfis em comum indisponíveis agora.';
+        preview.textContent = t('Perfis em comum indisponíveis agora.');
     });
 }
 /** Separate page with a public roster and signed personalized tab. */
@@ -152,14 +162,14 @@ export function mountCommunityFollowerPage(
   input: FollowersAccess & { name: string },
 ): void {
   const panel = el('section', '', 'community-followers-panel'),
-    back = el('a', `← ${input.name}`),
+    back = el('a', t('← {0}', [input.name])),
     tabs = el('nav'),
     list = el('div', '', 'community-followers-list'),
     status = el('p'),
-    more = el('button', 'Ver mais');
+    more = el('button', t('Ver mais'));
   back.href = `#comunidades?id=${input.id}`;
   more.type = 'button';
-  tabs.setAttribute('aria-label', 'Listas de seguidores');
+  tabs.setAttribute('aria-label', t('Listas de seguidores'));
   status.setAttribute('role', 'status');
   more.hidden = true;
   let tab: CommunityFollowerTab = 'staff',
@@ -175,14 +185,23 @@ export function mountCommunityFollowerPage(
     next = page.next;
     more.hidden = !next;
     status.textContent = page.total
-      ? `${page.total.toLocaleString('pt-BR')} ${tab === 'staff' ? 'na administração' : tab === 'known' ? 'perfis que você segue nesta comunidade' : page.total === 1 ? 'seguidor' : 'seguidores'}`
-      : 'Nenhum perfil nesta lista.';
+      ? t('{0} {1}', [
+          page.total.toLocaleString(currentLanguage()),
+          tab === 'staff'
+            ? t('na administração')
+            : tab === 'known'
+              ? t('perfis que você segue nesta comunidade')
+              : page.total === 1
+                ? t('seguidor')
+                : t('seguidores'),
+        ])
+      : t('Nenhum perfil nesta lista.');
   }
   async function load(append: boolean): Promise<void> {
     const current = ++generation;
     loading = true;
     more.disabled = true;
-    status.textContent = 'Carregando seguidores…';
+    status.textContent = t('Carregando seguidores…');
     try {
       const page = await read(input, tab, append ? next : null);
       if (!usable() || current !== generation) return;
@@ -190,7 +209,9 @@ export function mountCommunityFollowerPage(
     } catch (error: unknown) {
       if (usable() && current === generation)
         status.textContent =
-          error instanceof Error ? error.message : 'Seguidores indisponíveis.';
+          error instanceof Error
+            ? translatedError(error.message)
+            : t('Seguidores indisponíveis.');
     } finally {
       if (current === generation) {
         loading = false;
@@ -203,9 +224,9 @@ export function mountCommunityFollowerPage(
     button: HTMLButtonElement;
   }> = [];
   for (const [kind, label] of [
-    ['staff', 'Dono e moderadores'],
-    ['all', 'Seguidores'],
-    ['known', 'Perfis que você segue'],
+    ['staff', t('Dono e moderadores')],
+    ['all', t('Seguidores')],
+    ['known', t('Perfis que você segue')],
   ] as const) {
     if (kind === 'known' && !input.signedIn) continue;
     const button = el('button', label);

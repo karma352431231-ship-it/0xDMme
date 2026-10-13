@@ -1,3 +1,4 @@
+import { t } from '../../shared/i18n/index.ts';
 import { boundedText, keys, object } from '../../shared/account/index.ts';
 import {
   ApiResponseError,
@@ -25,8 +26,9 @@ export class RecoveryReturnError extends ApiResponseError {
       status: error.status,
       failure: error.failure,
       responseType: error.responseType,
-      message:
+      message: t(
         'Retorno de recuperação indisponível, expirado ou recusado. Inicie novamente.',
+      ),
     });
   }
 }

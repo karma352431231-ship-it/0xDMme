@@ -1,3 +1,4 @@
+import { t } from '../../shared/i18n/index.ts';
 import { publicModerationNotice } from '../../shared/public-moderation/index.ts';
 import type { PublicModerationNotice } from '../../shared/public-moderation/index.ts';
 import type { PublicProfiles } from './controller.ts';
@@ -13,31 +14,39 @@ export function moderationNotification(
   notice: PublicModerationNotice,
 ): ModerationNotification | null {
   const reasons: Partial<Record<PublicModerationNotice['status'], string>> = {
-    rejected:
+    rejected: t(
       'A análise automática indicou conteúdo explícito, proibido pela política pública. Você pode contestar a análise no Perfil.',
-    held: 'A análise ficou incerta. O conteúdo fica fora do público até uma aprovação. Você pode contestar no Perfil.',
-    failed:
+    ),
+    held: t(
+      'A análise ficou incerta. O conteúdo fica fora do público até uma aprovação. Você pode contestar no Perfil.',
+    ),
+    failed: t(
       'Não foi possível concluir a análise com segurança. O conteúdo fica fora do público enquanto não houver aprovação.',
-    discarding:
+    ),
+    discarding: t(
       'O prazo de sete dias terminou sem aprovação. O arquivo está sendo descartado.',
-    expired:
+    ),
+    expired: t(
       'O arquivo foi descartado ao terminar o prazo de sete dias sem aprovação.',
+    ),
   };
   const reason = reasons[notice.status];
   if (!reason) return null;
   const titles = {
-    'post-media': 'Sua postagem ou resposta foi retirada do público',
-    avatar: 'Sua foto de perfil ficou fora do público',
-    'profile-banner': 'Seu banner ficou fora do público',
-    'community-photo': 'A foto da comunidade ficou fora do público',
-    'community-banner': 'O banner da comunidade ficou fora do público',
+    'post-media': t('Sua postagem ou resposta foi retirada do público'),
+    avatar: t('Sua foto de perfil ficou fora do público'),
+    'profile-banner': t('Seu banner ficou fora do público'),
+    'community-photo': t('A foto da comunidade ficou fora do público'),
+    'community-banner': t('O banner da comunidade ficou fora do público'),
   };
   return {
     id: `${notice.id}:${notice.status}`,
     review: notice.id,
     read: false,
     title: titles[notice.kind],
-    reason: notice.decision ? `${reason} Revisão: ${notice.decision}` : reason,
+    reason: notice.decision
+      ? t('{0} Revisão: {1}', [reason, notice.decision])
+      : reason,
   };
 }
 /** Durable notices stay server-side; only bounded acknowledgment IDs stay on this device. */

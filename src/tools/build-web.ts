@@ -4,6 +4,7 @@ import { build } from 'esbuild';
 import { fileURLToPath } from 'node:url';
 import { frontendMatrixSources } from './frontend-matrix-source.ts';
 import { frontendSource } from './frontend-source.ts';
+import { localizationPlugin } from './frontend-localization.ts';
 import { emojiAsset, frontendEmoji } from './frontend-emoji.ts';
 import {
   frontendVendorSource,
@@ -56,11 +57,17 @@ function hashedAsset(
 async function bundle(
   path: string,
   define: Record<string, string> = {},
+  catalogUrl?: string,
+  emojiCatalogUrl?: string,
 ): Promise<Uint8Array> {
   const result = await build({
     entryPoints: [fileURLToPath(new URL(path, root))],
     bundle: true,
     minify: true,
+    charset: 'utf8',
+    plugins: catalogUrl
+      ? [localizationPlugin(catalogUrl, emojiCatalogUrl)]
+      : [],
     define,
     write: false,
     metafile: true,
@@ -83,7 +90,7 @@ async function pruneGeneratedAssets(): Promise<void> {
   if (entries.length > 128) throw new Error('Diretório de build excedido.');
   for (const entry of entries) {
     if (
-      !/^(?:(?:app|phantom-probe|recovery-return|attachment-worker|voice-worklet)-[a-f0-9]{16}\.(?:js|css)|emoji-[a-f0-9]{16}\.json\.gz|source-[a-f0-9]{16}\.tar\.gz|matrix-crypto-18\.9\.0-source-[a-f0-9]{16}-\d{2}\.bin|libsodium-\d+\.\d+\.\d+-sources-[a-f0-9]{16}\.tar\.xz)$/u.test(
+      !/^(?:(?:app|i18n-catalog|emoji-catalog|language-start|source-document|phantom-probe|recovery-return|attachment-worker|voice-worklet)-[a-f0-9]{16}\.(?:js|css)|emoji-[a-f0-9]{16}\.json\.gz|source-[a-f0-9]{16}\.tar\.gz|matrix-crypto-18\.9\.0-source-[a-f0-9]{16}-\d{2}\.bin|libsodium-\d+\.\d+\.\d+-sources-[a-f0-9]{16}\.tar\.xz)$/u.test(
         entry.name,
       ) ||
       files.has(entry.name)
@@ -95,6 +102,28 @@ async function pruneGeneratedAssets(): Promise<void> {
 }
 
 const emojis = await frontendEmoji(fileURLToPath(root));
+const emojiCatalogUrl = hashedAsset(
+  'emoji-catalog',
+  'js',
+  new TextEncoder().encode(
+    `export const emojiCatalogs=${JSON.stringify(emojis.catalog)};`,
+  ),
+);
+const catalogUrl = hashedAsset(
+  'i18n-catalog',
+  'js',
+  await bundle('src/shared/i18n/catalog.ts'),
+);
+const languageScript = hashedAsset(
+  'language-start',
+  'js',
+  await bundle('src/client/language/start.ts', {}, catalogUrl),
+);
+const sourceStyle = hashedAsset(
+  'source-document',
+  'css',
+  await bundle('src/client/language/source-document.css'),
+);
 asset(emojiAsset, emojis.content);
 const attachmentWorker = hashedAsset(
   'attachment-worker',
@@ -104,29 +133,33 @@ const attachmentWorker = hashedAsset(
 const script = hashedAsset(
   'app',
   'js',
-  await bundle('src/client/app/index.ts', {
-    VOICE_WORKLET_URL: JSON.stringify(
-      hashedAsset(
-        'voice-worklet',
-        'js',
-        await bundle('src/client/voice-recording/worklet.ts'),
+  await bundle(
+    'src/client/app/index.ts',
+    {
+      VOICE_WORKLET_URL: JSON.stringify(
+        hashedAsset(
+          'voice-worklet',
+          'js',
+          await bundle('src/client/voice-recording/worklet.ts'),
+        ),
       ),
-    ),
-    ATTACHMENT_WORKER_URL: JSON.stringify(attachmentWorker),
-    EMOJI_ASSET_URL: JSON.stringify(`/${emojiAsset}`),
-    EMOJI_CATALOG: JSON.stringify(emojis.catalog),
-  }),
+      ATTACHMENT_WORKER_URL: JSON.stringify(attachmentWorker),
+      EMOJI_ASSET_URL: JSON.stringify(`/${emojiAsset}`),
+    },
+    catalogUrl,
+    emojiCatalogUrl,
+  ),
 );
 const style = hashedAsset('app', 'css', await bundle('src/client/app/app.css'));
 const nativeProbe = hashedAsset(
   'phantom-probe',
   'js',
-  await bundle('src/client/phantom-native/probe.ts'),
+  await bundle('src/client/phantom-native/probe.ts', {}, catalogUrl),
 );
 const recoveryScript = hashedAsset(
   'recovery-return',
   'js',
-  await bundle('src/client/recovery-return/page.ts'),
+  await bundle('src/client/recovery-return/page.ts', {}, catalogUrl),
 );
 const sources = hashedAsset(
   'source',
@@ -134,7 +167,10 @@ const sources = hashedAsset(
   await frontendSource(fileURLToPath(root), inputs),
 );
 asset(vendorSourceAsset, await frontendVendorSource(fileURLToPath(root)));
-for (const [name, bytes] of await frontendMatrixSources(fileURLToPath(root)))
+for (const [name, bytes] of await frontendMatrixSources(fileURLToPath(root), {
+  script: languageScript,
+  style: sourceStyle,
+}))
   asset(name, bytes);
 asset(
   'matrix-crypto-18.9.0.wasm',
@@ -201,7 +237,7 @@ asset(
       id: '/',
       name: '0xDMme',
       short_name: '0xDMme',
-      lang: 'pt-BR',
+      lang: 'en',
       start_url: '/',
       scope: '/',
       display: 'standalone',

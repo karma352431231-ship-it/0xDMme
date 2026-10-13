@@ -1,3 +1,8 @@
+import {
+  t,
+  translatedError,
+  currentLanguage,
+} from '../../shared/i18n/index.ts';
 import { GroupPhotoUi, GroupPhotoView } from './photo-ui.ts';
 import { GroupPeople } from './people.ts';
 import type { GroupProfile } from './people.ts';
@@ -75,7 +80,7 @@ export function startGroups(
   let session: AccountSession | null = null,
     host: HTMLElement | null = null,
     aside: HTMLElement | null = null,
-    notice = 'Abra um grupo para conversar.';
+    notice = t('Abra um grupo para conversar.');
   let states = new Map<string, PeerState>();
   let vault: Awaited<ReturnType<GroupController['vault']>> | null = null;
   let externalAbort = new AbortController();
@@ -151,14 +156,14 @@ export function startGroups(
     const settingsNotice = node('[data-group-settings-notice]');
     if (settingsNotice)
       settingsNotice.textContent = [
-        'Grupo aberto.',
-        'Mensagem enviada.',
+        t('Grupo aberto.'),
+        t('Mensagem enviada.'),
       ].includes(notice)
         ? ''
         : notice;
     const label = node('[data-group-notice]');
     if (label)
-      label.textContent = ['Grupo aberto.', 'Mensagem enviada.'].includes(
+      label.textContent = [t('Grupo aberto.'), t('Mensagem enviada.')].includes(
         notice,
       )
         ? ''
@@ -175,8 +180,8 @@ export function startGroups(
       } catch (error: unknown) {
         notice =
           error instanceof Error
-            ? error.message
-            : 'Não foi possível concluir a operação do grupo.';
+            ? translatedError(error.message)
+            : t('Não foi possível concluir a operação do grupo.');
         throw error;
       } finally {
         status();
@@ -186,20 +191,29 @@ export function startGroups(
   }
   function name(account: string): string {
     return account === session?.accountId
-      ? 'Você'
+      ? t('Você')
       : options.peers().find((p) => p.accountId === account)?.name ||
-          `Membro ${account.slice(0, 8)}`;
+          t('Membro {0}', [account.slice(0, 8)]);
   }
   function listLabel(group: GroupSummary): string {
     const id = group.state.groupId,
       settings = options.daily.conversation(id),
       state = states.get(id);
     const cleanup = cleanupLabel(state);
-    return `${settings.pinned ? '📌 ' : ''}${group.title} · ${group.localOnly ? 'cópia local do grupo' : 'grupo'}${state?.unread ? ` · ${state.unread} não lidas` : ''}${state && state.mutedUntil > Date.now() ? ' · silenciado' : ''}${cleanup}`;
+    return t('{0}{1} · {2}{3}{4}{5}', [
+      settings.pinned ? '📌 ' : '',
+      group.title,
+      group.localOnly ? t('cópia local do grupo') : 'grupo',
+      state?.unread ? t(' · {0} não lidas', [state.unread]) : '',
+      state && state.mutedUntil > Date.now() ? t(' · silenciado') : '',
+      cleanup,
+    ]);
   }
   function cleanupLabel(state: PeerState | undefined): string {
     return state?.cleanup
-      ? ` · ⚠ limpeza de mídias em ${new Date(state.cleanup.dueAt).toLocaleString('pt-BR')}`
+      ? t(' · ⚠ limpeza de mídias em {0}', [
+          new Date(state.cleanup.dueAt).toLocaleString(currentLanguage()),
+        ])
       : '';
   }
   async function refresh(more = false): Promise<void> {
@@ -233,7 +247,7 @@ export function startGroups(
   }
   function updateOwnerNotice(previous: GroupSummary | null): void {
     if (previous && previous.state.owner !== controller.selected?.state.owner)
-      notice = 'Propriedade do grupo atualizada.';
+      notice = t('Propriedade do grupo atualizada.');
   }
   async function refreshSelected(selected: string | undefined): Promise<void> {
     if (
@@ -275,7 +289,7 @@ export function startGroups(
     if (host) host.hidden = false;
     await controller.open(id, false, localOnly);
     await refreshVault();
-    notice = controller.warning || 'Grupo aberto.';
+    notice = controller.warning || t('Grupo aberto.');
     render();
     await pending();
   }
@@ -324,8 +338,9 @@ export function startGroups(
       });
       if (view.unavailableMedia.length) {
         const unavailable = document.createElement('p');
-        unavailable.textContent =
-          'Mídia indisponível no cofre remoto. Uma cópia já baixada pode continuar neste aparelho.';
+        unavailable.textContent = t(
+          'Mídia indisponível no cofre remoto. Uma cópia já baixada pode continuar neste aparelho.',
+        );
         article.append(unavailable);
       }
     } else {
@@ -337,7 +352,9 @@ export function startGroups(
     renderDelivery(article, view);
     if (view.localOnly) {
       const local = document.createElement('small');
-      local.textContent = 'Cópia local · conteúdo indisponível no cofre remoto';
+      local.textContent = t(
+        'Cópia local · conteúdo indisponível no cofre remoto',
+      );
       article.append(local);
     }
     return article;
@@ -356,7 +373,7 @@ export function startGroups(
         checksIcon({
           ...checks,
           label: view.read
-            ? 'Vista pelos destinatários com confirmação de leitura'
+            ? t('Vista pelos destinatários com confirmação de leitura')
             : checks.label,
         }),
       );
@@ -396,8 +413,10 @@ export function startGroups(
     const count = node('[data-group-count]');
     if (count)
       count.textContent = group.localOnly
-        ? 'Cópia local independente · sem acesso remoto concedido por esta cópia'
-        : `${group.state.members.length} participantes`;
+        ? t(
+            'Cópia local independente · sem acesso remoto concedido por esta cópia',
+          )
+        : t('{0} participantes', [group.state.members.length]);
     renderGroupPhoto(group);
     renderLocalControls(group);
     renderHistory();
@@ -429,9 +448,9 @@ export function startGroups(
       if (node instanceof HTMLButtonElement) node.disabled = !allowed;
       node.setAttribute(
         'aria-label',
-        allowed ? 'Alterar foto do grupo' : 'Foto do grupo',
+        allowed ? t('Alterar foto do grupo') : t('Foto do grupo'),
       );
-      node.title = allowed ? 'Alterar foto do grupo' : 'Foto do grupo';
+      node.title = allowed ? t('Alterar foto do grupo') : t('Foto do grupo');
     }
     photoView.show(
       JSON.stringify([
@@ -472,10 +491,10 @@ export function startGroups(
       row.className = 'group-member-row';
       const role =
         member.role === 'owner'
-          ? 'Dono'
+          ? t('Dono')
           : member.role === 'admin'
-            ? 'Administrador'
-            : 'Membro';
+            ? t('Administrador')
+            : t('Membro');
       row.append(
         people.identity(member.accountId, name(member.accountId), role),
       );
@@ -517,8 +536,12 @@ export function startGroups(
       return;
     if (groupManager(group.state, session.accountId))
       row.append(
-        button('Remover', async () => {
-          if (!window.confirm(`Remover ${name(member.accountId)} do grupo?`))
+        button(t('Remover'), async () => {
+          if (
+            !window.confirm(
+              t('Remover {0} do grupo?', [name(member.accountId)]),
+            )
+          )
             return;
           await controller.change({ kind: 'remove', target: member.accountId });
           await refresh();
@@ -527,7 +550,9 @@ export function startGroups(
     if (group.state.owner !== session.accountId) return;
     row.append(
       button(
-        member.role === 'admin' ? 'Tornar membro' : 'Tornar administrador',
+        member.role === 'admin'
+          ? t('Tornar membro')
+          : t('Tornar administrador'),
         async () => {
           await controller.change({
             kind: 'role',
@@ -539,16 +564,20 @@ export function startGroups(
       ),
     );
     row.append(
-      button('Oferecer propriedade', async () => {
+      button(t('Oferecer propriedade'), async () => {
         if (
           !window.confirm(
-            `Oferecer a propriedade a ${name(member.accountId)}? Ele precisa aceitar. Você ficará como membro comum após o aceite.`,
+            t(
+              'Oferecer a propriedade a {0}? Ele precisa aceitar. Você ficará como membro comum após o aceite.',
+              [name(member.accountId)],
+            ),
           )
         )
           return;
         await controller.propose(member.accountId, 'transfer');
-        notice =
-          'Transferência oferecida. A propriedade muda após o aceite do membro escolhido.';
+        notice = t(
+          'Transferência oferecida. A propriedade muda após o aceite do membro escolhido.',
+        );
       }),
     );
   }
@@ -570,12 +599,23 @@ export function startGroups(
     const value = node('[data-group-usage]');
     if (value)
       value.textContent = vault
-        ? `Texto e administração: ${(vault.textBytes / 1_000_000).toFixed(2)} / ${groupTextQuota / 1_000_000} MB · mídia: ${(vault.mediaBytes / 1_000_000).toFixed(2)} / ${groupMediaQuota / 1_000_000} MB`
+        ? t('Texto e administração: {0} / {1} MB · mídia: {2} / {3} MB', [
+            (vault.textBytes / 1_000_000).toFixed(2),
+            groupTextQuota / 1_000_000,
+            (vault.mediaBytes / 1_000_000).toFixed(2),
+            groupMediaQuota / 1_000_000,
+          ])
         : '';
     const warning = node('[data-group-cleanup-warning]');
     if (warning)
       warning.textContent = vault?.notice
-        ? `Limpeza de mídias antigas prevista para ${new Date(vault.notice.dueAt).toLocaleString('pt-BR')}. Cerca de ${(vault.notice.bytes / 1_000_000).toFixed(2)} MB selecionados. Textos permanecem.`
+        ? t(
+            'Limpeza de mídias antigas prevista para {0}. Cerca de {1} MB selecionados. Textos permanecem.',
+            [
+              new Date(vault.notice.dueAt).toLocaleString(currentLanguage()),
+              (vault.notice.bytes / 1_000_000).toFixed(2),
+            ],
+          )
         : '';
     const clear = node('[data-group-clear]');
     if (clear) clear.hidden = !canClear();
@@ -595,7 +635,10 @@ export function startGroups(
       selected.replaceChildren();
       for (const item of vault?.items ?? []) {
         const li = document.createElement('li');
-        li.textContent = `Mensagem ${item.message.slice(0, 8)} · ${(item.bytes / 1_000_000).toFixed(2)} MB`;
+        li.textContent = t('Mensagem {0} · {1} MB', [
+          item.message.slice(0, 8),
+          (item.bytes / 1_000_000).toFixed(2),
+        ]);
         selected.append(li);
       }
     }
@@ -609,12 +652,17 @@ export function startGroups(
         label = document.createElement('p');
       label.textContent =
         consent.kind === 'invite'
-          ? `${name(consent.actor)} convidou você para um grupo.`
-          : `${name(consent.actor)} ofereceu a propriedade de um grupo. É necessário aceitar para assumir a administração.`;
+          ? t('{0} convidou você para um grupo.', [name(consent.actor)])
+          : t(
+              '{0} ofereceu a propriedade de um grupo. É necessário aceitar para assumir a administração.',
+              [name(consent.actor)],
+            );
       row.append(label);
       row.append(
         button(
-          consent.kind === 'invite' ? 'Entrar no grupo' : 'Aceitar propriedade',
+          consent.kind === 'invite'
+            ? t('Entrar no grupo')
+            : t('Aceitar propriedade'),
           async () => {
             await controller.respond(consent, true);
             await refresh();
@@ -626,7 +674,7 @@ export function startGroups(
         ),
       );
       row.append(
-        button('Recusar', async () => {
+        button(t('Recusar'), async () => {
           await controller.respond(consent, false);
           await controller.refreshIncoming();
           renderIncoming();
@@ -642,8 +690,10 @@ export function startGroups(
     if (mode)
       mode.textContent =
         controller.mode === 'configured'
-          ? 'Criação gratuita, sem limite de quantidade. Até uma criação por minuto e dez por hora.'
-          : 'Consultando disponibilidade de grupos…';
+          ? t(
+              'Criação gratuita, sem limite de quantidade. Até uma criação por minuto e dez por hora.',
+            )
+          : t('Consultando disponibilidade de grupos…');
     const toggle = sidebar<HTMLButtonElement>('[data-group-new]');
     if (toggle)
       toggle.disabled = options.isBusy() || controller.mode === 'unavailable';
@@ -656,19 +706,20 @@ export function startGroups(
     list.replaceChildren();
     for (const draft of await controller.pending()) {
       const row = document.createElement('li');
-      row.textContent = `Rascunho ${draft.id.slice(0, 8)} pendente `;
+      row.textContent = t('Rascunho {0} pendente ', [draft.id.slice(0, 8)]);
       row.append(
-        button('Retomar', async () => {
+        button(t('Retomar'), async () => {
           await controller.sendPending();
           await reopen();
         }),
       );
       row.append(
-        button('Descartar rascunho local', async () => {
+        button(t('Descartar rascunho local'), async () => {
           await controller.discard(draft.id);
           await pending();
-          notice =
-            'Rascunho local descartado. Isso não exclui uma mensagem que já tenha sido aceita.';
+          notice = t(
+            'Rascunho local descartado. Isso não exclui uma mensagem que já tenha sido aceita.',
+          );
         }),
       );
       list.append(row);
@@ -724,7 +775,7 @@ export function startGroups(
           }
           await controller.sendPending();
           await reopen();
-          notice = 'Mensagem enviada.';
+          notice = t('Mensagem enviada.');
         });
       },
     );
@@ -734,7 +785,7 @@ export function startGroups(
         input = node<HTMLTextAreaElement>('[data-group-text]');
       if (!anchor || !input) return;
       void emojiIntoComposer(emoji, anchor, input).catch(() => {
-        notice = 'Não foi possível abrir os emojis.';
+        notice = t('Não foi possível abrir os emojis.');
         status();
       });
     });
@@ -759,7 +810,7 @@ export function startGroups(
         void run(async () => {
           if (
             !window.confirm(
-              'Sair do grupo? Você perderá o acesso ao cofre remoto.',
+              t('Sair do grupo? Você perderá o acesso ao cofre remoto.'),
             )
           )
             return;
@@ -777,7 +828,9 @@ export function startGroups(
         void run(async () => {
           if (
             !window.confirm(
-              'Excluir o grupo e iniciar a remoção do cofre remoto para todos? Cópias já conservadas pelos participantes continuam sob controle deles.',
+              t(
+                'Excluir o grupo e iniciar a remoção do cofre remoto para todos? Cópias já conservadas pelos participantes continuam sob controle deles.',
+              ),
             )
           )
             return;
@@ -792,12 +845,14 @@ export function startGroups(
         void run(async () => {
           if (
             !window.confirm(
-              'Limpar o conteúdo do cofre remoto deste grupo? Mensagens e mídias serão removidas; cópias locais e arquivos já salvos podem permanecer.',
+              t(
+                'Limpar o conteúdo do cofre remoto deste grupo? Mensagens e mídias serão removidas; cópias locais e arquivos já salvos podem permanecer.',
+              ),
             )
           )
             return;
           await controller.clearVault();
-          notice = 'Limpeza do cofre iniciada.';
+          notice = t('Limpeza do cofre iniciada.');
           await reopen();
         }),
     );
@@ -814,8 +869,9 @@ export function startGroups(
       () =>
         void run(async () => {
           await controller.cancelCreation();
-          notice =
-            'Pedido local descartado. Se o servidor já tiver criado o grupo, ele continuará na lista.';
+          notice = t(
+            'Pedido local descartado. Se o servidor já tiver criado o grupo, ele continuará na lista.',
+          );
           await refresh();
         }),
     );
@@ -852,7 +908,7 @@ export function startGroups(
     externalAbort = new AbortController();
     if (voice.active)
       void voice.stop(
-        'Navegação interrompeu a gravação. Confira o trecho ao voltar.',
+        t('Navegação interrompeu a gravação. Confira o trecho ao voltar.'),
       );
     attachments.clearMedia();
     attachments.pausePreview();
@@ -872,7 +928,7 @@ export function startGroups(
         .forEach((list) => list.replaceChildren());
     }
     actions.reset();
-    notice = 'Abra um grupo para conversar.';
+    notice = t('Abra um grupo para conversar.');
   }
   window.addEventListener('beforeunload', (event) => {
     if (!voice.active && !attachments.selected?.voice) return;
@@ -882,7 +938,9 @@ export function startGroups(
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'hidden' && voice.active)
       void voice.stop(
-        'O navegador interrompeu a gravação. Confira o trecho preservado ao voltar.',
+        t(
+          'O navegador interrompeu a gravação. Confira o trecho preservado ao voltar.',
+        ),
       );
   });
   return {
@@ -976,8 +1034,13 @@ export function startGroups(
       aside = sidebarContainer;
       container.hidden = !controller.selected;
       if (session) container.dataset['voicePeer'] = session.accountId;
-      sidebarContainer.innerHTML = `<button data-group-new type="button">Novo grupo</button><p data-group-mode></p><button data-group-cancel-create type="button" hidden>Descartar pedido local de criação</button><details><summary>Convites e transferências de grupos</summary><div data-group-incoming></div><button data-group-more-incoming type="button" hidden>Mais convites</button></details>`;
-      container.innerHTML = `<header class="chat-header"><button data-chat-back class="chat-icon chat-mobile-back" type="button" aria-label="Voltar às conversas">${chatIcon('back')}</button><button data-group-avatar data-group-photo class="chat-peer-avatar group-photo-trigger" type="button" aria-label="Alterar foto do grupo">#</button><div class="chat-peer"><h3 data-group-title></h3><p data-group-count></p></div><button data-group-settings-open class="chat-icon" type="button" aria-label="Configurações do grupo" title="Configurações do grupo">${chatIcon('more')}</button>${chatCollapse()}</header><p data-group-notice class="compose-notice" role="status"></p><div class="chat-thread"><button data-group-older class="chat-older" type="button" hidden>Mensagens anteriores</button><div data-group-history class="chat-history" tabindex="0" aria-label="Mensagens do grupo"></div><ul data-group-pending class="chat-pending" aria-label="Envios pendentes no grupo"></ul></div>${chatComposer('group')}`;
+      sidebarContainer.innerHTML = t('html.8694eeb2078e');
+      container.innerHTML = t('html.e652af8025ee', [
+        chatIcon('back'),
+        chatIcon('more'),
+        chatCollapse(),
+        chatComposer('group'),
+      ]);
       container.insertAdjacentHTML('beforeend', groupSettingsTemplate);
       container
         .querySelectorAll('[data-group-photo]')

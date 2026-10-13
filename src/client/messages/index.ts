@@ -1,3 +1,4 @@
+import { t } from '../../shared/i18n/index.ts';
 import { initializeMessageDirectory } from './startup.ts';
 import { MessageSynchronization } from './synchronization.ts';
 import { MessageHistoryUi } from './history-ui.ts';
@@ -106,7 +107,7 @@ export function startMessages(
     generation = 0;
   let settingsHost: HTMLElement | null = null;
   let pushSettings: ReturnType<typeof mountPushSettings> | null = null;
-  let message = 'Entre e autorize este aparelho para conversar.';
+  let message = t('Entre e autorize este aparelho para conversar.');
   let recordingPeer: string | null = null;
   const voice = new VoiceRecording({
     changed: () => voiceStatus(),
@@ -271,8 +272,8 @@ export function startMessages(
     },
     complete: () => {
       message = controller.transportPending
-        ? 'Alguns envios ainda estão pendentes. A retomada é automática.'
-        : 'Conversas atualizadas.';
+        ? t('Alguns envios ainda estão pendentes. A retomada é automática.')
+        : t('Conversas atualizadas.');
     },
     renderPending,
     pause: () => {
@@ -355,7 +356,9 @@ export function startMessages(
       try {
         if (!(await controller.playbackAllowed(recordingPeer)))
           await voice.stop(
-            'A conversa foi bloqueada. Trecho preservado somente como prévia local.',
+            t(
+              'A conversa foi bloqueada. Trecho preservado somente como prévia local.',
+            ),
           );
       } catch {
         /* Revocation/session termination has its own immediate lifecycle event. */
@@ -378,8 +381,8 @@ export function startMessages(
     const retry = node('[data-message-refresh]');
     if (retry)
       retry.textContent = synchronization.failed
-        ? 'Tentar novamente'
-        : 'Sincronizar agora';
+        ? t('Tentar novamente')
+        : t('Sincronizar agora');
     renderChatStatus();
     const directoryStatus = node('[data-directory-status]');
     if (directoryStatus)
@@ -391,11 +394,11 @@ export function startMessages(
     const upToDate =
       !synchronization.busy &&
       !synchronization.failed &&
-      message === 'Conversas atualizadas.';
+      message === t('Conversas atualizadas.');
     text.textContent = synchronization.busy
-      ? 'Sincronizando…'
+      ? t('Sincronizando…')
       : upToDate
-        ? 'Atualizada'
+        ? t('Atualizada')
         : message;
     // The desktop workspace hides the strip while everything is up to date.
     const strip = text.closest<HTMLElement>('.chat-feedback');
@@ -428,7 +431,9 @@ export function startMessages(
       '[data-sound-toggle]',
     );
     if (toggle) {
-      toggle.textContent = sound.enabled ? 'Desativar sons' : 'Ativar sons';
+      toggle.textContent = sound.enabled
+        ? t('Desativar sons')
+        : t('Ativar sons');
       toggle.setAttribute('aria-pressed', String(sound.enabled));
     }
     const notice = settingsHost?.querySelector('[data-sound-status]');
@@ -436,8 +441,8 @@ export function startMessages(
       notice.textContent =
         sound.notice ||
         (sound.enabled
-          ? 'Sons ativados neste navegador.'
-          : 'Sons desativados neste navegador.');
+          ? t('Sons ativados neste navegador.')
+          : t('Sons desativados neste navegador.'));
   }
   sound.observe(renderSoundSettings);
   sound.prepare();
@@ -505,7 +510,10 @@ export function startMessages(
     const original = compositionText(view);
     const label = node('[data-compose-context]');
     if (label)
-      label.textContent = `${mode === 'edit' ? 'Editando' : 'Respondendo'}: ${original.slice(0, 120)}`;
+      label.textContent = t('{0}: {1}', [
+        mode === 'edit' ? t('Editando') : t('Respondendo'),
+        original.slice(0, 120),
+      ]);
     const bar = node('[data-compose-bar]');
     if (bar) bar.hidden = false;
     const text = node<HTMLTextAreaElement>('[data-message-text]');
@@ -593,9 +601,9 @@ export function startMessages(
     list.replaceChildren();
     for (const item of pending) {
       const li = document.createElement('li');
-      li.textContent = `Envio pendente para ${item.peer.slice(0, 8)} `;
+      li.textContent = t('Envio pendente para {0} ', [item.peer.slice(0, 8)]);
       li.append(
-        action('Apagar envio', async () => {
+        action(t('Apagar envio'), async () => {
           await controller.discard(item.id);
         }),
       );
@@ -635,7 +643,7 @@ export function startMessages(
       }),
       {
         id: 'block',
-        label: 'Bloquear contato',
+        label: t('Bloquear contato'),
         perform: () =>
           perform(async () => {
             const expected = generation;
@@ -660,7 +668,7 @@ export function startMessages(
       },
       {
         id: 'remove',
-        label: 'Remover contato',
+        label: t('Remover contato'),
         perform: () =>
           perform(async () => {
             const expected = generation;
@@ -757,7 +765,7 @@ export function startMessages(
       text ?? (selected?.name ? shortAddress(selected.address) : '');
   }
   function presenceText(state: PeerState | null | undefined): string | null {
-    if (state?.online) return 'Online';
+    if (state?.online) return t('Online');
     return null;
   }
   function contactsMore(): void {
@@ -1016,7 +1024,10 @@ export function startMessages(
   }
   function attachmentProgress(progress: { done: number; total: number }): void {
     if (!synchronization.busy || !mounted?.isConnected) return;
-    message = `Enviando anexo: parte ${progress.done} de ${progress.total}. Fechar o app pausa a transferência; o rascunho cifrado permanece.`;
+    message = t(
+      'Enviando anexo: parte {0} de {1}. Fechar o app pausa a transferência; o rascunho cifrado permanece.',
+      [progress.done, progress.total],
+    );
     status();
   }
   function beforeUnload(event: BeforeUnloadEvent): void {
@@ -1027,8 +1038,9 @@ export function startMessages(
   function offline(): void {
     live.stop();
     suspend();
-    message =
-      'Sem conexão. O histórico salvo continua disponível neste aparelho.';
+    message = t(
+      'Sem conexão. O histórico salvo continua disponível neste aparelho.',
+    );
     void run(refreshLocalContacts);
     status();
   }
@@ -1043,15 +1055,18 @@ export function startMessages(
       if (!playback.open) live.stop();
       if (voice.active)
         void voice.stop(
-          'O navegador interrompeu a gravação. Confira o trecho preservado ao voltar.',
+          t(
+            'O navegador interrompeu a gravação. Confira o trecho preservado ao voltar.',
+          ),
         );
     } else if (session) live.start();
     suspend();
     const current = generation;
     void daily.heartbeat(document.visibilityState === 'visible').catch(() => {
       if (current !== generation) return;
-      message =
-        'Não foi possível atualizar a presença. Ela deixará de indicar online pelo prazo de atividade.';
+      message = t(
+        'Não foi possível atualizar a presença. Ela deixará de indicar online pelo prazo de atividade.',
+      );
       status();
     });
     if (
@@ -1113,7 +1128,9 @@ export function startMessages(
     live.stop();
     if (voice.active)
       void voice.stop(
-        'O navegador interrompeu a gravação. Confira o trecho preservado ao voltar.',
+        t(
+          'O navegador interrompeu a gravação. Confira o trecho preservado ao voltar.',
+        ),
       );
     if (!event.persisted) {
       voice.cancel();
@@ -1123,7 +1140,7 @@ export function startMessages(
       synchronization.close();
       soundEvents.abort();
       void sound.dispose().catch(() => {
-        message = 'Não foi possível encerrar o áudio deste navegador.';
+        message = t('Não foi possível encerrar o áudio deste navegador.');
         status();
       });
     }
@@ -1162,7 +1179,7 @@ export function startMessages(
       void emojiIntoComposer(emojiPicker, anchor, input, {
         pane: gifPane,
       }).catch(() => {
-        message = 'Não foi possível abrir o painel de emojis.';
+        message = t('Não foi possível abrir o painel de emojis.');
         status();
       });
     });
@@ -1283,7 +1300,7 @@ export function startMessages(
     callLabel: (peer: string) =>
       directoryData.peers.find((p) => p.accountId === peer)?.name ||
       directoryData.peers.find((p) => p.accountId === peer)?.address ||
-      `Contato aprovado ${peer.slice(0, 8)}`,
+      t('Contato aprovado {0}', [peer.slice(0, 8)]),
     openSearch: () => searchPanel.open(),
     applyPrivacy: (preferences: DailyPreferences) =>
       daily.configure(preferences),
@@ -1321,8 +1338,8 @@ export function startMessages(
       clearSessionPanels();
 
       message = value
-        ? 'Abra os contatos e sincronize para conversar.'
-        : 'Entre e autorize este aparelho para conversar.';
+        ? t('Abra os contatos e sincronize para conversar.')
+        : t('Entre e autorize este aparelho para conversar.');
       renderContacts();
       renderHistory();
       status();
@@ -1347,7 +1364,9 @@ export function startMessages(
       groups.leave();
       if (voice.active)
         void voice.stop(
-          'Navegação interrompeu a gravação; trecho preservado para conferir ao voltar à conversa.',
+          t(
+            'Navegação interrompeu a gravação; trecho preservado para conferir ao voltar à conversa.',
+          ),
         );
       attachments.clearMedia();
       attachments.pausePreview();
@@ -1368,7 +1387,7 @@ export function startMessages(
           selected?.name ||
           selected?.address ||
           groups.selected?.title ||
-          'selecione uma conversa primeiro';
+          t('selecione uma conversa primeiro');
       on('[data-mute]', async () => {
         const target = groups.selected?.state.groupId ?? selected?.accountId;
         if (!target || selected?.localOnly)

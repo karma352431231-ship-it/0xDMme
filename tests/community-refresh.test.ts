@@ -39,7 +39,6 @@ const bundle = await build({
   ],
   define: {
     'import.meta.url': '"https://0xdmme.app/fixture.js"',
-    EMOJI_CATALOG: '[]',
     EMOJI_ASSET_URL: '"/unused"',
     VOICE_WORKLET_URL: '"/unused"',
     ATTACHMENT_WORKER_URL: '"/unused"',
@@ -309,7 +308,7 @@ await test('post e respostas idênticos conservam elementos; edição e exclusã
   ui.ready();
   await settled(ui);
   assert.doesNotMatch(host.textContent, /Texto público|Editada/);
-  assert.match(host.textContent, /excluída pelo autor/);
+  assert.match(host.textContent, /deleted by the author/);
   ui.leave();
 });
 await test('mudança de permissão publica uma única tela atualizada; falha descarta conteúdo e permite nova conferência', async () => {
@@ -325,7 +324,7 @@ await test('mudança de permissão publica uma única tela atualizada; falha des
   ui.ready();
   await settled(ui);
   assert.equal(host.querySelector('.community-post'), null);
-  assert.match(host.textContent, /Sem autorização/);
+  assert.match(host.textContent, /Not authorized/);
   data.failState = false;
   ui.ready();
   await settled(ui);
@@ -348,7 +347,7 @@ await test('rechecagem conserva o cursor da página exibida em vez de avançar p
   assert.deepEqual(data.afters, [null, null]);
   const more = host
     .querySelectorAll('button')
-    .find((node) => node.textContent === 'Posts anteriores');
+    .find((node) => node.textContent === 'Earlier posts');
   assert.ok(more);
   more.click();
   await setImmediate();

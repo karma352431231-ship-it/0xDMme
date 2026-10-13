@@ -115,17 +115,17 @@ await test('registro resolvido não afirma offline antes de ativação e instala
   const pwa = scope.start();
   await new Promise<void>((resolve) => setImmediate(resolve));
   pwa.render();
-  assert.match(scope.status(), /Preparando/);
+  assert.match(scope.status(), /Preparing/);
   const worker = scope.registration.installing;
   assert.ok(worker);
   scope.registration.installing = null;
   worker.change('redundant');
-  assert.match(scope.status(), /indisponível/);
+  assert.match(scope.status(), /unavailable/);
   await pwa.check();
   assert.equal(scope.calls(), 2);
   await pwa.check();
   assert.equal(scope.calls(), 2);
-  assert.match(scope.status(), /Reabra/);
+  assert.match(scope.status(), /Reopen/);
 });
 
 await test('entrada online volta ao endereço offline após ativação explícita, preservando a tela escolhida', async () => {
@@ -152,16 +152,16 @@ await test('registro pendente tem prazo visual sem acumular promessas e página 
   );
   const pwa = scope.start();
   scope.expire();
-  assert.match(scope.status(), /preparo offline continua/);
+  assert.match(scope.status(), /Offline preparation continues/);
   await pwa.check();
   assert.equal(scope.calls(), 1);
-  assert.match(scope.status(), /Atualização em andamento/);
+  assert.match(scope.status(), /Update in progress/);
   scope.window.dispatchEvent(new Event('pagehide'));
   complete?.(scope.registration);
   await new Promise<void>((resolve) => setImmediate(resolve));
   scope.registration.dispatchEvent(new Event('updatefound'));
   assert.equal(scope.timers(), 0);
-  assert.match(scope.status(), /Atualização em andamento/);
+  assert.match(scope.status(), /Update in progress/);
 });
 
 await test('atualização exige escolha explícita, evita duplicação e recupera timeout de ativação', async () => {
@@ -171,7 +171,7 @@ await test('atualização exige escolha explícita, evita duplicação e recuper
   scope.registration.waiting = new Worker();
   const pwa = scope.start();
   await new Promise<void>((resolve) => setImmediate(resolve));
-  assert.match(scope.status(), /Nova versão/);
+  assert.match(scope.status(), /New version/);
   assert.equal(scope.registration.waiting.messages.length, 0);
   scope.elements.get('apply-update')?.dispatchEvent(new Event('click'));
   scope.elements.get('apply-update')?.dispatchEvent(new Event('click'));
@@ -180,7 +180,7 @@ await test('atualização exige escolha explícita, evita duplicação e recuper
   scope.expire();
   assert.match(
     scope.elements.get('update-result')?.textContent ?? '',
-    /não concluída/,
+    /not completed/,
   );
   scope.serviceWorker.dispatchEvent(new Event('controllerchange'));
   assert.equal(scope.reloads(), 0);
@@ -192,7 +192,7 @@ await test('atualização exige escolha explícita, evita duplicação e recuper
     new Error('synthetic-offline'),
   );
   await pwa.check();
-  assert.match(scope.status(), /versão instalada permanece/);
+  assert.match(scope.status(), /installed version remains/);
 });
 
 await test('consulta de atualização pendente não inicia concorrentes depois do prazo', async () => {
@@ -208,7 +208,7 @@ await test('consulta de atualização pendente não inicia concorrentes depois d
   scope.expire();
   await pwa.check();
   assert.equal(scope.registration.updates, 1);
-  assert.match(scope.status(), /Atualização em andamento/);
+  assert.match(scope.status(), /Update in progress/);
   scope.window.dispatchEvent(new Event('pagehide'));
   assert.equal(scope.timers(), 0);
 });
@@ -222,16 +222,16 @@ await test('instalação só publica sucesso após ativação e nova versão agu
   scope.registration.installing = null;
   scope.registration.active = initial;
   initial.change('activated');
-  assert.match(scope.status(), /instalada para uso offline/);
+  assert.match(scope.status(), /installed for offline use/);
   assert.equal(scope.timers(), 0);
   const candidate = new Worker();
   scope.registration.installing = candidate;
   scope.registration.dispatchEvent(new Event('updatefound'));
-  assert.match(scope.status(), /Preparando/);
+  assert.match(scope.status(), /Preparing/);
   scope.registration.installing = null;
   scope.registration.waiting = candidate;
   candidate.change('installed');
-  assert.match(scope.status(), /Nova versão/);
+  assert.match(scope.status(), /New version/);
   assert.equal(scope.elements.get('update')?.hidden, false);
   assert.equal(candidate.messages.length, 0);
   assert.equal(scope.reloads(), 0);
@@ -252,12 +252,12 @@ await test('atualização espera operação de conta e alterações não salvas'
   assert.equal(scope.registration.waiting.messages.length, 0);
   assert.match(
     scope.elements.get('update-result')?.textContent ?? '',
-    /Ap\S*relhos/,
+    /Aparelhos/,
   );
   reason = null;
   scope.elements.get('apply-update')?.dispatchEvent(new Event('click'));
   assert.equal(scope.registration.waiting.messages.length, 0);
-  assert.match(scope.elements.get('update-result')?.textContent ?? '', /salve/);
+  assert.match(scope.elements.get('update-result')?.textContent ?? '', /save/);
   allowed = true;
   scope.elements.get('apply-update')?.dispatchEvent(new Event('click'));
   assert.equal(scope.registration.waiting.messages.length, 1);

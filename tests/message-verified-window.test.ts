@@ -8,6 +8,8 @@ import {
 } from '../src/client/messages/index-sync.ts';
 import type { MessageItem } from '../src/client/messages/history.ts';
 import { assertPacketIdentity } from '../src/client/messages/history.ts';
+import { setActiveLanguage } from '../src/shared/i18n/index.ts';
+import { messageStateText } from '../src/client/message-state/index.ts';
 
 const snapshot = { revision: 1, directory: 'a'.repeat(64), contacts: 1 };
 const item: MessageItem = {
@@ -96,6 +98,17 @@ await test('limpeza e substituição descartam a janela anterior; conteúdo susp
     /excedida/,
   );
   assert.equal(cache.read(snapshot, received), null);
+});
+
+await test('Chinese presentation cannot make a suspended message reusable', (context) => {
+  context.after(() => setActiveLanguage('en'));
+  setActiveLanguage('zh-CN');
+  const cache = new VerifiedWindow<typeof view>();
+  const suspended = { ...view, state: 'Suspensa' };
+  assert.equal(messageStateText(suspended.state), '已暂停');
+  assert.equal(suspended.state, 'Suspensa');
+  cache.remember(snapshot, [item], [suspended]);
+  assert.equal(cache.read(snapshot, { ...item, status: 'received' }), null);
 });
 
 await test('cópia cifrada de outra conversa ou após recarga só serve com pacote, autoridade e recibo atuais', () => {

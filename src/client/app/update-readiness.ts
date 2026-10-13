@@ -1,3 +1,4 @@
+import { t } from '../../shared/i18n/index.ts';
 interface Readiness {
   canActivate: () => boolean;
 }
@@ -22,38 +23,41 @@ export function updateBlockReason(features: UpdateFeatures): string | null {
   if (device) return device;
   const checks: [string, () => boolean][] = [
     [
-      'a entrada na conta ou a edição do perfil privado em Perfil',
+      t('a entrada na conta ou a edição do perfil privado em Perfil'),
       features.account.canActivate,
     ],
     [
-      'a autorização do aparelho em Perfil → Dispositivos conectados',
+      t('a autorização do aparelho em Perfil → Dispositivos conectados'),
       features.devices.canActivate,
     ],
   ];
   if (features.authenticated())
     checks.push(
       [
-        'a operação do cofre em Perfil → Cofre e backup',
+        t('a operação do cofre em Perfil → Cofre e backup'),
         features.vault.canActivate,
       ],
-      ['o backup em Perfil → Cofre e backup', features.backups.canActivate],
-      ['a edição em Contatos', features.contacts.canActivate],
-      ['o envio ou gravação em Conversas', features.messages.canActivate],
-      ['a publicação em Meu status', features.statuses.canActivate],
+      [t('o backup em Perfil → Cofre e backup'), features.backups.canActivate],
+      [t('a edição em Contatos'), features.contacts.canActivate],
+      [t('o envio ou gravação em Conversas'), features.messages.canActivate],
+      [t('a publicação em Meu status'), features.statuses.canActivate],
       [
-        'a operação em Organizações e representantes',
+        t('a operação em Organizações e representantes'),
         features.representatives.canActivate,
       ],
-      ['a operação em Atividade', features.activity.canActivate],
+      [t('a operação em Atividade'), features.activity.canActivate],
       [
-        'a edição do perfil público em Perfil → Perfil público',
+        t('a edição do perfil público em Perfil → Perfil público'),
         features.publicProfiles.canActivate,
       ],
-      ['a operação ou edição em Comunidades', features.communities.canActivate],
-      ['a chamada em andamento', () => !features.calls.active()],
+      [
+        t('a operação ou edição em Comunidades'),
+        features.communities.canActivate,
+      ],
+      [t('a chamada em andamento'), () => !features.calls.active()],
     );
   const pending = checks.find(([, ready]) => !ready());
   return pending
-    ? `Conclua ou cancele ${pending[0]} antes de atualizar.`
+    ? t('Conclua ou cancele {0} antes de atualizar.', [pending[0]])
     : null;
 }

@@ -74,6 +74,21 @@
   flex: 1 1 14rem;
   min-width: 0;
 }
+.settings-pack .settings-pack-language {
+  display: grid;
+  gap: 0.5rem;
+  margin: 1rem 0;
+}
+.settings-pack-language select {
+  width: 100%;
+  min-height: 44px;
+  padding: 0.55rem 0.75rem;
+  color: var(--text);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm, 0.5rem);
+  font: inherit;
+}
 .settings-pack small {
   color: var(--text-muted);
   font-size: var(--fs-caption);
