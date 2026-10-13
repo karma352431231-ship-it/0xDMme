@@ -31,8 +31,6 @@ await test('posts: publicação aberta, tags locais, privacidade, revisão, excl
     throw new Error('Banco exclusivo de testes necessário.');
   const db = new Database(config.databaseUrl),
     inspector = new pg.Client({ connectionString: config.databaseUrl }),
-    origin = 'http://127.0.0.1:45122',
-    account = new AccountService({ store: db.authentication, origin }),
     devices = new DeviceService(db.devices),
     profiles = new PublicProfileService(db.publicProfiles, db.devices),
     communities = new CommunityService(
@@ -43,8 +41,12 @@ await test('posts: publicação aberta, tags locais, privacidade, revisão, excl
     accounts: string[] = [],
     addresses: string[] = [],
     ids: string[] = [];
+  let origin = 'http://127.0.0.1';
+  let handler: ReturnType<typeof createAccountHandler> | null = null;
   const host = createWebServer({
-    origin,
+    get origin() {
+      return origin;
+    },
     assets: new Map(),
     database: db,
     objects: { healthy: () => Promise.resolve(true) },
@@ -56,41 +58,56 @@ await test('posts: publicação aberta, tags locais, privacidade, revisão, excl
       replies: (id, parent, after) => communities.replies(id, parent, after),
       tags: (id, after) => communities.tags(id, after),
     }),
-    account: createAccountHandler({ origin, service: account, communities }),
+    account: {
+      handle: async (request, response) => {
+        assert.ok(handler);
+        await handler.handle(request, response);
+      },
+      close: () => handler?.close(),
+    },
+  });
+  t.after(async () => {
+    try {
+      if (host.server.listening) await host.close();
+      else handler?.close();
+      if (!accounts.length && !ids.length) return;
+      await inspector.query(
+        'DELETE FROM hash_talk.communities WHERE id=ANY($1::uuid[])',
+        [ids],
+      );
+      for (const table of [
+        'device_events',
+        'device_directories',
+        'login_sessions',
+        'login_devices',
+      ])
+        await inspector.query(
+          `DELETE FROM hash_talk.${table} WHERE account_id=ANY($1::uuid[])`,
+          [accounts],
+        );
+      await inspector.query(
+        'DELETE FROM hash_talk.accounts WHERE id=ANY($1::uuid[])',
+        [accounts],
+      );
+      await inspector.query(
+        'DELETE FROM hash_talk.login_challenges WHERE address=ANY($1::text[])',
+        [addresses],
+      );
+    } finally {
+      await Promise.all([inspector.end(), db.close()]);
+    }
   });
   await db.migrate();
   await inspector.connect();
-  t.after(async () => {
-    await host.close();
-    await inspector.query(
-      'DELETE FROM hash_talk.communities WHERE id=ANY($1::uuid[])',
-      [ids],
-    );
-    for (const table of [
-      'device_events',
-      'device_directories',
-      'login_sessions',
-      'login_devices',
-    ])
-      await inspector.query(
-        `DELETE FROM hash_talk.${table} WHERE account_id=ANY($1::uuid[])`,
-        [accounts],
-      );
-    await inspector.query(
-      'DELETE FROM hash_talk.accounts WHERE id=ANY($1::uuid[])',
-      [accounts],
-    );
-    await inspector.query(
-      'DELETE FROM hash_talk.login_challenges WHERE address=ANY($1::text[])',
-      [addresses],
-    );
-    await inspector.end();
-    await db.close();
-  });
   await new Promise<void>((resolve, reject) => {
     host.server.once('error', reject);
-    host.server.listen(45122, '127.0.0.1', resolve);
+    host.server.listen(0, '127.0.0.1', resolve);
   });
+  const address = host.server.address();
+  assert.ok(address && typeof address !== 'string');
+  origin = `http://127.0.0.1:${address.port}`;
+  const account = new AccountService({ store: db.authentication, origin });
+  handler = createAccountHandler({ origin, service: account, communities });
   const make = () =>
       createCommunityAccount({
         account,

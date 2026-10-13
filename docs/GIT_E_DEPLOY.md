@@ -4,6 +4,8 @@
 
 Após conferir a prévia, o proprietário solicitou alteração da foto do grupo pelo avatar e integração/ativação desta branch na main. Incluir modal de reply, lista de comunidades seguidas em Postar, apresentação dos grupos e avatar privado cifrado; preservar as correções já integradas na main. Sem alteração de schema (64 migrações), dependências, Node, moderação, units ou infraestrutura compartilhada.
 
+A primeira CI do commit `ceea7a0` aprovou check e duas partes da integração, mas cancelou a parte 1 após falha no início de `community-posts.test.ts`. A fixture usava porta fixa 45122 e podia conservar o pool aberto após falha de startup. A colisão foi reproduzida em teste local; trocar para porta livre e registrar fechamento antes de migrate/connect/listen permite passar os 11 cenários mesmo com a porta antiga ocupada. O log da CI não conserva a exceção final porque o processo ficou aberto, portanto a colisão remota é hipótese; o defeito local e a ausência de fechamento são confirmados. Não aumentar timeout, remover asserts ou forçar saída na CI.
+
 Publicar apenas commit integrado/enviado com CI integral aprovada, via `npm run deploy:staging`, build no Mac e preservação/rollback existentes. Acesso, artefatos e recibos somente em `.local/`. **Ponto importante:** autorização não comprova ativação; o resultado exige recibo final, prontidão e hashes públicos verificados.
 
 ## Menções, atividade e ajustes de UI — ativação autorizada em 13/10/2026
