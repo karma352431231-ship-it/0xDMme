@@ -19,6 +19,7 @@ import {
   showPublicPostMedia,
 } from '../public-media/index.ts';
 import { hasPostDraft, confirmComposerDiscard } from './composer-draft.ts';
+import { bindComposerBackdrop } from './composer-backdrop.ts';
 import { showPostExternalMedia } from './post-external-media.ts';
 
 export interface ReplyActions {
@@ -91,6 +92,10 @@ export class ReplyComposer {
       this.requestClose();
     });
     this.dialog.addEventListener('close', () => this.close());
+    bindComposerBackdrop(this.dialog, {
+      signal: this.abort.signal,
+      requestClose: () => this.requestClose(),
+    });
     this.access.media.signal.addEventListener('abort', () => this.close(), {
       once: true,
       signal: this.abort.signal,
@@ -214,7 +219,7 @@ export class ReplyComposer {
     this.dialog.close();
     this.dialog.remove();
     this.trigger.setAttribute('aria-expanded', 'false');
-    if (this.trigger.isConnected) this.trigger.focus();
+    if (this.trigger.isConnected) this.trigger.focus({ preventScroll: true });
   }
   get active(): boolean {
     return !this.closed && this.dialog.open;

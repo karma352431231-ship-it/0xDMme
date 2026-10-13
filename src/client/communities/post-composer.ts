@@ -1,4 +1,5 @@
 import { hasPostDraft, confirmComposerDiscard } from './composer-draft.ts';
+import { bindComposerBackdrop } from './composer-backdrop.ts';
 export { hasPostDraft } from './composer-draft.ts';
 import { postState, tagPage } from '../../shared/community-posts/index.ts';
 import type { Community } from '../../shared/communities/index.ts';
@@ -65,12 +66,9 @@ export class PostComposer {
       event.preventDefault();
       this.requestClose();
     });
-    let outside = false;
-    dialog.addEventListener('pointerdown', (event) => {
-      outside = this.outside(event, dialog);
-    });
-    dialog.addEventListener('click', (event) => {
-      if (outside && this.outside(event, dialog)) this.requestClose();
+    bindComposerBackdrop(dialog, {
+      signal: this.abort.signal,
+      requestClose: () => this.requestClose(),
     });
     window.addEventListener(
       'beforeunload',
@@ -225,16 +223,6 @@ export class PostComposer {
       }),
     );
     publish.className = 'post-composer-publish';
-  }
-  private outside(event: MouseEvent, dialog: HTMLDialogElement): boolean {
-    const rect = dialog.getBoundingClientRect();
-    return (
-      event.target === dialog &&
-      (event.clientX < rect.left ||
-        event.clientX > rect.right ||
-        event.clientY < rect.top ||
-        event.clientY > rect.bottom)
-    );
   }
   private requestClose(): void {
     if (this.busy || !this.dialog) return;
