@@ -166,3 +166,22 @@ await test('hidden conversation never sends read receipts', async (t) => {
     receipts: () => Promise.reject(new Error('Hidden')),
   });
 });
+
+await test('an unchanged GIF message keeps its DOM when another message arrives; edits replace it', (t) => {
+  const f = fixture(t),
+    gif = {
+      ...row('gif'),
+      text: 'Look! https://static.klipy.com/ii/synthetic/demo.gif',
+    };
+  f.ui.render([gif]);
+  const first = f.history.children[0];
+  f.ui.render([gif, row('later')]);
+  assert.equal(f.history.children[0], first);
+  assert.equal(f.history.children.length, 2);
+  f.ui.render([{ ...gif, text: 'Changed' }, row('later')]);
+  assert.notEqual(f.history.children[0], first);
+  assert.match(f.history.children[0]!.textContent, /Changed/u);
+  f.ui.render([row('later')]);
+  assert.equal(f.history.children.length, 1);
+  assert.equal(f.history.children[0]!.dataset['message'], 'later');
+});

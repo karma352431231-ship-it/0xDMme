@@ -6,8 +6,9 @@
  * No user identifier is sent and the page sends no referrer. The key comes from
  * the server configuration; without it the GIF tab is simply absent.
  */
-import { externalMediaGate } from '../external-media/index.ts';
-import type { ExternalMediaConsent } from '../external-media/index.ts';
+import { gifMessageUrl } from './links.ts';
+export { gifMessageUrl, gifUrls, withoutGifLinks } from './links.ts';
+export { showExternalGif, showGifText, renderGif } from './presentation.ts';
 export interface GifResult {
   id: string;
   title: string;
@@ -23,16 +24,8 @@ export interface GifPage {
   next: boolean;
 }
 
-const media =
-  /^https:\/\/static\.klipy\.com\/ii\/[A-Za-z0-9_-]+(?:\/[A-Za-z0-9_-]+)*\.(?:mp4|webp|gif)$/u;
 const keyPattern = /^[A-Za-z0-9]{32,128}$/u;
 const perPage = 24;
-
-/** A message that is exactly one KLIPY media link renders as a GIF. */
-export function gifMessageUrl(text: string): string | null {
-  const value = text.trim();
-  return value.length <= 300 && media.test(value) ? value : null;
-}
 
 function record(value: unknown): Record<string, unknown> | null {
   return typeof value === 'object' && value !== null
@@ -48,7 +41,7 @@ function mediaFile(entry: Record<string, unknown> | null): MediaFile | null {
   const url = entry?.['url'],
     width = entry?.['width'],
     height = entry?.['height'];
-  if (typeof url !== 'string' || !media.test(url)) return null;
+  if (typeof url !== 'string' || !gifMessageUrl(url)) return null;
   if (typeof width !== 'number' || typeof height !== 'number') return null;
   return width > 0 && height > 0 ? { url, width, height } : null;
 }
@@ -150,59 +143,6 @@ export class GifSearch {
       });
     return this.key;
   }
-}
-
-/** Receiving a GIF requires the reader's own choice, never the sender's. */
-export function showExternalGif(
-  host: HTMLElement,
-  url: string,
-  options: {
-    privacy: ExternalMediaConsent;
-    signal: AbortSignal;
-  },
-): () => void {
-  if (!gifMessageUrl(url)) return () => undefined;
-  const link = document.createElement('a');
-  link.href = url;
-  link.textContent = 'GIF do KLIPY';
-  link.target = '_blank';
-  link.rel = 'noopener noreferrer';
-  host.append(link);
-  const stop = externalMediaGate(host, {
-    consent: options.privacy,
-    kind: 'gifs',
-    signal: options.signal,
-    label: 'Mostrar GIF do KLIPY',
-    automatic: true,
-    render: (target) => renderGif(target, url),
-  });
-  return () => {
-    stop();
-    link.remove();
-  };
-}
-
-/** The GIF itself, without caption; a muted loop like the rest of the chat. */
-export function renderGif(host: HTMLElement, url: string): void {
-  host.classList.add('chat-gif');
-  if (url.endsWith('.mp4')) {
-    const video = document.createElement('video');
-    video.src = url;
-    video.muted = true;
-    video.loop = true;
-    video.autoplay = true;
-    video.playsInline = true;
-    video.preload = 'metadata';
-    video.setAttribute('aria-label', 'GIF');
-    host.replaceChildren(video);
-    return;
-  }
-  const image = document.createElement('img');
-  image.src = url;
-  image.alt = 'GIF';
-  image.loading = 'lazy';
-  image.referrerPolicy = 'no-referrer';
-  host.replaceChildren(image);
 }
 
 /**

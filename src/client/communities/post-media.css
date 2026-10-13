@@ -1,0 +1,42 @@
+/* Media follows text and aligns to the post body, including nested replies. */
+#app-shell
+  :is(.community-post, .replied-post-card)
+  > :is(.community-external-gif, .community-public-media),
+.community-scope
+  :is(.community-post, .replied-post-card)
+  > :is(.community-external-gif, .community-public-media) {
+  display: grid;
+  clear: both;
+  grid-column: 1 / -1;
+  width: min(100%, 640px);
+  margin: 12px 0;
+}
+#app-shell
+  :is(.community-post, .replied-post-card)
+  .community-external-gif
+  .chat-gif
+  :is(video, img),
+.community-scope
+  :is(.community-post, .replied-post-card)
+  .community-external-gif
+  .chat-gif
+  :is(video, img) {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-width: 100%;
+  max-height: 560px;
+  margin: 0;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  object-fit: contain;
+  background: var(--media-backdrop);
+}
+#app-shell
+  :is(.community-post, .replied-post-card)
+  .community-public-media
+  .community-media-preview {
+  height: auto;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+}

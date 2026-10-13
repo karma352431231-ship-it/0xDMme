@@ -1,3 +1,6 @@
+import { gifUrls } from '../gif-search/index.ts';
+import type { ExternalMediaConsent } from '../external-media/index.ts';
+import { showPostExternalMedia } from './post-external-media.ts';
 import { communityPost } from '../../shared/community-posts/index.ts';
 import type { CommunityPost } from '../../shared/community-posts/index.ts';
 import {
@@ -38,8 +41,9 @@ export function repliedPost(input: {
   root?: CommunityPost;
   signal: AbortSignal;
   kind?: 'reply' | 'share';
+  privacy?: ExternalMediaConsent;
 }): HTMLElement {
-  const { parent, community, root, signal } = input;
+  const { parent, root } = input;
   const section = el('section', '', 'replied-post');
   section.setAttribute(
     'aria-label',
@@ -68,7 +72,7 @@ export function repliedPost(input: {
     );
     return section;
   }
-  quotedContent(quoted, parent, community, signal);
+  quotedContent(quoted, input);
   if (root && root.id !== parent.id) {
     const original = anchor(
       `Postagem original: ${root.title || 'sem título'}`,
@@ -81,10 +85,9 @@ export function repliedPost(input: {
 }
 function quotedContent(
   quoted: HTMLElement,
-  parent: CommunityPost,
-  community: Place,
-  signal: AbortSignal,
+  input: Parameters<typeof repliedPost>[0],
 ): void {
+  const { parent, community, signal, privacy } = input;
   const avatar = postHeader(quoted, parent, community, 'community');
   if (parent.author?.avatar)
     showPublicAvatar(avatar, {
@@ -94,7 +97,11 @@ function quotedContent(
       signal,
     });
   if (!parent.parent && parent.title) quoted.append(el('h3', parent.title));
-  if (parent.text) quoted.append(postPreview(parent.text));
+  if (parent.text)
+    quoted.append(
+      postPreview(parent.text, privacy ? gifUrls(parent.text) : []),
+    );
+  if (privacy) showPostExternalMedia(quoted, parent.text, { privacy, signal });
   if (parent.media?.length) showPublicPostMedia(quoted, parent.media, signal);
   const open = anchor('Ver postagem completa', postHref(parent));
   open.className = 'replied-post-open';
@@ -117,6 +124,7 @@ export async function showRepliedAbove(input: {
   post: CommunityPost;
   community: Place | null;
   member: boolean;
+  privacy: ExternalMediaConsent;
   request: (
     operation: string,
     data: Record<string, unknown>,
@@ -161,6 +169,7 @@ export async function showRepliedAbove(input: {
       parent,
       community: input.community ?? { id: post.community, name: '' },
       signal: input.signal,
+      privacy: input.privacy,
     }),
   );
 }

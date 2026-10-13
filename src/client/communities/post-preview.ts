@@ -1,3 +1,4 @@
+import { withoutGifLinks } from '../gif-search/index.ts';
 import {
   mentionPlainText,
   mentionSpans,
@@ -18,7 +19,11 @@ export function postPreviewText(text: string): string {
       return text.slice(0, match.index);
   return preview;
 }
-export function postPreview(text: string): HTMLElement {
+export function postPreview(
+  source: string,
+  displayedGifs: readonly string[] = [],
+): HTMLElement {
+  const text = withoutGifLinks(source, displayedGifs);
   const preview = postPreviewText(text);
   if (preview === text) return postText(text);
   const host = el('div', '', 'post-preview');

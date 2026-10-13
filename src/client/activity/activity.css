@@ -15,3 +15,8 @@
 #app-shell .activity-row[data-notice='true'] {
   cursor: pointer;
 }
+
+.activity-quote .chat-gif :is(video, img) {
+  max-width: min(100%, 220px);
+  max-height: 220px;
+}

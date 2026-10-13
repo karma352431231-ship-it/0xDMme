@@ -73,15 +73,3 @@
   color: var(--text-muted);
   font-size: var(--fs-caption);
 }
-.community-external-gif .chat-gif {
-  width: min(100%, 560px);
-  margin: 12px auto;
-}
-.community-external-gif :is(img, video) {
-  display: block;
-  max-width: 100%;
-  max-height: 560px;
-  object-fit: contain;
-  border: 0;
-  border-radius: 8px;
-}

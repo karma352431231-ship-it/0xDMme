@@ -5,7 +5,7 @@ import { chatCollapse, chatComposer, chatIcon } from '../chat-ui/index.ts';
 import { emojiText } from '../emoji/index.ts';
 import type { ExternalMediaConsent } from '../external-media/index.ts';
 import { showExternalVideos } from '../external-video/index.ts';
-import { gifMessageUrl, showExternalGif } from '../gif-search/index.ts';
+import { gifUrls, showGifText } from '../gif-search/index.ts';
 import { showPublicAvatar } from '../public-media/index.ts';
 import { communityElement as el } from './elements.ts';
 
@@ -168,23 +168,23 @@ export function dmBubble(
   );
   if (item.kind !== 'text') return { row, stop: () => undefined };
   const text = el('p');
-  const gif = gifMessageUrl(item.text);
+  const gif = gifUrls(item.text).length;
   const stops = [
     gif
-      ? showExternalGif(text, gif, {
+      ? showGifText(text, item.text, {
+          renderText: emojiText,
           privacy: input.privacy,
           signal: input.signal,
         })
       : (emojiText(text, item.text), () => undefined),
   ];
   row.append(text);
-  if (!gif)
-    stops.push(
-      showExternalVideos(row, item.text, {
-        privacy: input.privacy,
-        signal: input.signal,
-      }),
-    );
+  stops.push(
+    showExternalVideos(row, item.text, {
+      privacy: input.privacy,
+      signal: input.signal,
+    }),
+  );
   return {
     row,
     stop: () => {

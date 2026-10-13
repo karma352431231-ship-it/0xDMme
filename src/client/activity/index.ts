@@ -2,6 +2,8 @@ export { noticeLink, bindNoticeRow } from './notice-link.ts';
 import { ActivitySeen } from './seen.ts';
 import { mentionRows } from './mentions.ts';
 import type { MentionNotification } from '../../shared/mention-notifications/index.ts';
+import { PublicationPreview } from './publication-preview.ts';
+import type { ExternalMediaConsent } from '../external-media/index.ts';
 import { publicationTitle, publicationQuote } from './publications.ts';
 import { noticeLink, bindNoticeRow } from './notice-link.ts';
 import { moderationRows, watchModeration } from './moderation.ts';
@@ -160,9 +162,13 @@ function element<K extends keyof HTMLElementTagNameMap>(
 
 export function startActivity(
   sources: ActivitySources,
-  options: { countChanged: (count: number) => void },
+  options: {
+    countChanged: (count: number) => void;
+    externalMedia?: ExternalMediaConsent;
+  },
 ) {
   const seen = new ActivitySeen();
+  const publicationPreview = new PublicationPreview(options.externalMedia);
   let session: AccountSession | null = null;
   let snapshot = empty();
   let host: HTMLElement | null = null;
@@ -291,7 +297,7 @@ export function startActivity(
     avatar?: { label: string; seed: string };
     title: string;
     /** Content shown in full contrast between the title and the detail. */
-    quote?: string;
+    quote?: string | HTMLElement;
     detail: string;
     actions: HTMLElement[];
     read?: boolean;
@@ -306,7 +312,12 @@ export function startActivity(
     }
     const copy = element('div', '', 'activity-copy');
     copy.append(element('strong', input.title));
-    if (input.quote) copy.append(element('p', input.quote, 'activity-quote'));
+    if (input.quote)
+      copy.append(
+        typeof input.quote === 'string'
+          ? element('p', input.quote, 'activity-quote')
+          : input.quote,
+      );
     copy.append(element('small', input.detail));
     const actions = element('div', '', 'activity-actions');
     actions.append(...input.actions);
@@ -383,7 +394,7 @@ export function startActivity(
           ? { avatar: { label: preview.author, seed: preview.author } }
           : {}),
         title: publicationTitle(preview?.author, reply.kind ?? 'reply'),
-        quote: publicationQuote(preview, reply.kind ?? 'reply'),
+        quote: publicationPreview.quote(preview, reply.kind ?? 'reply'),
         detail: relativeTime(reply.createdAt),
         actions: [
           noticeLink({
@@ -422,6 +433,7 @@ export function startActivity(
     );
   }
   function render(): void {
+    publicationPreview.clear();
     if (!host) return;
     const heading = element('header', '', 'activity-heading');
     heading.append(element('h2', 'Atividade'));
@@ -553,6 +565,7 @@ export function startActivity(
       void refresh();
     },
     leave(): void {
+      publicationPreview.clear();
       host = null;
       feedback = '';
     },
@@ -566,6 +579,7 @@ export function startActivity(
       seen.setSession(value);
       generation++;
       snapshot = empty();
+      publicationPreview.clear();
       moderationAbort.abort();
       moderationAbort = new AbortController();
       if (value && sources.moderation && typeof document !== 'undefined')
