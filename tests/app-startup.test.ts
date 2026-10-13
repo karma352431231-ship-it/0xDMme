@@ -8,6 +8,7 @@ import type { AccountSession } from '../src/shared/account/index.ts';
 // Exercise the real entry point, routing and panels against the IDs in each
 // authored document. Feature controllers have their own behavioral tests.
 const featureExports: Record<string, string[]> = {
+  'public-search': ['mountPublicSearch'],
   appearance: ['startAppearance', 'paintAvatar'],
   pwa: ['startPwa'],
   account: ['startAccount'],
