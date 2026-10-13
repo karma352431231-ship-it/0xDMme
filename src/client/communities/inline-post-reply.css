@@ -1,0 +1,20 @@
+#app-shell .reply-inline {
+  margin-top: 14px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface-2);
+}
+#app-shell .reply-inline[hidden] {
+  display: none;
+}
+#app-shell .reply-inline .reply-box-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 12px;
+}
+#app-shell .reply-inline .community-feedback:empty,
+#app-shell .feed-reply-status:empty {
+  display: none;
+}

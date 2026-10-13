@@ -1,4 +1,5 @@
 import { mountPublicSearchToolbar } from '../public-search/index.ts';
+import { feedReply, hasOpenFeedReply } from './feed-reply.ts';
 import { gifUrls } from '../gif-search/index.ts';
 import { appendOwnProfileShortcut } from '../profile-shortcut/index.ts';
 import { postSharing } from './post-sharing.ts';
@@ -40,7 +41,6 @@ import {
   communityIcon,
   iconLabel,
   postHeader,
-  postComments,
   postTagLink,
 } from './presentation.ts';
 import {
@@ -357,7 +357,26 @@ export function startCommunityDiscovery(
         post,
         signedIn ? { ...actions, position: entry.viewerVote } : null,
       );
-      postComments(toolbar, post);
+      mediaCleanup.add(
+        feedReply(
+          toolbar,
+          post,
+          signedIn
+            ? {
+                ...actions,
+                canReply: async () =>
+                  (await controller.state(post.community)).canPost,
+                media: {
+                  community: post.community,
+                  request: (op, data) => controller.request(op, data),
+                  valid: actions.valid,
+                  signal: abort.signal,
+                  privacy,
+                },
+              }
+            : null,
+        ),
+      );
       postSharing(
         toolbar,
         post,
@@ -458,7 +477,7 @@ export function startCommunityDiscovery(
     void run(reload);
   }
   async function refresh(): Promise<void> {
-    if (!mounted) return;
+    if (!mounted || hasOpenFeedReply(mounted)) return;
     await run(async () => {
       after = displayedAfter;
       rankOffset = displayedRank;
@@ -574,6 +593,6 @@ export function startCommunityDiscovery(
     },
     refresh,
     reset: () => run(reload),
-    canActivate: () => !busy,
+    canActivate: () => !busy && !hasOpenFeedReply(mounted),
   };
 }
