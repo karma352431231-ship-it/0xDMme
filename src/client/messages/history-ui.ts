@@ -50,10 +50,12 @@ export class MessageHistoryUi {
   private readonly externalRows = new ExternalTextHistory();
   private readIds = new Set<string>();
   private views: readonly MessageView[] | null = null;
+  private pending: HistoryUpdate | null = null;
   constructor(options: HistoryPresentation) {
     this.options = options;
   }
   clear(): void {
+    this.pending = null;
     this.views = null;
     this.readIds.clear();
     this.externalRows.clear();
@@ -61,11 +63,21 @@ export class MessageHistoryUi {
   clearMedia(): void {
     this.externalRows.clear();
   }
+  /** Apply background results only when the conversation is visible. Closing
+   * the gate still removes old content immediately, including in hidden tabs. */
+  resume(): void {
+    if (this.pending !== null) this.render(this.views, this.pending);
+  }
   render(
     rows: readonly MessageView[] | null,
     update: HistoryUpdate = 'history',
   ): void {
     this.views = rows;
+    if (rows !== null && !this.options.visible()) {
+      this.pending = this.pending === 'history' ? 'history' : update;
+      return;
+    }
+    this.pending = null;
     const history = this.options.node('[data-message-history]');
     if (!history) return;
     const restoreScroll = historyPosition(history);

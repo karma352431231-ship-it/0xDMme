@@ -4,6 +4,8 @@ interface MessageLifecycle {
   offline: () => void;
   online: () => void;
   visibility: () => void;
+  freeze: () => void;
+  resume: () => void;
   controls: () => void;
   devices: () => void;
   imported: () => void;
@@ -31,6 +33,8 @@ export function bindMessageLifecycle(options: MessageLifecycle): () => void {
   window.addEventListener('offline', options.offline, { signal });
   window.addEventListener('online', options.online, { signal });
   document.addEventListener('visibilitychange', options.visibility, { signal });
+  document.addEventListener('freeze', options.freeze, { signal });
+  document.addEventListener('resume', options.resume, { signal });
   window.addEventListener('0xdmme-history-imported', options.imported, {
     signal,
   });

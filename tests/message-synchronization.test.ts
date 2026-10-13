@@ -13,6 +13,7 @@ function fixture(t: TestContext) {
     session: true,
     online: true,
     visible: true,
+    suspended: false,
     liveConnecting: false,
   };
   const notices: string[] = [];
@@ -138,7 +139,7 @@ await test('prefetch alternates direct and groups, stops completed branches and 
   await turn();
   assert.deepEqual(calls, ['direct', 'direct', 'groups']);
 });
-await test('background/offline suppress wakeups; close cancels a queued refresh and timers', async (t) => {
+await test('suspension/offline suppress wakeups; close cancels a queued refresh and timers', async (t) => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
   const f = fixture(t);
   let refreshes = 0;
@@ -146,12 +147,12 @@ await test('background/offline suppress wakeups; close cancels a queued refresh 
     refreshes++;
     return Promise.resolve();
   };
-  f.state.visible = false;
+  f.state.suspended = true;
   f.sync.request();
   t.mock.timers.tick(1000);
   await turn();
   assert.equal(refreshes, 0);
-  f.state.visible = true;
+  f.state.suspended = false;
   f.state.online = false;
   f.sync.resume();
   t.mock.timers.tick(1000);
@@ -255,4 +256,34 @@ await test('snapshot atualizado durante preparação repete no próximo turno se
   t.mock.timers.tick(1000);
   await turn();
   assert.equal(calls, 2);
+});
+
+await test('aba hidden continua preparação e avisos, sem renovar presença online', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const f = fixture(t);
+  f.state.visible = false;
+  let pages = 0,
+    probes = 0,
+    presence = 0;
+  f.options.preloadDirect = () => {
+    pages++;
+    return Promise.resolve(false);
+  };
+  f.options.changes = () => {
+    probes++;
+    return Promise.resolve();
+  };
+  f.options.presence = () => {
+    presence++;
+    return Promise.resolve();
+  };
+  f.sync.request('probe');
+  t.mock.timers.tick(150);
+  await turn();
+  t.mock.timers.tick(1000);
+  await turn();
+  await f.sync.periodicTick();
+  assert.equal(probes, 1);
+  assert.equal(pages, 1);
+  assert.equal(presence, 0);
 });

@@ -87,6 +87,9 @@ function fixture(t: TestContext) {
     gate,
     older,
     clears: () => clears,
+    show: () => {
+      visible = true;
+    },
     hide: () => {
       visible = false;
     },
@@ -184,4 +187,25 @@ await test('an unchanged GIF message keeps its DOM when another message arrives;
   f.ui.render([row('later')]);
   assert.equal(f.history.children.length, 1);
   assert.equal(f.history.children[0]!.dataset['message'], 'later');
+});
+
+await test('atualização em hidden conserva os nós e recursos até voltar; exclusão fecha mesmo em hidden', (t) => {
+  const f = fixture(t);
+  f.ui.render([row('first')]);
+  const original = f.history.children[0],
+    clears = f.clears();
+  f.hide();
+  f.ui.render([row('first'), row('second')]);
+  assert.equal(f.history.children.length, 1);
+  assert.equal(f.history.children[0], original);
+  assert.equal(f.clears(), clears);
+  f.show();
+  f.ui.resume();
+  assert.equal(f.history.children.length, 2);
+  f.hide();
+  f.ui.render(null);
+  assert.equal(f.history.children.length, 0);
+  f.show();
+  f.ui.resume();
+  assert.equal(f.history.children.length, 0);
 });

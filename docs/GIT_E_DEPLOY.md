@@ -1,5 +1,13 @@
 # 0xDMme — Git e envio à VPS
 
+## Continuidade do chat em segundo plano — ativação autorizada em 13/10/2026
+
+Depois de escolher manter preparação/recebimento e conversa verificada em aba hidden, o proprietário pediu integrar esta branch na main, enviar ao GitHub e à VPS e ativar. Incluir as correções de reuso/progresso e a continuidade com stream atualizado, preservando fechamento em exclusão, suspensão real, perda de conexão, falha e mudança de autorização. Contrato e limites no [bloco 07](BLOCO_07_MENSAGENS.md#continuidade-com-aba-hidden--aprovada-em-13102026).
+
+É uma atualização do cliente com testes/documentação. Backend, SQL/migrações, dependências, Node, detector, serviços e infraestrutura conservam as fontes/configuração da main integrada. Usar somente `npm run deploy:staging`, checkout limpo/integrado/enviado e CI integral do commit exato, build no Mac e controles vigentes de preservação/prontidão/rollback. Acesso, artefatos e recibos permanecem exclusivamente em `.local/`. Sem flags para alteração do proxy, processador de mídia ou migração.
+
+**Ponto importante:** autorização não comprova publicação. Conferir recibo e hashes HTTPS depois da execução. Preparação em hidden não força execução em página congelada ou descartada; validação física Android/iOS continua separada.
+
 ## Correção contextual do detector — ativação aprovada em 13/10/2026
 
 O proprietário aprovou explicitamente ativar a [correção de desenhos cotidianos](MODERACAO_DESENHOS_COTIDIANOS.md), fontes d5a6323, identidade integral `adfa19fa323553c4cb172cc4b959db447203ec454815cf5e305c872a9ee7efcd`. O incidente e três desenhos públicos novos passam; 36 pares públicos anteriores mantêm decisões, um acima de 2.048 px permanece excluído. Verificação local completa passou: 634 testes do app, 207 do executor e 51 de moderação, além de análises estáticas/build. A melhoria qualitativa não estabelece taxa populacional de erro.

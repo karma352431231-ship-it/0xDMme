@@ -26,7 +26,11 @@ for (const match of source.matchAll(
       .filter(Boolean),
   );
 }
-const real = new Set(['./synchronization.ts', './startup.ts']);
+const real = new Set([
+  './synchronization.ts',
+  './startup.ts',
+  './continuity.ts',
+]);
 const bundle = await build({
   entryPoints: [entry],
   bundle: true,
@@ -69,11 +73,16 @@ export function coordinatorFixture(t: TestContext) {
   const state = {
     visibilityState: 'visible',
     holdPage: false,
+    liveCurrent: true,
+    liveConnected: true,
     signals: [] as AbortSignal[],
   };
   let emit: (event: LiveEvent) => void = () => {};
+  let lose: () => void = () => {};
   let lifecycle: {
     visibility: () => void;
+    freeze: () => void;
+    resume: () => void;
     pageHide: (event: { persisted: boolean }) => void;
   };
   let publish: (rows: MessageView[] | null) => void = () => {};
@@ -90,6 +99,7 @@ export function coordinatorFixture(t: TestContext) {
     prepare: noop,
     bind: noop,
     mount: noop,
+    resume: noop,
     cancel: noop,
   };
   const fixture: Record<string, unknown> = {};
@@ -220,8 +230,42 @@ export function coordinatorFixture(t: TestContext) {
     event: typeof emit;
     changed: () => void;
   }) {
-    emit = options.event;
-    return { connected: true, connecting: false, start: noop, stop: noop };
+    const live = {
+      get connected() {
+        return state.liveConnected;
+      },
+      get current() {
+        return state.liveCurrent;
+      },
+      connecting: false,
+      start: () => {
+        calls.push('live-start');
+      },
+      stop: () => {
+        calls.push('live-stop');
+        state.liveCurrent = false;
+        state.liveConnected = false;
+        options.changed();
+      },
+      retry: () => {
+        live.stop();
+        live.start();
+      },
+    };
+    lose = () => {
+      state.liveCurrent = false;
+      state.liveConnected = false;
+      options.changed();
+    };
+    emit = (event) => {
+      if (event === 'ready') {
+        state.liveCurrent = true;
+        state.liveConnected = true;
+        options.changed();
+      }
+      options.event(event);
+    };
+    return live;
   };
   fixture.bindMessageLifecycle = (value: typeof lifecycle) => {
     lifecycle = value;
@@ -247,6 +291,7 @@ export function coordinatorFixture(t: TestContext) {
     document: Object.assign(state, { addEventListener: noop }),
     window: { addEventListener: noop },
     navigator: { onLine: true },
+    Date,
     AbortController,
     AbortSignal,
     setTimeout,
@@ -286,6 +331,9 @@ export function coordinatorFixture(t: TestContext) {
     calls,
     page,
     emit: (event: LiveEvent) => emit(event),
+    lose: () => lose(),
+    freeze: () => lifecycle.freeze(),
+    resume: () => lifecycle.resume(),
     visibility: (value: string) => {
       state.visibilityState = value;
       lifecycle.visibility();

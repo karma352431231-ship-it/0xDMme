@@ -9,6 +9,7 @@ interface SynchronizationState {
   session: boolean;
   online: boolean;
   visible: boolean;
+  suspended: boolean;
   liveConnecting: boolean;
 }
 interface SynchronizationOperations {
@@ -59,6 +60,7 @@ export class MessageSynchronization {
   }
   resume(): void {
     this.updates.resume();
+    this.schedulePreload();
   }
   prepareHistory(): void {
     this.preparation.request();
@@ -133,7 +135,7 @@ export class MessageSynchronization {
     this.preloadAbort?.abort();
     this.options.pause();
   }
-  private canMaintain(): boolean {
+  private canSynchronize(): boolean {
     const state = this.options.state();
     return (
       !this.closed &&
@@ -141,11 +143,11 @@ export class MessageSynchronization {
       this.maintenance === null &&
       state.session &&
       state.online &&
-      state.visible
+      !state.suspended
     );
   }
   private canPreload(): boolean {
-    return this.canMaintain() && this.options.state().connected;
+    return this.canSynchronize() && this.options.state().connected;
   }
   private schedulePreload(): void {
     if (
@@ -220,7 +222,7 @@ export class MessageSynchronization {
   }
 
   async maintainPresence(): Promise<void> {
-    if (this.closed || this.busy || this.maintenance) return;
+    if (!this.canSynchronize() || !this.options.state().visible) return;
     const current = this.options.state().generation;
     this.stopPreload();
     this.maintenance = this.options
@@ -251,12 +253,12 @@ export class MessageSynchronization {
     await this.options.sendPending();
   }
   async periodicTick(): Promise<void> {
-    if (!this.canMaintain()) return;
+    if (!this.canSynchronize()) return;
     const current = this.options.state().generation;
     try {
       if (!this.options.state().connected) this.prepareHistory();
-      await this.maintainPresence();
-      if (!this.current(current) || !this.canMaintain()) return;
+      if (this.options.state().visible) await this.maintainPresence();
+      if (!this.current(current) || !this.canSynchronize()) return;
       if (!(await this.options.periodicWork()) || !this.current(current))
         return;
       await this.run(this.options.periodic);

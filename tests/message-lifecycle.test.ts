@@ -33,13 +33,21 @@ await test('bfcache retains one lifecycle binding; permanent departure closes ev
     controls = 0,
     online = 0,
     hides = 0,
-    shows = 0;
+    shows = 0,
+    freezes = 0,
+    resumes = 0;
   const close = bindMessageLifecycle({
     offline() {},
     online: () => {
       online++;
     },
     visibility() {},
+    freeze: () => {
+      freezes++;
+    },
+    resume: () => {
+      resumes++;
+    },
     controls: () => {
       controls++;
     },
@@ -64,6 +72,10 @@ await test('bfcache retains one lifecycle binding; permanent departure closes ev
     window.dispatchEvent(Object.assign(new Event(name), { persisted }));
   window.dispatchEvent(new Event('online'));
   window.dispatchEvent(new Event('0xdmme-message-controls'));
+  document.dispatchEvent(new Event('freeze'));
+  document.dispatchEvent(new Event('resume'));
+  assert.equal(freezes, 1);
+  assert.equal(resumes, 1);
   page('pagehide', true);
   page('pageshow', true);
   t.mock.timers.tick(30000);
@@ -74,6 +86,10 @@ await test('bfcache retains one lifecycle binding; permanent departure closes ev
   assert.equal(hides, 1);
   assert.ok(channels.every((channel) => !channel.closed));
   page('pagehide', false);
+  document.dispatchEvent(new Event('freeze'));
+  document.dispatchEvent(new Event('resume'));
+  assert.equal(freezes, 1);
+  assert.equal(resumes, 1);
   window.dispatchEvent(new Event('online'));
   window.dispatchEvent(new Event('0xdmme-message-controls'));
   page('pageshow', true);
