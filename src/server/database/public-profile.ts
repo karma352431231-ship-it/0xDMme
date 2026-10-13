@@ -1,3 +1,5 @@
+import type { MentionNotificationPage } from '../../shared/mention-notifications/index.ts';
+import type { MentionNotificationStore } from './mention-notifications.ts';
 import { mentionQuery } from '../../shared/public-mentions/index.ts';
 import { createHash, randomUUID } from 'node:crypto';
 import type pg from 'pg';
@@ -52,6 +54,18 @@ function sameAvatar(
   return avatar !== null && row.pendingAvatar.equals(avatar.bytes);
 }
 export class PublicProfileStore {
+  private mentions: MentionNotificationStore | null = null;
+  setMentionNotifications(store: MentionNotificationStore): void {
+    this.mentions = store;
+  }
+  mentionOperation(
+    operation: 'mention-notifications' | 'mention-notifications-read',
+    authority: ContactAuthority,
+    data: Record<string, unknown>,
+  ): Promise<MentionNotificationPage | { saved: true }> {
+    if (!this.mentions) throw new AccountError(503, 'Menções indisponíveis.');
+    return this.mentions.operate(operation, authority, data);
+  }
   readonly banners: ProfileBanners;
   readonly descriptions: ProfileDescriptions;
   private readonly pool: pg.Pool;

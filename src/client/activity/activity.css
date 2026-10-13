@@ -11,3 +11,7 @@
   pointer-events: none;
   opacity: 0.65;
 }
+
+#app-shell .activity-row[data-notice='true'] {
+  cursor: pointer;
+}

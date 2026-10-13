@@ -177,6 +177,8 @@ const activity = startActivity(
     markRepliesRead: (ids) => communities.markRepliesRead(ids),
     transfers: () => communities.pendingTransfers(),
     moderation: () => publicProfiles.moderationNotifications(),
+    mentions: () => publicProfiles.mentionNotifications(),
+    markMentionsRead: (ids) => publicProfiles.markMentionsRead(ids),
     markModerationRead: (ids) => {
       publicProfiles.markModerationRead(ids);
       return Promise.resolve();

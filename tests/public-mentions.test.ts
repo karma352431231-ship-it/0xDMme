@@ -82,7 +82,10 @@ await test('nomes únicos e buscas normalizam caixa, espaços e formas equivalen
   );
   assert.equal(communityNameKey('ÁRTE'), communityNameKey('árte'));
   assert.equal(communityNameKey('ΟΣ'), communityNameKey('ος'));
-  assert.equal(communityNameKey('İstanbul'), communityNameKey('istanbul'));
+  assert.equal(
+    communityNameKey('İstanbul'),
+    communityNameKey('i\u0307stanbul'),
+  );
   assert.notEqual(communityNameKey('João'), communityNameKey('Joao'));
   assert.equal(mentionQuery('  COMUNIDADE   ARTE '), 'comunidade arte');
   assert.throws(() => mentionQuery('a'));

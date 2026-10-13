@@ -9,7 +9,7 @@ ALTER TABLE hash_talk.communities ADD CONSTRAINT communities_description_check C
 ALTER TABLE hash_talk.public_profile_descriptions DROP CONSTRAINT public_profile_descriptions_description_check;
 ALTER TABLE hash_talk.public_profile_descriptions ADD CONSTRAINT public_profile_descriptions_description_check CHECK(char_length(description)<=10000);
 CREATE FUNCTION hash_talk.community_name_key(value text) RETURNS text LANGUAGE sql IMMUTABLE STRICT PARALLEL SAFE AS $$
-  SELECT replace(lower(trim(regexp_replace(normalize(value,NFKC) COLLATE pg_catalog."pg_c_utf8",'\s+',' ','g'))),'ς','σ');
+  SELECT replace(lower(trim(regexp_replace(normalize(value,NFKC) COLLATE pg_catalog."und-x-icu",'\s+',' ','g'))),'ς','σ');
 $$;
 -- Deliberately fail if old names collide: never silently rename owners' communities.
 CREATE UNIQUE INDEX community_unique_name ON hash_talk.communities(hash_talk.community_name_key(name) text_pattern_ops);

@@ -1,3 +1,4 @@
+import { mentionNotificationPage } from '../../shared/mention-notifications/index.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
 import type { VaultAccess } from '../vault-authority/index.ts';
 import type { PublicModerationNotice } from '../../shared/public-moderation/index.ts';
@@ -206,6 +207,13 @@ export function startPublicProfile(
     },
     follows: profileFollows(controller),
     mountReview: review.mount,
+    mentionNotifications: async () =>
+      mentionNotificationPage(
+        await controller.perform('mention-notifications', { after: null }),
+      ).items,
+    markMentionsRead: async (ids: readonly string[]) => {
+      await controller.perform('mention-notifications-read', { ids });
+    },
     moderationNotifications: () => notices.read(),
     markModerationRead: (ids: readonly string[]) => notices.markRead(ids),
     mount,

@@ -1,3 +1,4 @@
+import type { MentionNotificationPage } from '../../shared/mention-notifications/index.ts';
 import { moderationOperation } from './moderation-operations.ts';
 import { AccountError, keys } from '../../shared/account/index.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
@@ -21,6 +22,8 @@ import { postCount } from '../../shared/community-posts/index.ts';
 import { profileDescriptionText } from '../../shared/profile-social/index.ts';
 import type { PublicModerationDetails } from '../../shared/moderation-details/index.ts';
 type PublicProfileResponse =
+  | MentionNotificationPage
+  | { saved: true }
   | Awaited<ReturnType<PublicProfileStore['state']>>
   | PublicModerationDetails
   | PublicModerationNotice[]
@@ -113,6 +116,8 @@ export class PublicProfileService {
         'activity',
         'moderation-notices',
         'moderation-details',
+        'mention-notifications',
+        'mention-notifications-read',
         'moderation-appeal',
       ].includes(operation)
     )
@@ -135,6 +140,11 @@ export class PublicProfileService {
       }),
     );
     const authority = { session, directory: proof.directory };
+    if (
+      operation === 'mention-notifications' ||
+      operation === 'mention-notifications-read'
+    )
+      return this.store.mentionOperation(operation, authority, proof.payload);
     return this.execute(operation, authority, proof.payload);
   }
   private async execute(

@@ -8,6 +8,7 @@ const execute = promisify(execFile);
 const authored = [
   'src/client/public-mentions',
   'src/shared/public-mentions',
+  'src/shared/mention-notifications',
   'src/shared/community-name',
   'src/shared/moderation-details',
   'src/client/api-response',

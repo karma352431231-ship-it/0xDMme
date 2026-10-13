@@ -1,9 +1,9 @@
-import {
-  publicationTitle,
-  publicationQuote,
-  unreadNotices,
-} from './publications.ts';
-import { noticeLink } from './notice-link.ts';
+export { noticeLink, bindNoticeRow } from './notice-link.ts';
+import { ActivitySeen } from './seen.ts';
+import { mentionRows } from './mentions.ts';
+import type { MentionNotification } from '../../shared/mention-notifications/index.ts';
+import { publicationTitle, publicationQuote } from './publications.ts';
+import { noticeLink, bindNoticeRow } from './notice-link.ts';
 import { moderationRows, watchModeration } from './moderation.ts';
 import type { ModerationActivity } from './moderation.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
@@ -15,6 +15,8 @@ import { displayName, paintAvatar, shortAddress } from '../appearance/index.ts';
  * only reads them on demand and calls the same actions as the original screens.
  */
 export interface ActivitySources {
+  mentions?: () => Promise<readonly MentionNotification[]>;
+  markMentionsRead?: (ids: readonly string[]) => Promise<void>;
   moderation?: () => Promise<readonly ModerationActivity[]>;
   markModerationRead?: (ids: readonly string[]) => Promise<void>;
   requests: () => Promise<
@@ -56,14 +58,21 @@ export interface ActivitySources {
 
 type Loaded<T> = { items: readonly T[]; problem: string };
 
-export type ActivityFilter = 'all' | 'requests' | 'replies';
+export type ActivityFilter = 'all' | 'requests' | 'replies' | 'mentions';
 export type ActivityGroup =
-  'requests' | 'calls' | 'invites' | 'replies' | 'transfers' | 'moderation';
+  | 'requests'
+  | 'calls'
+  | 'invites'
+  | 'replies'
+  | 'transfers'
+  | 'moderation'
+  | 'mentions';
 const groupOrder: readonly ActivityGroup[] = [
   'requests',
   'calls',
   'invites',
   'replies',
+  'mentions',
   'transfers',
   'moderation',
 ];
@@ -76,6 +85,7 @@ export function activityGroups(
 ): readonly ActivityGroup[] {
   if (filter === 'requests') return ['requests', 'invites', 'transfers'];
   if (filter === 'replies') return ['replies'];
+  if (filter === 'mentions') return ['mentions'];
   return groupOrder;
 }
 type Item<
@@ -84,6 +94,7 @@ type Item<
 > = Awaited<ReturnType<ActivitySources[K]>>[number];
 
 interface Snapshot {
+  mentions: Loaded<MentionNotification>;
   moderation: Loaded<ModerationActivity>;
   requests: Loaded<Item<'requests'>>;
   invites: Loaded<Item<'groupInvites'>>;
@@ -94,6 +105,7 @@ interface Snapshot {
 
 function empty(): Snapshot {
   return {
+    mentions: { items: [], problem: '' },
     moderation: { items: [], problem: '' },
     requests: { items: [], problem: '' },
     invites: { items: [], problem: '' },
@@ -150,6 +162,7 @@ export function startActivity(
   sources: ActivitySources,
   options: { countChanged: (count: number) => void },
 ) {
+  const seen = new ActivitySeen();
   let session: AccountSession | null = null;
   let snapshot = empty();
   let host: HTMLElement | null = null;
@@ -160,19 +173,31 @@ export function startActivity(
   let moderationAbort = new AbortController();
 
   function count(): number {
-    return (
-      snapshot.requests.items.length +
-      snapshot.invites.items.length +
-      unreadNotices(snapshot.replies.items) +
-      snapshot.transfers.items.length +
-      snapshot.calls.items.length +
-      unreadNotices(snapshot.moderation.items)
-    );
+    const ids = [
+      ...snapshot.requests.items.map((item) => 'request:' + item.accountId),
+      ...snapshot.invites.items.map((item) => 'invite:' + item.id),
+      ...snapshot.transfers.items.map((item) => 'transfer:' + item.id),
+      ...snapshot.calls.items.map((item) => 'call:' + item.id),
+      ...snapshot.replies.items
+        .filter((item) => !item.read)
+        .map((item) => 'publication:' + item.reply),
+      ...snapshot.moderation.items
+        .filter((item) => !item.read)
+        .map((item) => 'moderation:' + item.id),
+      ...snapshot.mentions.items
+        .filter((item) => !item.read)
+        .map((item) => 'mention:' + item.id),
+    ];
+    if (host) {
+      seen.view(ids);
+      return 0;
+    }
+    return seen.count(ids);
   }
   async function refresh(): Promise<void> {
     if (!session) return;
     const old = ++generation;
-    const [requests, invites, replies, transfers, calls, moderation] =
+    const [requests, invites, replies, transfers, calls, moderation, mentions] =
       await Promise.all([
         load(sources.requests),
         load(sources.groupInvites),
@@ -180,18 +205,31 @@ export function startActivity(
         load(sources.transfers),
         load(sources.missedCalls),
         load(sources.moderation ?? (() => Promise.resolve([]))),
+        load(sources.mentions ?? (() => Promise.resolve([]))),
       ]);
     if (old !== generation) return;
-    snapshot = { requests, invites, replies, transfers, calls, moderation };
+    snapshot = {
+      requests,
+      invites,
+      replies,
+      transfers,
+      calls,
+      moderation,
+      mentions,
+    };
     options.countChanged(count());
     render();
   }
-  async function refreshModeration(): Promise<void> {
-    if (!session || !sources.moderation) return;
+  async function refreshPublicNotices(): Promise<void> {
+    if (!session) return;
     const old = generation;
-    const result = await load(sources.moderation);
+    const [moderation, mentions] = await Promise.all([
+      load(sources.moderation ?? (() => Promise.resolve([]))),
+      load(sources.mentions ?? (() => Promise.resolve([]))),
+    ]);
     if (old !== generation) return;
-    snapshot.moderation = result;
+    snapshot.moderation = moderation;
+    snapshot.mentions = mentions;
     options.countChanged(count());
     render();
   }
@@ -273,6 +311,10 @@ export function startActivity(
     const actions = element('div', '', 'activity-actions');
     actions.append(...input.actions);
     item.append(copy, actions);
+    const notice = input.actions.find(
+      (action) => action.dataset['notice'] === 'true',
+    );
+    if (notice) bindNoticeRow(item, notice);
     return item;
   }
   function link(label: string, href: string): HTMLAnchorElement {
@@ -416,6 +458,7 @@ export function startActivity(
       ['all', 'Tudo'],
       ['requests', 'Pedidos'],
       ['replies', 'Publicações'],
+      ['mentions', 'Menções'],
     ] as const) {
       const choice = element('button', label);
       choice.type = 'button';
@@ -430,12 +473,6 @@ export function startActivity(
   }
   function groupSections(): [ActivityGroup, HTMLElement | null][] {
     const current = generation;
-    const replyIds = snapshot.replies.items
-      .filter((item) => !item.read)
-      .map((item) => item.reply);
-    const moderationIds = snapshot.moderation.items
-      .filter((item) => !item.read)
-      .map((item) => item.id);
     return [
       [
         'requests',
@@ -473,32 +510,28 @@ export function startActivity(
             current: () =>
               current === generation && host !== null && session !== null,
           }),
-          moderationIds.length
-            ? button(
-                'Marcar avisos como lidos',
-                () =>
-                  sources.markModerationRead?.(moderationIds) ??
-                  Promise.resolve(),
-                'Avisos marcados como lidos neste aparelho.',
-              )
-            : undefined,
+        ),
+      ],
+      [
+        'mentions',
+        section(
+          'Menções a você',
+          snapshot.mentions,
+          mentionRows(snapshot.mentions.items, {
+            open: async (id) => {
+              if (!sources.markMentionsRead)
+                throw new Error('Leitura de menção indisponível.');
+              await sources.markMentionsRead([id]);
+            },
+            current: () =>
+              current === generation && host !== null && session !== null,
+          }),
         ),
       ],
       ['invites', section('Convites de grupo', snapshot.invites, inviteRows())],
       [
         'replies',
-        section(
-          'Publicações nas comunidades',
-          snapshot.replies,
-          replyRows(),
-          replyIds.length
-            ? button(
-                'Marcar como lidas',
-                () => sources.markRepliesRead(replyIds),
-                'Publicações marcadas como lidas.',
-              )
-            : undefined,
-        ),
+        section('Publicações nas comunidades', snapshot.replies, replyRows()),
       ],
       [
         'transfers',
@@ -515,6 +548,7 @@ export function startActivity(
     refresh,
     mount(container: HTMLElement): void {
       host = container;
+      options.countChanged(count());
       render();
       void refresh();
     },
@@ -529,12 +563,13 @@ export function startActivity(
       )
         return;
       session = value;
+      seen.setSession(value);
       generation++;
       snapshot = empty();
       moderationAbort.abort();
       moderationAbort = new AbortController();
       if (value && sources.moderation && typeof document !== 'undefined')
-        watchModeration(refreshModeration, moderationAbort.signal);
+        watchModeration(refreshPublicNotices, moderationAbort.signal);
       feedback = '';
       filter = 'all';
       options.countChanged(0);

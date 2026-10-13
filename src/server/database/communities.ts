@@ -1,3 +1,4 @@
+import { reconcileMentionNotifications } from './mention-admission.ts';
 import { writeCommunityName } from './community-names.ts';
 import { mentionQuery } from '../../shared/public-mentions/index.ts';
 import { CommunityFollowerStore } from './community-followers.ts';
@@ -333,6 +334,11 @@ export class CommunityStore {
       [id, actor.id, meta.name, meta.description, meta.rules],
     );
     await seedCommunityTags(client, id);
+    await reconcileMentionNotifications(client, {
+      source: { kind: 'community', id },
+      actor: actor.id,
+      texts: [meta.description],
+    });
     await client.query(
       'INSERT INTO hash_talk.community_follows(community_id,profile_id) VALUES($1,$2) ON CONFLICT DO NOTHING',
       [id, actor.id],
@@ -360,6 +366,11 @@ export class CommunityStore {
       'UPDATE hash_talk.communities SET name=$2,description=$3,rules=$4,revision=revision+1 WHERE id=$1',
       [row.id, meta.name, meta.description, meta.rules],
     );
+    await reconcileMentionNotifications(context.client, {
+      source: { kind: 'community', id: row.id },
+      actor: context.actor.id,
+      texts: [meta.description],
+    });
     await assertContentCapacity(context.client, this.capacity);
   }
   private async photo(

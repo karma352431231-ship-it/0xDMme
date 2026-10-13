@@ -7,12 +7,6 @@ export function communityName(value: string): string {
   return name;
 }
 export function communityNameKey(value: string): string {
-  // Match PostgreSQL 17's Unicode simple lowercase, independently of libc.
-  return [...communityName(value)]
-    .map((letter) => {
-      const lower = letter.toLowerCase();
-      if (lower === 'i\u0307') return 'i';
-      return lower === 'ς' ? 'σ' : lower;
-    })
-    .join('');
+  // Match the existing PostgreSQL ICU root locale on version 16 and later.
+  return communityName(value).toLowerCase().replaceAll('ς', 'σ');
 }

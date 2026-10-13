@@ -9,6 +9,7 @@ export function noticeLink(input: {
 }): HTMLAnchorElement {
   const link = document.createElement('a');
   link.className = 'activity-link';
+  link.dataset['notice'] = 'true';
   link.href = input.href;
   link.textContent = input.label;
   if (input.read) return link;
@@ -48,4 +49,26 @@ export function noticeLink(input: {
     void open();
   });
   return link;
+}
+
+/** Clicking the body opens the same accessible link; actions keep their behavior. */
+export function bindNoticeRow(row: HTMLElement, link: HTMLElement): void {
+  row.dataset['notice'] = 'true';
+  row.addEventListener('click', (event) => {
+    if (
+      !(event instanceof MouseEvent) ||
+      event.ctrlKey ||
+      event.metaKey ||
+      event.shiftKey ||
+      event.altKey ||
+      event.button !== 0
+    )
+      return;
+    if (
+      !(event.target instanceof Element) ||
+      event.target.closest('a,button,input,textarea,select,summary')
+    )
+      return;
+    link.click();
+  });
 }

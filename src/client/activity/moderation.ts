@@ -1,4 +1,4 @@
-import { noticeLink } from './notice-link.ts';
+import { noticeLink, bindNoticeRow } from './notice-link.ts';
 export interface ModerationActivity {
   id: string;
   title: string;
@@ -6,7 +6,7 @@ export interface ModerationActivity {
   review?: string;
   read?: boolean;
 }
-/** Only the moderation source is refreshed; background tabs do no polling. */
+/** Refresh the bounded public notice sources; background tabs do no polling. */
 export function watchModeration(
   refresh: () => Promise<void>,
   signal: AbortSignal,
@@ -62,6 +62,7 @@ export function moderationRows(
     copy.append(title, reason);
     controls.append(link);
     row.append(copy, controls);
+    bindNoticeRow(row, link);
     return row;
   });
 }

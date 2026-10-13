@@ -1,3 +1,4 @@
+import { reconcileMentionNotifications } from './mention-admission.ts';
 import {
   discussionOrder,
   discussionCursor,
@@ -8,7 +9,11 @@ import type { DiscussionOrder } from '../../shared/community-discussion/index.ts
 import { sharedPostIds } from './post-sharing.ts';
 import { withPostInteractions } from './community-interaction-view.ts';
 import { queueWatchedPost } from './profile-notifications.ts';
-import { blockedPost, blockedPosts } from './community-post-visibility.ts';
+import {
+  blockedPost,
+  blockedPosts,
+  visiblePost,
+} from './community-post-visibility.ts';
 import {
   postVotes,
   setPostVote,
@@ -363,6 +368,25 @@ export class CommunityPostStore {
     const lookup = await this.lookups(client, found.rows);
     return found.rows.map((row) => this.view(row, lookup));
   }
+  async mentionContexts(
+    client: pg.PoolClient,
+    viewer: string,
+    ids: string[],
+  ): Promise<CommunityPost[]> {
+    if (ids.length > communityPageSize)
+      throw new AccountError(400, 'Página muito grande.');
+    const visible = await client.query<{ id: string }>(
+      `SELECT p.id FROM hash_talk.community_posts p WHERE p.id=ANY($1::uuid[]) AND ${visiblePost('p')}
+      AND (p.root_id IS NULL OR EXISTS(SELECT 1 FROM hash_talk.community_posts r WHERE r.id=p.root_id AND ${visiblePost('r')}))
+      AND (p.parent_id IS NULL OR EXISTS(SELECT 1 FROM hash_talk.community_posts parent WHERE parent.id=p.parent_id AND ${visiblePost('parent')}))
+      AND NOT EXISTS(SELECT 1 FROM hash_talk.social_blocks b WHERE b.blocked AND ((b.actor=$2 AND b.target IN (p.author,(SELECT author FROM hash_talk.community_posts WHERE id=p.root_id),(SELECT author FROM hash_talk.community_posts WHERE id=p.parent_id))) OR (b.actor=p.author AND b.target=$2)))`,
+      [ids, viewer],
+    );
+    return this.readMany(
+      client,
+      visible.rows.map((row) => row.id),
+    );
+  }
   /** One bounded read with the same privacy rules as any public post view. */
   private async withPreviews(
     client: Pick<pg.PoolClient, 'query'>,
@@ -580,6 +604,11 @@ export class CommunityPostStore {
     await requireTagged(context, value, { root: !parent, previous: [] });
     await insertPost(context, { id, value, parent });
     await this.media.replace(context, { post: id, ids: value.media ?? [] });
+    await reconcileMentionNotifications(context.client, {
+      source: { kind: 'post', id },
+      actor: context.actor.id,
+      texts: [value.title, value.text],
+    });
     await queueWatchedPost(context.client, context.actor.id);
     if (parent) {
       await context.client.query(
@@ -622,6 +651,11 @@ export class CommunityPostStore {
         ids,
       });
     await writeEditedContent(context, row, value);
+    await reconcileMentionNotifications(context.client, {
+      source: { kind: 'post', id: row.id },
+      actor: context.actor.id,
+      texts: [value.title, value.text],
+    });
     await replaceExtraTags(context, row.id, value.tags.slice(1));
     await assertContentCapacity(context.client, this.capacity);
   }
@@ -637,6 +671,11 @@ export class CommunityPostStore {
     currentPost(row, data['revision']);
     await this.media.replace(context, { post: row.id, ids: [] });
     await replaceExtraTags(context, row.id, []);
+    await reconcileMentionNotifications(context.client, {
+      source: { kind: 'post', id: row.id },
+      actor: context.actor.id,
+      texts: [],
+    });
     await context.client.query(
       "UPDATE hash_talk.community_posts SET title='',text='',tag_id=NULL,active_removal=NULL,media_ids='{}',deleted=true,revision=revision+1 WHERE id=$1",
       [row.id],

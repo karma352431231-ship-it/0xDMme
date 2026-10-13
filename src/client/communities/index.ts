@@ -1,3 +1,4 @@
+import { publicationNotificationRow } from './notification-row.ts';
 import { communityAbout, communityCreationDate } from './community-about.ts';
 import {
   mountMentionInput,
@@ -252,7 +253,6 @@ export function startCommunities(
 
   async function notifications(): Promise<void> {
     const old = generation,
-      currentCursor = cursor,
       page = replyNotificationPage(
         await controller.request('post-notifications', { after: cursor }),
       );
@@ -266,38 +266,19 @@ export function startCommunities(
         'Respostas ao seu conteúdo e posts/respostas de contas com o sininho ativado.',
       ),
     );
-    for (const item of page.items) {
-      const row = communityElement('div', '', 'community-row');
-      card.append(row);
-      communityLink(
-        row,
-        item.read ? 'Publicação lida' : 'Nova publicação',
-        `#comunidades?id=${item.community}&post=${item.reply}`,
-      );
-      row.append(
-        communityElement(
-          'small',
-          new Date(item.createdAt).toLocaleString('pt-BR'),
-        ),
-      );
-    }
-    if (!page.items.length)
-      card.append(communityElement('p', 'Nenhuma notificação nesta página.'));
-    const unread = page.items
-      .filter((item) => !item.read)
-      .map((item) => item.reply);
-    if (unread.length)
-      communityButton(card, 'Marcar esta página como lida', () =>
-        run(async () => {
-          await controller.request('post-notifications-read', {
-            replies: unread,
-          });
-          if (old === generation) {
-            cursor = currentCursor;
-            await notifications();
-          }
+    for (const item of page.items)
+      card.append(
+        publicationNotificationRow(item, {
+          open: async (reply) => {
+            await controller.request('post-notifications-read', {
+              replies: [reply],
+            });
+          },
+          current: () => old === generation && mounted !== null,
         }),
       );
+    if (!page.items.length)
+      card.append(communityElement('p', 'Nenhuma notificação nesta página.'));
     cursor = page.next;
     if (page.next)
       communityButton(card, 'Notificações anteriores', () =>

@@ -5,7 +5,6 @@ import {
   replyQuote,
   startActivity,
 } from '../src/client/activity/index.ts';
-import { unreadNotices } from '../src/client/activity/publications.ts';
 import type { ActivitySources } from '../src/client/activity/index.ts';
 import type { AccountSession } from '../src/shared/account/index.ts';
 
@@ -81,10 +80,19 @@ await test('filtros: Pedidos reúne o que espera resposta e Respostas só as res
   for (const [filter, groups] of [
     [
       'all',
-      ['requests', 'calls', 'invites', 'replies', 'transfers', 'moderation'],
+      [
+        'requests',
+        'calls',
+        'invites',
+        'replies',
+        'mentions',
+        'transfers',
+        'moderation',
+      ],
     ],
     ['requests', ['requests', 'invites', 'transfers']],
     ['replies', ['replies']],
+    ['mentions', ['mentions']],
   ] as const)
     assert.deepEqual(activityGroups(filter), groups);
 });
@@ -107,7 +115,6 @@ await test('resposta aparece direto na Atividade; ocultas e excluídas não most
 });
 
 await test('avisos já lidos permanecem no histórico e não entram no contador', async () => {
-  assert.equal(unreadNotices([{ read: true }, { read: false }, {}]), 2);
   const counts: number[] = [];
   const activity = startActivity(
     sources({

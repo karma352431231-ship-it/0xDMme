@@ -1,3 +1,5 @@
+import { MentionNotificationStore } from './mention-notifications.ts';
+import { readMentionContexts } from './mention-contexts.ts';
 import { GroupDailyStore } from './group-daily.ts';
 export type { GroupDailyStore } from './group-daily.ts';
 import { BackupStore } from './backups.ts';
@@ -159,6 +161,7 @@ const migrations = [
   '061-social-read-receipts.sql',
   '062-discussion-engagement.sql',
   '063-public-mentions-community-names.sql',
+  '064-mention-notifications.sql',
 ];
 
 export interface MaintenanceSnapshot {
@@ -308,6 +311,22 @@ export class Database {
       media: this.communityMedia,
       capacity: contentCapacity,
     });
+    this.publicProfiles.setMentionNotifications(
+      new MentionNotificationStore(this.contacts, {
+        identity: (client, account) =>
+          this.publicProfiles.identity(client, account),
+        actors: (client, ids) => this.publicProfiles.identities(client, ids),
+        contexts: (client, viewer, rows) =>
+          readMentionContexts({
+            client,
+            viewer,
+            rows,
+            profiles: this.publicProfiles,
+            communities: this.communities,
+            posts: this.communityPosts,
+          }),
+      }),
+    );
     this.communityViews = new CommunityViewsStore(
       this.pool,
       this.contacts,

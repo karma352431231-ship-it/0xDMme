@@ -1,3 +1,4 @@
+import { reconcileMentionNotifications } from './mention-admission.ts';
 import type pg from 'pg';
 import { AccountError } from '../../shared/account/index.ts';
 import type { PublicProfile } from '../../shared/public-profile/index.ts';
@@ -31,6 +32,17 @@ export class ProfileDescriptions {
       [id],
     );
     return rows.rows[0] ?? { revision: 0, description: '' };
+  }
+  async readMany(client: Reader, ids: string[]): Promise<Map<string, string>> {
+    if (ids.length > 24) throw new AccountError(400, 'Página muito grande.');
+    const rows = await client.query<{
+      profile_id: string;
+      description: string;
+    }>(
+      'SELECT profile_id,description FROM hash_talk.public_profile_descriptions WHERE profile_id=ANY($1::uuid[])',
+      [ids],
+    );
+    return new Map(rows.rows.map((row) => [row.profile_id, row.description]));
   }
   state(authority: ContactAuthority): Promise<ProfileDescription> {
     return this.options.authority.withMessageAuthority(
@@ -75,6 +87,11 @@ export class ProfileDescriptions {
            RETURNING revision,description`,
           [profile.id, text],
         );
+        await reconcileMentionNotifications(client, {
+          source: { kind: 'profile', id: profile.id },
+          actor: profile.id,
+          texts: [text],
+        });
         await assertContentCapacity(client, this.options.capacity);
         return result.rows[0]!;
       },

@@ -1,0 +1,6 @@
+#app-shell .community-notification-row {
+  cursor: pointer;
+}
+#app-shell .community-notification-row[data-read='true'] a {
+  color: var(--text-muted);
+}

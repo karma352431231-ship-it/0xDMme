@@ -399,3 +399,5 @@ Visitante com histórico salvo neste aparelho continua vendo a lista e a convers
 ## Linhas mais visíveis — 12/10/2026
 
 Pedido do proprietário: separadores entre posts, abas e painéis estavam apagados demais. Os tokens `--line` e `--line-strong` subiram um degrau nos três temas, mantendo a diferença entre eles: Azul `#27335a` / `#34426e`, Preto `#29292e` / `#3a3a40`, Branco `#d6dce9` / `#bcc6db`. Todas as bordas que usam esses tokens acompanham; nenhuma cor literal saiu do bloco de tema.
+
+**Atividade, revisão de 13/10/2026:** abrir a caixa zera o sino; o cinza indica abertura individual do aviso. Reconhecimento de novidades local e leitura do item são estados separados. A aba Menções identifica quem marcou o usuário em post, reply ou descrição e oferece o destino atual. [Contrato de notificações](PERFIL_PUBLICO_E_FEEDS.md#contador-de-novidades-e-notificações-de-menção--13102026).
