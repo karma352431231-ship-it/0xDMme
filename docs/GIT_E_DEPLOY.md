@@ -1,5 +1,15 @@
 # 0xDMme — Git e envio à VPS
 
+## Correção contextual do detector — ativação aprovada em 13/10/2026
+
+O proprietário aprovou explicitamente ativar a [correção de desenhos cotidianos](MODERACAO_DESENHOS_COTIDIANOS.md), fontes d5a6323, identidade integral `adfa19fa323553c4cb172cc4b959db447203ec454815cf5e305c872a9ee7efcd`. O incidente e três desenhos públicos novos passam; 36 pares públicos anteriores mantêm decisões, um acima de 2.048 px permanece excluído. Verificação local completa passou: 634 testes do app, 207 do executor e 51 de moderação, além de análises estáticas/build. A melhoria qualitativa não estabelece taxa populacional de erro.
+
+A mudança de aceite é restrita a dois campos próprios: próximo hash e lista histórica, que inclui explicitamente a predecessora ativa b0c665c56bed28a0630d379a13f90d202322d5a6a924901ca5da2dbeafa89ef0 além dos três aceites anteriores. O novo código aceita esses quatro mais sua própria identidade; o código anterior continua iniciando com sua identidade na lista. Vetores novos vivem na release, sem trocar os quatro artefatos instalados, runtime, dependências, units ou banco. Guardar baseline e conteúdo anterior somente em `.local/`, comparar os demais campos, escrever atomicamente e preparar retorno limitado a esses campos. Nenhuma imagem do incidente entra no pacote distribuído.
+
+Depois de CI integral do commit final, usar somente `npm run deploy:staging` na main limpa/integrada/enviada. Não criar outro executor. Conferir detector carregado, hash exato/aceites, preservação dos serviços do outro projeto, prontidão dos workers e hashes públicos após publicação. O aceite pode mudar antes da troca sem invalidar a predecessora; em falha, conservar escritas novas e retornar somente após verificar qual release está ativa.
+
+**Ponto importante:** autorização e commit não comprovam ativação. Registros antigos retidos não são reanalisados/liberados automaticamente; sua revisão continua separada, sem renovar prazos de retenção.
+
 ## Busca, salvos e espaço no ranking — ativação autorizada em 13/10/2026
 
 O proprietário conferiu a prévia e pediu espaço leve entre os filtros e a tabela do ranking, seguido de commit, envio e ativação do conjunto pendente deste chat. Incluir busca de perfis/comunidades públicos, estado confirmado dos bookmarks, ícones selecionados mais brancos sem mudar o fundo e 14 px acima da tabela; integrar com a main preservando a release anterior `c2beaf0`.
