@@ -320,7 +320,7 @@ export function startCommunityPosts(
   }
   function replyToggle(toolbar: HTMLElement, parent: CommunityPost): void {
     const old = generation;
-    postReply(
+    const closeReply = postReply(
       toolbar,
       parent,
       own?.canPost
@@ -338,6 +338,7 @@ export function startCommunityPosts(
           }
         : null,
     );
+    mediaCleanup.set(closeReply, toolbar);
   }
   async function thread(value: CommunityPost): Promise<void> {
     if (!list) return;

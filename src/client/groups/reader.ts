@@ -1,3 +1,4 @@
+import { profilePhotoUpdate } from '../../shared/group-messages/index.ts';
 import { object, uuid } from '../../shared/account/index.ts';
 import { canonical, digest, fingerprint } from '../../shared/devices/index.ts';
 import { integer } from '../../shared/vault/index.ts';
@@ -272,6 +273,7 @@ async function preserveProfile(
   await c.cache.put('profile', {
     version: 1,
     title,
+    ...profilePhotoUpdate(JSON.parse(text) as unknown, previous),
     epoch: packet.epoch,
     sequence: c.item.sequence,
   });

@@ -1,0 +1,72 @@
+dialog.post-composer-dialog.community-scope.reply-box {
+  margin: auto;
+}
+dialog.post-composer-dialog.community-scope .reply-parent-preview {
+  margin-bottom: 20px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--surface-2);
+  overflow-wrap: anywhere;
+}
+dialog.post-composer-dialog.community-scope
+  .reply-parent-preview
+  .community-post-header {
+  margin-bottom: 12px;
+}
+dialog.post-composer-dialog.community-scope .reply-parent-preview h3 {
+  margin: 0 0 8px;
+  font-size: var(--fs-body);
+}
+dialog.post-composer-dialog.community-scope
+  .reply-parent-preview
+  .community-text {
+  margin: 0;
+  font-size: var(--fs-small);
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 5;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+dialog.post-composer-dialog.community-scope
+  .reply-parent-preview
+  .community-public-media {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  margin-top: 12px;
+}
+dialog.post-composer-dialog.community-scope
+  .reply-parent-preview
+  .community-public-media
+  figure {
+  margin: 0;
+  flex: 0 0 auto;
+  max-width: 180px;
+}
+dialog.post-composer-dialog.community-scope
+  .reply-parent-preview
+  :is(.community-media-preview, video, .external-gif img) {
+  max-width: 180px;
+  max-height: 130px;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  border-radius: 10px;
+}
+dialog.post-composer-dialog.community-scope .community-feedback:empty {
+  display: none;
+}
+
+dialog.post-composer-dialog.community-scope
+  .reply-parent-preview
+  .community-public-media
+  [hidden] {
+  display: none;
+}
+dialog.post-composer-dialog.community-scope
+  .reply-parent-preview
+  .community-media-preview {
+  margin: 0;
+}

@@ -336,3 +336,12 @@ export function groupTitle(input: unknown): string {
     throw new Error('Nome de grupo inválido.');
   return value['title'].trim();
 }
+
+export {
+  groupPhoto,
+  groupProfilePhoto,
+  profilePhotoUpdate,
+  groupPhotoLimit,
+  groupPhotoEdge,
+} from './profile.ts';
+export type { GroupPhoto } from './profile.ts';

@@ -1,5 +1,11 @@
 # 0xDMme — Git e envio à VPS
 
+## Replies, grupos e avatar — ativação solicitada em 13/10/2026
+
+Após conferir a prévia, o proprietário solicitou alteração da foto do grupo pelo avatar e integração/ativação desta branch na main. Incluir modal de reply, lista de comunidades seguidas em Postar, apresentação dos grupos e avatar privado cifrado; preservar as correções já integradas na main. Sem alteração de schema (64 migrações), dependências, Node, moderação, units ou infraestrutura compartilhada.
+
+Publicar apenas commit integrado/enviado com CI integral aprovada, via `npm run deploy:staging`, build no Mac e preservação/rollback existentes. Acesso, artefatos e recibos somente em `.local/`. **Ponto importante:** autorização não comprova ativação; o resultado exige recibo final, prontidão e hashes públicos verificados.
+
 ## Menções, atividade e ajustes de UI — ativação autorizada em 13/10/2026
 
 O proprietário aprovou as telas e pediu ajustar identificação de dono/mods,

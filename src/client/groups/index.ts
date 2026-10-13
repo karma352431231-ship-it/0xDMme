@@ -1,3 +1,12 @@
+import { GroupPhotoUi, GroupPhotoView } from './photo-ui.ts';
+import { GroupPeople } from './people.ts';
+import type { GroupProfile } from './people.ts';
+import {
+  groupSettingsTemplate,
+  bindGroupSettings,
+  groupMemberActions,
+  updateGroupSettingsIdentity,
+} from './settings-ui.ts';
 import { GroupActionsUi, showGroupManagement } from './actions-ui.ts';
 import { paintAvatar } from '../appearance/index.ts';
 import {
@@ -46,6 +55,7 @@ interface GroupOptions {
   isBusy: () => boolean;
   alert: () => void;
   peers: () => readonly Peer[];
+  profile: GroupProfile;
   organizationPeers?: () => readonly string[];
 }
 export function startGroups(
@@ -82,10 +92,24 @@ export function startGroups(
       voiceStatus();
     },
   });
+  const photoView = new GroupPhotoView();
+  const photoUi = new GroupPhotoUi({
+    selected: () => controller.selected,
+    account: () => session?.accountId,
+    load: () => controller.photo(),
+    run: options.run,
+    save: async (input) => {
+      await controller.updatePhoto(input);
+      await refresh();
+    },
+  });
+  const people = new GroupPeople(options.profile);
+  let displayedGroup: string | null = null;
   const actions = new GroupActionsUi({
     access,
     controller,
     peers: options.peers,
+    profile: options.profile,
     refresh,
     open: (id) => open(id),
     isBusy: options.isBusy,
@@ -124,6 +148,14 @@ export function startGroups(
         options.isBusy() || voice.active || !!attachments.selected?.voice;
   }
   function status(): void {
+    const settingsNotice = node('[data-group-settings-notice]');
+    if (settingsNotice)
+      settingsNotice.textContent = [
+        'Grupo aberto.',
+        'Mensagem enviada.',
+      ].includes(notice)
+        ? ''
+        : notice;
     const label = node('[data-group-notice]');
     if (label)
       label.textContent = ['Grupo aberto.', 'Mensagem enviada.'].includes(
@@ -349,6 +381,7 @@ export function startGroups(
   }
   function render(): void {
     const group = controller.selected;
+    updateSettingsGroup(group);
     if (!group) {
       if (host) host.hidden = true;
       return;
@@ -363,12 +396,50 @@ export function startGroups(
       count.textContent = group.localOnly
         ? 'Cópia local independente · sem acesso remoto concedido por esta cópia'
         : `${group.state.members.length} participantes`;
+    renderGroupPhoto(group);
     renderLocalControls(group);
     renderHistory();
     renderMembers();
     renderVault();
     renderInvites();
     status();
+  }
+  function updateSettingsGroup(group: GroupSummary | null): void {
+    if (displayedGroup !== (group?.state.groupId ?? null)) {
+      node<HTMLDialogElement>('[data-group-settings]')?.close();
+      people.clear();
+      photoView.reset();
+      photoUi.reset();
+      displayedGroup = group?.state.groupId ?? null;
+    }
+    if (!group) return;
+    updateGroupSettingsIdentity(host, group);
+  }
+  function renderGroupPhoto(group: GroupSummary): void {
+    const targets = [
+      ...(host?.querySelectorAll<HTMLElement>('[data-group-photo]') ?? []),
+    ];
+    const allowed =
+      !group.localOnly &&
+      !!session &&
+      groupManager(group.state, session.accountId);
+    for (const node of targets) {
+      if (node instanceof HTMLButtonElement) node.disabled = !allowed;
+      node.setAttribute(
+        'aria-label',
+        allowed ? 'Alterar foto do grupo' : 'Foto do grupo',
+      );
+      node.title = allowed ? 'Alterar foto do grupo' : 'Foto do grupo';
+    }
+    photoView.show(
+      JSON.stringify([
+        group.state.groupId,
+        group.head,
+        group.profileSequence ?? 0,
+      ]),
+      targets,
+      () => controller.photo(),
+    );
   }
   function renderLocalControls(group: GroupSummary): void {
     for (const selector of [
@@ -392,13 +463,26 @@ export function startGroups(
     const list = node('[data-group-members]'),
       group = controller.selected;
     if (!list || !group || !session) return;
+    people.clear();
     list.replaceChildren();
     for (const member of group.state.members) {
-      const row = document.createElement('li'),
-        label = document.createElement('span');
-      label.textContent = `${name(member.accountId)} · ${member.role === 'owner' ? 'Dono' : member.role === 'admin' ? 'Administrador' : 'Membro'}`;
-      row.append(label);
-      renderMemberActions(row, group, member);
+      const row = document.createElement('li');
+      row.className = 'group-member-row';
+      const role =
+        member.role === 'owner'
+          ? 'Dono'
+          : member.role === 'admin'
+            ? 'Administrador'
+            : 'Membro';
+      row.append(
+        people.identity(member.accountId, name(member.accountId), role),
+      );
+      const controls = document.createElement('div');
+      renderMemberActions(controls, group, member);
+      if (controls.children.length)
+        groupMemberActions(row, name(member.accountId)).append(
+          ...controls.children,
+        );
       list.append(row);
     }
     renderOwnership(group, session);
@@ -743,6 +827,8 @@ export function startGroups(
     );
   }
   function deselect(): void {
+    node<HTMLDialogElement>('[data-group-settings]')?.close();
+    people.clear();
     if (voice.active || attachments.selected?.voice)
       throw new Error(
         'Envie ou remova a prévia de voz antes de trocar de conversa.',
@@ -754,6 +840,11 @@ export function startGroups(
     if (host) host.hidden = true;
   }
   function leave(): void {
+    node<HTMLDialogElement>('[data-group-settings]')?.close();
+    people.clear();
+    photoView.reset();
+    photoUi.reset();
+    actions.reset();
     externalRows.clear();
     externalAbort.abort();
     externalAbort = new AbortController();
@@ -766,6 +857,10 @@ export function startGroups(
     emoji.close();
   }
   function clearSessionPanels(): void {
+    node<HTMLDialogElement>('[data-group-settings]')?.close();
+    people.clear();
+    photoView.reset();
+    photoUi.reset();
     for (const container of [host, aside]) {
       container?.querySelectorAll('form').forEach((form) => form.reset());
       container
@@ -858,6 +953,11 @@ export function startGroups(
       render();
     },
     suspend(revoked = false): void {
+      node<HTMLDialogElement>('[data-group-settings]')?.close();
+      people.clear();
+      photoView.reset();
+      photoUi.reset();
+      actions.reset();
       if (revoked) controller.revokeAuthority();
       else controller.hide();
       attachments.clearMedia();
@@ -875,7 +975,17 @@ export function startGroups(
       container.hidden = !controller.selected;
       if (session) container.dataset['voicePeer'] = session.accountId;
       sidebarContainer.innerHTML = `<button data-group-new type="button">Novo grupo</button><p data-group-mode></p><button data-group-cancel-create type="button" hidden>Descartar pedido local de criação</button><details><summary>Convites e transferências de grupos</summary><div data-group-incoming></div><button data-group-more-incoming type="button" hidden>Mais convites</button></details>`;
-      container.innerHTML = `<header class="chat-header"><button data-chat-back class="chat-icon chat-mobile-back" type="button" aria-label="Voltar às conversas">${chatIcon('back')}</button><span data-group-avatar class="chat-peer-avatar" aria-hidden="true">#</span><div class="chat-peer"><h3 data-group-title></h3><p data-group-count></p></div><details class="chat-options"><summary class="chat-icon" aria-label="Opções do grupo" title="Opções do grupo">${chatIcon('more')}</summary><div class="chat-popover group-options"><details><summary>Participantes e administração</summary><ul data-group-members></ul><button data-group-manage type="button">Adicionar participantes</button><p data-group-owner-note>Para sair, ofereça a propriedade a outro membro e aguarde o aceite. A propriedade muda somente após o aceite.</p><button data-group-leave type="button">Sair do grupo</button><button data-group-delete type="button">Excluir grupo</button></details><details data-group-vault><summary>Cofre do grupo</summary><p data-group-usage></p><p data-group-cleanup-warning role="status"></p><ul data-group-cleanup-items></ul><button data-group-cleanup-more type="button" hidden>Próximas mídias selecionadas</button><p><a href="#cofre">Salvar um backup cifrado</a> para conservar uma cópia das mídias antes da limpeza. Status não entra no backup.</p><button data-group-clear type="button">Limpar cofre remoto</button></details></div></details>${chatCollapse()}</header><p data-group-notice class="compose-notice" role="status"></p><div class="chat-thread"><button data-group-older class="chat-older" type="button" hidden>Mensagens anteriores</button><div data-group-history class="chat-history" tabindex="0" aria-label="Mensagens do grupo"></div><ul data-group-pending class="chat-pending" aria-label="Envios pendentes no grupo"></ul></div>${chatComposer('group')}`;
+      container.innerHTML = `<header class="chat-header"><button data-chat-back class="chat-icon chat-mobile-back" type="button" aria-label="Voltar às conversas">${chatIcon('back')}</button><button data-group-avatar data-group-photo class="chat-peer-avatar group-photo-trigger" type="button" aria-label="Alterar foto do grupo">#</button><div class="chat-peer"><h3 data-group-title></h3><p data-group-count></p></div><button data-group-settings-open class="chat-icon" type="button" aria-label="Configurações do grupo" title="Configurações do grupo">${chatIcon('more')}</button>${chatCollapse()}</header><p data-group-notice class="compose-notice" role="status"></p><div class="chat-thread"><button data-group-older class="chat-older" type="button" hidden>Mensagens anteriores</button><div data-group-history class="chat-history" tabindex="0" aria-label="Mensagens do grupo"></div><ul data-group-pending class="chat-pending" aria-label="Envios pendentes no grupo"></ul></div>${chatComposer('group')}`;
+      container.insertAdjacentHTML('beforeend', groupSettingsTemplate);
+      container
+        .querySelectorAll('[data-group-photo]')
+        .forEach((node) =>
+          node.addEventListener('click', () => photoUi.open()),
+        );
+      bindGroupSettings(container, {
+        opened: renderMembers,
+        closed: () => people.clear(),
+      });
       attachments.mount(container, run);
       const form = node('[data-group-compose]');
       if (form) bindChatComposer(form, composerStatus);

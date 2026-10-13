@@ -177,6 +177,10 @@ export function startMessages(
     run,
     changed: () => renderContacts(),
     peers: () => directoryData.peers.filter((p) => !p.localOnly),
+    profile: (id) =>
+      id === session?.accountId
+        ? Promise.resolve(sharedProfile())
+        : controller.knownProfile(id),
     organizationPeers: () => organizationIds(),
     isBusy: () => synchronization.busy,
     alert: () => sound.beep(),

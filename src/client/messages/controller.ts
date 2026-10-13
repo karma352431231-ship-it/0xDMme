@@ -1,3 +1,4 @@
+import { knownPeerProfile } from './known-profile.ts';
 import { readBackupWindow } from './backup-window.ts';
 import { RemovalIndex } from '../personal-removals/index.ts';
 import {
@@ -165,6 +166,23 @@ export class Messages {
     this.sync = sync;
     this.identities = new PeerIdentity(sync);
     this.visibility = new MessageVisibility(publish);
+  }
+  async knownProfile(peer: string): Promise<ProfileCard | null> {
+    const session = this.session,
+      generation = this.generation;
+    if (!session) return null;
+    return this.access.withVault(!navigator.onLine, async (authority) => {
+      this.guard(generation);
+      if (
+        authority.session.accountId !== session.accountId ||
+        authority.session.deviceId !== session.deviceId ||
+        authority.session.csrf !== session.csrf
+      )
+        throw new Error('Conta alterada.');
+      const card = await knownPeerProfile(authority, peer);
+      this.guard(generation);
+      return card;
+    });
   }
   setSession(session: AccountSession | null): void {
     if (

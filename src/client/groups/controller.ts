@@ -1,3 +1,7 @@
+import { groupManager } from '../../shared/groups/index.ts';
+import { cachedGroupPhoto } from './photo.ts';
+import { groupPhoto } from '../../shared/group-messages/index.ts';
+import type { GroupPhoto } from '../../shared/group-messages/index.ts';
 import {
   groupQuota,
   groupTextQuota,
@@ -41,7 +45,7 @@ import { readGroupPage } from './reader.ts';
 import type { GroupView } from './reader.ts';
 import { groupAttachmentApi } from './media.ts';
 import { GroupCatalog } from './catalog.ts';
-import { stageCurrentProfile } from './profile.ts';
+import { stageCurrentProfile, publishGroupPhoto } from './profile.ts';
 import { GroupRetry } from './retry.ts';
 import { searchGroupCopies } from './search.ts';
 import {
@@ -610,6 +614,37 @@ export class GroupController {
       }
     }
   }
+  async photo(): Promise<GroupPhoto | null> {
+    const selected = this.selected;
+    if (!selected) return null;
+    return this.withAuthority((c) => cachedGroupPhoto(c.authority, selected));
+  }
+  async updatePhoto(input: {
+    group: string;
+    id: string;
+    photo: GroupPhoto | null;
+  }): Promise<void> {
+    if (this.selected?.state.groupId !== input.group || this.selected.localOnly)
+      throw new Error('Abra o grupo conectado antes de alterar a foto.');
+    const photo = groupPhoto(input.photo);
+    await this.identities.load();
+    await this.authority.mutate(async (c) => {
+      const group = await c.governance.verify(input.group);
+      if (!groupManager(group.state, c.authority.session.accountId))
+        throw new Error('Somente dono ou administrador pode alterar a foto.');
+      await this.machine(c, (machine) =>
+        publishGroupPhoto({
+          ...c,
+          group,
+          machine,
+          identities: this.identities,
+          id: input.id,
+          photo,
+        }),
+      );
+    });
+    await this.identities.save();
+  }
   async create(title: string): Promise<string> {
     const checked = groupTitle({ version: 1, title });
     let created: string | null = null;
@@ -837,7 +872,12 @@ export class GroupController {
         const d = object(row.value);
         return {
           id: uuid(d['id']),
-          text: typeof d['text'] === 'string' ? d['text'] : '',
+          text:
+            d['kind'] === 'profile'
+              ? 'Atualização do grupo pendente'
+              : typeof d['text'] === 'string'
+                ? d['text']
+                : '',
         };
       });
     });

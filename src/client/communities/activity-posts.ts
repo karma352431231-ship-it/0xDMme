@@ -151,6 +151,7 @@ export class ActivityPosts {
       post = card.entry.post;
     status.setAttribute('role', 'status');
     card.node.append(toolbar, status);
+    let closeReply: () => void = () => {};
     postVoting(
       toolbar,
       post,
@@ -159,7 +160,7 @@ export class ActivityPosts {
         : null,
     );
     if (this.session) {
-      postReply(toolbar, post, {
+      closeReply = postReply(toolbar, post, {
         ...actions,
         media: this.media(card),
         canReply: async () =>
@@ -188,7 +189,11 @@ export class ActivityPosts {
     );
     discussion.href = `#comunidades?id=${post.community}&post=${post.id}`;
     toolbar.append(discussion);
-    card.stop = postViews(card.node, post, toolbar);
+    const stopViews = postViews(card.node, post, toolbar);
+    card.stop = () => {
+      closeReply();
+      stopViews();
+    };
   }
   private media(card: ActivityCard) {
     const { valid } = this.access(card);

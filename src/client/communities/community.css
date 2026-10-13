@@ -1851,37 +1851,6 @@
   margin: 0;
 }
 /* Reply box opened from the comment button. */
-.reply-box {
-  margin: 10px 0 4px;
-  padding: 12px;
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  background: var(--surface-2);
-}
-.reply-box[hidden] {
-  display: none;
-}
-.reply-box-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  margin-top: 8px;
-}
-#app-shell .reply-box-actions button {
-  margin: 0;
-  padding: 7px 16px;
-  border: 0;
-  border-radius: 99px;
-  background: transparent;
-  box-shadow: inset 0 0 0 1px var(--line);
-  color: var(--text);
-  font-weight: 600;
-}
-#app-shell .reply-box-actions button.primary {
-  background: var(--accent);
-  box-shadow: none;
-  color: var(--accent-ink);
-}
 @media (max-width: 700px) {
   .community-banner {
     height: 110px;

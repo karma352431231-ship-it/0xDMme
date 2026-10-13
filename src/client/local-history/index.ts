@@ -1084,3 +1084,43 @@ function historicalAction(
     throw new Error('Alteração histórica divergente.');
   return record;
 }
+
+/** Exact sequence from the authenticated group snapshot, never an unbounded history scan. */
+export async function groupProfileHistory(
+  a: VaultAuthority,
+  groupId: string,
+  sequence: number,
+): Promise<Extract<BackupRecord, { type: 'group-message' }> | null> {
+  const rows = await transaction<StoredRecord[]>((tx, done) => {
+    const request = tx
+      .objectStore('records')
+      .index('conversation')
+      .getAll(
+        IDBKeyRange.bound(
+          [a.session.accountId, groupId, sequence],
+          [a.session.accountId, groupId, sequence, '\uffff', '\uffff'],
+        ),
+        2,
+      );
+    request.onsuccess = () =>
+      queryReady(
+        tx,
+        (request.result as StoredRecord[]).filter(
+          (row) => row.type === 'group-message' && row.kind === 'profile',
+        ),
+        done,
+      );
+  });
+  if (!rows.length) return null;
+  if (rows.length !== 1)
+    throw new Error('Perfil restaurado do grupo divergente.');
+  const record = await openHistoryRecord(a, rows[0]!);
+  if (
+    record.type !== 'group-message' ||
+    record.groupId !== groupId ||
+    record.sequence !== sequence ||
+    record.kind !== 'profile'
+  )
+    throw new Error('Perfil histórico de outro grupo.');
+  return record;
+}

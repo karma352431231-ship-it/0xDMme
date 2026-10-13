@@ -1,4 +1,5 @@
-import { communityPage } from '../../shared/communities/index.ts';
+import { hasPostDraft, confirmComposerDiscard } from './composer-draft.ts';
+export { hasPostDraft } from './composer-draft.ts';
 import { postState, tagPage } from '../../shared/community-posts/index.ts';
 import type { Community } from '../../shared/communities/index.ts';
 import type { ExternalMediaConsent } from '../external-media/index.ts';
@@ -10,24 +11,6 @@ import {
 } from './elements.ts';
 import { composerCommunityIdentity } from './post-composer-community.ts';
 import { postForm } from './post-forms.ts';
-
-export function hasPostDraft(container: HTMLElement): boolean {
-  if (
-    container.querySelector(
-      '.post-tag-chip-list button[aria-pressed="true"], .media-picker-previews:not([hidden]) > *, .community-media-preview',
-    )
-  )
-    return true;
-  return [
-    ...container.querySelectorAll<
-      HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
-    >('input,textarea,select'),
-  ].some((input) =>
-    input instanceof HTMLInputElement && input.type === 'file'
-      ? Boolean(input.files?.length)
-      : input.value.length > 0,
-  );
-}
 
 /** One composer owns its draft and abort lifecycle, independent of the feed. */
 export class PostComposer {
@@ -102,7 +85,7 @@ export class PostComposer {
     document.body.append(dialog);
     dialog.showModal();
     void this.run(() =>
-      community ? this.compose(community) : this.choose('following', null),
+      community ? this.compose(community) : this.choose(null),
     );
   }
   private async run(work: () => Promise<void>): Promise<void> {
@@ -139,42 +122,21 @@ export class PostComposer {
       });
     if (!value) this.disabledNodes.clear();
   }
-  private async choose(
-    kind: 'following' | 'all',
-    after: string | null,
-  ): Promise<void> {
+  private async choose(after: string | null): Promise<void> {
     const lifetime = this.abort;
     this.stage.abort();
     this.stage = new AbortController();
-    const page =
-      kind === 'following'
-        ? await this.controller.list(kind, after)
-        : communityPage(
-            await communityRead(
-              `/api/communities${after ? '?after=' + encodeURIComponent(after) : ''}`,
-              this.signal(),
-            ),
-          );
+    const page = await this.controller.list('following', after);
     if (lifetime.signal.aborted || !this.draft) return;
-    const tabs = el('nav', '', 'post-composer-tabs');
-    for (const [key, label] of [
-      ['following', 'Seguidas'],
-      ['all', 'Todas as comunidades'],
-    ] as const) {
-      const tab = button(tabs, label, () =>
-        this.run(() => this.choose(key, null)),
-      );
-      tab.setAttribute('aria-pressed', String(key === kind));
-    }
-    this.draft.replaceChildren(el('h3', 'Escolha a comunidade'), tabs);
+    this.draft.replaceChildren(el('h3', 'Suas comunidades seguidas'));
     for (const group of page.items) this.choice(group);
     if (!page.items.length)
       this.draft.append(
-        el('p', 'Nenhuma comunidade nesta lista. Veja Todas as comunidades.'),
+        el('p', 'Siga uma comunidade em Explorar para encontrá-la aqui.'),
       );
     if (page.next)
       button(this.draft, 'Mais comunidades', () =>
-        this.run(() => this.choose(kind, page.next)),
+        this.run(() => this.choose(page.next)),
       );
   }
   private choice(group: Community): void {
@@ -280,40 +242,13 @@ export class PostComposer {
       this.close();
       return;
     }
-    if (this.dialog.querySelector('.post-discard-confirmation')) return;
-    const confirmation = el('section', '', 'post-discard-confirmation');
-    confirmation.setAttribute('role', 'alertdialog');
-    confirmation.setAttribute('aria-label', 'Descartar postagem?');
-    confirmation.append(
-      el('h3', 'Descartar postagem?'),
-      el('p', 'O que você escreveu e os anexos selecionados serão perdidos.'),
-    );
-    button(confirmation, 'Continuar editando', () => {
-      confirmation.remove();
-      this.dialog
-        ?.querySelectorAll<HTMLElement>(
-          ':scope > header, :scope > .post-composer-content',
-        )
-        .forEach((node) => {
-          node.inert = false;
-        });
-      this.draft?.querySelector<HTMLElement>('input,textarea')?.focus();
-      return Promise.resolve();
-    }).focus();
-    button(confirmation, 'Descartar', () => {
-      this.close();
-      return Promise.resolve();
+    confirmComposerDiscard(this.dialog, {
+      draft: this.draft,
+      label: 'Descartar postagem?',
+      close: () => this.close(),
     });
-    this.dialog
-      .querySelectorAll<HTMLElement>(
-        ':scope > header, :scope > .post-composer-content',
-      )
-      .forEach((node) => {
-        node.inert = true;
-      });
-    this.dialog.append(confirmation);
-    confirmation.querySelector<HTMLButtonElement>('button')?.focus();
   }
+
   close(): void {
     this.abort.abort();
     this.stage.abort();

@@ -1,3 +1,5 @@
+import { fixtureGroupPhoto } from './fixtures/group-photo.ts';
+import { groupProfilePhoto } from '../src/shared/group-messages/index.ts';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { initAsync } from '@matrix-org/matrix-sdk-crypto-wasm';
@@ -112,6 +114,35 @@ await test('Megolm real recupera só o período dirigido ao membro e rejeita ori
       exported,
     }),
     'Texto sintético do período autorizado',
+  );
+  await t.test(
+    'foto administrativa permanece cifrada, recuperável só pelos membros do período',
+    async () => {
+      const photo = fixtureGroupPhoto(),
+        text = JSON.stringify({ version: 1, title: 'Grupo', photo });
+      const payload = await sender.encryptGroup({
+        authority: owner.authority,
+        state,
+        histories: participants.map((p) => [p.directory]),
+        recovery: keys,
+        transport: recoveryOnlyTransport,
+        id: crypto.randomUUID(),
+        text,
+        kind: 'profile',
+      });
+      assert.equal(JSON.stringify(payload).includes(photo.base64), false);
+      const capsule = payload.keys.archives.find(
+        (a) => a.accountId === member.accountId,
+      )!;
+      const opened = await reader.decryptGroup({
+        packet: payload.packet,
+        keys: payload.keys,
+        period: state,
+        senderEvent: owner.directory,
+        exported: openRoomKey(readerKey, capsule),
+      });
+      assert.deepEqual(groupProfilePhoto(JSON.parse(opened) as unknown), photo);
+    },
   );
   await t.test(
     'cache autenticado evita novas consultas e continua recusando adulteração ou participação encerrada',

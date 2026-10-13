@@ -1,3 +1,4 @@
+import { fixtureGroupPhoto } from '../fixtures/group-photo.ts';
 import {
   groupMediaQuota,
   groupMediaWarning,
@@ -833,7 +834,11 @@ await test('governança persistente: criação atômica, convites, transferênci
                   payload,
                 }),
           id: crypto.randomUUID(),
-          text: JSON.stringify({ version: 1, title: 'Grupo sintético' }),
+          text: JSON.stringify({
+            version: 1,
+            title: 'Grupo sintético',
+            photo: fixtureGroupPhoto(),
+          }),
           kind: 'profile',
         });
       const refused = await make(member, reader);
