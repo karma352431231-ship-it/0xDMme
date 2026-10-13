@@ -817,11 +817,13 @@ await test('mídia das comunidades: cadeia real, autorização, vínculo atômic
         animation = descriptor('gif', await readFile(gif)),
         rootPost = crypto.randomUUID(),
         reply = crypto.randomUUID();
-      const publicOrigin = 'http://127.0.0.1:45128';
+      let publicOrigin = 'http://127.0.0.1';
       const publicFetch = (url: string, options: RequestInit = {}) =>
         fetch(url, { ...options, signal: AbortSignal.timeout(10_000) });
       const publicHost = createWebServer({
-        origin: publicOrigin,
+        get origin() {
+          return publicOrigin;
+        },
         assets: new Map(),
         database: accepted,
         objects: { healthy: () => Promise.resolve(true) },
@@ -850,8 +852,11 @@ await test('mídia das comunidades: cadeia real, autorização, vínculo atômic
       try {
         await new Promise<void>((resolve, reject) => {
           publicHost.server.once('error', reject);
-          publicHost.server.listen(45128, '127.0.0.1', resolve);
+          publicHost.server.listen(0, '127.0.0.1', resolve);
         });
+        const address = publicHost.server.address();
+        assert.ok(address && typeof address !== 'string');
+        publicOrigin = `http://127.0.0.1:${address.port}`;
         await ready(clip, await readFile(video));
         await author.operate('post-create', {
           id,
