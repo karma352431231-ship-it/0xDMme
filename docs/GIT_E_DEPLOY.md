@@ -1,5 +1,13 @@
 # 0xDMme — Git e envio à VPS
 
+## Busca, salvos e espaço no ranking — ativação autorizada em 13/10/2026
+
+O proprietário conferiu a prévia e pediu espaço leve entre os filtros e a tabela do ranking, seguido de commit, envio e ativação do conjunto pendente deste chat. Incluir busca de perfis/comunidades públicos, estado confirmado dos bookmarks e 14 px acima da tabela; integrar com a main preservando a release anterior `c2beaf0`.
+
+A alteração de backend acrescenta somente leitura limitada/em lote da preferência saved da própria conta nas projeções autenticadas. Não muda gravações, tabelas, schema, migrações, ledger, retenção, Node, dependências ou units. A revisão do executor fixa predecessora e fontes exatas dos três módulos de leitura alterados; toda a árvore do banco precisa corresponder à projeção revisada. Nenhum bypass genérico de compatibilidade.
+
+Publicar por `npm run deploy:staging`, checkout integrado/limpo/enviado, CI integral do commit exato e build no Mac. Preservação, retorno da release anterior e prontidão continuam sob o executor vigente. **Ponto importante:** ativação autorizada não equivale a publicação confirmada; conferir recibo e hashes HTTPS. Acesso, artefatos e evidências exclusivamente em `.local/`.
+
 ## Replies, grupos e avatar — ativação solicitada em 13/10/2026
 
 Após conferir a prévia, o proprietário solicitou alteração da foto do grupo pelo avatar e integração/ativação desta branch na main. Incluir modal de reply, lista de comunidades seguidas em Postar, apresentação dos grupos e avatar privado cifrado; preservar as correções já integradas na main. Sem alteração de schema (64 migrações), dependências, Node, moderação, units ou infraestrutura compartilhada.

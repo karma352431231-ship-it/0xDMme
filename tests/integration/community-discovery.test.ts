@@ -329,6 +329,22 @@ await test('corte 6: feeds públicos, descoberta e referências privadas', async
       const usage = await globalUsage();
       const saved = await set(reader, root, { ...initial, saved: true });
       assert.equal(saved.revision, 1);
+      assert.equal(
+        (await feed(reader)).items.find((entry) => entry.post.id === root)
+          ?.viewerSaved,
+        true,
+      );
+      assert.equal(
+        (await feed(stranger)).items.find((entry) => entry.post.id === root)
+          ?.viewerSaved,
+        false,
+      );
+      assert.equal(
+        (await communities.feed(baseline, null)).items.find(
+          (entry) => entry.post.id === root,
+        )?.viewerSaved,
+        undefined,
+      );
       assert.equal((await globalUsage()) - usage, 256);
       assert.deepEqual(
         await set(reader, root, { ...initial, saved: true }),
@@ -376,6 +392,11 @@ await test('corte 6: feeds públicos, descoberta e referências privadas', async
         bad(409),
       );
       assert.equal((await preference(reader, root)).revision, changed.revision);
+      assert.equal(
+        (await feed(reader)).items.find((entry) => entry.post.id === root)
+          ?.viewerSaved,
+        false,
+      );
     },
   );
   await t.test(

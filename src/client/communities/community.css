@@ -835,7 +835,7 @@
 /* Ranking as a table: position, community, then figures in fixed columns. */
 .community-ranking {
   display: grid;
-  margin: 0;
+  margin: 14px 0 0;
   padding: 0;
   list-style: none;
   border: 1px solid var(--line);

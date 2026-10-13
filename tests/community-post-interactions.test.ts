@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import {
   submitPostReply,
   togglePostVote,
+  togglePostPreference,
 } from '../src/client/communities/post-interactions.ts';
 import { renderActivityEntry } from '../src/client/communities/activity-entry.ts';
 import type {
@@ -304,4 +305,39 @@ await test('atividade do perfil apresenta título, conteúdo e depois tag, conse
       (item) => `#comunidades?id=${value.community}&tag=${item.id}`,
     ),
   );
+});
+
+await test('bookmark preserva ocultação e revisão, só muda o estado confirmado e não grava após trocar sessão', async () => {
+  const value = post(),
+    stored = { saved: false, hidden: true, revision: 4 };
+  let writes = 0,
+    valid = true;
+  const access = {
+    valid: () => valid,
+    controller: {
+      request: (operation: string, payload: Record<string, unknown>) => {
+        if (operation === 'discovery-preference')
+          return Promise.resolve(stored);
+        writes++;
+        assert.deepEqual(payload, {
+          id: value.community,
+          post: value.id,
+          preference: { saved: true, hidden: true, revision: 4 },
+        });
+        return Promise.resolve({ saved: true, hidden: true, revision: 5 });
+      },
+    },
+  };
+  assert.deepEqual(await togglePostPreference(value, 'saved', access), {
+    saved: true,
+    hidden: true,
+    revision: 5,
+  });
+  assert.equal(writes, 1);
+  access.controller.request = () => {
+    valid = false;
+    return Promise.resolve(stored);
+  };
+  assert.equal(await togglePostPreference(value, 'saved', access), null);
+  assert.equal(writes, 1);
 });

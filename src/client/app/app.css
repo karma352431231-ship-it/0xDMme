@@ -1,3 +1,5 @@
+@import '../public-search/search.css';
+@import '../communities/post-bookmark.css';
 @import '../gif-search/gif.css';
 @import '../communities/notifications.css';
 @import '../public-mentions/mentions.css';

@@ -1,3 +1,4 @@
+import { mountPublicSearchToolbar } from '../public-search/index.ts';
 import { gifUrls } from '../gif-search/index.ts';
 import { appendOwnProfileShortcut } from '../profile-shortcut/index.ts';
 import { postSharing } from './post-sharing.ts';
@@ -185,6 +186,7 @@ export function startCommunityDiscovery(
         void run(reload);
       },
     );
+    mountPublicSearchToolbar(toolbar, abort.signal);
     postShortcut(toolbar);
   }
   /** Posting starts from the community the person chooses. */
@@ -365,6 +367,7 @@ export function startCommunityDiscovery(
       if (signedIn) {
         preferenceControls(toolbar, post, {
           ...actions,
+          saved: entry.viewerSaved,
           options: (host) =>
             postManagementMenu(host, post, {
               run,

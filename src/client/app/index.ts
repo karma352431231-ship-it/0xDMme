@@ -1,3 +1,4 @@
+import { mountPublicSearch } from '../public-search/index.ts';
 import { startGroupEntrypoints } from './group-entrypoints.ts';
 import { paintAvatar, startAppearance } from '../appearance/index.ts';
 import { startPwa } from '../pwa/index.ts';
@@ -58,6 +59,9 @@ const publicChat = document.createElement('div');
 publicChat.className = 'public-chat community-scope';
 publicChat.innerHTML =
   '<div class="public-chat-bar"><span>Mensagem pública pelo @</span><button data-chat-collapse class="icon-button" type="button" aria-label="Recolher conversa" title="Recolher conversa"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12H9M13 7l-5 5 5 5M4 5v14"/></svg></button></div><div class="public-chat-body"></div>';
+document
+  .querySelectorAll<HTMLElement>('[data-public-search]')
+  .forEach((host) => mountPublicSearch(host, new AbortController().signal));
 const publicChatBody = publicChat.lastElementChild as HTMLElement;
 let currentPage = '';
 let currentHash = '';

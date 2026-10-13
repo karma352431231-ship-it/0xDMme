@@ -860,7 +860,11 @@ await test('perfil social: métricas, comunidades públicas, follows, feeds e ba
       const publicPost = (await sharer.operate('post-public', payload)) as {
         viewer: unknown;
       };
-      assert.deepEqual(publicPost.viewer, { vote: 1, shared: true });
+      assert.deepEqual(publicPost.viewer, {
+        vote: 1,
+        shared: true,
+        saved: false,
+      });
       const current = (await operate(sharer, 'block-state', {
         target: identity.id,
       })) as { revision: number };

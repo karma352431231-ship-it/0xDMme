@@ -1,3 +1,4 @@
+import { savedPostIds } from './community-preferences.ts';
 import { visiblePost } from './community-post-visibility.ts';
 import type pg from 'pg';
 import { AccountError, keys } from '../../shared/account/index.ts';
@@ -80,12 +81,19 @@ function activityIdentity(row: FeedRow) {
 }
 function viewerInteractions(
   actor: string | null,
-  votes: Map<string, PostVote>,
-  shares: Set<string>,
+  state: {
+    votes: Map<string, PostVote>;
+    shares: Set<string>;
+    saved: Set<string>;
+  },
   id: string,
 ) {
   return actor
-    ? { viewerVote: votes.get(id)?.position ?? 0, viewerShared: shares.has(id) }
+    ? {
+        viewerVote: state.votes.get(id)?.position ?? 0,
+        viewerShared: state.shares.has(id),
+        viewerSaved: state.saved.has(id),
+      }
     : {};
 }
 export class CommunityDiscoveryStore {
@@ -236,6 +244,9 @@ export class CommunityDiscoveryStore {
     const shares = actor
       ? await sharedPostIds(client, actor, ids)
       : new Set<string>();
+    const saved = actor
+      ? await savedPostIds(client, actor, ids)
+      : new Set<string>();
     return {
       next: result.next,
       items: result.items.flatMap((row) => {
@@ -248,7 +259,7 @@ export class CommunityDiscoveryStore {
           {
             post,
             ...activityIdentity(row),
-            ...viewerInteractions(actor, votes, shares, post.id),
+            ...viewerInteractions(actor, { votes, shares, saved }, post.id),
             ...(actor ? { ownCommunity: ownedIds.has(row.community_id) } : {}),
             ...(context ? { context } : {}),
             community: {

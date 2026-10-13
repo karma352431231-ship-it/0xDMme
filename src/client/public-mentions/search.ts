@@ -22,7 +22,8 @@ export async function searchMentions(
     read(`/api/public-profiles/_/suggestions?q=${key}`, signal),
     read(`/api/communities/suggestions?q=${key}`, signal),
   ]);
-  if (!Array.isArray(users) || users.length > 8)
+  const communities = communityPage(groups);
+  if (!Array.isArray(users) || users.length > 8 || communities.items.length > 8)
     throw new Error('Sugestões de perfis inválidas.');
   return [
     ...users.map(publicProfile).map((profile) => ({
@@ -31,7 +32,7 @@ export async function searchMentions(
       label: profile.handle,
       avatar: profile.avatar,
     })),
-    ...communityPage(groups).items.map((group) => ({
+    ...communities.items.map((group) => ({
       kind: 'community' as const,
       id: group.id,
       label: group.name,

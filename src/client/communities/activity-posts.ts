@@ -1,3 +1,4 @@
+import { withoutBookmarkState } from './post-bookmark.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
 import type { FeedEntry } from '../../shared/community-discovery/index.ts';
 import { postSharing } from './post-sharing.ts';
@@ -64,7 +65,10 @@ export class ActivityPosts {
     this.epoch++;
     this.sessionAbort.abort();
     this.sessionAbort = new AbortController();
-    for (const card of this.cards) this.toolbar(card);
+    for (const card of this.cards) {
+      card.entry = withoutBookmarkState(card.entry);
+      this.toolbar(card);
+    }
   }
   canActivate(): boolean {
     return (
@@ -173,6 +177,7 @@ export class ActivityPosts {
       });
       preferenceControls(toolbar, post, {
         ...actions,
+        saved: card.entry.viewerSaved,
         options: (host) => this.options(card, host),
       });
     } else {

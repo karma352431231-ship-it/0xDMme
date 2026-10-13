@@ -1,3 +1,4 @@
+import { postBookmark } from './post-bookmark.ts';
 import { keys, object } from '../../shared/account/index.ts';
 import { publicBlockState } from '../../shared/profile-social/index.ts';
 import type {
@@ -14,6 +15,7 @@ import { togglePostPreference, togglePostVote } from './post-interactions.ts';
 import { postReportForm } from './post-forms.ts';
 
 interface Actions {
+  saved?: boolean | undefined;
   controller: Communities;
   run: (work: () => Promise<void>) => Promise<void>;
   valid: () => boolean;
@@ -25,27 +27,7 @@ export function preferenceControls(
   post: CommunityPost,
   actions: Actions,
 ): void {
-  const save = button(container, 'Salvar', () =>
-    actions.run(async () => {
-      const value = await togglePostPreference(post, 'saved', actions);
-      if (!value) return;
-      save.replaceChildren(
-        communityIcon('bookmark'),
-        el('span', value.saved ? 'Salvo' : 'Salvar', 'post-action-caption'),
-      );
-      save.setAttribute('aria-pressed', String(value.saved));
-      save.setAttribute(
-        'aria-label',
-        value.saved ? 'Remover postagem dos salvos' : 'Salvar postagem',
-      );
-    }),
-  );
-  save.className = 'post-action post-save';
-  save.setAttribute('aria-label', 'Salvar ou remover postagem dos salvos');
-  save.replaceChildren(
-    communityIcon('bookmark'),
-    el('span', 'Salvar', 'post-action-caption'),
-  );
+  postBookmark(container, post, actions);
   const menu = el('details', '', 'post-more'),
     summary = el('summary', 'Mais opções da postagem'),
     content = el('div', '', 'post-more-content');

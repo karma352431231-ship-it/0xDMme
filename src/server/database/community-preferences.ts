@@ -45,3 +45,17 @@ export async function operatePostPreference(
   if (!result.rowCount) await assertContentCapacity(context.client, capacity);
   return saved.rows[0]!;
 }
+
+export async function savedPostIds(
+  client: Pick<pg.PoolClient, 'query'>,
+  actor: string,
+  ids: string[],
+): Promise<Set<string>> {
+  if (ids.length > 24) throw new AccountError(400, 'Página muito grande.');
+  if (!ids.length) return new Set();
+  const result = await client.query<{ post_id: string }>(
+    'SELECT post_id FROM hash_talk.community_post_preferences WHERE profile_id=$1 AND post_id=ANY($2::uuid[]) AND saved',
+    [actor, ids],
+  );
+  return new Set(result.rows.map((row) => row.post_id));
+}

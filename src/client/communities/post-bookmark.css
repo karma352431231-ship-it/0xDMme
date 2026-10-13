@@ -1,0 +1,11 @@
+#app-shell[data-page='comunidades']
+  .post-actions
+  .post-save[aria-pressed='true'],
+#app-shell .feed-panel .post-actions .post-save[aria-pressed='true'],
+.community-scope .post-actions .post-save[aria-pressed='true'] {
+  color: var(--accent);
+}
+#app-shell .post-actions .post-save[aria-pressed='true'] svg,
+.community-scope .post-actions .post-save[aria-pressed='true'] svg {
+  fill: currentColor;
+}

@@ -15,6 +15,8 @@ await test('pacote portátil preserva fontes e licenças exatas, sem metadados p
     temporary = await mkdtemp(join(tmpdir(), '0xdmme-source-'));
   t.after(() => rm(temporary, { recursive: true, force: true }));
   const sources = [
+    'src/client/public-search/index.ts',
+    'src/client/public-search/query.ts',
     'src/client/message-runtime/index.ts',
     'src/client/messages/startup.ts',
     'src/client/groups/actions-ui.ts',

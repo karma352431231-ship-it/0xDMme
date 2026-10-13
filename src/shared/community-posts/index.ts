@@ -33,7 +33,7 @@ export interface PostTag {
 }
 export interface CommunityPost {
   /** Present only in authenticated projections for this viewer. */
-  viewer?: { vote: -1 | 0 | 1; shared: boolean };
+  viewer?: { vote: -1 | 0 | 1; shared: boolean; saved?: boolean };
   authorBadges?: CommunityBadge[];
   id: string;
   community: string;
@@ -190,11 +190,18 @@ function postViewerFields(
 ): Pick<CommunityPost, 'viewer'> {
   if (!Object.hasOwn(data, 'viewer')) return {};
   const viewer = object(data['viewer']);
-  keys(viewer, ['vote', 'shared']);
+  keys(viewer, [
+    'vote',
+    'shared',
+    ...(Object.hasOwn(viewer, 'saved') ? ['saved'] : []),
+  ]);
   return {
     viewer: {
       vote: votePosition(viewer['vote']),
       shared: communityBoolean(viewer['shared']),
+      ...(Object.hasOwn(viewer, 'saved')
+        ? { saved: communityBoolean(viewer['saved']) }
+        : {}),
     },
   };
 }

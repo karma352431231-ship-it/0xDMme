@@ -42,6 +42,7 @@ export interface FeedEntry {
   activityId?: string;
   viewerVote?: -1 | 0 | 1;
   viewerShared?: boolean;
+  viewerSaved?: boolean;
   share?: {
     id: string;
     createdAt: string;
@@ -179,9 +180,13 @@ export function feedPage(value: unknown): FeedPage {
         'community',
         ...(Object.hasOwn(row, 'context') ? ['context'] : []),
         ...(Object.hasOwn(row, 'ownCommunity') ? ['ownCommunity'] : []),
-        ...['activityId', 'viewerVote', 'viewerShared', 'share'].filter((key) =>
-          Object.hasOwn(row, key),
-        ),
+        ...[
+          'activityId',
+          'viewerVote',
+          'viewerShared',
+          'viewerSaved',
+          'share',
+        ].filter((key) => Object.hasOwn(row, key)),
       ]);
       keys(
         group,
@@ -214,13 +219,18 @@ export function feedPage(value: unknown): FeedPage {
 }
 function feedInteractions(
   row: Record<string, unknown>,
-): Pick<FeedEntry, 'activityId' | 'share' | 'viewerVote' | 'viewerShared'> {
+): Pick<
+  FeedEntry,
+  'activityId' | 'share' | 'viewerVote' | 'viewerShared' | 'viewerSaved'
+> {
   const extra: Pick<
     FeedEntry,
-    'activityId' | 'share' | 'viewerVote' | 'viewerShared'
+    'activityId' | 'share' | 'viewerVote' | 'viewerShared' | 'viewerSaved'
   > = {};
   if (Object.hasOwn(row, 'activityId'))
     extra.activityId = uuid(row['activityId']);
+  if (Object.hasOwn(row, 'viewerSaved'))
+    extra.viewerSaved = communityBoolean(row['viewerSaved']);
   if (Object.hasOwn(row, 'viewerShared'))
     extra.viewerShared = communityBoolean(row['viewerShared']);
   if (Object.hasOwn(row, 'viewerVote')) {

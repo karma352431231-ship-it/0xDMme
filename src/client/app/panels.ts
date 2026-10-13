@@ -56,7 +56,7 @@ export function communityTarget(href: string): CommunityTarget | null {
   const [path, query = ''] = href.split('?');
   const params = new URLSearchParams(query);
   if (path === '#publico') {
-    const handle = params.get('handle');
+    const handle = params.get('id') ?? params.get('handle');
     return handle ? { kind: 'profile', handle } : null;
   }
   if (path !== '#comunidades') return null;

@@ -59,6 +59,11 @@ await test('links de comunidade viram feed, DM pública ou perfil sem misturar i
     kind: 'profile',
     handle: 'lia',
   });
+  const id = crypto.randomUUID();
+  assert.deepEqual(communityTarget(`#publico?id=${id}&handle=lia`), {
+    kind: 'profile',
+    handle: id,
+  });
   assert.equal(communityTarget('#publico'), null);
 });
 

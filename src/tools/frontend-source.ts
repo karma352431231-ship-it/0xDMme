@@ -6,6 +6,7 @@ import { promisify } from 'node:util';
 
 const execute = promisify(execFile);
 const authored = [
+  'src/client/public-search',
   'src/client/public-mentions',
   'src/shared/public-mentions',
   'src/shared/mention-notifications',

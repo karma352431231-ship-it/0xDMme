@@ -1,3 +1,4 @@
+import { savedPostIds } from './community-preferences.ts';
 import type pg from 'pg';
 import type { CommunityPost } from '../../shared/community-posts/index.ts';
 import { postVotes } from './community-interactions.ts';
@@ -11,11 +12,13 @@ export async function withPostInteractions(
   const ids = posts.map((post) => post.id);
   const votes = await postVotes(client, actor, ids);
   const shared = await sharedPostIds(client, actor, ids);
+  const saved = await savedPostIds(client, actor, ids);
   return posts.map((post) => ({
     ...post,
     viewer: {
       vote: votes.get(post.id)?.position ?? 0,
       shared: shared.has(post.id),
+      saved: saved.has(post.id),
     },
   }));
 }
