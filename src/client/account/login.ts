@@ -1,4 +1,5 @@
 import { t } from '../../shared/i18n/index.ts';
+import { loginSignatureNotice } from './login-notice.ts';
 import {
   AccountError,
   accountSession,
@@ -190,9 +191,7 @@ export class WalletLogin {
     );
     this.checkEpoch(currentEpoch);
     this.approval.step('desafio-recebido');
-    this.core.status = t(
-      'Confira domínio e endereço na wallet e assine somente o pedido de login.',
-    );
+    this.core.status = loginSignatureNotice(!!incoming);
     this.host.render();
     this.progress('assinatura-solicitada');
     const signature = await instance.sign(

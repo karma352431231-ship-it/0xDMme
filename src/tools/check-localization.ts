@@ -133,6 +133,8 @@ function inspectHtml(file: string, source: string): void {
 
 for (const file of [
   ...(await sourceFiles('src/client')),
+  ...(await sourceFiles('src/shared/wallet-recovery')),
+  ...(await sourceFiles('src/shared/representatives')),
   ...(await sourceFiles('infra/moderation-collection')),
   ...(await sourceFiles('infra/moderation-evaluation')),
   'src/tools/frontend-source-document.ts',

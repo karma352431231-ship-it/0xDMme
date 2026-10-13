@@ -1,4 +1,4 @@
-/** Wire/storage labels and legacy signature bytes are deliberately language-independent. */
+/** Persisted labels and state identifiers are deliberately language-independent. */
 export const localizationExemptions = new Map<string, ReadonlySet<string>>([
   [
     'src/client/message-state/index.ts',
@@ -9,22 +9,6 @@ export const localizationExemptions = new Map<string, ReadonlySet<string>>([
       'Histórico local',
       'Cópia local offline · estado remoto ainda não conferido',
       'Perfil recebido · cópia local offline',
-    ]),
-  ],
-  [
-    'src/client/phantom-native/index.ts',
-    new Set([
-      '0xDMme — prova de retorno da Phantom.\nOrigem: {0}\nPedido: {1}\nEsta assinatura testa o retorno ao navegador. Não conecta uma conta, não autoriza transações nem acesso ao histórico.',
-    ]),
-  ],
-  [
-    'src/client/wallet-recovery-probe/index.ts',
-    new Set([
-      '0xDMme: conteúdo fictício do ensaio de recuperação.',
-      '0xDMme — ENSAIO LOCAL DE RECUPERAÇÃO — v1',
-      'Somente dados fictícios. Isto NÃO é um login nem uma transação.',
-      'Esta assinatura é um SEGREDO: não compartilhe e não assine em outro site.',
-      'Conta: {0}',
     ]),
   ],
   [

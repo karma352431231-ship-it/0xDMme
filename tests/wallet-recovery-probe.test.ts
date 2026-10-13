@@ -52,6 +52,23 @@ await test('EVM: nova instância da mesma conta abre somente o pacote cifrado, s
   assert.equal(json.includes(signature), false);
   assert.equal(json.includes(restored.privateKey), false);
   assert.equal(json.includes('conteúdo fictício'), false);
+  assert.equal(json.includes('synthetic recovery test content'), false);
+  assert.equal(json.includes('恢复测试的虚构内容'), false);
+  assert.match(recoveryMessage(context), /LOCAL RECOVERY TEST/u);
+  assert.match(recoveryMessage(context), /本地恢复测试/u);
+  assert.throws(() =>
+    readProbePacket(
+      JSON.stringify({
+        ...packet,
+        format: '0xdmme-wallet-recovery-experiment-v1',
+      }),
+    ),
+  );
+  assert.throws(() =>
+    readProbePacket(
+      JSON.stringify({ ...packet, context: { ...context, version: 1 } }),
+    ),
+  );
   await openProbe({
     packet: readProbePacket(json),
     origin,
@@ -192,7 +209,7 @@ await test('entrada externa é limitada e recusa campos secretos, versões estra
   assert.throws(() => readProbePacket(' '.repeat(4097)), /excedido/);
   for (const input of [
     { ...packet, signature: 'segredo fictício' },
-    { ...packet, context: { ...packet.context, version: 2 } },
+    { ...packet, context: { ...packet.context, version: 3 } },
     { ...packet, format: 'cofre-real' },
     { ...packet, salt: packet.salt + '=' },
     { ...packet, iv: '' },

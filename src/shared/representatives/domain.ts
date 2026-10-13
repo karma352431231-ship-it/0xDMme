@@ -6,9 +6,11 @@ import {
   uuid,
 } from '../account/index.ts';
 import { canonical, digest, fingerprint } from '../devices/index.ts';
+import { signedStatement, statementVersion } from './statements.ts';
 export const domainWindow = 30 * 60_000;
 export const domainFreshness = 24 * 60 * 60_000;
 export interface DomainClaim {
+  version: 2;
   organizationId: string;
   origin: string;
   domain: string;
@@ -50,6 +52,7 @@ export function domainName(input: unknown): string {
 export function domainClaim(input: unknown): DomainClaim {
   const d = object(input);
   keys(d, [
+    'version',
     'organizationId',
     'origin',
     'domain',
@@ -67,6 +70,7 @@ export function domainClaim(input: unknown): DomainClaim {
   if (origin.origin !== d['origin'])
     throw new AccountError(400, 'Origem inválida.');
   return {
+    version: statementVersion(d['version']),
     organizationId: uuid(d['organizationId']),
     origin: origin.origin,
     domain: domainName(d['domain']),
@@ -76,7 +80,7 @@ export function domainClaim(input: unknown): DomainClaim {
   };
 }
 export function domainStatement(claim: Omit<DomainClaim, 'signature'>): string {
-  return `0xDMme — Vincular domínio à minha organização. Este vínculo poderá ser compartilhado. Sem fundos.\n${canonical(['0xdmme-domain-bind', 1, claim])}`;
+  return signedStatement('domain', claim.version, [claim]);
 }
 export async function domainRecord(claim: DomainClaim): Promise<string> {
   return `0xdmme-verification=${await digest(canonical(claim))}`;

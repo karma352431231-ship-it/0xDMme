@@ -16,6 +16,10 @@ import { object } from '../src/shared/account/index.ts';
 import {
   organization,
   registrationStatement,
+  organizationRegistration,
+  credential as readCredential,
+  acceptance as readAcceptance,
+  revocation as readRevocation,
   revocationStatement,
   credentialStatement,
   acceptanceStatement,
@@ -33,6 +37,7 @@ import type {
   RepresentativeCard,
   RepresentativeIdentity,
 } from '../src/shared/representatives/index.ts';
+import { setActiveLanguage } from '../src/shared/i18n/index.ts';
 const origin = 'https://0xdmme.app';
 async function fixture() {
   const issuer = Wallet.createRandom(),
@@ -50,6 +55,7 @@ async function fixture() {
     issuer: identity(issuer),
   });
   const rb = {
+      version: 2 as const,
       organizationId: org.id,
       origin,
       issuer: org.issuer,
@@ -60,7 +66,7 @@ async function fixture() {
       signature: await issuer.signMessage(registrationStatement(rb)),
     };
   const body = {
-      version: 1 as const,
+      version: 2 as const,
       id: crypto.randomUUID(),
       organization: org,
       registration,
@@ -74,6 +80,7 @@ async function fixture() {
       signature: await issuer.signMessage(credentialStatement(body)),
     };
   const ab = {
+    version: 2 as const,
     credentialHash: await representativeHash(credential),
     subject: credential.subject,
   };
@@ -86,9 +93,24 @@ async function fixture() {
   };
   return { issuer, subject, card };
 }
-await test('autorização EVM, aceite e cartão exportável preservam identidade, contexto e conteúdo exatos', async () => {
+await test('autorização EVM v2 bilíngue, aceite e cartão preservam conteúdo e validade ao trocar idioma', async (context) => {
+  context.after(() => setActiveLanguage('en'));
   const { card } = await fixture();
+  const encoded = encodeRepresentativeCard(card);
+  setActiveLanguage('zh-CN');
   assert.deepEqual(await verifyRepresentativeCard(card, origin), card);
+  assert.equal(encodeRepresentativeCard(card), encoded);
+  assert.match(encoded, /^0xDMme:authorization:v2\n/u);
+  assert.equal(
+    decodeRepresentativeCard(encoded.replace(':v2\n', ':v1\n')),
+    null,
+  );
+  for (const [parse, value] of [
+    [organizationRegistration, card.credential.registration],
+    [readCredential, card.credential],
+    [readAcceptance, card.acceptance],
+  ] as const)
+    assert.throws(() => parse({ ...value, version: 1 }));
   assert.deepEqual(
     decodeRepresentativeCard(encodeRepresentativeCard(card)),
     card,
@@ -186,11 +208,15 @@ await test('verificação no cliente exige estado recente e revogação assinada
   result = { ...result, checkedAt: Date.now(), expiresAt: c.expiresAt + 1 };
   await assert.rejects(controller.check(card), /divergente/u);
   const body = {
+    version: 2 as const,
     organizationId: c.organization.id,
     id: c.id,
     credentialHash: hash,
     origin,
   };
+  assert.throws(() =>
+    readRevocation({ ...body, version: 1, signature: 'draft' }),
+  );
   result = {
     ...result,
     expiresAt: c.expiresAt,
@@ -300,6 +326,7 @@ await test('mensagens Solana verificadas sem depender de backend ou confundir fi
 await test('desafio de domínio vincula organização, origem, código, prazo e wallet', async () => {
   const { issuer, card } = await fixture();
   const body = {
+    version: 2 as const,
     organizationId: card.credential.organization.id,
     origin,
     domain: 'example.org',
@@ -310,6 +337,7 @@ await test('desafio de domínio vincula organização, origem, código, prazo e 
     ...body,
     signature: await issuer.signMessage(domainStatement(body)),
   });
+  assert.throws(() => domainClaim({ ...claim, version: 1 }));
   verifyWalletStatement(
     card.credential.organization.issuer,
     domainStatement(body),

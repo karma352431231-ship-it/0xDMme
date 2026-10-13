@@ -125,6 +125,7 @@ await test('organizações/autorizações privadas: ownership, revogação persi
     issuer,
   });
   const rb = {
+      version: 2 as const,
       organizationId: org.id,
       origin,
       issuer,
@@ -138,7 +139,7 @@ await test('organizações/autorizações privadas: ownership, revogação persi
   await api(owner, 'organization-register', { registration });
   await assert.rejects(api(other, 'organization-register', { registration }));
   const cb = {
-    version: 1 as const,
+    version: 2 as const,
     id: crypto.randomUUID(),
     organization: org,
     registration,
@@ -245,6 +246,7 @@ await test('organizações/autorizações privadas: ownership, revogação persi
   assert.equal(object(state['domain'])['verifiedAt'], null);
   fail = false;
   const rev = {
+      version: 2 as const,
       organizationId: org.id,
       id: cb.id,
       credentialHash: receipt.hash,

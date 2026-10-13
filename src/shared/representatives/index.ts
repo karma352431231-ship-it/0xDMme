@@ -10,6 +10,7 @@ import { canonical, digest, fingerprint } from '../devices/index.ts';
 import { canonicalAddress, ecosystem } from '../wallet-identity/index.ts';
 import type { Ecosystem } from '../wallet-identity/index.ts';
 import { verifyWalletStatement } from './signature.ts';
+import { signedStatement, statementVersion } from './statements.ts';
 export { verifyWalletStatement };
 export {
   domainName,
@@ -34,6 +35,7 @@ export interface Organization {
   issuer: RepresentativeIdentity;
 }
 export interface OrganizationRegistration {
+  version: 2;
   organizationId: string;
   origin: string;
   issuer: RepresentativeIdentity;
@@ -41,7 +43,7 @@ export interface OrganizationRegistration {
   signature: string;
 }
 export interface RepresentativeCredential {
-  version: 1;
+  version: 2;
   id: string;
   organization: Organization;
   registration: OrganizationRegistration;
@@ -52,6 +54,7 @@ export interface RepresentativeCredential {
   signature: string;
 }
 export interface RepresentativeAcceptance {
+  version: 2;
   credentialHash: string;
   subject: RepresentativeIdentity;
   signature: string;
@@ -61,13 +64,14 @@ export interface RepresentativeCard {
   acceptance: RepresentativeAcceptance | null;
 }
 export interface RepresentativeRevocation {
+  version: 2;
   organizationId: string;
   id: string;
   credentialHash: string;
   origin: string;
   signature: string;
 }
-export const cardPrefix = '0xDMme:authorization:v1\n';
+export const cardPrefix = '0xDMme:authorization:v2\n';
 
 export function representativeIdentity(input: unknown): RepresentativeIdentity {
   const d = object(input);
@@ -123,6 +127,7 @@ export function organizationRegistration(
 ): OrganizationRegistration {
   const d = object(input);
   keys(d, [
+    'version',
     'organizationId',
     'origin',
     'issuer',
@@ -130,6 +135,7 @@ export function organizationRegistration(
     'signature',
   ]);
   return {
+    version: statementVersion(d['version']),
     organizationId: uuid(d['organizationId']),
     origin: representativeOrigin(d['origin']),
     issuer: representativeIdentity(d['issuer']),
@@ -140,23 +146,23 @@ export function organizationRegistration(
 export function registrationStatement(
   r: Omit<OrganizationRegistration, 'signature'>,
 ): string {
-  return `0xDMme — Registrar organização. Sem fundos ou poderes financeiros.\n${canonical(['0xdmme-organization-register', 1, r])}`;
+  return signedStatement('register', r.version, [r]);
 }
 export function credentialStatement(
   c: Omit<RepresentativeCredential, 'signature'>,
 ): string {
-  return `0xDMme — Autorizar representante para o escopo e prazo abaixo. Sem fundos ou administração automática de grupos.\n${canonical(['0xdmme-representative-issue', 1, c])}`;
+  return signedStatement('issue', c.version, [c]);
 }
 export function acceptanceStatement(
   a: Omit<RepresentativeAcceptance, 'signature'>,
   origin: string,
 ): string {
-  return `0xDMme — Aceitar representação específica. Sem fundos.\n${canonical(['0xdmme-representative-accept', 1, origin, a])}`;
+  return signedStatement('accept', a.version, [origin, a]);
 }
 export function revocationStatement(
   r: Omit<RepresentativeRevocation, 'signature'>,
 ): string {
-  return `0xDMme — Revogar esta autorização de representante.\n${canonical(['0xdmme-representative-revoke', 1, r])}`;
+  return signedStatement('revoke', r.version, [r]);
 }
 export function credential(input: unknown): RepresentativeCredential {
   const d = object(input);
@@ -174,15 +180,10 @@ export function credential(input: unknown): RepresentativeCredential {
   const scope = boundedText(d['scope'], 240).normalize('NFC').trim(),
     issuedAt = representativeTime(d['issuedAt']),
     expiresAt = representativeTime(d['expiresAt']);
-  if (
-    d['version'] !== 1 ||
-    !scope ||
-    /[\p{Cc}\p{Cf}]/u.test(scope) ||
-    expiresAt <= issuedAt
-  )
+  if (!scope || /[\p{Cc}\p{Cf}]/u.test(scope) || expiresAt <= issuedAt)
     throw new AccountError(400, 'Autorização inválida.');
   return {
-    version: 1,
+    version: statementVersion(d['version']),
     id: uuid(d['id']),
     organization: organization(d['organization']),
     registration: organizationRegistration(d['registration']),
@@ -195,8 +196,9 @@ export function credential(input: unknown): RepresentativeCredential {
 }
 export function acceptance(input: unknown): RepresentativeAcceptance {
   const d = object(input);
-  keys(d, ['credentialHash', 'subject', 'signature']);
+  keys(d, ['version', 'credentialHash', 'subject', 'signature']);
   return {
+    version: statementVersion(d['version']),
     credentialHash: fingerprint(d['credentialHash']),
     subject: representativeIdentity(d['subject']),
     signature: statementSignature(d['signature']),
@@ -204,8 +206,16 @@ export function acceptance(input: unknown): RepresentativeAcceptance {
 }
 export function revocation(input: unknown): RepresentativeRevocation {
   const d = object(input);
-  keys(d, ['organizationId', 'id', 'credentialHash', 'origin', 'signature']);
+  keys(d, [
+    'version',
+    'organizationId',
+    'id',
+    'credentialHash',
+    'origin',
+    'signature',
+  ]);
   return {
+    version: statementVersion(d['version']),
     organizationId: uuid(d['organizationId']),
     id: uuid(d['id']),
     credentialHash: fingerprint(d['credentialHash']),

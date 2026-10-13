@@ -171,6 +171,7 @@ export class Representatives {
       issuer: this.identity(),
     });
     const body = {
+      version: 2 as const,
       organizationId: org.id,
       origin: org.origin,
       issuer: org.issuer,
@@ -209,7 +210,7 @@ export class Representatives {
     await this.registerOwned(org);
     this.guard(generation);
     const { signature: _draftSignature, ...body } = credential({
-      version: 1 as const,
+      version: 2 as const,
       id: crypto.randomUUID(),
       organization: org.organization,
       registration: org.registration,
@@ -362,6 +363,7 @@ export class Representatives {
     if (checked.status === t('Revogada') || checked.status === t('Expirada'))
       throw new Error(checked.status);
     const body = {
+      version: 2 as const,
       credentialHash: await representativeHash(card.credential),
       subject: this.identity(),
     };
@@ -385,6 +387,7 @@ export class Representatives {
     const c = card.credential,
       generation = this.generation;
     const body = {
+      version: 2 as const,
       organizationId: c.organization.id,
       id: c.id,
       credentialHash: await representativeHash(c),

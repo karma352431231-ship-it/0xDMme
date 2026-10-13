@@ -79,9 +79,9 @@ await test('server errors retain the reason, numeric details and coarse diagnost
   setActiveLanguage('en');
 });
 
-await test('stored labels and cryptographic statements keep their original bytes', () => {
+await test('stored labels remain intact and bilingual recovery bytes do not follow the UI locale', () => {
   const config: WalletRecovery = {
-    version: 1,
+    version: 2,
     accountId: crypto.randomUUID(),
     origin: 'https://0xdmme.app',
     ecosystem: 'evm',
@@ -90,6 +90,8 @@ await test('stored labels and cryptographic statements keep their original bytes
     salt: btoa('x'.repeat(32)),
   };
   const statement = recoveryMessage(config);
+  assert.match(statement, /PRIVATE VAULT RECOVERY/u);
+  assert.match(statement, /私人保险库恢复/u);
   setActiveLanguage('zh-CN');
   assert.equal(recoveryMessage(config), statement);
   assert.equal(

@@ -2,6 +2,21 @@
 
 Início local autorizado em 04/10/2026. Não inclui ZK, ativação na VPS ou autorização de nova migração remota. O bloco 11 já está integrado no checkout.
 
+## Declarações bilíngues v2 — 13/10/2026
+
+O proprietário aprovou documentos fixos em inglês + chinês simplificado para
+registro, emissão, aceite, revogação e vínculo de domínio. Cada declaração
+exige `version: 2` e usa contexto assinado v2; cartões usam
+`0xDMme:authorization:v2`. A descrição da organização conserva `version: 1`,
+pois é um formato de dados distinto. Não mudar nomes/escopos fornecidos pelos
+usuários, rótulos do cofre, cotas, tabelas SQL, DNS automaticamente ou regras de
+autorização. Não acrescentar idioma a registros operacionais. Detalhes em
+[Idiomas](I18N.md#documentos-assinados--migração-aprovada-em-13102026).
+
+**Ponto importante:** provas antigas de teste não têm compatibilidade garantida;
+não apagar dados nem ativar a versão nesta tarefa. Repetir aceite físico dos novos
+documentos antes de publicar, mantendo o retorno móvel de representantes pendente.
+
 ## Decisão do proprietário
 
 Organizações são criadas no próprio aplicativo. A wallet da conta responsável assina a identidade da organização e suas autorizações; o representante aceita a associação antes de apresentá-la. O cartão identifica emissor, representante, escopo, prazo e estado atual. Nome semelhante não comprova que o emissor representa uma empresa externa. A autorização declara uma função, sem conceder cargos de grupo, acesso ao histórico, assinatura de acordos ou poderes financeiros.

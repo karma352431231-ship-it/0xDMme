@@ -1,5 +1,16 @@
 # 0xDMme — ensaio de recuperação por assinatura da wallet
 
+## Documento bilíngue v2 — 13/10/2026
+
+Sob autorização do proprietário, o ensaio usa formato e contexto v2 e uma
+mensagem fixa em inglês + chinês simplificado. Trocar idioma não muda os bytes
+assinados. Os pacotes v1 anteriores deixam de ser aceitos; não apagá-los nem
+reescrevê-los automaticamente. Permanecem os limites do pacote, as bibliotecas,
+os avisos de sigilo e a separação de login/conta/dados reais. Ver [Idiomas](I18N.md).
+
+**Ponto importante:** a alteração não comprova repetibilidade ou apresentação em
+wallets físicas e não autoriza ativação na VPS.
+
 Autorizado pelo proprietário em 02/10/2026 como prova isolada, após explicar a diferença entre assinatura exclusiva de recuperação e criptografia nativa da wallet. Preservar a recuperação atual e o vínculo por QR do bloco 04. A autorização não aprova integração, migração, publicação ou proteção de conteúdo real.
 
 Atualização em 02/10/2026: o proprietário confirmou o teste entre arquivos após a correção e autorizou uma integração separada no aplicativo, com retorno mobile cifrado e envio ao Git. Essa decisão substitui a pendência de autorização de integração, sem transformar este laboratório em código de produção ou certificar ambientes ainda não testados. Ver a revisão do [bloco 04](BLOCO_04_DISPOSITIVOS_E_RECUPERACAO.md).
@@ -30,7 +41,7 @@ O proprietário relatou que uma conta recuperava arquivos criados por duas conta
 
 Agora escolher um arquivo invalida imediatamente o alvo anterior; uma importação válida substitui o pacote ativo e o ciphertext local. Arquivo inválido, excessivo, de outra origem, ilegível, falha de armazenamento ou operação interrompida não podem deixar o botão testando o alvo antigo. O ciphertext anteriormente guardado é preservado se a substituição falhar; somente uma recarga pode restaurá-lo, identificado explicitamente como pacote do armazenamento local. A interface mostra arquivo, conta e identificador; o sucesso identifica o pacote efetivamente aberto. Os novos downloads incluem conta e identificador no nome, sem alterar o formato dos arquivos anteriores.
 
-Para carregar o código corrigido, reiniciar o servidor local com `Ctrl+C` e `npm run probe:wallet-recovery`, depois recarregar a página. O servidor monta os bundles uma vez ao iniciar. Os arquivos v1 já baixados continuam aceitos na mesma origem. O relato anterior de sucesso em ambos os arquivos precisa ser repetido com a seleção corrigida.
+Para carregar o código corrigido, reiniciar o servidor local com `Ctrl+C` e `npm run probe:wallet-recovery`, depois recarregar a página. O servidor monta os bundles uma vez ao iniciar. Naquela correção, os arquivos v1 já baixados continuavam aceitos na mesma origem; o formato atual v2 acima substitui essa compatibilidade. O relato anterior de sucesso em ambos os arquivos precisa ser repetido com a seleção corrigida.
 
 ## Resultados e limites
 

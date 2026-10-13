@@ -134,6 +134,7 @@ export class RepresentativeService {
     await this.store.registration(a, uuid(d['organizationId']));
     // Challenge is signed by the wallet and stored on bind; an unbound random code grants nothing.
     return {
+      version: 2,
       organizationId: uuid(d['organizationId']),
       origin: this.origin,
       domain: domainName(d['domain']),

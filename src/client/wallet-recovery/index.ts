@@ -9,6 +9,7 @@ import {
   recoveryIdentity,
   recoveryMessage,
   walletRecovery,
+  walletRecoveryVersion,
 } from '../../shared/wallet-recovery/index.ts';
 import type { WalletRecovery } from '../../shared/wallet-recovery/index.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
@@ -19,7 +20,7 @@ export function createWalletRecovery(
   origin: string,
 ): WalletRecovery {
   return walletRecovery({
-    version: 1,
+    version: walletRecoveryVersion,
     accountId: session.accountId,
     origin,
     ecosystem: session.ecosystem,
@@ -72,13 +73,13 @@ export async function walletRecoveryKey(
   config: WalletRecovery,
   signatures: string[],
 ): Promise<CryptoKey> {
-  walletRecovery(config);
+  const value = walletRecovery(config);
   if (signatures.length < 1 || signatures.length > 2)
     throw new Error('Assinaturas de recuperação ausentes.');
-  const first = signatureBytes(config, signatures[0] ?? '');
+  const first = signatureBytes(value, signatures[0] ?? '');
   try {
     for (const signature of signatures.slice(1)) {
-      const other = signatureBytes(config, signature);
+      const other = signatureBytes(value, signature);
       const equal = first.every((byte, index) => byte === other[index]);
       other.fill(0);
       if (!equal)
@@ -97,9 +98,9 @@ export async function walletRecoveryKey(
       {
         name: 'HKDF',
         hash: 'SHA-256',
-        salt: base64(config.salt, 32),
+        salt: base64(value.salt, 32),
         info: new TextEncoder().encode(
-          `0xdmme-wallet-recovery-key-v1\n${recoveryMessage(config)}`,
+          `0xdmme-wallet-recovery-key-v${value.version}\n${recoveryMessage(value)}`,
         ),
       },
       material,

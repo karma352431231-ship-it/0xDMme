@@ -359,16 +359,24 @@ inglês como padrão. Uma cópia local não identificadora permite a abertura
 imediata e os avisos em segundo plano. Troca explícita aguarda a gravação no
 cofre e respeita operações e rascunhos antes de recarregar.
 
-O proprietário optou por deixar os textos criptográficos de assinatura para
-uma migração separada: mesmo sem lançamento público, ela será feita depois.
-Nesta entrega, conservar os bytes das declarações, assinaturas, derivação de
-chaves e formatos de recuperação existentes. O proprietário autorizou continuar
+Inicialmente, o proprietário deixou os textos criptográficos para uma migração
+separada. Em 13/10/2026, autorizou iniciá-la antes do lançamento e dispensou
+compatibilidade com as assinaturas anteriores de teste. Aprovou documentos
+próprios bilíngues fixos, inglês + chinês simplificado, independentes do idioma
+da interface. Versionar recuperação, autorizações e provas; preservar bibliotecas,
+regras de consentimento, contexto, cotas e sigilo, sem apagar dados automaticamente.
+Não acrescentar preferência de idioma aos registros operacionais do servidor.
+O login Ethereum continua SIWE em inglês: EIP-4361 exige uma declaração ASCII.
+O proprietário aprovou a explicação traduzida no app, sem substituir o protocolo.
+Esta migração de formatos não exige alteração das tabelas SQL.
+O proprietário autorizou continuar
 esta tarefa após compactações e enviar a branch nova ao GitHub; merge na `main`
 e ativação na VPS ficam para depois. Contrato em [Idiomas](docs/I18N.md).
 
-**Ponto importante:** as duas traduções não autorizam traduzir mensagens,
-publicações ou dados privados dos usuários, nem alterar declarações assinadas
-sem a migração futura. A entrega é uma branch para revisão, sem ativação.
+**Ponto importante:** não traduzir mensagens, publicações ou dados dos usuários.
+Os documentos bilíngues mudam assinaturas e derivação da recuperação; formatos
+antigos de teste podem deixar de abrir e autorizações antigas podem ser rejeitadas.
+A entrega permanece uma branch para revisão, sem merge, reset de dados ou ativação.
 
 O proprietário declarou que a interface atual é uma base de MVP e aprovou a proposta de redesign apresentada em 09/10/2026, com ajustes próprios. Esta seção substitui, onde conflitam, a navegação das seções 5.7 e 5.9, a localização das DMs pelo `@`, o tema claro de Conversas aprovado em 07/10/2026 e a organização de [Contatos](docs/UI_CONTATOS.md). Regras de consentimento, criptografia, histórico, identidade pública e Perfil/Configurações reunidos (seção 5.10) continuam.
 

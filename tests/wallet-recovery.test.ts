@@ -14,6 +14,7 @@ import {
 import {
   recoveryMessage,
   recoveryIdentity,
+  walletRecovery,
 } from '../src/shared/wallet-recovery/index.ts';
 import {
   createWalletRecovery,
@@ -34,6 +35,7 @@ import {
   recoveryIdentities,
 } from '../src/client/device-operations/index.ts';
 import type { WalletConnection } from '../src/client/wallet/index.ts';
+import { setActiveLanguage } from '../src/shared/i18n/index.ts';
 
 const origin = 'https://0xdmme.app';
 const signer = new Wallet(`0x${'1'.padStart(64, '0')}`);
@@ -52,10 +54,15 @@ function session(): AccountSession {
   };
 }
 
-await test('recuperação original: assinatura exclusiva abre cápsula após serialização; outra conta/mensagem/origem falha', async () => {
+await test('recuperação v2 bilíngue abre a cápsula após troca de idioma; outra conta/mensagem/origem falha', async (context) => {
+  context.after(() => setActiveLanguage('en'));
   const user = session();
   const config = createWalletRecovery(user, origin);
-  const signature = await signer.signMessage(recoveryMessage(config));
+  const message = recoveryMessage(config);
+  assert.match(message, /PRIVATE VAULT RECOVERY/u);
+  assert.match(message, /私人保险库恢复/u);
+  assert.throws(() => walletRecovery({ ...config, version: 1 }));
+  const signature = await signer.signMessage(message);
   const key = await walletRecoveryKey(config, [
     signature,
     await signer.signMessage(recoveryMessage(config)),
@@ -80,6 +87,8 @@ await test('recuperação original: assinatura exclusiva abre cápsula após ser
   assert.equal(serialized.includes(signature), false);
   assert.equal(serialized.includes(ring.keys[0] ?? ''), false);
   const fresh = new Wallet(signer.privateKey);
+  setActiveLanguage('zh-CN');
+  assert.equal(recoveryMessage(config), message);
   const recovered = await recoverSecrets(
     JSON.parse(serialized) as typeof event,
     await walletRecoveryKey(config, [

@@ -9519,4 +9519,18 @@ export const catalog: Record<string, readonly [string, string]> = {
     'The preview closes within five minutes.',
     '预览将在五分钟内关闭。',
   ],
+  'Versão da declaração assinada inválida.': [
+    'Invalid signed statement version.',
+    '签名声明版本无效。',
+  ],
+  'O documento de login na wallet está em inglês. Ele conecta ao 0xDMme o navegador que abriu este pedido. Recuse links de outras pessoas. Não movimenta fundos, não autoriza transações e não abre seu histórico cifrado. Confira o domínio e o endereço antes de assinar.':
+    [
+      'The wallet login document is in English. It connects the browser that opened this request to 0xDMme. Reject links from other people. It does not move funds, authorize transactions or open your encrypted history. Check the domain and address before signing.',
+      '钱包中的登录文件使用英语。它会将发起此请求的浏览器连接到 0xDMme。请拒绝他人发来的链接。它不会转移资金、授权交易或打开你的加密历史记录。签名前请核对域名和地址。',
+    ],
+  'O documento de login na wallet está em inglês. Ele apenas conecta sua conta ao 0xDMme. Não movimenta fundos, não autoriza transações e não abre seu histórico cifrado. Confira o domínio e o endereço antes de assinar.':
+    [
+      'The wallet login document is in English. It only connects your account to 0xDMme. It does not move funds, authorize transactions or open your encrypted history. Check the domain and address before signing.',
+      '钱包中的登录文件使用英语。它只会将你的账户连接到 0xDMme。它不会转移资金、授权交易或打开你的加密历史记录。签名前请核对域名和地址。',
+    ],
 };

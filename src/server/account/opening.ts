@@ -14,6 +14,7 @@ import type {
 import {
   recoveryIdentity,
   recoveryTransfer,
+  walletRecoveryVersion,
 } from '../../shared/wallet-recovery/index.ts';
 import type { WalletRecovery } from '../../shared/wallet-recovery/index.ts';
 
@@ -71,7 +72,7 @@ export class LoginOpening {
     const state = this.find(ticket);
     if (!state) return null;
     const config = saved ?? {
-      version: 1 as const,
+      version: walletRecoveryVersion,
       accountId: identity.accountId,
       ecosystem: identity.ecosystem,
       address: identity.address,

@@ -1,5 +1,17 @@
 # 0xDMme — Bloco 04 — dispositivos, chaves e recuperação
 
+## Documento de recuperação bilíngue — 13/10/2026
+
+O proprietário aprovou o formato de recuperação da wallet v2, com documento
+fixo em inglês + chinês simplificado e contexto HKDF v2. Trocar o idioma do app
+não muda a mensagem ou a chave. Os demais formatos de aparelhos, épocas, QR,
+envelopes e dados cifrados não são renomeados; não há migração SQL nesta etapa.
+Compatibilidade com assinaturas antigas de teste foi dispensada, sem autorizar
+apagamento de dados, merge ou ativação. Ver [Idiomas](I18N.md#documentos-assinados--migração-aprovada-em-13102026).
+
+**Ponto importante:** testar os novos bytes em wallets físicas antes de publicar;
+o aceite anterior não comprova a apresentação do documento bilíngue novo.
+
 ## Continuidade do login mobile — correção solicitada em 07/10/2026
 
 O login mobile passa a recolher a prova pública de acesso e a prova privada de

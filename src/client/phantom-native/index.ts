@@ -2,6 +2,7 @@ import sodium from 'libsodium-wrappers';
 import { base58 } from '@scure/base';
 import { canonicalAddress } from '../../shared/wallet-identity/index.ts';
 import { object, keys, boundedText } from '../../shared/account/index.ts';
+import { returnProofStatement } from './statement.ts';
 
 /** Isolated interoperability proof. Never creates an application login. */
 export interface NativeProbe {
@@ -106,7 +107,7 @@ export function readProbe(input: unknown, now = Date.now()): NativeProbe {
     bytes(state.peer, 32);
     state.address = canonicalAddress('solana', data['address']);
     state.session = boundedText(data['session'], 2048);
-    state.message = boundedText(data['message'], 512);
+    state.message = boundedText(data['message'], 1024);
   }
   return state;
 }
@@ -248,7 +249,7 @@ export function receiveProbe(
       ...identity,
       phase: 'sign',
       peer: base58.encode(response.peer),
-      message: `0xDMme — prova de retorno da Phantom.\nOrigem: ${ownOrigin(origin)}\nPedido: ${previous.id}\nEsta assinatura testa o retorno ao navegador. Não conecta uma conta, não autoriza transações nem acesso ao histórico.`,
+      message: returnProofStatement(ownOrigin(origin), previous.id),
     };
     const nonce = sodium.randombytes_buf(24);
     const payload = sodium.crypto_box_easy_afternm(

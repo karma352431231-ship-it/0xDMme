@@ -91,7 +91,9 @@ await test('prova nativa conecta e assina pelo contrato NaCl sem transação ou 
       typeof payload.message === 'string',
   );
   const message = base58.decode(payload.message);
-  assert.match(new TextDecoder().decode(message), /Não conecta uma conta/u);
+  assert.match(new TextDecoder().decode(message), /no account login/u);
+  assert.match(new TextDecoder().decode(message), /不会登录账户/u);
+  assert.ok(new TextDecoder().decode(message).length <= 1024);
   const signature = sodium.crypto_sign_detached(
     message,
     wallet.wallet.privateKey,

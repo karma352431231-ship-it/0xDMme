@@ -9,9 +9,11 @@ import {
 } from '../account/index.ts';
 import { canonicalAddress, ecosystem } from '../wallet-identity/index.ts';
 import type { Ecosystem } from '../wallet-identity/index.ts';
+import { bilingualRecoveryStatement } from './statement.ts';
 
+export const walletRecoveryVersion = 2;
 export interface WalletRecovery {
-  version: 1;
+  version: typeof walletRecoveryVersion;
   accountId: string;
   origin: string;
   ecosystem: Ecosystem;
@@ -44,14 +46,14 @@ export function walletRecovery(value: unknown): WalletRecovery {
   const address = canonicalAddress(network, input['address']);
   const salt = base64(input['salt'], 32);
   if (
-    input['version'] !== 1 ||
+    input['version'] !== walletRecoveryVersion ||
     address !== input['address'] ||
     salt.length !== 32 ||
     encode(salt) !== input['salt']
   )
     throw new AccountError(400, 'Configuração de recuperação inválida.');
   return {
-    version: 1,
+    version: walletRecoveryVersion,
     accountId: uuid(input['accountId']),
     origin: recoveryOrigin(input['origin']),
     ecosystem: network,
@@ -61,19 +63,7 @@ export function walletRecovery(value: unknown): WalletRecovery {
   };
 }
 export function recoveryMessage(value: WalletRecovery): string {
-  const config = walletRecovery(value);
-  return [
-    '0xDMme — RECUPERAÇÃO PRIVADA DO COFRE — v1',
-    'Esta assinatura abre seus dados cifrados. Trate-a como SEGREDO.',
-    'Assine somente ao configurar ou recuperar seus próprios aparelhos.',
-    'Não é login, transação ou autorização de tokens. Nunca compartilhe esta assinatura.',
-    `Origem: ${config.origin}`,
-    `Conta do aplicativo: ${config.accountId}`,
-    `Ecossistema: ${config.ecosystem}`,
-    `Wallet: ${config.address}`,
-    `Recuperação: ${config.id}`,
-    `Salt: ${config.salt}`,
-  ].join('\n');
+  return bilingualRecoveryStatement(walletRecovery(value));
 }
 export function recoveryIdentity(
   config: WalletRecovery,

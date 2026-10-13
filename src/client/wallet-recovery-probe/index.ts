@@ -9,14 +9,14 @@ import {
 import type { Ecosystem } from '../../shared/wallet-identity/index.ts';
 
 // Deliberately separate from login, device authority and every real vault format.
-const format = '0xdmme-wallet-recovery-experiment-v1';
+const format = '0xdmme-wallet-recovery-experiment-v2';
 const payload = new TextEncoder().encode(
-  '0xDMme: conteúdo fictício do ensaio de recuperação.',
+  '0xDMme: synthetic recovery test content / 恢复测试的虚构内容。',
 );
 export const maxPacketBytes = 4096;
 export class ProbeError extends Error {}
 export interface ProbeContext {
-  version: 1;
+  version: 2;
   origin: string;
   ecosystem: Ecosystem;
   address: string;
@@ -73,14 +73,14 @@ function context(value: unknown): ProbeContext {
     'address',
     'id',
   ]);
-  if (input['version'] !== 1)
+  if (input['version'] !== 2)
     throw new ProbeError('Versão do ensaio inválida.');
   const network = ecosystem(input['ecosystem']);
   const address = canonicalAddress(network, input['address']);
   if (address !== input['address'])
     throw new ProbeError('Conta do ensaio não canônica.');
   return {
-    version: 1,
+    version: 2,
     origin: origin(input['origin']),
     ecosystem: network,
     address,
@@ -92,7 +92,7 @@ export function createProbeContext(input: {
   identity: ProbeIdentity;
 }): ProbeContext {
   return context({
-    version: 1,
+    version: 2,
     origin: input.origin,
     ecosystem: input.identity.ecosystem,
     address: canonicalAddress(input.identity.ecosystem, input.identity.address),
@@ -102,13 +102,15 @@ export function createProbeContext(input: {
 export function recoveryMessage(input: ProbeContext): string {
   const value = context(input);
   return [
-    '0xDMme — ENSAIO LOCAL DE RECUPERAÇÃO — v1',
-    'Somente dados fictícios. Isto NÃO é um login nem uma transação.',
-    'Esta assinatura é um SEGREDO: não compartilhe e não assine em outro site.',
-    `Origem: ${value.origin}`,
-    `Ecossistema: ${value.ecosystem}`,
-    `Conta: ${value.address}`,
-    `Ensaio: ${value.id}`,
+    '0xDMme - LOCAL RECOVERY TEST / 本地恢复测试 - v2',
+    'Synthetic data only. This is NOT a login or transaction.',
+    '仅使用虚构数据。这不是登录或交易。',
+    'This signature is a SECRET: never share it or sign it on another site.',
+    '此签名是秘密：切勿分享，也不要在其他网站签署。',
+    `Origin / 来源: ${value.origin}`,
+    `Ecosystem / 生态系统: ${value.ecosystem}`,
+    `Account / 账户: ${value.address}`,
+    `Test / 测试: ${value.id}`,
   ].join('\n');
 }
 function signatureBytes(input: ProbeContext, signature: string) {

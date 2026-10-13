@@ -1,5 +1,17 @@
 # 0xDMme — prova nativa de retorno Phantom/Solana
 
+## Documento bilíngue v2 — 13/10/2026
+
+O proprietário aprovou o documento assinado fixo em inglês + chinês simplificado.
+O transporte NaCl, a validade de cinco minutos, as chaves de armazenamento e
+o isolamento de login permanecem iguais. O pedido guarda os bytes completos
+da mensagem; trocar o idioma não muda sua verificação. O campo de mensagem é
+limitado a 1.024 caracteres para comportar ambas as escritas e a origem validada;
+os tetos do callback e do registro local não mudam. Ver [Idiomas](I18N.md).
+
+**Ponto importante:** o teste físico histórico abaixo não valida a apresentação
+do texto novo; não integrar esta prova ao login nem ativar a versão nesta tarefa.
+
 Estado: prova isolada para teste físico, com publicação autorizada em 01/10/2026. Não integra a sessão de conta do 0xDMme. A assinatura pelo provider dentro da Phantom continua disponível no fluxo existente; o retorno EVM permanece sem solução física comprovada.
 
 Após publicação do commit `507c7fb`, o proprietário confirmou em 01/10/2026 que a prova Solana abriu a Phantom e retornou ao navegador nas etapas de conexão e assinatura. Relatou duas idas à wallet e o clique intermediário para solicitar a mensagem, solicitando uma única ida para conectar e assinar. O fluxo implementado chama `connect`, recebe sua sessão/canal no navegador e só então constrói `signMessage`; a primeira autorização não é uma assinatura do desafio de login. Esse resultado comprova o retorno observado nessa prova, não autenticação integrada, retorno EVM, aba original ou fechamento de abas. Ainda não foi escolhido ajuste para o clique intermediário ou retenção de conexão para uso posterior.
