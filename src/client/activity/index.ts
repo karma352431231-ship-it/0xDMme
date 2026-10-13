@@ -1,4 +1,9 @@
-import { publicationTitle, publicationQuote } from './publications.ts';
+import {
+  publicationTitle,
+  publicationQuote,
+  unreadNotices,
+} from './publications.ts';
+import { noticeLink } from './notice-link.ts';
 import { moderationRows, watchModeration } from './moderation.ts';
 import type { ModerationActivity } from './moderation.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
@@ -30,6 +35,7 @@ export interface ActivitySources {
       reply: string;
       community: string;
       createdAt: string;
+      read?: boolean;
       kind?: 'post' | 'reply';
       /** Author and start of the reply, already filtered by public visibility. */
       preview: {
@@ -157,10 +163,10 @@ export function startActivity(
     return (
       snapshot.requests.items.length +
       snapshot.invites.items.length +
-      snapshot.replies.items.length +
+      unreadNotices(snapshot.replies.items) +
       snapshot.transfers.items.length +
       snapshot.calls.items.length +
-      snapshot.moderation.items.length
+      unreadNotices(snapshot.moderation.items)
     );
   }
   async function refresh(): Promise<void> {
@@ -229,8 +235,11 @@ export function startActivity(
     if (!rows.length && !loaded.problem) return null;
     const node = element('section', '', 'activity-group');
     const heading = element('h3', title);
-    if (rows.length)
-      heading.append(element('span', String(rows.length), 'activity-count'));
+    const unread = rows.filter(
+      (item) => item.dataset['read'] !== 'true',
+    ).length;
+    if (unread)
+      heading.append(element('span', String(unread), 'activity-count'));
     node.append(heading);
     if (loaded.problem)
       node.append(element('p', loaded.problem, 'activity-problem'));
@@ -247,8 +256,10 @@ export function startActivity(
     quote?: string;
     detail: string;
     actions: HTMLElement[];
+    read?: boolean;
   }): HTMLLIElement {
     const item = element('li', '', 'activity-row');
+    item.dataset['read'] = String(input.read === true);
     if (input.avatar) {
       const avatar = element('span', '', 'conversation-avatar');
       avatar.setAttribute('aria-hidden', 'true');
@@ -323,7 +334,9 @@ export function startActivity(
   function replyRows(): HTMLElement[] {
     return snapshot.replies.items.map((reply) => {
       const preview = reply.preview;
+      const current = generation;
       return row({
+        read: reply.read === true,
         ...(preview?.author
           ? { avatar: { label: preview.author, seed: preview.author } }
           : {}),
@@ -331,10 +344,17 @@ export function startActivity(
         quote: publicationQuote(preview, reply.kind ?? 'reply'),
         detail: relativeTime(reply.createdAt),
         actions: [
-          link(
-            'Abrir',
-            `#comunidades?id=${reply.community}&post=${reply.reply}`,
-          ),
+          noticeLink({
+            label: 'Abrir',
+            href: `#comunidades?id=${reply.community}&post=${reply.reply}`,
+            read: reply.read === true,
+            acknowledge: () => sources.markRepliesRead([reply.reply]),
+            current: () => current === generation,
+            acknowledged: () => {
+              reply.read = true;
+              options.countChanged(count());
+            },
+          }),
         ],
       });
     });
@@ -409,8 +429,13 @@ export function startActivity(
     return nav;
   }
   function groupSections(): [ActivityGroup, HTMLElement | null][] {
-    const replyIds = snapshot.replies.items.map((item) => item.reply);
-    const moderationIds = snapshot.moderation.items.map((item) => item.id);
+    const current = generation;
+    const replyIds = snapshot.replies.items
+      .filter((item) => !item.read)
+      .map((item) => item.reply);
+    const moderationIds = snapshot.moderation.items
+      .filter((item) => !item.read)
+      .map((item) => item.id);
     return [
       [
         'requests',
@@ -436,7 +461,18 @@ export function startActivity(
         section(
           'Moderação automática',
           snapshot.moderation,
-          moderationRows(snapshot.moderation.items),
+          moderationRows(snapshot.moderation.items, {
+            acknowledge: async (id) => {
+              await sources.markModerationRead?.([id]);
+              const item = snapshot.moderation.items.find(
+                (notice) => notice.id === id,
+              );
+              if (item) item.read = true;
+              options.countChanged(count());
+            },
+            current: () =>
+              current === generation && host !== null && session !== null,
+          }),
           moderationIds.length
             ? button(
                 'Marcar avisos como lidos',
@@ -504,6 +540,7 @@ export function startActivity(
       options.countChanged(0);
       render();
     },
-    canActivate: () => !busy,
+    canActivate: () =>
+      !busy && !host?.querySelector('.activity-link[aria-busy="true"]'),
   };
 }

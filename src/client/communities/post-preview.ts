@@ -1,3 +1,7 @@
+import {
+  mentionPlainText,
+  mentionSpans,
+} from '../../shared/public-mentions/index.ts';
 import { postText, postUrls } from './post-text.ts';
 import { communityElement as el } from './elements.ts';
 
@@ -5,7 +9,7 @@ import { communityElement as el } from './elements.ts';
 export function postPreviewText(text: string): string {
   const lines = text.split('\n');
   const limited = lines.slice(0, 8).join('\n');
-  const preview = [...limited].slice(0, 600).join('');
+  const preview = mentionPreview(limited, 600);
   for (const match of postUrls(text))
     if (
       match.index < preview.length &&
@@ -34,4 +38,17 @@ export function postPreview(text: string): HTMLElement {
   });
   host.append(toggle);
   return host;
+}
+
+function mentionPreview(text: string, maximum: number): string {
+  const cutoff = [...mentionPlainText(text)].slice(0, maximum).join('').length;
+  let overhead = 0;
+  for (const span of mentionSpans(text)) {
+    const start = span.start - overhead,
+      end = start + span.label.length + 1;
+    if (cutoff > start && cutoff < end) return text.slice(0, span.start);
+    if (cutoff >= end)
+      overhead += span.end - span.start - span.label.length - 1;
+  }
+  return text.slice(0, cutoff + overhead);
 }

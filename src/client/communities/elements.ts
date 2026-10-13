@@ -1,3 +1,4 @@
+import { renderMentions } from '../public-mentions/index.ts';
 /** DOM builders scoped to community forms. User/server text never enters HTML. */
 export function communityElement<K extends keyof HTMLElementTagNameMap>(
   tag: K,
@@ -5,7 +6,8 @@ export function communityElement<K extends keyof HTMLElementTagNameMap>(
   className = '',
 ): HTMLElementTagNameMap[K] {
   const node = document.createElement(tag);
-  node.textContent = text;
+  if (tag === 'h2' || tag === 'h3') renderMentions(node, text);
+  else node.textContent = text;
   node.className = className;
   return node;
 }

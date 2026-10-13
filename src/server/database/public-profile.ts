@@ -1,3 +1,4 @@
+import { mentionQuery } from '../../shared/public-mentions/index.ts';
 import { createHash, randomUUID } from 'node:crypto';
 import type pg from 'pg';
 import { AccountError, encode } from '../../shared/account/index.ts';
@@ -86,6 +87,21 @@ export class PublicProfileStore {
       [handle],
     );
     return (await this.project(this.pool, result.rows))[0] ?? null;
+  }
+  async readById(id: string): Promise<PublicProfile | null> {
+    const result = await this.pool.query<ProfileRow>(
+      `SELECT ${publicColumns} FROM hash_talk.public_profiles WHERE id=$1`,
+      [id],
+    );
+    return (await this.project(this.pool, result.rows))[0] ?? null;
+  }
+  async suggestions(value: string): Promise<PublicProfile[]> {
+    const query = mentionQuery(value).replace(/[\\%_]/gu, '\\$&') + '%';
+    const result = await this.pool.query<ProfileRow>(
+      `SELECT ${publicColumns} FROM hash_talk.public_profiles WHERE handle LIKE $1 ORDER BY handle LIMIT 8`,
+      [query],
+    );
+    return this.project(this.pool, result.rows);
   }
   private async project(
     client: Pick<pg.PoolClient, 'query'>,
@@ -256,6 +272,12 @@ export class PublicProfileStore {
     return this.authority.withMessageAuthority(authority, async (client) => {
       const profile = await this.identity(client, authority.session.accountId);
       return this.moderation.notices(client, profile.id, after);
+    });
+  }
+  async moderationDetails(authority: ContactAuthority, id: string) {
+    return this.authority.withMessageAuthority(authority, async (client) => {
+      const profile = await this.identity(client, authority.session.accountId);
+      return this.moderation.details(client, profile.id, id);
     });
   }
   async moderationAppeal(

@@ -5,6 +5,7 @@ import {
   replyQuote,
   startActivity,
 } from '../src/client/activity/index.ts';
+import { unreadNotices } from '../src/client/activity/publications.ts';
 import type { ActivitySources } from '../src/client/activity/index.ts';
 import type { AccountSession } from '../src/shared/account/index.ts';
 
@@ -103,4 +104,31 @@ await test('resposta aparece direto na Atividade; ocultas e excluídas não most
     ],
   ] as const)
     assert.equal(replyQuote(preview), expected);
+});
+
+await test('avisos já lidos permanecem no histórico e não entram no contador', async () => {
+  assert.equal(unreadNotices([{ read: true }, { read: false }, {}]), 2);
+  const counts: number[] = [];
+  const activity = startActivity(
+    sources({
+      replies: () =>
+        Promise.resolve([
+          {
+            reply: 'r',
+            community: 'c',
+            createdAt: '2026-10-12T10:00:00Z',
+            read: true,
+            preview: null,
+          },
+        ]),
+      moderation: () =>
+        Promise.resolve([
+          { id: 'm', title: 'Análise', reason: 'Resultado', read: true },
+        ]),
+    }),
+    { countChanged: (count) => counts.push(count) },
+  );
+  activity.setSession(session);
+  await activity.refresh();
+  assert.equal(counts.at(-1), 3);
 });

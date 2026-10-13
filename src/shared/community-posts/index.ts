@@ -1,3 +1,4 @@
+import { mentionPlainText } from '../public-mentions/index.ts';
 import { AccountError, keys, object, uuid } from '../account/index.ts';
 import {
   communityArray,
@@ -5,6 +6,7 @@ import {
   communityCursor,
   communityRevision,
   communityText,
+  communityMentionText,
 } from '../communities/index.ts';
 import { communityMediaIds } from '../community-media/index.ts';
 import { publicHandle, publicProfile } from '../public-profile/index.ts';
@@ -110,13 +112,17 @@ export function postContent(value: unknown): PostContent {
   const media = Object.hasOwn(data, 'media')
     ? communityMediaIds(data['media'])
     : [];
-  const title = communityText(data['title'], 200, true);
+  const title = communityMentionText(data['title'], 200, true);
   if (/[\n\t]/u.test(title))
     throw new AccountError(400, 'Título deve ocupar uma linha.');
   return {
     title,
     // A titled post or one with media may have no text; a reply needs one of them.
-    text: communityText(data['text'], 4000, media.length > 0 || title !== ''),
+    text: communityMentionText(
+      data['text'],
+      4000,
+      media.length > 0 || title !== '',
+    ),
     tags: postTagIds(data['tags']),
     ...(Object.hasOwn(data, 'media') ? { media } : {}),
   };
@@ -149,8 +155,8 @@ export function postTag(value: unknown): PostTag {
 function publicPostContent(data: Record<string, unknown>) {
   const author = data['author'] === null ? null : publicProfile(data['author']),
     tags = communityArray(data['tags']).map(postTag),
-    title = communityText(data['title'], 200, true),
-    text = communityText(data['text'], 4000, true),
+    title = communityMentionText(data['title'], 200, true),
+    text = communityMentionText(data['text'], 4000, true),
     media = Object.hasOwn(data, 'media') ? publicPostMedia(data['media']) : [];
   if (tags.length > postTagLimit)
     throw new AccountError(400, 'Tags demais no post.');
@@ -391,7 +397,10 @@ export function replyPreview(
     return { author: null, text: '', media: false, status: post.status };
   return {
     author: post.author?.handle ?? null,
-    text: (post.text || post.title).slice(0, replyPreviewLength),
+    text: mentionPlainText(post.text || post.title).slice(
+      0,
+      replyPreviewLength,
+    ),
     media: !!post.media?.length,
     status: 'visible',
   };

@@ -9,6 +9,8 @@ import { gifMessageUrl, showExternalGif } from '../gif-search/index.ts';
 import { showPublicAvatar } from '../public-media/index.ts';
 import { communityElement as el } from './elements.ts';
 
+const peerPhotos = new WeakMap<HTMLElement, () => void>();
+
 /** Parts of a public @ conversation, laid out exactly as the private chat. */
 export interface DmView {
   panel: HTMLElement;
@@ -70,15 +72,20 @@ export function paintDmPeer(
   const { profile } = input;
   view.title.textContent = `@${profile.handle}`;
   view.state.textContent = input.state;
+  peerPhotos.get(view.avatar)?.();
+  peerPhotos.delete(view.avatar);
   view.avatar.replaceChildren();
   paintAvatar(view.avatar, { label: profile.handle, seed: profile.id });
   if (profile.avatar)
-    showPublicAvatar(view.avatar, {
-      kind: 'avatar',
-      target: profile.id,
-      reference: profile.avatar,
-      signal: input.signal,
-    });
+    peerPhotos.set(
+      view.avatar,
+      showPublicAvatar(view.avatar, {
+        kind: 'avatar',
+        target: profile.id,
+        reference: profile.avatar,
+        signal: input.signal,
+      }),
+    );
 }
 
 /** Header subtitle, as the private chat shows presence. */

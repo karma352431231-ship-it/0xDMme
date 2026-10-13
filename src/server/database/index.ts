@@ -158,6 +158,7 @@ const migrations = [
   '060-public-notification-wake.sql',
   '061-social-read-receipts.sql',
   '062-discussion-engagement.sql',
+  '063-public-mentions-community-names.sql',
 ];
 
 export interface MaintenanceSnapshot {

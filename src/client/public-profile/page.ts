@@ -1,3 +1,6 @@
+import { renderMentions } from '../public-mentions/index.ts';
+import { uuid } from '../../shared/account/index.ts';
+import { publicProfile } from '../../shared/public-profile/index.ts';
 import { mountMutualFollowers } from './mutuals.ts';
 import { profileSocialControls } from './social-controls.ts';
 import { publicBlockState } from '../../shared/profile-social/index.ts';
@@ -100,10 +103,25 @@ export function showProfilePage(
           ? message.message
           : 'Perfil público indisponível.';
   }
+  async function currentHandle(): Promise<string> {
+    if (typeof handle === 'string' && handle.length === 36) {
+      const identity = publicProfile(
+        await read(`/api/public-profiles/id/${uuid(handle)}`),
+      );
+      return identity.handle;
+    }
+    return publicHandle(handle);
+  }
   async function load(): Promise<void> {
-    const name = publicHandle(handle),
+    const name = await currentHandle(),
       base = `/api/public-profiles/${encodeURIComponent(name)}`;
     const summary = profileSummary(await read(`${base}/page`));
+    if (
+      typeof handle === 'string' &&
+      handle.length === 36 &&
+      summary.profile.id !== handle
+    )
+      throw new Error('Perfil público indisponível.');
     if (lifetime.signal.aborted) return;
     let block: PublicBlockState = { blocked: false, revision: 0 };
     const controller = options.controller;
@@ -154,11 +172,11 @@ export function showProfilePage(
     );
     identity.append(avatar, title, actions);
     header.append(banner, identity);
-    // Owner-written plain text: textContent only, never markup or links.
-    if (summary.description)
-      header.append(
-        element('p', summary.description, 'public-profile-description'),
-      );
+    if (summary.description) {
+      const description = element('p', '', 'public-profile-description');
+      renderMentions(description, summary.description);
+      header.append(description);
+    }
     const layout = element('div', '', 'public-profile-layout'),
       timeline = element('section', '', 'public-profile-timeline'),
       sidebar = element('aside', '', 'public-profile-about'),

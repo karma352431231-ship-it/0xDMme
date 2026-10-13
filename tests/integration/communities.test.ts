@@ -156,7 +156,7 @@ await test('comunidades: criação aberta, privacidade, gestão, sanções, den�
     error instanceof AccountError && error.status === status;
 
   await t.test(
-    'criação é gratuita, exige perfil explícito, admite nomes iguais e retry conserva a comunidade',
+    'criação é gratuita, exige perfil explícito, recusa nomes iguais e retry conserva a comunidade',
     async () => {
       await assert.rejects(stranger.operate('create', { id, meta }), bad(403));
       const result = communityState(
@@ -176,11 +176,9 @@ await test('comunidades: criação aberta, privacidade, gestão, sanções, den�
       );
       const duplicate = crypto.randomUUID();
       ids.push(duplicate);
-      assert.equal(
-        communityState(
-          await participant.operate('create', { id: duplicate, meta }),
-        ).community.name,
-        meta.name,
+      await assert.rejects(
+        participant.operate('create', { id: duplicate, meta }),
+        bad(409),
       );
       assert.equal((await state(participant)).canPost, true);
     },
@@ -205,6 +203,7 @@ await test('comunidades: criação aberta, privacidade, gestão, sanções, den�
           'banner',
           'owner',
           'followers',
+          'createdAt',
         ].sort(),
       );
       assert.equal(
@@ -923,7 +922,10 @@ await test('comunidades: criação aberta, privacidade, gestão, sanções, den�
           service.operate(
             'create',
             participant.login.session,
-            await participant.proof('create', { id: next, meta }),
+            await participant.proof('create', {
+              id: next,
+              meta: { ...meta, name: 'Capacidade ' + suffix },
+            }),
           ),
           bad(503),
         );
@@ -949,7 +951,10 @@ await test('comunidades: criação aberta, privacidade, gestão, sanções, den�
         publicId = (await temporary.publicIdentity(handle)).id;
       const owned = crypto.randomUUID();
       ids.push(owned);
-      await temporary.operate('create', { id: owned, meta });
+      await temporary.operate('create', {
+        id: owned,
+        meta: { ...meta, name: 'Exclusão ' + suffix },
+      });
       for (const table of [
         'device_events',
         'device_directories',

@@ -1,0 +1,13 @@
+#app-shell
+  .activity-row[data-read='true']
+  :is(strong, .activity-quote, .activity-link) {
+  color: var(--text-muted);
+}
+#app-shell .activity-row[data-read='true'] .conversation-avatar {
+  filter: grayscale(1);
+  opacity: 0.65;
+}
+.activity-link[aria-busy='true'] {
+  pointer-events: none;
+  opacity: 0.65;
+}

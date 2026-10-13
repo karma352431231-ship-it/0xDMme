@@ -13,7 +13,7 @@ export const themes = [
   { id: 'white', label: 'Branco', hint: 'Fundo claro', chrome: '#f4f6fb' },
 ] as const;
 export type Theme = (typeof themes)[number]['id'];
-export const defaultTheme: Theme = 'navy';
+export const defaultTheme: Theme = 'black';
 
 type PreferenceStorage = Pick<Storage, 'getItem' | 'setItem'>;
 const browserStorage: PreferenceStorage = {
@@ -25,7 +25,7 @@ export function isTheme(value: unknown): value is Theme {
   return themes.some((theme) => theme.id === value);
 }
 
-/** Missing, unknown or unreadable values fall back to the brand theme without failing startup. */
+/** Missing, unknown or unreadable values fall back to the black theme without failing startup. */
 export function storedTheme(storage: PreferenceStorage = browserStorage): {
   theme: Theme;
   problem: string;
@@ -37,13 +37,13 @@ export function storedTheme(storage: PreferenceStorage = browserStorage): {
     }
     return {
       theme: defaultTheme,
-      problem: 'Tema salvo inválido. Usando Azul; escolha outro abaixo.',
+      problem: 'Tema salvo inválido. Usando Preto; escolha outro abaixo.',
     };
   } catch {
     return {
       theme: defaultTheme,
       problem:
-        'Este navegador não permite ler o tema salvo. Usando Azul nesta abertura.',
+        'Este navegador não permite ler o tema salvo. Usando Preto nesta abertura.',
     };
   }
 }

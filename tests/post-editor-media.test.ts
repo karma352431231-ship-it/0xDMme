@@ -7,7 +7,9 @@ import type { ExternalMediaConsent } from '../src/client/external-media/index.ts
 import { CommunityNode, communityDocument } from './fixtures/community-dom.ts';
 
 await test('selecionar GIF em post/reply muda apenas o rascunho, sem publicar ou carregar terceiros antes do toque', async (t) => {
-  const document = communityDocument(),
+  const document = Object.assign(communityDocument(), {
+      body: new CommunityNode('body'),
+    }),
     create = document.createElement;
   const query = (
     host: CommunityNode,
@@ -28,6 +30,9 @@ await test('selecionar GIF em post/reply muda apenas o rascunho, sem publicar ou
   document.createElement = (tag) => {
     const node = create(tag);
     Object.assign(node, {
+      closest() {
+        return null;
+      },
       focus() {},
       setSelectionRange() {},
       maxLength: 4000,
@@ -60,7 +65,9 @@ await test('selecionar GIF em post/reply muda apenas o rascunho, sem publicar ou
     document,
     HTMLLabelElement: CommunityNode,
     HTMLTextAreaElement: CommunityNode,
-    window: { setTimeout: globalThis.setTimeout },
+    window: Object.assign(new EventTarget(), {
+      setTimeout: globalThis.setTimeout,
+    }),
   };
   const saved = Object.keys(globals).map(
     (key) => [key, Object.getOwnPropertyDescriptor(globalThis, key)] as const,

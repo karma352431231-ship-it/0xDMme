@@ -8,12 +8,13 @@ import {
   communityButton as button,
   communityElement as el,
 } from './elements.ts';
+import { composerCommunityIdentity } from './post-composer-community.ts';
 import { postForm } from './post-forms.ts';
 
 export function hasPostDraft(container: HTMLElement): boolean {
   if (
     container.querySelector(
-      'button[aria-pressed="true"], .media-picker-previews:not([hidden]) > *, .community-media-preview',
+      '.post-tag-chip-list button[aria-pressed="true"], .media-picker-previews:not([hidden]) > *, .community-media-preview',
     )
   )
     return true;
@@ -32,6 +33,7 @@ export function hasPostDraft(container: HTMLElement): boolean {
 export class PostComposer {
   private dialog: HTMLDialogElement | null = null;
   private abort = new AbortController();
+  private stage = new AbortController();
   private busy = false;
   private readonly disabledNodes = new Map<HTMLElement, boolean>();
   private draft: HTMLElement | null = null;
@@ -61,7 +63,12 @@ export class PostComposer {
     const dialog = el('dialog', '', 'community-scope post-composer-dialog');
     this.dialog = dialog;
     const header = el('header', '', 'post-composer-heading');
-    header.append(el('h2', 'Criar postagem'));
+    const heading = el('div', '', 'post-composer-heading-copy');
+    heading.append(
+      el('h2', 'Criar postagem'),
+      el('p', 'Compartilhe com uma comunidade.'),
+    );
+    header.append(heading);
     button(header, 'Fechar', () => {
       this.requestClose();
       return Promise.resolve();
@@ -137,6 +144,8 @@ export class PostComposer {
     after: string | null,
   ): Promise<void> {
     const lifetime = this.abort;
+    this.stage.abort();
+    this.stage = new AbortController();
     const page =
       kind === 'following'
         ? await this.controller.list(kind, after)
@@ -147,12 +156,16 @@ export class PostComposer {
             ),
           );
     if (lifetime.signal.aborted || !this.draft) return;
-    const tabs = el('nav', '', 'post-toolbar');
+    const tabs = el('nav', '', 'post-composer-tabs');
     for (const [key, label] of [
       ['following', 'Seguidas'],
       ['all', 'Todas as comunidades'],
-    ] as const)
-      button(tabs, label, () => this.run(() => this.choose(key, null)));
+    ] as const) {
+      const tab = button(tabs, label, () =>
+        this.run(() => this.choose(key, null)),
+      );
+      tab.setAttribute('aria-pressed', String(key === kind));
+    }
     this.draft.replaceChildren(el('h3', 'Escolha a comunidade'), tabs);
     for (const group of page.items) this.choice(group);
     if (!page.items.length)
@@ -166,10 +179,18 @@ export class PostComposer {
   }
   private choice(group: Community): void {
     if (!this.draft) return;
-    const pick = button(this.draft, group.name, () =>
+    const pick = button(this.draft, '', () =>
       this.run(() => this.compose(group.id)),
     );
     pick.className = 'post-composer-community';
+    pick.append(
+      composerCommunityIdentity(
+        group,
+        AbortSignal.any([this.abort.signal, this.stage.signal]),
+      ),
+    );
+    pick.append(el('span', '›', 'post-composer-choice-arrow'));
+    pick.setAttribute('aria-label', group.name);
     if (group.archived) {
       pick.disabled = true;
       pick.dataset['archived'] = 'true';
@@ -190,7 +211,16 @@ export class PostComposer {
       await communityRead(`/api/communities/${id}/tags`, this.signal()),
     );
     if (lifetime.signal.aborted || !this.draft) return;
-    this.draft.replaceChildren(el('h3', state.community.name));
+    this.stage.abort();
+    this.stage = new AbortController();
+    const selected = el('div', '', 'post-composer-selected');
+    selected.append(
+      composerCommunityIdentity(
+        state.community,
+        AbortSignal.any([lifetime.signal, this.stage.signal]),
+      ),
+    );
+    this.draft.replaceChildren(selected);
     const content = postForm(
       this.draft,
       { title: '', text: '', tags: [] },
@@ -215,7 +245,9 @@ export class PostComposer {
       },
     );
     const post = crypto.randomUUID();
-    button(this.draft, 'Publicar postagem', () =>
+    const footer = el('footer', '', 'post-composer-footer');
+    this.draft.append(footer);
+    const publish = button(footer, 'Publicar postagem', () =>
       this.run(async () => {
         const value = await content();
         postState(
@@ -230,6 +262,7 @@ export class PostComposer {
         showToast('Postagem publicada.');
       }),
     );
+    publish.className = 'post-composer-publish';
   }
   private outside(event: MouseEvent, dialog: HTMLDialogElement): boolean {
     const rect = dialog.getBoundingClientRect();
@@ -283,6 +316,7 @@ export class PostComposer {
   }
   close(): void {
     this.abort.abort();
+    this.stage.abort();
     this.dialog?.close();
     this.dialog?.remove();
     this.dialog = null;

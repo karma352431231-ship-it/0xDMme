@@ -17,3 +17,8 @@ export function publicationQuote(
   if (preview.text) return preview.text;
   return preview.media ? 'Enviou uma mídia.' : '';
 }
+
+/** Read rows stay visible, but never contribute to pending notification badges. */
+export function unreadNotices(items: readonly { read?: boolean }[]): number {
+  return items.filter((item) => !item.read).length;
+}

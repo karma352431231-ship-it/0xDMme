@@ -12,6 +12,7 @@ export interface CommunityRecord {
   revision: number;
   archived: boolean;
   followers: string;
+  created_at?: Date | null;
   transfer_id?: string | null;
   transfer_to?: string | null;
 }

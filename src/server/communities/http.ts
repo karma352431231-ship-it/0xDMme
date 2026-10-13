@@ -1,11 +1,8 @@
+import { directoryLookup } from './directory.ts';
 import { communityFollowers } from '../../shared/community-followers/index.ts';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { AccountError, uuid } from '../../shared/account/index.ts';
-import {
-  community,
-  communityCursor,
-  communityPage,
-} from '../../shared/communities/index.ts';
+import { community, communityCursor } from '../../shared/communities/index.ts';
 import type {
   Community,
   CommunityPage,
@@ -42,6 +39,7 @@ import type {
 export function createCommunityHandler(read: {
   followers?: (id: string, after: string | null) => Promise<unknown>;
   origin?: string;
+  suggestions?: (query: string) => Promise<CommunityPage>;
   views?: (input: unknown) => Promise<unknown>;
   read: (id: string) => Promise<Community>;
   list: (after: string | null) => Promise<CommunityPage>;
@@ -118,12 +116,8 @@ export function createCommunityHandler(read: {
       )
     )
       return communitySubresource(address);
-    if (address.pathname === '/api/communities') {
-      params(address, ['after']);
-      return communityPage(
-        await read.list(communityCursor(address.searchParams.get('after'))),
-      );
-    }
+    const directory = await directoryLookup(address, read);
+    if (directory) return directory;
     if (
       address.search ||
       !/^\/api\/communities\/[a-f0-9-]{36}$/u.test(address.pathname)

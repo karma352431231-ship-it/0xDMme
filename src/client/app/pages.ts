@@ -184,6 +184,10 @@ export const pages = {
     title: 'Perfil',
     content: profileContent,
   },
+  analise: {
+    title: 'Análise do conteúdo',
+    content: '<div data-moderation-review></div>',
+  },
   publico: {
     title: 'Perfil público',
     content: '<div data-public-profile-view></div>',

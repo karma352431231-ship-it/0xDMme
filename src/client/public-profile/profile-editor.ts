@@ -1,3 +1,9 @@
+import {
+  mountMentionInput,
+  mentionValue,
+  setMentionValue,
+} from '../public-mentions/index.ts';
+import { mentionPlainText } from '../../shared/public-mentions/index.ts';
 import { encode } from '../../shared/account/index.ts';
 import {
   profileBanner,
@@ -19,7 +25,7 @@ const template = `<div class="profile-editor">
 <div class="profile-editor-banner"><button type="button" class="profile-editor-pick" data-pick="banner" aria-label="Trocar banner"><img alt="" hidden><span class="profile-editor-hint">Trocar banner</span></button><button type="button" class="profile-editor-remove" data-remove="banner" aria-label="Remover banner" title="Remover banner" hidden>${trash}</button></div>
 <div class="profile-editor-identity"><div class="profile-editor-avatar"><button type="button" class="profile-editor-pick" data-pick="avatar" aria-label="Trocar foto"><span data-avatar-slot>@</span></button><button type="button" class="profile-editor-remove" data-remove="avatar" aria-label="Remover foto" title="Remover foto" hidden>${trash}</button></div>
 <div class="profile-editor-title"><h3 data-public-own-handle></h3><a data-public-page>Ver meu perfil público</a></div></div>
-<label class="profile-editor-description"><span>Descrição</span><textarea data-public-description rows="3" placeholder="Conte quem você é. Só texto e emojis."></textarea><small data-description-count></small></label>
+<label class="profile-editor-description"><span>Descrição</span><textarea data-public-description rows="3" placeholder="Conte quem você é. Use @ para mencionar usuários e comunidades."></textarea><small data-description-count></small></label>
 <button type="button" class="primary" data-confirm-profile>Confirmar alterações</button><input type="file" data-pick-file accept="image/png,image/jpeg,image/webp" hidden></div>`;
 
 type Target = 'banner' | 'avatar';
@@ -51,7 +57,8 @@ export function startProfileEditor(
   let host: HTMLElement | null = null,
     target: Target = 'avatar',
     generation = 0,
-    avatarAbort = new AbortController();
+    avatarAbort = new AbortController(),
+    mentionsAbort = new AbortController();
   const urls: string[] = [];
   let draftAvatar: Image | null | undefined,
     draftBanner: Image | null | undefined,
@@ -103,14 +110,14 @@ export function startProfileEditor(
     const field = node<HTMLTextAreaElement>('[data-public-description]');
     // Never overwrite what the owner is typing.
     if (field && document.activeElement !== field)
-      field.value = draftDescription ?? description.description;
+      setMentionValue(field, draftDescription ?? description.description);
     count();
   }
   function count(): void {
     const field = node<HTMLTextAreaElement>('[data-public-description]'),
       counter = node('[data-description-count]');
     if (!field || !counter) return;
-    const used = [...field.value.trim()].length;
+    const used = [...mentionPlainText(mentionValue(field).trim())].length;
     counter.textContent = `${used}/${profileDescriptionLength}`;
     counter.dataset['over'] = String(used > profileDescriptionLength);
   }
@@ -234,8 +241,9 @@ export function startProfileEditor(
       });
     });
     const field = node<HTMLTextAreaElement>('[data-public-description]');
+    if (field) mountMentionInput(field, mentionsAbort.signal);
     field?.addEventListener('input', () => {
-      draftDescription = field.value;
+      draftDescription = mentionValue(field);
       count();
     });
     node('[data-confirm-profile]')?.addEventListener('click', () => {
@@ -260,6 +268,8 @@ export function startProfileEditor(
         });
     },
     mount(container: HTMLElement | null): void {
+      mentionsAbort.abort();
+      mentionsAbort = new AbortController();
       release();
       generation++;
       draftAvatar = undefined;
@@ -280,6 +290,7 @@ export function startProfileEditor(
       description = { revision: 0, description: '' };
     },
     leave(): void {
+      mentionsAbort.abort();
       release();
       generation++;
       host = null;

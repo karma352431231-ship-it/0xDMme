@@ -18,13 +18,14 @@ function storage(value: string | null | Error) {
   };
 }
 
-await test('tema salvo no aparelho volta para Azul quando ausente, inválido ou ilegível', () => {
+await test('tema salvo no aparelho volta para Preto quando ausente, inválido ou ilegível', () => {
   const cases: [string | null | Error, string, boolean][] = [
-    [null, 'navy', false],
+    [null, 'black', false],
     ['black', 'black', false],
+    ['navy', 'navy', false],
     ['white', 'white', false],
-    ['sepia', 'navy', true],
-    [new Error('bloqueado'), 'navy', true],
+    ['sepia', 'black', true],
+    [new Error('bloqueado'), 'black', true],
   ];
   for (const [value, theme, warns] of cases) {
     const result = storedTheme(storage(value));

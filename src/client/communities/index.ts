@@ -1,3 +1,9 @@
+import { communityAbout, communityCreationDate } from './community-about.ts';
+import {
+  mountMentionInput,
+  mentionValue,
+  renderMentions,
+} from '../public-mentions/index.ts';
 import {
   mountCommunityFollowerPage,
   mountCommunityFollowerPreview,
@@ -36,6 +42,8 @@ import { startCommunityPosts } from './posts.ts';
 import { PostComposer } from './post-composer.ts';
 import { FeedReturn } from './feed-return.ts';
 import type { FeedBookmark } from './feed-return.ts';
+import { previewModeratedMedia } from './moderation-preview.ts';
+import type { PublicModerationDetails } from '../../shared/moderation-details/index.ts';
 import { replyNotificationPage } from '../../shared/community-posts/index.ts';
 import type { ReplyNotification } from '../../shared/community-posts/index.ts';
 import { startCommunityDiscovery } from './discovery.ts';
@@ -354,9 +362,10 @@ export function startCommunities(
       maximum: 4000,
       multiline: true,
     });
+    mountMentionInput(description, abort.signal);
     return () => ({
       name: name.value,
-      description: description.value,
+      description: mentionValue(description),
       rules: rules.value,
     });
   }
@@ -371,7 +380,10 @@ export function startCommunities(
         'Comunidades são públicas e gratuitas. Qualquer perfil público autorizado pode participar sem precisar seguir.',
       ),
     );
-    card.append(communityElement('p', communityPolicy));
+    card.append(
+      communityElement('h3', 'Aviso sobre conteúdo público'),
+      communityElement('p', communityPolicy, 'community-hint'),
+    );
     const meta = metaForm(card, { name: '', description: '', rules: '' }),
       id = crypto.randomUUID();
     communityButton(card, 'Criar comunidade', () =>
@@ -426,32 +438,17 @@ export function startCommunities(
       controller,
       signal: abort.signal,
     });
-    if (value.description)
-      hero.append(
-        communityElement('p', value.description, 'community-hero-description'),
-      );
-    const info = communityElement('details', '', 'community-info');
-    info.append(communityElement('summary', 'Sobre e regras da comunidade'));
-    hero.append(info);
-    if (value.owner)
-      communityLink(
-        info,
-        `Proprietário: @${value.owner.handle}`,
-        `#publico?handle=${encodeURIComponent(value.owner.handle)}`,
-      );
-    else
-      info.append(
-        communityElement('p', 'Proprietário removido; comunidade arquivada.'),
-      );
-    info.append(
-      communityElement('h3', 'Regras da comunidade'),
-      communityElement(
+    title.append(communityCreationDate(value));
+    if (value.description) {
+      const description = communityElement(
         'p',
-        value.rules || 'A política global se aplica a toda participação.',
-        'community-text',
-      ),
-      communityElement('p', communityPolicy),
-    );
+        '',
+        'community-hero-description',
+      );
+      renderMentions(description, value.description);
+      hero.append(description);
+    }
+    hero.append(communityAbout(value));
     if (!state) {
       communityLink(head, 'Entre pelo Perfil para participar', '#perfil');
       return;
@@ -795,12 +792,19 @@ export function startCommunities(
     },
     dmDirectory: (node: HTMLElement, valid: () => boolean) =>
       dms.directory(node, valid),
-    /** Unread replies for Atividade; the same notices as “Respostas ao seu conteúdo”. */
-    async unreadReplies(): Promise<readonly ReplyNotification[]> {
+    /** Bounded inbox history for Atividade, including durable read state. */
+    async publicationNotifications(): Promise<readonly ReplyNotification[]> {
       const page = replyNotificationPage(
         await controller.request('post-notifications', { after: null }),
       );
-      return page.items.filter((item) => !item.read);
+      return page.items;
+    },
+    previewModeration(
+      host: HTMLElement,
+      detail: PublicModerationDetails,
+      signal: AbortSignal,
+    ): void {
+      previewModeratedMedia(controller, { host, detail, signal });
     },
     async markRepliesRead(replies: readonly string[]): Promise<void> {
       await controller.request('post-notifications-read', { replies });

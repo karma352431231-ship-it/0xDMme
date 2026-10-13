@@ -1,3 +1,4 @@
+import { renderMentions } from '../public-mentions/index.ts';
 import { fetchApi, readApiJson } from '../api-response/index.ts';
 import { publicHandle } from '../../shared/public-profile/index.ts';
 import { profileSummary } from '../../shared/profile-social/index.ts';
@@ -89,8 +90,11 @@ export function profileHoverProvider(
           signal,
         });
       card.append(banner, head, name);
-      if (value.description)
-        card.append(line('p', value.description, 'hover-card-text'));
+      if (value.description) {
+        const description = line('p', '', 'hover-card-text');
+        renderMentions(description, value.description);
+        card.append(description);
+      }
       card.append(
         line(
           'p',

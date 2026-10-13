@@ -1,3 +1,4 @@
+import { mentionLookup } from './mentions.ts';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { AccountError } from '../../shared/account/index.ts';
 import { publicProfile } from '../../shared/public-profile/index.ts';
@@ -10,7 +11,8 @@ import type { PublicProfileService } from './service.ts';
 
 export function createPublicProfileHandler(
   read: (handle: string) => Promise<PublicProfile>,
-  pages?: Pick<PublicProfileService, 'summary' | 'memberships' | 'activity'>,
+  pages?: Pick<PublicProfileService, 'summary' | 'memberships' | 'activity'> &
+    Partial<Pick<PublicProfileService, 'readById' | 'suggestions'>>,
 ) {
   const budget = new RequestBudget();
   let active = 0;
@@ -33,13 +35,18 @@ export function createPublicProfileHandler(
       throw new AccountError(405, 'Método inválido.');
     }
     const address = new URL(request.url ?? '', 'http://public.invalid');
+    budget.admit(request.socket.remoteAddress ?? 'unknown', false, true);
+    const mention = await mentionLookup(address, pages);
+    if (mention !== null) {
+      send(response, 200, mention, head);
+      return;
+    }
     const match =
       /^\/api\/public-profiles\/([A-Za-z0-9_]{3,30})(?:\/(page|activity|communities))?$/u.exec(
         address.pathname,
       );
     if (!match?.[1])
       throw new AccountError(404, 'Perfil público indisponível.');
-    budget.admit(request.socket.remoteAddress ?? 'unknown', false, true);
     send(
       response,
       200,

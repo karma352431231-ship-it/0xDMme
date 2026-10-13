@@ -53,15 +53,15 @@ await test('ler um aviso é limitado ao aparelho/conta, e uma mudança de status
   notifications.setAccount('a');
   const first = await notifications.read();
   notifications.markRead(first.map((item) => item.id));
-  assert.deepEqual(await notifications.read(), []);
+  assert.equal((await notifications.read())[0]?.read, true);
   notifications.setAccount('b');
-  assert.equal((await notifications.read()).length, 1);
+  assert.equal((await notifications.read())[0]?.read, false);
   notifications.setAccount('a');
-  assert.deepEqual(await notifications.read(), []);
+  assert.equal((await notifications.read())[0]?.read, true);
   request.mock.mockImplementation(() =>
     Promise.resolve([{ ...notice, status: 'expired' }]),
   );
-  assert.equal((await notifications.read()).length, 1);
+  assert.equal((await notifications.read())[0]?.read, false);
 });
 await test('resposta de moderação da conta anterior não reaparece após troca de sessão', async (t) => {
   const source = controller();

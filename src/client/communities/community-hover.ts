@@ -1,3 +1,4 @@
+import { renderMentions } from '../public-mentions/index.ts';
 import type { Community } from '../../shared/communities/index.ts';
 import type { HoverCardProvider } from '../hover-card/index.ts';
 import { showPublicAvatar } from '../public-media/index.ts';
@@ -58,8 +59,11 @@ export function communityHoverProvider(input: {
       name.href = `#comunidades?id=${encodeURIComponent(value.id)}`;
       const banner = previewBanner(value, avatar, signal);
       card.append(banner, head, name);
-      if (value.description)
-        card.append(el('p', value.description, 'hover-card-text'));
+      if (value.description) {
+        const description = el('p', '', 'hover-card-text');
+        renderMentions(description, value.description);
+        card.append(description);
+      }
       const figures = [
         `${value.followers.toLocaleString('pt-BR')} ${value.followers === 1 ? 'seguidor' : 'seguidores'}`,
       ];

@@ -4,6 +4,8 @@ import type { PublicModerationNotice } from '../../shared/public-moderation/inde
 import { PublicProfiles } from './controller.ts';
 import { profileFollows } from './follows.ts';
 import { startOwnProfileShortcut } from './own-shortcut.ts';
+import { startModerationReview } from './moderation-review.ts';
+import type { PublicModerationDetails } from '../../shared/moderation-details/index.ts';
 import { renderModeration } from './moderation.ts';
 import { showProfilePage } from './page.ts';
 import { ModerationNotifications } from './moderation-notifications.ts';
@@ -43,8 +45,14 @@ export function blockingNotices(
 export function startPublicProfile(
   access: VaultAccess,
   privacy: ExternalMediaConsent,
+  preview: (
+    host: HTMLElement,
+    detail: PublicModerationDetails,
+    signal: AbortSignal,
+  ) => void = () => undefined,
 ) {
   const controller = new PublicProfiles(access);
+  const review = startModerationReview(controller, preview);
   const shortcut = startOwnProfileShortcut(controller);
   const notices = new ModerationNotifications(controller);
   const activity = new ActivityPosts(access, privacy);
@@ -123,6 +131,7 @@ export function startPublicProfile(
     }
   }
   function ready(): void {
+    void review.ready();
     shortcut.ready();
     if (!mounted) return;
     void run(async () => {
@@ -182,6 +191,7 @@ export function startPublicProfile(
     ready();
   }
   function leave(): void {
+    review.leave();
     editor.leave();
     consentAbort.abort();
     mounted = null;
@@ -195,12 +205,17 @@ export function startPublicProfile(
       });
     },
     follows: profileFollows(controller),
+    mountReview: review.mount,
     moderationNotifications: () => notices.read(),
     markModerationRead: (ids: readonly string[]) => notices.markRead(ids),
     mount,
     leave,
     ready,
-    canActivate: () => !busy && !editor.hasDraft() && activity.canActivate(),
+    canActivate: () =>
+      !busy &&
+      !editor.hasDraft() &&
+      activity.canActivate() &&
+      review.canActivate(),
     async exists(): Promise<boolean> {
       return controller.exists();
     },
@@ -208,6 +223,7 @@ export function startPublicProfile(
       activity.setSession(session);
       notices.setAccount(session?.accountId ?? null);
       if (!controller.setSession(session)) return;
+      review.sessionChanged();
       shortcut.clear();
       editor.clear();
       generation++;

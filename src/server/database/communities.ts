@@ -1,3 +1,5 @@
+import { writeCommunityName } from './community-names.ts';
+import { mentionQuery } from '../../shared/public-mentions/index.ts';
 import { CommunityFollowerStore } from './community-followers.ts';
 import { confirmCommunityPresentation } from './community-presentation.ts';
 import type pg from 'pg';
@@ -49,7 +51,7 @@ import { storePublicReport } from './public-reports.ts';
 import { postCount } from '../../shared/community-posts/index.ts';
 
 const columns =
-  'c.id,c.owner,c.name,c.description,c.rules,c.revision,c.archived,(SELECT count(*)::text FROM hash_talk.community_follows f WHERE f.community_id=c.id) AS followers';
+  'c.id,c.created_at,c.owner,c.name,c.description,c.rules,c.revision,c.archived,(SELECT count(*)::text FROM hash_talk.community_follows f WHERE f.community_id=c.id) AS followers';
 const privateColumns = columns + ',c.transfer_id,c.transfer_to';
 type CommunityStateWire = Omit<
   CommunityState,
@@ -153,6 +155,7 @@ export class CommunityStore {
     );
     return rows.map((row) => ({
       id: row.id,
+      createdAt: row.created_at?.toISOString() ?? null,
       name: row.name,
       description: row.description,
       rules: row.rules,
@@ -163,6 +166,14 @@ export class CommunityStore {
       owner: row.owner ? (owners.get(row.owner) ?? null) : null,
       followers: Number(row.followers),
     }));
+  }
+  async suggestions(value: string): Promise<CommunityPage> {
+    const query = mentionQuery(value).replace(/[\\%_]/gu, '\\$&') + '%';
+    const found = await this.pool.query<CommunityRecord>(
+      `SELECT ${columns} FROM hash_talk.communities c WHERE hash_talk.community_name_key(c.name) LIKE $1 AND NOT c.archived ORDER BY hash_talk.community_name_key(c.name) LIMIT 8`,
+      [query],
+    );
+    return { items: await this.visible(this.pool, found.rows), next: null };
   }
   async read(id: string): Promise<Community> {
     const found = await this.pool.query<CommunityRecord>(
@@ -316,7 +327,8 @@ export class CommunityStore {
         throw new AccountError(409, 'Identificador de criação já utilizado.');
       return row;
     }
-    await client.query(
+    await writeCommunityName(
+      client,
       'INSERT INTO hash_talk.communities(id,owner,name,description,rules) VALUES($1,$2,$3,$4,$5)',
       [id, actor.id, meta.name, meta.description, meta.rules],
     );
@@ -343,7 +355,8 @@ export class CommunityStore {
       meta.rules === row.rules
     )
       return;
-    await context.client.query(
+    await writeCommunityName(
+      context.client,
       'UPDATE hash_talk.communities SET name=$2,description=$3,rules=$4,revision=revision+1 WHERE id=$1',
       [row.id, meta.name, meta.description, meta.rules],
     );

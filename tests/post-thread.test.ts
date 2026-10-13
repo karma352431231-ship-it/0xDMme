@@ -57,7 +57,14 @@ await test('ramos mostram os mais votados nas primeiras respostas, demais págin
   const previous = Object.getOwnPropertyDescriptor(globalThis, 'document');
   Object.defineProperty(globalThis, 'document', {
     configurable: true,
-    value: { createElement: (tag: string) => new ThreadElement(tag) },
+    value: {
+      createElement: (tag: string) => new ThreadElement(tag),
+      createTextNode: (text: string) => {
+        const node = new ThreadElement('#text');
+        node.textContent = text;
+        return node;
+      },
+    },
   });
   t.after(() => {
     if (previous) Object.defineProperty(globalThis, 'document', previous);

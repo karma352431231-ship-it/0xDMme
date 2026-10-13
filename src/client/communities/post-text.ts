@@ -1,3 +1,4 @@
+import { renderMentions } from '../public-mentions/index.ts';
 import { postLink } from '../../shared/community-posts/index.ts';
 import { communityElement } from './elements.ts';
 export function postUrls(text: string) {
@@ -5,6 +6,10 @@ export function postUrls(text: string) {
 }
 export function postText(text: string): HTMLElement {
   const node = communityElement('p', '', 'community-text');
+  renderMentions(node, text, plainLinks);
+  return node;
+}
+function plainLinks(node: HTMLElement, text: string): void {
   let end = 0;
   for (const match of postUrls(text)) {
     node.append(document.createTextNode(text.slice(end, match.index)));
@@ -20,5 +25,4 @@ export function postText(text: string): HTMLElement {
     end = match.index + match[0].length;
   }
   node.append(document.createTextNode(text.slice(end)));
-  return node;
 }

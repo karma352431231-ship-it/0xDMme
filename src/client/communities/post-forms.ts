@@ -1,3 +1,4 @@
+import { mentionValue, mountMentionInput } from '../public-mentions/index.ts';
 import { postEditorMedia } from './post-editor-media.ts';
 import type { PostEditorAccess } from './post-editor-media.ts';
 import type { CommunityMediaAccess } from '../community-media/index.ts';
@@ -156,6 +157,7 @@ export function postForm(
     }),
     chips = postTagChips(container, value.tags, tags);
   title.required = true;
+  mountMentionInput(title, access.signal);
   const media = postEditorMedia({
     container,
     text,
@@ -171,8 +173,8 @@ export function postForm(
     if (!chosen.length && chips.offered())
       throw new Error('Escolha pelo menos uma tag.');
     return {
-      title: title.value,
-      text: text.value,
+      title: mentionValue(title),
+      text: mentionValue(text),
       tags: chosen,
       media: await media(),
     };
@@ -196,7 +198,7 @@ export function replyForm(
   });
   return async () => ({
     title: '',
-    text: text.value,
+    text: mentionValue(text),
     tags: [],
     media: await media(),
   });
@@ -300,7 +302,7 @@ function removalForms(
         id: state.post.community,
         post: state.post.id,
         record: removal.id,
-        text: text.value,
+        text: mentionValue(text),
       }),
     );
   }

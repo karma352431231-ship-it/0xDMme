@@ -1,3 +1,6 @@
+@import '../public-mentions/mentions.css';
+@import '../public-profile/moderation-review.css';
+@import '../activity/activity.css';
 @import '../communities/post-editor.css';
 @import '../communities/followers.css';
 @import '../message-menu/message-menu.css';
@@ -18,10 +21,9 @@
 /*
  * Color tokens for the three approved themes (docs/UI_PAINEIS_E_TEMAS.md).
  * Components use only these variables; the brand gradient is reserved for the
- * mark, unread counters, status rings and the active area. Azul is the default
- * so a missing or invalid device preference still renders the brand theme.
+ * mark, unread counters, status rings and the active area. Preto is the default
+ * when no valid explicit preference exists.
  */
-:root,
 :root[data-theme='navy'] {
   color-scheme: dark;
   --bg: #0a0f22;
@@ -57,6 +59,7 @@
   --qr-paper: #ffffff;
   --media-backdrop: #000000;
 }
+:root,
 :root[data-theme='black'] {
   color-scheme: dark;
   --bg: #000000;
@@ -86,6 +89,10 @@
   --check-read: #4ade80;
   --overlay: rgb(0 0 0 / 66%);
   --shadow: rgb(0 0 0 / 55%);
+  --brand-grad: linear-gradient(135deg, #2ee6f6, #3b82f6 55%, #8b5cf6);
+  --brand-ink: #ffffff;
+  --qr-paper: #ffffff;
+  --media-backdrop: #000000;
 }
 :root[data-theme='white'] {
   --shared-post-bg: #e9e9ed;

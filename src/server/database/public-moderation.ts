@@ -1,3 +1,4 @@
+import { readModerationDetails } from './public-moderation-details.ts';
 import { randomUUID } from 'node:crypto';
 import type pg from 'pg';
 import { AccountError, boundedText, uuid } from '../../shared/account/index.ts';
@@ -452,6 +453,9 @@ export class PublicModerationStore {
     return Boolean(result.rowCount);
   }
   /** Authenticate the public owner in the calling module's transaction. */
+  details(client: pg.PoolClient, owner: string, id: string) {
+    return readModerationDetails(client, { owner, id });
+  }
   async notices(
     client: pg.PoolClient,
     owner: string,

@@ -141,6 +141,7 @@ try {
       read: (id) => communities.read(id),
       followers: (id, after) => communities.followerPage(id, after),
       list: (after) => communities.list(after),
+      suggestions: (query) => communities.suggestions(query),
       feed: (filter, after) => communities.feed(filter, after),
       explore: (filter, after) => communities.explore(filter, after),
       post: (id, post) => communities.post(id, post),

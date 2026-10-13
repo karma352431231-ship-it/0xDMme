@@ -407,3 +407,9 @@ A ativação usa o [executor existente](GIT_E_DEPLOY.md#ranking-visualizações-
 login, e começa na ativação. Limpar armazenamento ou usar outro aparelho pode
 contar novamente. A seleção do detector real de moderação continua dependendo
 do aceite já documentado.
+
+### Nomes e informações da comunidade — 12/10/2026
+
+O pedido do proprietário substitui nomes repetidos: unicidade global por nome normalizado (NFKC, espaços consolidados e caixa), preservando acentos. O índice de 063 protege criação/edição concorrentes; falha de conflito retorna 409 com orientação para escolher outro nome. Nenhuma comunidade existente é renomeada pela migração. As duas comunidades do diretório público consultado nesta data não colidem. UUIDs e propriedade seguem iguais. Menções escolhem perfil/comunidade por busca e referem UUIDs públicos, conforme [perfil e feeds](PERFIL_PUBLICO_E_FEEDS.md#menções-e-avisos--12102026). Data exibe o registro real de 044; ausência histórica continua declarada. Regras globais continuam aplicadas, mas sua apresentação fica no aviso de criação; regras locais vazias ou “Nenhuma” não criam seção pública.
+
+A chave de nomes usa minúsculas Unicode no PostgreSQL 17, com a collation própria `pg_c_utf8`, evitando diferenças de caixa de letras acentuadas entre locales do Mac e da VPS; sigma final é consolidado com sigma. A busca do cliente usa a mesma transformação simples. [Contrato do PostgreSQL 17](https://www.postgresql.org/docs/17/collation.html#COLLATION-MANAGING-STANDARD).

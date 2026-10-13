@@ -84,6 +84,9 @@ export class CommunityService {
     if (!this.posts) throw new AccountError(404, 'Posts indisponíveis.');
     return this.posts;
   }
+  suggestions(query: string) {
+    return this.store.suggestions(query);
+  }
   read(id: unknown) {
     return this.store.read(uuid(id));
   }

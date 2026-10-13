@@ -1,3 +1,4 @@
+import { mountMentionInput } from '../public-mentions/index.ts';
 import { mediaEditor } from '../community-media/index.ts';
 import type { CommunityMediaAccess } from '../community-media/index.ts';
 import { EmojiPicker, emojiIntoComposer } from '../emoji/index.ts';
@@ -25,6 +26,7 @@ export function postEditorMedia(input: {
   label?.after(editor);
   area.append(input.text, controls);
   editor.append(area);
+  mountMentionInput(input.text, input.access.signal);
   const media = mediaEditor(input.container, input.ids, input.access, controls);
   gifControl(controls, input);
   return media;

@@ -1,9 +1,5 @@
-import {
-  AccountError,
-  boundedText,
-  keys,
-  uuid,
-} from '../../shared/account/index.ts';
+import { moderationOperation } from './moderation-operations.ts';
+import { AccountError, keys } from '../../shared/account/index.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
 import { directoryEvent, verify } from '../../shared/devices/index.ts';
 import {
@@ -23,8 +19,10 @@ import type {
 import type { PublicModerationNotice } from '../../shared/public-moderation/index.ts';
 import { postCount } from '../../shared/community-posts/index.ts';
 import { profileDescriptionText } from '../../shared/profile-social/index.ts';
+import type { PublicModerationDetails } from '../../shared/moderation-details/index.ts';
 type PublicProfileResponse =
   | Awaited<ReturnType<PublicProfileStore['state']>>
+  | PublicModerationDetails
   | PublicModerationNotice[]
   | PublicModerationNotice
   | Awaited<ReturnType<PublicProfileStore['banners']['state']>>
@@ -47,6 +45,14 @@ export class PublicProfileService {
     const profile = await this.store.read(publicHandle(handle));
     if (!profile) throw new AccountError(404, 'Perfil público indisponível.');
     return profile;
+  }
+  async readById(id: string) {
+    const profile = await this.store.readById(id);
+    if (!profile) throw new AccountError(404, 'Perfil público indisponível.');
+    return profile;
+  }
+  suggestions(query: string) {
+    return this.store.suggestions(query);
   }
   private pages(): ProfileSocialStore {
     if (!this.social)
@@ -106,6 +112,7 @@ export class PublicProfileService {
         'notification-set',
         'activity',
         'moderation-notices',
+        'moderation-details',
         'moderation-appeal',
       ].includes(operation)
     )
@@ -153,20 +160,8 @@ export class PublicProfileService {
       return this.socialOperation(operation, authority, data);
     if (operation === 'description-state' || operation === 'description')
       return this.descriptionOperation(operation, authority, data);
-    if (operation === 'moderation-notices') {
-      keys(data, ['after']);
-      return this.store.moderationNotices(
-        authority,
-        data['after'] === null ? null : uuid(data['after']),
-      );
-    }
-    if (operation === 'moderation-appeal') {
-      keys(data, ['id', 'reason']);
-      return this.store.moderationAppeal(authority, {
-        id: uuid(data['id']),
-        reason: boundedText(data['reason'], 2_000),
-      });
-    }
+    if (operation.startsWith('moderation-'))
+      return moderationOperation(this.store, { operation, authority, data });
     if (operation === 'state') {
       keys(data, []);
       return this.store.state(authority);

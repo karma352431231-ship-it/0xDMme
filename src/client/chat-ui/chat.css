@@ -791,3 +791,25 @@
     animation: none;
   }
 }
+
+/* Approved public photos cover the initials within the chat's own avatar size. */
+.social-dm-panel .chat-peer-avatar {
+  position: relative;
+  overflow: hidden;
+}
+.social-dm-panel .chat-peer-avatar img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  object-fit: cover;
+}
+.social-dm-panel .chat-peer-avatar img[hidden] {
+  display: none;
+}
+.social-dm-panel .chat-peer-avatar [role='status'] {
+  position: absolute;
+  inset: 0;
+  font-size: 0;
+}

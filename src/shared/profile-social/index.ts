@@ -1,3 +1,4 @@
+import { mentionPlainText, mentionText } from '../public-mentions/index.ts';
 export { mutualFollowers } from './mutuals.ts';
 export type { MutualFollowers } from './mutuals.ts';
 import { AccountError, keys, object, uuid } from '../account/index.ts';
@@ -35,7 +36,7 @@ export const profileDescriptionLength = 280;
 const hiddenControls =
   /(?!\n)\p{Cc}|[\u200B\u200E\u200F\u202A-\u202E\u2060-\u2064\u2066-\u2069\uFEFF]/u;
 /**
- * Plain text and emoji only, shown as text (never markup or links): at most
+ * Plain text, emoji and app mention references: at most
  * 280 characters and five lines; blank-line runs collapse to one.
  */
 export function profileDescriptionText(value: unknown): string {
@@ -50,7 +51,8 @@ export function profileDescriptionText(value: unknown): string {
     .trim();
   if (hiddenControls.test(text))
     throw new AccountError(400, 'A descrição tem caracteres invisíveis.');
-  if ([...text].length > profileDescriptionLength)
+  mentionText(text, 560);
+  if ([...mentionPlainText(text)].length > profileDescriptionLength)
     throw new AccountError(
       400,
       `A descrição aceita até ${profileDescriptionLength} caracteres.`,

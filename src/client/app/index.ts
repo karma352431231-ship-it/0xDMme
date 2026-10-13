@@ -94,7 +94,11 @@ const externalMedia = new ExternalMediaConsent({
 window.addEventListener('storage', (event) =>
   externalMedia.storageChanged(event.key),
 );
-const publicProfiles = startPublicProfile(devices, externalMedia);
+const publicProfiles = startPublicProfile(
+  devices,
+  externalMedia,
+  (host, detail, signal) => communities.previewModeration(host, detail, signal),
+);
 const communities = startCommunities(
   devices,
   vault.sync,
@@ -169,7 +173,7 @@ const activity = startActivity(
     respondRequest: (id, accept) => contacts.respondRequest(id, accept),
     groupInvites: () => messages.groupInvites(),
     respondGroupInvite: (id, accept) => messages.respondGroupInvite(id, accept),
-    replies: () => communities.unreadReplies(),
+    replies: () => communities.publicationNotifications(),
     markRepliesRead: (ids) => communities.markRepliesRead(ids),
     transfers: () => communities.pendingTransfers(),
     moderation: () => publicProfiles.moderationNotifications(),
@@ -478,11 +482,18 @@ function mountPublicProfiles(content: HTMLElement): void {
     '[data-public-profile-settings]',
   );
   if (own) publicProfiles.mount(own);
+  const review = content.querySelector<HTMLElement>('[data-moderation-review]');
+  if (review)
+    publicProfiles.mountReview(
+      review,
+      new URLSearchParams(location.hash.split('?')[1] ?? '').get('id'),
+    );
   const view = content.querySelector<HTMLElement>('[data-public-profile-view]');
   if (view)
     closePublicProfile = publicProfiles.show(
       view,
-      new URLSearchParams(location.hash.split('?')[1] ?? '').get('handle'),
+      new URLSearchParams(location.hash.split('?')[1] ?? '').get('handle') ??
+        new URLSearchParams(location.hash.split('?')[1] ?? '').get('id'),
     );
 }
 

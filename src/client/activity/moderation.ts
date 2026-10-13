@@ -1,7 +1,10 @@
+import { noticeLink } from './notice-link.ts';
 export interface ModerationActivity {
   id: string;
   title: string;
   reason: string;
+  review?: string;
+  read?: boolean;
 }
 /** Only the moderation source is refreshed; background tabs do no polling. */
 export function watchModeration(
@@ -29,18 +32,36 @@ export function watchModeration(
 }
 export function moderationRows(
   items: readonly ModerationActivity[],
+  actions: {
+    acknowledge: (id: string) => Promise<void>;
+    current: () => boolean;
+  },
 ): HTMLElement[] {
   return items.map((item) => {
-    const row = document.createElement('article'),
+    const row = document.createElement('li'),
       title = document.createElement('strong'),
       reason = document.createElement('p'),
-      link = document.createElement('a');
+      copy = document.createElement('div'),
+      controls = document.createElement('div');
+    const link = noticeLink({
+      label: 'Ver análise e contestar',
+      href: `#analise?id=${encodeURIComponent(item.review ?? item.id.split(':')[0] ?? '')}`,
+      read: item.read === true,
+      acknowledge: () => actions.acknowledge(item.id),
+      current: actions.current,
+      acknowledged: () => {
+        item.read = true;
+      },
+    });
     row.className = 'activity-row';
     title.textContent = item.title;
     reason.textContent = item.reason;
-    link.textContent = 'Ver análise e contestar';
-    link.href = '#perfil';
-    row.append(title, reason, link);
+    row.dataset['read'] = String(item.read === true);
+    copy.className = 'activity-copy';
+    controls.className = 'activity-actions';
+    copy.append(title, reason);
+    controls.append(link);
+    row.append(copy, controls);
     return row;
   });
 }

@@ -426,3 +426,9 @@ A decisão nova vale nas análises feitas pela revisão atual. Aprovações e de
 anteriores permanecem registradas; itens já retidos seguem a revisão prevista e o
 prazo original, sem reabertura automática ou nova janela de sete dias. Publicar
 pelo executor existente somente após testes e CI integral do commit exato.
+
+### Análise específica e leitura na Atividade — 12/10/2026
+
+O aviso “Ver análise e contestar” abre #analise?id=<registro>, sem depender da categoria genérica do Perfil. O novo comando moderation-details exige sessão, assinatura e diretório atual; compara o proprietário antes de projetar contexto. A consulta ao módulo de posts retorna somente o texto/título atual do post ligado ao arquivo e ao próprio autor. Após coleta dos bytes, o vínculo durável ainda identifica o post; exclusão/remoção do vínculo não preserva texto histórico. A página mostra tipo/status, prazo, datas, veredito automático e quantidade de frames disponíveis, IDs do registro/arquivo, contestação e decisão existentes. Não há scores por categoria armazenados para apresentar. Prévia dos bytes é uma ação explícita e restrita, sujeita à autorização e retenção vigentes. Falha/troca de sessão limpa o conteúdo; contestação usa a operação assinada existente e conserva o rascunho se falhar.
+
+Abrir confirma o aviso como lido neste aparelho, por conta/status, mantendo-o cinza em vez de removê-lo. O limite local continua 128 IDs e a listagem durável 32 por página; status novo volta a não lido. A política global continua aplicada, com seu texto geral apresentado no aviso de criação da comunidade; a análise mostra o resultado do registro escolhido. **Ponto importante:** implementação local não ativa migração ou release na VPS.

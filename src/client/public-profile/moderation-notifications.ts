@@ -6,6 +6,8 @@ export interface ModerationNotification {
   id: string;
   title: string;
   reason: string;
+  review: string;
+  read: boolean;
 }
 export function moderationNotification(
   notice: PublicModerationNotice,
@@ -32,6 +34,8 @@ export function moderationNotification(
   };
   return {
     id: `${notice.id}:${notice.status}`,
+    review: notice.id,
+    read: false,
     title: titles[notice.kind],
     reason: notice.decision ? `${reason} Revisão: ${notice.decision}` : reason,
   };
@@ -87,7 +91,7 @@ export class ModerationNotifications {
       throw new Error('Avisos de análise inválidos.');
     return data.map(publicModerationNotice).flatMap((notice) => {
       const item = moderationNotification(notice);
-      return item && !this.readIds.has(item.id) ? [item] : [];
+      return item ? [{ ...item, read: this.readIds.has(item.id) }] : [];
     });
   }
   markRead(ids: readonly string[]): void {

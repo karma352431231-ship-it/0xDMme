@@ -1,5 +1,5 @@
-.post-composer-dialog {
-  width: min(640px, calc(100vw - 24px));
+dialog.post-composer-dialog.community-scope {
+  width: min(620px, calc(100vw - 24px));
   max-height: calc(100dvh - 32px);
   padding: 24px;
   border: 1px solid var(--line);
@@ -7,33 +7,225 @@
   background: var(--surface);
   color: var(--text);
   overflow-y: auto;
+  box-sizing: border-box;
 }
-.post-composer-dialog::backdrop {
+dialog.post-composer-dialog.community-scope::backdrop {
   background: var(--overlay);
 }
-.post-composer-heading {
+dialog.post-composer-dialog.community-scope .post-composer-heading {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: flex-start;
   gap: 16px;
+  margin-bottom: 24px;
 }
-.post-composer-heading h2 {
+dialog.post-composer-dialog.community-scope .post-composer-heading h2 {
   margin: 0;
+  font: 700 24px/1.2 var(--font-display);
 }
-.post-composer-content {
+dialog.post-composer-dialog.community-scope .post-composer-heading-copy p {
+  margin: 8px 0 0;
+  color: var(--text-muted);
+  font-size: var(--fs-small);
+}
+dialog.post-composer-dialog.community-scope button {
+  cursor: pointer;
+  font: inherit;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface-2);
+  color: var(--text);
+  padding: 10px 14px;
+}
+dialog.post-composer-dialog.community-scope button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+dialog.post-composer-dialog.community-scope button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+dialog.post-composer-dialog.community-scope .post-composer-heading > button {
+  color: var(--text-muted);
+  font-size: var(--fs-small);
+  padding: 8px 12px;
+}
+dialog.post-composer-dialog.community-scope .post-composer-content {
   display: grid;
-  gap: 16px;
+  gap: 14px;
 }
-.post-composer-content :is(input, textarea, select) {
-  width: 100%;
+dialog.post-composer-dialog.community-scope .post-composer-content h3 {
+  margin: 0;
+  font-size: var(--fs-body);
 }
-.post-composer-content textarea {
-  min-height: 160px;
+dialog.post-composer-dialog.community-scope .post-composer-tabs {
+  display: flex;
+  gap: 6px;
+  padding: 4px;
+  background: var(--surface-2);
+  border-radius: 14px;
 }
-.post-composer-community {
+dialog.post-composer-dialog.community-scope .post-composer-tabs button {
+  flex: 1;
+  border: 0;
+  font-size: var(--fs-small);
+  background: transparent;
+  color: var(--text-muted);
+}
+dialog.post-composer-dialog.community-scope
+  .post-composer-tabs
+  button[aria-pressed='true'] {
+  background: var(--surface-3);
+  color: var(--text);
+}
+dialog.post-composer-dialog.community-scope .post-composer-community {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px;
   text-align: left;
+  background: var(--surface);
 }
-.post-composer-dialog .post-discard-confirmation {
+dialog.post-composer-dialog.community-scope .post-composer-community:hover {
+  border-color: var(--accent);
+  background: var(--surface-2);
+}
+dialog.post-composer-dialog.community-scope .post-composer-identity {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+dialog.post-composer-dialog.community-scope .post-composer-avatar {
+  flex: 0 0 44px;
+  width: 44px;
+  height: 44px;
+  overflow: hidden;
+  border-radius: 14px;
+  display: grid;
+  place-items: center;
+  background: var(--surface-3);
+  color: var(--text-muted);
+  font-weight: 700;
+}
+dialog.post-composer-dialog.community-scope .post-composer-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+dialog.post-composer-dialog.community-scope .post-composer-identity-copy {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+dialog.post-composer-dialog.community-scope
+  .post-composer-identity-copy
+  strong {
+  font-size: var(--fs-body);
+  overflow-wrap: anywhere;
+}
+dialog.post-composer-dialog.community-scope .post-composer-identity-copy small,
+dialog.post-composer-dialog.community-scope .post-composer-choice-arrow {
+  color: var(--text-muted);
+  font-size: var(--fs-small);
+}
+dialog.post-composer-dialog.community-scope .post-composer-selected {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--line);
+}
+dialog.post-composer-dialog.community-scope .post-composer-content > label {
+  display: grid;
+  gap: 8px;
+  font-size: var(--fs-small);
+  color: var(--text-muted);
+}
+dialog.post-composer-dialog.community-scope
+  .post-composer-content
+  :is(input:not([type='file']), textarea, select) {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface-2);
+  color: var(--text);
+  font: inherit;
+  font-size: 16px;
+  padding: 12px;
+}
+dialog.post-composer-dialog.community-scope .post-composer-content textarea {
+  min-height: 140px;
+}
+dialog.post-composer-dialog.community-scope
+  .post-composer-content
+  .post-tag-chips {
+  margin: 0;
+  border: 0;
+  padding: 0;
+}
+dialog.post-composer-dialog.community-scope
+  .post-composer-content
+  .post-tag-chips
+  legend {
+  margin-bottom: 10px;
+  color: var(--text-muted);
+  font-size: var(--fs-small);
+}
+dialog.post-composer-dialog.community-scope
+  .post-composer-content
+  .post-tag-chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+dialog.post-composer-dialog.community-scope
+  .post-composer-content
+  .post-tag-chip-list
+  button {
+  border-radius: 99px;
+  font-size: var(--fs-small);
+  padding: 8px 12px;
+}
+dialog.post-composer-dialog.community-scope
+  .post-composer-content
+  .post-tag-chip-list
+  button[aria-pressed='true'] {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+dialog.post-composer-dialog.community-scope
+  .post-composer-content
+  .post-text-tools
+  :is(.post-emoji-button, .post-gif-button, .media-picker-button) {
+  padding: 0;
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  background: transparent;
+  border: 0;
+  color: var(--text-muted);
+  font-size: var(--fs-small);
+}
+dialog.post-composer-dialog.community-scope .post-composer-footer {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+dialog.post-composer-dialog.community-scope .post-composer-publish {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 700;
+}
+dialog.post-composer-dialog.community-scope .post-discard-confirmation {
   position: absolute;
   inset: 0;
   padding: 32px 24px;
@@ -41,6 +233,29 @@
   border-radius: inherit;
   z-index: 1;
 }
-.post-discard-confirmation button {
+dialog.post-composer-dialog.community-scope .post-discard-confirmation button {
   margin: 8px 8px 0 0;
+}
+@media (max-width: 480px) {
+  .post-composer-dialog {
+    padding: 18px;
+  }
+  .post-composer-heading h2 {
+    font-size: 21px;
+  }
+}
+
+dialog.post-composer-dialog.community-scope
+  .post-composer-content
+  .post-text-area
+  textarea {
+  padding-bottom: 54px;
+}
+
+dialog.post-composer-dialog.community-scope .post-composer-heading-copy {
+  flex: 1;
+  min-width: 0;
+}
+dialog.post-composer-dialog.community-scope .post-composer-heading > button {
+  flex-shrink: 0;
 }

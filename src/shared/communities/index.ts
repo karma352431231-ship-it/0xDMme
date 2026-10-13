@@ -1,3 +1,5 @@
+import { communityName } from '../community-name/index.ts';
+import { mentionText } from '../public-mentions/index.ts';
 import { AccountError, keys, object, uuid } from '../account/index.ts';
 import { canonical } from '../devices/index.ts';
 import { publicProfile, publicProfileProof } from '../public-profile/index.ts';
@@ -23,6 +25,7 @@ export interface Community extends CommunityMeta {
   banner?: string | null;
   owner: PublicProfile | null;
   followers: number;
+  createdAt?: string | null;
 }
 export interface CommunityPage {
   items: Community[];
@@ -75,8 +78,8 @@ export function communityMeta(value: unknown): CommunityMeta {
   if (/[\n\t]/u.test(name))
     throw new AccountError(400, 'Nome deve ocupar uma linha.');
   return {
-    name,
-    description: communityText(data['description'], 1000, true),
+    name: communityName(name),
+    description: communityMentionText(data['description'], 1000, true),
     rules: communityText(data['rules'], 4000, true),
   };
 }
@@ -106,6 +109,7 @@ export function community(value: unknown): Community {
     'owner',
     'followers',
     ...(Object.hasOwn(d, 'banner') ? ['banner'] : []),
+    ...(Object.hasOwn(d, 'createdAt') ? ['createdAt'] : []),
   ]);
   if (
     typeof d['followers'] !== 'number' ||
@@ -129,6 +133,9 @@ export function community(value: unknown): Community {
       : {}),
     owner: d['owner'] === null ? null : publicProfile(d['owner']),
     followers: d['followers'],
+    ...(Object.hasOwn(d, 'createdAt')
+      ? { createdAt: communityDate(d['createdAt']) }
+      : {}),
   };
 }
 export function communityPage(value: unknown): CommunityPage {
@@ -219,4 +226,24 @@ export function communityBody(
   proof: { directory: string; payload: Record<string, unknown> },
 ): string {
   return canonical(['0xdmme-community', 1, account, device, operation, proof]);
+}
+
+function communityDate(value: unknown): string | null {
+  if (value === null) return null;
+  if (
+    typeof value !== 'string' ||
+    value.length !== 24 ||
+    !Number.isFinite(Date.parse(value)) ||
+    new Date(value).toISOString() !== value
+  )
+    throw new AccountError(400, 'Data da comunidade inválida.');
+  return value;
+}
+export function communityMentionText(
+  value: unknown,
+  maximum: number,
+  empty = false,
+): string {
+  const text = communityText(value, maximum + 8000, empty);
+  return mentionText(text, maximum);
 }
