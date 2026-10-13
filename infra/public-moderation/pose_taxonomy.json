@@ -84,5 +84,13 @@
     "A graphite or charcoal drawing on paper.",
     "A line drawing or engraving of a human figure.",
     "A woodblock print with inked outlines."
+  ],
+  "ordinary_clothed": [
+    "A comic strip showing fully clothed people in an everyday situation.",
+    "A cartoon of fully dressed adults doing ordinary daily activities.",
+    "A humorous drawing of men wearing shirts and trousers.",
+    "A line drawing of people in ordinary clothing at work.",
+    "An illustration of clothed people having a conversation.",
+    "A group of adults wearing ordinary clothes."
   ]
 }
