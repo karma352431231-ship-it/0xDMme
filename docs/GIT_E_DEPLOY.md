@@ -1,5 +1,41 @@
 # 0xDMme — Git e envio à VPS
 
+## Menções, atividade e ajustes de UI — ativação autorizada em 13/10/2026
+
+O proprietário aprovou as telas e pediu ajustar identificação de dono/mods,
+popup mobile de seguir e prévias dos @, integrar e ativar junto das mudanças
+anteriores deste chat. Fontes revisadas `375fca2480334d7790d3a8aef8c04050b5d88ccf` sobre a release
+`8ffcbc30f3c8b52f5dc729089362ac6511abfe72`, conferida em leitura na VPS:
+62 migrações com checksums exatos, nomes sem colisões, web/três workers saudáveis
+e configurações/serviços do outro projeto preservados. A autorização deste lote
+inclui especificamente 063–064, antes pendentes; não inclui as alterações de
+moderação sem commit de outra worktree.
+
+O módulo interno `deploy_mentions.py` reutiliza exclusivamente
+`npm run deploy:staging`. A 063 amplia somente capacidade de referências nos
+campos SQL, conservando os limites visíveis, e acrescenta nome normalizado único
+às comunidades. Colisões existentes recusam a atualização antes de manutenção;
+nunca renomear automaticamente. A 064 cria uma tabela inicialmente vazia de
+referências públicas de menção, com deduplicação, exclusão vinculada, índices,
+paginação e contabilização de 384 bytes. Não copia texto nem gera avisos
+históricos. Nenhuma linha anterior ou ledger deve mudar durante a transição.
+
+A revisão exige predecessora/fontes exatas, ICU já instalado, todas as 62
+migrações anteriores intactas, hashes de cada tabela antiga e ledger idêntico,
+tabela nova vazia, índices/gatilho e constraints verificadas. Preparar backup
+integral e ensaio de restauração; manutenção e retorno somente dos serviços
+próprios. Após reabrir escritores, preservar novas gravações em qualquer falha.
+Build no Mac, checkout main limpo/enviado, CI integral do commit exato e
+preservação/hash/prontidão verificados pelo executor. Node, dependências,
+moderação e units permanecem iguais; evidência e acesso só em `.local/`.
+
+**Ponto importante:** autorização, commit e CI não comprovam ativação; conferir
+recibo final, arquivos públicos e saúde após o deploy. `communities/index.ts`
+e o handler HTTP seguem hotspots existentes: nesta revisão recebem só conexões
+com os módulos de apresentação/seguidores. Proposta de corte separado: navegação,
+coordenação de telas e adaptadores HTTP por recurso, nessa ordem, mantendo
+contratos com testes de autorização/paginação e smoke mobile; fora deste lote.
+
 ## Cabeçalho e painel de emoji/GIF — ativação autorizada em 12/10/2026
 
 O proprietário pediu enviar e ativar as mudanças do outro chat. O único commit novo é `273ecdef275395b20fcba1dc8a50f5551b9a8595`, da branch `claude/hero-gifs-lines`, construído sobre a release `23793a750c26d13279b4ae3b3c09a891416ae91c`. Inclui a linha de seguidores sob o nome, o painel compartilhado de emoji/GIF nos editores de posts/replies e separadores mais visíveis. Integração ocorre pela main; alterações antigas não commitadas de outras worktrees permanecem fora.

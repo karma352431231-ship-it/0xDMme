@@ -456,6 +456,9 @@ def backup_review(candidate, live):
 
 def database_review(candidate, live):
     count = len(list((candidate / 'src/server/database/migrations').glob('*.sql')))
+    if count == 64:
+        import deploy_mentions
+        return deploy_mentions.review(candidate, live)
     if count == 62:
         import deploy_discussion
         return deploy_discussion.review(candidate, live)
@@ -1048,6 +1051,9 @@ def activate(config, work):
     if (database_files(candidate) != database_files(DATA / 'release')
             and not database_code_reviewed(candidate, DATA / 'release')):
         # Any unreviewed database change was rejected by prepare()/compatibility().
+        if len(list((candidate / 'src/server/database/migrations').glob('*.sql'))) == 64:
+            import deploy_mentions
+            return deploy_mentions.activate(config, work, candidate, before)
         if len(list((candidate / 'src/server/database/migrations').glob('*.sql'))) == 62:
             import deploy_discussion
             return deploy_discussion.activate(config, work, candidate, before)
