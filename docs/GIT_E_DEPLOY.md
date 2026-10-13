@@ -1,5 +1,11 @@
 # 0xDMme — Git e envio à VPS
 
+## Cabeçalho e painel de emoji/GIF — ativação autorizada em 12/10/2026
+
+O proprietário pediu enviar e ativar as mudanças do outro chat. O único commit novo é `273ecdef275395b20fcba1dc8a50f5551b9a8595`, da branch `claude/hero-gifs-lines`, construído sobre a release `23793a750c26d13279b4ae3b3c09a891416ae91c`. Inclui a linha de seguidores sob o nome, o painel compartilhado de emoji/GIF nos editores de posts/replies e separadores mais visíveis. Integração ocorre pela main; alterações antigas não commitadas de outras worktrees permanecem fora.
+
+**Ponto importante:** esta é uma release de frontend; as 62 migrações, backend, moderação, Node, dependências e units permanecem iguais. Usar exclusivamente `npm run deploy:staging` em checkout limpo/enviado, com CI integral do commit final, build no Mac, preservação dos outros serviços e retorno da release anterior. Autorização e envio de fontes não comprovam ativação; conferir recibo, hashes públicos e prontidão dos três workers. A revisão local passou em análise estática, build e 22 testes direcionados. No navegador sintético em 320/390/1280 px: seguidores sem estouro horizontal, emoji no texto, GIF somente no rascunho, recusa sem consulta externa, emojis sem KLIPY e fechamento do painel. A VPS predecessora, o schema e os três workers foram conferidos antes da publicação.
+
 ## Feed/postagem e discussão — ativação autorizada em 12/10/2026
 
 O proprietário autorizou revisar o feed pendente, integrar este chat na main e enviar as fontes à VPS. A aplicação revisada é `09917b96e3ee1fda67fd89da4a5fe99bd3cbf2e3`, sobre a release publicada `e22b5e3eac26b78af927e424923bf664567f38ff`. Em 12/10/2026, após confirmar que o lote completo de feed/postagem foi integrado, o proprietário aprovou explicitamente a ativação do pacote na VPS, incluindo a transição 061→062. Preservar todas as migrações anteriores, Node, dependências, units e a política de moderação publicada sem julgamento de pose.
