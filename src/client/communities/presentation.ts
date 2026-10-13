@@ -198,9 +198,12 @@ export function openPostFromCard(event: MouseEvent): void {
   )
     return;
   if (window.getSelection()?.toString()) return;
-  card
-    .querySelector<HTMLAnchorElement>(
-      ':scope > .post-actions a.post-discussion, :scope > .post-actions a.post-comments',
-    )
-    ?.click();
+  const target =
+    card.querySelector<HTMLAnchorElement>(
+      ':scope > .post-actions a.post-discussion',
+    ) ??
+    card.querySelector<HTMLAnchorElement>(
+      ':scope > .post-actions a.post-comments',
+    );
+  target?.click();
 }

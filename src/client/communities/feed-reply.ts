@@ -10,7 +10,7 @@ export function hasOpenFeedReply(container: HTMLElement | null): boolean {
   return Boolean(container?.querySelector('dialog.reply-box[open]'));
 }
 
-/** Reply in place; the distinct discussion link still navigates to the thread. */
+/** Reply in place; a hidden target keeps card navigation separate from replying. */
 export function feedReply(
   toolbar: HTMLElement,
   parent: CommunityPost,
@@ -51,7 +51,8 @@ export function feedReply(
     login.setAttribute('aria-label', 'Entre pelo Perfil para responder');
     toolbar.append(login);
   }
-  const discussion = el('a', 'Abrir discussão', 'post-action post-discussion');
+  const discussion = el('a', '', 'post-discussion');
+  discussion.hidden = true;
   discussion.href = `#comunidades?id=${parent.community}&post=${parent.id}`;
   toolbar.append(discussion);
   toolbar.after(status);
