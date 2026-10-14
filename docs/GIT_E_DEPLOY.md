@@ -1,5 +1,25 @@
 # 0xDMme — Git e envio à VPS
 
+## Criação e lateral de comunidades — publicação autorizada em 14/10/2026
+
+O proprietário pediu integrar o fix `18a3337` na `main` e ativá-lo na VPS.
+A correção conserva o formulário de criação e os elementos da lista lateral
+nas rechecagens idênticas, mantendo consultas atuais e digitação durante a rede.
+Preservar os trabalhos já integrados na main e as alterações de outras worktrees.
+Contrato, evidências e validação no
+[bloco 10A](BLOCO_10A_AUDIO_E_TEMPO_REAL.md#criação-e-lista-lateral-de-comunidades--correção-solicitada-em-14102026).
+
+Esta entrega altera somente o cliente, testes e documentação. Backend, migrações,
+dependências, Node, detector, units e infraestrutura conservam a release ativa.
+Usar exclusivamente `npm run deploy:staging` na main limpa, integrada e enviada,
+com CI integral do commit exato e build preparado no Mac. Conferir predecessor,
+fontes do banco, preservação, prontidão, hashes públicos e retorno de código pelo
+executor existente. Acesso, baselines, artefatos e evidências ficam em `.local/`.
+
+**Ponto importante:** publicação exige recibo `published` e verificação dos assets
+servidos. Não atribuir falhas de conexão do usuário ao app sem evidência; o fix
+trata a reconstrução da interface demonstrada na investigação.
+
 ## Community Creation Images Release Authorized on 14/10/2026
 
 The owner asked to put `claude/community-create-media` on `main` and activate it
