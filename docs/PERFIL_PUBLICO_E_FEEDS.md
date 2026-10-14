@@ -243,4 +243,6 @@ The manual browser regression in `tests/fixtures/public-image-frames-browser.ts`
 
 `community.css` and `profile.css` remain existing stylesheet hotspots. The former spans directory, posts, hero and management; the latter spans the public header, followed communities and profile editing. This repair changes its existing image rules only. A separate reviewed task should extract directory/avatar styles first, hero/management second, and post/reply styles last, preserving cascade order and specificity. For `profile.css`, extract the public header first, followed communities second and the profile editor last. Check full page/panel/mobile layout, placeholders, image clipping, menus and focus after each extraction; do not mix either refactor into this repair.
 
+The owner chose “Manter só na branch” after reviewing the publication question. Keep this repair on `codex/community-banner-flow`; main integration and VPS activation are outside this delivery.
+
 **Ponto importante:** image bytes, public visibility, loading and synchronization stay unchanged; this correction affects their presentation.
