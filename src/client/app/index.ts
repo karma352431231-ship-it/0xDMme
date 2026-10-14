@@ -543,11 +543,11 @@ function mountAccountPanels(key: PageKey): void {
     container,
     key === 'perfil' && connectedAccount ? 'settings' : 'login',
   );
-  if (key !== 'perfil') return;
   if (!connectedAccount) {
     mountEnrollmentLogin(container, devices);
     return;
   }
+  if (key !== 'perfil') return;
   const meter = document.createElement('div');
   meter.className = 'vault-meter';
   container.after(meter);

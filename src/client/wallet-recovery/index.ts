@@ -14,6 +14,7 @@ import {
 import type { WalletRecovery } from '../../shared/wallet-recovery/index.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
 import type { WalletConnection } from '../wallet/index.ts';
+import { currentLanguage } from '../../shared/i18n/index.ts';
 
 export function createWalletRecovery(
   session: AccountSession,
@@ -21,6 +22,7 @@ export function createWalletRecovery(
 ): WalletRecovery {
   return walletRecovery({
     version: walletRecoveryVersion,
+    language: currentLanguage(),
     accountId: session.accountId,
     origin,
     ecosystem: session.ecosystem,

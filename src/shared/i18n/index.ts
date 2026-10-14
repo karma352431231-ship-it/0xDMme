@@ -44,8 +44,8 @@ export function setActiveLanguage(value: AppLanguage): void {
   active = value;
 }
 export function preferredLanguage(values: readonly string[]): AppLanguage {
-  const supported = values.find((value) => /^(?:zh|en)(?:-|$)/iu.test(value));
-  return supported && /^zh(?:-|$)/iu.test(supported) ? 'zh-CN' : 'en';
+  const primary = values[0] ?? 'en';
+  return /^zh(?:$|-(?:CN|SG|Hans)(?:-|$))/iu.test(primary) ? 'zh-CN' : 'en';
 }
 
 /** Static document text is translated once, before account/user data enters the DOM. */

@@ -75,6 +75,8 @@ const authored = [
   'vendor/fonts/README.md',
   'vendor/fonts/LICENSE-FIGTREE.txt',
   'vendor/fonts/LICENSE-SORA.txt',
+  'vendor/wallet-marks',
+  'src/tools/frontend-wallet-marks.ts',
   'src/client/daily',
   'src/client/daily-text',
   'src/client/message-actions',

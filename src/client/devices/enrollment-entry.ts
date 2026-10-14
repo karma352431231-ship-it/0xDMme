@@ -102,6 +102,7 @@ export function mountEnrollmentLogin(
   const panel = document.createElement('details');
   panel.className = 'enrollment-login';
   panel.innerHTML = t('html.5acc35953618');
+  panel.querySelector('textarea')!.maxLength = 4096;
   panel.querySelector('button')!.addEventListener('click', () => {
     try {
       const code = panel.querySelector('textarea')!.value;

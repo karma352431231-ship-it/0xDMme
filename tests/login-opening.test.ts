@@ -26,7 +26,10 @@ import {
   acknowledgeLoginOpening,
   forgetLoginOpening,
 } from '../src/client/wallet-opening/index.ts';
-import { recoveryMessage } from '../src/shared/wallet-recovery/index.ts';
+import {
+  recoveryMessage,
+  walletRecovery,
+} from '../src/shared/wallet-recovery/index.ts';
 import { createIdentity } from '../src/client/device-keys/index.ts';
 import { createWalletRecovery } from '../src/client/wallet-recovery/index.ts';
 import { startDevices } from '../src/client/devices/index.ts';
@@ -37,6 +40,7 @@ import type {
   WalletName,
 } from '../src/client/wallet/index.ts';
 import { deviceDatabase } from './fixtures/device-database.ts';
+import { setActiveLanguage } from '../src/shared/i18n/index.ts';
 
 const origin = 'https://0xdmme.app';
 const signer = new Wallet(`0x${'1'.padStart(64, '0')}`);
@@ -149,7 +153,10 @@ for (const ecosystem of ['evm', 'solana'] as const)
         const { records, window, document } = globals(t),
           user = session(ecosystem),
           server = new LoginOpening(origin);
+        t.after(() => setActiveLanguage('en'));
+        setActiveLanguage('zh-CN');
         const receiver = await prepareLoginOpening(name);
+        assert.equal(receiver.language, 'zh-CN');
         const ticket = await server.start(
           'original-browser',
           receiver,
@@ -158,6 +165,18 @@ for (const ecosystem of ['evm', 'solana'] as const)
         await rememberLoginOpening(receiver, ticket);
         const request = server.prepare(ticket, user, null);
         assert.ok(request);
+        assert.equal(request.transfer.config.version, 3);
+        assert.equal(
+          'language' in request.transfer.config &&
+            request.transfer.config.language,
+          'zh-CN',
+        );
+        setActiveLanguage('en');
+        assert.match(recoveryMessage(request.transfer.config), /设置或恢复/u);
+        assert.doesNotMatch(
+          recoveryMessage(request.transfer.config),
+          /Set up or restore/u,
+        );
         assert.equal(request.transfer.count, 2);
         assert.equal(server.ready('original-browser'), false);
         assert.throws(() =>
@@ -310,13 +329,22 @@ await test('abertura rejeita troca de destinatário, sessão, wallet, replay e r
     receiver = await prepareLoginOpening('MetaMask');
   const server = new LoginOpening(origin);
   const ticket = await server.start('browser', receiver, Date.now() + 300000);
-  const request = server.prepare(
-    ticket,
-    user,
-    createWalletRecovery(user, origin),
-  );
+  const created = createWalletRecovery(user, origin);
+  const legacy = walletRecovery({
+    version: 2,
+    accountId: created.accountId,
+    ecosystem: created.ecosystem,
+    address: created.address,
+    origin: created.origin,
+    id: created.id,
+    salt: created.salt,
+  });
+  const request = server.prepare(ticket, user, legacy);
   assert.ok(request);
+  assert.equal(request.transfer.config.version, 2);
   assert.equal(request.transfer.count, 1);
+  await assert.rejects(openingRequest({ ...request, language: 'zh-CN' }));
+  await assert.rejects(openingRequest({ ...request, language: 'pt-BR' }));
   const wrong = await createIdentity(crypto.randomUUID(), 'Outro');
   await assert.rejects(
     openingRequest({

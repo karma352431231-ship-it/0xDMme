@@ -1,5 +1,7 @@
 /** Authored app text. Tuple order: English, Simplified Chinese. */
 export const catalog: Record<string, readonly [string, string]> = {
+  'wallet.available': ['Available', '可用'],
+  'wallet.not-detected': ['Not detected', '未检测到'],
   'Idioma salvo.': ['Language saved.', '语言已保存。'],
   ', que você segue': [', which you follow', '，你已关注'],
   ': heartbeat': [': heartbeat', '：心跳'],
@@ -6373,8 +6375,8 @@ export const catalog: Record<string, readonly [string, string]> = {
     '<form data-contact-invite-form><label>邀请链接<input data-contact-received type="url" maxlength="512" required autocomplete="off" spellcheck="false" placeholder="粘贴 0xDMme 链接"></label><p class="contact-hint">邀请允许发起聊天请求。接收者仍需接受。</p><div class="contact-form-actions"><button type="submit" class="primary">申请聊天</button><button data-contact-action="scan" type="button">扫描二维码</button><button data-contact-action="stop-camera" type="button" hidden>关闭摄像头</button></div><video data-contact-camera hidden muted playsinline></video></form>',
   ],
   'html.5acc35953618': [
-    '<summary>Sign in with a code from another device</summary><p>On a connected device, open Profile → Connected devices and generate a code.</p><label>Device linking code or link<textarea data-enrollment-code spellcheck="false"></textarea></label><button type="button">Continue</button><p role="status"></p>',
-    '<summary>使用另一台设备的代码登录</summary><p>在已连接设备上，打开“个人资料 → 已连接设备”并生成代码。</p><label>设备关联码或链接<textarea data-enrollment-code spellcheck="false"></textarea></label><button type="button">继续</button><p role="status"></p>',
+    '<summary>Sign in from another device</summary><p>On a connected device, open Profile → Connected devices and generate a code.</p><label>Linking code or link<textarea data-enrollment-code spellcheck="false" autocomplete="off" autocapitalize="none" placeholder="Paste code or link"></textarea></label><button type="button">Continue</button><p role="status"></p>',
+    '<summary>从另一台设备登录</summary><p>在已连接设备上，打开“个人资料 → 已连接设备”并生成代码。</p><label>关联码或链接<textarea data-enrollment-code spellcheck="false" autocomplete="off" autocapitalize="none" placeholder="粘贴代码或链接"></textarea></label><button type="button">继续</button><p role="status"></p>',
   ],
   'html.73a1fbbc7e77': [
     '<h2>Sign in on this device?</h2><p>Connect this browser to the account on the device that generated the QR code.</p><p data-enrollment-status role="status">Keep the source device open until the connection finishes.</p><button type="button" data-enrollment-confirm class="primary">Confirm sign-in</button><button type="button" data-enrollment-close>Cancel</button>',

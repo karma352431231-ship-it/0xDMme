@@ -1,0 +1,89 @@
+.account-section {
+  min-width: 0;
+}
+
+.account-section .account-card {
+  border: 0;
+  border-radius: 0;
+  padding: 24px 0;
+  background: transparent;
+}
+
+.account-card .wallet-picker {
+  border: 0;
+  border-top: 1px solid var(--line);
+  border-radius: 0;
+  background: transparent;
+  margin-top: 24px;
+  padding: 24px 0 0;
+}
+
+.account-card .wallet-picker h3 {
+  font-size: var(--fs-input);
+  line-height: 1.3;
+}
+
+.account-card .wallet-picker .detail {
+  font-size: var(--fs-caption);
+  line-height: 1.6;
+  margin-block: 10px 16px;
+}
+
+.account-card .wallet-option {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  min-width: 0;
+  min-height: 58px;
+  padding: 12px;
+  font: inherit;
+  font-size: var(--fs-small);
+  cursor: pointer;
+}
+
+.account-card .wallet-option.has-wallet-mark {
+  grid-template-columns: 32px minmax(0, 1fr) auto;
+}
+
+.account-card .wallet-option > span:first-of-type {
+  min-width: 0;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.account-card img.wallet-mark {
+  width: 32px;
+  height: 32px;
+  object-fit: contain;
+  border-radius: 6px;
+}
+
+.account-card .wallet-detection {
+  max-width: 100%;
+  padding: 4px 6px;
+  border-radius: 4px;
+  font-size: var(--fs-caption);
+  line-height: 1.35;
+  text-align: right;
+  white-space: normal;
+}
+
+.account-card .wallet-option:focus-visible,
+.account-section .enrollment-login summary:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 3px;
+}
+
+@media (max-width: 380px) {
+  .account-card .wallet-option {
+    gap: 8px;
+    padding: 10px;
+  }
+  .account-card .wallet-option.has-wallet-mark {
+    grid-template-columns: 28px minmax(0, 1fr) auto;
+  }
+  .account-card img.wallet-mark {
+    width: 28px;
+    height: 28px;
+  }
+}

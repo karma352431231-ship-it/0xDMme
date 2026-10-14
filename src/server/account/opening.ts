@@ -73,6 +73,7 @@ export class LoginOpening {
     if (!state) return null;
     const config = saved ?? {
       version: walletRecoveryVersion,
+      language: state.receiver.language ?? 'en',
       accountId: identity.accountId,
       ecosystem: identity.ecosystem,
       address: identity.address,
@@ -91,6 +92,7 @@ export class LoginOpening {
         count: saved ? 1 : 2,
       }),
       nonce: state.receiver.nonce,
+      ...(state.receiver.language ? { language: state.receiver.language } : {}),
     };
     return state.request;
   }

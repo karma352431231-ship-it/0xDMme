@@ -32,7 +32,10 @@ await test('catalogs preserve every placeholder and have no empty translations',
 
 await test('official languages respect preference order and default to English', () => {
   assert.equal(preferredLanguage(['pt-BR', 'en-US', 'zh-CN']), 'en');
-  assert.equal(preferredLanguage(['zh-TW', 'en']), 'zh-CN');
+  assert.equal(preferredLanguage(['zh-TW', 'en']), 'en');
+  assert.equal(preferredLanguage(['zh-CN', 'en']), 'zh-CN');
+  assert.equal(preferredLanguage(['zh-Hans-SG', 'en']), 'zh-CN');
+  assert.equal(preferredLanguage(['pt-BR', 'zh-CN']), 'en');
   assert.equal(preferredLanguage(['pt-BR', 'es']), 'en');
   assert.ok(isAppLanguage('en'));
   assert.ok(isAppLanguage('zh-CN'));

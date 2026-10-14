@@ -21,6 +21,7 @@
 @import '../devices/devices.css';
 @import '../hover-card/hover-card.css';
 @import '../account-settings/account-settings.css';
+@import '../account/account-entry.css';
 
 /* === Theme tokens: the only place with literal colors (see tests/appearance.test.ts). === */
 /*

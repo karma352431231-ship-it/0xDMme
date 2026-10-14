@@ -1,4 +1,5 @@
 import { fetchApi, readApiJson } from '../api-response/index.ts';
+import { currentLanguage } from '../../shared/i18n/index.ts';
 import {
   AccountError,
   boundedText,
@@ -46,7 +47,14 @@ function legacyPending(): unknown {
 }
 function pendingData(value: unknown): OpeningPending {
   const data = object(value);
-  keys(data, ['ticket', 'nonce', 'receiver', 'wallet', 'expires']);
+  keys(data, [
+    'ticket',
+    'nonce',
+    'receiver',
+    'wallet',
+    'expires',
+    ...(Object.hasOwn(data, 'language') ? ['language'] : []),
+  ]);
   if (
     typeof data['expires'] !== 'number' ||
     !Number.isSafeInteger(data['expires']) ||
@@ -64,6 +72,9 @@ function pendingData(value: unknown): OpeningPending {
       receiver: data['receiver'],
       nonce: data['nonce'],
       wallet: data['wallet'],
+      ...(Object.hasOwn(data, 'language')
+        ? { language: data['language'] }
+        : {}),
     }),
     ticket,
     expires: data['expires'],
@@ -83,6 +94,7 @@ async function pending(): Promise<OpeningPending | null> {
       receiver: current.receiver,
       nonce: current.nonce,
       wallet: current.wallet,
+      ...(current.language ? { language: current.language } : {}),
     })) !== current.ticket
   )
     throw new Error('Destino da entrada alterado.');
@@ -96,6 +108,7 @@ export async function prepareLoginOpening(
   const receiver = {
     receiver: identity.public.wrapping,
     wallet,
+    language: currentLanguage(),
     nonce: Array.from(crypto.getRandomValues(new Uint8Array(32)), (byte) =>
       byte.toString(16).padStart(2, '0'),
     ).join(''),

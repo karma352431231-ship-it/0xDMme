@@ -13,13 +13,83 @@
   margin: 8px 8px 0 0;
 }
 .enrollment-login {
-  margin-top: 16px;
+  margin-top: 8px;
+  padding: 20px 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  color: var(--text);
+  font-size: var(--fs-small);
+  line-height: 1.5;
+}
+.enrollment-login summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  list-style: none;
+  cursor: pointer;
+  font-weight: 600;
+  padding: 4px 0;
+}
+.enrollment-login summary::-webkit-details-marker {
+  display: none;
+}
+.enrollment-login summary::after {
+  content: '';
+  flex: 0 0 8px;
+  height: 8px;
+  border-right: 2px solid var(--text-muted);
+  border-bottom: 2px solid var(--text-muted);
+  transform: rotate(45deg);
+  margin-right: 6px;
+}
+.enrollment-login[open] summary::after {
+  transform: rotate(225deg);
+}
+.enrollment-login p {
+  color: var(--text-muted);
+  font-size: var(--fs-caption);
+  line-height: 1.6;
+  margin-block: 16px;
 }
 .enrollment-login label {
   display: grid;
   gap: 8px;
+  font-weight: 500;
+  margin-top: 20px;
 }
 .enrollment-login textarea {
   width: 100%;
-  min-height: 90px;
+  min-height: 112px;
+  padding: 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  background: var(--surface-2);
+  color: var(--text);
+  font: inherit;
+  line-height: 1.5;
+  resize: vertical;
+  overflow-wrap: anywhere;
+}
+.enrollment-login textarea:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+.enrollment-login button {
+  min-height: 44px;
+  padding: 10px 20px;
+  margin-top: 14px;
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.enrollment-login button:hover {
+  background: var(--accent-strong);
+}
+.enrollment-login [role='status']:empty {
+  display: none;
 }

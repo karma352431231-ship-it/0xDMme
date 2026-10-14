@@ -10,16 +10,16 @@ import {
 import { canonicalAddress, ecosystem } from '../wallet-identity/index.ts';
 import type { Ecosystem } from '../wallet-identity/index.ts';
 import { bilingualRecoveryStatement } from './statement.ts';
+import { localizedRecoveryStatement } from './localized-statement.ts';
+import type { RecoveryLanguage, WalletRecovery } from './configuration.ts';
+export type { RecoveryLanguage, WalletRecovery } from './configuration.ts';
 
-export const walletRecoveryVersion = 2;
-export interface WalletRecovery {
-  version: typeof walletRecoveryVersion;
-  accountId: string;
-  origin: string;
-  ecosystem: Ecosystem;
-  address: string;
-  id: string;
-  salt: string;
+export const walletRecoveryVersion = 3;
+
+export function recoveryLanguage(value: unknown): RecoveryLanguage {
+  if (value !== 'en' && value !== 'zh-CN')
+    throw new AccountError(400, 'Configuração de recuperação inválida.');
+  return value;
 }
 function recoveryOrigin(value: unknown): string {
   const text = boundedText(value, 256);
@@ -41,19 +41,19 @@ export function walletRecovery(value: unknown): WalletRecovery {
     'address',
     'id',
     'salt',
+    ...(input['version'] === 3 ? ['language'] : []),
   ]);
   const network = ecosystem(input['ecosystem']);
   const address = canonicalAddress(network, input['address']);
   const salt = base64(input['salt'], 32);
   if (
-    input['version'] !== walletRecoveryVersion ||
+    (input['version'] !== 2 && input['version'] !== walletRecoveryVersion) ||
     address !== input['address'] ||
     salt.length !== 32 ||
     encode(salt) !== input['salt']
   )
     throw new AccountError(400, 'Configuração de recuperação inválida.');
-  return {
-    version: walletRecoveryVersion,
+  const config = {
     accountId: uuid(input['accountId']),
     origin: recoveryOrigin(input['origin']),
     ecosystem: network,
@@ -61,9 +61,15 @@ export function walletRecovery(value: unknown): WalletRecovery {
     id: uuid(input['id']),
     salt: input['salt'],
   };
+  return input['version'] === 2
+    ? { ...config, version: 2 }
+    : { ...config, version: 3, language: recoveryLanguage(input['language']) };
 }
 export function recoveryMessage(value: WalletRecovery): string {
-  return bilingualRecoveryStatement(walletRecovery(value));
+  const config = walletRecovery(value);
+  return config.version === 2
+    ? bilingualRecoveryStatement(config)
+    : localizedRecoveryStatement(config);
 }
 export function recoveryIdentity(
   config: WalletRecovery,

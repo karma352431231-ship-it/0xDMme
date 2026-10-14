@@ -17,6 +17,7 @@ import {
   transferContext,
 } from '../../src/shared/wallet-recovery/index.ts';
 import { canonical, identityOf } from '../../src/shared/devices/index.ts';
+import { setActiveLanguage } from '../../src/shared/i18n/index.ts';
 import {
   createWalletRecovery,
   walletRecoveryKey,
@@ -173,7 +174,14 @@ await test('PostgreSQL/HTTP: migração autorizada e retorno cifrado preservam d
     (await post('devices/commit', { event: initial, profile: null })).status,
     200,
   );
+  t.after(() => setActiveLanguage('en'));
+  setActiveLanguage('zh-CN');
   const recovery = createWalletRecovery(first.session, origin);
+  assert.equal(recovery.version, 3);
+  assert.equal('language' in recovery && recovery.language, 'zh-CN');
+  setActiveLanguage('en');
+  assert.match(recoveryMessage(recovery), /设置或恢复/u);
+  assert.doesNotMatch(recoveryMessage(recovery), /Set up or restore/u);
   const signatures = [
     await signer.signMessage(recoveryMessage(recovery)),
     await signer.signMessage(recoveryMessage(recovery)),

@@ -1,5 +1,13 @@
 # 0xDMme — Licenças e distribuição
 
+Wallet identification marks approved on 14/10/2026: exact official developer
+assets from MetaMask and Phantom under MIT, and Backpack's Wallet Standard
+package under Apache-2.0. Original graphics, source constants and license notices
+are included in corresponding sources; no SDK dependency or external runtime
+request is added. The marks are not app-authored GPL artwork and imply no
+endorsement. Website-only icons were excluded. See [provenance and pinned
+revisions](vendor/wallet-marks/README.md).
+
 Idiomas oficiais em 13/10/2026: as anotações originais en/zh do CLDR 48.2.3
 complementam o pacote de emojis já aprovado, sob **Unicode-3.0**; o aviso
 upstream da versão exata permanece idêntico ao arquivo `LICENSE-CLDR.txt`.

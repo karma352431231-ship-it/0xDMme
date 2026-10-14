@@ -6,6 +6,7 @@ import { frontendMatrixSources } from './frontend-matrix-source.ts';
 import { frontendSource } from './frontend-source.ts';
 import { localizationPlugin } from './frontend-localization.ts';
 import { emojiAsset, frontendEmoji } from './frontend-emoji.ts';
+import { frontendWalletMarks } from './frontend-wallet-marks.ts';
 import {
   frontendVendorSource,
   vendorSourceAsset,
@@ -102,6 +103,8 @@ async function pruneGeneratedAssets(): Promise<void> {
 }
 
 const emojis = await frontendEmoji(fileURLToPath(root));
+for (const [name, bytes] of await frontendWalletMarks(fileURLToPath(root)))
+  asset(name, bytes);
 const emojiCatalogUrl = hashedAsset(
   'emoji-catalog',
   'js',

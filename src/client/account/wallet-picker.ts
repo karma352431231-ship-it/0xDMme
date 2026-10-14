@@ -1,6 +1,7 @@
 import { t } from '../../shared/i18n/index.ts';
 import type { discoverWallets } from '../wallet/index.ts';
 import { mobileWalletBrowser } from './wallet-return.ts';
+import { mountWalletMark } from './wallet-marks.ts';
 import { node } from './core.ts';
 import type { AccountCore } from './core.ts';
 
@@ -32,7 +33,7 @@ export class WalletPicker {
     this.wallets = wallets;
     this.host = host;
   }
-  /** Opens the chooser at its first step, as Confirmar wallet and Concluir entrada do. */
+  /** Opens the first step, also used to confirm a wallet or complete sign-in. */
   request(): void {
     this.core.forcePicker = true;
     this.open = true;
@@ -113,6 +114,7 @@ export class WalletPicker {
     });
   }
   private bindBrand(button: HTMLButtonElement): void {
+    mountWalletMark(button);
     button.addEventListener('click', () => {
       if (this.core.busy) return;
       this.selected = button.dataset['walletBrand'] ?? null;
@@ -190,6 +192,6 @@ function option(labelText: string): HTMLButtonElement {
 }
 
 function detectionLabel(detected: boolean): string {
-  if (detected) return t('Disponível neste navegador');
-  return mobileWalletBrowser() ? t('Abrir no app') : t('Não detectada aqui');
+  if (detected) return t('wallet.available');
+  return mobileWalletBrowser() ? t('Abrir no app') : t('wallet.not-detected');
 }

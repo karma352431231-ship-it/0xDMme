@@ -346,6 +346,20 @@ Dividir a implementação em **10 cortes**: (1) Perfil e navegação; (2) identi
 
 ### 5.11 Painéis e temas — redesign aprovado em 09/10/2026
 
+**Wallet entry and recovery language — owner decision on 14/10/2026:** polish
+wallet selection and device-code sign-in on desktop/mobile, with official wallet
+marks and compact availability labels. The owner approved recovery v3 with one
+language fixed at creation, accepting language metadata alongside recovery
+configuration. Preserve existing v2 recovery bytes and access; interface changes
+must not change a stored recovery document. Carry the originating browser's
+language through mobile handoff. SIWE and unrelated signed documents stay as
+previously approved. See [recovery language](docs/I18N.md#recovery-document-language-approved-on-14102026).
+
+After the website-mark restriction was identified, the owner approved using
+only explicitly licensed icons from the official developer/brand repositories,
+preserving original notices and adding no SDK, fees or runtime external requests.
+This does not approve promotional trademark reuse. See [mark provenance](vendor/wallet-marks/README.md).
+
 **Fresh test accounts — owner decision on 14/10/2026:** after the v2 transition,
 the owner chose to delete all app test data, including public communities/posts,
 and register again using the same wallets. This explicitly authorized one-time

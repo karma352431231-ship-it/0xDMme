@@ -57,7 +57,15 @@ function session(): AccountSession {
 await test('recuperação v2 bilíngue abre a cápsula após troca de idioma; outra conta/mensagem/origem falha', async (context) => {
   context.after(() => setActiveLanguage('en'));
   const user = session();
-  const config = createWalletRecovery(user, origin);
+  const config = walletRecovery({
+    version: 2,
+    accountId: user.accountId,
+    origin,
+    ecosystem: user.ecosystem,
+    address: user.address,
+    id: crypto.randomUUID(),
+    salt: btoa('x'.repeat(32)),
+  });
   const message = recoveryMessage(config);
   assert.match(message, /Set up or restore private access/u);
   assert.match(message, /设置或恢复私人数据访问/u);

@@ -1,12 +1,19 @@
 import { boundedText, keys, object } from '../account/index.ts';
 import { canonical, digest } from '../devices/index.ts';
-import { recoveryTransfer } from '../wallet-recovery/index.ts';
-import type { RecoveryTransfer } from '../wallet-recovery/index.ts';
+import {
+  recoveryLanguage,
+  recoveryTransfer,
+} from '../wallet-recovery/index.ts';
+import type {
+  RecoveryLanguage,
+  RecoveryTransfer,
+} from '../wallet-recovery/index.ts';
 
 export interface OpeningReceiver {
   receiver: string;
   nonce: string;
   wallet: RecoveryTransfer['wallet'];
+  language?: RecoveryLanguage;
 }
 export interface OpeningPending extends OpeningReceiver {
   ticket: string;
@@ -15,10 +22,16 @@ export interface OpeningPending extends OpeningReceiver {
 export interface OpeningRequest {
   transfer: RecoveryTransfer;
   nonce: string;
+  language?: RecoveryLanguage;
 }
 export function openingReceiver(value: unknown): OpeningReceiver {
   const data = object(value);
-  keys(data, ['receiver', 'nonce', 'wallet']);
+  keys(data, [
+    'receiver',
+    'nonce',
+    'wallet',
+    ...(Object.hasOwn(data, 'language') ? ['language'] : []),
+  ]);
   const receiver = boundedText(data['receiver'], 800);
   const nonce = boundedText(data['nonce'], 64);
   const wallet = data['wallet'];
@@ -27,7 +40,14 @@ export function openingReceiver(value: unknown): OpeningReceiver {
     !['MetaMask', 'Phantom', 'Backpack'].includes(String(wallet))
   )
     throw new Error('Destino de abertura inválido.');
-  return { receiver, nonce, wallet: wallet as OpeningReceiver['wallet'] };
+  return {
+    receiver,
+    nonce,
+    wallet: wallet as OpeningReceiver['wallet'],
+    ...(Object.hasOwn(data, 'language')
+      ? { language: recoveryLanguage(data['language']) }
+      : {}),
+  };
 }
 export function openingTicket(receiver: OpeningReceiver): Promise<string> {
   return digest(
@@ -36,14 +56,23 @@ export function openingTicket(receiver: OpeningReceiver): Promise<string> {
 }
 export async function openingRequest(value: unknown): Promise<OpeningRequest> {
   const data = object(value);
-  keys(data, ['transfer', 'nonce']);
+  keys(data, [
+    'transfer',
+    'nonce',
+    ...(Object.hasOwn(data, 'language') ? ['language'] : []),
+  ]);
   const transfer = recoveryTransfer(data['transfer']);
   const receiver = openingReceiver({
     receiver: transfer.receiver,
     wallet: transfer.wallet,
     nonce: data['nonce'],
+    ...(Object.hasOwn(data, 'language') ? { language: data['language'] } : {}),
   });
   if ((await openingTicket(receiver)) !== transfer.ticket)
     throw new Error('O destino da abertura foi alterado.');
-  return { transfer, nonce: receiver.nonce };
+  return {
+    transfer,
+    nonce: receiver.nonce,
+    ...(receiver.language ? { language: receiver.language } : {}),
+  };
 }

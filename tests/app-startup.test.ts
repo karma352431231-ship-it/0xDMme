@@ -111,6 +111,7 @@ async function page(approval: boolean, userAgent: string, hash = '#conversas') {
     createElement: () => new Node(),
   });
   const mounted: Node[] = [];
+  const enrollments: Node[] = [];
   const modes: (string | undefined)[] = [];
   let pwaStarts = 0;
   let changed: (session: AccountSession | null) => void = () => {};
@@ -129,6 +130,7 @@ async function page(approval: boolean, userAgent: string, hash = '#conversas') {
   for (const names of Object.values(featureExports))
     for (const name of names) fixture[name] = () => feature;
   Object.assign(fixture, {
+    mountEnrollmentLogin: (node: Node) => enrollments.push(node),
     startAccount: (options: { changed: typeof changed }) => {
       changed = options.changed;
       return {
@@ -174,7 +176,7 @@ async function page(approval: boolean, userAgent: string, hash = '#conversas') {
     URLSearchParams,
     HTMLElement: Node,
   });
-  return { nodes, mounted, modes, document, pwaStarts, changed };
+  return { nodes, mounted, enrollments, modes, document, pwaStarts, changed };
 }
 
 await test('documento da wallet inicializa a confirmação em Android e iPhone sem os painéis do app', async () => {
@@ -187,6 +189,7 @@ await test('documento da wallet inicializa a confirmação em Android e iPhone s
     assert.equal(view.nodes.get('page-content')?.children[0], view.mounted[0]);
     assert.equal(view.document.title, 'Confirm signature · 0xDMme');
     assert.equal(view.pwaStarts, 0);
+    assert.equal(view.enrollments.length, 0);
     view.changed(null);
     assert.match(
       view.nodes.get('connection')?.textContent ?? '',
@@ -201,6 +204,8 @@ await test('app completo conserva os painéis e a inicialização da PWA no desk
   assert.equal(view.nodes.get('app-shell')?.dataset['layout'], 'all');
   assert.equal(view.nodes.get('app-shell')?.dataset['contactScope'], 'private');
   assert.equal(view.mounted.length, 1);
+  assert.equal(view.enrollments.length, 1);
+  assert.equal(view.enrollments[0], view.mounted[0]);
   assert.equal(view.pwaStarts, 1);
   view.changed(null);
   assert.match(
@@ -214,6 +219,7 @@ await test('Perfil no mobile só monta configurações depois do login e as reti
   const content = view.nodes.get('page-content')!;
   assert.equal(content.innerHTML, '');
   assert.equal(view.modes.at(-1), 'login');
+  assert.equal(view.enrollments.length, 1);
   view.changed({
     accountId: crypto.randomUUID(),
     deviceId: crypto.randomUUID(),
