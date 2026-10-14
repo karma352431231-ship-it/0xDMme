@@ -1,5 +1,25 @@
 # 0xDMme — Git e envio à VPS
 
+## Ping Character and Chinese Line Breaks Release Authorized on 14/10/2026
+
+The owner asked to push `claude/ping-character`, make `main` the integrated
+branch and activate `main` on the VPS. The branch fast-forwards `main` from the
+published `c7808af` with the Ping character, the communities "⋯" cleanup and
+floating create button, and the Chinese line-break rule. See
+[UI decision](UI_PAINEIS_E_TEMAS.md#ping-character-and-community-actions--14102026)
+and [Chinese line breaks](I18N.md#chinese-line-breaks--14102026).
+
+This is a frontend release: backend, SQL migrations, dependencies, Node,
+detector, units and infrastructure keep the sources of `c7808af`. Use only
+`npm run deploy:staging` from the clean, pushed `main` with passing exact-commit
+CI and a locally prepared build, with the existing preservation, readiness and
+rollback checks. Access, baselines, artifacts and receipts stay in `.local/`.
+
+**Ponto importante:** pushing and source synchronization do not confirm
+activation; require the receipt, verified public asset hashes and healthy own
+services. Signed-in screens were reviewed by code and rules, not one by one in a
+real account, and physical-device acceptance stays with the owner.
+
 ## Public Profile Invitation and Menu Release Authorized on 14/10/2026
 
 The owner explicitly requested VPS activation of `codex/public-profile-menu-polish`.
