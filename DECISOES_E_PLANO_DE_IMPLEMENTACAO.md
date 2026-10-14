@@ -1971,3 +1971,9 @@ Implementation and release contract: [community classification](docs/COMMUNITY_C
 No historical verdict is rewritten and no global community-ban dashboard is
 introduced by this request. Re-enabling automatic analysis requires a separate
 policy/model decision.
+
+### Community image frame repair — 14/10/2026
+
+The owner reported purple areas around the community banner and photo. The banner inherited the generic circular avatar mask; the bordered community photo inherited the frame's outer radius, rounding its smaller inner image again. The feature stylesheet now fills the banner rectangle with a centered cover image and lets the existing frame clip the photo once. Loaded community images use the theme surface underneath transparent pixels; generated tones remain while an image is absent, unavailable or removed. Personal profile photos also fill their frame independently of the loader status element; their circular outline remains controlled by the frame. All affected frames participate in the browser regression. Preserve current banner heights, public image loading, publication policy and image bytes.
+
+**Ponto importante:** this is a presentation repair. It introduces no synchronization, image processing, detector, database or dependency change. Validate full page, panel and hover frames at 320/390/1280 px in both languages and all three themes before publication.

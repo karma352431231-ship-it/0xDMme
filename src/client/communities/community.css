@@ -168,14 +168,19 @@
   font-weight: 600;
   overflow: hidden;
 }
+/* The frame clips once; its outer radius must not round the photo again. */
 .community-avatar .public-avatar-preview {
   position: absolute;
   inset: 0;
   margin: 0;
   width: 100%;
   height: 100%;
-  border-radius: inherit;
+  border-radius: 0;
   object-fit: cover;
+}
+.community-avatar:has(> .public-avatar-preview:not([hidden])),
+.community-banner:has(> .public-avatar-preview:not([hidden])) {
+  background: var(--surface);
 }
 .community-avatar [role='status'] {
   position: absolute;
@@ -1693,6 +1698,18 @@
 .community-banner {
   position: relative;
   height: 150px;
+  overflow: hidden;
+}
+.community-banner > .public-avatar-preview {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  object-fit: cover;
 }
 .community-banner::after {
   content: '';

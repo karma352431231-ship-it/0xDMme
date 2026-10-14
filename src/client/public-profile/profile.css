@@ -57,11 +57,13 @@
   overflow: hidden;
 }
 .public-profile-avatar > .public-avatar-preview {
+  position: absolute;
+  inset: 0;
   height: 100%;
   width: 100%;
   max-width: none;
   border: 0;
-  border-radius: 50%;
+  border-radius: 0;
   object-fit: cover;
 }
 .public-profile-title {
