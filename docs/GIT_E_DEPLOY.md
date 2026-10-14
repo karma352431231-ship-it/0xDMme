@@ -1,5 +1,19 @@
 # 0xDMme — Git e envio à VPS
 
+## Community Creation Back Arrow Release Authorized on 14/10/2026
+
+The owner asked to publish `claude/community-create-back` on the VPS through
+`main`. It fast-forwards `main` from the published `239023c` with a back arrow on
+the create community form (full page and panel) and no "⋯" menu while creating.
+Frontend only; backend, migrations, dependencies, Node, detector, units and
+infrastructure keep the sources of `239023c`. Use only `npm run deploy:staging`
+from the clean, pushed `main` with passing exact-commit CI, a locally prepared
+build and the existing preservation, readiness and rollback checks. Access,
+baselines, artifacts and receipts stay in `.local/`.
+
+**Ponto importante:** the push alone does not confirm activation; require the
+receipt and verified public asset hashes.
+
 ## Community Creation Images Release Authorized on 14/10/2026
 
 The owner asked to put `claude/community-create-media` on `main` and activate it
