@@ -1,4 +1,6 @@
 const mountedEvent = '0xdmme-profile-shortcut-mounted';
+/** Direct public-profile setup/edit category shared by participation links. */
+export const editPublicProfileHash = '#perfil?secao=profile';
 /** Both community layouts request the same public identity presentation. */
 export function appendOwnProfileShortcut(host: HTMLElement): void {
   const link = document.createElement('a');

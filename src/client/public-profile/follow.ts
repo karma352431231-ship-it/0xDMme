@@ -2,9 +2,7 @@ import { t } from '../../shared/i18n/index.ts';
 import { profileFollow } from '../../shared/profile-social/index.ts';
 import type { ProfileFollow } from '../../shared/profile-social/index.ts';
 import type { PublicProfiles } from './controller.ts';
-
-/** Opens Perfil directly on the public profile category. */
-export const editPublicProfileHash = '#perfil?secao=profile';
+import { editPublicProfileHash } from '../profile-shortcut/index.ts';
 
 function link(host: HTMLElement, text: string, href: string): void {
   const node = document.createElement('a');

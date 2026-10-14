@@ -346,6 +346,14 @@ Dividir a implementação em **10 cortes**: (1) Perfil e navegação; (2) identi
 
 ### 5.11 Painéis e temas — redesign aprovado em 09/10/2026
 
+**Public participation and transient menus — owner decision on 14/10/2026:**
+show a prominent invitation with a direct public-profile setup link instead of
+the expected missing-profile diagnostic in the community sidebar. Style all
+three contact creation choices consistently. Small option menus dismiss on an
+outside click/tap and Escape across the app, without treating settings sections,
+editors or confirmation dialogs as transient menus. Preserve authorization,
+explicit profile creation and draft data. See [UI contract](docs/UI_MENUS_E_PERFIL_PUBLICO.md).
+
 **Wallet entry and recovery language — owner decision on 14/10/2026:** polish
 wallet selection and device-code sign-in on desktop/mobile, with official wallet
 marks and compact availability labels. The owner approved recovery v3 with one

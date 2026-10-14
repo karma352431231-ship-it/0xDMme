@@ -1,6 +1,7 @@
 import { t, currentLanguage } from '../../shared/i18n/index.ts';
 import { paintAvatar } from '../appearance/index.ts';
 import { chatIcon } from '../chat-ui/index.ts';
+import { bindMenuBackdrop } from '../transient-menu/index.ts';
 import type { Peer } from '../../shared/contacts/index.ts';
 
 function searchText(value: string): string {
@@ -70,6 +71,7 @@ export function contactMenu(
   trigger.setAttribute('aria-label', t('Opções de {0}', [name]));
   trigger.setAttribute('aria-haspopup', 'dialog');
   menu.className = 'contact-menu';
+  bindMenuBackdrop(menu);
   menu.setAttribute('aria-label', t('Opções de {0}', [name]));
   heading.textContent = name;
   close.textContent = t('Fechar');

@@ -56,6 +56,7 @@ function failureMessage(failure: ApiFailure): string {
 }
 export class ApiResponseError extends AccountError {
   readonly operation: string;
+  readonly reason: string;
   readonly failure: ApiFailure;
   readonly responseType: ResponseType;
   constructor(input: {
@@ -86,6 +87,7 @@ export class ApiResponseError extends AccountError {
       ]),
     );
     this.operation = operation;
+    this.reason = reason;
     this.failure = input.failure;
     this.responseType = type;
   }

@@ -1,5 +1,6 @@
 import { t } from '../../shared/i18n/index.ts';
 import { sendOnEnter } from './enter.ts';
+import { startTransientMenus } from '../transient-menu/index.ts';
 
 const icons = {
   back: '<path d="m14 6-6 6 6 6"/>',
@@ -134,25 +135,7 @@ export function bindChatComposer(form: HTMLElement, changed: () => void): void {
 }
 
 export function bindChatOptions(host: HTMLElement): void {
-  host.addEventListener('keydown', (event) => {
-    if (event.key !== 'Escape') return;
-    const opened = host.querySelector<HTMLDetailsElement>(
-      '.chat-options[open]',
-    );
-    if (!opened) return;
-    opened.open = false;
-    opened.querySelector<HTMLElement>('summary')?.focus();
-    event.stopPropagation();
-  });
-  host.addEventListener('click', (event) => {
-    if (!(event.target instanceof Element)) return;
-    const target = event.target;
-    host
-      .querySelectorAll<HTMLDetailsElement>('.chat-options[open]')
-      .forEach((menu) => {
-        if (!menu.contains(target)) menu.open = false;
-      });
-  });
+  startTransientMenus(host.ownerDocument);
 }
 
 /** Receipts never replace a bubble, its media, actions or reading position. */

@@ -33,6 +33,10 @@ import type { VaultAccess } from '../vault-authority/index.ts';
 import { Communities } from './controller.ts';
 import { readCommunityDetail } from './detail-refresh.ts';
 import {
+  communityDirectoryProblem,
+  clearCommunityProfileInvitation,
+} from './directory-notice.ts';
+import {
   communityButton,
   communityCard,
   communityElement,
@@ -227,6 +231,7 @@ export function startCommunities(
   }
   async function directory(): Promise<void> {
     if (!sidebar) return;
+    clearCommunityProfileInvitation();
     clearPublicPhotos(sidebar);
     sidebar.replaceChildren();
     communityDirectoryNavigation(sidebar, view, selected);
@@ -254,14 +259,7 @@ export function startCommunities(
   }
   function directoryProblem(old: number, error: unknown): void {
     if (old !== generation || !sidebar) return;
-    sidebar.append(
-      communityElement(
-        'p',
-        error instanceof Error
-          ? translatedError(error.message)
-          : t('Lista indisponível.'),
-      ),
-    );
+    communityDirectoryProblem(sidebar, error);
   }
 
   async function notifications(): Promise<void> {

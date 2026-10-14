@@ -5,6 +5,7 @@ import { paintAvatar, startAppearance } from '../appearance/index.ts';
 import { startPwa } from '../pwa/index.ts';
 import { updateBlockReason } from './update-readiness.ts';
 import { keepPageOnStrayDrop } from '../file-drop/index.ts';
+import { startTransientMenus } from '../transient-menu/index.ts';
 import { startAccount } from '../account/index.ts';
 import {
   startDevices,
@@ -50,6 +51,7 @@ function element<T extends HTMLElement>(id: string): T {
 // A file dropped outside a composer must not navigate away from the app.
 startLanguage();
 keepPageOnStrayDrop();
+startTransientMenus();
 // Theme first, so the first render already uses the saved device choice.
 const appearance = startAppearance();
 let connectedAccount: AccountSession | null = null;

@@ -1,5 +1,13 @@
 /** Authored app text. Tuple order: English, Simplified Chinese. */
 export const catalog: Record<string, readonly [string, string]> = {
+  'community.profile-invitation.title': [
+    'Want to participate?',
+    '想参与讨论？',
+  ],
+  'community.profile-invitation.link': [
+    'Create your public profile here',
+    '在此创建你的公开个人资料',
+  ],
   'wallet.available': ['Available', '可用'],
   'wallet.not-detected': ['Not detected', '未检测到'],
   'Idioma salvo.': ['Language saved.', '语言已保存。'],

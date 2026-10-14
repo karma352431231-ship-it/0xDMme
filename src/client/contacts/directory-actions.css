@@ -1,0 +1,77 @@
+.directory-create-menu {
+  position: relative;
+}
+
+.directory-create-menu summary {
+  list-style: none;
+  cursor: pointer;
+}
+
+.directory-create-menu summary::-webkit-details-marker {
+  display: none;
+}
+
+.directory-create-menu .directory-create-actions {
+  position: absolute;
+  z-index: 30;
+  right: 0;
+  top: calc(100% + 8px);
+  display: grid;
+  gap: 6px;
+  width: min(224px, calc(100vw - 32px));
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: 0 8px 24px var(--shadow);
+}
+
+#app-shell .directory-create-menu .directory-create-actions > :is(a, button) {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 12px;
+  margin: 0;
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  background: var(--surface-2);
+  color: var(--text);
+  font: inherit;
+  font-size: var(--fs-small);
+  font-weight: 500;
+  line-height: 1.4;
+  text-align: left;
+  text-decoration: none;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+
+#app-shell
+  .directory-create-menu
+  .directory-create-actions
+  > :is(a, button):hover {
+  border-color: var(--text-muted);
+  background: var(--surface-3);
+}
+
+#app-shell
+  .directory-create-menu
+  .directory-create-actions
+  > :is(a, button):focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+@media (max-width: 700px) {
+  .directory-create-menu .directory-create-actions {
+    position: fixed;
+    top: auto;
+    right: 16px;
+    bottom: calc(144px + env(safe-area-inset-bottom));
+    max-height: calc(
+      100dvh - 160px - env(safe-area-inset-top) - env(safe-area-inset-bottom)
+    );
+    overflow-y: auto;
+  }
+}

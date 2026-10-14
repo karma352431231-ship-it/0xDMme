@@ -20,6 +20,7 @@ const authored = [
   'src/shared/moderation-details',
   'src/client/api-response',
   'src/client/message-menu',
+  'src/client/transient-menu',
   'src/shared/community-followers',
   'src/client/moderation-evaluation',
   'src/shared/moderation-evaluation',

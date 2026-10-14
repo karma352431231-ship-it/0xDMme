@@ -24,7 +24,7 @@ import { showPublicAvatar } from '../public-media/index.ts';
 import { profileCommunities } from './communities-panel.ts';
 import { renderActivityEntry } from '../communities/index.ts';
 import type { PublicProfiles } from './controller.ts';
-import { editPublicProfileHash } from './follow.ts';
+import { editPublicProfileHash } from '../profile-shortcut/index.ts';
 
 function element<K extends keyof HTMLElementTagNameMap>(
   tag: K,

@@ -48,6 +48,7 @@ await test('JSON válido conserva dados e erros de autorização; vazio/adultera
       assert.ok(error instanceof ApiResponseError);
       assert.equal(error.status, 403);
       assert.equal(error.failure, 'http');
+      assert.equal(error.reason, 'Aparelho revogado.');
       assert.match(error.message, /Aparelho revogado/u);
       return true;
     },

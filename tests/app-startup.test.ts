@@ -28,6 +28,7 @@ const featureExports: Record<string, string[]> = {
   activity: ['startActivity'],
   'external-media': ['ExternalMediaConsent'],
   'file-drop': ['keepPageOnStrayDrop'],
+  'transient-menu': ['startTransientMenus'],
   'account-settings': ['AccountSettingsController'],
   daily: ['Daily'],
   'notification-sound': ['applySoundPreference', 'storedSoundPreference'],

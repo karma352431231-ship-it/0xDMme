@@ -1,0 +1,48 @@
+.community-profile-mobile {
+  display: none;
+}
+
+.community-profile-invitation {
+  margin-top: 16px;
+  padding: 14px 16px;
+  border-left: 3px solid var(--accent);
+  background: var(--surface-2);
+  overflow-wrap: anywhere;
+}
+
+:is(.community-directory, .community-profile-mobile)
+  .community-profile-invitation
+  p {
+  padding: 0;
+  margin: 0 0 4px;
+  color: var(--text);
+  font-size: var(--fs-input);
+  line-height: 1.45;
+}
+
+:is(.community-directory, .community-profile-mobile)
+  .community-profile-invitation
+  a {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--accent);
+  font-size: var(--fs-small);
+  font-weight: 600;
+  line-height: 1.5;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+:is(.community-directory, .community-profile-mobile)
+  .community-profile-invitation
+  a:hover {
+  color: var(--text);
+}
+
+@media (max-width: 700px) {
+  #app-shell[data-page='comunidades'] .community-profile-mobile:not([hidden]) {
+    display: block;
+    margin-bottom: 16px;
+  }
+}

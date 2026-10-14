@@ -385,31 +385,6 @@ dialog.group-dialog .group-invitation-section {
   flex-wrap: wrap;
   gap: 8px;
 }
-.directory-create-menu {
-  position: relative;
-}
-.directory-create-menu summary {
-  list-style: none;
-  cursor: pointer;
-}
-.directory-create-menu summary::-webkit-details-marker {
-  display: none;
-}
-.directory-create-menu .directory-create-actions {
-  position: absolute;
-  z-index: 30;
-  right: 0;
-  top: calc(100% + 8px);
-  display: grid;
-  gap: 8px;
-  width: 210px;
-  padding: 12px;
-  border: 1px solid var(--line);
-  border-radius: 16px;
-  background: var(--surface);
-  box-shadow: 0 8px 24px var(--shadow);
-}
-
 [data-chat-scope='public'] [data-private-group-action] {
   display: none;
 }
