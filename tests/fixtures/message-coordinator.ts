@@ -131,6 +131,7 @@ export function coordinatorFixture(t: TestContext) {
         ids: [],
         more: false,
         renderContacts: noop,
+        pause: noop,
         clearMedia: noop,
         clearSelection: noop,
         pausePreview: noop,
