@@ -294,6 +294,12 @@ export class PublicProfileStore {
       return this.moderation.details(client, profile.id, id);
     });
   }
+  async moderationOwnerSubject(authority: ContactAuthority, id: string) {
+    return this.authority.withMessageAuthority(authority, async (client) => {
+      const profile = await this.identity(client, authority.session.accountId);
+      return this.moderation.ownerSubject(client, profile.id, id);
+    });
+  }
   async moderationAppeal(
     authority: ContactAuthority,
     input: { id: string; reason: string },
@@ -303,7 +309,7 @@ export class PublicProfileStore {
       return this.moderation.appeal(client, { ...input, owner: profile.id });
     });
   }
-  /** Worker-only read; no transport exposes these candidate bytes. */
+  /** Internal byte-owner contract; callers must authorize the subject before exposing bytes. */
   async moderationCandidate(
     job: PublicModerationSubject,
   ): Promise<PendingPublicAvatar | null> {

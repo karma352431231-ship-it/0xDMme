@@ -10,6 +10,7 @@ import { publicModerationDetails } from '../../shared/moderation-details/index.t
 import type { PublicModerationDetails } from '../../shared/moderation-details/index.ts';
 import type { PublicProfiles } from './controller.ts';
 import { renderModeration } from './moderation.ts';
+import { showModerationImage } from './moderation-image.ts';
 
 type MediaPreview = (
   host: HTMLElement,
@@ -28,25 +29,18 @@ function el<K extends keyof HTMLElementTagNameMap>(
   node.className = className;
   return node;
 }
-function postIdentity(detail: PublicModerationDetails): HTMLElement {
-  const section = el('section', '', 'moderation-subject');
+function postIdentity(detail: PublicModerationDetails): HTMLElement | null {
   const post = detail.post;
-  if (!post) {
-    section.append(
-      el('h2', t('Conteúdo analisado')),
-      el(
-        'p',
-        detail.notice.kind === 'post-media'
-          ? t(
-              'Este arquivo não está mais vinculado a uma postagem disponível. O registro da análise permanece abaixo.',
-            )
-          : t(
-              'Arquivo do perfil ou da comunidade identificado pelo registro abaixo.',
-            ),
-      ),
-    );
-    return section;
-  }
+  if (!post)
+    return detail.notice.kind === 'post-media'
+      ? el(
+          'p',
+          t(
+            'Este arquivo não está mais vinculado a uma postagem disponível. O registro da análise permanece abaixo.',
+          ),
+        )
+      : null;
+  const section = el('section', '', 'moderation-subject');
   section.append(
     el(
       'small',
@@ -222,6 +216,8 @@ export function startModerationReview(
   }
   function render(value: PublicModerationDetails): void {
     if (!host) return;
+    abort.abort();
+    abort = new AbortController();
     const back = el('a', t('← Voltar à Atividade'), 'moderation-back');
     back.href = '#atividade';
     const card = el('article', '', 'moderation-review-card');
@@ -229,7 +225,13 @@ export function startModerationReview(
       el('h1', t('Análise do conteúdo')),
       el('p', t('Esta página é restrita à sua conta.'), 'moderation-private'),
     );
-    card.append(postIdentity(value));
+    const identity = postIdentity(value);
+    if (identity) card.append(identity);
+    if (value.notice.kind !== 'post-media')
+      showModerationImage(card, value.notice, {
+        controller,
+        signal: abort.signal,
+      });
     if (
       value.post &&
       !value.post.deleted &&

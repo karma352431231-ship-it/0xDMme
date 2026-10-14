@@ -1,6 +1,7 @@
+import type { ModerationMedia } from './moderation-media.ts';
 import type { MentionNotificationPage } from '../../shared/mention-notifications/index.ts';
 import { moderationOperation } from './moderation-operations.ts';
-import { AccountError, keys } from '../../shared/account/index.ts';
+import { AccountError, keys, uuid } from '../../shared/account/index.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
 import { directoryEvent, verify } from '../../shared/devices/index.ts';
 import {
@@ -22,6 +23,7 @@ import { postCount } from '../../shared/community-posts/index.ts';
 import { profileDescriptionText } from '../../shared/profile-social/index.ts';
 import type { PublicModerationDetails } from '../../shared/moderation-details/index.ts';
 type PublicProfileResponse =
+  | Awaited<ReturnType<ModerationMedia['read']>>
   | MentionNotificationPage
   | { saved: true }
   | Awaited<ReturnType<PublicProfileStore['state']>>
@@ -35,14 +37,17 @@ export class PublicProfileService {
   private readonly store: PublicProfileStore;
   private readonly devices: DeviceStore;
   private readonly social: ProfileSocialStore | undefined;
+  private readonly moderationMedia: Pick<ModerationMedia, 'read'> | undefined;
   constructor(
     store: PublicProfileStore,
     devices: DeviceStore,
     social?: ProfileSocialStore,
+    moderationMedia?: Pick<ModerationMedia, 'read'>,
   ) {
     this.store = store;
     this.devices = devices;
     this.social = social;
+    this.moderationMedia = moderationMedia;
   }
   async read(handle: unknown) {
     const profile = await this.store.read(publicHandle(handle));
@@ -116,6 +121,7 @@ export class PublicProfileService {
         'activity',
         'moderation-notices',
         'moderation-details',
+        'moderation-media',
         'mention-notifications',
         'mention-notifications-read',
         'moderation-appeal',
@@ -170,6 +176,12 @@ export class PublicProfileService {
       return this.socialOperation(operation, authority, data);
     if (operation === 'description-state' || operation === 'description')
       return this.descriptionOperation(operation, authority, data);
+    if (operation === 'moderation-media') {
+      keys(data, ['id']);
+      if (!this.moderationMedia)
+        throw new AccountError(503, 'Arquivo da análise indisponível.');
+      return this.moderationMedia.read(authority, uuid(data['id']));
+    }
     if (operation.startsWith('moderation-'))
       return moderationOperation(this.store, { operation, authority, data });
     if (operation === 'state') {

@@ -15,6 +15,10 @@ import type {
 } from '../../shared/public-moderation/index.ts';
 import { assertContentCapacity } from './vault-quota.ts';
 
+// Keep owner previews and existing byte-owner reads on the same retention rule.
+const retainedReviewSql =
+  "(status='approved' OR (expires_at>now() AND status NOT IN ('discarding','removed','expired')))";
+
 export interface PublicModerationSubject {
   id: string;
   owner: string;
@@ -447,7 +451,7 @@ export class PublicModerationStore {
     id: string,
   ): Promise<boolean> {
     const result = await client.query(
-      "SELECT 1 FROM hash_talk.public_moderation WHERE id=$1 AND (status='approved' OR (expires_at>now() AND status NOT IN ('discarding','removed','expired')))",
+      `SELECT 1 FROM hash_talk.public_moderation WHERE id=$1 AND ${retainedReviewSql}`,
       [uuid(id)],
     );
     return Boolean(result.rowCount);
@@ -455,6 +459,15 @@ export class PublicModerationStore {
   /** Authenticate the public owner in the calling module's transaction. */
   details(client: pg.PoolClient, owner: string, id: string) {
     return readModerationDetails(client, { owner, id });
+  }
+  /** The caller authenticates the owner; expiry applies before physical collection. */
+  async ownerSubject(client: pg.PoolClient, owner: string, id: string) {
+    const result = await client.query<ReviewRow>(
+      `SELECT * FROM hash_talk.public_moderation WHERE id=$1 AND owner=$2
+        AND ${retainedReviewSql}`,
+      [uuid(id), uuid(owner)],
+    );
+    return result.rows[0] ? subject(result.rows[0]) : null;
   }
   async notices(
     client: pg.PoolClient,

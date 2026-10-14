@@ -12,6 +12,7 @@ import { createWebServer, loadWebAssets } from './web-host/index.ts';
 import { AccountService, createAccountHandler } from './account/index.ts';
 import {
   PublicProfileService,
+  ModerationMedia,
   createPublicProfileHandler,
 } from './public-profile/index.ts';
 import {
@@ -103,6 +104,10 @@ try {
     database.publicProfiles,
     database.devices,
     database.profileSocial,
+    new ModerationMedia({
+      profiles: database.publicProfiles,
+      communities: database.communities,
+    }),
   );
   const communityMedia = new CommunityMediaService({
     store: database.communityMedia,

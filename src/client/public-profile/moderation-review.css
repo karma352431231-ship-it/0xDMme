@@ -85,6 +85,16 @@
   object-fit: contain;
   border-radius: 12px;
 }
+.moderation-image {
+  margin-top: 24px;
+}
+.moderation-image-preview {
+  display: block;
+  max-width: 100%;
+  max-height: 440px;
+  object-fit: contain;
+  border-radius: 12px;
+}
 .moderation-feedback {
   color: var(--text-muted);
 }

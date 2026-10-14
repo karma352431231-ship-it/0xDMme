@@ -1,5 +1,19 @@
 /** Authored app text. Tuple order: English, Simplified Chinese. */
 export const catalog: Record<string, readonly [string, string]> = {
+  'Arquivo da análise indisponível.': [
+    'Review media unavailable.',
+    '分析媒体不可用。',
+  ],
+  'Carregando a mídia…': ['Loading media…', '正在加载媒体…'],
+  'Mídia restrita à sua conta': [
+    'Media restricted to your account',
+    '仅限你的账号查看的媒体',
+  ],
+  'Este arquivo não está mais disponível. Ele pode ter sido substituído, removido ou atingido o prazo de retenção.':
+    [
+      'This file is no longer available. It may have been replaced, removed, or reached its retention deadline.',
+      '此文件已不可用。它可能已被替换、移除或达到保留期限。',
+    ],
   'community.profile-invitation.title': [
     'Want to participate?',
     '想参与讨论？',
