@@ -10,6 +10,8 @@ interface Actions {
 export class GroupMessageActions {
   private readonly actions: Actions;
   private dialog: HTMLDialogElement | null = null;
+  private editing: GroupView | null = null;
+  private paused = false;
   constructor(actions: Actions) {
     this.actions = actions;
   }
@@ -17,6 +19,31 @@ export class GroupMessageActions {
     this.dialog?.close();
     this.dialog?.remove();
     this.dialog = null;
+    this.editing = null;
+    this.paused = false;
+  }
+  pause(): void {
+    if (!this.dialog?.open) return;
+    this.paused = true;
+    this.dialog.close();
+  }
+  resume(views: readonly GroupView[]): void {
+    if (!this.paused) return;
+    const editing = this.editing;
+    const current = views.find(
+      (view) =>
+        view.id === editing?.id &&
+        view.groupId === editing.groupId &&
+        view.hash === editing.hash &&
+        view.own &&
+        !view.localOnly,
+    );
+    if (!current) {
+      this.close();
+      return;
+    }
+    this.paused = false;
+    this.dialog?.showModal();
   }
   render(view: GroupView, signal: AbortSignal): HTMLElement {
     if (!view.own || view.localOnly) return document.createElement('div');
@@ -75,6 +102,7 @@ export class GroupMessageActions {
     dialog.append(form);
     document.body.append(dialog);
     this.dialog = dialog;
+    this.editing = view;
     dialog.showModal();
     text.focus();
   }

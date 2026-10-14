@@ -301,7 +301,11 @@ export function startGroups(
     const history = node('[data-group-history]');
     if (!history) return;
     history.hidden = controller.historyPending;
-    if (controller.historyPending) return;
+    if (controller.historyPending) {
+      messageActions.pause();
+      return;
+    }
+    messageActions.resume(controller.views);
     const restoreScroll = historyPosition(history);
     externalRows.render(
       history,
@@ -985,7 +989,7 @@ export function startGroups(
     },
     removed(): void {
       controller.removed();
-      messageActions.close();
+      messageActions.pause();
       renderHistory();
     },
     suspend(revoked = false): void {
