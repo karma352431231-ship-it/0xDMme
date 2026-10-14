@@ -6,8 +6,9 @@ The owner now requires one or two topics for new communities. Validate the
 creation form and the authoritative new-community admission; preserve historical
 empty classifications, reads and creation retries. This is a code-only update
 from published `8d94f34`: all 67 SQL migrations, dependencies, model configuration
-and units remain exact. Bind only the classification admission module to reviewed
-sources in the existing executor, require exact-commit CI and deploy from clean,
+and units remain exact. Bind only `community-classification.ts` to reviewed
+application commit `b086ad511cd3338a5246f7f6752ca250be7892ff` in the existing
+executor, require exact-commit CI and deploy from clean,
 pushed main with the existing preservation, readiness and rollback checks.
 
 ## Community notice copy update — activation requested on 14/10/2026
