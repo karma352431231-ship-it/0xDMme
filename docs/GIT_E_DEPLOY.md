@@ -1,24 +1,23 @@
 # 0xDMme — Git e envio à VPS
 
-## Criação e lateral de comunidades — publicação autorizada em 14/10/2026
+## Community Draft Preservation Release Authorized on 14/10/2026
 
-O proprietário pediu integrar o fix `18a3337` na `main` e ativá-lo na VPS.
-A correção conserva o formulário de criação e os elementos da lista lateral
-nas rechecagens idênticas, mantendo consultas atuais e digitação durante a rede.
-Preservar os trabalhos já integrados na main e as alterações de outras worktrees.
-Contrato, evidências e validação no
-[bloco 10A](BLOCO_10A_AUDIO_E_TEMPO_REAL.md#criação-e-lista-lateral-de-comunidades--correção-solicitada-em-14102026).
+The owner asked to integrate fix `18a3337` into `main` and activate it on the VPS.
+The fix preserves the creation form and sidebar nodes during identical rechecks,
+while retaining current reads and typing during network I/O. Preserve work already
+integrated into main and unrelated worktrees. Contract, evidence and validation:
+[block 10A](BLOCO_10A_AUDIO_E_TEMPO_REAL.md#community-creation-and-sidebar--fix-requested-on-14102026).
 
-Esta entrega altera somente o cliente, testes e documentação. Backend, migrações,
-dependências, Node, detector, units e infraestrutura conservam a release ativa.
-Usar exclusivamente `npm run deploy:staging` na main limpa, integrada e enviada,
-com CI integral do commit exato e build preparado no Mac. Conferir predecessor,
-fontes do banco, preservação, prontidão, hashes públicos e retorno de código pelo
-executor existente. Acesso, baselines, artefatos e evidências ficam em `.local/`.
+This release changes only the client, tests and documentation. Backend, migrations,
+dependencies, Node, detector, units and infrastructure retain the active release.
+Use only `npm run deploy:staging` from clean, integrated, pushed main with passing
+exact-commit CI and a build prepared on the Mac. Verify the predecessor, database
+sources, preservation, readiness, public hashes and code rollback through the
+existing executor. Access, baselines, artifacts and evidence remain in `.local/`.
 
-**Ponto importante:** publicação exige recibo `published` e verificação dos assets
-servidos. Não atribuir falhas de conexão do usuário ao app sem evidência; o fix
-trata a reconstrução da interface demonstrada na investigação.
+**Ponto importante:** publication requires a `published` receipt and verified
+served assets. Do not attribute connection failures to the app without evidence;
+this fix addresses the interface reconstruction demonstrated by the investigation.
 
 ## Community Creation Back Arrow Release Authorized on 14/10/2026
 

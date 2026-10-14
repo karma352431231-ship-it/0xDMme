@@ -481,7 +481,7 @@ await test('rechecagem invalida uma lista privada ainda em voo antes de publicar
   ui.leave();
 });
 
-await test('rechecagem conserva nome, descrição e regras na criação de comunidade', async () => {
+await test('rechecks preserve the community creation name, description and rules', async () => {
   const { ui, host, data } = fixture({ creation: true, directory: true });
   await settled(ui);
   const form = host.querySelector('.community-create-fields');
@@ -503,14 +503,11 @@ await test('rechecagem conserva nome, descrição e regras na criação de comun
     fields.map((field) => field.value),
     draft,
   );
-  assert.ok(
-    data.requests.length > reads,
-    'a rechecagem continua consultando o servidor',
-  );
+  assert.ok(data.requests.length > reads, 'rechecks still read the server');
   ui.leave();
 });
 
-await test('rechecagem da lista lateral não esvazia nem recria os mesmos elementos enquanto aguarda a rede', async () => {
+await test('sidebar rechecks retain identical nodes while awaiting the network', async () => {
   const { ui, sidebar, data } = fixture({ directory: true });
   await settled(ui);
   assert.ok(sidebar);
@@ -536,7 +533,7 @@ await test('rechecagem da lista lateral não esvazia nem recria os mesmos elemen
   assert.equal(sidebar.replacements, replacements);
 });
 
-await test('a lista lateral aplica mudanças e descarta dados anteriores em falha de autorização', async () => {
+await test('the sidebar applies changes and discards previous data on authorization failure', async () => {
   const { ui, sidebar, data } = fixture({ directory: true });
   await settled(ui);
   assert.ok(sidebar);
@@ -564,7 +561,7 @@ await test('a lista lateral aplica mudanças e descarta dados anteriores em falh
   ui.leave();
 });
 
-await test('a lista lateral só avança por ação explícita e reconsulta a página exibida', async () => {
+await test('the sidebar advances only explicitly and rechecks the displayed page', async () => {
   const { ui, sidebar, data } = fixture({ directory: true });
   data.directory.next = crypto.randomUUID();
   await settled(ui);
@@ -586,7 +583,7 @@ await test('a lista lateral só avança por ação explícita e reconsulta a pá
   ui.leave();
 });
 
-await test('troca de sessão descarta o formulário anterior e uma resposta lateral atrasada não o restaura', async () => {
+await test('session changes discard the old form and a late sidebar response cannot restore it', async () => {
   const { ui, host, sidebar, data } = fixture({
     creation: true,
     directory: true,
@@ -618,7 +615,7 @@ await test('troca de sessão descarta o formulário anterior e uma resposta late
   ui.leave();
 });
 
-await test('a consulta automática mantém os campos da criação editáveis enquanto aguarda a lista', async () => {
+await test('automatic reads keep creation fields editable while awaiting the list', async () => {
   const { ui, host, data } = fixture({ creation: true, directory: true });
   await settled(ui);
   const field = host
