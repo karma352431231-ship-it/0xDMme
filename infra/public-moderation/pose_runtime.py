@@ -23,12 +23,22 @@ class PoseDetector:
         self.context = self._session(root / 'context.onnx', ort)
         self.nano = self._session(root / 'nano.onnx', ort)
         taxonomy = json.loads(Path(__file__).with_name('pose_taxonomy.json').read_text())
-        self.groups = [key for key, values in taxonomy.items() for _ in values]
+        self.groups = [key for key, values in taxonomy.items()
+                       if key != 'ordinary_clothed' for _ in values]
         self.categories = list(taxonomy)
         self.text = np.load(root / 'text.npy', allow_pickle=False)
         if (self.text.shape != (len(self.groups), 512) or self.text.dtype != np.float32
                 or not np.isfinite(self.text).all()):
             raise ValueError('Invalid frozen text matrix.')
+        # Additive source artifact: baseline model directory/weights remain valid
+        # for rollback. The full pipeline identity binds these frozen vectors.
+        ordinary = np.load(Path(__file__).with_name('ordinary_clothed.npy'), allow_pickle=False)
+        if (ordinary.shape != (len(taxonomy['ordinary_clothed']), 512)
+                or ordinary.dtype != np.float32 or not np.isfinite(ordinary).all()
+                or np.any(np.abs(np.linalg.norm(ordinary, axis=1) - 1) > 0.00001)):
+            raise ValueError('Invalid ordinary-clothed text matrix.')
+        self.text = np.concatenate((self.text, ordinary))
+        self.groups.extend(['ordinary_clothed'] * len(ordinary))
         config = json.loads((root / 'nano-preprocessor.json').read_text())
         self.factor = config['rescale_factor']
         self.mean = np.array(config['image_mean'], dtype=np.float32)

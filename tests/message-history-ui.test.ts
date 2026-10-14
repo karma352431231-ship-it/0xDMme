@@ -6,6 +6,7 @@ import type { MessageView } from '../src/client/messages/controller.ts';
 import type { ConversationPeer } from '../src/client/messages/directory-controller.ts';
 import type { EmojiPicker } from '../src/client/emoji/index.ts';
 import { ChatNode } from './fixtures/chat-dom.ts';
+import { encodeDailyText } from '../src/shared/daily/index.ts';
 import { deferred } from './fixtures/deferred.ts';
 
 function row(id: string, own = false): MessageView {
@@ -87,6 +88,9 @@ function fixture(t: TestContext) {
     gate,
     older,
     clears: () => clears,
+    show: () => {
+      visible = true;
+    },
     hide: () => {
       visible = false;
     },
@@ -184,4 +188,93 @@ await test('an unchanged GIF message keeps its DOM when another message arrives;
   f.ui.render([row('later')]);
   assert.equal(f.history.children.length, 1);
   assert.equal(f.history.children[0]!.dataset['message'], 'later');
+});
+
+await test('atualização em hidden conserva os nós e recursos até voltar; exclusão fecha mesmo em hidden', (t) => {
+  const f = fixture(t);
+  f.ui.render([row('first')]);
+  const original = f.history.children[0],
+    clears = f.clears();
+  f.hide();
+  f.ui.render([row('first'), row('second')]);
+  assert.equal(f.history.children.length, 1);
+  assert.equal(f.history.children[0], original);
+  assert.equal(f.clears(), clears);
+  f.show();
+  f.ui.resume();
+  assert.equal(f.history.children.length, 2);
+  f.hide();
+  f.ui.render(null);
+  assert.equal(f.history.children.length, 0);
+  f.show();
+  f.ui.resume();
+  assert.equal(f.history.children.length, 0);
+});
+
+await test('edição, reação e exclusão preservam nós de mensagens não afetadas', (t) => {
+  const f = fixture(t),
+    original = { ...row('target', true), author: 'author' },
+    other = row('other');
+  f.ui.render([original, other]);
+  const targetNode = f.history.children[0],
+    otherNode = f.history.children[1],
+    clears = f.clears();
+  const edit = {
+    ...row('edit', true),
+    text: 'Texto editado',
+    author: 'author',
+    sequence: 3,
+    relation: {
+      id: original.id,
+      hash: original.hash,
+      author: 'author',
+      type: 'edit' as const,
+    },
+  };
+  f.ui.render([original, other, edit]);
+  assert.notEqual(f.history.children[0], targetNode);
+  assert.equal(f.history.children[1], otherNode);
+  assert.match(f.history.children[0]!.textContent, /Texto editado/);
+  f.ui.render([
+    original,
+    other,
+    edit,
+    {
+      ...edit,
+      id: 'reaction',
+      text: '👍',
+      sequence: 4,
+      relation: { ...edit.relation, type: 'reaction' },
+    },
+  ]);
+  assert.equal(f.history.children[1], otherNode);
+  f.ui.render(null, 'pending');
+  assert.equal(f.history.hidden, true);
+  assert.equal(f.history.children[1], otherNode);
+  assert.equal(f.clears(), clears);
+  f.ui.render([other]);
+  assert.equal(f.history.hidden, false);
+  assert.equal(f.history.children.length, 1);
+  assert.equal(f.history.children[0], otherNode);
+});
+
+await test('uma resposta atualiza sua citação se a original mudar, conservando as demais bolhas', (t) => {
+  const f = fixture(t),
+    original = row(crypto.randomUUID()),
+    other = row('other'),
+    reply = {
+      ...row('reply'),
+      text: encodeDailyText({
+        text: 'Resposta',
+        reply: original.id,
+        forwarded: false,
+      }),
+    };
+  f.ui.render([original, reply, other]);
+  const replyNode = f.history.children[1],
+    otherNode = f.history.children[2];
+  f.ui.render([{ ...original, text: 'Nova versão' }, reply, other]);
+  assert.notEqual(f.history.children[1], replyNode);
+  assert.match(f.history.children[1]!.textContent, /Nova versão/);
+  assert.equal(f.history.children[2], otherNode);
 });

@@ -198,14 +198,17 @@ export function openPostFromCard(event: MouseEvent): void {
   if (!card || card.matches('.community-reply, .community-post-focus')) return;
   if (
     event.target.closest(
-      'a, button, summary, details, input, textarea, select, label, video, audio, img, form',
+      'a, button, summary, details, input, textarea, select, label, video, audio, img, form, dialog',
     )
   )
     return;
   if (window.getSelection()?.toString()) return;
-  card
-    .querySelector<HTMLAnchorElement>(
-      ':scope > .post-actions a.post-discussion, :scope > .post-actions a.post-comments',
-    )
-    ?.click();
+  const target =
+    card.querySelector<HTMLAnchorElement>(
+      ':scope > .post-actions a.post-discussion',
+    ) ??
+    card.querySelector<HTMLAnchorElement>(
+      ':scope > .post-actions a.post-comments',
+    );
+  target?.click();
 }

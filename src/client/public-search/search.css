@@ -1,8 +1,8 @@
 .public-search {
   position: relative;
-  width: min(220px, 100%);
-  flex: 0 1 220px;
-  min-width: 140px;
+  width: min(160px, 100%);
+  flex: 0 1 160px;
+  min-width: 100px;
 }
 .public-search form {
   margin: 0;
@@ -10,16 +10,18 @@
 .public-search-field {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 9px 12px;
+  gap: 6px;
+  padding: 6px 10px;
+  box-sizing: border-box;
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: 10px;
   background: var(--surface-2);
 }
+#app-shell .public-search-field svg,
 .public-search-field svg {
   flex-shrink: 0;
-  width: 17px;
-  height: 17px;
+  width: 14px;
+  height: 14px;
   stroke: var(--text-muted);
   stroke-width: 1.8;
   stroke-linecap: round;
@@ -29,13 +31,15 @@
 .public-search input {
   width: 100%;
   min-width: 0;
+  min-height: 0;
+  height: 18px;
   padding: 0;
   margin: 0;
   border: 0;
   border-radius: 0;
   background: transparent;
   color: var(--text);
-  font: 400 14px var(--font-body);
+  font: 400 13px / 18px var(--font-body);
   outline: none;
 }
 .public-search-field:focus-within {
@@ -98,8 +102,10 @@
   outline-offset: -2px;
 }
 .public-search-avatar {
-  display: grid;
-  place-items: center;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   flex: 0 0 36px;
   width: 36px;
   height: 36px;
@@ -110,10 +116,20 @@
   font-size: 12px;
   font-weight: 600;
 }
-.public-search-avatar img {
+/* Public photos overlay the initials; the loader must not create another grid row. */
+#app-shell .public-search-avatar > .public-avatar-preview,
+.public-search-avatar > .public-avatar-preview {
+  position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
+  max-width: none;
   object-fit: cover;
+  border-radius: inherit;
+}
+.public-search-avatar > .public-avatar-preview[hidden],
+.public-search-avatar > [role='status'] {
+  display: none;
 }
 .public-search-copy {
   display: grid;
@@ -145,12 +161,16 @@
     order: 5;
   }
   .public-search-results {
-    width: min(360px, calc(100vw - 32px));
+    left: 0;
+    right: auto;
+    width: min(360px, calc(100vw - 64px));
   }
 }
 
 @media (max-width: 700px) {
   #app-shell .public-search input {
+    height: 20px;
     font-size: 16px;
+    line-height: 20px;
   }
 }

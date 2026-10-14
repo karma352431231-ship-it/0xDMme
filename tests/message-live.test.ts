@@ -593,3 +593,46 @@ await test('diretório alterado durante abertura confere autorização sem anunc
   assert.deepEqual(events, ['invalidated']);
   assert.equal(live.connected, false);
 });
+
+await test('atividade recente mantém o stream válido; gap sem timers e frame tardio exigem reconexão', async (t) => {
+  t.mock.timers.enable({ apis: ['Date'], now: 100000 });
+  const original = globalThis.fetch;
+  const events: string[] = [];
+  let stream: ReadableStreamDefaultController<Uint8Array> | undefined;
+  globalThis.fetch = () =>
+    Promise.resolve(
+      new Response(
+        new ReadableStream({
+          start(controller) {
+            stream = controller;
+            controller.enqueue(
+              new TextEncoder().encode('event: ready\ndata: {}\n\n'),
+            );
+          },
+        }),
+        { headers: { 'content-type': 'text/event-stream' } },
+      ),
+    );
+  const live = new LiveMessages({
+    access: access((_offline, work) => work(authority)),
+    changed() {},
+    event: (event) => events.push(event),
+  });
+  t.after(() => {
+    live.stop();
+    globalThis.fetch = original;
+  });
+  live.start();
+  await turn();
+  assert.equal(live.current, true);
+  t.mock.timers.tick(10000);
+  stream!.enqueue(new TextEncoder().encode(': heartbeat\n\n'));
+  await turn();
+  assert.equal(live.current, true);
+  t.mock.timers.tick(16000);
+  assert.equal(live.current, false);
+  stream!.enqueue(new TextEncoder().encode('event: changed\ndata: {}\n\n'));
+  await turn();
+  assert.equal(live.connected, false);
+  assert.deepEqual(events, ['ready']);
+});

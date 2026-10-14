@@ -45,7 +45,7 @@ import {
 import { postActions, postTagSelect } from './post-forms.ts';
 import { postText } from './post-text.ts';
 import { postPreview } from './post-preview.ts';
-import { postReply } from './post-reply.ts';
+import { inlinePostReply } from './inline-post-reply.ts';
 import { PostSnapshot } from './post-snapshot.ts';
 import { showRepliedAbove } from './reply-context.ts';
 import { showPostExternalMedia } from './post-external-media.ts';
@@ -324,7 +324,7 @@ export function startCommunityPosts(
   }
   function replyToggle(toolbar: HTMLElement, parent: CommunityPost): void {
     const old = generation;
-    const closeReply = postReply(
+    const closeReply = inlinePostReply(
       toolbar,
       parent,
       own?.canPost

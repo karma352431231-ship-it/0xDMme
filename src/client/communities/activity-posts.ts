@@ -188,11 +188,9 @@ export class ActivityPosts {
       toolbar.append(login);
       postSharing(toolbar, post, null);
     }
-    const discussion = el(
-      'a',
-      t('Abrir discussão'),
-      'post-action post-discussion',
-    );
+    // Card clicks still use the existing panel/return navigation without a CTA.
+    const discussion = el('a', '', 'post-discussion');
+    discussion.hidden = true;
     discussion.href = `#comunidades?id=${post.community}&post=${post.id}`;
     toolbar.append(discussion);
     const stopViews = postViews(card.node, post, toolbar);

@@ -1,5 +1,61 @@
 # 0xDMme — Git e envio à VPS
 
+## Inglês e chinês — integração e ativação autorizadas em 13/10/2026
+
+O proprietário pediu revisar os últimos commits, completar as traduções,
+integrar `codex/i18n-english-chinese` na `main` e ativar na VPS. Incluir a main
+`9f8aed7`, sem perder respostas no feed/discussão, sincronização contínua ou
+edições/exclusões de grupos. Completar controles, acessibilidade e erros novos
+nos dois idiomas, preservando conteúdo dos usuários e o trabalho não integrado
+de outras worktrees. Contrato de idioma e documentos v2 em [Idiomas](I18N.md).
+
+A inspeção somente leitura confirmou predecessora ativa `9f8aed7`, schema 66,
+serviços próprios saudáveis e preservação do outro projeto. Não há nova migração
+SQL, dependência, Node, alteração de units, configuração do detector ou serviço
+compartilhado. Documentos próprios da wallet passam a v2 bilíngue fixo conforme
+aprovação anterior; SIWE continua inglês, com explicação traduzida no app.
+
+Exigir commit integrado limpo/enviado e CI integral exata; publicar somente
+com `npm run deploy:staging`, build no Mac, preservação, prontidão dos serviços
+próprios e retorno de código do executor vigente. Acesso, baselines, artefatos
+e recibos permanecem exclusivamente em `.local/`. Conferir recibo final e hashes
+HTTPS; autorização ou envio de fontes não comprovam publicação.
+
+**Ponto importante:** não apagar/resetar dados nem converter assinaturas antigas
+automaticamente. Os formatos anteriores de teste não têm compatibilidade
+garantida, conforme decisão pré-lançamento; rollback de código não converte
+cápsulas v2 para v1. Validação física de wallets/aparelhos continua separada.
+
+## Alterações pontuais em chats e grupos — publicação solicitada em 13/10/2026
+
+O proprietário pediu incluir grupos, integrar na main e enviar/ativar na VPS, após a revisão da migração 065. Fontes da aplicação fixadas em `fc76aea996c728fe053618dfd6f313b6f19f90ad` sobre a predecessora `841931120e2315db895e3af91f04d7e24c351172`; incluir 065–066. Chats individuais consultam alterações contínuas por conta; grupos passam a oferecer edição de texto/exclusão de mensagens próprias por autor participante, com vínculo cifrado/assinado e diário por grupo. Contratos nos blocos 07 e 11. Preservar moderação de outra worktree, runtime, dependências, serviços compartilhados e limites vigentes.
+
+O módulo interno `deploy_message_changes.py` integra a transição 064→066 exclusivamente ao executor existente `npm run deploy:staging`; não cria outro comando de publicação. Recusar tabela/coluna existente, fontes/checksums divergentes, mudança de units, dados/ledger modificados ou ausência dos índices/gatilhos/manutenção. A 065 cria diário vazio de metadados individuais. A 066 acrescenta revisão inicialmente zero nos grupos, relação inicialmente nula nos pacotes e diário vazio com gatilhos de pacote/mídia. Não faz backfill, recriptografia nem mudança em mensagens/cifras/provas existentes. Os snapshots comparam todas as tabelas antigas e o ledger, omitindo somente as duas colunas adicionadas; o orçamento explícito de versões passa a 66 nesta transição, mantendo 64 como padrão anterior.
+
+Exigir CI integral do commit integrado exato e checkout limpo/enviado. O executor conserva backup completo/ensaio de restauração, manutenção restrita ao web e três workers próprios, preservação do outro projeto, prontidão e rollback. Após reabrir o escritor, não restaurar backup antigo sobre novas gravações. Não reiniciar PostgreSQL/Nginx compartilhados nem instalar dependências. Guardar acesso, artefatos, inventário e recibos somente em `.local/` e conferir hashes públicos ao concluir.
+
+**Ponto importante:** esta solicitação inclui a publicação da extensão e a revisão específica das duas migrações; autorização e testes locais não confirmam ativação. Clientes antigos podem recusar os novos pacotes de edição de grupo e devem recarregar após a atualização. Suspensão/offline e backups independentes conservam seus limites anteriores.
+
+Validação do executor: 212 testes passaram com Python 3.14, incluindo recusa de colisão, sources divergentes, mudança de units/ledger/checksums, orçamento de versões e falhas antes/depois de reabrir o escritor. O transporte inclui o módulo novo e mantém 256 KiB de fontes do executor; a fixture de fontes sintéticas foi ajustada para caber nesse teto com mais um módulo, preservando o teste de aspas/compactação, limite de argumento e recusa de adulteração. As fontes reais do executor ocupam 173.707 bytes antes da compactação. Nenhum limite operacional foi ampliado.
+
+## Continuidade do chat em segundo plano — ativação autorizada em 13/10/2026
+
+Depois de escolher manter preparação/recebimento e conversa verificada em aba hidden, o proprietário pediu integrar esta branch na main, enviar ao GitHub e à VPS e ativar. Incluir as correções de reuso/progresso e a continuidade com stream atualizado, preservando fechamento em exclusão, suspensão real, perda de conexão, falha e mudança de autorização. Contrato e limites no [bloco 07](BLOCO_07_MENSAGENS.md#continuidade-com-aba-hidden--aprovada-em-13102026).
+
+É uma atualização do cliente com testes/documentação. Backend, SQL/migrações, dependências, Node, detector, serviços e infraestrutura conservam as fontes/configuração da main integrada. Usar somente `npm run deploy:staging`, checkout limpo/integrado/enviado e CI integral do commit exato, build no Mac e controles vigentes de preservação/prontidão/rollback. Acesso, artefatos e recibos permanecem exclusivamente em `.local/`. Sem flags para alteração do proxy, processador de mídia ou migração.
+
+**Ponto importante:** autorização não comprova publicação. Conferir recibo e hashes HTTPS depois da execução. Preparação em hidden não força execução em página congelada ou descartada; validação física Android/iOS continua separada.
+
+## Correção contextual do detector — ativação aprovada em 13/10/2026
+
+O proprietário aprovou explicitamente ativar a [correção de desenhos cotidianos](MODERACAO_DESENHOS_COTIDIANOS.md), fontes d5a6323, identidade integral `adfa19fa323553c4cb172cc4b959db447203ec454815cf5e305c872a9ee7efcd`. O incidente e três desenhos públicos novos passam; 36 pares públicos anteriores mantêm decisões, um acima de 2.048 px permanece excluído. Verificação local completa passou: 634 testes do app, 207 do executor e 51 de moderação, além de análises estáticas/build. A melhoria qualitativa não estabelece taxa populacional de erro.
+
+A mudança de aceite é restrita a dois campos próprios: próximo hash e lista histórica, que inclui explicitamente a predecessora ativa b0c665c56bed28a0630d379a13f90d202322d5a6a924901ca5da2dbeafa89ef0 além dos três aceites anteriores. O novo código aceita esses quatro mais sua própria identidade; o código anterior continua iniciando com sua identidade na lista. Vetores novos vivem na release, sem trocar os quatro artefatos instalados, runtime, dependências, units ou banco. Guardar baseline e conteúdo anterior somente em `.local/`, comparar os demais campos, escrever atomicamente e preparar retorno limitado a esses campos. Nenhuma imagem do incidente entra no pacote distribuído.
+
+Depois de CI integral do commit final, usar somente `npm run deploy:staging` na main limpa/integrada/enviada. Não criar outro executor. Conferir detector carregado, hash exato/aceites, preservação dos serviços do outro projeto, prontidão dos workers e hashes públicos após publicação. O aceite pode mudar antes da troca sem invalidar a predecessora; em falha, conservar escritas novas e retornar somente após verificar qual release está ativa.
+
+**Ponto importante:** autorização e commit não comprovam ativação. Registros antigos retidos não são reanalisados/liberados automaticamente; sua revisão continua separada, sem renovar prazos de retenção.
+
 ## Busca, salvos e espaço no ranking — ativação autorizada em 13/10/2026
 
 O proprietário conferiu a prévia e pediu espaço leve entre os filtros e a tabela do ranking, seguido de commit, envio e ativação do conjunto pendente deste chat. Incluir busca de perfis/comunidades públicos, estado confirmado dos bookmarks, ícones selecionados mais brancos sem mudar o fundo e 14 px acima da tabela; integrar com a main preservando a release anterior `c2beaf0`.

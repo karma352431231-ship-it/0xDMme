@@ -16,7 +16,7 @@ export class AttachmentUi {
   }
   private selection: AttachmentSelection | null = null;
   private previewUrl: string | null = null;
-  private readonly urls: string[] = [];
+  private readonly urls = new Set<string>();
   private generation = 0;
   private selectionGeneration = 0;
   private queue: Promise<void> = Promise.resolve();
@@ -59,7 +59,8 @@ export class AttachmentUi {
   }
   clearMedia(): void {
     this.generation++;
-    for (const url of this.urls.splice(0)) URL.revokeObjectURL(url);
+    for (const url of this.urls) URL.revokeObjectURL(url);
+    this.urls.clear();
   }
   mount(
     host: HTMLElement,
@@ -155,6 +156,7 @@ export class AttachmentUi {
   render<V extends MediaView>(input: {
     content?: AttachmentContent;
     saveNotice?: string;
+    signal?: AbortSignal;
     article: HTMLElement;
     view: V;
     load: (view: V, thumbnail: boolean) => Promise<Uint8Array<ArrayBuffer>>;
@@ -164,9 +166,19 @@ export class AttachmentUi {
     renderMedia({
       ...input,
       playback: this.playback,
-      current: () => token === this.generation && input.article.isConnected,
+      current: () =>
+        token === this.generation &&
+        !input.signal?.aborted &&
+        input.article.isConnected,
       retain: (url) => {
-        this.urls.push(url);
+        this.urls.add(url);
+        input.signal?.addEventListener(
+          'abort',
+          () => {
+            if (this.urls.delete(url)) URL.revokeObjectURL(url);
+          },
+          { once: true },
+        );
       },
       enqueue: (work) => this.enqueue(work),
     });

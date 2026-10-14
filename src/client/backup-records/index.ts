@@ -66,6 +66,7 @@ export type BackupRecord =
     }
   | {
       type: 'group-message';
+      relation?: MessageRelation;
       id: string;
       hash: string;
       groupId: string;
@@ -309,6 +310,7 @@ function groupMessageRecord(
     'own',
     'kind',
     'text',
+    ...relationKeys(d),
   ]);
   const kind = d['kind'],
     text = boundedText(d['text'], backupRecordLimit);
@@ -330,6 +332,7 @@ function groupMessageRecord(
     own: d['own'],
     kind,
     text,
+    ...optionalRelation(d['relation']),
   };
 }
 function messageRecord(

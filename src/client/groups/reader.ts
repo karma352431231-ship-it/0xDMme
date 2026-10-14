@@ -1,3 +1,6 @@
+import { applyGroupRemovals } from './removals.ts';
+import { groupEditRelation } from '../../shared/group-messages/index.ts';
+import type { MessageRelation } from '../../shared/daily/index.ts';
 import { profilePhotoUpdate } from '../../shared/group-messages/index.ts';
 import { object, uuid } from '../../shared/account/index.ts';
 import { canonical, digest, fingerprint } from '../../shared/devices/index.ts';
@@ -24,7 +27,7 @@ import type { MessageCrypto } from '../message-crypto/index.ts';
 import { openRecoveryKey, openRoomKey } from '../message-recovery/index.ts';
 import { readDirectories } from '../peer-identity/index.ts';
 import type { PeerIdentity } from '../peer-identity/index.ts';
-import { GroupCache, groupTitle } from './cache.ts';
+import { GroupCache, groupTitle, groupMessageRecordName } from './cache.ts';
 import type { GroupState } from './governance.ts';
 export interface GroupView {
   id: string;
@@ -40,6 +43,9 @@ export interface GroupView {
   localOnly?: boolean;
   delivery?: 'accepted' | 'received';
   read?: boolean;
+  relation?: MessageRelation;
+  edited?: boolean;
+  editedSequence?: number;
 }
 interface GroupRow {
   id: string;
@@ -47,6 +53,9 @@ interface GroupRow {
   epoch: number;
   hash: string;
   packet: GroupPacket | null;
+  sender?: string;
+  relation?: MessageRelation;
+  deletion: unknown;
   unavailableMedia: string[];
 }
 export interface GroupReadContext {
@@ -62,6 +71,14 @@ export async function readGroupPage(
 ): Promise<{ views: GroupView[]; receipts: { id: string; hash: string }[] }> {
   const page = parseGroupPage(input),
     cache = new GroupCache(c.authority, c.group.state.groupId);
+  await applyGroupRemovals(
+    { ...c, groupId: c.group.state.groupId, head: c.group.head },
+    page.items.flatMap((item) =>
+      item.deletion && object(item.deletion)['type'] === 'message'
+        ? [{ ...item, sender: item.sender ?? item.packet?.sender ?? '' }]
+        : [],
+    ),
+  );
   const cached = await cachedGroupViews(
     cache,
     page.items,
@@ -121,7 +138,7 @@ async function cachedGroupViews(
   const cached = new Map<string, GroupView>();
   for (const item of items) {
     if (!item.packet) continue;
-    const stored = await cache.get(groupRowName(item.sequence));
+    const stored = await cache.get(groupRowName(item));
     if (stored === null) continue;
     const view = groupView(stored);
     assertCachedGroupRow(view, item, account, item.packet);
@@ -135,18 +152,32 @@ function assertCachedGroupRow(
   account: string,
   packet: GroupPacket,
 ): void {
-  if (
-    view.id !== item.id ||
-    view.hash !== item.hash ||
-    view.groupId !== packet.groupId ||
-    view.epoch !== item.epoch ||
-    view.sequence !== item.sequence ||
-    view.kind !== packet.kind ||
-    view.sender !== packet.sender ||
-    view.own !== (view.sender === account)
-  )
+  const stored = [
+    view.id,
+    view.hash,
+    view.groupId,
+    view.epoch,
+    view.sequence,
+    view.kind,
+    view.sender,
+    view.own,
+    view.relation ?? null,
+  ];
+  const expected = [
+    item.id,
+    item.hash,
+    packet.groupId,
+    item.epoch,
+    item.sequence,
+    packet.kind,
+    packet.sender,
+    packet.sender === account,
+    packet.relation ?? null,
+  ];
+  if (canonical(stored) !== canonical(expected))
     throw new Error('Conteúdo local diverge da mensagem de grupo.');
 }
+
 interface GroupRowContext extends GroupReadContext {
   cache: GroupCache;
   item: GroupRow;
@@ -161,14 +192,20 @@ interface GroupRowContext extends GroupReadContext {
   recovery: Map<string, Awaited<ReturnType<typeof openRecoveryKey>>>;
   cached: Map<string, GroupView>;
 }
-function groupRowName(sequence: number): string {
-  return `message:${String(sequence).padStart(16, '0')}`;
+function groupRowName(item: GroupRow): string {
+  return groupMessageRecordName({
+    ...item,
+    ...(item.packet?.relation ? { relation: item.packet.relation } : {}),
+  });
 }
 async function readGroupRow(c: GroupRowContext): Promise<GroupView | null> {
   const { item, cache } = c,
     packet = item.packet,
-    name = groupRowName(item.sequence);
-  if (!packet) return preservedView(cache, name, item);
+    name = groupRowName(item);
+  if (!packet)
+    return item.deletion && object(item.deletion)['type'] === 'message'
+      ? null
+      : preservedView(cache, name, item);
   await checkGroupIndex(c, packet);
   // Root-sealed cache is written only after SDK/signature validation. The current
   // packet hash and membership are still checked on every authorized read.
@@ -188,10 +225,18 @@ async function readGroupRow(c: GroupRowContext): Promise<GroupView | null> {
     own: packet.sender === c.authority.session.accountId,
     kind: packet.kind,
     text,
+    ...(packet.relation ? { relation: packet.relation } : {}),
     unavailableMedia: item.unavailableMedia,
   };
   await cache.put(name, view);
+  await preserveEdit(cache, view);
   return view;
+}
+async function preserveEdit(cache: GroupCache, view: GroupView): Promise<void> {
+  if (!view.relation) return;
+  const old = await cache.get(`edit:${view.relation.id}`);
+  if (old === null || groupView(old).sequence < view.sequence)
+    await cache.put(`edit:${view.relation.id}`, view);
 }
 async function preservedView(
   cache: GroupCache,
@@ -298,6 +343,9 @@ export function groupView(input: unknown): GroupView {
     own: d['own'],
     kind: kind as GroupView['kind'],
     text: d['text'],
+    ...(d['relation'] === undefined
+      ? {}
+      : { relation: groupEditRelation(d['relation']) }),
     unavailableMedia: d['unavailableMedia'].map(uuid),
   };
 }
@@ -321,6 +369,11 @@ function parseGroupPage(input: unknown): {
       throw new Error('Estado da mídia inválido.');
     return {
       id: uuid(row['id']),
+      ...(row['sender'] === undefined ? {} : { sender: uuid(row['sender']) }),
+      ...(row['relation'] == null
+        ? {}
+        : { relation: groupEditRelation(row['relation']) }),
+      deletion: row['deletion'] ?? null,
       epoch: integer(row['epoch'], 100_000),
       sequence: integer(row['sequence'], Number.MAX_SAFE_INTEGER),
       hash: fingerprint(row['hash']),

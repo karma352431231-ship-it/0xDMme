@@ -9533,4 +9533,144 @@ export const catalog: Record<string, readonly [string, string]> = {
       'The wallet login document is in English. It only connects your account to 0xDMme. It does not move funds, authorize transactions or open your encrypted history. Check the domain and address before signing.',
       '钱包中的登录文件使用英语。它只会将你的账户连接到 0xDMme。它不会转移资金、授权交易或打开你的加密历史记录。签名前请核对域名和地址。',
     ],
+  'Ver resposta': ['View reply', '查看回复'],
+  grupo: ['group', '群组'],
+  'Escrever resposta': ['Write a reply', '撰写回复'],
+  'Resposta indisponível.': ['Reply unavailable.', '回复不可用。'],
+  'Não foi possível atualizar a contagem.': [
+    'Could not update the count.',
+    '无法更新计数。',
+  ],
+  'Apagar para todos': ['Delete for everyone', '为所有人删除'],
+  'Editar mensagem': ['Edit message', '编辑消息'],
+  'Salvar alteração': ['Save change', '保存更改'],
+  'Confira as exclusões antes de buscar.': [
+    'Verify deletions before searching.',
+    '搜索前请先核验删除记录。',
+  ],
+  'Somente seu texto conectado pode ser editado.': [
+    'Only your own synced text messages can be edited.',
+    '只能编辑你自己已同步的文本消息。',
+  ],
+  'Somente sua mensagem conectada pode ser apagada.': [
+    'Only your own synced messages can be deleted.',
+    '只能删除你自己已同步的消息。',
+  ],
+  'Confira as exclusões antes de abrir mídia.': [
+    'Verify deletions before opening media.',
+    '打开媒体前请先核验删除记录。',
+  ],
+  'Mensagem apagada ou indisponível para abrir mídia.': [
+    'The message was deleted or is unavailable for opening media.',
+    '消息已删除或无法用于打开媒体。',
+  ],
+  'Índice do grupo parcialmente conferido. Continue a sincronização.': [
+    'Group index partially verified. Continue syncing.',
+    '群组索引已部分核验。请继续同步。',
+  ],
+  'Delta de grupo divergente.': [
+    'Group change set mismatch.',
+    '群组变更集不匹配。',
+  ],
+  'Snapshot de outro grupo ou autoridade.': [
+    'Snapshot belongs to another group or authorization context.',
+    '快照属于其他群组或授权上下文。',
+  ],
+  'Índice de grupo inválido.': ['Invalid group index.', '群组索引无效。'],
+  'Mensagem fora da participação atual.': [
+    'Message is outside your current group participation.',
+    '消息不属于你当前的群组参与范围。',
+  ],
+  'Índice de grupo duplicado.': ['Duplicate group index.', '群组索引重复。'],
+  'Ordem de grupo divergente.': ['Group order mismatch.', '群组顺序不匹配。'],
+  'Índice de grupo incompleto.': [
+    'Incomplete group index.',
+    '群组索引不完整。',
+  ],
+  'Delta de grupo excedido.': [
+    'Group change set limit exceeded.',
+    '群组变更集超出限制。',
+  ],
+  'Cursor de outra revisão.': [
+    'Cursor belongs to another revision.',
+    '游标属于其他修订版本。',
+  ],
+  'Edição divergente da mensagem original do grupo.': [
+    'Edit does not match the original group message.',
+    '编辑与原始群组消息不匹配。',
+  ],
+  'Estado antigo do grupo.': ['Outdated group state.', '群组状态已过期。'],
+  'Preparação do grupo excedeu o prazo; tente novamente.': [
+    'Group preparation timed out; try again.',
+    '群组准备超时，请重试。',
+  ],
+  'Objetos de grupo incompletos.': [
+    'Incomplete group objects.',
+    '群组对象不完整。',
+  ],
+  'Objetos de outra consulta.': [
+    'Objects belong to another query.',
+    '对象属于其他查询。',
+  ],
+  'Edições de grupo inválidas.': ['Invalid group edits.', '群组编辑无效。'],
+  'Exclusão divergente da mensagem de grupo já verificada.': [
+    'Deletion does not match the verified group message.',
+    '删除记录与已核验的群组消息不匹配。',
+  ],
+  'Recebimento interrompido durante suspensão.': [
+    'Receiving was interrupted while suspended.',
+    '暂停期间接收已中断。',
+  ],
+  'Alterações de outro snapshot.': [
+    'Changes belong to another snapshot.',
+    '变更属于其他快照。',
+  ],
+  'Alterações incompletas ou duplicadas.': [
+    'Incomplete or duplicate changes.',
+    '变更不完整或重复。',
+  ],
+  'Não foi possível conferir a leitura.': [
+    'Could not verify read receipts.',
+    '无法核验已读回执。',
+  ],
+  'Autoridade da exclusão mudou.': [
+    'Deletion authorization has changed.',
+    '删除权限已变更。',
+  ],
+  'Somente o autor participante pode apagar sua mensagem.': [
+    'Only the author who is a group participant can delete their message.',
+    '只有仍是群组成员的作者才能删除自己的消息。',
+  ],
+  'Mensagens do grupo mudaram. Confira novamente.': [
+    'Group messages have changed. Verify them again.',
+    '群组消息已变更。请重新核验。',
+  ],
+  'Esta mensagem atingiu 64 edições.': [
+    'This message has reached 64 edits.',
+    '此消息已达到 64 次编辑。',
+  ],
+  'Edição fora da mensagem própria autorizada.': [
+    'Edit is outside your authorized message.',
+    '编辑超出你自己获授权消息的范围。',
+  ],
+  'Índice de alterações incompleto.': [
+    'Incomplete change index.',
+    '变更索引不完整。',
+  ],
+  'Mensagens duplicadas.': ['Duplicate messages.', '消息重复。'],
+  'Prova de exclusão ausente.': ['Missing deletion proof.', '缺少删除证明。'],
+  'Exclusão de grupo inválida.': ['Invalid group deletion.', '群组删除无效。'],
+  'Exclusão de outra mensagem, grupo ou autor.': [
+    'Deletion belongs to another message, group or author.',
+    '删除记录属于其他消息、群组或作者。',
+  ],
+  'Exclusão sem aparelho autorizado.': [
+    'Deletion has no authorized device.',
+    '删除操作没有获授权的设备。',
+  ],
+  'Ação de grupo inválida.': ['Invalid group action.', '群组操作无效。'],
+  'Somente texto pode editar uma mensagem.': [
+    'Only text can be used to edit a message.',
+    '只能使用文本编辑消息。',
+  ],
 };

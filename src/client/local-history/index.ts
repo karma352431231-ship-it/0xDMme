@@ -290,12 +290,19 @@ function historyIndex(record: BackupRecord): {
     };
   if (record.type === 'group-message')
     return {
-      peer: record.groupId,
-      sequence: record.sequence,
-      relation: '',
-      kind: record.kind,
+      ...groupHistoryIndex(record),
     };
   return { peer: '', sequence: 0, relation: '', kind: '' };
+}
+function groupHistoryIndex(
+  record: Extract<BackupRecord, { type: 'group-message' }>,
+) {
+  return {
+    peer: record.groupId,
+    sequence: record.sequence,
+    relation: record.relation?.id ?? '',
+    kind: record.kind,
+  };
 }
 /** DM records have their own type; they never enter private wallet peer indexes. */
 export async function dmHistoryPeers(a: VaultAuthority, after: string | null) {
@@ -990,7 +997,11 @@ export async function groupConversationHistory(
         return;
       }
       const row = cursor.value as StoredRecord;
-      if (row.type !== 'group-message' || row.kind === 'profile') {
+      if (
+        row.type !== 'group-message' ||
+        row.kind === 'profile' ||
+        row.relation
+      ) {
         cursor.continue();
         return;
       }
@@ -1028,7 +1039,27 @@ export async function relatedHistory(
   ids: readonly string[],
   guard: () => void,
 ): Promise<Extract<BackupRecord, { type: 'message' }>[]> {
-  const result: Extract<BackupRecord, { type: 'message' }>[] = [];
+  return (await readRelatedHistory(a, ids, guard, 'message')).filter(
+    (row) => row.type === 'message',
+  );
+}
+export async function relatedGroupHistory(
+  a: VaultAuthority,
+  ids: readonly string[],
+  guard: () => void,
+): Promise<Extract<BackupRecord, { type: 'group-message' }>[]> {
+  return (await readRelatedHistory(a, ids, guard, 'group-message')).filter(
+    (row) => row.type === 'group-message',
+  );
+}
+async function readRelatedHistory(
+  a: VaultAuthority,
+  ids: readonly string[],
+  guard: () => void,
+  family: 'message' | 'group-message',
+): Promise<Extract<BackupRecord, { type: 'message' | 'group-message' }>[]> {
+  const result: Extract<BackupRecord, { type: 'message' | 'group-message' }>[] =
+    [];
   for (const id of ids) {
     let after: IDBValidKey | null = null;
     do {
@@ -1069,10 +1100,10 @@ export async function relatedHistory(
           );
         };
       });
-      for (const row of page.rows) {
+      for (const row of page.rows.filter((row) => row.type === family)) {
         guard();
         const record = await openHistoryRecord(a, row);
-        result.push(historicalAction(record, id));
+        result.push(historicalAction(record, id, family));
       }
       after = page.next;
     } while (after !== null);
@@ -1083,8 +1114,11 @@ export async function relatedHistory(
 function historicalAction(
   record: BackupRecord,
   id: string,
-): Extract<BackupRecord, { type: 'message' }> {
-  if (record.type !== 'message' || record.relation?.id !== id)
+  family: 'message' | 'group-message',
+): Extract<BackupRecord, { type: 'message' | 'group-message' }> {
+  if (record.type !== 'message' && record.type !== 'group-message')
+    throw new Error('Alteração histórica divergente.');
+  if (record.type !== family || record.relation?.id !== id)
     throw new Error('Alteração histórica divergente.');
   return record;
 }

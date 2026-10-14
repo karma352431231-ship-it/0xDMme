@@ -1,4 +1,5 @@
 import { t } from '../../shared/i18n/index.ts';
+import { MessageContinuity } from './continuity.ts';
 import { initializeMessageDirectory } from './startup.ts';
 import { MessageSynchronization } from './synchronization.ts';
 import { MessageHistoryUi } from './history-ui.ts';
@@ -243,7 +244,8 @@ export function startMessages(
   const live = new LiveMessages({
     access,
     changed: () => {
-      options.liveState?.(live.connected);
+      continuity.changed();
+      options.liveState?.(live.current);
       const label = node('[data-message-live]');
       if (label) label.textContent = live.notice;
       synchronization.resume();
@@ -254,7 +256,9 @@ export function startMessages(
       if (event === 'ready') void checkVoiceAuthority();
       if (event === 'authorization') void checkVoiceAuthority();
       hideLiveHistory(event);
-      requestRefresh(event === 'changed' ? 'probe' : 'refresh');
+      requestRefresh(
+        ['changed', 'ready', 'removed'].includes(event) ? 'probe' : 'refresh',
+      );
     },
   });
   const synchronization = new MessageSynchronization({
@@ -264,6 +268,7 @@ export function startMessages(
       session: !!session,
       online: navigator.onLine,
       visible: document.visibilityState === 'visible',
+      suspended: continuity.suspended,
       liveConnecting: live.connecting,
     }),
     status,
@@ -289,6 +294,14 @@ export function startMessages(
     periodicWork: periodicMessageWork,
     pending: () => controller.pending(),
     sendPending: () => controller.sendPending(),
+  });
+  const continuity = new MessageContinuity({
+    current: () => live.current,
+    available: () => !!session && navigator.onLine,
+    pause: suspend,
+    stop: () => live.stop(),
+    reconnect: () => live.retry(),
+    check: () => requestRefresh('probe'),
   });
   const historyUi = new MessageHistoryUi({
     node,
@@ -332,6 +345,12 @@ export function startMessages(
       groups.suspend(event === 'revoked' || event === 'ended');
   }
   function hideLiveHistory(event: LiveEvent): void {
+    // Delivery/presence hints may come from the page being prepared. Let that
+    // bounded page confirm and commit its cursor before the queued probe runs.
+    if (event === 'changed') {
+      controller.hint();
+      return;
+    }
     stopPreload();
     if (event === 'revoked' || event === 'ended') {
       voice.cancel();
@@ -343,12 +362,11 @@ export function startMessages(
     else if (event === 'removed') {
       // Cancel the history token immediately without cancelling an in-flight
       // signed mutation (the sender receives its own deletion before its reply).
-      controller.hide();
-      groups.suspend();
+      controller.removed();
+      groups.removed();
       menu.close();
       searchPanel.close();
-    } else if (event === 'changed') controller.hint();
-    else controller.pause();
+    } else suspend();
   }
   async function checkVoiceAuthority(): Promise<void> {
     await playback.check((peer) => controller.playbackAllowed(peer));
@@ -480,10 +498,11 @@ export function startMessages(
   }
   function conversationVisible(selector = '.chat-panel'): boolean {
     return (
-      document.visibilityState === 'visible' &&
-      !!mounted?.isConnected &&
-      !!node(selector)?.getClientRects().length
+      document.visibilityState === 'visible' && conversationMounted(selector)
     );
+  }
+  function conversationMounted(selector: string): boolean {
+    return !!mounted?.isConnected && !!node(selector)?.getClientRects().length;
   }
   function enterConversation(): void {
     navigatingToConversation = true;
@@ -719,7 +738,9 @@ export function startMessages(
     if (card) await controller.shareProfile(peer.accountId, card);
     await synchronizeVisible();
     await controller.savePins();
-    await dailyTick();
+    // Opening one conversation only needs its read receipts. Account-wide
+    // presence, push settings and peer states keep their periodic lifecycle.
+    await historyUi.markRead(daily);
   }
   function selectPeer(peer: ConversationPeer): void {
     showDirectConversation();
@@ -802,7 +823,7 @@ export function startMessages(
       await groups.refresh();
       contactsMore();
       await controller.sendPending();
-      if (selected && conversationVisible('[data-direct-conversation]')) {
+      if (selected && conversationMounted('[data-direct-conversation]')) {
         await refreshSelected();
       }
       await controller.savePins();
@@ -827,10 +848,10 @@ export function startMessages(
   }
   async function refreshChangedSelected(): Promise<void> {
     const peer = selected;
-    if (!peer || !conversationVisible('[data-direct-conversation]')) return;
+    if (!peer || !conversationMounted('[data-direct-conversation]')) return;
     if (peer.localOnly) return refreshSelected();
     const changed = await controller.probe();
-    if (selected !== peer || !conversationVisible('[data-direct-conversation]'))
+    if (selected !== peer || !conversationMounted('[data-direct-conversation]'))
       return;
     if (changed) {
       synchronization.prepareHistory();
@@ -849,7 +870,7 @@ export function startMessages(
     await synchronizeVisible();
   }
   async function synchronizeVisible(): Promise<void> {
-    if (!conversationVisible('[data-direct-conversation]')) return;
+    if (!conversationMounted('[data-direct-conversation]')) return;
     if (await controller.probe()) {
       synchronization.prepareHistory();
       await controller.synchronize();
@@ -954,7 +975,7 @@ export function startMessages(
     states = next;
     alertUnread(old);
     renderContacts();
-    await historyUi.markRead(daily);
+    if (document.visibilityState === 'visible') await historyUi.markRead(daily);
   }
   async function silenceArchived(next: Map<string, PeerState>): Promise<void> {
     for (const peer of directoryData.peers) {
@@ -1051,31 +1072,35 @@ export function startMessages(
     requestRefresh();
   }
   function visibilityChanged(): void {
-    if (document.visibilityState === 'hidden') {
-      if (!playback.open) live.stop();
-      if (voice.active)
-        void voice.stop(
-          t(
-            'O navegador interrompeu a gravação. Confira o trecho preservado ao voltar.',
-          ),
-        );
-    } else if (session) live.start();
-    suspend();
-    const current = generation;
-    void daily.heartbeat(document.visibilityState === 'visible').catch(() => {
+    const visible = document.visibilityState === 'visible',
+      current = generation;
+    if (!visible && voice.active)
+      void voice.stop(
+        t(
+          'O navegador interrompeu a gravação. Confira o trecho preservado ao voltar.',
+        ),
+      );
+    continuity.visibility(visible);
+    synchronization.resume();
+    void daily.heartbeat(visible).catch(() => {
       if (current !== generation) return;
       message = t(
         'Não foi possível atualizar a presença. Ela deixará de indicar online pelo prazo de atividade.',
       );
       status();
     });
-    if (
-      document.visibilityState === 'visible' &&
-      mounted?.isConnected &&
-      session &&
-      navigator.onLine
-    )
-      requestRefresh();
+    if (!visible || !session || !navigator.onLine) return;
+    historyUi.resume();
+    if (groups.selected) requestRefresh('probe');
+    void historyUi.markRead(daily).catch((error: unknown) => {
+      if (current !== generation) return;
+      suspend('invalidate');
+      message =
+        error instanceof Error
+          ? error.message
+          : t('Não foi possível conferir a leitura.');
+      status();
+    });
   }
   function controlsChanged(): void {
     suspend('invalidate');
@@ -1094,28 +1119,28 @@ export function startMessages(
   }
   async function groupTick(): Promise<void> {
     if (!mounted?.isConnected) return;
-    if (!live.connected) await groups.refresh();
+    if (!live.current) await groups.refresh();
     if (conversationVisible('[data-group-conversation]'))
       await groups.resumePending();
   }
   async function periodicMessages(): Promise<void> {
     await groupTick();
     if (
-      !conversationVisible('[data-direct-conversation]') ||
+      !conversationMounted('[data-direct-conversation]') ||
       !selected ||
       selected.localOnly
     )
       return;
     await synchronization.resumePending();
-    if (!live.connected && (await controller.probe())) {
-      if (!conversationVisible('[data-direct-conversation]')) return;
+    if (!live.current && (await controller.probe())) {
+      if (!conversationMounted('[data-direct-conversation]')) return;
       synchronization.prepareHistory();
       await controller.synchronize();
       await controller.savePins();
     }
   }
   async function periodicMessageWork(): Promise<boolean> {
-    if (!live.connected || conversationVisible('[data-group-conversation]'))
+    if (!live.current || conversationVisible('[data-group-conversation]'))
       return true;
     return (await controller.pending()).length > 0;
   }
@@ -1124,8 +1149,8 @@ export function startMessages(
       void synchronization.maintainPresence();
   }
   function pageHide(event: PageTransitionEvent): void {
+    continuity.freeze();
     synchronization.reset();
-    live.stop();
     if (voice.active)
       void voice.stop(
         t(
@@ -1147,21 +1172,22 @@ export function startMessages(
     suspend(event.persisted ? 'pause' : 'invalidate');
   }
   function pageShow(event: PageTransitionEvent): void {
-    if (event.persisted) {
-      if (session && navigator.onLine) live.start();
-      suspend();
-      if (mounted?.isConnected && session && navigator.onLine) requestRefresh();
-    }
+    if (event.persisted) continuity.resume();
   }
   bindMessageLifecycle({
     offline,
     online,
     visibility: visibilityChanged,
+    freeze: () => continuity.freeze(),
+    resume: () => continuity.resume(),
     controls: controlsChanged,
     devices: devicesChanged,
     imported: historyImported,
     preferences: preferencesChanged,
-    tick: () => synchronization.periodicTick(),
+    tick: () => {
+      continuity.changed();
+      return synchronization.periodicTick();
+    },
     progress: attachmentProgress,
     beforeUnload,
     pageHide,
@@ -1312,6 +1338,7 @@ export function startMessages(
         return;
       }
       generation++;
+      continuity.reset();
       historyUi.clear();
       externalAbort.abort();
       externalAbort = new AbortController();

@@ -12,7 +12,7 @@ SPEC.loader.exec_module(policy)
 def context(**changes):
     view = {
         'covered': 0.5, 'exposed_anatomy': 0.2, 'painting_nudity': 0.1,
-        'sex_act': 0.15, 'simulated_act_pose': 0.1,
+        'sex_act': 0.15, 'simulated_act_pose': 0.1, 'ordinary_clothed': -1,
         'style_painting': 0.2, 'style_photo': 0.6, 'style_illustration': 0.2,
     }
     return view | changes
@@ -99,6 +99,32 @@ class FusionPolicyTests(unittest.TestCase):
     def test_corroborated_exposed_anatomy_is_rejected(self):
         view = context(exposed_anatomy=0.65)
         self.assertEqual(policy.classify([view] * 2, [generic(0.99)] * 2)['verdict'], 'reject')
+
+    def test_ordinary_clothed_scene_can_resolve_weak_semantic_false_positive(self):
+        view = context(covered=0.2, sex_act=0.23, exposed_anatomy=0.22,
+                       ordinary_clothed=0.26)
+        result = policy.classify([view] * 2, [generic(0.57)] * 2)
+        self.assertEqual(result['verdict'], 'allow')
+        self.assertGreater(min(result['margins']), 0)
+        self.assertLess(max(result['permission_margins']), -0.02)
+
+    def test_clothed_similarity_never_weakens_actual_act_or_corroborated_nudity_rejection(self):
+        for ordinary in (-1, 0.5, 1):
+            with self.subTest(ordinary=ordinary):
+                act = context(sex_act=0.8, ordinary_clothed=ordinary)
+                self.assertEqual(policy.classify([act] * 2, [generic()] * 2)['verdict'], 'reject')
+                anatomy = context(exposed_anatomy=0.65, ordinary_clothed=ordinary)
+                self.assertEqual(policy.classify([anatomy] * 2, [generic(0.99)] * 2)['verdict'], 'reject')
+
+    def test_clothed_permission_needs_complete_consistent_views_and_bounded_generic_score(self):
+        ordinary = context(covered=0.2, sex_act=0.23, exposed_anatomy=0.22,
+                           ordinary_clothed=0.26)
+        weak = ordinary | {'ordinary_clothed': 0.23}
+        self.assertEqual(policy.classify([ordinary, weak], [generic(0.57)] * 2)['verdict'], 'hold')
+        self.assertEqual(policy.classify([ordinary] * 2, [generic(0.99)] * 2)['verdict'], 'reject')
+        malformed = ordinary | {'ordinary_clothed': float('nan')}
+        with self.assertRaises(ValueError):
+            policy.classify([malformed] * 2, [generic()] * 2)
 
     def test_incomplete_nonfinite_or_invalid_probability_evidence_never_gets_a_verdict(self):
         invalid_contexts = [context(covered=True), context(sex_act=float('nan')),

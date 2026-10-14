@@ -1,3 +1,7 @@
+import {
+  GroupMessageUpdates,
+  assertGroupEdit,
+} from './group-message-updates.ts';
 import { admitGroupNotification } from './daily.ts';
 import type pg from 'pg';
 import { AccountError } from '../../shared/account/index.ts';
@@ -35,11 +39,14 @@ interface PacketRow {
   body: unknown;
   deletion: unknown;
   key_hash: string | null;
+  sender: string;
+  relation: unknown;
 }
 function unavailable(): never {
   throw new AccountError(403, 'Mensagem fora da participação autorizada.');
 }
 export class GroupMessageStore {
+  readonly updates: GroupMessageUpdates;
   private readonly contacts: ContactStore;
   private readonly groups: GroupStore;
   private readonly devices: DeviceStore;
@@ -54,6 +61,11 @@ export class GroupMessageStore {
       media: GroupMediaStore;
     },
   ) {
+    this.updates = new GroupMessageUpdates({
+      groups,
+      contacts,
+      devices: services.devices,
+    });
     this.contacts = contacts;
     this.groups = groups;
     this.devices = services.devices;
@@ -74,6 +86,7 @@ export class GroupMessageStore {
         const accepted = await this.accepted(client, { packet, hash, state });
         if (accepted) return { status: 'accepted', hash };
         await this.validatePacket(client, authority, { packet, state });
+        await assertGroupEdit(client, packet, state);
         const bundle = await this.bundle(client, {
           packet,
           provided: input.keys,
@@ -88,12 +101,13 @@ export class GroupMessageStore {
         await this.media.admit(client, packet);
         await this.saveBundle(client, bundle);
         await this.savePacket(client, { packet, hash, state });
-        await admitGroupNotification(client, {
-          groupId: packet.groupId,
-          sender: packet.sender,
-          kind: packet.kind,
-          accounts: state.members.map((m) => m.accountId),
-        });
+        if (!packet.relation)
+          await admitGroupNotification(client, {
+            groupId: packet.groupId,
+            sender: packet.sender,
+            kind: packet.kind,
+            accounts: state.members.map((m) => m.accountId),
+          });
         await assertGroupContentQuota(client, packet.groupId);
         await assertContentCapacity(client, this.capacity);
         this.contacts.changed(
@@ -229,7 +243,7 @@ export class GroupMessageStore {
       .filter((m) => m.accountId !== input.packet.sender)
       .map((m) => m.accountId);
     await client.query(
-      'INSERT INTO hash_talk.group_packets(id,group_id,epoch,sender,key_hash,hash,body,charge,pending_accounts,received_accounts) VALUES($1,$2,$3,$4,$5,$6,$7::jsonb,$8,$9::uuid[],$10::uuid[])',
+      'INSERT INTO hash_talk.group_packets(id,group_id,epoch,sender,key_hash,hash,body,charge,pending_accounts,received_accounts,relation) VALUES($1,$2,$3,$4,$5,$6,$7::jsonb,$8,$9::uuid[],$10::uuid[],$11::jsonb)',
       [
         input.packet.id,
         input.packet.groupId,
@@ -241,6 +255,7 @@ export class GroupMessageStore {
         charge,
         pending,
         [input.packet.sender],
+        input.packet.relation ? JSON.stringify(input.packet.relation) : null,
       ],
     );
   }
@@ -257,7 +272,7 @@ export class GroupMessageStore {
         )?.joined;
         if (!joined) unavailable();
         const rows = await client.query<PacketRow>(
-          `WITH candidates AS (SELECT p.*,coalesce(k.charge,0) AS key_charge FROM hash_talk.group_packets p LEFT JOIN hash_talk.group_key_sets k ON k.hash=p.key_hash WHERE p.group_id=$1 AND p.epoch>=$2 AND p.epoch<=$3 AND p.sequence>$4 ORDER BY p.sequence LIMIT 16), charged AS (SELECT *,sum(charge+key_charge) OVER(ORDER BY sequence) AS window_bytes,row_number() OVER(ORDER BY sequence) AS position FROM candidates) SELECT id,epoch,sequence::text,hash,body,deletion,key_hash FROM charged WHERE window_bytes<=8000000 OR position=1 ORDER BY sequence::bigint`,
+          `WITH candidates AS (SELECT p.*,coalesce(k.charge,0) AS key_charge FROM hash_talk.group_packets p LEFT JOIN hash_talk.group_key_sets k ON k.hash=p.key_hash WHERE p.group_id=$1 AND p.epoch>=$2 AND p.epoch<=$3 AND p.sequence>$4 ORDER BY p.sequence LIMIT 16), charged AS (SELECT *,sum(charge+key_charge) OVER(ORDER BY sequence) AS window_bytes,row_number() OVER(ORDER BY sequence) AS position FROM candidates) SELECT id,epoch,sequence::text,hash,body,deletion,key_hash,sender,relation FROM charged WHERE window_bytes<=8000000 OR position=1 ORDER BY sequence::bigint`,
           [input.groupId, joined, state.epoch, input.after],
         );
         const data = await this.pageContext(client, input.groupId, rows.rows);
@@ -295,7 +310,7 @@ export class GroupMessageStore {
           (m) => m.accountId === authority.session.accountId,
         )?.joined;
         const rows = await client.query<PacketRow>(
-          `WITH candidates AS (SELECT p.*,coalesce(k.charge,0) AS key_charge FROM hash_talk.group_packets p LEFT JOIN hash_talk.group_key_sets k ON k.hash=p.key_hash WHERE p.group_id=$1 AND p.epoch>=$2 AND p.epoch<=$3 AND ($4::bigint IS NULL OR p.sequence<$4) ORDER BY p.sequence DESC LIMIT 16),charged AS (SELECT *,sum(charge+key_charge) OVER(ORDER BY sequence DESC) AS window_bytes,row_number() OVER(ORDER BY sequence DESC) AS position FROM candidates) SELECT id,epoch,sequence::text,hash,body,deletion,key_hash FROM charged WHERE window_bytes<=8000000 OR position=1 ORDER BY sequence::bigint`,
+          `WITH candidates AS (SELECT p.*,coalesce(k.charge,0) AS key_charge FROM hash_talk.group_packets p LEFT JOIN hash_talk.group_key_sets k ON k.hash=p.key_hash WHERE p.group_id=$1 AND p.epoch>=$2 AND p.epoch<=$3 AND p.relation IS NULL AND ($4::bigint IS NULL OR p.sequence<$4) ORDER BY p.sequence DESC LIMIT 16),charged AS (SELECT *,sum(charge+key_charge) OVER(ORDER BY sequence DESC) AS window_bytes,row_number() OVER(ORDER BY sequence DESC) AS position FROM candidates) SELECT id,epoch,sequence::text,hash,body,deletion,key_hash,sender,relation FROM charged WHERE window_bytes<=8000000 OR position=1 ORDER BY sequence::bigint`,
           [input.groupId, joined, state.epoch, input.before],
         );
         return {
@@ -317,10 +332,50 @@ export class GroupMessageStore {
           (m) => m.accountId === authority.session.accountId,
         )?.joined;
         const rows = await client.query<PacketRow>(
-          "SELECT id,epoch,sequence::text,hash,body,deletion,key_hash FROM hash_talk.group_packets WHERE group_id=$1 AND epoch>=$2 AND epoch<=$3 AND kind='profile' AND body IS NOT NULL ORDER BY sequence DESC LIMIT 1",
+          "SELECT id,epoch,sequence::text,hash,body,deletion,key_hash,sender,relation FROM hash_talk.group_packets WHERE group_id=$1 AND epoch>=$2 AND epoch<=$3 AND kind='profile' AND body IS NOT NULL ORDER BY sequence DESC LIMIT 1",
           [input.groupId, joined, state.epoch],
         );
         return this.pageContext(client, input.groupId, rows.rows);
+      },
+    );
+  }
+  async objects(
+    authority: ContactAuthority,
+    input: { groupId: string; head: string; revision: number; ids: string[] },
+  ) {
+    return this.groups.withGroupAuthority(
+      authority,
+      input,
+      async (client, state) => {
+        await this.updates.expect(client, input);
+        const joined = state.members.find(
+          (member) => member.accountId === authority.session.accountId,
+        )?.joined;
+        const rows = await client.query<PacketRow>(
+          'WITH candidates AS (SELECT p.*,coalesce(k.charge,0) AS key_charge FROM hash_talk.group_packets p LEFT JOIN hash_talk.group_key_sets k ON k.hash=p.key_hash WHERE p.group_id=$1 AND p.epoch>=$2 AND p.epoch<=$3 AND p.id=ANY($4::uuid[]) ORDER BY p.sequence LIMIT 16),charged AS (SELECT *,sum(charge+key_charge) OVER(ORDER BY sequence) AS window_bytes,row_number() OVER(ORDER BY sequence) AS position FROM candidates) SELECT id,epoch,sequence::text,hash,body,deletion,key_hash,sender,relation FROM charged WHERE window_bytes<=8000000 OR position=1 ORDER BY sequence::bigint',
+          [input.groupId, joined, state.epoch, input.ids],
+        );
+        return this.pageContext(client, input.groupId, rows.rows);
+      },
+    );
+  }
+  async relations(
+    authority: ContactAuthority,
+    input: { groupId: string; head: string; revision: number; ids: string[] },
+  ) {
+    return this.groups.withGroupAuthority(
+      authority,
+      input,
+      async (client, state) => {
+        await this.updates.expect(client, input);
+        const joined = state.members.find(
+          (member) => member.accountId === authority.session.accountId,
+        )?.joined;
+        const rows = await client.query<{ id: string }>(
+          "SELECT DISTINCT ON (relation->>'id') id FROM hash_talk.group_packets WHERE group_id=$1 AND epoch>=$2 AND epoch<=$3 AND relation->>'id'=ANY($4::text[]) AND body IS NOT NULL ORDER BY relation->>'id',sequence DESC LIMIT 16",
+          [input.groupId, joined, state.epoch, input.ids],
+        );
+        return { ids: rows.rows.map((row) => row.id) };
       },
     );
   }
@@ -347,6 +402,8 @@ export class GroupMessageStore {
         epoch: r.epoch,
         sequence: Number(r.sequence),
         hash: r.hash,
+        sender: r.sender,
+        relation: r.relation,
         packet: r.body,
         deletion: r.deletion,
         unavailableMedia:

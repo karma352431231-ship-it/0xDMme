@@ -110,9 +110,17 @@ export class LiveMessages {
   private generation = 0;
   private attempts = 0;
   private readyAt = 0;
+  private lastActivity: number | null = null;
   private connection: AbortController | null = null;
   private retryTimer: ReturnType<typeof setTimeout> | null = null;
   connected = false;
+  /** Timers can be delayed by a suspended browser. Check wall-clock freshness
+   * before retaining the view or accepting another frame from this stream. */
+  get current(): boolean {
+    if (!this.connected || this.lastActivity === null) return false;
+    const age = Date.now() - this.lastActivity;
+    return age >= 0 && age < 15000;
+  }
   /** A foreground refresh waits for this handshake so ready cannot invalidate
    * a read started by the same resume. Failure releases the polling fallback. */
   get connecting(): boolean {
@@ -142,6 +150,7 @@ export class LiveMessages {
     this.generation++;
     this.wanted = false;
     this.connected = false;
+    this.lastActivity = null;
     this.connection?.abort();
     this.connection = null;
     if (this.retryTimer) clearTimeout(this.retryTimer);
@@ -156,6 +165,7 @@ export class LiveMessages {
     const generation = this.generation,
       controller = new AbortController();
     this.readyAt = 0;
+    this.lastActivity = null;
     this.connection = controller;
     this.attempts++;
     this.notice = t('Conectando recebimento em tempo real…');
@@ -234,6 +244,7 @@ export class LiveMessages {
   }
   private receiveEvent(event: LiveEvent): void {
     if (event === 'ready') {
+      this.lastActivity = Date.now();
       this.connected = true;
       this.readyAt = Date.now();
       this.notice = t('Recebimento em tempo real conectado.');
@@ -259,8 +270,12 @@ export class LiveMessages {
       while (context.generation === this.generation) {
         const { value, done } = await reader.read();
         if (done || context.generation !== this.generation) return;
+        if (this.connected && !this.current)
+          throw new Error('Recebimento interrompido durante suspensão.');
+        const events = parser.accept(value);
+        this.lastActivity = Date.now();
         context.reset();
-        for (const event of parser.accept(value)) {
+        for (const event of events) {
           this.receiveEvent(event);
         }
       }

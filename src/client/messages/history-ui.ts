@@ -9,7 +9,6 @@ import { messageActions } from '../message-actions/index.ts';
 import { checksIcon, messageChecks } from '../message-status/index.ts';
 import { gifUrls, showGifText } from '../gif-search/index.ts';
 import { showExternalVideos } from '../external-video/index.ts';
-import { externalVideoIds } from '../../shared/external-video/index.ts';
 import { ExternalTextHistory } from '../external-media/index.ts';
 import type { ExternalMediaConsent } from '../external-media/index.ts';
 import { emojiText } from '../emoji/index.ts';
@@ -52,10 +51,12 @@ export class MessageHistoryUi {
   private readonly externalRows = new ExternalTextHistory();
   private readIds = new Set<string>();
   private views: readonly MessageView[] | null = null;
+  private pending: HistoryUpdate | null = null;
   constructor(options: HistoryPresentation) {
     this.options = options;
   }
   clear(): void {
+    this.pending = null;
     this.views = null;
     this.readIds.clear();
     this.externalRows.clear();
@@ -63,11 +64,21 @@ export class MessageHistoryUi {
   clearMedia(): void {
     this.externalRows.clear();
   }
+  /** Apply background results only when the conversation is visible. Closing
+   * the gate still hides content immediately, including in hidden tabs. */
+  resume(): void {
+    if (this.pending !== null) this.render(this.views, this.pending);
+  }
   render(
     rows: readonly MessageView[] | null,
     update: HistoryUpdate = 'history',
   ): void {
     this.views = rows;
+    if (rows !== null && !this.options.visible()) {
+      this.pending = this.pending === 'history' ? 'history' : update;
+      return;
+    }
+    this.pending = null;
     const history = this.options.node('[data-message-history]');
     if (!history) return;
     const restoreScroll = historyPosition(history);
@@ -87,24 +98,42 @@ export class MessageHistoryUi {
     this.options.composerChanged();
   }
   private renderContent(history: HTMLElement, update: HistoryUpdate): void {
+    if (update === 'pending') return;
     if (update === 'history') {
-      this.options.attachments.clearMedia();
+      if (this.views === null) this.options.attachments.clearMedia();
       this.externalRows.render(
         history,
         dailyViews(this.views ?? []).map((view) => ({
           id: view.id,
-          key:
-            view.kind === 'text' &&
-            (externalVideoIds(view.content.text).length > 0 ||
-              gifUrls(view.content.text).length > 0)
-              ? JSON.stringify([view.content, view.reactions, view.archived])
-              : null,
+          key: this.rowKey(view),
           render: (signal) => this.renderMessage(view, signal),
         })),
         this.options.signal(),
       );
       this.renderStates();
     } else if (this.views !== null) this.renderStates();
+  }
+  private rowKey(view: DailyView<MessageView>): string {
+    const original = view.content.reply
+      ? dailyViews(this.views ?? []).find(
+          (row) => row.id === view.content.reply,
+        )
+      : null;
+    return JSON.stringify([
+      view.kind,
+      view.hash,
+      view.text,
+      view.content,
+      view.reactions,
+      view.edited,
+      view.archived,
+      view.own,
+      view.peer,
+      view.author,
+      view.state === 'Suspensa',
+      original?.content.text.slice(0, 120),
+      this.options.context().selected?.localOnly,
+    ]);
   }
   renderStates(): void {
     updateMessageStates(
@@ -240,6 +269,7 @@ export class MessageHistoryUi {
       this.options.attachments.render({
         article,
         view,
+        signal,
         load: this.options.media,
         run: this.options.run,
       });

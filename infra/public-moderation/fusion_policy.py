@@ -10,6 +10,7 @@ import math
 CONTEXT_KEYS = (
     'covered', 'exposed_anatomy', 'painting_nudity', 'sex_act',
     'simulated_act_pose', 'style_painting', 'style_photo', 'style_illustration',
+    'ordinary_clothed',
 )
 NANO_KEYS = ('safe', 'hentai', 'porn', 'sexy', 'drawing')
 
@@ -68,6 +69,12 @@ def classify(context, nano):
         - max(view['covered'], view['painting_nudity']) for view in context
     ]
     generic = max(max(view['porn'], view['hentai']) for view in nano)
+    # Ordinary cartoons/clothed scenes can corroborate permission. They never
+    # lower the pre-existing anatomy/act evidence used by either rejection rule.
+    permission_margins = [
+        max(view['sex_act'], view['exposed_anatomy'])
+        - max(view['covered'], view['ordinary_clothed']) for view in context
+    ]
 
     if _painting_without_act(context, acts):
         verdict, route = 'allow', 'painting-exempts-anatomy-not-acts'
@@ -75,12 +82,13 @@ def classify(context, nano):
         verdict, route = 'reject', 'corroborated-exposure'
     elif min(acts) >= CONSENSUS_ACT:
         verdict, route = 'reject', 'consensus-visible-actual-act'
-    elif max(margins) <= STRONG_SAFE_CONTEXT and generic < GENERIC_DISAGREEMENT_LIMIT:
+    elif max(permission_margins) <= STRONG_SAFE_CONTEXT and generic < GENERIC_DISAGREEMENT_LIMIT:
         verdict, route = 'allow', 'strong-safe-context-with-bounded-generic-disagreement'
-    elif max(margins) < 0 and generic < LOW_GENERIC_SCORE:
+    elif max(permission_margins) < 0 and generic < LOW_GENERIC_SCORE:
         verdict, route = 'allow', 'negative-context-with-low-generic-score'
-    elif max(margins) <= BASELINE_CONTEXT and generic < BASELINE_GENERIC_LIMIT:
+    elif max(permission_margins) <= BASELINE_CONTEXT and generic < BASELINE_GENERIC_LIMIT:
         verdict, route = 'allow', 'covered-baseline'
     else:
         verdict, route = 'hold', 'uncertain-or-disagreement'
-    return {'verdict': verdict, 'route': route, 'margins': margins}
+    return {'verdict': verdict, 'route': route, 'margins': margins,
+            'permission_margins': permission_margins}

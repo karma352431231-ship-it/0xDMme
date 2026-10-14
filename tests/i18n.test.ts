@@ -60,6 +60,16 @@ await test('server errors retain the reason, numeric details and coarse diagnost
     '简介最多允许 500 个字符。',
   );
   assert.equal(translatedError('Device not authorized.'), '设备未获授权。');
+  assert.equal(
+    translatedError('Esta mensagem atingiu 64 edições.'),
+    '此消息已达到 64 次编辑。',
+  );
+  assert.equal(
+    translatedError(
+      'Índice do grupo parcialmente conferido. Continue a sincronização.',
+    ),
+    '群组索引已部分核验。请继续同步。',
+  );
   assert.equal(staticText('  Initial\n    settings  '), '  初始设置  ');
   assert.equal(
     translatedError(

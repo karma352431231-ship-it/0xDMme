@@ -1,3 +1,4 @@
+import type { MessageRelation } from '../../shared/daily/index.ts';
 import { groupQuota } from '../../shared/group-quota/index.ts';
 import { object } from '../../shared/account/index.ts';
 import { groupEvent } from '../../shared/groups/index.ts';
@@ -17,6 +18,12 @@ import type { VaultAuthority } from '../vault-authority/index.ts';
 export { groupTitle } from '../../shared/group-messages/index.ts';
 export function groupCacheScope(account: string, group: string): string {
   return `${account}:group:${group}`;
+}
+export function groupMessageRecordName(row: {
+  sequence: number;
+  relation?: MessageRelation;
+}): string {
+  return `${row.relation ? 'action' : 'message'}:${String(row.sequence).padStart(16, '0')}`;
 }
 export class GroupCache {
   private readonly authority: VaultAuthority;

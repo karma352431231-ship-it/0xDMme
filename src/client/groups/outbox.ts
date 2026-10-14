@@ -2,7 +2,12 @@ import { groupQuota } from '../../shared/group-quota/index.ts';
 import { object, uuid } from '../../shared/account/index.ts';
 import { canonical, digest } from '../../shared/devices/index.ts';
 import { attachmentContent } from '../../shared/attachments/index.ts';
-import { groupKeys, groupPacket } from '../../shared/group-messages/index.ts';
+import {
+  groupKeys,
+  groupPacket,
+  groupEditRelation,
+} from '../../shared/group-messages/index.ts';
+import type { MessageRelation } from '../../shared/daily/index.ts';
 import type {
   GroupPacket,
   GroupKeys,
@@ -32,6 +37,7 @@ interface Outbox {
   packet: GroupPacket | null;
   keys: GroupKeys | null;
   uploadEpoch: number | null;
+  relation?: MessageRelation;
 }
 interface SendContext {
   authority: VaultAuthority;
@@ -47,6 +53,7 @@ export async function composeGroup(input: {
   selection: AttachmentSelection | null;
   kind?: GroupPacket['kind'];
   id?: string;
+  relation?: MessageRelation;
 }): Promise<string> {
   const id = input.id ?? crypto.randomUUID(),
     cache = new GroupCache(input.authority, input.groupId);
@@ -75,6 +82,7 @@ export async function composeGroup(input: {
     packet: null,
     keys: null,
     uploadEpoch: null,
+    ...(input.relation ? { relation: groupEditRelation(input.relation) } : {}),
   } satisfies Outbox);
   return id;
 }
@@ -131,6 +139,7 @@ async function sendGroupOne(
       id: value.id,
       text: value.text,
       kind: value.kind,
+      ...(value.relation ? { relation: value.relation } : {}),
       ...(saved === null ? {} : { existingKeys: groupKeys(saved) }),
     });
     value.packet = encrypted.packet;
@@ -234,5 +243,8 @@ function outbox(input: unknown): Outbox {
     packet: d['packet'] === null ? null : groupPacket(d['packet']),
     keys: d['keys'] === null ? null : groupKeys(d['keys']),
     uploadEpoch,
+    ...(d['relation'] === undefined
+      ? {}
+      : { relation: groupEditRelation(d['relation']) }),
   };
 }

@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { MessageIndex } from '../src/client/messages/index-sync.ts';
+import {
+  IncompleteMessageIndex,
+  MessageIndex,
+} from '../src/client/messages/index-sync.ts';
 
 const sender = crypto.randomUUID(),
   recipient = crypto.randomUUID();
@@ -25,6 +28,7 @@ await test('rodadas limitadas continuam o mesmo snapshot sem liberar índice par
   const rows = Array.from({ length: 144 }, (_, i) => row(i + 1, i === 16));
   const checked: number[] = [];
   const read = (_operation: string, payload: Record<string, unknown>) => {
+    if (_operation === 'changes') return Promise.resolve({ reset: true });
     const after = Number(payload['after']);
     return Promise.resolve({
       items: rows.slice(after, after + 16),
@@ -42,7 +46,7 @@ await test('rodadas limitadas continuam o mesmo snapshot sem liberar índice par
       return Promise.resolve();
     },
   };
-  await assert.rejects(index.read(context), /parcialmente/);
+  await assert.rejects(index.read(context), IncompleteMessageIndex);
   assert.deepEqual(checked, [17]);
   const complete = await index.read(context);
   assert.deepEqual(
@@ -51,7 +55,7 @@ await test('rodadas limitadas continuam o mesmo snapshot sem liberar índice par
   );
   await assert.rejects(
     index.read({ ...context, snapshot: { revision: 2 } }),
-    /parcialmente/,
+    IncompleteMessageIndex,
   );
   assert.deepEqual(checked, [17, 17]);
 });
@@ -102,6 +106,7 @@ await test('navegação reutiliza um índice completo de todas as conversas; alt
       return Promise.resolve();
     },
     api: (_op: string, payload: Record<string, unknown>) => {
+      if (_op === 'changes') return Promise.resolve({ reset: true });
       pages++;
       const after = Number(payload['after']);
       return Promise.resolve({
@@ -143,6 +148,7 @@ await test('catálogo que excede seu orçamento refaz a conferência da nova con
     before: null,
     deleted: async () => {},
     api: (_op: string, payload: Record<string, unknown>) => {
+      if (_op === 'changes') return Promise.resolve({ reset: true });
       pages++;
       const after = Number(payload['after']);
       return Promise.resolve({
@@ -156,11 +162,7 @@ await test('catálogo que excede seu orçamento refaz a conferência da nova con
       try {
         return await index.read({ ...context, selected });
       } catch (error) {
-        if (
-          !(error instanceof Error) ||
-          !error.message.includes('parcialmente')
-        )
-          throw error;
+        if (!(error instanceof IncompleteMessageIndex)) throw error;
       }
     }
     throw new Error('Índice não terminou.');
@@ -205,5 +207,116 @@ await test('preparação confirmada deixa todas as janelas prontas sem refazer p
     });
     assert.equal(window.length, 12);
     assert.ok(window.every((item) => item.status === 'received'));
+  }
+});
+
+await test('delta de exclusão verifica só a removida; edição e outra conversa não refazem páginas', async () => {
+  const index = new MessageIndex(),
+    other = crypto.randomUUID(),
+    target = row(1),
+    intact = row(2),
+    elsewhere = { ...row(3), recipient: other };
+  const first = { revision: 1, contacts: 1, directory: 'a'.repeat(64) },
+    second = { ...first, revision: 2 };
+  let pages = 0,
+    deltas = 0;
+  const removed: string[] = [];
+  const context = {
+    snapshot: first,
+    account: sender,
+    selected: recipient,
+    before: null,
+    deleted: (item: { id: string }) => {
+      removed.push(item.id);
+      return Promise.resolve();
+    },
+    api: (op: string, payload: Record<string, unknown>) => {
+      if (op === 'changes') {
+        deltas++;
+        return Promise.resolve({
+          reset: false,
+          ...payload,
+          items: [{ ...target, deleted: true }],
+          next: null,
+        });
+      }
+      pages++;
+      return Promise.resolve({
+        items: [target, intact, elsewhere],
+        next: null,
+      });
+    },
+  };
+  await index.read(context);
+  const window = await index.read({ ...context, snapshot: second });
+  assert.deepEqual(
+    window.map((item) => item.id),
+    [intact.id],
+  );
+  assert.deepEqual(removed, [target.id]);
+  const different = await index.read({
+    ...context,
+    snapshot: second,
+    selected: other,
+  });
+  assert.deepEqual(
+    different.map((item) => item.id),
+    [elsewhere.id],
+  );
+  assert.equal(pages, 1);
+  assert.equal(deltas, 1);
+  assert.deepEqual(index.changesFor(second)?.peers, [recipient]);
+});
+
+await test('delta fora da conta ou resposta incompleta não avança o índice nem ignora exclusões', async () => {
+  for (const invalid of [
+    'participant',
+    'duplicate',
+    'snapshot',
+    'proof',
+  ] as const) {
+    const index = new MessageIndex(),
+      target = row(1),
+      first = { revision: 1 },
+      second = { revision: 2 };
+    const context = {
+      snapshot: first,
+      account: sender,
+      selected: recipient,
+      before: null,
+      deleted: () => Promise.reject(new Error('Prova recusada')),
+      api: () => Promise.resolve({ items: [target], next: null }),
+    };
+    await index.read(context);
+    const delta =
+      invalid === 'participant'
+        ? {
+            ...target,
+            sender: crypto.randomUUID(),
+            recipient: crypto.randomUUID(),
+          }
+        : target;
+    await assert.rejects(
+      index.read({
+        ...context,
+        snapshot: second,
+        api: (_op, payload) =>
+          Promise.resolve({
+            reset: false,
+            ...payload,
+            ...(invalid === 'snapshot' ? { snapshot: first } : {}),
+            items:
+              invalid === 'duplicate'
+                ? [delta, delta]
+                : [{ ...delta, deleted: invalid === 'proof' }],
+            next: null,
+          }),
+      }),
+    );
+    assert.equal(index.changesFor(second), null);
+    assert.deepEqual(
+      (await index.read(context)).map((item) => item.id),
+      [target.id],
+    );
   }
 });

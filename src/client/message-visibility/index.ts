@@ -1,5 +1,5 @@
 /** Publishes one complete synchronized view. No intermediate history reaches the UI. */
-export type HistoryUpdate = 'history' | 'delivery';
+export type HistoryUpdate = 'history' | 'delivery' | 'pending';
 export class MessageVisibility<T> {
   private generation = 0;
   private staged: T[] = [];
@@ -8,6 +8,7 @@ export class MessageVisibility<T> {
   private changeVersion = 0;
   private startedVersion = 0;
   private visible = false;
+  private retained = false;
   private readonly publish: (
     rows: readonly T[] | null,
     update: HistoryUpdate,
@@ -22,6 +23,7 @@ export class MessageVisibility<T> {
     this.token = null;
     this.staged = [];
     this.update = update;
+    this.retained = update === 'pending';
     this.visible = false;
     this.publish(null, update);
   }
@@ -31,9 +33,13 @@ export class MessageVisibility<T> {
   }
   /** Retain only the last complete view while preparing a normal update. */
   refresh(update: HistoryUpdate = 'history'): number {
-    // A closed view has no rendered bubbles to update in place. Reopening must
-    // publish a full history even when only delivery was checked on the wire.
-    if (!this.visible) return this.begin();
+    // Reopening needs a history projection, including when a removal hint kept
+    // the previous DOM hidden pending a verified incremental response.
+    if (!this.visible) {
+      this.close(this.retained ? 'pending' : 'history');
+      this.update = 'history';
+      return this.start();
+    }
     this.generation++;
     this.staged = [];
     this.update = update;
@@ -75,6 +81,7 @@ export class MessageVisibility<T> {
     this.staged = [];
     this.token = null;
     this.visible = true;
+    this.retained = false;
     this.publish(rows, this.update);
     return true;
   }

@@ -1,4 +1,5 @@
 import { t, translatedError } from '../../shared/i18n/index.ts';
+import { AccountError } from '../../shared/account/index.ts';
 import { HistoryPreparation } from './preparation.ts';
 import { LiveUpdates } from '../message-live/index.ts';
 import type { LiveUpdate } from '../message-live/index.ts';
@@ -9,6 +10,7 @@ interface SynchronizationState {
   session: boolean;
   online: boolean;
   visible: boolean;
+  suspended: boolean;
   liveConnecting: boolean;
 }
 interface SynchronizationOperations {
@@ -48,7 +50,10 @@ export class MessageSynchronization {
   constructor(options: SynchronizationOperations) {
     this.options = options;
     this.updates = new LiveUpdates({
-      available: () => this.canPreload() && !options.state().liveConnecting,
+      available: () =>
+        this.canPreload() &&
+        !this.preloadRunning &&
+        !options.state().liveConnecting,
       run: (update) => {
         void this.run(update === 'refresh' ? options.refresh : options.changes);
       },
@@ -56,6 +61,7 @@ export class MessageSynchronization {
   }
   resume(): void {
     this.updates.resume();
+    this.schedulePreload();
   }
   prepareHistory(): void {
     this.preparation.request();
@@ -130,7 +136,7 @@ export class MessageSynchronization {
     this.preloadAbort?.abort();
     this.options.pause();
   }
-  private canMaintain(): boolean {
+  private canSynchronize(): boolean {
     const state = this.options.state();
     return (
       !this.closed &&
@@ -138,11 +144,11 @@ export class MessageSynchronization {
       this.maintenance === null &&
       state.session &&
       state.online &&
-      state.visible
+      !state.suspended
     );
   }
   private canPreload(): boolean {
-    return this.canMaintain() && this.options.state().connected;
+    return this.canSynchronize() && this.options.state().connected;
   }
   private schedulePreload(): void {
     if (
@@ -178,11 +184,18 @@ export class MessageSynchronization {
           t('Não foi possível preparar o histórico das conversas.'),
         );
         this.options.status();
-        this.preloadRetryAt = Date.now() + 61000;
+        // A concurrent snapshot change needs another current read, not the
+        // minute backoff reserved for rate limits and operational failures.
+        this.preloadRetryAt =
+          Date.now() +
+          (error instanceof AccountError && error.status === 409
+            ? 1000
+            : 61000);
       }
     } finally {
       this.preloadRunning = false;
       if (this.preloadAbort === abort) this.preloadAbort = null;
+      this.updates.resume();
       this.continuePreload(current);
     }
   }
@@ -210,7 +223,7 @@ export class MessageSynchronization {
   }
 
   async maintainPresence(): Promise<void> {
-    if (this.closed || this.busy || this.maintenance) return;
+    if (!this.canSynchronize() || !this.options.state().visible) return;
     const current = this.options.state().generation;
     this.stopPreload();
     this.maintenance = this.options
@@ -241,12 +254,12 @@ export class MessageSynchronization {
     await this.options.sendPending();
   }
   async periodicTick(): Promise<void> {
-    if (!this.canMaintain()) return;
+    if (!this.canSynchronize()) return;
     const current = this.options.state().generation;
     try {
       if (!this.options.state().connected) this.prepareHistory();
-      await this.maintainPresence();
-      if (!this.current(current) || !this.canMaintain()) return;
+      if (this.options.state().visible) await this.maintainPresence();
+      if (!this.current(current) || !this.canSynchronize()) return;
       if (!(await this.options.periodicWork()) || !this.current(current))
         return;
       await this.run(this.options.periodic);

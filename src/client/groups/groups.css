@@ -450,3 +450,9 @@ dialog.group-dialog button.group-photo-trigger {
   height: 100%;
   object-fit: cover;
 }
+
+.group-message-edit textarea {
+  width: 100%;
+  min-height: 8rem;
+  box-sizing: border-box;
+}

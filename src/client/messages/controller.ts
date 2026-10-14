@@ -1,5 +1,7 @@
 import { t } from '../../shared/i18n/index.ts';
 import { messageStates } from '../message-state/index.ts';
+import { readPrefetchPage } from './prefetch-page.ts';
+import { ConfirmedConversations } from './confirmed-conversations.ts';
 import { knownPeerProfile } from './known-profile.ts';
 import { readBackupWindow } from './backup-window.ts';
 import { RemovalIndex } from '../personal-removals/index.ts';
@@ -72,9 +74,9 @@ import {
 import { messageApi, backupMessageApi } from '../message-api/index.ts';
 import {
   MessageIndex,
+  IncompleteMessageIndex,
   VerifiedWindow,
   MessagePrefetch,
-  assertMessagePage,
   messagePeer,
   verifiedReceipt,
   verifiedReceiptHash,
@@ -151,6 +153,8 @@ export class Messages {
   private oldest: number | null = null;
   transportPending = false;
   private confirmed: { snapshot: string; views: MessageView[] } | null = null;
+  private readonly conversations = new ConfirmedConversations<MessageView>();
+  private probedSnapshot: unknown = null;
   private readonly index = new MessageIndex();
   private readonly prefetch = new MessagePrefetch();
   private prefetchAbort: AbortController | null = null;
@@ -202,6 +206,8 @@ export class Messages {
   close(): void {
     this.pauseSynchronization();
     this.prefetch.reset();
+    this.conversations.clear();
+    this.probedSnapshot = null;
     this.confirmed = null;
     this.verified.clear();
     this.generation++;
@@ -212,10 +218,21 @@ export class Messages {
   /** Hide during a normal pause, retaining only a fully confirmed window.
    * probe() must authenticate the current snapshot before publishing it again. */
   pause(): void {
+    this.probedSnapshot = null;
     this.pauseSynchronization();
     this.visibility.close();
   }
+  /** A removal hint carries no IDs. Block content access immediately while
+   * retaining verified candidates for the authenticated incremental response. */
+  removed(): void {
+    this.pauseSynchronization();
+    this.confirmed = null;
+    this.probedSnapshot = null;
+    this.visibility.close('pending');
+  }
   hide(): void {
+    this.conversations.clear();
+    this.probedSnapshot = null;
     this.pauseSynchronization();
     this.index.reset();
     this.confirmed = null;
@@ -224,17 +241,33 @@ export class Messages {
   }
   /** A normal wakeup retains the last verified view, but cannot publish new rows. */
   hint(): void {
+    this.probedSnapshot = null;
     this.visibility.hint();
   }
   select(peer: string | null, older = false): void {
     this.pauseSynchronization();
-    this.confirmed = null;
+    this.probedSnapshot = null;
+    const candidate = peer && !older ? this.conversations.read(peer) : null;
+    this.confirmed = candidate;
     this.verified.clear();
     this.generation++;
     this.visibility.close();
     this.offlineIndex.reset();
     this.selected = peer;
     this.before = older ? this.oldest : null;
+    if (candidate) this.oldest = candidate.oldest;
+  }
+  private rememberConversation(): void {
+    if (!this.selected || this.before !== null || !this.confirmed) return;
+    this.conversations.remember(this.selected, {
+      ...this.confirmed,
+      oldest: this.oldest,
+    });
+  }
+  private confirmConversationChanges(snapshot: unknown): void {
+    const changes = this.index.changesFor(snapshot);
+    if (changes)
+      this.conversations.advance(changes.from, changes.snapshot, changes.peers);
   }
   private guard(generation: number): void {
     if (generation !== this.generation)
@@ -724,6 +757,8 @@ export class Messages {
     }
   }
   async synchronize(): Promise<void> {
+    const probed = this.probedSnapshot;
+    this.probedSnapshot = null;
     const token = this.visibility.refresh(),
       generation = this.generation,
       selected = this.selected;
@@ -731,7 +766,7 @@ export class Messages {
       const staged = await this.access.withVault(false, async (a) => {
         const api = (op: string, d: Record<string, unknown>) =>
             messageApi(a, op, d, () => this.guard(generation)),
-          snapshot = await api('snapshot', {});
+          snapshot = probed ?? (await api('snapshot', {}));
         const items = await this.synchronizeIndex({
           a,
           generation,
@@ -801,8 +836,12 @@ export class Messages {
       this.guard(generation);
       this.confirmed = { snapshot: JSON.stringify(staged.snapshot), views };
       this.verified.remember(staged.snapshot, staged.window, staged.views);
+      this.confirmConversationChanges(staged.snapshot);
+      this.rememberConversation();
     } catch (error: unknown) {
-      this.index.reset();
+      if (!(error instanceof IncompleteMessageIndex)) this.index.reset();
+      this.conversations.clear();
+      this.probedSnapshot = null;
       this.confirmed = null;
       this.verified.clear();
       this.visibility.fail(token);
@@ -1411,14 +1450,13 @@ export class Messages {
           throw new Error('Conta alterada.');
         const api = (op: string, data: Record<string, unknown>) =>
           messageApi(a, op, data, { guard, signal: combined });
-        const snapshot = await api('snapshot', {}),
-          after = this.prefetch.cursor(snapshot);
-        if (after === null) return false;
-        const page = messageItems(await api('page', { snapshot, after }));
-        assertMessagePage(page, after);
+        const source = await readPrefetchPage(api, this.prefetch);
+        if (!source) return false;
+        const { snapshot, from, delta, page, after } = source;
         const missing: MessageItem[] = [];
         for (const item of page.items) {
           guard();
+          messagePeer(a.session.accountId, item);
           if (item.deleted)
             await this.indexItem({ a, generation, selected: null, api }, item);
           else if (!(await this.readCached(a, snapshot, item)))
@@ -1447,6 +1485,18 @@ export class Messages {
         }
         await api('confirm', { snapshot });
         guard();
+        if (delta) {
+          this.prefetch.finish(snapshot);
+          this.index.rememberChanges({
+            from,
+            snapshot,
+            account: a.session.accountId,
+            selected: this.selected,
+            items: page.items,
+          });
+          this.confirmConversationChanges(snapshot);
+          return false;
+        }
         this.prefetch.commit(snapshot, page);
         this.index.rememberConfirmedPage({
           snapshot,
@@ -1497,6 +1547,7 @@ export class Messages {
     });
   }
   async probe(): Promise<boolean> {
+    this.probedSnapshot = null;
     const token = this.visibility.refresh(
         this.confirmed ? 'delivery' : 'history',
       ),
@@ -1516,12 +1567,16 @@ export class Messages {
         await this.confirmVisible(token, snapshot, generation);
         this.guard(generation);
         this.confirmed = { snapshot: JSON.stringify(snapshot), views };
+        this.rememberConversation();
         return false;
       }
       this.confirmed = null;
+      this.probedSnapshot = snapshot;
       this.visibility.discard(token);
       return true;
     } catch (error: unknown) {
+      this.conversations.clear();
+      this.probedSnapshot = null;
       this.confirmed = null;
       this.verified.clear();
       this.visibility.fail(token);
@@ -1677,18 +1732,21 @@ export class Messages {
     }
   }
   async remove(view: MessageView): Promise<void> {
-    this.close();
-    notifyMessageControls();
+    this.removed();
     const generation = this.generation;
-    await this.access.withVault(false, (a) =>
-      messageApi(
-        a,
-        'delete',
-        { id: view.id, hash: view.hash, revision: a.events.length },
-        () => this.guard(generation),
-      ),
-    );
-    notifyMessageControls();
+    try {
+      await this.access.withVault(false, (a) =>
+        messageApi(
+          a,
+          'delete',
+          { id: view.id, hash: view.hash, revision: a.events.length },
+          () => this.guard(generation),
+        ),
+      );
+    } catch (error: unknown) {
+      if (generation === this.generation) this.hide();
+      throw error;
+    }
   }
   async search(query: string, after: string | null) {
     const generation = this.generation,

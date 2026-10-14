@@ -180,6 +180,13 @@ export class MessageService {
         keys(d, []);
         return db.messages.snapshot(a);
       },
+      changes: (a, d) => {
+        keys(d, ['from', 'snapshot']);
+        return db.messages.changes(a, {
+          from: snapshot(d['from']),
+          snapshot: snapshot(d['snapshot']),
+        });
+      },
       page: (a, d) => {
         keys(d, ['snapshot', 'after']);
         return db.messages.page(a, {
@@ -439,7 +446,7 @@ export class MessageService {
       this.db.groupDaily,
     );
     for (const operation of groupOperations)
-      this.actions[operation] = (a, d) => groups.operate(a, operation, d);
+      this.actions[operation] = (a, d, p) => groups.operate(a, operation, d, p);
     for (const operation of groupMediaOperations)
       this.actions[operation] = (a, d) => {
         if (!this.groupMedia)

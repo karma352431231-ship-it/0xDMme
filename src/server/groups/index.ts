@@ -10,6 +10,7 @@ import {
   object,
   uuid,
 } from '../../shared/account/index.ts';
+import type { MessageProof } from '../../shared/messages/index.ts';
 import { revision } from '../../shared/contacts/index.ts';
 import { groupConsent, groupEvent } from '../../shared/groups/index.ts';
 import type {
@@ -44,7 +45,11 @@ export class GroupService {
   private readonly store: GroupStore;
   private readonly actions: Record<
     string,
-    (authority: ContactAuthority, data: Record<string, unknown>) => unknown
+    (
+      authority: ContactAuthority,
+      data: Record<string, unknown>,
+      proof?: MessageProof,
+    ) => unknown
   >;
   constructor(
     store: GroupStore,
@@ -98,12 +103,13 @@ export class GroupService {
     authority: ContactAuthority,
     operation: string,
     data: Record<string, unknown>,
+    proof?: MessageProof,
   ): Promise<unknown> {
     const action = Object.hasOwn(this.actions, operation)
       ? this.actions[operation]
       : undefined;
     if (!action) throw new AccountError(404, 'Operação de grupo indisponível.');
-    return await action(authority, data);
+    return await action(authority, data, proof);
   }
   private commit(
     authority: ContactAuthority,

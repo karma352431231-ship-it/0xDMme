@@ -1,3 +1,4 @@
+import { AccountError } from '../src/shared/account/index.ts';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { TestContext } from 'node:test';
@@ -12,6 +13,7 @@ function fixture(t: TestContext) {
     session: true,
     online: true,
     visible: true,
+    suspended: false,
     liveConnecting: false,
   };
   const notices: string[] = [];
@@ -137,7 +139,7 @@ await test('prefetch alternates direct and groups, stops completed branches and 
   await turn();
   assert.deepEqual(calls, ['direct', 'direct', 'groups']);
 });
-await test('background/offline suppress wakeups; close cancels a queued refresh and timers', async (t) => {
+await test('suspension/offline suppress wakeups; close cancels a queued refresh and timers', async (t) => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
   const f = fixture(t);
   let refreshes = 0;
@@ -145,12 +147,12 @@ await test('background/offline suppress wakeups; close cancels a queued refresh 
     refreshes++;
     return Promise.resolve();
   };
-  f.state.visible = false;
+  f.state.suspended = true;
   f.sync.request();
   t.mock.timers.tick(1000);
   await turn();
   assert.equal(refreshes, 0);
-  f.state.visible = true;
+  f.state.suspended = false;
   f.state.online = false;
   f.sync.resume();
   t.mock.timers.tick(1000);
@@ -208,4 +210,84 @@ await test('prefetch failure is bounded, and session change cannot publish its d
   assert.deepEqual(f.notices, [
     'The operation could not be completed. Please try again.',
   ]);
+});
+
+await test('aviso normal durante pré-carregamento aguarda a página confirmar sem abortar seu progresso', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const f = fixture(t),
+    page = deferred<boolean>();
+  const signals: AbortSignal[] = [];
+  let checks = 0;
+  f.options.preloadDirect = (value) => {
+    signals.push(value);
+    return page.promise;
+  };
+  f.options.changes = () => {
+    checks++;
+    return Promise.resolve();
+  };
+  await f.sync.run(() => Promise.resolve());
+  t.mock.timers.tick(1000);
+  await turn();
+  const signal = signals[0];
+  assert.ok(signal);
+  f.sync.request('probe');
+  t.mock.timers.tick(150);
+  await turn();
+  assert.equal(checks, 0);
+  assert.equal(signal.aborted, false);
+  page.resolve(false);
+  await turn();
+  t.mock.timers.tick(150);
+  await turn();
+  assert.equal(checks, 1);
+});
+
+await test('snapshot atualizado durante preparação repete no próximo turno sem esperar um minuto', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout', 'Date'], now: 100000 });
+  const f = fixture(t);
+  let calls = 0;
+  f.options.preloadDirect = () => {
+    calls++;
+    return calls === 1
+      ? Promise.reject(new AccountError(409, 'Snapshot alterado'))
+      : Promise.resolve(false);
+  };
+  await f.sync.run(() => Promise.resolve());
+  t.mock.timers.tick(1000);
+  await turn();
+  assert.equal(calls, 1);
+  t.mock.timers.tick(1000);
+  await turn();
+  assert.equal(calls, 2);
+});
+
+await test('aba hidden continua preparação e avisos, sem renovar presença online', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const f = fixture(t);
+  f.state.visible = false;
+  let pages = 0,
+    probes = 0,
+    presence = 0;
+  f.options.preloadDirect = () => {
+    pages++;
+    return Promise.resolve(false);
+  };
+  f.options.changes = () => {
+    probes++;
+    return Promise.resolve();
+  };
+  f.options.presence = () => {
+    presence++;
+    return Promise.resolve();
+  };
+  f.sync.request('probe');
+  t.mock.timers.tick(150);
+  await turn();
+  t.mock.timers.tick(1000);
+  await turn();
+  await f.sync.periodicTick();
+  assert.equal(probes, 1);
+  assert.equal(pages, 1);
+  assert.equal(presence, 0);
 });

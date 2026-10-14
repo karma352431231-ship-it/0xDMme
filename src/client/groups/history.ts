@@ -7,6 +7,7 @@ import {
 import { bytesHash } from '../../shared/vault/index.ts';
 import {
   groupConversationHistory,
+  relatedGroupHistory,
   groupHistoryPage,
   historyRecord,
 } from '../local-history/index.ts';
@@ -14,6 +15,7 @@ import { openStoredAttachment } from '../attachments/index.ts';
 import type { VaultAuthority } from '../vault-authority/index.ts';
 import { GroupCache } from './cache.ts';
 import { GroupCatalog } from './catalog.ts';
+import { projectGroupMessages } from './message-projection.ts';
 import { groupView } from './reader.ts';
 import type { GroupView } from './reader.ts';
 export async function importGroupCatalog(
@@ -48,7 +50,7 @@ export async function localGroupViews(
       groupId,
       accountId: authority.session.accountId,
     });
-    if (view.kind === 'profile') continue;
+    if (!visibleRoot(view)) continue;
     const previous = rows.get(view.id);
     if (previous && previous.hash !== view.hash)
       throw new Error('Cópias locais de grupo divergentes.');
@@ -58,13 +60,38 @@ export async function localGroupViews(
     .sort((x, y) => y.sequence - x.sequence)
     .slice(0, 16)
     .reverse();
+  const edits = await localEdits(authority, groupId, views);
   return {
-    views,
+    views: projectGroupMessages(views, edits),
     before:
       cached.next !== null || historical.length === 16 || rows.size > 16
         ? (views[0]?.sequence ?? null)
         : null,
   };
+}
+function visibleRoot(view: GroupView): boolean {
+  return view.kind !== 'profile' && !view.relation;
+}
+async function localEdits(
+  authority: VaultAuthority,
+  group: string,
+  views: GroupView[],
+): Promise<GroupView[]> {
+  const cache = new GroupCache(authority, group),
+    edits: GroupView[] = [];
+  for (const view of views) {
+    const edit = await cache.get(`edit:${view.id}`);
+    if (edit !== null) edits.push(groupView(edit));
+  }
+  const imported = await relatedGroupHistory(
+    authority,
+    views.map((view) => view.id),
+    () => {},
+  );
+  return [
+    ...edits,
+    ...imported.map((row) => groupView({ ...row, unavailableMedia: [] })),
+  ];
 }
 function localCopy(
   raw: unknown,

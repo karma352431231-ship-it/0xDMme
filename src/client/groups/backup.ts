@@ -178,10 +178,19 @@ export class GroupBackups {
         state: summary.state,
         head: await groupEventHash(summary.state),
       };
+    await writeCachedMessages(c, group, cache);
+  }
+}
+async function writeCachedMessages(
+  c: ExportContext,
+  group: GroupState,
+  cache: GroupCache,
+): Promise<void> {
+  for (const prefix of ['message:', 'action:']) {
     let after: string | null = null;
     do {
       c.guard();
-      const page = await cache.page('message:', after);
+      const page = await cache.page(prefix, after);
       for (const row of page.items)
         await writeView(c, group, { ...groupView(row.value), localOnly: true });
       after = page.next;
@@ -231,7 +240,10 @@ function recordUnavailable(
     throw new Error('Mensagens de grupo inválidas.');
   const rows: unknown[] = raw['items'];
   for (const row of rows) {
-    const id = uuid(object(row)['id']);
+    const data = object(row);
+    if (data['deletion'] && object(data['deletion'])['type'] === 'message')
+      continue;
+    const id = uuid(data['id']);
     if (!views.some((v) => v.id === id))
       omitted.push(t('group-message:{0} indisponível', [id]));
   }
@@ -249,6 +261,7 @@ async function writeView(
   const { id, hash, groupId, sequence, epoch, sender, own, kind, text } = view;
   await c.add({
     type: 'group-message',
+    ...(view.relation ? { relation: view.relation } : {}),
     id,
     hash,
     groupId,
