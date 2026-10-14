@@ -150,9 +150,11 @@ if(url.hostname!=='127.0.0.1'||url.port!=='45433'||url.pathname!=='/hash_talk_st
 """
 
 
-def database_snapshot(tables=OLD_TABLES, *, omit_columns=None):
+def database_snapshot(tables=OLD_TABLES, *, omit_columns=None, version_limit=64):
     if not tables or any(not name.replace('_', '').isalnum() for name in tables):
         raise RuntimeError('Invalid snapshot table contract.')
+    if type(version_limit) is not int or not 1 <= version_limit <= 128:
+        raise RuntimeError('Invalid snapshot migration budget.')
     omit_columns = omit_columns or {}
     if any(name not in tables or not isinstance(columns, (list, tuple)) or
            any(not isinstance(column, str) or not re.fullmatch(r'[a-z][a-z0-9_]*', column)
@@ -170,7 +172,7 @@ const pg = createRequire('/var/lib/0xdmme/data/release/package.json')('pg');
 const client = new pg.Client({connectionString:url.href,connectionTimeoutMillis:3000,query_timeout:15000,statement_timeout:12000});
 try {
  await client.connect(); await client.query('BEGIN READ ONLY');
- const result={tables:{},versions:(await client.query('SELECT version,checksum FROM hash_talk.schema_migrations ORDER BY version LIMIT 64')).rows};
+ const result={tables:{},versions:(await client.query('SELECT version,checksum FROM hash_talk.schema_migrations ORDER BY version LIMIT """ + str(version_limit) + """')).rows};
  const omitted=""" + omitted + """;
  for(const name of """ + tables + """) {
   const count=Number((await client.query('SELECT count(*)::integer AS count FROM hash_talk.'+name)).rows[0].count);
