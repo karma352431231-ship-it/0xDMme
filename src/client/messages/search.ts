@@ -1,6 +1,7 @@
 import { t, translatedError } from '../../shared/i18n/index.ts';
 import { conversationButton, matchingConversations } from './directory.ts';
 import type { ConversationEntry } from './directory.ts';
+import { pingNotice } from '../ping/index.ts';
 export interface SearchPage {
   items: { id: string; peer: string; sequence: number; excerpt: string }[];
   next: string | null;
@@ -145,7 +146,13 @@ export class ConversationSearch {
       host.append(row);
     }
     if (!host.children.length && page.next === null)
-      host.textContent = t('Nenhuma mensagem encontrada.');
+      host.replaceChildren(
+        pingNotice(
+          'puzzled',
+          t('Nenhuma mensagem encontrada.'),
+          'search-empty',
+        ),
+      );
   }
   private appendOpen(row: HTMLElement, peer: string): void {
     const entry = this.entries.find((entry) => entry.id === peer);

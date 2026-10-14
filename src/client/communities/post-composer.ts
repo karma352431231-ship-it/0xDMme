@@ -222,7 +222,7 @@ export class PostComposer {
         );
         if (lifetime.signal.aborted) return;
         this.close();
-        showToast(t('Postagem publicada.'));
+        showToast(t('Postagem publicada.'), { success: true });
       }),
     );
     publish.className = 'post-composer-publish';

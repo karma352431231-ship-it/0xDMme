@@ -1,5 +1,7 @@
 import { t, currentLanguage } from '../../shared/i18n/index.ts';
 import { displayName, paintAvatar } from '../appearance/index.ts';
+import { pingNotice } from '../ping/index.ts';
+import type { PingMood } from '../ping/index.ts';
 export interface DirectoryMenu {
   update: (entries: readonly ConversationEntry[]) => void;
   bind: (
@@ -108,7 +110,7 @@ export function conversationButton(
 export function renderDirectory(
   host: HTMLElement,
   entries: readonly ConversationEntry[],
-  options: { menu?: DirectoryMenu; empty?: string } = {},
+  options: { menu?: DirectoryMenu; empty?: string; emptyMood?: PingMood } = {},
 ): void {
   options.menu?.update(entries);
   host.replaceChildren();
@@ -132,13 +134,18 @@ export function renderDirectory(
     host.append(row);
   }
   if (entries.length) return;
-  const empty = document.createElement('p');
-  empty.className = 'directory-empty';
-  empty.textContent =
+  const text =
     options.empty ??
     t(
       'Suas conversas aparecem aqui depois de adicionar um contato ou entrar em um grupo.',
     );
+  if (options.emptyMood) {
+    host.append(pingNotice(options.emptyMood, text, 'directory-empty'));
+    return;
+  }
+  const empty = document.createElement('p');
+  empty.className = 'directory-empty';
+  empty.textContent = text;
   host.append(empty);
 }
 

@@ -1,0 +1,87 @@
+/*
+ * Community actions (docs/UI_PAINEIS_E_TEMAS.md, 14/10/2026): a visible "⋯"
+ * that matches the filter chips, and a floating button to create a community.
+ * Full page: a filled blue button. Beside Contacts, whose "+" is already the
+ * filled blue action, it is outlined so the two do not compete. Phones keep
+ * Post as their floating action and create from the "⋯" menu.
+ */
+#app-shell .community-tools > details.community-more > summary {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  min-height: 34px;
+  height: 34px;
+  padding: 0;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 0;
+}
+#app-shell .community-tools > details.community-more > summary svg {
+  width: 18px;
+  height: 18px;
+}
+#app-shell .community-tools > details.community-more > summary:hover,
+#app-shell .community-tools > details.community-more[open] > summary {
+  background: var(--surface-3);
+}
+#app-shell .community-tools > details.community-more > summary:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+#app-shell .community-tools > .community-create-fab {
+  position: fixed;
+  right: 28px;
+  bottom: calc(28px + env(safe-area-inset-bottom));
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  min-height: 0;
+  padding: 0;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--accent-ink);
+  box-shadow: 0 12px 28px -10px var(--shadow);
+}
+#app-shell .community-tools > .community-create-fab svg {
+  width: 24px;
+  height: 24px;
+}
+#app-shell .community-tools > .community-create-fab:hover {
+  background: var(--accent-strong);
+}
+#app-shell .community-tools > .community-create-fab:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 3px;
+}
+#feed-panel:has(.community-create-fab) {
+  position: relative;
+}
+#app-shell #feed-panel .community-tools > .community-create-fab {
+  position: absolute;
+  right: 20px;
+  bottom: 20px;
+  width: 48px;
+  height: 48px;
+  border: 1.5px solid var(--accent);
+  background: var(--surface-2);
+  color: var(--accent-text);
+}
+#app-shell #feed-panel .community-tools > .community-create-fab:hover {
+  background: var(--accent-soft);
+}
+.community-more-create {
+  display: none;
+}
+@media (max-width: 700px) {
+  #app-shell .community-tools > .community-create-fab {
+    display: none;
+  }
+  .community-more-create {
+    display: revert;
+  }
+}

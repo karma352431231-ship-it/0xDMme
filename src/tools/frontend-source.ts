@@ -46,6 +46,7 @@ const authored = [
   'src/shared/community-badges',
   'src/shared/community-views',
   'src/client/communities',
+  'src/client/ping',
   'src/shared/communities',
   'src/client/public-profile',
   'src/client/profile-shortcut',

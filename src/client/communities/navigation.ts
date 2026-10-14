@@ -29,6 +29,21 @@ export function communityNavigation(
     summary = el('summary', t('Mais opções'));
   iconLabel(summary, 'more');
   menu.append(summary);
+  menu.append(moreChoices(options));
+  tools.append(menu);
+  if (options.signedIn && options.view !== 'create')
+    tools.append(createCommunityButton());
+  container.append(tools);
+}
+
+/**
+ * Lists in "⋯". My communities and the following feed are left out: the Mine
+ * tab and the Following chip already lead there.
+ */
+function moreChoices(options: {
+  signedIn: boolean;
+  manage?: string | null;
+}): HTMLElement {
   const choices = el('nav');
   choices.setAttribute('aria-label', t('Listas e gestão de comunidades'));
   if (options.manage)
@@ -37,21 +52,32 @@ export function communityNavigation(
       t('Gerenciar comunidade'),
       `#comunidades?id=${options.manage}&view=manage`,
     );
+  if (!options.signedIn) {
+    link(choices, t('Entrar pelo Perfil'), '#perfil');
+    return choices;
+  }
   for (const [key, title] of [
-    ['communities', t('Minhas comunidades')],
-    ['following', t('Feed de seguidos')],
     ['saved', t('Salvos')],
     ['hidden', t('Ocultos')],
     ['replies', t('Respostas ao seu conteúdo')],
     ['invitations', t('Transferências')],
     ['create', t('Criar comunidade')],
-  ] as const) {
-    if (options.signedIn) link(choices, title, `#comunidades?view=${key}`);
-  }
-  if (!options.signedIn) link(choices, t('Entrar pelo Perfil'), '#perfil');
-  menu.append(choices);
-  tools.append(menu);
-  container.append(tools);
+  ] as const)
+    link(choices, title, `#comunidades?view=${key}`);
+  // Phones only: wider screens show the floating create button instead.
+  choices.lastElementChild?.classList.add('community-more-create');
+  return choices;
+}
+
+/** The exposed way to create a community; CSS places it bottom-right. */
+function createCommunityButton(): HTMLAnchorElement {
+  const create = document.createElement('a');
+  create.className = 'community-create-fab';
+  create.href = '#comunidades?view=create';
+  create.setAttribute('aria-label', t('Criar comunidade'));
+  create.title = t('Criar comunidade');
+  iconLabel(create, 'plus');
+  return create;
 }
 
 export function communityDirectoryNavigation(
@@ -61,12 +87,6 @@ export function communityDirectoryNavigation(
 ): void {
   const head = el('header', '', 'community-directory-head');
   head.append(el('h2', t('Comunidades')));
-  link(head, '', '#comunidades?view=create');
-  const create = head.lastElementChild as HTMLAnchorElement;
-  create.className = 'icon-button';
-  create.setAttribute('aria-label', t('Criar comunidade'));
-  create.title = t('Criar comunidade');
-  iconLabel(create, 'plus');
   const tabs = el('nav', '', 'community-directory-tabs');
   tabs.setAttribute('aria-label', t('Comunidades ou mensagens pelo @'));
   for (const [key, title] of [

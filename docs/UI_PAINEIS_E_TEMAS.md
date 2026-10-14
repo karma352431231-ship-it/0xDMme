@@ -401,3 +401,28 @@ Visitante com histórico salvo neste aparelho continua vendo a lista e a convers
 Pedido do proprietário: separadores entre posts, abas e painéis estavam apagados demais. Os tokens `--line` e `--line-strong` subiram um degrau nos três temas, mantendo a diferença entre eles: Azul `#27335a` / `#34426e`, Preto `#29292e` / `#3a3a40`, Branco `#d6dce9` / `#bcc6db`. Todas as bordas que usam esses tokens acompanham; nenhuma cor literal saiu do bloco de tema.
 
 **Atividade, revisão de 13/10/2026:** abrir a caixa zera o sino; o cinza indica abertura individual do aviso. Reconhecimento de novidades local e leitura do item são estados separados. A aba Menções identifica quem marcou o usuário em post, reply ou descrição e oferece o destino atual. [Contrato de notificações](PERFIL_PUBLICO_E_FEEDS.md#contador-de-novidades-e-notificações-de-menção--13102026).
+
+## Ping character and community actions — 14/10/2026
+
+Owner decision after reviewing the character and placement proposals.
+
+**Ping.** The logo's chat bubble with a face (option A1, no arms) is the app's character. Module: `src/client/ping` (SVG authored in code, colors from `--ping-*` tokens that are the same in every theme). The app icon, favicon, PWA icon and X profile photo stay faceless, which keeps the brand mark more serious.
+
+| Moment                             | Expression                                                                  | Where                                                   |
+| ---------------------------------- | --------------------------------------------------------------------------- | ------------------------------------------------------- |
+| Signed out                         | hello                                                                       | Wallet account card                                     |
+| Opening the account                | typing (animated dots, still with reduced motion)                           | Same card while busy                                    |
+| No conversation selected (desktop) | hello, large                                                                | Middle column, replacing the `#`                        |
+| No conversations yet               | wink                                                                        | Conversation list                                       |
+| Empty filter or no message found   | puzzled                                                                     | Conversation list filter, message search                |
+| Activity empty                     | sleepy                                                                      | Activity                                                |
+| Offline                            | offline (looking up, worried brows)                                         | One line above the conversation list                    |
+| Start of a private conversation    | salute (🫡: hand on the forehead, not covering the face; lock on the clasp) | One-line chip “Encrypted on this device”                |
+| Public `@` conversation            | alert                                                                       | One-line chip “Support never asks for your seed phrase” |
+| Confirmation                       | happy                                                                       | Notices “Post published” and “Post saved”               |
+
+Rules: one Ping per screen, only for empty, waiting, warning and confirmation moments, never inside people's messages or content. Refusal and error notices keep plain text. Desktop and mobile use the same components, so the same moments show the same face. New texts exist in English and Simplified Chinese. The offline line uses the browser's online state only; nothing is sent to the server.
+
+**Communities “⋯”.** The menu no longer repeats My communities (Mine tab) or Following feed (Following chip); it keeps Saved, Hidden, Replies to your content and Transfers, plus Manage community where allowed. Its button now looks like the filter chips (bordered pill, readable icon, visible focus).
+
+**Creating a community.** A floating “+” button sits bottom-right of the communities area. On the full Communities page it is filled blue. Beside Contacts, whose “+” is already the filled blue action, it is outlined in blue, so the two do not compete while the action stays exposed in the same place. On phones (700 px or less) Post remains the floating action and Create community stays in “⋯”. The small “+” in the desktop directory header was removed to avoid two create buttons on one screen. Styles live in `communities/community-actions.css`.

@@ -15,6 +15,7 @@ import { moderationRows, watchModeration } from './moderation.ts';
 import type { ModerationActivity } from './moderation.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
 import { displayName, paintAvatar, shortAddress } from '../appearance/index.ts';
+import { pingNotice } from '../ping/index.ts';
 
 /**
  * Atividade (docs/UI_PAINEIS_E_TEMAS.md): one place for items the app already
@@ -481,7 +482,10 @@ export function startActivity(
       .map(([, node]) => node)
       .filter((node): node is HTMLElement => node !== null);
     if (groups.length) host.append(...groups);
-    else host.append(element('p', t('Nada novo por aqui.'), 'activity-empty'));
+    else
+      host.append(
+        pingNotice('sleepy', t('Nada novo por aqui.'), 'activity-empty'),
+      );
   }
   function filters(): HTMLElement {
     const nav = element('nav', '', 'activity-filters');

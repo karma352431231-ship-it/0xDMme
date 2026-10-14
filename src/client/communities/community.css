@@ -940,7 +940,7 @@
   }
 }
 
-/* Directory head: title, create, and Comunidades | Mensagens @. */
+/* Directory head: title and Comunidades | Mensagens @; creating uses the floating button. */
 .community-directory-head {
   display: flex;
   align-items: center;
@@ -955,13 +955,6 @@
   font-weight: 700;
   letter-spacing: 0;
   text-transform: none;
-}
-.community-directory-head .icon-button {
-  flex: 0 0 32px;
-  width: 32px;
-  height: 32px;
-  border-radius: 9px;
-  color: var(--text-muted);
 }
 .community-directory-tabs {
   display: flex;

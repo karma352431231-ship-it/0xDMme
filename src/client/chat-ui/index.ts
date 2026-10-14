@@ -1,6 +1,7 @@
 import { t } from '../../shared/i18n/index.ts';
 import { sendOnEnter } from './enter.ts';
 import { startTransientMenus } from '../transient-menu/index.ts';
+import { pingChipMarkup, pingMarkup } from '../ping/index.ts';
 
 const icons = {
   back: '<path d="m14 6-6 6 6 6"/>',
@@ -32,6 +33,8 @@ export function directChat(): string {
     chatIcon('more'),
     chatCollapse(),
     chatComposer('message'),
+    pingMarkup('hello', 'lg'),
+    pingChipMarkup('salute', t('chat.encrypted-on-device')),
   ]);
 }
 

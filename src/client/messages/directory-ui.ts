@@ -20,6 +20,7 @@ import type {
 import type { ConversationMenu } from './directory-menu.ts';
 import type { ConversationSearch } from './search.ts';
 import { organizationActions } from './directory-actions.ts';
+import { mountOfflineNotice } from '../ping/index.ts';
 import type { startGroups } from '../groups/index.ts';
 type Groups = Pick<
   ReturnType<typeof startGroups>,
@@ -175,10 +176,20 @@ export class MessageDirectoryUi {
       };
     });
   }
+  /** No conversations at all invites a first contact; an empty filter just finds nothing. */
+  private emptyState(): { empty: string; emptyMood: 'wink' | 'puzzled' } {
+    return this.filter === 'all'
+      ? {
+          empty: t('Adicione um contato ou entre em um grupo para começar.'),
+          emptyMood: 'wink',
+        }
+      : { empty: t('Nenhuma conversa neste filtro.'), emptyMood: 'puzzled' };
+  }
   renderContacts(): void {
     const { peers, session, statusAuthors, selected } = this.options.snapshot();
     const list = this.options.node('[data-message-contacts]');
     if (!list) return;
+    mountOfflineNotice(list);
     const panel = this.options.node('.chat-panel');
     if (panel)
       panel.dataset['empty'] = String(
@@ -210,10 +221,7 @@ export class MessageDirectoryUi {
     const sorted = filteredConversations(entries, this.filter);
     renderDirectory(list, sorted, {
       menu: this.options.menu,
-      empty:
-        this.filter === 'all'
-          ? t('Adicione um contato ou entre em um grupo para começar.')
-          : t('Nenhuma conversa neste filtro.'),
+      ...this.emptyState(),
     });
     this.options
       .host()

@@ -27,11 +27,8 @@ export function postBookmark(
         const value = await togglePostPreference(post, 'saved', actions);
         if (!value) return;
         paint(value.saved);
-        showToast(
-          value.saved
-            ? t('Postagem salva.')
-            : t('Postagem removida dos salvos.'),
-        );
+        if (value.saved) showToast(t('Postagem salva.'), { success: true });
+        else showToast(t('Postagem removida dos salvos.'));
       } catch (error: unknown) {
         if (actions.valid())
           showToast(

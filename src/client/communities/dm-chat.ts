@@ -8,6 +8,7 @@ import type { ExternalMediaConsent } from '../external-media/index.ts';
 import { showExternalVideos } from '../external-video/index.ts';
 import { gifUrls, showGifText } from '../gif-search/index.ts';
 import { showPublicAvatar } from '../public-media/index.ts';
+import { pingChipMarkup } from '../ping/index.ts';
 import { communityElement as el } from './elements.ts';
 
 const peerPhotos = new WeakMap<HTMLElement, () => void>();
@@ -43,6 +44,10 @@ export function dmConversationView(host: HTMLElement): DmView {
     chatComposer('public'),
   ]);
   host.replaceChildren(panel);
+  part(panel, '[data-dm-gate]').insertAdjacentHTML(
+    'beforebegin',
+    pingChipMarkup('alert', t('dm.support-never-asks-seed'), 'warn'),
+  );
   return {
     panel,
     avatar: part(panel, '[data-dm-avatar]'),

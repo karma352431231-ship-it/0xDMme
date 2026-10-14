@@ -24,6 +24,8 @@
 @import '../account/account-entry.css';
 @import '../contacts/directory-actions.css';
 @import '../communities/directory-notice.css';
+@import '../ping/ping.css';
+@import '../communities/community-actions.css';
 
 /* === Theme tokens: the only place with literal colors (see tests/appearance.test.ts). === */
 /*
@@ -137,6 +139,13 @@
 :root {
   --shared-post-bg: #1c1c20;
   --interaction-active: #ffffff;
+  /* Ping (src/client/ping) keeps the logo colors in every theme. */
+  --ping-body: #141b46;
+  --ping-face: #f2f5ff;
+  --ping-cyan: #2ee6f6;
+  --ping-blue: #3b82f6;
+  --ping-violet: #8b5cf6;
+  --ping-alert: #f5b544;
   accent-color: var(--accent);
   /* Type scale shared by every theme; inputs stay at 16px so iOS does not zoom on focus. */
   --fs-caption: 12px;
@@ -1820,17 +1829,6 @@ h1 {
   justify-content: center;
   padding: 44px 26px;
   text-align: center;
-}
-.empty-symbol {
-  width: 76px;
-  height: 76px;
-  border-radius: 24px;
-  background: var(--accent-soft);
-  color: var(--accent-text);
-  display: grid;
-  place-items: center;
-  font-size: 42px;
-  margin-bottom: 18px;
 }
 .eyebrow {
   color: var(--accent);

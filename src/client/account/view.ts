@@ -7,6 +7,7 @@ import type { AccountCore } from './core.ts';
 import type { AccountPrivateProfile } from './private-profile.ts';
 import type { WalletPicker } from './wallet-picker.ts';
 import type { createWalletReturn } from './wallet-return.ts';
+import { syncPing } from '../ping/index.ts';
 
 /** Paints the account card and the sidebar from the account's current state. */
 export class AccountView {
@@ -51,6 +52,7 @@ export class AccountView {
     this.renderReturn();
     this.approval.render();
     this.renderPanels();
+    this.renderGreeting();
     if (!core.session) {
       this.clearForm();
       return;
@@ -106,6 +108,13 @@ export class AccountView {
         );
         this.render();
       });
+  }
+  /** Signed out, Ping greets; while the account opens, it types. */
+  private renderGreeting(): void {
+    const card = this.find('.account-card');
+    if (!card) return;
+    const mood = this.core.session ? null : this.core.busy ? 'typing' : 'hello';
+    syncPing(card, mood);
   }
   private find<T extends HTMLElement>(selector: string): T | null {
     return node<T>(this.core, selector);
