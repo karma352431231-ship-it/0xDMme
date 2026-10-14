@@ -30,10 +30,8 @@ import type {
 import type { VaultAccess } from '../vault-authority/index.ts';
 import { Communities } from './controller.ts';
 import { readCommunityDetail } from './detail-refresh.ts';
-import {
-  communityDirectoryProblem,
-  clearCommunityProfileInvitation,
-} from './directory-notice.ts';
+import { CommunityDirectory } from './directory-refresh.ts';
+import { clearCommunityProfileInvitation } from './directory-notice.ts';
 import {
   communityButton,
   communityCard,
@@ -86,6 +84,12 @@ export function startCommunities(
     composer.open(id),
   );
   const discovery = startCommunityDiscovery(controller, privacy, profiles);
+  const followedDirectory = new CommunityDirectory({
+    load: (after) => controller.list('following', after),
+    rows,
+    release: clearPublicPhotos,
+    run,
+  });
   document.addEventListener('click', openPostFromCard);
   feedReturn.bind({
     container: () => mounted,
@@ -110,10 +114,10 @@ export function startCommunities(
     selected: string | null = null,
     selectedPost: string | null = null,
     selectedTag: string | null = null,
-    cursor: string | null = null,
-    sidebarCursor: string | null = null;
+    cursor: string | null = null;
   let output: HTMLElement | null = null;
   let discoveryMounted = false;
+  let creationMounted = false;
   // The DM view is shared: the communities page owns it for view=dms, the workspace for its chat column.
   let dmOwner: 'page' | 'panel' | null = null;
   const publicPhotos = new Map<() => void, HTMLElement>();
@@ -136,7 +140,8 @@ export function startCommunities(
       container,
     );
   }
-  function controls(): void {
+  function controls(options: { background?: boolean }): void {
+    if (options.background) return;
     mounted
       ?.querySelectorAll<
         | HTMLButtonElement
@@ -148,11 +153,14 @@ export function startCommunities(
         button.disabled = busy;
       });
   }
-  async function run(work: () => Promise<void>): Promise<void> {
+  async function run(
+    work: () => Promise<void>,
+    options: { background?: boolean } = {},
+  ): Promise<void> {
     if (busy) return;
     const old = generation;
     busy = true;
-    controls();
+    controls(options);
     try {
       await work();
     } catch (error: unknown) {
@@ -163,7 +171,7 @@ export function startCommunities(
             : t('Comunidade indisponível.');
     } finally {
       busy = false;
-      controls();
+      controls(options);
       if (old !== generation && mounted) ready();
     }
   }
@@ -173,6 +181,7 @@ export function startCommunities(
   function navigation(): void {
     if (!mounted) return;
     discoveryMounted = false;
+    creationMounted = false;
     presentation?.dispose();
     presentation = null;
     clearPublicPhotos(mounted);
@@ -229,35 +238,22 @@ export function startCommunities(
   }
   async function directory(): Promise<void> {
     if (!sidebar) return;
-    clearCommunityProfileInvitation();
-    clearPublicPhotos(sidebar);
-    sidebar.replaceChildren();
-    communityDirectoryNavigation(sidebar, view, selected);
     if (view === 'dms') {
+      clearCommunityProfileInvitation();
+      clearPublicPhotos(sidebar);
+      sidebar.replaceChildren();
+      communityDirectoryNavigation(sidebar, view, selected);
       await dmSidebar();
       return;
     }
-    if (!session) {
-      sidebar.append(
-        communityElement('p', t('Entre para ver suas comunidades seguidas.')),
-      );
-      return;
-    }
     const old = generation;
-    try {
-      const page = await controller.list('following', sidebarCursor);
-      if (old !== generation || !sidebar) return;
-      rows(sidebar, page);
-      sidebarCursor = page.next;
-      if (page.next)
-        communityButton(sidebar, t('Mais comunidades'), () => run(directory));
-    } catch (error: unknown) {
-      directoryProblem(old, error);
-    }
-  }
-  function directoryProblem(old: number, error: unknown): void {
-    if (old !== generation || !sidebar) return;
-    communityDirectoryProblem(sidebar, error);
+    await followedDirectory.refresh({
+      host: sidebar,
+      view,
+      selected,
+      signedIn: session !== null,
+      valid: () => old === generation,
+    });
   }
 
   async function notifications(): Promise<void> {
@@ -365,8 +361,9 @@ export function startCommunities(
     });
   }
   function creation(): void {
-    if (!mounted) return;
+    if (!mounted || creationMounted) return;
     navigation();
+    creationMounted = true;
     const old = generation;
     mountCommunityCreation(mounted, {
       signal: abort.signal,
@@ -620,7 +617,7 @@ export function startCommunities(
     current = result.community;
     details();
     if (output) output.textContent = t('Alteração salva.');
-    sidebarCursor = null;
+    followedDirectory.reset();
     await directory();
   }
   function mutate(
@@ -642,7 +639,7 @@ export function startCommunities(
       openComposer: () => composer.open(),
       bookmark: returnBookmark,
       followChanged: async () => {
-        sidebarCursor = null;
+        followedDirectory.reset();
         await directory();
       },
     });
@@ -704,15 +701,20 @@ export function startCommunities(
   }
   function ready(): void {
     if (mounted)
-      void run(async () => {
-        await refresh();
-        await directory();
-      });
+      void run(
+        async () => {
+          await refresh();
+          await directory();
+        },
+        { background: true },
+      );
   }
   function leave(): void {
     posts.leave();
     discovery.leave();
     discoveryMounted = false;
+    creationMounted = false;
+    followedDirectory.reset();
     if (dmOwner === 'page') {
       dms.leave();
       dmOwner = null;
@@ -740,7 +742,6 @@ export function startCommunities(
       abort = new AbortController();
       view = params.get('view') ?? 'feed';
       cursor = null;
-      sidebarCursor = null;
       try {
         selectedDm = params.has('dm') ? uuid(params.get('dm')) : null;
         localDm = params.get('history') === 'local';
@@ -819,7 +820,7 @@ export function startCommunities(
       discoveryMounted = false;
       state = null;
       current = null;
-      sidebarCursor = null;
+      followedDirectory.reset();
       presentation?.dispose();
       presentation = null;
       clearPublicPhotos();

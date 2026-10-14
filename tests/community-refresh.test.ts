@@ -84,7 +84,9 @@ function requestAfter(input?: RequestInit): string | null {
   const body = JSON.parse(payload) as { payload: { after: string | null } };
   return body.payload.after;
 }
-function fixture(post = false) {
+function fixture(
+  options: { post?: boolean; creation?: boolean; directory?: boolean } = {},
+) {
   const state: CommunityState = {
     community: {
       id,
@@ -124,10 +126,15 @@ function fixture(post = false) {
     state,
     value,
     failState: false,
+    directory: {
+      items: [] as CommunityState['community'][],
+      next: null as string | null,
+    },
     cursor: null as string | null,
     replies: [] as CommunityPost[],
     overrides: new Map<string, () => Promise<Response>>(),
     requests: [] as string[],
+    listAfters: [] as (string | null)[],
     afters: [] as (string | null)[],
   };
   const authority: VaultAuthority = {
@@ -144,6 +151,7 @@ function fixture(post = false) {
     withLocalVault: (_locator, work) => work(authority),
   };
   const emptyPages = new Map<string, unknown>([
+    ['list', data.directory],
     ['tags', { items: [], next: null }],
     ['followers-page', { items: [], total: 0, next: null }],
   ]);
@@ -226,6 +234,7 @@ function fixture(post = false) {
     clearTimeout,
     fetch: (path: string, input?: RequestInit) => {
       data.requests.push(path);
+      if (path.endsWith('/list')) data.listAfters.push(requestAfter(input));
       const override = data.overrides.get(path);
       return override ? override() : respond(path, input);
     },
@@ -248,13 +257,18 @@ function fixture(post = false) {
     },
   );
   const host = new CommunityNode('main');
+  const sidebar = options.directory ? new CommunityNode('aside') : null;
   ui.setSession(account);
   ui.mount(
     host as unknown as HTMLElement,
-    null,
-    new URLSearchParams({ id, ...(post ? { post: postId } : {}) }),
+    sidebar as unknown as HTMLElement | null,
+    new URLSearchParams(
+      options.creation
+        ? { view: 'create' }
+        : { id, ...(options.post ? { post: postId } : {}) },
+    ),
   );
-  return { ui, host, data };
+  return { ui, host, sidebar, data };
 }
 
 await test('rechecagem da mesma sessão conserva comunidade, cartão e rascunho, consultando dados atuais', async () => {
@@ -281,7 +295,7 @@ await test('rechecagem da mesma sessão conserva comunidade, cartão e rascunho,
   ui.leave();
 });
 await test('post e respostas idênticos conservam elementos; edição e exclusão continuam atuais', async () => {
-  const { ui, host, data } = fixture(true);
+  const { ui, host, data } = fixture({ post: true });
   await settled(ui);
   const card = host.querySelector('.community-post'),
     thread = host.querySelector('.community-thread');
@@ -465,4 +479,167 @@ await test('rechecagem invalida uma lista privada ainda em voo antes de publicar
   assert.match(host.textContent, /Lista privada/);
   assert.doesNotMatch(host.textContent, /Resposta privada antiga/);
   ui.leave();
+});
+
+await test('rechecagem conserva nome, descrição e regras na criação de comunidade', async () => {
+  const { ui, host, data } = fixture({ creation: true, directory: true });
+  await settled(ui);
+  const form = host.querySelector('.community-create-fields');
+  assert.ok(form, host.textContent);
+  const fields = form.querySelectorAll('input,textarea');
+  assert.equal(fields.length, 3);
+  const draft = ['Nome em edição', 'Descrição em edição', 'Regras em edição'];
+  fields.forEach((field, index) => {
+    field.value = draft[index] ?? '';
+  });
+  const replacements = host.replacements;
+  const reads = data.requests.length;
+  ui.setSession({ ...account });
+  ui.ready();
+  await settled(ui);
+  assert.equal(host.querySelector('.community-create-fields'), form);
+  assert.equal(host.replacements, replacements);
+  assert.deepEqual(
+    fields.map((field) => field.value),
+    draft,
+  );
+  assert.ok(
+    data.requests.length > reads,
+    'a rechecagem continua consultando o servidor',
+  );
+  ui.leave();
+});
+
+await test('rechecagem da lista lateral não esvazia nem recria os mesmos elementos enquanto aguarda a rede', async () => {
+  const { ui, sidebar, data } = fixture({ directory: true });
+  await settled(ui);
+  assert.ok(sidebar);
+  const head = sidebar.querySelector('.community-directory-head');
+  const replacements = sidebar.replacements;
+  const gate = deferred<Response>(),
+    started = deferred<void>();
+  data.overrides.set('/api/account/communities/list', () => {
+    started.resolve(undefined);
+    return gate.promise;
+  });
+  ui.ready();
+  await started.promise;
+  try {
+    assert.equal(sidebar.querySelector('.community-directory-head'), head);
+    assert.equal(sidebar.replacements, replacements);
+  } finally {
+    gate.resolve(Response.json(data.directory));
+    await settled(ui);
+    ui.leave();
+  }
+  assert.equal(sidebar.querySelector('.community-directory-head'), head);
+  assert.equal(sidebar.replacements, replacements);
+});
+
+await test('a lista lateral aplica mudanças e descarta dados anteriores em falha de autorização', async () => {
+  const { ui, sidebar, data } = fixture({ directory: true });
+  await settled(ui);
+  assert.ok(sidebar);
+  data.directory.items = [data.state.community];
+  ui.ready();
+  await settled(ui);
+  assert.ok(sidebar.textContent.includes(data.state.community.name));
+  const row = sidebar.querySelector('.community-row');
+  ui.ready();
+  await settled(ui);
+  assert.equal(sidebar.querySelector('.community-row'), row);
+  data.overrides.set('/api/account/communities/list', () =>
+    Promise.resolve(
+      Response.json({ error: 'Sem autorização.' }, { status: 403 }),
+    ),
+  );
+  ui.ready();
+  await settled(ui);
+  assert.equal(sidebar.querySelector('.community-row'), null);
+  assert.match(sidebar.textContent, /Not authorized/);
+  data.overrides.clear();
+  ui.ready();
+  await settled(ui);
+  assert.ok(sidebar.querySelector('.community-row'));
+  ui.leave();
+});
+
+await test('a lista lateral só avança por ação explícita e reconsulta a página exibida', async () => {
+  const { ui, sidebar, data } = fixture({ directory: true });
+  data.directory.next = crypto.randomUUID();
+  await settled(ui);
+  assert.ok(sidebar);
+  const more = sidebar
+    .querySelectorAll('button')
+    .find((button) => button.textContent === 'More communities');
+  assert.ok(more, sidebar.textContent);
+  more.click();
+  await setImmediate();
+  await settled(ui);
+  ui.ready();
+  await settled(ui);
+  assert.deepEqual(data.listAfters, [
+    null,
+    data.directory.next,
+    data.directory.next,
+  ]);
+  ui.leave();
+});
+
+await test('troca de sessão descarta o formulário anterior e uma resposta lateral atrasada não o restaura', async () => {
+  const { ui, host, sidebar, data } = fixture({
+    creation: true,
+    directory: true,
+  });
+  await settled(ui);
+  const form = host.querySelector('.community-create-fields');
+  assert.ok(form);
+  const field = form.querySelector('input');
+  assert.ok(field);
+  field.value = 'Rascunho da conta anterior';
+  const gate = deferred<Response>(),
+    started = deferred<void>();
+  data.overrides.set('/api/account/communities/list', () => {
+    started.resolve(undefined);
+    return gate.promise;
+  });
+  ui.ready();
+  await started.promise;
+  ui.setSession(null);
+  gate.resolve(Response.json(data.directory));
+  await settled(ui);
+  assert.notEqual(host.querySelector('.community-create-fields'), form);
+  assert.equal(
+    host.querySelector('.community-create-fields')?.querySelector('input')
+      ?.value,
+    '',
+  );
+  assert.equal(sidebar?.querySelector('.community-row'), null);
+  ui.leave();
+});
+
+await test('a consulta automática mantém os campos da criação editáveis enquanto aguarda a lista', async () => {
+  const { ui, host, data } = fixture({ creation: true, directory: true });
+  await settled(ui);
+  const field = host
+    .querySelector('.community-create-fields')
+    ?.querySelector('input');
+  assert.ok(field);
+  const gate = deferred<Response>(),
+    started = deferred<void>();
+  data.overrides.set('/api/account/communities/list', () => {
+    started.resolve(undefined);
+    return gate.promise;
+  });
+  ui.ready();
+  await started.promise;
+  try {
+    assert.equal(field.disabled, false);
+    field.value = 'Texto durante a consulta';
+  } finally {
+    gate.resolve(Response.json(data.directory));
+    await settled(ui);
+    ui.leave();
+  }
+  assert.equal(field.value, 'Texto durante a consulta');
 });
