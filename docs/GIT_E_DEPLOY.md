@@ -16,7 +16,7 @@ The feature-specific VPS request authorizes the additive metadata required by
 this feature; routine code-only authorization alone would not cover it. The
 existing `npm run deploy:staging` executor has a dedicated internal transition
 module, `deploy_community_classification.py`. Bind its exact reviewed application
-sources to `bd9ac1ae5749e4571d5ce0602d640db118beaf58`, including the collapsed
+sources to `ce69394c67450bd7f5515f1a25a133f27f59e83d`, including the collapsed
 creation selector. The predecessor is `64c37f325f5bba54388e7e6257b6f407b19ad3d1`.
 The guard rejects application source changes outside this binding. Preserve Node, dependencies,
 model weights/configuration, installed units and shared services. Verify a
