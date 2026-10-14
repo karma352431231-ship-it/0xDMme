@@ -44,19 +44,27 @@ await test('perfil público: concorrência, consentimento, sessão/aparelho, mí
     throw new Error('Banco exclusivo de teste necessário.');
   const db = new Database(config.databaseUrl),
     inspector = new pg.Client({ connectionString: config.databaseUrl });
-  const origin = 'http://127.0.0.1:45118',
-    account = new AccountService({ store: db.authentication, origin });
+  let origin = 'http://127.0.0.1';
+  let handler: ReturnType<typeof createAccountHandler> | null = null;
   const devices = new DeviceService(db.devices),
     publicProfiles = new PublicProfileService(db.publicProfiles, db.devices);
   const host = createWebServer({
-    origin,
+    get origin() {
+      return origin;
+    },
     assets: new Map(),
     database: db,
     objects: { healthy: () => Promise.resolve(true) },
     publicProfiles: createPublicProfileHandler((handle) =>
       publicProfiles.read(handle),
     ),
-    account: createAccountHandler({ origin, service: account, publicProfiles }),
+    account: {
+      handle: async (request, response) => {
+        assert.ok(handler);
+        await handler.handle(request, response);
+      },
+      close: () => handler?.close(),
+    },
   });
   const accounts: string[] = [];
   const addresses: string[] = [];
@@ -70,6 +78,7 @@ await test('perfil público: concorrência, consentimento, sessão/aparelho, mí
     try {
       // Setup can fail before listen: always release database handles and keep its error.
       if (host.server.listening) await host.close();
+      else handler?.close();
       await moderation.close();
       if (!connected) return;
       await inspector.query(
@@ -103,8 +112,13 @@ await test('perfil público: concorrência, consentimento, sessão/aparelho, mí
   connected = true;
   await new Promise<void>((resolve, reject) => {
     host.server.once('error', reject);
-    host.server.listen(45118, '127.0.0.1', resolve);
+    host.server.listen(0, '127.0.0.1', resolve);
   });
+  const address = host.server.address();
+  assert.ok(address && typeof address !== 'string');
+  origin = `http://127.0.0.1:${address.port}`;
+  const account = new AccountService({ store: db.authentication, origin });
+  handler = createAccountHandler({ origin, service: account, publicProfiles });
   async function create() {
     const wallet = Wallet.createRandom();
     addresses.push(wallet.address.toLowerCase());
@@ -665,8 +679,11 @@ await test('perfil público: concorrência, consentimento, sessão/aparelho, mí
         'Atualizar a regra não renova retenção.',
       );
       const accepted = new Database(config.databaseUrl, 3_000_000_000, [model]);
+      let publicOrigin = 'http://127.0.0.1';
       const publicHost = createWebServer({
-        origin: 'http://127.0.0.1:45127',
+        get origin() {
+          return publicOrigin;
+        },
         assets: new Map(),
         database: accepted,
         objects: { healthy: () => Promise.resolve(true) },
@@ -677,13 +694,16 @@ await test('perfil público: concorrência, consentimento, sessão/aparelho, mí
           }),
         ),
       });
-      await new Promise<void>((accept, reject) => {
-        publicHost.server.once('error', reject);
-        publicHost.server.listen(45127, '127.0.0.1', accept);
-      });
-      const path = publicAvatarPath('avatar', profile.profile.id, pending.id),
-        url = `http://127.0.0.1:45127${path}`;
       try {
+        await new Promise<void>((accept, reject) => {
+          publicHost.server.once('error', reject);
+          publicHost.server.listen(0, '127.0.0.1', accept);
+        });
+        const address = publicHost.server.address();
+        assert.ok(address && typeof address !== 'string');
+        publicOrigin = `http://127.0.0.1:${address.port}`;
+        const path = publicAvatarPath('avatar', profile.profile.id, pending.id),
+          url = `${publicOrigin}${path}`;
         assert.equal((await fetch(url)).status, 404);
         const job = await db.publicModeration.claim(model);
         assert.ok(job);
@@ -730,7 +750,7 @@ await test('perfil público: concorrência, consentimento, sessão/aparelho, mí
         });
         assert.equal((await fetch(url)).status, 404);
       } finally {
-        await publicHost.close();
+        if (publicHost.server.listening) await publicHost.close();
         await accepted.close();
       }
     },
