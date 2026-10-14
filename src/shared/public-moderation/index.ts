@@ -7,6 +7,7 @@ import {
   uuid,
 } from '../account/index.ts';
 
+export const automaticPublicModeration = false;
 export const publicModerationPolicy = '0xdmme-public-explicit-v2';
 export type PublicModerationPolicyVersion =
   '0xdmme-public-explicit-v1' | typeof publicModerationPolicy;
@@ -36,6 +37,7 @@ export interface PublicModerationNotice {
   expiresAt: string;
   appeal: string | null;
   decision: string | null;
+  unreviewed?: boolean;
   afterPublication?: boolean;
   warning?: boolean;
 }
@@ -95,6 +97,12 @@ function videoNoticeFlags(
       : {}),
   };
 }
+function unreviewedFlag(data: Record<string, unknown>) {
+  if (data['unreviewed'] === undefined) return {};
+  if (typeof data['unreviewed'] !== 'boolean')
+    throw new AccountError(400, 'Invalid publication mode.');
+  return { unreviewed: data['unreviewed'] };
+}
 export function publicModerationNotice(value: unknown): PublicModerationNotice {
   const data = object(value);
   keys(data, [
@@ -106,7 +114,7 @@ export function publicModerationNotice(value: unknown): PublicModerationNotice {
     'expiresAt',
     'appeal',
     'decision',
-    ...['afterPublication', 'warning'].filter((field) =>
+    ...['afterPublication', 'warning', 'unreviewed'].filter((field) =>
       Object.hasOwn(data, field),
     ),
   ]);
@@ -121,5 +129,6 @@ export function publicModerationNotice(value: unknown): PublicModerationNotice {
     appeal: optionalText(data['appeal'], 2_000),
     decision: optionalText(data['decision'], 1_000),
     ...videoNoticeFlags(data, kind),
+    ...unreviewedFlag(data),
   };
 }

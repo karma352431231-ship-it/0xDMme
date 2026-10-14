@@ -199,12 +199,13 @@ export function createCommunityHandler(read: {
       );
     }
     if (address.pathname.endsWith('/explore') && read.explore) {
-      params(address, ['order', 'period', 'after']);
+      params(address, ['order', 'period', 'topics', 'after']);
       return explorePage(
         await read.explore(
           exploreFilter({
             order: query.get('order') ?? 'trending',
             period: query.get('period') ?? 'day',
+            topics: query.has('topics') ? query.get('topics')!.split(',') : [],
           }),
           query.get('after'),
         ),

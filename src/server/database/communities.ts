@@ -1,3 +1,8 @@
+import {
+  createCommunityClassification,
+  readCommunityClassifications,
+  verifyCommunityClassification,
+} from './community-classification.ts';
 import { reconcileMentionNotifications } from './mention-admission.ts';
 import { writeCommunityName } from './community-names.ts';
 import { mentionQuery } from '../../shared/public-mentions/index.ts';
@@ -154,6 +159,10 @@ export class CommunityStore {
       client,
       rows.map((row) => row.id),
     );
+    const classifications = await readCommunityClassifications(
+      client,
+      rows.map((row) => row.id),
+    );
     return rows.map((row) => ({
       id: row.id,
       createdAt: row.created_at?.toISOString() ?? null,
@@ -164,6 +173,9 @@ export class CommunityStore {
       archived: row.archived,
       avatar: photos.get(row.id) ?? null,
       banner: banners.get(row.id) ?? null,
+      ...(classifications.has(row.id)
+        ? { classification: classifications.get(row.id)! }
+        : {}),
       owner: row.owner ? (owners.get(row.owner) ?? null) : null,
       followers: Number(row.followers),
     }));
@@ -310,7 +322,11 @@ export class CommunityStore {
     actor: CommunityContext['actor'],
     data: Record<string, unknown>,
   ): Promise<CommunityRecord> {
-    keys(data, ['id', 'meta']);
+    keys(data, [
+      'id',
+      'meta',
+      ...(Object.hasOwn(data, 'classification') ? ['classification'] : []),
+    ]);
     const id = uuid(data['id']),
       meta = communityMeta(data['meta']);
     const previous = await client.query<CommunityRecord>(
@@ -326,6 +342,7 @@ export class CommunityStore {
         row.rules !== meta.rules
       )
         throw new AccountError(409, 'Identificador de criação já utilizado.');
+      await verifyCommunityClassification(client, id, data['classification']);
       return row;
     }
     await writeCommunityName(
@@ -333,6 +350,7 @@ export class CommunityStore {
       'INSERT INTO hash_talk.communities(id,owner,name,description,rules) VALUES($1,$2,$3,$4,$5)',
       [id, actor.id, meta.name, meta.description, meta.rules],
     );
+    await createCommunityClassification(client, id, data['classification']);
     await seedCommunityTags(client, id);
     await reconcileMentionNotifications(client, {
       source: { kind: 'community', id },

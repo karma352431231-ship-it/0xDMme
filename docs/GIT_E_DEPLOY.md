@@ -1,5 +1,33 @@
 # 0xDMme — Git e envio à VPS
 
+## Community classification and publication pause — prepared on 14/10/2026
+
+The owner requested NSFW declarations for newly created communities, immutable
+community topics, ranking filters and temporary suspension of automatic analysis.
+The application and migration contract is in [community classification](COMMUNITY_CLASSIFICATION.md).
+
+Migration 067 creates an initially empty classification table and adds
+`public_moderation.publication_mode`, with `analysis` on every historical record.
+It preserves historical verdicts, deadlines, bytes, account data and capacity
+balances. New uploads are explicitly published as unreviewed; no model result or
+operator verdict is fabricated. All 66 prior migration files remain exact.
+
+The feature-specific VPS request authorizes the additive metadata required by
+this feature; routine code-only authorization alone would not cover it. The
+existing `npm run deploy:staging` executor has a dedicated internal transition
+module, `deploy_community_classification.py`. Bind its exact reviewed application
+sources before activation; its initial marker refuses an unreviewed transition. Preserve Node, dependencies,
+model weights/configuration, installed units and shared services. Verify a
+private backup/restore rehearsal, all old rows/checksums/usage, the new empty table,
+defaults, constraints, triggers, index and service health. Pause only our web and
+workers during maintenance, use the existing rollback and preserve writes after
+reopening. Build on the Mac from a clean integrated pushed commit with passing CI.
+
+**Ponto importante:** this is the reviewed 066→067 database transition for the
+owner-requested feature and VPS activation, not a general migration override.
+Preparation or push does not establish activation.
+Access, backups, builds and operational evidence stay exclusively in `.local/`.
+
 ## Community and Private Group Repairs — Activation Authorized on 14/10/2026
 
 The owner requested all three fixes on main and VPS activation. After automatic approval review rejected the broad request, the owner asked for an explanation. The explanation identified the five existing code identities plus the corrected sixth, the two database reader files pinned by the executor, unchanged models/rules/schema, and one normal banner retry. The owner then explicitly replied “Ah ta, pode seguir então”, approving these described adjustments. Include `0036e4f` (banner candidate routing), `cb4a95b` (owner-only review image preview) and `e4f9bfa` (private group directory photo/selection), already integrated and pushed on main.

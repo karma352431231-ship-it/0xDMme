@@ -1950,3 +1950,20 @@ The owner reported that the group header showed its photo while the private conv
 ### Combined repair activation approved after explanation — 14/10/2026
 
 The owner approved proceeding after the explanation of the five-to-six bounded code-identity acceptance, exact two-reader deployment review and single normal banner retry. Preserve all old approvals, models, content rules, original retention and all 66 migrations. The exact identity, reviewed source commits, private configuration backup/rollback and deployment constraints are in [the release authorization](docs/GIT_E_DEPLOY.md#community-and-private-group-repairs--activation-authorized-on-14102026). This resolves the previously pending decision; no manual verdict, data reset or shared-infrastructure change is authorized.
+
+## Community classification and moderation pause — owner decision on 14/10/2026
+
+The owner requested NSFW declaration for sexual explicit content (including AI),
+up to two immutable community topics, profile/hover badges and multi-select
+ranking filters. Classification applies only to new communities, as explicitly
+chosen afterward. Automatic sexual-content analysis is temporarily disabled;
+violations in unmarked communities will be handled manually by the operator.
+This supersedes the previous universal sexual-content prohibition and mandatory
+automatic publication gate for this pause. Preserve access, upload integrity,
+quotas, historical decisions/deadlines and the exclusion of E2EE content.
+Implementation and release contract: [community classification](docs/COMMUNITY_CLASSIFICATION.md).
+
+**Ponto importante:** new uploads carry explicit unreviewed publication evidence.
+No historical verdict is rewritten and no global community-ban dashboard is
+introduced by this request. Re-enabling automatic analysis requires a separate
+policy/model decision.

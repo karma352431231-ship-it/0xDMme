@@ -65,14 +65,7 @@ export function communityPresentationEditor(
   section.addEventListener('input', () => {
     changed = true;
   });
-  section.append(
-    el(
-      'p',
-      t(
-        'As alterações ficam como prévia neste aparelho até confirmar. Imagens confirmadas passam pela análise do app.',
-      ),
-    ),
-  );
+  section.append(el('p', t('community.publication.preview')));
   const wire = (value: PendingPublicAvatar | null) =>
     value ? { type: value.type, bytes: encode(value.bytes) } : null;
   const confirm = el('button', t('Confirmar alterações'), 'primary');

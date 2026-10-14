@@ -1,3 +1,4 @@
+import { automaticPublicModeration } from '../shared/public-moderation/index.ts';
 import { Database } from './database/index.ts';
 import { readWebConfiguration } from './web-configuration/index.ts';
 import { createBackgroundWorker } from './background/index.ts';
@@ -31,6 +32,8 @@ try {
     moderation?.acceptedModels ?? [],
     'worker',
   );
+  if (!automaticPublicModeration)
+    database.publicModeration.pauseAutomaticModeration();
   await database.verifyMigrations();
   worker = await createBackgroundWorker(role as BackgroundRole, {
     db: database,

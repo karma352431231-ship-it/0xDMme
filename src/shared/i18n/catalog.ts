@@ -1,5 +1,65 @@
 /** Authored app text. Tuple order: English, Simplified Chinese. */
 export const catalog: Record<string, readonly [string, string]> = {
+  'community.topics.filter': ['Filter by topic', '按主题筛选'],
+  'Invalid publication mode.': ['Invalid publication mode.', '发布模式无效。'],
+  'community.content-policy': [
+    'Mark your community NSFW if it will contain sexually explicit content, including AI-generated images or drawings. Keep explicit content out of unmarked communities. Automatic content analysis is temporarily paused; violations are handled manually.',
+    '如果社区将包含露骨色情内容（包括 AI 生成的图片或绘画），请将其标记为 NSFW。未标记的社区不得发布露骨内容。自动内容分析已暂时停用，违规行为将由人工处理。',
+  ],
+  'community.nsfw.label': ['NSFW · Explicit content', 'NSFW · 露骨内容'],
+  'community.nsfw.hint': [
+    'Enable this if your community will contain sexually explicit content, including AI-generated images or drawings.',
+    '如果社区将包含露骨色情内容（包括 AI 生成的图片或绘画），请启用此选项。',
+  ],
+  'community.nsfw.save': ['Save NSFW designation', '保存 NSFW 标记'],
+  'community.topics.title': [
+    'What is this community about?',
+    '这个社区的主题是什么？',
+  ],
+  'community.topics.fixed-hint': [
+    'Choose up to two topics. They cannot be changed after creation.',
+    '最多选择两个主题。创建后无法更改。',
+  ],
+  'community.publication.unreviewed': [
+    'Published without automatic analysis. Automatic moderation is temporarily paused.',
+    '已发布，未进行自动分析。自动审核已暂时停用。',
+  ],
+  'community.publication.images': [
+    'Images are published after file preparation. Automatic content analysis is temporarily paused.',
+    '图片将在文件处理完成后发布。自动内容分析已暂时停用。',
+  ],
+  'community.publication.preview': [
+    'Changes stay as a preview on this device until you confirm. Confirmed images are published without automatic content analysis.',
+    '更改在确认前仅在此设备上预览。确认后的图片将直接发布，不进行自动内容分析。',
+  ],
+  'Invalid community topics.': [
+    'Choose distinct topics from the available list. New communities can have up to two topics.',
+    '请选择列表中不同的主题。新社区最多可选择两个主题。',
+  ],
+  'Invalid NSFW choice.': [
+    'Choose whether this community contains explicit content.',
+    '请选择此社区是否包含露骨内容。',
+  ],
+  'Community page too large.': ['Community page too large.', '社区页面过大。'],
+  'Community creation classification already fixed.': [
+    'This creation request already has different fixed topics or NSFW settings.',
+    '此创建请求已有不同的固定主题或 NSFW 设置。',
+  ],
+  'Classification is available only for new communities.': [
+    'Classification is available only for new communities.',
+    '分类仅适用于新创建的社区。',
+  ],
+  'community.topic.ai': ['AI', 'AI'],
+  'community.topic.cat': ['Cat', '猫'],
+  'community.topic.dog': ['Dog', '狗'],
+  'community.topic.meme': ['Meme', '表情包'],
+  'community.topic.tech': ['Tech', '科技'],
+  'community.topic.stock': ['Stock', '股票'],
+  'community.topic.chinese': ['Chinese', '中文'],
+  'community.topic.brainrot': ['BrainRot', '抽象梗'],
+  'community.topic.celebrity': ['Celebrity', '名人'],
+  'community.topic.nft': ['NFT', 'NFT'],
+  'community.topic.tiktok': ['TikTok', 'TikTok'],
   'Arquivo da análise indisponível.': [
     'Review media unavailable.',
     '分析媒体不可用。',

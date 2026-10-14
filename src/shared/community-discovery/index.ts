@@ -1,3 +1,8 @@
+import {
+  communityTopicSelection,
+  communityTopics,
+} from '../community-classification/index.ts';
+import type { CommunityTopic } from '../community-classification/index.ts';
 import { AccountError, keys, object, uuid } from '../account/index.ts';
 import {
   community,
@@ -28,6 +33,7 @@ export interface FeedFilter {
   tag: string | null;
 }
 export interface ExploreFilter {
+  topics?: CommunityTopic[];
   order: 'size' | 'trending' | 'new';
   period: 'day' | 'week';
 }
@@ -121,14 +127,22 @@ export function feedFilter(value: unknown): FeedFilter {
 }
 export function exploreFilter(value: unknown): ExploreFilter {
   const data = object(value);
-  keys(data, ['order', 'period']);
+  keys(data, [
+    'order',
+    'period',
+    ...(Object.hasOwn(data, 'topics') ? ['topics'] : []),
+  ]);
   const order = data['order'] === 'activity' ? 'trending' : data['order'];
   if (order !== 'size' && order !== 'trending' && order !== 'new')
     throw new AccountError(400, 'Classificação inválida.');
   const period = data['period'];
   if (period !== 'day' && period !== 'week')
     throw new AccountError(400, 'Ranking usa 24 horas ou sete dias.');
-  return { order, period };
+  const topics = communityTopicSelection(
+    data['topics'] ?? [],
+    communityTopics.length,
+  );
+  return { order, period, ...(topics.length ? { topics } : {}) };
 }
 export function discoveryKey(value: FeedFilter | ExploreFilter): string {
   return JSON.stringify(value);

@@ -1,5 +1,13 @@
 # Comunidades públicas — direção de produto em 05/10/2026
 
+## Current override — 14/10/2026
+
+The owner requested temporary suspension of automatic sexual-content analysis
+and NSFW declarations on newly created communities, together with immutable
+community topics and ranking filters. The historical universal prohibition and
+automatic publication gate below are superseded for this pause. Historical
+reviews remain unchanged. See [current classification and publication contract](COMMUNITY_CLASSIFICATION.md).
+
 **Revisão de 11/10/2026:** [controles sociais e badges](CONTROLES_SOCIAIS_E_BADGES.md) atualizam follow do dono, badges, confirmação, menu único, edição por uma hora, bloqueios e denúncias. O sininho opt-in por perfil amplia os avisos antes restritos a respostas diretas.
 
 Estado: plano consolidado em 10 cortes; cortes 1–9 implementados localmente. Perfil/Configurações reunidos, perfil público opcional com `@` fixo e comunidades com governança, posts de texto e tags locais. A área Comunidades oferece diretório público, seguidos privados, criação e gestão no desktop/mobile. Replies, votos, avisos diretos, feeds, descoberta, preferências privadas e DMs pelo `@` com texto/links, áudio, foto/GIF e histórico/backup E2EE implementados. Corte 10 em andamento: fila, retenção/coleta, contestação, ferramenta restrita, executor de frames e leitura pública preparados; liberação testada somente com detector sintético. Mídia real permanece sem liberação automática enquanto o detector não tiver precisão validada. As migrações de comunidades 028–043 têm histórico de ativação próprio; ranking 044–047 foi aplicado somente no banco exclusivo de testes. A entrega do ranking não acrescenta pacote npm, aceite de detector real ou ativação na VPS. O aceite final mantém ensaios físicos e a validação obrigatória antes da exposição pública de mídia; as limitações da conferência local do corte 8 estão registradas abaixo. Referência central: [plano, seção 6.4](../DECISOES_E_PLANO_DE_IMPLEMENTACAO.md#64-comunidades-públicas--camada-social-planejada).

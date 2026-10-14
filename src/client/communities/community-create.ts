@@ -1,3 +1,4 @@
+import { classificationForm } from './classification.ts';
 import { t, translatedError } from '../../shared/i18n/index.ts';
 import { encode } from '../../shared/account/index.ts';
 import {
@@ -76,11 +77,12 @@ export function mountCommunityCreation(
     }),
   );
   card.append(
-    el('p', t('community.create.images-hint'), 'community-create-hint'),
+    el('p', t('community.publication.images'), 'community-create-hint'),
   );
   const form = el('div', '', 'community-create-fields');
   card.append(form);
   const meta = options.fields(form);
+  const classification = classificationForm(form);
   const notice = el('aside', '', 'community-create-notice');
   notice.append(
     el('h3', t('Aviso sobre conteúdo público')),
@@ -101,9 +103,20 @@ export function mountCommunityCreation(
     void options.run(async () => {
       status.textContent = '';
       created ??= communityState(
-        await options.request('create', { id, meta: meta() }),
+        await options.request('create', {
+          id,
+          meta: meta(),
+          classification: classification(),
+        }),
       );
       if (!options.current()) return;
+      form
+        .querySelectorAll<HTMLInputElement>(
+          '.community-classification-form input',
+        )
+        .forEach((input) => {
+          input.disabled = true;
+        });
       const failure = await applyImages(
         created,
         meta(),

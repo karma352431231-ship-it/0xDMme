@@ -1,3 +1,4 @@
+import { classificationBadges } from './classification.ts';
 import {
   t,
   translatedError,
@@ -63,7 +64,12 @@ export function communityHoverProvider(input: {
       const name = el('a', value.name, 'hover-card-title');
       name.href = `#comunidades?id=${encodeURIComponent(value.id)}`;
       const banner = previewBanner(value, avatar, signal);
-      card.append(banner, head, name);
+      card.append(
+        banner,
+        head,
+        name,
+        classificationBadges(value.classification),
+      );
       if (value.description) {
         const description = el('p', '', 'hover-card-text');
         renderMentions(description, value.description);

@@ -17,6 +17,10 @@ import {
 } from './followers.ts';
 import { communityPresentationEditor } from './presentation-editor.ts';
 import { mountCommunityCreation } from './community-create.ts';
+import {
+  classificationBadges,
+  classificationSettings,
+} from './classification.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
 export { renderActivityEntry } from './activity-entry.ts';
 export { ActivityPosts } from './activity-posts.ts';
@@ -409,7 +413,7 @@ export function startCommunities(
         ? [communityElement('p', t('Arquivada'), 'community-hero-meta')]
         : []),
     );
-    head.append(avatar, title);
+    head.append(avatar, title, classificationBadges(value.classification));
     hero.append(banner, head);
     publicPhoto(avatar, value);
     // The follower line sits under the name, aligned with it.
@@ -594,6 +598,13 @@ export function startCommunities(
       query: run,
       request: (op, data) => controller.request(op, data),
     });
+    classificationSettings(groups.general, own, (nsfw) =>
+      mutate('nsfw', {
+        id: own.community.id,
+        revision: own.community.revision,
+        nsfw,
+      }),
+    );
     posts.manageTags(groups.tags, own.community.id);
     governance(groups.moderation, own, groups.ownership);
   }

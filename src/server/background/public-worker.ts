@@ -1,3 +1,4 @@
+import { automaticPublicModeration } from '../../shared/public-moderation/index.ts';
 import type { Database } from '../database/index.ts';
 import { PublicMaintenance } from '../public-maintenance/index.ts';
 import {
@@ -15,18 +16,22 @@ export async function publicBackgroundWorker(options: {
   moderation: PoseModerationConfiguration | null;
 }) {
   const { db, directory, keepAlive } = options;
-  const runner = await configuredPoseRunner({
-    db,
-    directory,
-    configuration: options.moderation,
-  });
+  const runner = automaticPublicModeration
+    ? await configuredPoseRunner({
+        db,
+        directory,
+        configuration: options.moderation,
+      })
+    : null;
   const collectors = new PublicMaintenance(db, directory, { keepAlive });
   const policy = publicModerationRetargeting(db);
   const moderation = new PublicModerationWorker({
     queue: db.publicModeration,
     bind: publicModerationBinding(db),
     runner: runner?.scanner ?? null,
-    upgradePolicy: () => db.publicModeration.upgrade(policy),
+    ...(automaticPublicModeration
+      ? { upgradePolicy: () => db.publicModeration.upgrade(policy) }
+      : {}),
     signals: db.workSignals,
     keepAlive,
   });

@@ -16,7 +16,8 @@ export async function readModerationDetails(
     `SELECT kind,target,json_build_object(
       'notice',json_build_object('id',id,'kind',kind,'target',target,'status',status,
         'createdAt',created_at,'expiresAt',expires_at,'appeal',appeal,'decision',decision,
-        'afterPublication',publication_phase='after','warning',warned_at IS NOT NULL),
+        'afterPublication',publication_phase='after','warning',warned_at IS NOT NULL,
+        'unreviewed',publication_mode='unreviewed'),
       'policy',policy,'automaticVerdict',automatic_verdict,'frames',frames) AS value
      FROM hash_talk.public_moderation WHERE id=$1 AND owner=$2`,
     [uuid(input.id), uuid(input.owner)],

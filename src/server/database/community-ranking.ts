@@ -1,3 +1,4 @@
+import { communityTopicPredicate } from './community-classification.ts';
 import { randomUUID } from 'node:crypto';
 import type pg from 'pg';
 import { communityPageSize } from '../../shared/communities/index.ts';
@@ -12,6 +13,15 @@ import type { ExploreFilter } from '../../shared/community-discovery/index.ts';
 import { measureRanking } from './community-ranking-metrics.ts';
 import { assertContentCapacity } from './vault-quota.ts';
 
+function rankingPageSelection(filter: ExploreFilter) {
+  const rank = filter.order === 'size' ? 'e.followers' : 'e.score';
+  const condition = {
+    new: "e.newly_created AND NOT c.archived AND c.created_at>clock_timestamp()-interval '7 days'",
+    trending: 'e.trending AND NOT c.archived',
+    size: 'true',
+  }[filter.order];
+  return { rank, condition, topics: filter.topics ?? [] };
+}
 const producerLock = "hashtext('hash-talk:community-ranking-producer')";
 export class CommunityRankingStore {
   private readonly pool: pg.Pool;
@@ -230,12 +240,7 @@ export class CommunityRankingStore {
     filter: ExploreFilter,
     cursor: { generation: string; rank: number; id: string } | null,
   ) {
-    const rank = filter.order === 'size' ? 'e.followers' : 'e.score';
-    const condition = {
-      new: "e.newly_created AND NOT c.archived AND c.created_at>clock_timestamp()-interval '7 days'",
-      trending: 'e.trending AND NOT c.archived',
-      size: 'true',
-    }[filter.order];
+    const { rank, condition, topics } = rankingPageSelection(filter);
     // Header and entries share one SQL snapshot, including concurrent cache eviction.
     const result = await this.pool.query<{
       id: string;
@@ -258,7 +263,7 @@ export class CommunityRankingStore {
         SELECT e.community_id,${rank}::text AS rank,e.participants,e.contributions,e.upvotes,e.history_complete
         FROM head g JOIN hash_talk.community_ranking_entries e ON e.generation=g.id
         JOIN hash_talk.communities c ON c.id=e.community_id
-        WHERE e.period=$4 AND ${condition}
+        WHERE e.period=$4 AND ${condition} AND ${communityTopicPredicate()}
         AND ($5::bigint IS NULL OR (${rank},e.community_id)<($5,$6::uuid))
         ORDER BY ${rank} DESC,e.community_id DESC LIMIT $7
       ) SELECT g.id,g.cutoff,g.expires_at,
@@ -272,6 +277,7 @@ export class CommunityRankingStore {
         cursor?.rank ?? null,
         cursor?.id ?? null,
         communityPageSize + 1,
+        topics,
       ],
     );
     const head = result.rows[0];

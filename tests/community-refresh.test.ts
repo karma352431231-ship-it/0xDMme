@@ -486,7 +486,9 @@ await test('rechecks preserve the community creation name, description and rules
   await settled(ui);
   const form = host.querySelector('.community-create-fields');
   assert.ok(form, host.textContent);
-  const fields = form.querySelectorAll('input,textarea');
+  const fields = form
+    .querySelectorAll('input,textarea')
+    .filter((field) => field.type !== 'checkbox');
   assert.equal(fields.length, 3);
   const draft = ['Nome em edição', 'Descrição em edição', 'Regras em edição'];
   fields.forEach((field, index) => {

@@ -1,3 +1,5 @@
+import { classificationBadges, rankingTopicFilter } from './classification.ts';
+import type { CommunityTopic } from '../../shared/community-classification/index.ts';
 import {
   t,
   translatedError,
@@ -81,6 +83,7 @@ export function startCommunityDiscovery(
     exploreOrder: ExploreFilter['order'] = 'trending',
     after: string | null = null,
     rankOffset = 0;
+  let selectedTopics: CommunityTopic[] = [];
   const seen = new Set<string>();
   const snapshot = new DiscoverySnapshot();
   let displayedAfter: string | null = null;
@@ -92,7 +95,9 @@ export function startCommunityDiscovery(
   }
   function disabled(): void {
     mounted
-      ?.querySelectorAll<HTMLButtonElement | HTMLSelectElement>('button,select')
+      ?.querySelectorAll<
+        HTMLButtonElement | HTMLSelectElement | HTMLInputElement
+      >('button,select,input')
       .forEach((node) => {
         node.disabled = busy;
       });
@@ -195,6 +200,14 @@ export function startCommunityDiscovery(
     );
     mountPublicSearchToolbar(toolbar, abort.signal);
     postShortcut(toolbar);
+    rankingTopicFilter(mounted, {
+      active: view === 'explore',
+      selected: selectedTopics,
+      change: (value) => {
+        selectedTopics = value;
+        void run(reload);
+      },
+    });
   }
   /** Posting starts from the community the person chooses. */
   function postShortcut(toolbar: HTMLElement): void {
@@ -213,6 +226,8 @@ export function startCommunityDiscovery(
       order: view === 'explore' ? exploreOrder : order,
       period,
     });
+    if (view === 'explore' && selectedTopics.length)
+      data.set('topics', selectedTopics.join(','));
     if (after) data.set('after', after);
     return data.toString();
   }
@@ -286,6 +301,7 @@ export function startCommunityDiscovery(
       copy.append(
         el('strong', item.community.name),
         el('small', item.community.description),
+        classificationBadges(item.community.classification),
       );
       open.append(
         el('span', String(++rankOffset), 'ranking-position'),

@@ -1,3 +1,4 @@
+import { automaticPublicModeration } from '../shared/public-moderation/index.ts';
 import {
   PublicMediaService,
   createPublicMediaHandler,
@@ -55,6 +56,8 @@ try {
     config.accountCapacityBytes,
     moderation?.acceptedModels ?? [],
   );
+  if (!automaticPublicModeration)
+    database.publicModeration.pauseAutomaticModeration();
   await database.migrate();
   const objects = new ObjectStore(config.objectDirectory);
   await objects.initialize();

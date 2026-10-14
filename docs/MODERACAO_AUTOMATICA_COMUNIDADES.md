@@ -1,5 +1,13 @@
 # Corte 10 — avaliação da moderação automática
 
+## Current override — 14/10/2026
+
+The owner requested temporary suspension of automatic sexual-content analysis
+and NSFW declarations on newly created communities, together with immutable
+community topics and ranking filters. The historical universal prohibition and
+automatic publication gate below are superseded for this pause. Historical
+reviews remain unchanged. See [current classification and publication contract](COMMUNITY_CLASSIFICATION.md).
+
 Histórico do estado registrado em 10/10/2026: fila durável, retenção/coleta, contestação, ferramenta restrita do operador, executor de todos os frames e caminhos de leitura pública de avatares, fotos de comunidades e posts/replies implementados. A base foi ativada no ambiente de testes, incluindo as 43 migrações e o processador isolado; a revisão visual de comunidades está na release `f8ac068`, conforme [registro de publicação](GIT_E_DEPLOY.md). Liberação e leitura foram testadas com detector sintético; nenhum detector sexual foi aceito/ativado. NudeNet continua suspenso após revisão de licença; os candidatos permissivos ainda não comprovam a política, incluindo pintura permitida versus atos sexuais e sua simulação. Dependências de avaliação ficam somente em `.local/`; package.json e lockfile permanecem iguais. O proprietário rejeitou a combinação contextual lenta e pediu recomeçar a seleção pela velocidade real, preservando a política. A [rodada final congelada](#encerramento-da-rodada-congelada--10102026) terminou sem candidato apto para ativação, por retenções de controles neutros e cobertura insuficiente. O corte 10 permanece aberto pela seleção/precisão do detector e aceite integrado.
 
 Estado verificado em 11/10/2026 para esta calibração: o runtime de poses está configurado e aceito no ambiente de testes, com serviços próprios ativos. Os registros anteriores de detector desativado descrevem suas respectivas rodadas históricas. A comparação abaixo usa a fonte efetivamente instalada, não uma hipótese antiga nem as mudanças de outra sessão. O ajuste desta rodada continua somente local; não altera a política ativa. [Resultado e limites](#calibração-dos-36-originais--11102026).

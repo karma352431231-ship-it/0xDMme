@@ -82,9 +82,11 @@ function analysisFacts(detail: PublicModerationDetails): HTMLElement {
     el('h2', t('Resultado da análise')),
     el(
       'p',
-      detail.automaticVerdict
-        ? results[detail.automaticVerdict]
-        : t('A análise automática não foi concluída.'),
+      detail.notice.unreviewed
+        ? t('community.publication.unreviewed')
+        : detail.automaticVerdict
+          ? results[detail.automaticVerdict]
+          : t('A análise automática não foi concluída.'),
     ),
   );
   if (detail.frames !== null)

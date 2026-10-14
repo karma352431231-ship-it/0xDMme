@@ -7,6 +7,8 @@ export class CommunityNode extends EventTarget {
   parent: CommunityNode | null = null;
   className = '';
   value = '';
+  type = '';
+  checked = false;
   disabled = false;
   hidden = false;
   innerHTML = '';

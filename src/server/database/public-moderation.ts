@@ -77,6 +77,7 @@ interface ReviewRow {
   completed_lease: string | null;
   frames: number | null;
   operator_verdict: 'allow' | 'reject' | null;
+  publication_mode: 'analysis' | 'unreviewed';
   publication_phase: 'before' | 'after';
   warned_at: Date | null;
 }
@@ -101,6 +102,7 @@ function notice(row: ReviewRow): PublicModerationNotice {
     expiresAt: row.expires_at.toISOString(),
     appeal: row.appeal,
     decision: row.decision,
+    ...(row.publication_mode === 'unreviewed' ? { unreviewed: true } : {}),
     ...(row.publication_phase === 'after' ? { afterPublication: true } : {}),
     ...(row.warned_at ? { warning: true } : {}),
   };
@@ -164,6 +166,11 @@ export function validateModerationEvaluation(
 }
 /** One global durable queue; no community/person quota and no per-minute rate cap. */
 export class PublicModerationStore {
+  private publicationPaused = false;
+  /** Trusted bootstrap only; upload data never selects the publication mode. */
+  pauseAutomaticModeration(): void {
+    this.publicationPaused = true;
+  }
   private readonly pool: pg.Pool;
   private readonly capacity: number;
   private readonly acceptedModels: readonly PublicModerationAcceptedModel[];
@@ -189,17 +196,19 @@ export class PublicModerationStore {
   ): Promise<Map<string, PublicModerationSubject>> {
     if (ids.length > 256)
       throw new AccountError(400, 'Página de mídia excedida.');
-    if (!ids.length || !this.acceptedModels.length) return new Map();
+    if (!ids.length || (!this.acceptedModels.length && !this.publicationPaused))
+      return new Map();
     const found = await client.query<ReviewRow>(
       `SELECT r.* FROM hash_talk.public_moderation r WHERE r.id=ANY($1::uuid[])
         AND r.status='approved' AND r.policy=ANY($2::text[]) AND
-        (r.operator_verdict='allow' OR EXISTS(
+        (($4 AND r.publication_mode='unreviewed') OR r.operator_verdict='allow' OR EXISTS(
           SELECT 1 FROM jsonb_to_recordset($3::jsonb) AS accepted(hash text,runtime text)
           WHERE accepted.hash=r.model_hash AND accepted.runtime=r.runtime))`,
       [
         ids.map(uuid),
         ['0xdmme-public-explicit-v1', publicModerationPolicy],
         JSON.stringify(this.acceptedModels),
+        this.publicationPaused,
       ],
     );
     return new Map(found.rows.map((row) => [row.id, subject(row)]));
@@ -278,7 +287,7 @@ export class PublicModerationStore {
   ): Promise<string> {
     const id = randomUUID();
     await client.query(
-      "INSERT INTO hash_talk.public_moderation(id,owner,kind,target,content_hash,policy,created_at,expires_at) VALUES($1,$2,$3,$4,$5,$6,coalesce($7::timestamptz,now()),coalesce($7::timestamptz,now())+interval '7 days')",
+      "INSERT INTO hash_talk.public_moderation(id,owner,kind,target,content_hash,policy,created_at,expires_at,status,publication_mode) VALUES($1,$2,$3,$4,$5,$6,coalesce($7::timestamptz,now()),coalesce($7::timestamptz,now())+interval '7 days',$8,$9)",
       [
         id,
         uuid(input.owner),
@@ -287,6 +296,8 @@ export class PublicModerationStore {
         fingerprint(input.contentHash),
         publicModerationPolicy,
         input.createdAt?.toISOString() ?? null,
+        this.publicationPaused ? 'approved' : 'pending',
+        this.publicationPaused ? 'unreviewed' : 'analysis',
       ],
     );
     // Charge the target's net change before checking its coordinated admission.
@@ -312,6 +323,7 @@ export class PublicModerationStore {
     hash: string;
     runtime: string;
   }): Promise<PublicModerationClaim | null> {
+    if (this.publicationPaused) return null;
     const modelHash = fingerprint(model.hash),
       runtime = boundedText(model.runtime, 120);
     // Each admission owns one attempt. SKIP LOCKED permits other workers without double ownership.

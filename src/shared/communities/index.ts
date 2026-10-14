@@ -1,3 +1,5 @@
+import { communityClassification } from '../community-classification/index.ts';
+import type { CommunityClassification } from '../community-classification/index.ts';
 import { communityName } from '../community-name/index.ts';
 import { mentionText } from '../public-mentions/index.ts';
 import { AccountError, keys, object, uuid } from '../account/index.ts';
@@ -9,8 +11,7 @@ import type { PendingPublicAvatar } from '../public-avatar/index.ts';
 import { publicAvatar } from '../public-media/index.ts';
 
 export const communityPageSize = 24;
-export const communityPolicy =
-  'Nudez artística em pinturas é permitida. Atos sexuais explícitos são proibidos, inclusive pintados, desenhados ou gerados por IA. Fora da exceção para pinturas, genitais e seios femininos expostos são proibidos. Biquíni e roupa curta são permitidos. Regras locais não podem relaxar essa política.';
+export const communityPolicy = 'community.content-policy';
 export type CommunityRole = 'owner' | 'moderator' | 'participant';
 export interface CommunityMeta {
   name: string;
@@ -18,6 +19,7 @@ export interface CommunityMeta {
   rules: string;
 }
 export interface Community extends CommunityMeta {
+  classification?: CommunityClassification;
   id: string;
   revision: number;
   archived: boolean;
@@ -96,8 +98,14 @@ export function communityBoolean(value: unknown): boolean {
 export function communityCursor(value: unknown): string | null {
   return value === null ? null : uuid(value);
 }
+function classificationFields(data: Record<string, unknown>) {
+  return Object.hasOwn(data, 'classification')
+    ? { classification: communityClassification(data['classification']) }
+    : {};
+}
 export function community(value: unknown): Community {
-  const d = object(value);
+  const d = object(value),
+    classification = classificationFields(d);
   keys(d, [
     'id',
     'name',
@@ -108,6 +116,7 @@ export function community(value: unknown): Community {
     'avatar',
     'owner',
     'followers',
+    ...Object.keys(classification),
     ...(Object.hasOwn(d, 'banner') ? ['banner'] : []),
     ...(Object.hasOwn(d, 'createdAt') ? ['createdAt'] : []),
   ]);
@@ -133,6 +142,7 @@ export function community(value: unknown): Community {
       : {}),
     owner: d['owner'] === null ? null : publicProfile(d['owner']),
     followers: d['followers'],
+    ...classification,
     ...(Object.hasOwn(d, 'createdAt')
       ? { createdAt: communityDate(d['createdAt']) }
       : {}),

@@ -1,3 +1,4 @@
+import { updateCommunityNsfw } from './community-classification.ts';
 import { randomUUID } from 'node:crypto';
 import { AccountError, keys, uuid } from '../../shared/account/index.ts';
 import {
@@ -140,6 +141,9 @@ export async function communityGovernance(
   capacity: number,
 ): Promise<boolean> {
   switch (operation) {
+    case 'nsfw':
+      await updateCommunityNsfw(context, data, capacity);
+      return true;
     case 'role':
       await role(context, data, capacity);
       return true;

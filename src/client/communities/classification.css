@@ -1,0 +1,118 @@
+/* Community labels and filters own their layout; colors reuse theme tokens. */
+.community-classification-badges {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 0;
+}
+.community-classification-badges:empty {
+  display: none;
+}
+.community-topic-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 0.25rem 0.6rem;
+  font-size: 0.78rem;
+  line-height: 1.3;
+  background: var(--surface);
+  color: var(--text);
+  white-space: nowrap;
+}
+.community-nsfw-badge {
+  font-weight: 750;
+  color: var(--warn);
+  border-color: var(--warn);
+}
+.community-hero-head > .community-classification-badges {
+  margin-inline-start: auto;
+  justify-content: flex-end;
+  max-width: 100%;
+}
+.community-topic-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  border: 0;
+  margin: 0.75rem 0;
+  padding: 0;
+  min-width: 0;
+}
+.community-topic-picker legend {
+  margin-bottom: 0.6rem;
+  font-weight: 650;
+}
+.community-topic-choice {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 0.4rem 0.65rem;
+  cursor: pointer;
+}
+.community-topic-choice:has(input:checked) {
+  border-color: var(--accent);
+  background: var(--surface);
+}
+.community-topic-choice:has(input:disabled) {
+  opacity: 0.55;
+  cursor: default;
+}
+.community-topic-choice input,
+.community-nsfw-choice input {
+  width: auto;
+  margin: 0;
+  accent-color: var(--accent);
+}
+.community-topic-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+.community-nsfw-choice {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 0.4rem 0.6rem;
+}
+.community-nsfw-choice > span {
+  grid-column: 2;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+.community-classification-form,
+.community-classification-settings {
+  margin-block: 1rem;
+}
+.community-classification-hint {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+.community-ranking-topics {
+  padding: 0.5rem 1rem;
+}
+.hover-card .community-classification-badges {
+  margin-block: 0.6rem;
+}
+.ranking-copy .community-classification-badges {
+  margin-top: 0.45rem;
+}
+@media (max-width: 600px) {
+  .community-hero-head > .community-classification-badges {
+    flex-basis: 100%;
+    justify-content: flex-start;
+    margin-inline-start: 0;
+  }
+}
+
+/* The creation form's field-label grid must not stack topic chips. */
+#app-shell .community-topic-picker .community-topic-choice {
+  margin: 0;
+  display: inline-flex;
+  gap: 0.35rem;
+  color: var(--text);
+}

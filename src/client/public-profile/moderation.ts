@@ -83,6 +83,8 @@ export function renderModeration(
   }
 }
 function moderationLabel(notice: PublicModerationNotice): string {
+  if (notice.unreviewed && notice.status === 'approved')
+    return t('community.publication.unreviewed');
   if (
     notice.afterPublication &&
     ['pending', 'analyzing'].includes(notice.status)
