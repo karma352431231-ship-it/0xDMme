@@ -101,12 +101,13 @@ export class GroupMessageStore {
         await this.media.admit(client, packet);
         await this.saveBundle(client, bundle);
         await this.savePacket(client, { packet, hash, state });
-        await admitGroupNotification(client, {
-          groupId: packet.groupId,
-          sender: packet.sender,
-          kind: packet.kind,
-          accounts: state.members.map((m) => m.accountId),
-        });
+        if (!packet.relation)
+          await admitGroupNotification(client, {
+            groupId: packet.groupId,
+            sender: packet.sender,
+            kind: packet.kind,
+            accounts: state.members.map((m) => m.accountId),
+          });
         await assertGroupContentQuota(client, packet.groupId);
         await assertContentCapacity(client, this.capacity);
         this.contacts.changed(

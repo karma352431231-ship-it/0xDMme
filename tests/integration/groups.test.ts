@@ -994,6 +994,9 @@ await test('governança persistente: criação atômica, convites, transferênci
       const before = object(
         await message(messages, member, 'group-message-snapshot', scope),
       );
+      const unreadBefore = object(
+        await message(messages, member, 'group-daily-state', scope),
+      )['unread'];
       const relation = {
         id: original.packet.id,
         hash,
@@ -1024,6 +1027,12 @@ await test('governança persistente: criação atômica, convites, transferênci
       );
       const after = object(
         await message(messages, member, 'group-message-snapshot', scope),
+      );
+      assert.equal(
+        object(await message(messages, member, 'group-daily-state', scope))[
+          'unread'
+        ],
+        unreadBefore,
       );
       const delta = object(
         await message(messages, member, 'group-message-changes', {

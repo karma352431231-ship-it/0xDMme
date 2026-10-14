@@ -42,7 +42,7 @@ export class GroupDailyStore {
         epoch: s.epoch,
       }));
       const data = await client.query(
-        `SELECT root."group" AS peer,coalesce(c.revision,0) AS revision,coalesce(c.muted_until,0)::text AS "mutedUntil",(extract(epoch FROM cleanup.due_at)*1000)::bigint::text AS "cleanupDueAt",cleanup.selected_bytes AS "cleanupBytes",(SELECT count(*)::integer FROM hash_talk.group_packets p WHERE p.group_id=root."group" AND p.epoch>=root.joined AND p.epoch<=root.epoch AND p.sender<>$1 AND p.kind<>'profile' AND p.body IS NOT NULL AND NOT EXISTS(SELECT 1 FROM hash_talk.group_reads r WHERE r.account_id=$1 AND r.message_id=p.id)) AS unread FROM jsonb_to_recordset($2::jsonb) root("group" uuid,joined integer,epoch integer) LEFT JOIN hash_talk.group_controls c ON c.account_id=$1 AND c.group_id=root."group" LEFT JOIN hash_talk.group_cleanups cleanup ON cleanup.group_id=root."group" AND cleanup.due_at IS NOT NULL`,
+        `SELECT root."group" AS peer,coalesce(c.revision,0) AS revision,coalesce(c.muted_until,0)::text AS "mutedUntil",(extract(epoch FROM cleanup.due_at)*1000)::bigint::text AS "cleanupDueAt",cleanup.selected_bytes AS "cleanupBytes",(SELECT count(*)::integer FROM hash_talk.group_packets p WHERE p.group_id=root."group" AND p.epoch>=root.joined AND p.epoch<=root.epoch AND p.sender<>$1 AND p.kind<>'profile' AND p.relation IS NULL AND p.body IS NOT NULL AND NOT EXISTS(SELECT 1 FROM hash_talk.group_reads r WHERE r.account_id=$1 AND r.message_id=p.id)) AS unread FROM jsonb_to_recordset($2::jsonb) root("group" uuid,joined integer,epoch integer) LEFT JOIN hash_talk.group_controls c ON c.account_id=$1 AND c.group_id=root."group" LEFT JOIN hash_talk.group_cleanups cleanup ON cleanup.group_id=root."group" AND cleanup.due_at IS NOT NULL`,
         [a.session.accountId, JSON.stringify(request)],
       );
       return data.rows as unknown[];
@@ -79,7 +79,7 @@ export class GroupDailyStore {
         (m) => m.accountId === a.session.accountId,
       )?.joined;
       const known = await client.query<{ count: number }>(
-        'SELECT count(*)::integer AS count FROM hash_talk.group_packets WHERE group_id=$1 AND id=ANY($2::uuid[]) AND epoch>=$3 AND epoch<=$4 AND body IS NOT NULL AND $5::uuid=ANY(received_accounts)',
+        'SELECT count(*)::integer AS count FROM hash_talk.group_packets WHERE group_id=$1 AND id=ANY($2::uuid[]) AND epoch>=$3 AND epoch<=$4 AND body IS NOT NULL AND relation IS NULL AND $5::uuid=ANY(received_accounts)',
         [input.groupId, input.ids, joined, state.epoch, a.session.accountId],
       );
       if (known.rows[0]?.count !== input.ids.length)
