@@ -1,3 +1,4 @@
+import { GroupMessageWindows } from './message-windows.ts';
 import { groupManager } from '../../shared/groups/index.ts';
 import { cachedGroupPhoto } from './photo.ts';
 import { groupPhoto } from '../../shared/group-messages/index.ts';
@@ -71,6 +72,8 @@ interface GroupPrefetch {
 }
 export class GroupController {
   private readonly retry = new GroupRetry();
+  private readonly messageWindows = new GroupMessageWindows();
+  historyPending = false;
   private readonly access: VaultAccess;
   private readonly visible: () => boolean;
   private readonly identities: PeerIdentity;
@@ -113,6 +116,7 @@ export class GroupController {
       s ? [s.accountId, s.deviceId, s.csrf].join(':') : '';
     if (identity(session) !== identity(this.session)) {
       this.authority.invalidate();
+      this.messageWindows.clear();
       this.close();
       this.entries = [];
       this.incoming = [];
@@ -130,6 +134,7 @@ export class GroupController {
     this.session = session;
   }
   close(): void {
+    this.historyPending = false;
     this.pauseSynchronization();
     this.resetSynchronization();
     this.generation++;
@@ -137,7 +142,13 @@ export class GroupController {
     this.views = [];
     this.before = null;
   }
+  removed(): void {
+    this.pauseSynchronization();
+    this.historyPending = true;
+  }
   hide(): void {
+    this.messageWindows.clear();
+    this.historyPending = false;
     this.pauseSynchronization();
     this.generation++;
     this.views = [];
@@ -188,6 +199,8 @@ export class GroupController {
     });
   }
   async search(query: string, after: string | null) {
+    if (this.historyPending && navigator.onLine)
+      throw new Error('Confira as exclusões antes de buscar.');
     const generation = this.generation;
     return this.withLocalAuthority((authority) =>
       searchGroupCopies({
@@ -451,40 +464,40 @@ export class GroupController {
     progress: GroupPrefetch,
   ): Promise<void> {
     const group = await c.governance.verify(progress.groups[0]!.groupId);
-    const raw = object(
-      await c.api('group-message-recent', {
-        groupId: group.state.groupId,
-        head: group.head,
-        before: progress.before,
-      }),
+    const prepared =
+      progress.before === null &&
+      this.messageWindows.prepared(group.state.groupId);
+    const page = await this.machine(c, (machine) =>
+      this.messageWindows.read(
+        {
+          ...c,
+          group,
+          machine,
+          identities: this.identities,
+          read: async (raw) => {
+            const result = await readGroupPage(
+              { ...c, group, machine, identities: this.identities },
+              raw,
+            );
+            c.guard();
+            if (result.receipts.length)
+              await c.api('group-message-received', {
+                groupId: group.state.groupId,
+                head: group.head,
+                items: result.receipts,
+              });
+            return result;
+          },
+        },
+        progress.before,
+      ),
     );
-    await this.machine(c, async (machine) => {
-      const page = await readGroupPage(
-        { ...c, group, machine, identities: this.identities },
-        raw,
-      );
-      c.guard();
-      if (page.receipts.length)
-        await c.api('group-message-received', {
-          groupId: group.state.groupId,
-          head: group.head,
-          items: page.receipts,
-        });
-    });
-    await this.confirm(c.api, group);
     c.guard();
-    const before =
-      raw['next'] === null
-        ? null
-        : integer(raw['next'], Number.MAX_SAFE_INTEGER);
-    if (
-      before !== null &&
-      progress.before !== null &&
-      before >= progress.before
-    )
-      throw new Error('Paginação de grupo divergente.');
-    progress.before = before;
-    if (before === null) progress.groups.shift();
+    progress.before = prepared ? null : page.before;
+    if (progress.before === null) {
+      this.messageWindows.finishPreparation(group.state.groupId);
+      progress.groups.shift();
+    }
   }
   async open(groupId: string, older = false, localOnly = false): Promise<void> {
     if (!navigator.onLine || localOnly) return this.openLocal(groupId, older);
@@ -519,31 +532,38 @@ export class GroupController {
     machine: import('../message-crypto/index.ts').MessageCrypto,
     before: number | null,
   ): Promise<void> {
-    this.views = [];
     this.warning = '';
-    const raw = object(
-      await c.api('group-message-recent', {
-        groupId: group.state.groupId,
-        head: group.head,
+    try {
+      const page = await this.messageWindows.read(
+        {
+          ...c,
+          group,
+          machine,
+          identities: this.identities,
+          read: async (raw) => {
+            const result = await readGroupPage(
+              { ...c, group, machine, identities: this.identities },
+              raw,
+            );
+            if (result.receipts.length)
+              await c.api('group-message-received', {
+                groupId: group.state.groupId,
+                head: group.head,
+                items: result.receipts,
+              });
+            return result;
+          },
+        },
         before,
-      }),
-    );
-    const page = await readGroupPage(
-      { ...c, group, machine, identities: this.identities },
-      raw,
-    );
-    if (page.receipts.length)
-      await c.api('group-message-received', {
-        groupId: group.state.groupId,
-        head: group.head,
-        items: page.receipts,
-      });
-    await this.confirm(c.api, group);
-    this.before =
-      raw['next'] === null
-        ? null
-        : integer(raw['next'], Number.MAX_SAFE_INTEGER);
-    this.views = page.views.filter((v) => v.kind !== 'profile');
+      );
+      this.before = page.before;
+      this.views = page.views;
+      this.historyPending = false;
+    } catch (error: unknown) {
+      this.views = [];
+      this.historyPending = false;
+      throw error;
+    }
     await this.readViews(c.api, group);
   }
   private async openLocal(groupId: string, older: boolean): Promise<void> {
@@ -557,6 +577,7 @@ export class GroupController {
       );
       this.selected = { ...group, localOnly: true };
       this.views = page.views;
+      this.historyPending = false;
       this.before = page.before;
       this.warning =
         'Cópia local independente. Envio e administração exigem participação atual verificada.';
@@ -832,6 +853,56 @@ export class GroupController {
       }),
     );
   }
+  async edit(view: GroupView, text: string): Promise<void> {
+    if (
+      this.selected?.state.groupId !== view.groupId ||
+      !view.own ||
+      view.kind !== 'text' ||
+      view.localOnly ||
+      this.historyPending
+    )
+      throw new Error('Somente seu texto conectado pode ser editado.');
+    await this.authority.mutate((c) =>
+      composeGroup({
+        authority: c.authority,
+        groupId: view.groupId,
+        text,
+        selection: null,
+        relation: {
+          id: view.id,
+          hash: view.hash,
+          author: view.sender,
+          type: 'edit',
+        },
+      }),
+    );
+    await this.sendPending();
+  }
+  async removeMessage(view: GroupView): Promise<void> {
+    if (
+      this.selected?.state.groupId !== view.groupId ||
+      !view.own ||
+      view.localOnly ||
+      this.historyPending
+    )
+      throw new Error('Somente sua mensagem conectada pode ser apagada.');
+    this.removed();
+    try {
+      await this.authority.mutate(async (c) => {
+        const group = await c.governance.verify(view.groupId);
+        await c.api('group-message-delete', {
+          groupId: view.groupId,
+          head: group.head,
+          id: view.id,
+          hash: view.hash,
+          revision: c.authority.events.length,
+        });
+      });
+    } catch (error: unknown) {
+      this.hide();
+      throw error;
+    }
+  }
   async sendPending(): Promise<void> {
     const selected = this.selected;
     if (!selected) return;
@@ -893,6 +964,8 @@ export class GroupController {
     view: GroupView,
     thumbnail: boolean,
   ): Promise<Uint8Array<ArrayBuffer>> {
+    if (this.historyPending)
+      throw new Error('Confira as exclusões antes de abrir mídia.');
     const selected = this.selected;
     if (
       !selected ||
@@ -907,7 +980,7 @@ export class GroupController {
         content = attachmentContent(JSON.parse(view.text) as unknown),
         file = thumbnail ? content.thumbnail : content.file;
       if (!file) throw new Error('Prévia indisponível.');
-      await this.confirm(c.api, group);
+      await this.confirmMedia(c.api, group, view);
       const bytes = await downloadAttachment({
         account: groupCacheScope(
           c.authority.session.accountId,
@@ -923,13 +996,29 @@ export class GroupController {
         budget: groupQuota,
       });
       try {
-        await this.confirm(c.api, group);
+        await this.confirmMedia(c.api, group, view);
         return bytes;
       } catch (error: unknown) {
         bytes.fill(0);
         throw error;
       }
     });
+  }
+  private async confirmMedia(
+    api: AttachmentApi,
+    group: GroupState,
+    view: GroupView,
+  ): Promise<void> {
+    if (
+      this.historyPending ||
+      (await api('group-message-available', {
+        groupId: group.state.groupId,
+        head: group.head,
+        id: view.id,
+        hash: view.hash,
+      })) !== true
+    )
+      throw new Error('Mensagem apagada ou indisponível para abrir mídia.');
   }
   private async localMedia(
     authority: VaultAuthority,

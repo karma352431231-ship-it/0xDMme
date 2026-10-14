@@ -84,6 +84,7 @@ export interface GroupEncryptionInput {
   text: string;
   kind?: GroupPacket['kind'];
   existingKeys?: GroupKeys;
+  relation?: import('../../shared/daily/index.ts').MessageRelation;
 }
 // Tracing payloads may contain protocol data. Errors still reject the operation.
 const silentLogger = {
@@ -544,6 +545,7 @@ export class MessageCrypto {
       directory: input.authority.directory,
       authorityRevision: input.authority.events.length,
       keyHash: await groupKeysHash(bundle),
+      ...(input.relation ? { relation: input.relation } : {}),
       ...attachmentMetadata(input.kind, input.text),
       signature: 'A'.repeat(86) + '==',
     });
@@ -776,6 +778,7 @@ export class MessageCrypto {
         sender: input.authority.session.accountId,
         groupId: input.state.groupId,
         epoch: input.state.epoch,
+        ...(input.relation ? { relation: input.relation } : {}),
       },
     });
     if (new TextEncoder().encode(content).length > 3_000_000)
@@ -831,6 +834,7 @@ export class MessageCrypto {
   private openGroupContent(packet: GroupPacket, event: string): string {
     const payload = object(object(JSON.parse(event) as unknown)['content']),
       identity = object(payload['org.0xdmme.group']);
+    this.assertGroupContentRelation(identity, packet);
     if (
       payload['msgtype'] !== messageType(packet.kind) ||
       typeof payload['body'] !== 'string' ||
@@ -850,6 +854,18 @@ export class MessageCrypto {
     )
       throw new Error('Anexo de grupo divergente.');
     return payload['body'];
+  }
+  private assertGroupContentRelation(
+    identity: Record<string, unknown>,
+    packet: GroupPacket,
+  ): void {
+    if (
+      canonical(identity['relation'] ?? null) !==
+      canonical(packet.relation ?? null)
+    )
+      throw new Error(
+        'Conteúdo de grupo não corresponde ao pacote autenticado.',
+      );
   }
   async decrypt(input: {
     packet: MessagePacket;

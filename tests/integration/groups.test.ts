@@ -26,6 +26,7 @@ import { DeviceService } from '../../src/server/devices/index.ts';
 import { ContactService } from '../../src/server/contacts/index.ts';
 import { MessageService } from '../../src/server/messages/index.ts';
 import { NotificationService } from '../../src/server/notifications/index.ts';
+import { verifyGroupDeletion } from '../../src/shared/group-messages/index.ts';
 import { messageBody } from '../../src/shared/messages/index.ts';
 import { MessageCrypto } from '../../src/client/message-crypto/index.ts';
 import {
@@ -50,7 +51,7 @@ import { groupLinkProof } from '../../src/shared/groups/links.ts';
 import type { GroupLink } from '../../src/shared/groups/links.ts';
 import { GroupAdmission } from '../../src/server/database/group-admission.ts';
 import { groupTextUsage } from '../../src/server/database/group-quota.ts';
-import { sign, digest } from '../../src/shared/devices/index.ts';
+import { sign, digest, canonical } from '../../src/shared/devices/index.ts';
 
 await test('governança persistente: criação atômica, convites, transferência, remoção e frequência sobrevivem à exclusão', async (t) => {
   const config = readWebConfiguration(process.env);
@@ -972,6 +973,229 @@ await test('governança persistente: criação atômica, convites, transferênci
     packet: repeated.packet,
     keys: null,
   });
+  await t.test(
+    'edição e exclusão próprias usam delta, preservam outras mensagens e rejeitam terceiros',
+    async () => {
+      const scope = { groupId: joined.groupId, head: groupHead };
+      const original = await sender.encryptGroup({
+        authority: ownVault(owner),
+        state: joined,
+        histories: participants.map((u) => [u.directory]),
+        recovery,
+        transport: groupTransport,
+        id: crypto.randomUUID(),
+        text: 'Original para alterar',
+      });
+      await message(messages, owner, 'group-message-publish', {
+        packet: original.packet,
+        keys: original.keys,
+      });
+      const hash = await digest(canonical(original.packet));
+      const before = object(
+        await message(messages, member, 'group-message-snapshot', scope),
+      );
+      const relation = {
+        id: original.packet.id,
+        hash,
+        author: owner.accountId,
+        type: 'edit' as const,
+      };
+      const edited = await sender.encryptGroup({
+        authority: ownVault(owner),
+        state: joined,
+        histories: participants.map((u) => [u.directory]),
+        recovery,
+        transport: groupTransport,
+        id: crypto.randomUUID(),
+        text: 'Texto alterado',
+        relation,
+      });
+      await message(messages, owner, 'group-message-publish', {
+        packet: edited.packet,
+        keys: edited.keys,
+      });
+      assert.equal(
+        await message(messages, member, 'group-message-available', {
+          ...scope,
+          id: original.packet.id,
+          hash,
+        }),
+        true,
+      );
+      const after = object(
+        await message(messages, member, 'group-message-snapshot', scope),
+      );
+      const delta = object(
+        await message(messages, member, 'group-message-changes', {
+          ...scope,
+          revision: after['revision'],
+          from: before['revision'],
+          after: before['revision'],
+        }),
+      );
+      assert.equal(delta['reset'], false);
+      assert.deepEqual(
+        (delta['items'] as { id: string }[]).map((row) => row.id),
+        [edited.packet.id],
+      );
+      await message(messages, owner, 'group-message-publish', {
+        packet: edited.packet,
+        keys: null,
+      });
+      assert.deepEqual(
+        await message(messages, member, 'group-message-snapshot', scope),
+        after,
+      );
+      await assert.rejects(
+        message(messages, member, 'group-message-delete', {
+          ...scope,
+          id: original.packet.id,
+          hash,
+          revision: 1,
+        }),
+        { status: 403 },
+      );
+      await message(messages, owner, 'group-message-delete', {
+        ...scope,
+        id: original.packet.id,
+        hash,
+        revision: owner.directory.revision,
+      });
+      assert.equal(
+        await message(messages, member, 'group-message-available', {
+          ...scope,
+          id: original.packet.id,
+          hash,
+        }),
+        false,
+      );
+      const deleted = object(
+        await message(messages, member, 'group-message-snapshot', scope),
+      );
+      const changes = object(
+        await message(messages, member, 'group-message-changes', {
+          ...scope,
+          revision: deleted['revision'],
+          from: after['revision'],
+          after: after['revision'],
+        }),
+      );
+      const rows = changes['items'] as {
+        id: string;
+        hash: string;
+        sender: string;
+        deletion: unknown;
+        relation?: typeof relation;
+      }[];
+      assert.deepEqual(
+        new Set(rows.map((row) => row.id)),
+        new Set([original.packet.id, edited.packet.id]),
+      );
+      for (const row of rows)
+        await verifyGroupDeletion(
+          row.deletion,
+          { ...row, groupId: joined.groupId },
+          [owner.directory],
+        );
+      const intact = await inspector.query(
+        'SELECT 1 FROM hash_talk.group_packets WHERE id=$1 AND body IS NOT NULL',
+        [repeated.packet.id],
+      );
+      assert.equal(intact.rowCount, 1);
+      await assert.rejects(
+        message(messages, outsider, 'group-message-changes', {
+          ...scope,
+          revision: deleted['revision'],
+          from: after['revision'],
+          after: after['revision'],
+        }),
+      );
+      await assert.rejects(
+        message(messages, member, 'group-message-confirm', {
+          ...scope,
+          revision: after['revision'],
+        }),
+        { status: 409 },
+      );
+      await message(messages, owner, 'group-message-delete', {
+        ...scope,
+        id: original.packet.id,
+        hash,
+        revision: owner.directory.revision,
+      });
+      assert.deepEqual(
+        await message(messages, member, 'group-message-snapshot', scope),
+        deleted,
+      );
+    },
+  );
+  await t.test(
+    'original admite até 64 edições e recusa a próxima sem modificar o snapshot',
+    async () => {
+      const make = (
+        text: string,
+        relation?: NonNullable<typeof repeated.packet.relation>,
+      ) =>
+        sender.encryptGroup({
+          authority: ownVault(owner),
+          state: joined,
+          histories: participants.map((u) => [u.directory]),
+          recovery,
+          transport: groupTransport,
+          id: crypto.randomUUID(),
+          text,
+          ...(relation ? { relation } : {}),
+        });
+      const root = await make('Limite de edições');
+      await message(messages, owner, 'group-message-publish', {
+        packet: root.packet,
+        keys: root.keys,
+      });
+      const relation = {
+        id: root.packet.id,
+        hash: await digest(canonical(root.packet)),
+        author: owner.accountId,
+        type: 'edit' as const,
+      };
+      for (let i = 0; i < 64; i++) {
+        const edit = await make(`Versão ${i}`, relation);
+        await message(messages, owner, 'group-message-publish', {
+          packet: edit.packet,
+          keys: null,
+        });
+      }
+      const scope = { groupId: joined.groupId, head: groupHead },
+        before = await message(
+          messages,
+          member,
+          'group-message-snapshot',
+          scope,
+        );
+      const refused = await make('Excedida', relation);
+      await assert.rejects(
+        message(messages, owner, 'group-message-publish', {
+          packet: refused.packet,
+          keys: null,
+        }),
+        { status: 413 },
+      );
+      assert.deepEqual(
+        await message(messages, member, 'group-message-snapshot', scope),
+        before,
+      );
+      await message(messages, owner, 'group-message-delete', {
+        ...scope,
+        id: root.packet.id,
+        hash: relation.hash,
+        revision: owner.directory.revision,
+      });
+      const live = await inspector.query(
+        "SELECT 1 FROM hash_talk.group_packets WHERE group_id=$1 AND (id=$2 OR relation->>'id'=$2::text) AND body IS NOT NULL",
+        [joined.groupId, root.packet.id],
+      );
+      assert.equal(live.rowCount, 0);
+    },
+  );
   const bundles = await inspector.query<{ count: number }>(
     'SELECT count(*)::integer AS count FROM hash_talk.group_key_sets WHERE group_id=$1',
     [joined.groupId],

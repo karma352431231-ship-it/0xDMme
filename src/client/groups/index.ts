@@ -1,3 +1,4 @@
+import { GroupMessageActions } from './message-actions.ts';
 import { GroupPhotoUi, GroupPhotoView } from './photo-ui.ts';
 import { GroupPeople } from './people.ts';
 import type { GroupProfile } from './people.ts';
@@ -34,7 +35,6 @@ import { VoiceRecording } from '../voice-recording/index.ts';
 import { AttachmentUi } from '../attachment-ui/index.ts';
 import { EmojiPicker, emojiIntoComposer, emojiText } from '../emoji/index.ts';
 import { showExternalVideos } from '../external-video/index.ts';
-import { externalVideoIds } from '../../shared/external-video/index.ts';
 import { showGifText, gifUrls } from '../gif-search/index.ts';
 import type { ExternalMediaConsent } from '../external-media/index.ts';
 import { ExternalTextHistory } from '../external-media/index.ts';
@@ -261,6 +261,7 @@ export function startGroups(
     if (await controller.resumePending()) await reopen();
   }
   async function open(group: GroupSummary | string): Promise<void> {
+    messageActions.close();
     const id = typeof group === 'string' ? group : group.state.groupId,
       localOnly = typeof group === 'string' ? false : !!group.localOnly;
     if (voice.active || attachments.selected?.voice)
@@ -279,21 +280,43 @@ export function startGroups(
     render();
     await pending();
   }
+  const messageActions = new GroupMessageActions({
+    run,
+    edit: async (view, text) => {
+      await controller.edit(view, text);
+      await reopen();
+    },
+    remove: async (view) => {
+      const pending = controller.removeMessage(view);
+      renderHistory();
+      try {
+        await pending;
+        await reopen();
+      } finally {
+        renderHistory();
+      }
+    },
+  });
   function renderHistory(): void {
-    attachments.clearMedia();
     const history = node('[data-group-history]');
     if (!history) return;
+    history.hidden = controller.historyPending;
+    if (controller.historyPending) return;
     const restoreScroll = historyPosition(history);
     externalRows.render(
       history,
       controller.views.map((view) => ({
         id: view.id,
-        key:
-          view.kind === 'text' &&
-          (externalVideoIds(view.text).length > 0 ||
-            gifUrls(view.text).length > 0)
-            ? JSON.stringify([view.text, view.localOnly, view.sender])
-            : null,
+        key: JSON.stringify([
+          view.text,
+          view.hash,
+          view.sender,
+          name(view.sender),
+          view.localOnly,
+          view.kind,
+          view.unavailableMedia,
+          view.edited,
+        ]),
         render: (signal) => renderView(view, signal),
       })),
       externalAbort.signal,
@@ -319,6 +342,7 @@ export function startGroups(
       attachments.render({
         article,
         view: { id: view.id, text: view.text, peer: view.sender },
+        signal: mediaSignal,
         load: (_media, thumbnail) => controller.media(view, thumbnail),
         run,
       });
@@ -340,6 +364,7 @@ export function startGroups(
       local.textContent = 'Cópia local · conteúdo indisponível no cofre remoto';
       article.append(local);
     }
+    article.append(messageActions.render(view, mediaSignal));
     return article;
   }
   function renderDelivery(article: HTMLElement, view: GroupView): void {
@@ -349,17 +374,19 @@ export function startGroups(
       ...(view.delivery ? { delivery: view.delivery } : {}),
       read: view.read ?? false,
     });
-    if (checks) {
+    if (checks || view.edited) {
       const state = document.createElement('small');
       state.className = 'message-meta';
-      state.append(
-        checksIcon({
-          ...checks,
-          label: view.read
-            ? 'Vista pelos destinatários com confirmação de leitura'
-            : checks.label,
-        }),
-      );
+      if (view.edited) state.append('Editada · ');
+      if (checks)
+        state.append(
+          checksIcon({
+            ...checks,
+            label: view.read
+              ? 'Vista pelos destinatários com confirmação de leitura'
+              : checks.label,
+          }),
+        );
       article.append(state);
     }
   }
@@ -829,6 +856,7 @@ export function startGroups(
     );
   }
   function deselect(): void {
+    messageActions.close();
     node<HTMLDialogElement>('[data-group-settings]')?.close();
     people.clear();
     if (voice.active || attachments.selected?.voice)
@@ -940,6 +968,7 @@ export function startGroups(
         return;
       }
       session = value;
+      messageActions.close();
       actions.setSession(value);
       externalRows.clear();
       externalAbort.abort();
@@ -954,7 +983,13 @@ export function startGroups(
       vault = null;
       render();
     },
+    removed(): void {
+      controller.removed();
+      messageActions.close();
+      renderHistory();
+    },
     suspend(revoked = false): void {
+      messageActions.close();
       node<HTMLDialogElement>('[data-group-settings]')?.close();
       people.clear();
       photoView.reset();

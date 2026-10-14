@@ -207,6 +207,7 @@ export function coordinatorFixture(t: TestContext) {
     entries: [],
     selected: null,
     next: null,
+    removed: () => calls.push('groups-removed'),
     suspend: () => calls.push('suspend-groups'),
     deselect: noop,
     pauseSynchronization: noop,

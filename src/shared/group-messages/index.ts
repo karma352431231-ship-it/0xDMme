@@ -1,4 +1,6 @@
 import { AccountError, base64, keys, object, uuid } from '../account/index.ts';
+import { messageRelation } from '../daily/index.ts';
+import type { MessageRelation } from '../daily/index.ts';
 import { attachmentRefs } from '../attachments/index.ts';
 import type { AttachmentRef } from '../attachments/index.ts';
 import { revision } from '../contacts/index.ts';
@@ -52,6 +54,7 @@ export interface GroupPacket {
   directory: string;
   authorityRevision: number;
   attachments?: AttachmentRef[];
+  relation?: MessageRelation;
   signature: string;
 }
 /** One signed recovery bundle per Megolm session/audience, referenced by messages. */
@@ -104,6 +107,7 @@ export function groupPacket(value: unknown): GroupPacket {
     'authorityRevision',
     'signature',
     ...(data['kind'] === 'attachment' ? ['attachments'] : []),
+    ...groupRelationKeys(data),
   ]);
   if (
     data['version'] !== 1 ||
@@ -127,6 +131,7 @@ export function groupPacket(value: unknown): GroupPacket {
     directory: fingerprint(data['directory']),
     authorityRevision: positive(data['authorityRevision']),
     signature: checkedSignature(data['signature']),
+    ...groupRelationFields(data),
     ...(data['kind'] === 'attachment'
       ? { attachments: attachmentRefs(data['attachments']) }
       : {}),
@@ -345,3 +350,24 @@ export {
   groupPhotoEdge,
 } from './profile.ts';
 export type { GroupPhoto } from './profile.ts';
+
+export function groupEditRelation(value: unknown): MessageRelation {
+  const relation = messageRelation(value);
+  if (relation.type !== 'edit')
+    throw new AccountError(400, 'Ação de grupo inválida.');
+  return relation;
+}
+
+export { groupDeletion, verifyGroupDeletion } from './deletion.ts';
+
+function groupRelationKeys(data: Record<string, unknown>): string[] {
+  return data['relation'] === undefined ? [] : ['relation'];
+}
+function groupRelationFields(data: Record<string, unknown>): {
+  relation?: MessageRelation;
+} {
+  if (data['relation'] === undefined) return {};
+  if (data['kind'] !== 'text')
+    throw new AccountError(400, 'Somente texto pode editar uma mensagem.');
+  return { relation: groupEditRelation(data['relation']) };
+}

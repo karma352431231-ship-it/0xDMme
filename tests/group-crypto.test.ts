@@ -1,4 +1,9 @@
 import { fixtureGroupPhoto } from './fixtures/group-photo.ts';
+import {
+  groupPacketProof,
+  verifyGroupDeletion,
+} from '../src/shared/group-messages/index.ts';
+import { messageBody } from '../src/shared/messages/index.ts';
 import { groupProfilePhoto } from '../src/shared/group-messages/index.ts';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
@@ -114,6 +119,105 @@ await test('Megolm real recupera só o período dirigido ao membro e rejeita ori
       exported,
     }),
     'Texto sintético do período autorizado',
+  );
+  await t.test(
+    'edição cifrada vincula original/grupo/autor; prova de exclusão rejeita outra mensagem',
+    async () => {
+      const relation = {
+        id: packet.id,
+        hash: await digest(canonical(packet)),
+        author: owner.accountId,
+        type: 'edit' as const,
+      };
+      const edit = await sender.encryptGroup({
+        authority: owner.authority,
+        state,
+        histories: participants.map((p) => [p.directory]),
+        recovery: keys,
+        transport: recoveryOnlyTransport,
+        id: crypto.randomUUID(),
+        text: 'Nova versão',
+        relation,
+      });
+      const capsule = edit.keys.archives.find(
+        (a) => a.accountId === member.accountId,
+      )!;
+      assert.equal(
+        await reader.decryptGroup({
+          packet: edit.packet,
+          keys: edit.keys,
+          period: state,
+          senderEvent: owner.directory,
+          exported: openRoomKey(readerKey, capsule),
+        }),
+        'Nova versão',
+      );
+      const forged = {
+        ...edit.packet,
+        relation: { ...relation, id: crypto.randomUUID() },
+      };
+      forged.signature = await owner.authority.sign(groupPacketProof(forged));
+      await assert.rejects(
+        reader.decryptGroup({
+          packet: forged,
+          keys: edit.keys,
+          period: state,
+          senderEvent: owner.directory,
+          exported: openRoomKey(readerKey, capsule),
+        }),
+        /não corresponde/,
+      );
+      const payload = {
+        groupId: state.groupId,
+        head: await groupEventHash(state),
+        id: packet.id,
+        hash: relation.hash,
+        revision: 1,
+      };
+      const unsigned = {
+        deviceId: owner.deviceId,
+        directory: owner.authority.directory,
+        payload,
+      };
+      const deletion = {
+        type: 'message',
+        accountId: owner.accountId,
+        proof: {
+          ...unsigned,
+          signature: await owner.authority.sign(
+            messageBody(
+              owner.accountId,
+              owner.deviceId,
+              'group-message-delete',
+              unsigned,
+            ),
+          ),
+        },
+      };
+      await verifyGroupDeletion(
+        deletion,
+        {
+          groupId: state.groupId,
+          id: packet.id,
+          hash: relation.hash,
+          sender: owner.accountId,
+        },
+        [owner.directory],
+      );
+      await assert.rejects(
+        verifyGroupDeletion(
+          deletion,
+          {
+            groupId: state.groupId,
+            id: crypto.randomUUID(),
+            hash: relation.hash,
+            sender: owner.accountId,
+          },
+          [owner.directory],
+        ),
+        /outra mensagem/,
+      );
+    },
   );
   await t.test(
     'foto administrativa permanece cifrada, recuperável só pelos membros do período',

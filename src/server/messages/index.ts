@@ -446,7 +446,7 @@ export class MessageService {
       this.db.groupDaily,
     );
     for (const operation of groupOperations)
-      this.actions[operation] = (a, d) => groups.operate(a, operation, d);
+      this.actions[operation] = (a, d, p) => groups.operate(a, operation, d, p);
     for (const operation of groupMediaOperations)
       this.actions[operation] = (a, d) => {
         if (!this.groupMedia)

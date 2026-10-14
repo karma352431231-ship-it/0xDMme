@@ -362,7 +362,7 @@ export function startMessages(
       // Cancel the history token immediately without cancelling an in-flight
       // signed mutation (the sender receives its own deletion before its reply).
       controller.removed();
-      groups.suspend();
+      groups.removed();
       menu.close();
       searchPanel.close();
     } else suspend();

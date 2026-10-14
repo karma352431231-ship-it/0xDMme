@@ -417,3 +417,29 @@ await test('lote do backup recusa resposta vazia, ordem trocada e falha simulada
   assert.equal(result.count, 1);
   assert.equal(result.packets.size, 0);
 });
+
+await test('edições de grupo preservam o vínculo no registro de backup sem alterar registros antigos', () => {
+  const groupId = crypto.randomUUID(),
+    sender = crypto.randomUUID(),
+    root = crypto.randomUUID();
+  const input = {
+    type: 'group-message',
+    id: crypto.randomUUID(),
+    hash: 'a'.repeat(64),
+    groupId,
+    sender,
+    own: true,
+    sequence: 2,
+    epoch: 1,
+    kind: 'text',
+    text: 'Versão editada',
+    relation: { id: root, hash: 'b'.repeat(64), author: sender, type: 'edit' },
+  };
+  const restored = backupRecord(input);
+  assert.equal(restored.type, 'group-message');
+  if (restored.type !== 'group-message') throw new Error('Tipo inválido');
+  assert.deepEqual(restored.relation, input.relation);
+  const { relation, ...old } = input;
+  void relation;
+  assert.deepEqual(backupRecord(old), old);
+});

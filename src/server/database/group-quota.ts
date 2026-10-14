@@ -20,6 +20,7 @@ export async function groupTextUsage(
     + coalesce((SELECT charge FROM hash_talk.groups WHERE id=$1),0)
     + coalesce((SELECT sum(charge) FROM hash_talk.group_key_sets WHERE group_id=$1),0)
     + coalesce((SELECT sum(charge) FROM hash_talk.group_packets WHERE group_id=$1),0)
+    + coalesce((SELECT sum(charge) FROM hash_talk.group_message_changes WHERE group_id=$1),0)
     + coalesce((SELECT sum(charge) FROM hash_talk.group_matrix_envelopes WHERE group_id=$1),0)
     + coalesce((SELECT sum(text_charge) FROM hash_talk.group_media WHERE group_id=$1),0)
     + coalesce((SELECT charge FROM hash_talk.group_cleanups WHERE group_id=$1),0)

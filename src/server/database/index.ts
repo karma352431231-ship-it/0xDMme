@@ -163,6 +163,7 @@ const migrations = [
   '063-public-mentions-community-names.sql',
   '064-mention-notifications.sql',
   '065-message-changes.sql',
+  '066-group-message-changes.sql',
 ];
 
 export interface MaintenanceSnapshot {
