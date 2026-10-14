@@ -118,11 +118,13 @@ function render(
   ui: AttachmentUi,
   load: () => Promise<Uint8Array<ArrayBuffer>>,
   media = content(),
+  signal?: AbortSignal,
 ) {
   const article = new MediaNode('article');
   ui.render({
     article: article as unknown as HTMLElement,
     content: media,
+    ...(signal ? { signal } : {}),
     view: { id: crypto.randomUUID(), text: '', peer: crypto.randomUUID() },
     load: (_view, thumbnail) => {
       assert.equal(thumbnail, false);
@@ -268,5 +270,47 @@ await test('mensagem de voz mostra só o player e baixa o áudio somente ao toca
   await players[0]?.load();
   assert.equal(loads, 1);
   assert.deepEqual(played, [[1, 2, 3]]);
+  assert.ok(bytes.every((value) => value === 0));
+});
+
+await test('remover uma bolha revoga só seu Blob; as outras imagens continuam carregadas', async (t) => {
+  const { ui, revoked, blobs } = environment(t),
+    stop = new AbortController(),
+    other = new AbortController();
+  render(ui, () => Promise.resolve(png()), content(), stop.signal);
+  const retained = render(
+    ui,
+    () => Promise.resolve(png()),
+    content(),
+    other.signal,
+  );
+  await flush();
+  assert.equal(blobs.length, 2);
+  stop.abort();
+  assert.deepEqual(revoked, ['blob:synthetic-1']);
+  assert.equal(
+    retained.preview.children[0]?.children[0]?.src,
+    'blob:synthetic-2',
+  );
+  ui.clearMedia();
+  assert.deepEqual(revoked, ['blob:synthetic-1', 'blob:synthetic-2']);
+});
+
+await test('exclusão durante download descarta os bytes somente da bolha removida', async (t) => {
+  const { ui, blobs } = environment(t),
+    stop = new AbortController();
+  let finish: (bytes: Uint8Array<ArrayBuffer>) => void = () => {
+    throw new Error('Não iniciado');
+  };
+  const download = new Promise<Uint8Array<ArrayBuffer>>((resolve) => {
+    finish = resolve;
+  });
+  render(ui, () => download, content(), stop.signal);
+  await flush();
+  stop.abort();
+  const bytes = png();
+  finish(bytes);
+  await flush();
+  assert.equal(blobs.length, 0);
   assert.ok(bytes.every((value) => value === 0));
 });

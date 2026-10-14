@@ -31,6 +31,16 @@ export class ChatNode extends CommunityNode {
       }),
     );
   }
+  override prepend(...nodes: (CommunityNode | string)[]): void {
+    super.prepend(
+      ...nodes.map((node) => {
+        if (typeof node !== 'string') return node;
+        const text = new ChatNode('#text');
+        text.textContent = node;
+        return text;
+      }),
+    );
+  }
   insertBefore(node: CommunityNode, before: CommunityNode | null): void {
     if (node === before) return;
     node.remove();

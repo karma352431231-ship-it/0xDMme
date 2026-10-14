@@ -32,3 +32,22 @@ await test('texto, metadados e substituição de janelas respeitam orçamento ag
   assert.ok(cache.read('second'));
   assert.ok(cache.read('third'));
 });
+
+await test('alterações confirmadas invalidam apenas a conversa afetada e avançam as demais', () => {
+  const cache = new ConfirmedConversations<{ text: string }>(),
+    from = { revision: 1 },
+    next = { revision: 2 };
+  const candidate = { ...window(), snapshot: JSON.stringify(from) };
+  cache.remember('affected', { ...candidate });
+  cache.remember('intact', { ...candidate });
+  cache.remember('older', {
+    ...window(),
+    snapshot: JSON.stringify({ revision: 0 }),
+  });
+  const views = cache.read('intact')!.views;
+  cache.advance(from, next, ['affected']);
+  assert.equal(cache.read('affected'), null);
+  assert.equal(cache.read('intact')!.views, views);
+  assert.equal(cache.read('intact')!.snapshot, JSON.stringify(next));
+  assert.equal(cache.read('older')!.snapshot, JSON.stringify({ revision: 0 }));
+});

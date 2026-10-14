@@ -232,3 +232,32 @@ await test('retomada da visão fechada renderiza o histórico completo mesmo qua
   assert.equal(frames.at(-1)?.update, 'history');
   assert.deepEqual(frames.at(-1)?.rows, ['mensagem já validada']);
 });
+
+await test('aviso de exclusão mantém candidatos ocultos durante sondagem; falha descarta e sucesso publica só após confirmar', async () => {
+  const frames: { rows: readonly string[] | null; update: HistoryUpdate }[] =
+    [];
+  const gate = new MessageVisibility<string>((rows, update) =>
+    frames.push({ rows, update }),
+  );
+  const initial = gate.begin();
+  gate.stage(initial, ['intacta', 'apagada']);
+  gate.complete(initial);
+  gate.close('pending');
+  const probe = gate.refresh('delivery');
+  gate.discard(probe);
+  const loading = gate.refresh();
+  gate.stage(loading, ['intacta']);
+  assert.ok(
+    frames
+      .slice(2)
+      .every((frame) => frame.rows === null && frame.update === 'pending'),
+  );
+  await gate.confirm(loading, () => Promise.resolve());
+  assert.deepEqual(frames.at(-1), { rows: ['intacta'], update: 'history' });
+  gate.close('pending');
+  const failed = gate.refresh();
+  await assert.rejects(
+    gate.confirm(failed, () => Promise.reject(new Error('Estado alterado'))),
+  );
+  assert.deepEqual(frames.at(-1), { rows: null, update: 'history' });
+});

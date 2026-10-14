@@ -43,7 +43,7 @@ await test('changed mantém a página em andamento; exclusão cancela e fecha im
   assert.ok(!f.calls.slice(before).includes('abort-direct'));
   f.emit('removed');
   assert.equal(signal.aborted, true);
-  assert.ok(f.calls.includes('hide'));
+  assert.ok(f.calls.includes('removed'));
   f.page.resolve(false);
   await turn();
 });
@@ -175,6 +175,6 @@ await test('queda de conexão e exclusão em hidden fecham a conversa imediatame
   f.lose();
   assert.ok(f.calls.slice(before).includes('pause'));
   f.emit('removed');
-  assert.ok(f.calls.slice(before).includes('hide'));
+  assert.ok(f.calls.slice(before).includes('removed'));
   assert.ok(f.calls.slice(before).includes('suspend-groups'));
 });

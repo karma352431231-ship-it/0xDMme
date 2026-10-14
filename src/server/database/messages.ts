@@ -1,9 +1,10 @@
+import { recordMessageChanges, readMessageChanges } from './message-changes.ts';
+import { messageIndexPage } from './message-index.ts';
 import type { AttachmentStore } from './attachments.ts';
 import type pg from 'pg';
 import { AccountError } from '../../shared/account/index.ts';
 import { canonical, directoryEvent } from '../../shared/devices/index.ts';
 import type { DirectoryEvent } from '../../shared/devices/index.ts';
-import { messagePageSize } from '../../shared/messages/index.ts';
 import type {
   MessagePacket,
   MessageProof,
@@ -143,10 +144,10 @@ export class MessageStore {
           'INSERT INTO hash_talk.message_references(message_id,account_id,device_id) SELECT $1,account,device FROM jsonb_to_recordset($2::jsonb) AS r(account uuid,device uuid)',
           [packet.id, JSON.stringify(references)],
         );
+        await this.bump(client, [packet.sender, packet.recipient], [packet.id]);
         await assertVaultQuota(client, packet.sender);
         await assertVaultQuota(client, packet.recipient);
         await assertContentCapacity(client, this.capacity);
-        await this.bump(client, [packet.sender, packet.recipient]);
         await admitNotification(client, packet);
         return { status: 'accepted', hash };
       },
@@ -252,11 +253,12 @@ export class MessageStore {
     )
       throw new AccountError(404, 'Mensagem indisponível.');
   }
-  private async bump(client: pg.PoolClient, accounts: string[]): Promise<void> {
-    await client.query(
-      'INSERT INTO hash_talk.message_heads(account_id,revision) SELECT unnest($1::uuid[]),1 ON CONFLICT(account_id) DO UPDATE SET revision=hash_talk.message_heads.revision+1',
-      [accounts.sort()],
-    );
+  private async bump(
+    client: pg.PoolClient,
+    accounts: string[],
+    ids: string[],
+  ): Promise<void> {
+    await recordMessageChanges(client, accounts, ids);
     this.contacts.changed(client, accounts);
   }
   async remove(
@@ -273,8 +275,8 @@ export class MessageStore {
         throw new AccountError(409, 'Conteúdo da exclusão divergente.');
       if (!row.body) return;
       // One original and at most 64 related actions; all automatic copies leave together.
-      await client.query(
-        "UPDATE hash_talk.message_packets SET body=NULL,deletion=$2::jsonb,queue_active=false,sender_charge=$3,recipient_charge=$3,charge=$3,deletion_revision=$4,deletion_account=$5 WHERE (id=$1 OR relation->>'id'=$1::text) AND body IS NOT NULL",
+      const changed = await client.query<{ id: string }>(
+        "UPDATE hash_talk.message_packets SET body=NULL,deletion=$2::jsonb,queue_active=false,sender_charge=$3,recipient_charge=$3,charge=$3,deletion_revision=$4,deletion_account=$5 WHERE (id=$1 OR relation->>'id'=$1::text) AND body IS NOT NULL RETURNING id",
         [
           id,
           JSON.stringify(proof),
@@ -295,7 +297,11 @@ export class MessageStore {
         "UPDATE hash_talk.message_attachments SET status='deleting' WHERE message_id=$1 AND status='accepted'",
         [id],
       );
-      await this.bump(client, [row.sender, row.recipient]);
+      await this.bump(
+        client,
+        [row.sender, row.recipient],
+        changed.rows.map((item) => item.id),
+      );
       this.contacts.removed(client, [row.sender, row.recipient]);
     });
   }
@@ -381,35 +387,16 @@ export class MessageStore {
   ): Promise<{ items: unknown[]; next: number | null }> {
     return this.contacts.withMessageAuthority(authority, async (client) => {
       await this.expect(client, authority, input.snapshot);
-      const result = await client.query<{
-        id: string;
-        sender: string;
-        recipient: string;
-        sequence: string;
-        hash: string;
-        deleted: boolean;
-        deletion: MessageProof | null;
-        queue_active: boolean;
-        status: string | null;
-      }>(
-        `SELECT m.id,m.kind,m.sender,m.recipient,m.sequence::text,m.hash,m.relation,m.deletion_account,(m.body IS NULL OR pr.id IS NOT NULL) AS deleted,m.deletion,pr.id AS removal_id,pr.hash AS removal_hash,pr.proof AS removal,pr.sequence::text AS removal_sequence,m.sender_revision,m.recipient_revision,m.queue_active,r.status FROM hash_talk.message_packets m LEFT JOIN LATERAL (SELECT * FROM hash_talk.personal_removals pr WHERE pr.account_id=$1 AND pr.kind='message' AND pr.id IN (m.id,(m.relation->>'id')::uuid) ORDER BY (pr.id=m.id) DESC LIMIT 1) pr ON true LEFT JOIN hash_talk.message_references r ON r.message_id=m.id AND r.account_id=$1 AND r.device_id=$2 WHERE (m.sender=$1 OR m.recipient=$1) AND m.sequence>$3 ORDER BY m.sequence LIMIT $4`,
-        [
-          authority.session.accountId,
-          authority.session.deviceId,
-          input.after,
-          messagePageSize + 1,
-        ],
-      );
-      const items = result.rows
-        .slice(0, messagePageSize)
-        .map((r) => ({ ...r, sequence: Number(r['sequence']) }));
-      return {
-        items,
-        next:
-          result.rows.length > messagePageSize
-            ? Number(items.at(-1)?.sequence)
-            : null,
-      };
+      return messageIndexPage(client, authority, input.after);
+    });
+  }
+  async changes(
+    authority: ContactAuthority,
+    range: { from: MessageSnapshot; snapshot: MessageSnapshot },
+  ) {
+    return this.contacts.withMessageAuthority(authority, async (client) => {
+      await this.expect(client, authority, range.snapshot);
+      return readMessageChanges(client, authority, range);
     });
   }
   async relations(

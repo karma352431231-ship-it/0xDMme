@@ -167,6 +167,10 @@ export function coordinatorFixture(t: TestContext) {
         calls.push('pause');
         publish(null);
       },
+      removed: () => {
+        calls.push('removed');
+        publish(null);
+      },
       hide: () => {
         calls.push('hide');
         publish(null);

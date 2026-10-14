@@ -1,3 +1,4 @@
+import { recordMessageChanges } from './message-changes.ts';
 import type pg from 'pg';
 import { AccountError } from '../../shared/account/index.ts';
 import { cleanupSelection } from '../../shared/backups/index.ts';
@@ -74,11 +75,7 @@ export class BackupStore {
       let changed = false;
       for (const item of selection.items)
         changed = (await this.removeOne(c, a, item, proof)) || changed;
-      if (changed)
-        await c.query(
-          'INSERT INTO hash_talk.message_heads(account_id,revision) VALUES($1,1) ON CONFLICT(account_id) DO UPDATE SET revision=hash_talk.message_heads.revision+1',
-          [a.session.accountId],
-        );
+      if (changed) await recordMessageChanges(c, [a.session.accountId], null);
       await assertContentCapacity(c, this.capacity);
       const used = await vaultUsage(c, a.session.accountId);
       const receipts = await c.query<{

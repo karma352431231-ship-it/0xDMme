@@ -256,7 +256,7 @@ export function startMessages(
       if (event === 'authorization') void checkVoiceAuthority();
       hideLiveHistory(event);
       requestRefresh(
-        event === 'changed' || event === 'ready' ? 'probe' : 'refresh',
+        ['changed', 'ready', 'removed'].includes(event) ? 'probe' : 'refresh',
       );
     },
   });
@@ -361,7 +361,7 @@ export function startMessages(
     else if (event === 'removed') {
       // Cancel the history token immediately without cancelling an in-flight
       // signed mutation (the sender receives its own deletion before its reply).
-      controller.hide();
+      controller.removed();
       groups.suspend();
       menu.close();
       searchPanel.close();

@@ -1,3 +1,4 @@
+import { readPrefetchPage } from './prefetch-page.ts';
 import { ConfirmedConversations } from './confirmed-conversations.ts';
 import { knownPeerProfile } from './known-profile.ts';
 import { readBackupWindow } from './backup-window.ts';
@@ -74,7 +75,6 @@ import {
   IncompleteMessageIndex,
   VerifiedWindow,
   MessagePrefetch,
-  assertMessagePage,
   messagePeer,
   verifiedReceipt,
   verifiedReceiptHash,
@@ -220,6 +220,14 @@ export class Messages {
     this.pauseSynchronization();
     this.visibility.close();
   }
+  /** A removal hint carries no IDs. Block content access immediately while
+   * retaining verified candidates for the authenticated incremental response. */
+  removed(): void {
+    this.pauseSynchronization();
+    this.confirmed = null;
+    this.probedSnapshot = null;
+    this.visibility.close('pending');
+  }
   hide(): void {
     this.conversations.clear();
     this.probedSnapshot = null;
@@ -253,6 +261,11 @@ export class Messages {
       ...this.confirmed,
       oldest: this.oldest,
     });
+  }
+  private confirmConversationChanges(snapshot: unknown): void {
+    const changes = this.index.changesFor(snapshot);
+    if (changes)
+      this.conversations.advance(changes.from, changes.snapshot, changes.peers);
   }
   private guard(generation: number): void {
     if (generation !== this.generation)
@@ -821,6 +834,7 @@ export class Messages {
       this.guard(generation);
       this.confirmed = { snapshot: JSON.stringify(staged.snapshot), views };
       this.verified.remember(staged.snapshot, staged.window, staged.views);
+      this.confirmConversationChanges(staged.snapshot);
       this.rememberConversation();
     } catch (error: unknown) {
       if (!(error instanceof IncompleteMessageIndex)) this.index.reset();
@@ -1436,14 +1450,13 @@ export class Messages {
           throw new Error('Conta alterada.');
         const api = (op: string, data: Record<string, unknown>) =>
           messageApi(a, op, data, { guard, signal: combined });
-        const snapshot = await api('snapshot', {}),
-          after = this.prefetch.cursor(snapshot);
-        if (after === null) return false;
-        const page = messageItems(await api('page', { snapshot, after }));
-        assertMessagePage(page, after);
+        const source = await readPrefetchPage(api, this.prefetch);
+        if (!source) return false;
+        const { snapshot, from, delta, page, after } = source;
         const missing: MessageItem[] = [];
         for (const item of page.items) {
           guard();
+          messagePeer(a.session.accountId, item);
           if (item.deleted)
             await this.indexItem({ a, generation, selected: null, api }, item);
           else if (!(await this.readCached(a, snapshot, item)))
@@ -1472,6 +1485,18 @@ export class Messages {
         }
         await api('confirm', { snapshot });
         guard();
+        if (delta) {
+          this.prefetch.finish(snapshot);
+          this.index.rememberChanges({
+            from,
+            snapshot,
+            account: a.session.accountId,
+            selected: this.selected,
+            items: page.items,
+          });
+          this.confirmConversationChanges(snapshot);
+          return false;
+        }
         this.prefetch.commit(snapshot, page);
         this.index.rememberConfirmedPage({
           snapshot,
@@ -1707,18 +1732,21 @@ export class Messages {
     }
   }
   async remove(view: MessageView): Promise<void> {
-    this.close();
-    notifyMessageControls();
+    this.removed();
     const generation = this.generation;
-    await this.access.withVault(false, (a) =>
-      messageApi(
-        a,
-        'delete',
-        { id: view.id, hash: view.hash, revision: a.events.length },
-        () => this.guard(generation),
-      ),
-    );
-    notifyMessageControls();
+    try {
+      await this.access.withVault(false, (a) =>
+        messageApi(
+          a,
+          'delete',
+          { id: view.id, hash: view.hash, revision: a.events.length },
+          () => this.guard(generation),
+        ),
+      );
+    } catch (error: unknown) {
+      if (generation === this.generation) this.hide();
+      throw error;
+    }
   }
   async search(query: string, after: string | null) {
     const generation = this.generation,

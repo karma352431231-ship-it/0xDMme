@@ -239,3 +239,77 @@ await test('histórico grande continua o índice parcialmente conferido ao retom
   assert.equal(data.frames.at(-1)?.length, 16);
   assert.equal(data.frames.at(-1)?.[0]?.text, 'Fictícia 128');
 });
+
+await test('editar uma mensagem consulta só o delta, reutiliza conteúdo e conserva a outra conversa confirmada', async () => {
+  const { controller, data, add, peer } = resumeFixture(),
+    other = crypto.randomUUID();
+  const original = await add('Original');
+  await add('Intacta');
+  await add('Outra conversa', other);
+  await controller.synchronize();
+  controller.select(other);
+  await controller.synchronize();
+  controller.select(peer);
+  assert.equal(await controller.probe(), false);
+  await controller.synchronize();
+  data.snapshot.revision++;
+  const edit = await add('Versão editada', peer, {
+    id: original.id,
+    hash: original.hash,
+    author: peer,
+    type: 'edit',
+  });
+  data.changes = [edit];
+  const before = data.requests.length,
+    reads = data.cacheReads.length;
+  controller.hint();
+  assert.equal(await controller.probe(), true);
+  await controller.synchronize();
+  assert.ok(data.requests.slice(before).includes('changes'));
+  assert.ok(!data.requests.slice(before).includes('page'));
+  assert.deepEqual(data.cacheReads.slice(reads), [`cache:${edit.id}`]);
+  assert.equal(data.frames.at(-1)?.length, 3);
+  controller.select(other);
+  const navigation = data.requests.length;
+  assert.equal(await controller.probe(), false);
+  assert.deepEqual(data.requests.slice(navigation), [
+    'snapshot',
+    'delivery',
+    'confirm',
+  ]);
+  assert.equal(data.frames.at(-1)?.[0]?.text, 'Outra conversa');
+});
+
+await test('preparação completa consulta apenas alterações e não relê mensagens intactas', async () => {
+  const { controller, data, add } = resumeFixture();
+  await add('Preservada');
+  controller.select(null);
+  const signal = new AbortController().signal;
+  await controller.synchronizeAll(signal);
+  data.snapshot.revision++;
+  const added = await add('Nova');
+  data.changes = [added];
+  const before = data.requests.length,
+    reads = data.cacheReads.length;
+  await controller.synchronizeAll(signal);
+  assert.deepEqual(data.requests.slice(before), [
+    'snapshot',
+    'changes',
+    'confirm',
+  ]);
+  assert.deepEqual(data.cacheReads.slice(reads), [`cache:${added.id}`]);
+});
+
+await test('falha ao apagar mantém o gate fechado e descarta os candidatos retidos', async () => {
+  const { controller, data, add } = resumeFixture();
+  await add('Confirmada');
+  await controller.synchronize();
+  const view = data.frames.at(-1)![0]!;
+  data.failure = 'delete';
+  await assert.rejects(controller.remove(view), /Sem autorização/);
+  assert.equal(data.frames.at(-1), null);
+  data.failure = null;
+  assert.equal(await controller.probe(), true);
+  await controller.synchronize();
+  assert.equal(data.requests.filter((op) => op === 'page').length, 2);
+});

@@ -28,6 +28,7 @@ import pg from 'pg';
 import { Wallet } from 'ethers';
 import { createWebServer } from '../../src/server/web-host/index.ts';
 import { Database } from '../../src/server/database/index.ts';
+import { recordMessageChanges } from '../../src/server/database/message-changes.ts';
 import {
   AccountService,
   createAccountHandler,
@@ -1981,7 +1982,23 @@ await test('mensagens persistentes: Olm/Megolm, recuperação, idempotência, ex
             ),
             { status: 409 },
           );
+          const beforeEdit = await op(eve, 'snapshot');
           await send(edited);
+          const afterEdit = await op(eve, 'snapshot');
+          const editChanges = object(
+            await op(eve, 'changes', { from: beforeEdit, snapshot: afterEdit }),
+          );
+          assert.equal(editChanges['reset'], false);
+          assert.deepEqual(
+            messageItems(editChanges, 256).items.map((item) => item.id),
+            [edited.id],
+          );
+          await send(edited);
+          assert.deepEqual(
+            await op(eve, 'snapshot'),
+            afterEdit,
+            'retry não acrescenta revisão',
+          );
           const reaction = await em.encrypt({
             authority: await authority(eve),
             peerHistory: dana.events,
@@ -2011,11 +2028,75 @@ await test('mensagens persistentes: Olm/Megolm, recuperação, idempotência, ex
             JSON.stringify(storage.rows).includes('Texto editado privado'),
             false,
           );
+          const beforeDelete = await op(eve, 'snapshot');
           await op(dana, 'delete', {
             id: p.id,
             hash: ph,
             revision: dana.events.length,
           });
+          const afterDelete = await op(eve, 'snapshot');
+          const deleteChanges = object(
+            await op(eve, 'changes', {
+              from: beforeDelete,
+              snapshot: afterDelete,
+            }),
+          );
+          assert.equal(deleteChanges['reset'], false);
+          const removedItems = messageItems(deleteChanges, 256).items;
+          assert.deepEqual(
+            new Set(removedItems.map((item) => item.id)),
+            new Set([p.id, edited.id, reaction.id]),
+          );
+          for (const item of removedItems) {
+            assert.equal(item.deleted, true);
+            await verifyDeletion(item, dana.events);
+          }
+          await op(dana, 'delete', {
+            id: p.id,
+            hash: ph,
+            revision: dana.events.length,
+          });
+          assert.deepEqual(await op(eve, 'snapshot'), afterDelete);
+          const current = object(afterDelete),
+            old = object(beforeDelete);
+          for (const from of [
+            { ...old, contacts: Number(old['contacts']) + 1 },
+            { ...old, directory: '0'.repeat(64) },
+            { ...current, revision: Number(current['revision']) + 1 },
+          ])
+            assert.deepEqual(
+              await op(eve, 'changes', { from, snapshot: afterDelete }),
+              { reset: true },
+            );
+          await assert.rejects(
+            op(eve, 'changes', { from: beforeEdit, snapshot: afterEdit }),
+            { status: 409 },
+          );
+          const journal = await inspector.query(
+            'SELECT * FROM hash_talk.message_changes WHERE account_id=$1 AND revision=$2',
+            [eve.session.accountId, current['revision']],
+          );
+          await inspector.query(
+            'DELETE FROM hash_talk.message_changes WHERE account_id=$1 AND revision=$2',
+            [eve.session.accountId, current['revision']],
+          );
+          assert.deepEqual(
+            await op(eve, 'changes', {
+              from: beforeDelete,
+              snapshot: afterDelete,
+            }),
+            { reset: true },
+          );
+          const entry = journal.rows[0] as {
+            account_id: string;
+            revision: string;
+            ids: string[];
+            charge: number;
+          };
+          await inspector.query(
+            'INSERT INTO hash_talk.message_changes(account_id,revision,ids,charge) VALUES($1,$2,$3,$4)',
+            [entry.account_id, entry.revision, entry.ids, entry.charge],
+          );
           await assert.rejects(
             op(eve, 'object', {
               id: edited.id,
@@ -2043,6 +2124,80 @@ await test('mensagens persistentes: Olm/Megolm, recuperação, idempotência, ex
             [p.id],
           );
           assert.equal(reads.rowCount, 0);
+        },
+      );
+      await dailyTest.test(
+        'diário limita revisões, cobra metadados e recusa cursor antigo, limpeza e transação desfeita',
+        async () => {
+          const before = object(await op(dana, 'snapshot')),
+            account = dana.session.accountId,
+            contactAuthority = {
+              session: dana.session,
+              directory: (await authority(dana)).directory,
+            };
+          await db.contacts.withMessageAuthority(
+            contactAuthority,
+            async (client) => {
+              for (let i = 0; i < 258; i++)
+                await recordMessageChanges(
+                  client,
+                  [account, account],
+                  [p.id, p.id],
+                );
+            },
+          );
+          const current = object(await op(dana, 'snapshot'));
+          assert.equal(
+            Number(current['revision']) - Number(before['revision']),
+            258,
+          );
+          const rows = await inspector.query<{
+            count: string;
+            bytes: string;
+            span: string;
+          }>(
+            'SELECT count(*)::text AS count,sum(charge)::text AS bytes,(max(revision)-min(revision))::text AS span FROM hash_talk.message_changes WHERE account_id=$1',
+            [account],
+          );
+          assert.deepEqual(rows.rows, [
+            { count: '256', bytes: String(256 * 528), span: '255' },
+          ]);
+          assert.deepEqual(
+            await op(dana, 'changes', { from: before, snapshot: current }),
+            { reset: true },
+          );
+          const retained = object(
+            await op(dana, 'changes', {
+              from: { ...current, revision: Number(current['revision']) - 256 },
+              snapshot: current,
+            }),
+          );
+          assert.equal(retained['reset'], false);
+          assert.deepEqual(
+            messageItems(retained, 256).items.map((item) => item.id),
+            [p.id],
+          );
+          await assert.rejects(
+            db.contacts.withMessageAuthority(
+              contactAuthority,
+              async (client) => {
+                await recordMessageChanges(client, [account], [p.id]);
+                throw new Error('Rollback sintético');
+              },
+            ),
+            /Rollback sintético/,
+          );
+          assert.deepEqual(await op(dana, 'snapshot'), current);
+          await db.contacts.withMessageAuthority(contactAuthority, (client) =>
+            recordMessageChanges(client, [account], null),
+          );
+          assert.deepEqual(
+            await op(dana, 'changes', {
+              from: current,
+              snapshot: await op(dana, 'snapshot'),
+            }),
+            { reset: true },
+          );
         },
       );
       await dailyTest.test(

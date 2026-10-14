@@ -1,3 +1,4 @@
+import { readMessageDelta } from './delta.ts';
 import { object } from '../../shared/account/index.ts';
 import { canonical, fingerprint } from '../../shared/devices/index.ts';
 import { messageItems } from './history.ts';
@@ -15,6 +16,7 @@ export class IncompleteMessageIndex extends Error {
 
 interface Scan {
   identity: string;
+  snapshot: unknown;
   selected: string | null;
   after: number;
   complete: boolean;
@@ -30,8 +32,14 @@ interface Scan {
  * Nothing becomes visible before all deletions in the snapshot are checked. */
 export class MessageIndex {
   private scan: Scan | null = null;
+  private transition: {
+    from: unknown;
+    snapshot: unknown;
+    peers: string[];
+  } | null = null;
   reset(): void {
     this.scan = null;
+    this.transition = null;
   }
   async read(c: {
     snapshot: unknown;
@@ -41,6 +49,7 @@ export class MessageIndex {
     api: Api;
     deleted: (item: MessageItem) => Promise<void>;
   }): Promise<MessageItem[]> {
+    await this.advance(c);
     const scan = this.start(c);
     const deadline = Date.now() + 45000;
     for (
@@ -80,6 +89,82 @@ export class MessageIndex {
     scan.after = c.page.next ?? c.page.items.at(-1)?.sequence ?? scan.after;
     scan.complete = c.page.next === null;
   }
+  private async advance(c: {
+    snapshot: unknown;
+    account: string;
+    selected: string | null;
+    before: number | null;
+    api: Api;
+    deleted: (item: MessageItem) => Promise<void>;
+  }): Promise<void> {
+    const scan = this.scan;
+    if (
+      !scan?.complete ||
+      c.before !== null ||
+      scan.overflow ||
+      scan.identity === canonical([c.snapshot, c.account, c.before])
+    )
+      return;
+    const expected = canonical([scan.snapshot, c.account, null]);
+    if (scan.identity !== expected) return;
+    const items = await readMessageDelta(c.api, scan.snapshot, c.snapshot);
+    if (items === null) return;
+    for (const item of items) {
+      messagePeer(c.account, item);
+      if (item.deleted) await c.deleted(item);
+    }
+    this.rememberChanges({ ...c, from: scan.snapshot, items });
+  }
+  /** Called only after the background reader has verified removals, durable
+   * packet writes/receipts and the current snapshot's final confirmation. */
+  rememberChanges(c: {
+    from: unknown;
+    snapshot: unknown;
+    account: string;
+    selected: string | null;
+    items: MessageItem[];
+  }): void {
+    const scan = this.scan;
+    if (
+      !scan?.complete ||
+      scan.overflow ||
+      scan.identity !== canonical([c.from, c.account, null])
+    )
+      return;
+    const updated: Scan = {
+      ...scan,
+      identity: canonical([c.snapshot, c.account, null]),
+      snapshot: c.snapshot,
+      windows: new Map(
+        [...scan.windows].map(([peer, window]) => [
+          peer,
+          { items: [...window.items], profiles: new Map(window.profiles) },
+        ]),
+      ),
+    };
+    for (const item of c.items) {
+      const peer = messagePeer(c.account, item),
+        window = updated.windows.get(peer);
+      if (window) {
+        const before = window.items.length;
+        window.items = window.items.filter((row) => row.id !== item.id);
+        updated.count -= before - window.items.length;
+      }
+      this.collect(updated, { ...c, before: null }, item);
+    }
+    this.scan = updated;
+    this.transition = {
+      from: c.from,
+      snapshot: c.snapshot,
+      peers: [...new Set(c.items.map((item) => messagePeer(c.account, item)))],
+    };
+  }
+  changesFor(snapshot: unknown) {
+    return this.transition &&
+      canonical(this.transition.snapshot) === canonical(snapshot)
+      ? this.transition
+      : null;
+  }
   private start(c: {
     snapshot: unknown;
     account: string;
@@ -90,9 +175,11 @@ export class MessageIndex {
     if (
       this.scan?.identity !== identity ||
       (this.scan.overflow && this.scan.selected !== c.selected)
-    )
+    ) {
+      this.transition = null;
       this.scan = {
         identity,
+        snapshot: c.snapshot,
         selected: c.selected,
         after: 0,
         complete: false,
@@ -100,6 +187,7 @@ export class MessageIndex {
         count: 0,
         overflow: false,
       };
+    }
     return this.scan;
   }
   private window(scan: Scan, selected: string | null): MessageItem[] {
@@ -153,10 +241,12 @@ function collectWindow(
   item: MessageItem,
 ): void {
   if (item.kind === 'profile') {
-    window.profiles.set(item.sender, item);
+    if ((window.profiles.get(item.sender)?.sequence ?? 0) <= item.sequence)
+      window.profiles.set(item.sender, item);
     return;
   }
   if (!window.items.some((old) => old.id === item.id)) window.items.push(item);
+  window.items.sort((a, b) => a.sequence - b.sequence);
   if (window.items.length > 16) window.items.shift();
 }
 export function assertMessagePage(
@@ -270,10 +360,21 @@ export function verifiedReceiptHash(
 /** Commits a page cursor only after its durable writes, receipts and confirmation.
  * Cancellation/retry revisits the same page; a different snapshot restarts it. */
 export class MessagePrefetch {
+  private snapshot: unknown = null;
+  get completedSnapshot(): unknown {
+    return this.complete ? this.snapshot : null;
+  }
+  finish(snapshot: unknown): void {
+    this.snapshot = snapshot;
+    this.identity = canonical(snapshot);
+    this.after = 0;
+    this.complete = true;
+  }
   private identity = '';
   private after = 0;
   private complete = false;
   reset(): void {
+    this.snapshot = null;
     this.identity = '';
     this.after = 0;
     this.complete = false;
@@ -281,6 +382,7 @@ export class MessagePrefetch {
   cursor(snapshot: unknown): number | null {
     const identity = canonical(snapshot);
     if (identity !== this.identity) {
+      this.snapshot = snapshot;
       this.identity = identity;
       this.after = 0;
       this.complete = false;

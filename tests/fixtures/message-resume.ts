@@ -94,6 +94,7 @@ export function resumeFixture() {
     snapshot: { revision: 1, contacts: 1, directory: 'b'.repeat(64) },
     items: [] as MessageItem[],
     records: new Map<string, unknown>(),
+    changes: null as MessageItem[] | null,
     cacheReads: [] as string[],
     requests: [] as string[],
     failure: null as string | null,
@@ -151,6 +152,55 @@ export function resumeFixture() {
       }),
     );
   };
+  const requestBody = (input?: RequestInit): string => {
+    if (typeof input?.body !== 'string') throw new Error('Pedido ausente.');
+    return input.body;
+  };
+  const changesResponse = (input?: RequestInit): Promise<Response> => {
+    if (data.changes === null)
+      return Promise.resolve(Response.json({ reset: true }));
+    const body = JSON.parse(requestBody(input)) as {
+      payload: { from: unknown; snapshot: unknown };
+    };
+    return Promise.resolve(
+      Response.json({
+        reset: false,
+        ...body.payload,
+        items: data.changes,
+        next: null,
+      }),
+    );
+  };
+  const relationsResponse = (input?: RequestInit): Promise<Response> => {
+    const body = JSON.parse(requestBody(input)) as {
+      payload: { ids: string[] };
+    };
+    return Promise.resolve(
+      Response.json({
+        items: data.items.filter(
+          (item) =>
+            item.relation &&
+            body.payload.ids.includes(item.relation.id) &&
+            !item.deleted,
+        ),
+        next: null,
+      }),
+    );
+  };
+  const pageResponse = (input?: RequestInit): Promise<Response> => {
+    if (typeof input?.body !== 'string') throw new Error('Página ausente.');
+    const body = JSON.parse(input.body) as { payload: { after: number } };
+    const remaining = data.items.filter(
+      (item) => item.sequence > body.payload.after,
+    );
+    const items = remaining.slice(0, 16);
+    return Promise.resolve(
+      Response.json({
+        items,
+        next: remaining.length > 16 ? items.at(-1)!.sequence : null,
+      }),
+    );
+  };
   const respond = (path: string, input?: RequestInit): Promise<Response> => {
     const operation = path.split('/').at(-1)!;
     data.requests.push(operation);
@@ -160,22 +210,9 @@ export function resumeFixture() {
       );
     if (operation === 'snapshot')
       return Promise.resolve(Response.json(data.snapshot));
-    if (operation === 'page') {
-      if (typeof input?.body !== 'string') throw new Error('Página ausente.');
-      const body = JSON.parse(input.body) as { payload: { after: number } };
-      const remaining = data.items.filter(
-        (item) => item.sequence > body.payload.after,
-      );
-      const items = remaining.slice(0, 16);
-      return Promise.resolve(
-        Response.json({
-          items,
-          next: remaining.length > 16 ? items.at(-1)!.sequence : null,
-        }),
-      );
-    }
-    if (operation === 'relations')
-      return Promise.resolve(Response.json({ items: [], next: null }));
+    if (operation === 'changes') return changesResponse(input);
+    if (operation === 'page') return pageResponse(input);
+    if (operation === 'relations') return relationsResponse(input);
     if (operation === 'delivery')
       return Promise.resolve(
         Response.json(
@@ -219,12 +256,17 @@ export function resumeFixture() {
   );
   controller.setSession(session);
   controller.select(peer);
-  const add = async (text: string, from = peer) => {
+  const add = async (
+    text: string,
+    from = peer,
+    relation?: MessageItem['relation'],
+  ) => {
     const item: MessageItem = {
       id: crypto.randomUUID(),
       kind: 'text',
       sender: from,
       recipient: session.accountId,
+      ...(relation ? { relation } : {}),
       sequence: data.items.length + 1,
       hash: 'c'.repeat(64),
       deleted: false,

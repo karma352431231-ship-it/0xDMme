@@ -1,3 +1,4 @@
+import { canonical } from '../../shared/devices/index.ts';
 interface ConversationView {
   text: string;
 }
@@ -24,6 +25,25 @@ export class ConfirmedConversations<T extends ConversationView> {
     this.bytes = 0;
     this.rows = 0;
   }
+  advance(from: unknown, snapshot: unknown, peers: readonly string[]): void {
+    const affected = new Set(peers);
+    for (const [peer, window] of this.windows) {
+      if (
+        canonical(JSON.parse(window.value.snapshot) as unknown) !==
+        canonical(from)
+      )
+        continue;
+      if (affected.has(peer)) this.remove(peer);
+      else {
+        const next = JSON.stringify(snapshot),
+          change = (next.length - window.value.snapshot.length) * 2;
+        window.value.snapshot = next;
+        window.bytes += change;
+        this.bytes += change;
+      }
+    }
+    this.trim();
+  }
   read(peer: string): ConfirmedConversation<T> | null {
     const window = this.windows.get(peer);
     if (!window) return null;
@@ -41,6 +61,9 @@ export class ConfirmedConversations<T extends ConversationView> {
     this.windows.set(peer, { value, bytes });
     this.bytes += bytes;
     this.rows += value.views.length;
+    this.trim();
+  }
+  private trim(): void {
     while (
       this.windows.size > 16 ||
       this.bytes > 8 * 1024 * 1024 ||
