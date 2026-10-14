@@ -7,8 +7,8 @@ export const catalog: Record<string, readonly [string, string]> = {
   'community.topics.filter': ['Filter by topic', '按主题筛选'],
   'Invalid publication mode.': ['Invalid publication mode.', '发布模式无效。'],
   'community.content-policy': [
-    'Mark your community NSFW if it will contain sexually explicit content, including AI-generated images or drawings. Keep explicit content out of unmarked communities. Automatic content analysis is temporarily paused; violations are handled manually.',
-    '如果社区将包含露骨色情内容（包括 AI 生成的图片或绘画），请将其标记为 NSFW。未标记的社区不得发布露骨内容。自动内容分析已暂时停用，违规行为将由人工处理。',
+    'Mark your community NSFW if it will contain sexually explicit content, including AI-generated images or drawings. Keep explicit content out of unmarked communities.',
+    '如果社区将包含露骨色情内容（包括 AI 生成的图片或绘画），请将其标记为 NSFW。未标记的社区不得发布露骨内容。',
   ],
   'community.nsfw.label': ['NSFW · Explicit content', 'NSFW · 露骨内容'],
   'community.nsfw.hint': [

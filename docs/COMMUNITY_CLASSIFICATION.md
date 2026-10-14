@@ -27,6 +27,11 @@ Existing local governance, access checks, upload validation, preparation, hashes
 quotas, deletion and retention of already published content remain in force.
 No new service, inference provider, dependency or model training is approved.
 
+The owner requested removing the analysis-pause/manual-handling sentence from
+the community creation notice in both official languages. The notice retains
+the NSFW declaration and unmarked-community content rule. This copy update
+does not change the paused publication lifecycle or operational policy.
+
 New public uploads are released with `publication_mode=unreviewed`, without an
 automatic verdict, model identity, scanned frame count or invented operator review.
 The existing internal approved state records publication availability; the UI

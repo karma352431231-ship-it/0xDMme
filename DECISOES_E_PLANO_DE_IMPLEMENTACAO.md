@@ -1963,6 +1963,8 @@ automatic publication gate for this pause. Preserve access, upload integrity,
 quotas, historical decisions/deadlines and the exclusion of E2EE content.
 The owner subsequently requested a collapsed topic selector during creation,
 with only owner-selected topics shown on the community profile and hover card.
+The owner then requested removing the analysis-pause/manual-handling sentence
+from the creation notice in both languages and publishing this copy change on the VPS.
 Implementation and release contract: [community classification](docs/COMMUNITY_CLASSIFICATION.md).
 
 **Ponto importante:** new uploads carry explicit unreviewed publication evidence.

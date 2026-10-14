@@ -1,5 +1,14 @@
 # 0xDMme — Git e envio à VPS
 
+## Community notice copy update — activation requested on 14/10/2026
+
+Remove the automatic-analysis pause/manual-handling sentence from the creation
+notice in English and Simplified Chinese. This is a catalog and documentation
+release from published `6a60137`; preserve all backend/database sources,
+migrations, dependencies, model configuration and installed units. Require
+exact-commit CI and use the existing `npm run deploy:staging` executor with its
+local build, preservation, readiness and rollback checks.
+
 ## Community classification and publication pause — prepared on 14/10/2026
 
 The owner requested NSFW declarations for newly created communities, immutable
