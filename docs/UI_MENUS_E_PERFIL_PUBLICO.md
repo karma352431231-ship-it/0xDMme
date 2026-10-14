@@ -2,7 +2,8 @@
 
 Owner-requested presentation update on 14/10/2026. English and Simplified Chinese
 are required for all new app-facing copy. No database, authentication, account
-identity, retention or deployment change is part of this request.
+identity or retention change is part of this request. The owner subsequently
+requested integration and VPS activation under the existing release process.
 
 ## Participation Invitation
 
@@ -55,4 +56,7 @@ and rerun startup/navigation, community lifecycle and guest/connected browser
 flows after each reviewed extraction.
 
 **Ponto importante:** implementation and branch delivery do not activate a VPS
-release. Physical touch-device acceptance remains separate from viewport tests.
+release. Activation was explicitly authorized on 14/10/2026; follow the
+[release contract](GIT_E_DEPLOY.md#public-profile-invitation-and-menu-release-authorized-on-14102026)
+and confirm the publication receipt. Physical touch-device acceptance remains
+separate from viewport tests.

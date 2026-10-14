@@ -1,5 +1,26 @@
 # 0xDMme — Git e envio à VPS
 
+## Public Profile Invitation and Menu Release Authorized on 14/10/2026
+
+The owner explicitly requested VPS activation of `codex/public-profile-menu-polish`.
+Integrate the reviewed application commit `455e4dc` into `main`, preserving the
+published `bea1d1b` release and unrelated work. Include the bilingual public-profile
+invitation, matching contact actions, mobile menu placement and outside-click/Escape
+dismissal. Editors, confirmations, drafts and explicit public-profile creation keep
+their existing behavior. See [UI contract](UI_MENUS_E_PERFIL_PUBLICO.md).
+
+Use only `npm run deploy:staging` from the clean, integrated, pushed commit with
+passing exact-commit CI and a locally prepared build. Confirm the expected live
+predecessor, unchanged database sources and migration checksums, runtime,
+dependencies, own configuration and other project before and after activation.
+Keep access, baselines, artifacts and operational receipts exclusively in `.local/`.
+Reuse the existing preservation, readiness and rollback checks; no new executor,
+SQL migration, data reset, shared-service change or recovery-format change is included.
+
+**Ponto importante:** approval and source synchronization do not confirm activation.
+Require a published receipt, verified public asset hashes and healthy own services.
+Synthetic authenticated-browser tests do not replace physical-device acceptance.
+
 ## Wallet Entry and Recovery Language Release Authorized on 14/10/2026
 
 The owner approved a more compact device-code field, integration of
