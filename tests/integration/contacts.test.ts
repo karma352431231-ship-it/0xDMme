@@ -33,26 +33,31 @@ await test('contatos persistentes: descoberta, consentimento, bloqueio, ausênci
     throw new Error('Banco exclusivo de testes necessário.');
   const database = new Database(config.databaseUrl),
     inspector = new pg.Client({ connectionString: config.databaseUrl });
-  const origin = 'http://127.0.0.1:45118',
-    account = new AccountService({ store: database.authentication, origin }),
-    devices = new DeviceService(database.devices),
+  // The port is chosen by the OS, so parallel jobs cannot collide on it.
+  let origin = 'http://127.0.0.1';
+  let handler: ReturnType<typeof createAccountHandler> | null = null;
+  const devices = new DeviceService(database.devices),
     contacts = new ContactService(database.contacts, database.devices);
   const host = createWebServer({
-    origin,
+    get origin() {
+      return origin;
+    },
     database,
     assets: new Map(),
     objects: { healthy: () => Promise.resolve(true) },
-    account: createAccountHandler({
-      origin,
-      service: account,
-      devices,
-      contacts,
-    }),
+    account: {
+      handle: async (request, response) => {
+        assert.ok(handler);
+        await handler.handle(request, response);
+      },
+      close: () => handler?.close(),
+    },
   });
   const ids: string[] = [];
   t.after(async () => {
     try {
       if (host.server.listening) await host.close();
+      else handler?.close();
       if (ids.length === 0) return;
       await inspector.query('BEGIN');
       await inspector.query(
@@ -85,10 +90,23 @@ await test('contatos persistentes: descoberta, consentimento, bloqueio, ausênci
   await inspector.connect();
   await new Promise<void>((resolve, reject) => {
     host.server.once('error', reject);
-    host.server.listen(45118, '127.0.0.1', () => {
+    host.server.listen(0, '127.0.0.1', () => {
       host.server.off('error', reject);
       resolve();
     });
+  });
+  const address = host.server.address();
+  assert.ok(address && typeof address !== 'string');
+  origin = `http://127.0.0.1:${address.port}`;
+  const account = new AccountService({
+    store: database.authentication,
+    origin,
+  });
+  handler = createAccountHandler({
+    origin,
+    service: account,
+    devices,
+    contacts,
   });
   async function create(authorized = true, wallet = Wallet.createRandom()) {
     const challenge = await account.challenge({

@@ -15,6 +15,11 @@ from the clean, pushed `main` with passing exact-commit CI and a locally prepare
 build, with the existing preservation, readiness and rollback checks. Access,
 baselines, artifacts and receipts stay in `.local/`.
 
+The first CI run of `b8488c5` failed only in the contacts integration test with
+`EADDRINUSE` on its fixed port 45118. The test now listens on an OS-chosen port
+with the matching origin, like the other integration tests; it passed locally
+against the test database. No application source changed for this fix.
+
 **Ponto importante:** creating a community with images was not exercised with a
 real account before release; confirm it after activation. A push alone does not
 confirm activation; require the receipt and verified public asset hashes.
