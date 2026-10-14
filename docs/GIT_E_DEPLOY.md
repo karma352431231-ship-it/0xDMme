@@ -1,5 +1,24 @@
 # 0xDMme — Git e envio à VPS
 
+## Community Creation Images Release Authorized on 14/10/2026
+
+The owner asked to put `claude/community-create-media` on `main` and activate it
+on the VPS. It fast-forwards `main` from the published `f71905b` with the split
+screen fix for the create button and "⋯", optional banner and photo when creating
+a community, and the clearer create form. See
+[UI decision](UI_PAINEIS_E_TEMAS.md#fixes-and-create-form--14102026-later-the-same-day).
+
+Frontend release: the server keeps the existing `create` and `presentation`
+operations; backend, SQL migrations, dependencies, Node, detector, units and
+infrastructure keep the sources of `f71905b`. Use only `npm run deploy:staging`
+from the clean, pushed `main` with passing exact-commit CI and a locally prepared
+build, with the existing preservation, readiness and rollback checks. Access,
+baselines, artifacts and receipts stay in `.local/`.
+
+**Ponto importante:** creating a community with images was not exercised with a
+real account before release; confirm it after activation. A push alone does not
+confirm activation; require the receipt and verified public asset hashes.
+
 ## Ping Character and Chinese Line Breaks Release Authorized on 14/10/2026
 
 The owner asked to push `claude/ping-character`, make `main` the integrated
