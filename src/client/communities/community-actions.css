@@ -3,11 +3,17 @@
  * that matches the filter chips, and a floating button to create a community.
  * Full page: a filled blue button. Beside Contacts, whose "+" is already the
  * filled blue action, it is outlined so the two do not compete. Phones keep
- * Post as their floating action and create from the "⋯" menu.
+ * Post as their floating action and create from the "⋯" menu. The button is
+ * fixed to the viewport corner, which is the communities column in both
+ * layouts: inside the panel the tools row is itself positioned, so an
+ * absolute button would follow that small box instead of the panel.
  */
+/* Flex with no gap: the hidden text label must not push the icon off center. */
 #app-shell .community-tools > details.community-more > summary {
-  display: grid;
-  place-items: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
   width: 34px;
   min-height: 34px;
   height: 34px;
@@ -58,13 +64,9 @@
   outline: 2px solid var(--focus);
   outline-offset: 3px;
 }
-#feed-panel:has(.community-create-fab) {
-  position: relative;
-}
 #app-shell #feed-panel .community-tools > .community-create-fab {
-  position: absolute;
-  right: 20px;
-  bottom: 20px;
+  right: 24px;
+  bottom: calc(24px + env(safe-area-inset-bottom));
   width: 48px;
   height: 48px;
   border: 1.5px solid var(--accent);

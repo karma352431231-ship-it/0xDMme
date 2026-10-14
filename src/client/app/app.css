@@ -27,6 +27,7 @@
 @import '../ping/ping.css';
 @import '../language/line-breaks.css';
 @import '../communities/community-actions.css';
+@import '../communities/community-create.css';
 
 /* === Theme tokens: the only place with literal colors (see tests/appearance.test.ts). === */
 /*

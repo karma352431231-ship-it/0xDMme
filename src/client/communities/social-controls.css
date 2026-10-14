@@ -54,7 +54,9 @@
   gap: 0.6rem;
   padding-block: 1rem;
 }
-#app-shell .community-presentation-editor .community-image-pick {
+#app-shell
+  :is(.community-presentation-editor, .community-create-media)
+  .community-image-pick {
   display: block;
   width: 100%;
   height: 100%;
@@ -75,12 +77,14 @@
   margin-inline: 20px;
 }
 #app-shell
-  .community-presentation-editor
+  :is(.community-presentation-editor, .community-create-media)
   .community-image-slot-photo
   .community-image-pick {
   border-radius: 50%;
 }
-#app-shell .community-presentation-editor .community-image-remove {
+#app-shell
+  :is(.community-presentation-editor, .community-create-media)
+  .community-image-remove {
   position: absolute;
   z-index: 2;
   top: 8px;
@@ -97,18 +101,23 @@
   font-size: 20px;
 }
 #app-shell
-  .community-presentation-editor
+  :is(.community-presentation-editor, .community-create-media)
   .community-image-slot-photo
   .community-image-remove {
   top: auto;
   right: 0;
   bottom: 0;
 }
-#app-shell .community-presentation-editor .community-image-remove[hidden] {
+#app-shell
+  :is(.community-presentation-editor, .community-create-media)
+  .community-image-remove[hidden] {
   display: none;
 }
 
-#app-shell .community-presentation-editor .community-image-pick span {
+#app-shell
+  :is(.community-presentation-editor, .community-create-media)
+  .community-image-pick
+  span {
   inset: 0;
   display: grid;
   place-items: center;
@@ -116,11 +125,11 @@
   background: var(--overlay);
 }
 #app-shell
-  .community-presentation-editor
+  :is(.community-presentation-editor, .community-create-media)
   .community-image-pick:is(:hover, :focus-visible)
   span,
 #app-shell
-  .community-presentation-editor
+  :is(.community-presentation-editor, .community-create-media)
   .community-image-pick:has(img[hidden])
   span {
   opacity: 1;

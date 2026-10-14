@@ -1,0 +1,116 @@
+/*
+ * Create community: banner and photo first, as on the community page; field
+ * labels in the secondary tone; the public content notice as its own quiet
+ * box; one filled primary button. Image slot mechanics are shared with the
+ * presentation editor (social-controls.css).
+ */
+#app-shell .community-create {
+  display: grid;
+  gap: 18px;
+}
+.community-create-head {
+  display: grid;
+  gap: 6px;
+}
+#app-shell .community-create-head h2 {
+  margin: 0;
+  color: var(--text);
+  font-size: var(--fs-title);
+}
+#app-shell .community-create-head p {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--fs-small);
+  font-weight: 400;
+}
+.community-create-media {
+  display: grid;
+}
+#app-shell .community-create-media .community-image-slot-banner {
+  overflow: hidden;
+  border: 1px dashed var(--line-strong);
+  border-radius: 14px;
+  background: var(--surface-2);
+}
+#app-shell .community-create-media .community-image-slot-photo {
+  border: 4px solid var(--surface);
+  border-radius: 50%;
+  background: var(--surface-3);
+}
+#app-shell .community-create-media .community-image-pick {
+  background: transparent;
+  color: var(--text);
+  font-size: var(--fs-small);
+  font-weight: 600;
+}
+#app-shell .community-create-hint {
+  margin: -6px 0 0;
+  color: var(--text-faint);
+  font-size: var(--fs-caption);
+  font-weight: 400;
+}
+.community-create-fields {
+  display: grid;
+  gap: 14px;
+}
+#app-shell .community-create-fields label {
+  display: grid;
+  gap: 6px;
+  color: var(--text-muted);
+  font-size: var(--fs-small);
+  font-weight: 600;
+}
+#app-shell .community-create-fields :is(input, textarea) {
+  margin: 0;
+  color: var(--text);
+  font-weight: 400;
+}
+.community-create-notice {
+  display: grid;
+  gap: 6px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface-2);
+}
+#app-shell .community-create-notice h3 {
+  margin: 0;
+  color: var(--warn);
+  font-size: var(--fs-caption);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+#app-shell .community-create-notice p {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--fs-small);
+  font-weight: 400;
+  line-height: 1.55;
+}
+#app-shell .community-create-status {
+  margin: 0;
+  color: var(--warn);
+  font-size: var(--fs-small);
+}
+.community-create-status:empty {
+  display: none;
+}
+#app-shell .community-create .community-create-submit {
+  justify-self: end;
+  min-height: 42px;
+  padding: 10px 20px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 650;
+}
+#app-shell .community-create .community-create-submit:hover {
+  background: var(--accent-strong);
+}
+@media (max-width: 700px) {
+  #app-shell .community-create .community-create-submit {
+    justify-self: stretch;
+  }
+}

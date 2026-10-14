@@ -438,6 +438,17 @@ export const catalog: Record<string, readonly [string, string]> = {
   'Abrindo conversa…': ['Opening conversation…', '正在打开对话…'],
   'Abrindo sua conta…': ['Opening your account…', '正在打开账户…'],
   'chat.encrypted-on-device': ['Encrypted on this device', '已在此设备上加密'],
+  'community.create.images': ['Community banner and photo', '社区横幅和头像'],
+  'community.create.add-banner': ['Add banner', '添加横幅'],
+  'community.create.add-photo': ['Add photo', '添加头像'],
+  'community.create.images-hint': [
+    'Optional. The banner and photo are reviewed by the app once the community is created.',
+    '可选。社区创建后，横幅和头像会经过应用审核。',
+  ],
+  'community.create.images-failed': [
+    'The community was created, but the images were not saved. Fix them and press Create community again.',
+    '社区已创建，但图片未保存。请修改后再次点击“创建社区”。',
+  ],
   'dm.support-never-asks-seed': [
     'Support never asks for your seed phrase',
     '官方支持绝不会索要你的助记词',

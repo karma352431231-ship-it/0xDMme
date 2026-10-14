@@ -15,15 +15,13 @@ import {
   mountCommunityFollowerPreview,
 } from './followers.ts';
 import { communityPresentationEditor } from './presentation-editor.ts';
+import { mountCommunityCreation } from './community-create.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
 export { renderActivityEntry } from './activity-entry.ts';
 export { ActivityPosts } from './activity-posts.ts';
 export { communityAvatar, communityIcon } from './presentation.ts';
 import { uuid } from '../../shared/account/index.ts';
-import {
-  communityPolicy,
-  communityState,
-} from '../../shared/communities/index.ts';
+import { communityState } from '../../shared/communities/index.ts';
 import type {
   Community,
   CommunityPage,
@@ -369,32 +367,18 @@ export function startCommunities(
   function creation(): void {
     if (!mounted) return;
     navigation();
-    const card = communityCard(t('Criar comunidade'));
-    mounted.append(card);
-    card.append(
-      communityElement(
-        'p',
-        t(
-          'Comunidades são públicas e gratuitas. Qualquer perfil público autorizado pode participar sem precisar seguir.',
-        ),
-      ),
-    );
-    card.append(
-      communityElement('h3', t('Aviso sobre conteúdo público')),
-      communityElement('p', t(communityPolicy), 'community-hint'),
-    );
-    const meta = metaForm(card, { name: '', description: '', rules: '' }),
-      id = crypto.randomUUID();
-    communityButton(card, t('Criar comunidade'), () =>
-      run(async () => {
-        const old = generation;
-        const result = communityState(
-          await controller.request('create', { id, meta: meta() }),
-        );
-        if (old !== generation) return;
-        location.hash = `#comunidades?id=${result.community.id}`;
-      }),
-    );
+    const old = generation;
+    mountCommunityCreation(mounted, {
+      signal: abort.signal,
+      run,
+      fields: (host) =>
+        metaForm(host, { name: '', description: '', rules: '' }),
+      request: (operation, data) => controller.request(operation, data),
+      current: () => old === generation,
+      open: (id) => {
+        location.hash = `#comunidades?id=${id}`;
+      },
+    });
   }
   /**
    * The first thing a visitor sees: banner in the community's tone, a large
