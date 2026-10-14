@@ -1,0 +1,39 @@
+/*
+ * Chinese may break between any two characters, so a squeezed flex item can
+ * shrink a two-character label such as 测试 to one character per line. In
+ * compact controls, treat each run of Chinese like an English word: it keeps
+ * its width the way "Test" does, and still breaks if it alone cannot fit.
+ * Longer sentences keep wrapping at spaces and punctuation.
+ */
+:lang(zh)
+  :is(
+    button,
+    summary,
+    a,
+    label,
+    th,
+    [role='tab'],
+    .test-badge,
+    .phase,
+    .eyebrow,
+    .activity-badge,
+    .activity-count,
+    .contact-count,
+    .conversation-unread,
+    .post-tag,
+    .community-author-badge,
+    .wallet-detection,
+    .ping-chip
+  ) {
+  word-break: keep-all;
+  overflow-wrap: break-word;
+}
+
+/* Headings and short paragraphs avoid leaving one character alone on the last line. */
+:lang(zh) :is(h1, h2, h3, h4, p, figcaption, legend) {
+  text-wrap: pretty;
+}
+/* Small captions in narrow columns split into two even lines instead. */
+:lang(zh) small {
+  text-wrap: balance;
+}

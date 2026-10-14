@@ -25,6 +25,7 @@
 @import '../contacts/directory-actions.css';
 @import '../communities/directory-notice.css';
 @import '../ping/ping.css';
+@import '../language/line-breaks.css';
 @import '../communities/community-actions.css';
 
 /* === Theme tokens: the only place with literal colors (see tests/appearance.test.ts). === */
