@@ -135,6 +135,7 @@ await test('posts: publicação aberta, tags locais, privacidade, revisão, excl
   ids.push(id, other);
   for (const community of ids)
     await owner.operate('create', {
+      classification: { nsfw: false, topics: ['meme'] },
       id: community,
       meta: {
         name: `Posts sintéticos ${community}`,

@@ -88,6 +88,7 @@ await test('visualizações públicas: concorrência, idempotência, isolamento 
   });
   await owner.publicIdentity(`views_${crypto.randomUUID().slice(0, 8)}`);
   await owner.operate('create', {
+    classification: { nsfw: false, topics: ['meme'] },
     id: community,
     meta: {
       name: 'Visualizações sintéticas',

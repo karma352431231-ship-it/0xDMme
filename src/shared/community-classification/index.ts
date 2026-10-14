@@ -46,3 +46,13 @@ export function communityClassification(
     topics: communityTopicSelection(data['topics']),
   };
 }
+
+/** New admission is stricter than decoding historical classifications or filters. */
+export function communityCreationClassification(
+  value: unknown,
+): CommunityClassification {
+  const classification = communityClassification(value);
+  if (!classification.topics.length)
+    throw new AccountError(400, 'Choose at least one community topic.');
+  return classification;
+}

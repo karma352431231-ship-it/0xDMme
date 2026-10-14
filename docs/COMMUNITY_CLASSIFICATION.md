@@ -4,11 +4,15 @@ The owner requested NSFW classification for sexual explicit communities, fixed
 community topics and ranking filters, and explicitly chose to apply classification
 only to newly created communities. Existing communities receive no backfill.
 
-New communities may select zero, one or two topics: AI, Cat, Dog, Meme, Tech,
+New communities must select one or two topics: AI, Cat, Dog, Meme, Tech,
 Stock, Chinese, BrainRot, Celebrity, NFT and TikTok. Topic identifiers are stable
 protocol data. Labels are available in English and Simplified Chinese, with a
 specific emoji for each topic. Topics are fixed at creation, including ownership
 transfers, and cannot be edited through presentation or management operations.
+The owner made topics mandatory after the initial optional release. Require at
+least one topic only when admitting a new community. Historical classifications
+with no topics remain readable and their original creation retries stay valid.
+Empty ranking filters still include all communities.
 The owner may change the NSFW designation on a newly classified community;
 moderators and participants cannot. AI alone does not imply sexual content.
 

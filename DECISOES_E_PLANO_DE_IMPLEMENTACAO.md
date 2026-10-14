@@ -1954,7 +1954,7 @@ The owner approved proceeding after the explanation of the five-to-six bounded c
 ## Community classification and moderation pause — owner decision on 14/10/2026
 
 The owner requested NSFW declaration for sexual explicit content (including AI),
-up to two immutable community topics, profile/hover badges and multi-select
+one or two immutable community topics, profile/hover badges and multi-select
 ranking filters. Classification applies only to new communities, as explicitly
 chosen afterward. Automatic sexual-content analysis is temporarily disabled;
 violations in unmarked communities will be handled manually by the operator.
@@ -1965,6 +1965,9 @@ The owner subsequently requested a collapsed topic selector during creation,
 with only owner-selected topics shown on the community profile and hover card.
 The owner then requested removing the analysis-pause/manual-handling sentence
 from the creation notice in both languages and publishing this copy change on the VPS.
+The owner subsequently made topic selection mandatory for new communities: require
+one or two topics at creation, on the client and server. Preserve existing
+communities, including historical empty topic selections and creation retries.
 Implementation and release contract: [community classification](docs/COMMUNITY_CLASSIFICATION.md).
 
 **Ponto importante:** new uploads carry explicit unreviewed publication evidence.

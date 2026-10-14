@@ -1197,6 +1197,27 @@ class OwnerReviewMediaCodeTests(CommunityFeedCodeTests):
         }
 
 
+class RequiredCommunityTopicsCodeTests(CommunityFeedCodeTests):
+    def setUp(self):
+        super().setUp()
+        for relative in ['communities.ts', 'community-discovery.ts']:
+            (self.candidate / 'src/server/database' / relative).write_bytes(
+                (self.live / 'src/server/database' / relative).read_bytes())
+        relative = 'src/server/database/community-classification.ts'
+        (self.live / relative).write_text('existing optional admission')
+        (self.candidate / relative).write_text('reviewed required admission')
+        self.exports = {
+            remote.REQUIRED_COMMUNITY_TOPICS_BEFORE: self.export(self.live),
+            remote.REQUIRED_COMMUNITY_TOPICS_REVIEWED: self.export(self.candidate),
+        }
+
+    def test_required_admission_rejects_unreviewed_bytes(self):
+        (self.candidate / 'src/server/database/community-classification.ts').write_text('unreviewed admission')
+        with (patch.object(backups, 'git_export', side_effect=lambda sha: self.exports[sha]),
+              self.assertRaises(RuntimeError)):
+            remote.compatibility(self.candidate, self.live)
+
+
 class CallsDeploymentTests(AttachmentDeploymentTests):
     count = 27
     previous_count = 25

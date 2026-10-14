@@ -89,6 +89,7 @@ await test('notificações de menção são privadas, idempotentes e respeitam e
     target = await recipient.publicIdentity('target_' + suffix);
   await outsider.publicIdentity('other_' + suffix);
   await author.operate('create', {
+    classification: { nsfw: false, topics: ['meme'] },
     id: community,
     meta: { name: 'Menções ' + suffix, description: '', rules: '' },
   });

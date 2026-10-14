@@ -2,6 +2,7 @@ import { t } from '../../shared/i18n/index.ts';
 import {
   communityTopics,
   communityTopicSelection,
+  communityCreationClassification,
 } from '../../shared/community-classification/index.ts';
 import type {
   CommunityClassification,
@@ -98,7 +99,10 @@ export function classificationForm(
   const section = el('section', '', 'community-classification-form');
   const nsfw = nsfwChoice(section, false);
   const disclosure = el('details', '', 'community-topic-disclosure');
-  const toggle = el('summary', t('Community topics · {0}/2 selected', [0]));
+  const toggle = el(
+    'summary',
+    t('Community topics · {0}/2 selected (required)', [0]),
+  );
   disclosure.append(
     toggle,
     el('p', t('community.topics.fixed-hint'), 'community-classification-hint'),
@@ -107,14 +111,18 @@ export function classificationForm(
     selected: [],
     maximum: 2,
     change: (value) => {
-      toggle.textContent = t('Community topics · {0}/2 selected', [
+      toggle.textContent = t('Community topics · {0}/2 selected (required)', [
         value.length,
       ]);
     },
   });
   section.append(disclosure);
   host.append(section);
-  return () => ({ nsfw: nsfw.checked, topics: topics() });
+  return () => {
+    const value = { nsfw: nsfw.checked, topics: topics() };
+    if (!value.topics.length) disclosure.setAttribute('open', '');
+    return communityCreationClassification(value);
+  };
 }
 export function classificationSettings(
   host: HTMLElement,

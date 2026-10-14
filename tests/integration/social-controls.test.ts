@@ -149,7 +149,13 @@ await test('controles sociais: autoridade, badges, confirmação, edição, bloq
     );
     return postState(result).post;
   };
-  const created = communityState(await owner.operate('create', { id, meta }));
+  const created = communityState(
+    await owner.operate('create', {
+      classification: { nsfw: false, topics: ['meme'] },
+      id,
+      meta,
+    }),
+  );
   assert.equal(created.community.followers, 1);
   assert.equal(created.following, true);
   await assert.rejects(

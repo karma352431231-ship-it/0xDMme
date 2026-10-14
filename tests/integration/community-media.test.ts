@@ -191,6 +191,7 @@ await test('mídia das comunidades: cadeia real, autorização, vínculo atômic
   publicOwners.push(authorProfile.id, outsiderProfile.id);
   for (const community of [id, other])
     await author.operate('create', {
+      classification: { nsfw: false, topics: ['meme'] },
       id: community,
       meta: {
         name: `Mídia sintética ${community}`,

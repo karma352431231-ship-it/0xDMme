@@ -86,6 +86,23 @@ await test('community classification persists atomically, stays fixed and filter
     meta: { name: `Class ${id}`, description: '', rules: '' },
     classification: { nsfw: true, topics: ['meme', 'ai'] },
   };
+  for (const payload of [
+    { id, meta: input.meta },
+    { ...input, classification: { nsfw: false, topics: [] } },
+  ]) {
+    await assert.rejects(
+      owner.operate('create', payload),
+      /Choose at least one community topic/u,
+    );
+    assert.equal(
+      (
+        await pool.query('SELECT 1 FROM hash_talk.communities WHERE id=$1', [
+          id,
+        ])
+      ).rowCount,
+      0,
+    );
+  }
   let state = communityState(await owner.operate('create', input));
   assert.deepEqual(state.community.classification, {
     nsfw: true,
@@ -200,6 +217,18 @@ await test('community classification persists atomically, stays fixed and filter
   await assert.rejects(
     owner.operate('nsfw', { id: legacy, revision: 1, nsfw: true }),
   );
+  await pool.query(
+    'INSERT INTO hash_talk.community_classifications(community_id) VALUES($1)',
+    [legacy],
+  );
+  assert.deepEqual((await communities.read(legacy)).classification, {
+    nsfw: false,
+    topics: [],
+  });
+  await owner.operate('create', {
+    id: legacy,
+    meta: { name: `Legacy ${legacy}`, description: '', rules: '' },
+  });
   await db.communityRanking.process();
   for (let i = 0; i < 10; i++) {
     if ((await db.communityRanking.process()) === null) break;
