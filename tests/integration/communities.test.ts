@@ -204,8 +204,10 @@ await test('comunidades: criação aberta, privacidade, gestão, sanções, den�
           'owner',
           'followers',
           'createdAt',
+          'classification',
         ].sort(),
       );
+      assert.deepEqual(data['classification'], { nsfw: false, topics: [] });
       assert.equal(
         JSON.stringify(data).includes(owner.login.session.accountId),
         false,

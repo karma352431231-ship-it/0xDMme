@@ -98,7 +98,7 @@ export function classificationForm(
   const section = el('section', '', 'community-classification-form');
   const nsfw = nsfwChoice(section, false);
   const disclosure = el('details', '', 'community-topic-disclosure');
-  const toggle = el('summary', t('community.topics.choose', [0]));
+  const toggle = el('summary', t('Community topics · {0}/2 selected', [0]));
   disclosure.append(
     toggle,
     el('p', t('community.topics.fixed-hint'), 'community-classification-hint'),
@@ -107,7 +107,9 @@ export function classificationForm(
     selected: [],
     maximum: 2,
     change: (value) => {
-      toggle.textContent = t('community.topics.choose', [value.length]);
+      toggle.textContent = t('Community topics · {0}/2 selected', [
+        value.length,
+      ]);
     },
   });
   section.append(disclosure);
