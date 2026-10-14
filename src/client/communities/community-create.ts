@@ -9,6 +9,7 @@ import type { CommunityState } from '../../shared/communities/index.ts';
 import type { PendingPublicAvatar } from '../../shared/public-avatar/index.ts';
 import { communityElement as el } from './elements.ts';
 import { mountImageSlot } from './image-slots.ts';
+import { iconLabel } from './presentation.ts';
 
 type Meta = { name: string; description: string; rules: string };
 
@@ -35,8 +36,16 @@ export function mountCommunityCreation(
   const card = el('article', '', 'card community-card community-create');
   host.append(card);
   const head = el('header', '', 'community-create-head');
+  const title = el('div', '', 'community-create-title');
+  // Inside the panel, community links stay in the panel, so this returns there too.
+  const back = el('a', '', 'community-create-back');
+  back.href = '#comunidades?view=feed';
+  back.setAttribute('aria-label', t('Voltar'));
+  back.title = t('Voltar');
+  iconLabel(back, 'back');
+  title.append(back, el('h2', t('Criar comunidade')));
   head.append(
-    el('h2', t('Criar comunidade')),
+    title,
     el(
       'p',
       t(
