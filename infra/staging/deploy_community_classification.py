@@ -8,7 +8,7 @@ import deploy_message_changes as messages
 BEFORE = '64c37f325f5bba54388e7e6257b6f407b19ad3d1'
 # The owner requested this feature and VPS activation on 14/10/2026. Keep the
 # additive metadata transition closed until exact application sources are reviewed.
-REVIEWED = 'UNREVIEWED'
+REVIEWED = 'bd9ac1ae5749e4571d5ce0602d640db118beaf58'
 OLD_TABLES = messages.OLD_TABLES + messages.NEW_TABLES
 NEW_TABLES = ('community_classifications',)
 
