@@ -1,5 +1,17 @@
 # 0xDMme — Git e envio à VPS
 
+## Community and Private Group Repairs — Activation Authorized on 14/10/2026
+
+The owner requested all three fixes on main and VPS activation. After automatic approval review rejected the broad request, the owner asked for an explanation. The explanation identified the five existing code identities plus the corrected sixth, the two database reader files pinned by the executor, unchanged models/rules/schema, and one normal banner retry. The owner then explicitly replied “Ah ta, pode seguir então”, approving these described adjustments. Include `0036e4f` (banner candidate routing), `cb4a95b` (owner-only review image preview) and `e4f9bfa` (private group directory photo/selection), already integrated and pushed on main.
+
+Preserve all five accepted predecessors and add only the current exact pipeline, widening the bound from five to six. The frozen expected identity is `12c1cd1b6b504f1e476da8b58c07f034aaf2addfbd03fa0c2d2f074f6f3cea1f`; verify it after editing. Weights, thresholds, policy, runtime and installed model paths remain unchanged. Only the own private `HASH_TALK_MODERATION_ACCEPTED_NEXT_HASH` and `HASH_TALK_MODERATION_ACCEPTED_PIPELINES` fields may change atomically, with private backup and configuration/service fingerprints. Append active `adfa19fa…` to the retained historical list so the predecessor still starts during transition or code rollback. Keep access, raw configuration, baselines and evidence solely in `.local/`.
+
+Pin the entire database source tree from `28b851b29ff11883511f5992083969534f7f7733` to `e4f9bfa8f35b4636e4ab8dfda720608962868817` in the existing executor, allowing only `public-profile.ts` and `public-moderation.ts` reader changes. All 66 migrations, migration executor, persistence operations and unrelated database sources remain exact. No schema transition or reset is authorized. Require full CI for the final integrated, pushed commit, then use only `npm run deploy:staging`, the Mac build and existing preservation/readiness/rollback checks.
+
+After successful publication, retry only the reported retained failed banner through the normal worker. Match its original review, target, hash, technical-failure status and deadline. Restore one available automatic attempt; preserve creation/expiry and every verdict field. Do not force approval, renew retention or reprocess other records. Verify the resulting automatic outcome and public reference independently.
+
+**Ponto importante:** this approval supersedes the earlier pending-activation notes for this batch. Approval does not establish publication or an allow verdict. Require the published receipt, served hashes and scoped retry result. No shared-service, infrastructure, dependency or model-weight change is included.
+
 ## Idle Synchronization Release Authorized on 14/10/2026
 
 The owner explicitly asked to integrate `58886e1` into `main` and activate it on

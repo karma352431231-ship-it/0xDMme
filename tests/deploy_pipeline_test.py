@@ -1182,6 +1182,21 @@ class SavedBookmarkCodeTests(CommunityFeedCodeTests):
                     path.write_bytes(original)
 
 
+class OwnerReviewMediaCodeTests(CommunityFeedCodeTests):
+    def setUp(self):
+        super().setUp()
+        for relative in ['communities.ts', 'community-discovery.ts']:
+            (self.candidate / 'src/server/database' / relative).write_bytes(
+                (self.live / 'src/server/database' / relative).read_bytes())
+        for relative in ['public-profile.ts', 'public-moderation.ts']:
+            (self.live / 'src/server/database' / relative).write_text('existing signed owner reads')
+            (self.candidate / 'src/server/database' / relative).write_text('reviewed retained owner subject')
+        self.exports = {
+            remote.OWNER_REVIEW_MEDIA_BEFORE: self.export(self.live),
+            remote.OWNER_REVIEW_MEDIA_REVIEWED: self.export(self.candidate),
+        }
+
+
 class CallsDeploymentTests(AttachmentDeploymentTests):
     count = 27
     previous_count = 25

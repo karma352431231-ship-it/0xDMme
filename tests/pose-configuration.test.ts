@@ -212,3 +212,48 @@ await test('correção contextual conserva quatro aceites históricos e exige ac
       readPoseModerationConfiguration({ ...environment, ...change }),
     );
 });
+
+await test('banner routing preserves five prior approvals and requires an exact sixth identity', async () => {
+  const identity = await poseModelIdentity();
+  const predecessors = [
+    '6ae4df3886df584b0d2de91d52febf0e3967851da628b6e6ef0d03a4669f7d74',
+    '1271c7deba0443c4f53c76295c0789c9cdf766b53a5c9875ab560c2c5a7b7c58',
+    '409455c7f259b71f0d9d2c60704613267da0c597f47c42b6ea92bbaf7f001a3f',
+    'b0c665c56bed28a0630d379a13f90d202322d5a6a924901ca5da2dbeafa89ef0',
+    'adfa19fa323553c4cb172cc4b959db447203ec454815cf5e305c872a9ee7efcd',
+  ];
+  const environment = {
+    HASH_TALK_MODERATION_ACCEPTED_HASH: predecessors[0],
+    HASH_TALK_MODERATION_ACCEPTED_NEXT_HASH: identity.hash,
+    HASH_TALK_MODERATION_ACCEPTED_PIPELINES: predecessors.join(','),
+    HASH_TALK_MODERATION_PYTHON: '/private/inference/python',
+    HASH_TALK_MODERATION_MODELS: '/private/inference/models',
+    HASH_TALK_MEDIA_FFMPEG: '/private/media/ffmpeg',
+    HASH_TALK_MEDIA_FFPROBE: '/private/media/ffprobe',
+  };
+  assert.deepEqual(
+    (await readPoseModerationConfiguration(environment))?.acceptedModels.map(
+      ({ hash }) => hash,
+    ),
+    [...predecessors, identity.hash],
+  );
+  for (const change of [
+    { HASH_TALK_MODERATION_ACCEPTED_NEXT_HASH: undefined },
+    { HASH_TALK_MODERATION_ACCEPTED_NEXT_HASH: 'f'.repeat(64) },
+    {
+      HASH_TALK_MODERATION_ACCEPTED_PIPELINES: [
+        ...predecessors,
+        predecessors[0],
+      ].join(','),
+    },
+    {
+      HASH_TALK_MODERATION_ACCEPTED_PIPELINES: [
+        ...predecessors,
+        'e'.repeat(64),
+      ].join(','),
+    },
+  ])
+    await assert.rejects(
+      readPoseModerationConfiguration({ ...environment, ...change }),
+    );
+});
