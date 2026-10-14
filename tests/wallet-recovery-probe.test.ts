@@ -54,8 +54,8 @@ await test('EVM: nova instância da mesma conta abre somente o pacote cifrado, s
   assert.equal(json.includes('conteúdo fictício'), false);
   assert.equal(json.includes('synthetic recovery test content'), false);
   assert.equal(json.includes('恢复测试的虚构内容'), false);
-  assert.match(recoveryMessage(context), /LOCAL RECOVERY TEST/u);
-  assert.match(recoveryMessage(context), /本地恢复测试/u);
+  assert.match(recoveryMessage(context), /Test recovery with sample data/u);
+  assert.match(recoveryMessage(context), /使用示例数据测试恢复/u);
   assert.throws(() =>
     readProbePacket(
       JSON.stringify({

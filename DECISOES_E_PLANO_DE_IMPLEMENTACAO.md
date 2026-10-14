@@ -369,6 +369,12 @@ Não acrescentar preferência de idioma aos registros operacionais do servidor.
 O login Ethereum continua SIWE em inglês: EIP-4361 exige uma declaração ASCII.
 O proprietário aprovou a explicação traduzida no app, sem substituir o protocolo.
 Esta migração de formatos não exige alteração das tabelas SQL.
+Antes de integrar ou publicar v2, o proprietário aprovou substituir os avisos
+alarmistas da recuperação pelo texto específico de configurar/restaurar acesso
+às mensagens e configurações privadas do 0xDMme. Aplicar o mesmo tom ao ensaio,
+identificando dados de exemplo e ausência de acesso à conta real. Preservar
+avisos de sigilo, finalidade, origem e ausência de poderes financeiros em ambas
+as escritas; atualizar os vetores assinados. Não migrar dados automaticamente.
 O proprietário autorizou continuar
 esta tarefa após compactações e enviar a branch nova ao GitHub; merge na `main`
 e ativação na VPS ficam para depois. Contrato em [Idiomas](docs/I18N.md).

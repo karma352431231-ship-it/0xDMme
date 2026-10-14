@@ -8,13 +8,13 @@ import { walletStatementVectors } from './fixtures/wallet-statement-vectors.ts';
 
 // These protocol bytes must not be revised like ordinary UI translations.
 const hashes = {
-  recovery: 'e6ac3b316dfd02428550afc5a7c1ea477e927e330b19427ee77a38ebbd585e26',
+  recovery: 'f4ba7a5fd378648f160f889e58a853e2268d164057a9f03ddf048ef2fd0f69bd',
   register: '9fe1377d17792e7064542eb52ed0b6bfaa36be70783718b8c48903847de89bcf',
   issue: '0bf91fb5bcf1881e08ae421d832940b575b4e4b707de29875ad7f2cc2492ea3d',
   accept: 'ac2f045c60aa2ec77b1651dc04689c86707e95d1c1bf9cad7b3548545544d8f8',
   revoke: '1592205172c04792cf13bf714a8ad0b89207598cca4f8f2cbcc105fea8561910',
   domain: '5dff64c89e65b4912d92bc76259508da9d6073279bc22ac9d278555b3a6428f6',
-  probe: '66dde0efdbc594dc9ad737af172ab15b8205e80cd325c6c45db5415338dcdd03',
+  probe: '72c085f96008e718c9fcda033b0eb3e2db2506b231bd13d1c05bf7c8d19ac123',
 };
 
 await test('fixed bilingual v2 signing bytes survive UI language changes', (context) => {

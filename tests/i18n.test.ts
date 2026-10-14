@@ -90,8 +90,8 @@ await test('stored labels remain intact and bilingual recovery bytes do not foll
     salt: btoa('x'.repeat(32)),
   };
   const statement = recoveryMessage(config);
-  assert.match(statement, /PRIVATE VAULT RECOVERY/u);
-  assert.match(statement, /私人保险库恢复/u);
+  assert.match(statement, /Set up or restore private access/u);
+  assert.match(statement, /设置或恢复私人数据访问/u);
   setActiveLanguage('zh-CN');
   assert.equal(recoveryMessage(config), statement);
   assert.equal(

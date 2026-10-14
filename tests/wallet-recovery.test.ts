@@ -59,8 +59,8 @@ await test('recuperação v2 bilíngue abre a cápsula após troca de idioma; ou
   const user = session();
   const config = createWalletRecovery(user, origin);
   const message = recoveryMessage(config);
-  assert.match(message, /PRIVATE VAULT RECOVERY/u);
-  assert.match(message, /私人保险库恢复/u);
+  assert.match(message, /Set up or restore private access/u);
+  assert.match(message, /设置或恢复私人数据访问/u);
   assert.throws(() => walletRecovery({ ...config, version: 1 }));
   const signature = await signer.signMessage(message);
   const key = await walletRecoveryKey(config, [
