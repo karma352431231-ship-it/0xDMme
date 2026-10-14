@@ -1961,6 +1961,8 @@ violations in unmarked communities will be handled manually by the operator.
 This supersedes the previous universal sexual-content prohibition and mandatory
 automatic publication gate for this pause. Preserve access, upload integrity,
 quotas, historical decisions/deadlines and the exclusion of E2EE content.
+The owner subsequently requested a collapsed topic selector during creation,
+with only owner-selected topics shown on the community profile and hover card.
 Implementation and release contract: [community classification](docs/COMMUNITY_CLASSIFICATION.md).
 
 **Ponto importante:** new uploads carry explicit unreviewed publication evidence.

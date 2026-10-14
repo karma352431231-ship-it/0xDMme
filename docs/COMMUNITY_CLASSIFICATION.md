@@ -13,7 +13,9 @@ The owner may change the NSFW designation on a newly classified community;
 moderators and participants cannot. AI alone does not imply sexual content.
 
 Display the classifications at the right of the community profile header, on its
-hover card and in ranking rows. Multiple ranking selections match any selected
+hover card and in ranking rows. Only the topics selected by the owner appear
+on those community surfaces. In the creation form, the topic selector starts
+collapsed; its toggle shows the selected count and opens the choices on demand. Multiple ranking selections match any selected
 topic. Empty selection includes all communities; filtered pagination uses the
 same canonical selection in its cursor and filters before limiting the SQL page.
 

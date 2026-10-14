@@ -97,10 +97,20 @@ export function classificationForm(
 ): () => CommunityClassification {
   const section = el('section', '', 'community-classification-form');
   const nsfw = nsfwChoice(section, false);
-  section.append(
+  const disclosure = el('details', '', 'community-topic-disclosure');
+  const toggle = el('summary', t('community.topics.choose', [0]));
+  disclosure.append(
+    toggle,
     el('p', t('community.topics.fixed-hint'), 'community-classification-hint'),
   );
-  const topics = topicPicker(section, { selected: [], maximum: 2 });
+  const topics = topicPicker(disclosure, {
+    selected: [],
+    maximum: 2,
+    change: (value) => {
+      toggle.textContent = t('community.topics.choose', [value.length]);
+    },
+  });
+  section.append(disclosure);
   host.append(section);
   return () => ({ nsfw: nsfw.checked, topics: topics() });
 }

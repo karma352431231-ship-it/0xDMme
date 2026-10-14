@@ -1,5 +1,9 @@
 /** Authored app text. Tuple order: English, Simplified Chinese. */
 export const catalog: Record<string, readonly [string, string]> = {
+  'community.topics.choose': [
+    'Community topics · {0}/2 selected',
+    '社区主题 · 已选 {0}/2',
+  ],
   'community.topics.filter': ['Filter by topic', '按主题筛选'],
   'Invalid publication mode.': ['Invalid publication mode.', '发布模式无效。'],
   'community.content-policy': [

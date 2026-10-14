@@ -122,6 +122,12 @@ await test('topic choices enforce the two-topic creation limit and support both 
       setActiveLanguage(locale);
       const host = new CommunityNode('div');
       const read = classificationForm(host as unknown as HTMLElement);
+      const disclosure = host.querySelector('details');
+      assert.ok(disclosure);
+      assert.equal(disclosure.getAttribute('open'), null);
+      const summary = disclosure.querySelector('summary');
+      assert.ok(summary);
+      assert.match(summary.textContent, /0\/2/u);
       const inputs = host.querySelectorAll('input');
       const choose = (index: number, checked: boolean) => {
         inputs[index]!.checked = checked;
@@ -131,6 +137,7 @@ await test('topic choices enforce the two-topic creation limit and support both 
       choose(1, true);
       choose(2, true);
       assert.deepEqual(read(), { nsfw: true, topics: ['ai', 'cat'] });
+      assert.match(summary.textContent, /2\/2/u);
       assert.equal(inputs[3]!.disabled, true);
       choose(2, false);
       assert.equal(inputs[3]!.disabled, false);
@@ -138,6 +145,7 @@ await test('topic choices enforce the two-topic creation limit and support both 
       assert.deepEqual(read().topics, ['ai', 'dog']);
       const badges = classificationBadges(read());
       assert.match(badges.textContent ?? '', /NSFW/u);
+      assert.doesNotMatch(badges.textContent ?? '', /Meme|表情包|TikTok/u);
       assert.match(
         host.textContent,
         locale === 'en'
