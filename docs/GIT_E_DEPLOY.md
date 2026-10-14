@@ -1,5 +1,26 @@
 # 0xDMme — Git e envio à VPS
 
+## Idle Synchronization Release Authorized on 14/10/2026
+
+The owner explicitly asked to integrate `58886e1` into `main` and activate it on
+the VPS. The client separates automatic message checks from interactive busy,
+skips healthy idle group retries without eligible pending work, and accepts one
+community action waiting behind an automatic read. Session/navigation changes
+cancel that waiting action. Preserve all work already integrated in `main`.
+Contract and local regression results: [block 07](BLOCO_07_MENSAGENS.md#idle-checks-and-queued-community-creation--14102026).
+
+This is a client, tests and documentation release. Backend/database sources,
+migrations, runtime dependencies, Node, detector, units and infrastructure stay
+unchanged from the integrated predecessor `c1dffe3`. Use only
+`npm run deploy:staging` from clean, pushed `main` with successful exact-commit
+CI and a build prepared on the Mac. Keep the executor's preservation, readiness,
+public hash/source checks and rollback. Access, baselines, build artifacts and
+operational receipts stay exclusively in `.local/`.
+
+**Ponto importante:** a push alone does not establish publication. Require a
+`published` receipt and verified served assets; local synthetic regressions do
+not identify every possible reconnect in the owner's browser.
+
 ## Community Draft Preservation Release Authorized on 14/10/2026
 
 The owner asked to integrate fix `18a3337` into `main` and activate it on the VPS.
