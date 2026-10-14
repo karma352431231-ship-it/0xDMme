@@ -21,10 +21,12 @@ import type { ConversationMenu } from './directory-menu.ts';
 import type { ConversationSearch } from './search.ts';
 import { organizationActions } from './directory-actions.ts';
 import { mountOfflineNotice } from '../ping/index.ts';
+import { showGroupDirectoryPhoto } from '../groups/index.ts';
+import { releaseConversationAvatars } from './directory-avatars.ts';
 import type { startGroups } from '../groups/index.ts';
 type Groups = Pick<
   ReturnType<typeof startGroups>,
-  'entries' | 'selected' | 'listLabel' | 'unread'
+  'entries' | 'selected' | 'listLabel' | 'unread' | 'photo'
 >;
 interface DirectoryView {
   snapshot: () => {
@@ -62,6 +64,11 @@ export class MessageDirectoryUi {
   }
   reset(): void {
     this.filter = 'all';
+    this.pause();
+  }
+  pause(): void {
+    const list = this.options.node('[data-message-contacts]');
+    if (list) releaseConversationAvatars(list);
   }
   bind(): void {
     const filters: readonly ConversationFilter[] = [
@@ -93,7 +100,9 @@ export class MessageDirectoryUi {
       seed: peer.address,
       status: this.options.snapshot().statusAuthors.has(peer.accountId),
       searchText: t('{0} {1} {2}', [contact.alias, peer.name, peer.address]),
-      selected: this.options.snapshot().selected?.accountId === peer.accountId,
+      selected:
+        !this.options.groups.selected &&
+        this.options.snapshot().selected?.accountId === peer.accountId,
       hidden: contact.removed,
       ...settings,
       favorite: this.options.daily.favorite(favoriteId),
@@ -155,6 +164,13 @@ export class MessageDirectoryUi {
           .listLabel(group)
           .replace(group.title + ' · ', ''),
         kind: 'group',
+        avatar: (host, signal) =>
+          showGroupDirectoryPhoto(
+            host,
+            group,
+            () => this.options.groups.photo(group),
+            signal,
+          ),
         searchText: group.title,
         selected: this.options.groups.selected?.state.groupId === id,
         ...settings,

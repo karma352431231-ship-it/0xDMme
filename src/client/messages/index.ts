@@ -240,6 +240,7 @@ export function startMessages(
     renderHistory();
     const direct = node('[data-direct-conversation]');
     if (direct) direct.hidden = true;
+    renderContacts();
   }
   const live = new LiveMessages({
     access,
@@ -1388,6 +1389,7 @@ export function startMessages(
       !attachments.selected?.voice &&
       groups.canActivate(),
     leave(): void {
+      directoryUi.pause();
       externalAbort.abort();
       historyUi.clearMedia();
       externalAbort = new AbortController();
@@ -1453,6 +1455,7 @@ export function startMessages(
       status();
     },
     mount(container: HTMLElement, directoryHost: HTMLElement): void {
+      directoryUi.pause();
       mounted = container;
       directory = directoryHost;
       container.innerHTML = directChat();

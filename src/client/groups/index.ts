@@ -49,6 +49,7 @@ import { GroupController } from './controller.ts';
 import type { GroupSummary } from './controller.ts';
 import type { GroupView } from './reader.ts';
 export type { GroupSummary, GroupView };
+export { showGroupDirectoryPhoto } from './directory-photo.ts';
 export { GroupBackups } from './backup.ts';
 interface GroupOptions {
   externalMedia?: ExternalMediaConsent | undefined;
@@ -288,7 +289,11 @@ export function startGroups(
     attachments.clearSelection();
     emoji.close();
     if (host) host.hidden = false;
-    await controller.open(id, false, localOnly);
+    try {
+      await controller.open(id, false, localOnly);
+    } finally {
+      options.changed();
+    }
     await refreshVault();
     notice = controller.warning || t('Grupo aberto.');
     render();
@@ -991,6 +996,7 @@ export function startGroups(
       return voice.active || !!attachments.selected?.voice;
     },
     listLabel,
+    photo: (group: GroupSummary) => controller.photo(group),
     /** Invitations and ownership offers for Atividade, named as in the group tools. */
     async invites(): Promise<
       readonly { id: string; kind: 'invite' | 'transfer'; actor: string }[]

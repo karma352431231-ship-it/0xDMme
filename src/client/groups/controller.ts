@@ -638,10 +638,21 @@ export class GroupController {
       }
     }
   }
-  async photo(): Promise<GroupPhoto | null> {
-    const selected = this.selected;
-    if (!selected) return null;
-    return this.withAuthority((c) => cachedGroupPhoto(c.authority, selected));
+  async photo(
+    group: GroupSummary | null = this.selected,
+  ): Promise<GroupPhoto | null> {
+    if (!group) return null;
+    const current =
+      this.entries.find(
+        (entry) => entry.state.groupId === group.state.groupId,
+      ) ??
+      (this.selected?.state.groupId === group.state.groupId
+        ? this.selected
+        : null);
+    if (!current) return null;
+    return this.withLocalAuthority((authority) =>
+      cachedGroupPhoto(authority, current),
+    );
   }
   async updatePhoto(input: {
     group: string;

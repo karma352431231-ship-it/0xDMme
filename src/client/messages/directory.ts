@@ -1,4 +1,8 @@
 import { t, currentLanguage } from '../../shared/i18n/index.ts';
+import {
+  paintConversationAvatar,
+  releaseConversationAvatars,
+} from './directory-avatars.ts';
 import { displayName, paintAvatar } from '../appearance/index.ts';
 import { pingNotice } from '../ping/index.ts';
 import type { PingMood } from '../ping/index.ts';
@@ -24,6 +28,7 @@ export interface ConversationEntry {
   kind: 'contact' | 'group';
   /** Wallet address for contacts, so the avatar tone matches Contatos; defaults to the id. */
   seed?: string;
+  avatar?: (host: HTMLElement, signal: AbortSignal) => void;
   /** Shows the status ring; the row still opens the conversation. */
   status?: boolean;
   searchText: string;
@@ -80,6 +85,7 @@ export function conversationButton(
   avatar.className = `conversation-avatar ${entry.kind}`;
   avatar.setAttribute('aria-hidden', 'true');
   paintAvatar(avatar, { label: entry.title, seed: entry.seed ?? entry.id });
+  paintConversationAvatar(button, avatar, entry.avatar);
   if (entry.status) {
     avatar.classList.add('has-status');
     avatar.title = t('Status ativo');
@@ -107,13 +113,18 @@ export function conversationButton(
   return button;
 }
 
+export function clearDirectory(host: HTMLElement): void {
+  releaseConversationAvatars(host);
+  host.replaceChildren();
+}
+
 export function renderDirectory(
   host: HTMLElement,
   entries: readonly ConversationEntry[],
   options: { menu?: DirectoryMenu; empty?: string; emptyMood?: PingMood } = {},
 ): void {
   options.menu?.update(entries);
-  host.replaceChildren();
+  clearDirectory(host);
   for (const entry of entries) {
     const button = conversationButton(entry);
     if (!entry.actions?.length || !options.menu) {

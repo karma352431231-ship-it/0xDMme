@@ -1,5 +1,9 @@
 import { t, translatedError } from '../../shared/i18n/index.ts';
-import { conversationButton, matchingConversations } from './directory.ts';
+import {
+  conversationButton,
+  matchingConversations,
+  clearDirectory,
+} from './directory.ts';
 import type { ConversationEntry } from './directory.ts';
 import { pingNotice } from '../ping/index.ts';
 export interface SearchPage {
@@ -64,7 +68,7 @@ export class ConversationSearch {
   reset(): void {
     this.generation++;
     this.node<HTMLInputElement>('input').value = '';
-    this.node('[data-search-chats]').replaceChildren();
+    clearDirectory(this.node('[data-search-chats]'));
     this.clearResults();
   }
   private clearResults(): void {
@@ -79,7 +83,7 @@ export class ConversationSearch {
   private renderChats(): void {
     const query = this.node<HTMLInputElement>('input').value;
     const host = this.node('[data-search-chats]');
-    host.replaceChildren();
+    clearDirectory(host);
     const matches = matchingConversations(this.entries, query);
     for (const entry of matches.slice(0, 50))
       host.append(
