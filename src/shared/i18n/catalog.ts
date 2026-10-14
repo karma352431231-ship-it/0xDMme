@@ -1,8 +1,8 @@
 /** Authored app text. Tuple order: English, Simplified Chinese. */
 export const catalog: Record<string, readonly [string, string]> = {
-  'Community topics · {0}/2 selected': [
-    'Community topics · {0}/2 selected',
-    '社区主题 · 已选 {0}/2',
+  'Community topics · {0}/2 selected (required)': [
+    'Community topics · {0}/2 selected (required)',
+    '社区主题 · 已选 {0}/2（必选）',
   ],
   'community.topics.filter': ['Filter by topic', '按主题筛选'],
   'Invalid publication mode.': ['Invalid publication mode.', '发布模式无效。'],
@@ -21,8 +21,8 @@ export const catalog: Record<string, readonly [string, string]> = {
     '这个社区的主题是什么？',
   ],
   'community.topics.fixed-hint': [
-    'Choose up to two topics. They cannot be changed after creation.',
-    '最多选择两个主题。创建后无法更改。',
+    'Choose one or two topics. They cannot be changed after creation.',
+    '请选择一至两个主题。创建后无法更改。',
   ],
   'community.publication.unreviewed': [
     'Published without automatic analysis. Automatic moderation is temporarily paused.',
@@ -35,6 +35,10 @@ export const catalog: Record<string, readonly [string, string]> = {
   'community.publication.preview': [
     'Changes stay as a preview on this device until you confirm. Confirmed images are published without automatic content analysis.',
     '更改在确认前仅在此设备上预览。确认后的图片将直接发布，不进行自动内容分析。',
+  ],
+  'Choose at least one community topic.': [
+    'Choose at least one community topic.',
+    '请至少选择一个社区主题。',
   ],
   'Invalid community topics.': [
     'Choose distinct topics from the available list. New communities can have up to two topics.',

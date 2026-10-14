@@ -97,6 +97,7 @@ await test('rankings: métricas exatas, votos agregados, eventos, recuperação 
     archived = ids[1]!;
   for (const id of ids)
     await owner.operate('create', {
+      classification: { nsfw: false, topics: ['meme'] },
       id,
       meta: { name: `Ranking sintético ${id}`, description: '', rules: '' },
     });
@@ -615,6 +616,7 @@ await test('rankings: métricas exatas, votos agregados, eventos, recuperação 
       const id = crypto.randomUUID();
       ids.push(id);
       await owner.operate('create', {
+        classification: { nsfw: false, topics: ['meme'] },
         id,
         meta: { name: 'Vencimento sintético', description: '', rules: '' },
       });

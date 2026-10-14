@@ -165,6 +165,7 @@ await test('perfil social: métricas, comunidades públicas, follows, feeds e ba
   };
   for (const id of ids)
     await owner.operate('create', {
+      classification: { nsfw: false, topics: ['meme'] },
       id,
       meta: { name: `Comunidade fictícia ${id}`, description: '', rules: '' },
     });

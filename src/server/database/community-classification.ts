@@ -4,7 +4,10 @@ import {
   communityBoolean,
   communityRevision,
 } from '../../shared/communities/index.ts';
-import { communityClassification } from '../../shared/community-classification/index.ts';
+import {
+  communityClassification,
+  communityCreationClassification,
+} from '../../shared/community-classification/index.ts';
 import type { CommunityClassification } from '../../shared/community-classification/index.ts';
 import { assertContentCapacity } from './vault-quota.ts';
 import {
@@ -40,7 +43,7 @@ export async function createCommunityClassification(
   id: string,
   input: unknown,
 ) {
-  const value = communityClassification(input);
+  const value = communityCreationClassification(input);
   await client.query(
     'INSERT INTO hash_talk.community_classifications(community_id,nsfw,topics) VALUES($1,$2,$3::text[])',
     [id, value.nsfw, value.topics],

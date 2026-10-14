@@ -104,6 +104,7 @@ await test('feed e discussão: elegibilidade, representantes, diversidade e árv
     stranger = people[2]!,
     reader = people[7]!;
   await owner.operate('create', {
+    classification: { nsfw: false, topics: ['meme'] },
     id: community,
     meta: { name: 'Discussão sintética', description: '', rules: '' },
   });

@@ -133,6 +133,7 @@ await test('corte 5: árvore, votos e avisos diretos com autorização e persist
     );
   for (const id of ids)
     await owner.operate('create', {
+      classification: { nsfw: false, topics: ['meme'] },
       id,
       meta: {
         name: `Interações sintéticas ${id}`,
@@ -236,6 +237,7 @@ await test('corte 5: árvore, votos e avisos diretos com autorização e persist
         testCommunity = crypto.randomUUID();
       ids.push(testCommunity);
       await owner.operate('create', {
+        classification: { nsfw: false, topics: ['meme'] },
         id: testCommunity,
         meta: { name: 'Push sintético isolado', description: '', rules: '' },
       });

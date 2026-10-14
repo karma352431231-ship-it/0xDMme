@@ -97,10 +97,12 @@ await test('nomes únicos concorrentes, datas e menções persistem sem trocar a
   const name = 'Arte ' + crypto.randomUUID().slice(0, 8) + ' Á';
   const results = await Promise.allSettled([
     author.operate('create', {
+      classification: { nsfw: false, topics: ['meme'] },
       id: community,
       meta: { name, description: '', rules: '' },
     }),
     other.operate('create', {
+      classification: { nsfw: false, topics: ['meme'] },
       id: collision,
       meta: {
         name: '  ' + name.toUpperCase().replace(' ', '   ') + ' ',
@@ -144,6 +146,7 @@ await test('nomes únicos concorrentes, datas e menções persistem sem trocar a
   assert.equal(mentionPlainText(saved.post.text).length, 4000);
   assert.equal((await communities.post(group.id, post)).text, text);
   await winner.operate('create', {
+    classification: { nsfw: false, topics: ['meme'] },
     id: second,
     meta: { name: 'Outra ' + name, description: ref, rules: '' },
   });

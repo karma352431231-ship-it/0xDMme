@@ -643,6 +643,15 @@ await test('automatic reads keep creation fields editable while awaiting the lis
   assert.equal(field.value, 'Texto durante a consulta');
 });
 
+function chooseCreationTopic(host: CommunityNode): void {
+  const topic = host
+    .querySelector('.community-topic-picker')
+    ?.querySelector('input');
+  assert.ok(topic);
+  topic.checked = true;
+  topic.dispatchEvent(new Event('change'));
+}
+
 await test('creation submitted during an automatic sidebar read runs once after the read', async () => {
   const { ui, host, data } = fixture({ creation: true, directory: true });
   await settled(ui);
@@ -656,6 +665,7 @@ await test('creation submitted during an automatic sidebar read runs once after 
   data.overrides.set(create, () => Promise.resolve(Response.json(data.state)));
   ui.ready();
   await started.promise;
+  chooseCreationTopic(host);
   const submit = host.querySelector('.community-create-submit');
   assert.ok(submit, host.textContent);
   assert.equal(submit.disabled, false);
@@ -685,6 +695,7 @@ for (const change of ['session', 'navigation'] as const) {
     );
     ui.ready();
     await started.promise;
+    chooseCreationTopic(host);
     const submit = host.querySelector('.community-create-submit');
     assert.ok(submit);
     submit.click();

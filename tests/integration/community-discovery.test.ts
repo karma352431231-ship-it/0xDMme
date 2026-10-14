@@ -116,6 +116,7 @@ await test('corte 6: feeds públicos, descoberta e referências privadas', async
   await stranger.publicIdentity(`p6_${crypto.randomUUID().slice(0, 8)}`);
   for (const id of ids)
     await owner.operate('create', {
+      classification: { nsfw: false, topics: ['meme'] },
       id,
       meta: { name: `Corte 6 sintético ${id}`, description: '', rules: '' },
     });

@@ -106,6 +106,7 @@ await test('signed owner review identifies restricted media and the current post
   );
   await other.publicIdentity('other_' + crypto.randomUUID().slice(0, 8));
   await author.operate('create', {
+    classification: { nsfw: false, topics: ['meme'] },
     id: community,
     meta: { name: 'Comunidade da análise', description: '', rules: '' },
   });

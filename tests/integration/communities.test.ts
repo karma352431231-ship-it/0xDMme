@@ -158,26 +158,51 @@ await test('comunidades: criação aberta, privacidade, gestão, sanções, den�
   await t.test(
     'criação é gratuita, exige perfil explícito, recusa nomes iguais e retry conserva a comunidade',
     async () => {
-      await assert.rejects(stranger.operate('create', { id, meta }), bad(403));
+      await assert.rejects(
+        stranger.operate('create', {
+          classification: { nsfw: false, topics: ['meme'] },
+          id,
+          meta,
+        }),
+        bad(403),
+      );
       const result = communityState(
-        await owner.operate('create', { id, meta }),
+        await owner.operate('create', {
+          classification: { nsfw: false, topics: ['meme'] },
+          id,
+          meta,
+        }),
       );
       assert.equal(result.role, 'owner');
       assert.equal(result.following, true);
       assert.equal(result.canPost, true);
       assert.equal(result.community.owner?.id, ownerProfile.id);
       assert.deepEqual(
-        communityState(await owner.operate('create', { id, meta })),
+        communityState(
+          await owner.operate('create', {
+            classification: { nsfw: false, topics: ['meme'] },
+            id,
+            meta,
+          }),
+        ),
         result,
       );
       await assert.rejects(
-        participant.operate('create', { id, meta }),
+        participant.operate('create', {
+          classification: { nsfw: false, topics: ['meme'] },
+          id,
+          meta,
+        }),
         bad(409),
       );
       const duplicate = crypto.randomUUID();
       ids.push(duplicate);
       await assert.rejects(
-        participant.operate('create', { id: duplicate, meta }),
+        participant.operate('create', {
+          classification: { nsfw: false, topics: ['meme'] },
+          id: duplicate,
+          meta,
+        }),
         bad(409),
       );
       assert.equal((await state(participant)).canPost, true);
@@ -207,7 +232,10 @@ await test('comunidades: criação aberta, privacidade, gestão, sanções, den�
           'classification',
         ].sort(),
       );
-      assert.deepEqual(data['classification'], { nsfw: false, topics: [] });
+      assert.deepEqual(data['classification'], {
+        nsfw: false,
+        topics: ['meme'],
+      });
       assert.equal(
         JSON.stringify(data).includes(owner.login.session.accountId),
         false,
@@ -886,6 +914,7 @@ await test('comunidades: criação aberta, privacidade, gestão, sanções, den�
         const next = crypto.randomUUID();
         ids.push(next);
         await participant.operate('create', {
+          classification: { nsfw: false, topics: ['meme'] },
           id: next,
           meta: { ...meta, name: `Lista ${i}` },
         });
@@ -926,6 +955,7 @@ await test('comunidades: criação aberta, privacidade, gestão, sanções, den�
             'create',
             participant.login.session,
             await participant.proof('create', {
+              classification: { nsfw: false, topics: ['meme'] },
               id: next,
               meta: { ...meta, name: 'Capacidade ' + suffix },
             }),
@@ -955,6 +985,7 @@ await test('comunidades: criação aberta, privacidade, gestão, sanções, den�
       const owned = crypto.randomUUID();
       ids.push(owned);
       await temporary.operate('create', {
+        classification: { nsfw: false, topics: ['meme'] },
         id: owned,
         meta: { ...meta, name: 'Exclusão ' + suffix },
       });

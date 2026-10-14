@@ -12,6 +12,7 @@ import { test } from 'node:test';
 import { AccountError } from '../src/shared/account/index.ts';
 import {
   communityClassification,
+  communityCreationClassification,
   communityTopicSelection,
 } from '../src/shared/community-classification/index.ts';
 import {
@@ -49,6 +50,25 @@ await test('community topics: up to two unique known topics, canonical order and
     () =>
       communityClassification({ nsfw: false, topics: [], owner: 'injected' }),
     AccountError,
+  );
+});
+await test('new communities require a topic while historical empty classifications remain valid', () => {
+  for (const input of [
+    undefined,
+    { nsfw: false, topics: [] },
+    { nsfw: true, topics: [] },
+  ])
+    assert.throws(
+      () => communityCreationClassification(input),
+      /Choose at least one community topic/u,
+    );
+  assert.deepEqual(
+    communityCreationClassification({ nsfw: false, topics: ['cat'] }),
+    { nsfw: false, topics: ['cat'] },
+  );
+  assert.deepEqual(
+    communityClassification({ nsfw: false, topics: [] }).topics,
+    [],
   );
 });
 await test('ranking topics: multi-select, canonical cursors and rejection of cross-filter pagination', () => {
@@ -128,6 +148,8 @@ await test('topic choices enforce the two-topic creation limit and support both 
       const summary = disclosure.querySelector('summary');
       assert.ok(summary);
       assert.match(summary.textContent, /0\/2/u);
+      assert.throws(read, /Choose at least one community topic/u);
+      assert.equal(disclosure.getAttribute('open'), '');
       const inputs = host.querySelectorAll('input');
       const choose = (index: number, checked: boolean) => {
         inputs[index]!.checked = checked;
