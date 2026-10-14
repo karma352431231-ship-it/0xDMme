@@ -12,6 +12,35 @@
   display: grid;
   gap: 6px;
 }
+/* Back arrow beside the title returns to the feed, in the panel or full page. */
+.community-create-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+#app-shell .community-create-back {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--text);
+}
+#app-shell .community-create-back:hover {
+  background: var(--surface-3);
+}
+#app-shell .community-create-back:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+#app-shell .community-create-back svg {
+  width: 20px;
+  height: 20px;
+}
 #app-shell .community-create-head h2 {
   margin: 0;
   color: var(--text);

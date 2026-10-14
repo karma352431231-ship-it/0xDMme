@@ -22,6 +22,8 @@ export function communityNavigation(
       if (current) a.setAttribute('aria-current', 'page');
       else a.removeAttribute('aria-current');
     });
+  // Creating has its own back arrow and no list menu.
+  if (options.view === 'create') return;
   const tools = el('nav', '', 'community-tools');
   tools.setAttribute('aria-label', t('Acessos de comunidades'));
   if (options.selected) link(tools, t('← Feed'), '#comunidades?view=feed');
@@ -31,8 +33,7 @@ export function communityNavigation(
   menu.append(summary);
   menu.append(moreChoices(options));
   tools.append(menu);
-  if (options.signedIn && options.view !== 'create')
-    tools.append(createCommunityButton());
+  if (options.signedIn) tools.append(createCommunityButton());
   container.append(tools);
 }
 
