@@ -75,6 +75,8 @@ export function coordinatorFixture(t: TestContext) {
     holdPage: false,
     liveCurrent: true,
     liveConnected: true,
+    groupVisible: false,
+    groupPending: false,
     signals: [] as AbortSignal[],
   };
   let emit: (event: LiveEvent) => void = () => {};
@@ -83,6 +85,7 @@ export function coordinatorFixture(t: TestContext) {
     visibility: () => void;
     freeze: () => void;
     resume: () => void;
+    tick: () => Promise<void>;
     pageHide: (event: { persisted: boolean }) => void;
   };
   let publish: (rows: MessageView[] | null) => void = () => {};
@@ -212,6 +215,11 @@ export function coordinatorFixture(t: TestContext) {
     deselect: noop,
     pauseSynchronization: noop,
     refresh: asyncNoop,
+    pendingWork: () => Promise.resolve(state.groupPending),
+    resumePending: () => {
+      calls.push('group-retry');
+      return Promise.resolve();
+    },
     synchronizeAll: () => Promise.resolve(false),
     setStates: noop,
   });
@@ -285,7 +293,8 @@ export function coordinatorFixture(t: TestContext) {
     addEventListener: noop,
     querySelectorAll: () => [],
     querySelector: (selector: string) =>
-      ['.chat-panel', '[data-direct-conversation]'].includes(selector)
+      ['.chat-panel', '[data-direct-conversation]'].includes(selector) ||
+      (selector === '[data-group-conversation]' && state.groupVisible)
         ? panel
         : null,
   };
@@ -337,6 +346,7 @@ export function coordinatorFixture(t: TestContext) {
     page,
     emit: (event: LiveEvent) => emit(event),
     lose: () => lose(),
+    tick: () => lifecycle.tick(),
     freeze: () => lifecycle.freeze(),
     resume: () => lifecycle.resume(),
     visibility: (value: string) => {

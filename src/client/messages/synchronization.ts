@@ -55,7 +55,8 @@ export class MessageSynchronization {
         !this.preloadRunning &&
         !options.state().liveConnecting,
       run: (update) => {
-        void this.run(update === 'refresh' ? options.refresh : options.changes);
+        if (update === 'refresh') void this.run(options.refresh);
+        else void this.checkAutomatically(options.changes);
       },
     });
   }
@@ -98,9 +99,10 @@ export class MessageSynchronization {
     const current = this.options.state().generation;
     this.options.status();
     try {
-      // A user action waits for presence maintenance instead of being dropped.
+      // A user action waits for automatic maintenance instead of being dropped.
       await this.maintenance;
       if (!this.current(current)) return;
+      this.failed = false;
       await work();
       if (!this.current(current)) return;
       if (this.options.state().online) this.options.complete();
@@ -113,8 +115,7 @@ export class MessageSynchronization {
       await this.finishRun(current);
     }
   }
-  private async finishRun(current: number): Promise<void> {
-    // Keep the operation exclusive until its final pending projection settles.
+  private async projectPending(current: number): Promise<void> {
     if (this.current(current)) {
       try {
         await this.options.renderPending();
@@ -125,6 +126,10 @@ export class MessageSynchronization {
           );
       }
     }
+  }
+  private async finishRun(current: number): Promise<void> {
+    // Keep the operation exclusive until its final pending projection settles.
+    await this.projectPending(current);
     this.busy = false;
     this.options.status();
     this.updates.resume();
@@ -222,15 +227,45 @@ export class MessageSynchronization {
     this.preparation.complete(turn, pending);
   }
 
+  /** Automatic reads share the maintenance lock. An interactive operation can
+   * reserve busy and wait for them instead of being rejected as another sync. */
+  private async checkAutomatically(work: () => Promise<void>): Promise<void> {
+    const current = this.options.state().generation;
+    await this.maintain(
+      async () => {
+        this.failed = false;
+        await work();
+        if (!this.current(current)) return;
+        if (this.options.state().online) this.options.complete();
+        await this.projectPending(current);
+        if (!this.busy) this.options.status();
+      },
+      (error) => {
+        this.failed = true;
+        this.report(error, t('Não foi possível concluir a operação.'));
+      },
+    );
+  }
   async maintainPresence(): Promise<void> {
-    if (!this.canSynchronize() || !this.options.state().visible) return;
+    if (!this.options.state().visible) return;
+    await this.maintain(this.options.presence, (error) => {
+      this.report(error, t('Não foi possível atualizar a presença.'));
+    });
+  }
+  private async maintain(
+    work: () => Promise<void>,
+    failure: (error: unknown) => void,
+  ): Promise<void> {
+    if (!this.canSynchronize()) return;
     const current = this.options.state().generation;
     this.stopPreload();
-    this.maintenance = this.options
-      .presence()
+    this.maintenance = Promise.resolve()
+      .then(() => {
+        if (this.current(current)) return work();
+      })
       .catch((error: unknown) => {
         if (!this.current(current)) return;
-        this.report(error, t('Não foi possível atualizar a presença.'));
+        failure(error);
         if (!this.busy) this.options.status();
       })
       .finally(() => {
@@ -240,12 +275,19 @@ export class MessageSynchronization {
       });
     await this.maintenance;
   }
+  private pendingRetryAllowed(): boolean {
+    return (
+      this.automaticAttempts < 3 &&
+      Date.now() - this.lastTransferAttempt >= 60000
+    );
+  }
+  async pendingWork(): Promise<boolean> {
+    return (
+      this.pendingRetryAllowed() && (await this.options.pending()).length > 0
+    );
+  }
   async resumePending(): Promise<void> {
-    if (
-      this.automaticAttempts >= 3 ||
-      Date.now() - this.lastTransferAttempt < 60000
-    )
-      return;
+    if (!this.pendingRetryAllowed()) return;
     const current = this.options.state().generation;
     this.lastTransferAttempt = Date.now();
     if (!(await this.options.pending()).length || !this.current(current))
@@ -262,7 +304,7 @@ export class MessageSynchronization {
       if (!this.current(current) || !this.canSynchronize()) return;
       if (!(await this.options.periodicWork()) || !this.current(current))
         return;
-      await this.run(this.options.periodic);
+      await this.checkAutomatically(this.options.periodic);
     } catch (error: unknown) {
       if (!this.current(current)) return;
       this.report(error, t('Não foi possível conferir os envios pendentes.'));

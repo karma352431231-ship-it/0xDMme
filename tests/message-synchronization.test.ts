@@ -174,7 +174,9 @@ await test('automatic pending retries keep the three attempts and one minute spa
     return Promise.resolve();
   };
   for (let index = 0; index < 5; index++) {
+    assert.equal(await f.sync.pendingWork(), index < 3);
     await f.sync.resumePending();
+    assert.equal(await f.sync.pendingWork(), false);
     await f.sync.resumePending();
     t.mock.timers.tick(60000);
   }
@@ -290,4 +292,116 @@ await test('aba hidden continua preparação e avisos, sem renovar presença onl
   assert.equal(probes, 1);
   assert.equal(pages, 1);
   assert.equal(presence, 0);
+});
+
+await test('automatic probes stay silent and a user action waits for the current check', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const f = fixture(t),
+    check = deferred<void>();
+  let actions = 0;
+  f.options.changes = () => check.promise;
+  f.sync.request('probe');
+  t.mock.timers.tick(150);
+  await turn();
+  assert.equal(f.sync.busy, false);
+  const action = f.sync.run(() => {
+    actions++;
+    return Promise.resolve();
+  });
+  await turn();
+  assert.equal(actions, 0);
+  check.resolve();
+  await action;
+  assert.equal(actions, 1);
+  assert.equal(f.sync.busy, false);
+});
+
+await test('idle fallback checks do not announce an interactive sync or drop a user action', async (t) => {
+  const f = fixture(t),
+    check = deferred<void>();
+  let actions = 0;
+  f.options.periodic = () => check.promise;
+  const tick = f.sync.periodicTick();
+  await turn();
+  assert.equal(f.sync.busy, false);
+  const action = f.sync.run(() => {
+    actions++;
+    return Promise.resolve();
+  });
+  check.resolve();
+  await Promise.all([tick, action]);
+  assert.equal(actions, 1);
+});
+
+await test('automatic check failures remain visible, while logout cancels a waiting user action', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const f = fixture(t);
+  f.options.changes = () => Promise.reject(new Error('Current failure'));
+  f.sync.request('probe');
+  t.mock.timers.tick(150);
+  await turn();
+  assert.equal(f.sync.failed, true);
+  assert.equal(f.notices.length, 1);
+  const check = deferred<void>();
+  f.options.changes = () => check.promise;
+  f.sync.request('probe');
+  t.mock.timers.tick(150);
+  await turn();
+  let actions = 0;
+  const action = f.sync.run(() => {
+    actions++;
+    return Promise.resolve();
+  });
+  f.state.generation++;
+  f.state.session = false;
+  f.sync.reset();
+  check.reject(new Error('Old failure'));
+  await action;
+  assert.equal(actions, 0);
+  assert.equal(f.notices.length, 1);
+});
+
+await test('a priority refresh waits for an automatic check and still reserves the interactive gate', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const f = fixture(t),
+    check = deferred<void>(),
+    refresh = deferred<void>();
+  let refreshes = 0;
+  f.options.changes = () => check.promise;
+  f.options.refresh = () => {
+    refreshes++;
+    return refresh.promise;
+  };
+  f.sync.request('probe');
+  t.mock.timers.tick(150);
+  await turn();
+  f.sync.request('refresh');
+  t.mock.timers.tick(150);
+  await turn();
+  assert.equal(refreshes, 0);
+  check.resolve();
+  await turn();
+  t.mock.timers.tick(150);
+  await turn();
+  assert.equal(refreshes, 1);
+  assert.equal(f.sync.busy, true);
+  refresh.resolve();
+  await turn();
+  assert.equal(f.sync.busy, false);
+});
+
+await test('a successful queued action replaces the failure of the automatic check it waited for', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const f = fixture(t),
+    check = deferred<void>();
+  f.options.changes = () => check.promise;
+  f.sync.request('probe');
+  t.mock.timers.tick(150);
+  await turn();
+  const action = f.sync.run(() => Promise.resolve());
+  check.reject(new Error('Temporary automatic failure'));
+  await action;
+  assert.equal(f.sync.failed, false);
+  assert.equal(f.completed(), 1);
+  assert.equal(f.notices.length, 1);
 });

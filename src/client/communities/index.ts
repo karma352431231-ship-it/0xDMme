@@ -1,3 +1,4 @@
+import { CommunityOperations } from './operations.ts';
 import {
   t,
   translatedError,
@@ -153,27 +154,28 @@ export function startCommunities(
         button.disabled = busy;
       });
   }
-  async function run(
-    work: () => Promise<void>,
-    options: { background?: boolean } = {},
-  ): Promise<void> {
-    if (busy) return;
-    const old = generation;
-    busy = true;
-    controls(options);
-    try {
-      await work();
-    } catch (error: unknown) {
-      if (old === generation && output)
+  const operations = new CommunityOperations({
+    generation: () => generation,
+    changed: (value, background) => {
+      busy = value;
+      controls({ background });
+    },
+    failed: (error) => {
+      if (output)
         output.textContent =
           error instanceof Error
             ? translatedError(error.message)
             : t('Comunidade indisponível.');
-    } finally {
-      busy = false;
-      controls(options);
+    },
+    settled: (old) => {
       if (old !== generation && mounted) ready();
-    }
+    },
+  });
+  function run(
+    work: () => Promise<void>,
+    options: { background?: boolean } = {},
+  ): Promise<void> {
+    return operations.run(work, options);
   }
   function signal(): AbortSignal {
     return AbortSignal.any([abort.signal, AbortSignal.timeout(8000)]);

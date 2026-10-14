@@ -1140,9 +1140,13 @@ export function startMessages(
     }
   }
   async function periodicMessageWork(): Promise<boolean> {
-    if (!live.current || conversationVisible('[data-group-conversation]'))
+    if (!live.current) return true;
+    if (
+      conversationVisible('[data-group-conversation]') &&
+      (await groups.pendingWork())
+    )
       return true;
-    return (await controller.pending()).length > 0;
+    return synchronization.pendingWork();
   }
   function preferencesChanged(): void {
     if (!synchronization.busy && session && navigator.onLine)

@@ -178,3 +178,19 @@ await test('queda de conexão e exclusão em hidden fecham a conversa imediatame
   assert.ok(f.calls.slice(before).includes('removed'));
   assert.ok(f.calls.slice(before).includes('suspend-groups'));
 });
+
+await test('a healthy idle group does not schedule a sync just because it is visible', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const f = coordinatorFixture(t);
+  f.messages.ready();
+  f.emit('ready');
+  t.mock.timers.tick(150);
+  await turn();
+  f.state.groupVisible = true;
+  const before = f.calls.length;
+  for (let index = 0; index < 3; index++) await f.tick();
+  assert.ok(!f.calls.slice(before).includes('group-retry'));
+  f.state.groupPending = true;
+  await f.tick();
+  assert.ok(f.calls.slice(before).includes('group-retry'));
+});

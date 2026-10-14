@@ -3,7 +3,10 @@ import assert from 'node:assert/strict';
 import { GroupRetry } from '../src/client/groups/retry.ts';
 await test('reconexões e avisos não criam repetição infinita de envios do grupo', () => {
   const retry = new GroupRetry();
+  assert.equal(retry.available('A', 0), true);
+  assert.equal(retry.available('A', 0), true);
   assert.equal(retry.take('A', 0), true);
+  assert.equal(retry.available('A', 59_999), false);
   assert.equal(retry.take('A', 59_999), false);
   assert.equal(retry.take('B', 59_999), true);
   assert.equal(retry.take('A', 60_000), true);

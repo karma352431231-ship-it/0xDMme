@@ -640,3 +640,57 @@ await test('automatic reads keep creation fields editable while awaiting the lis
   }
   assert.equal(field.value, 'Texto durante a consulta');
 });
+
+await test('creation submitted during an automatic sidebar read runs once after the read', async () => {
+  const { ui, host, data } = fixture({ creation: true, directory: true });
+  await settled(ui);
+  const gate = deferred<Response>(),
+    started = deferred<void>();
+  const create = '/api/account/communities/create';
+  data.overrides.set('/api/account/communities/list', () => {
+    started.resolve(undefined);
+    return gate.promise;
+  });
+  data.overrides.set(create, () => Promise.resolve(Response.json(data.state)));
+  ui.ready();
+  await started.promise;
+  const submit = host.querySelector('.community-create-submit');
+  assert.ok(submit, host.textContent);
+  assert.equal(submit.disabled, false);
+  submit.click();
+  submit.click();
+  await setImmediate();
+  assert.ok(!data.requests.includes(create));
+  gate.resolve(Response.json(data.directory));
+  await settled(ui);
+  assert.equal(data.requests.filter((path) => path === create).length, 1);
+  ui.leave();
+});
+
+for (const change of ['session', 'navigation'] as const) {
+  await test(`a ${change} change discards a creation action waiting for an automatic read`, async () => {
+    const { ui, host, data } = fixture({ creation: true, directory: true });
+    await settled(ui);
+    const gate = deferred<Response>(),
+      started = deferred<void>();
+    const create = '/api/account/communities/create';
+    data.overrides.set('/api/account/communities/list', () => {
+      started.resolve(undefined);
+      return gate.promise;
+    });
+    data.overrides.set(create, () =>
+      Promise.resolve(Response.json(data.state)),
+    );
+    ui.ready();
+    await started.promise;
+    const submit = host.querySelector('.community-create-submit');
+    assert.ok(submit);
+    submit.click();
+    if (change === 'session') ui.setSession(null);
+    else ui.leave();
+    gate.resolve(Response.json(data.directory));
+    await settled(ui);
+    assert.ok(!data.requests.includes(create));
+    ui.leave();
+  });
+}

@@ -1017,6 +1017,7 @@ export function startGroups(
     synchronizeAll: (signal: AbortSignal) => controller.synchronizeAll(signal),
     pauseSynchronization: () => controller.pauseSynchronization(),
     resumePending,
+    pendingWork: () => controller.pendingWork(),
     open,
     status,
     deselect,

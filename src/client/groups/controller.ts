@@ -916,6 +916,16 @@ export class GroupController {
     this.retry.reset(selected.state.groupId);
     await this.sendSelectedPending(selected);
   }
+  async pendingWork(): Promise<boolean> {
+    const selected = this.selected;
+    return (
+      !!selected &&
+      !selected.localOnly &&
+      navigator.onLine &&
+      this.retry.available(selected.state.groupId) &&
+      (await this.pending()).length > 0
+    );
+  }
   async resumePending(): Promise<boolean> {
     const selected = this.selected;
     if (!selected || selected.localOnly || !navigator.onLine) return false;

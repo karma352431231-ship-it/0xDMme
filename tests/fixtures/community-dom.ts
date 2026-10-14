@@ -88,6 +88,10 @@ export class CommunityNode extends EventTarget {
       return this.className.split(' ').includes(selector.slice(1));
     return selector === this.tag;
   }
+  closest(selector: string): CommunityNode | null {
+    if (this.matches(selector)) return this;
+    return this.parent?.closest(selector) ?? null;
+  }
   querySelectorAll(selector: string): CommunityNode[] {
     const selectors = selector.split(',');
     return this.children.flatMap((node) => [
@@ -106,6 +110,7 @@ export class CommunityNode extends EventTarget {
 export function communityDocument() {
   return Object.assign(new CommunityNode('#document'), {
     visibilityState: 'visible',
+    body: new CommunityNode('body'),
     createElement: (tag: string) => new CommunityNode(tag),
     createElementNS: (_namespace: string, tag: string) =>
       new CommunityNode(tag),
