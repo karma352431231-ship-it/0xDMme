@@ -60,8 +60,8 @@
 }
 .enrollment-login textarea {
   width: 100%;
-  min-height: 112px;
-  padding: 12px;
+  min-height: 64px;
+  padding: 8px 10px;
   border: 1px solid var(--line-strong);
   border-radius: 6px;
   background: var(--surface-2);

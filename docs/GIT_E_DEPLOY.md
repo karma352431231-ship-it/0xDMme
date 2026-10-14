@@ -1,5 +1,28 @@
 # 0xDMme — Git e envio à VPS
 
+## Wallet Entry and Recovery Language Release Authorized on 14/10/2026
+
+The owner approved a more compact device-code field, integration of
+`codex/wallet-entry-polish` into `main` and activation on the VPS. Include the
+reviewed wallet marks, responsive entry screens and single-language recovery v3
+from `81242f5`. Preserve existing v2 recovery documents and access. The field
+starts at 64 px with reduced padding and remains vertically resizable; no other
+presentation changes are requested in this final adjustment.
+
+Use only `npm run deploy:staging` from the clean, integrated, pushed commit with
+passing exact-commit CI, a locally prepared build, preservation checks and the
+existing rollback. Verify the live predecessor, unchanged database sources and
+migration checksums, runtime, dependencies, own configuration and other project
+before activation. Access, manifests and operational evidence stay in `.local/`.
+No SQL migration, data reset, shared-service change or new dependency is included.
+
+**Ponto importante:** deployment approval does not establish publication. Confirm
+the final receipt, own service readiness and public asset hashes. Existing v2
+documents remain bilingual; physical-wallet acceptance remains separate from
+browser emulation and synthetic recovery checks. A code rollback cannot convert
+new v3 configurations to v2; preserve new data and restore compatible v3 code
+if a rollback is needed after users have created v3 recoveries.
+
 ## Complete Test-Data Reset Authorized on 14/10/2026
 
 After the pre-launch signed-document v2 transition, the owner explicitly chose
