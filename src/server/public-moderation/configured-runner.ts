@@ -27,7 +27,7 @@ export async function configuredPoseRunner(options: {
         detector,
         candidates: {
           avatar: (job) =>
-            job.kind === 'community-photo'
+            job.kind === 'community-photo' || job.kind === 'community-banner'
               ? db.communities.moderationCandidate(job)
               : db.publicProfiles.moderationCandidate(job),
           media: (job) => db.communityMedia.moderationCandidate(job),
