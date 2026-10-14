@@ -1,5 +1,43 @@
 # 0xDMme — Git e envio à VPS
 
+## Complete Test-Data Reset Authorized on 14/10/2026
+
+After the pre-launch signed-document v2 transition, the owner explicitly chose
+a fresh start instead of implementing legacy-account recovery. The final scope
+includes every test account, wallet-to-account association, session, device,
+recovery capsule, private message, group, status, public profile, community, post,
+media object and derived queue/cache record. Public content is not retained.
+The same wallet addresses may register again as new accounts.
+
+This is a one-time, explicitly invoked data operation, not a code deployment,
+an automatic migration or an application endpoint. Rehearse against a disposable
+database first. Validate the exact application namespace, migration checksums,
+complete table set and storage paths; stop only this app's writers. Preserve
+schema, service identity, runtime, source, configuration, certificates and the
+other project. Do not use cascading deletion into another schema or restart
+shared services. Reset the content-accounting counters explicitly and verify
+empty user tables before reopening the app. Retire app-data migration backups
+within the reviewed scope after successful validation; keep operational receipts
+and access exclusively in `.local/`.
+
+The authorized reset completed with empty user tables and no content files or
+managed historical data backups. Disposable-database validation confirmed that
+the same wallet receives a new account ID, old sessions are rejected and fixed
+bilingual v2 recovery initializes successfully. Transactional reset and backup
+restore rehearsals passed before deletion. Migration checksums, schema,
+installation identity, configuration fingerprints and the other project's
+service state were preserved; own services returned ready. Historical backup
+receipts were marked retired, preserving ordinary deployment cleanup checks.
+There was no application-code deployment or new SQL migration. These checks do
+not replace physical-wallet/device acceptance or erase browser-local copies.
+
+**Ponto importante:** this separate authorization supersedes the earlier
+no-data-reset restriction only for this test-data reset. It does not change
+normal retention rules or authorize future resets. Wallet software, seeds,
+balances and blockchain assets are untouched. Browser-local or exported copies
+cannot be erased remotely; this operation does not promise forensic erasure
+of underlying storage blocks.
+
 ## Inglês e chinês — integração e ativação autorizadas em 13/10/2026
 
 O proprietário pediu revisar os últimos commits, completar as traduções,

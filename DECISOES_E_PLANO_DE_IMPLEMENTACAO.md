@@ -346,6 +346,15 @@ Dividir a implementação em **10 cortes**: (1) Perfil e navegação; (2) identi
 
 ### 5.11 Painéis e temas — redesign aprovado em 09/10/2026
 
+**Fresh test accounts — owner decision on 14/10/2026:** after the v2 transition,
+the owner chose to delete all app test data, including public communities/posts,
+and register again using the same wallets. This explicitly authorized one-time
+reset removes old account bindings, recovery and content rather than adding v1
+compatibility. Preserve schema, installation identity, code/configuration and
+the other VPS project. Wallet seeds/funds and browser-local/exported copies are
+outside the operation. The previous prohibition on automatic deletion still
+applies to routine migrations/deployments. See the [reset scope and safeguards](docs/GIT_E_DEPLOY.md#complete-test-data-reset-authorized-on-14102026).
+
 **Idiomas oficiais — decisão do proprietário em 13/10/2026:** inglês e chinês
 simplificado (`en`, `zh-CN`), apresentados como English e 简体中文. Traduzir a
 interface inteira, acessibilidade, datas, avisos e erros; conteúdo dos usuários,
