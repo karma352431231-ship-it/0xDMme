@@ -851,3 +851,27 @@
   border-radius: 0;
   object-fit: cover;
 }
+
+.conversation-copy {
+  position: relative;
+  padding-right: 86px;
+}
+.conversation-copy small {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+}
+.conversation-copy small > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.conversation-time {
+  position: absolute;
+  top: 0;
+  right: 0;
+  color: var(--text-muted);
+  font-size: var(--fs-caption);
+  white-space: nowrap;
+}

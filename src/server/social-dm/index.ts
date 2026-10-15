@@ -20,6 +20,7 @@ export const socialDmOperations = [
   'dm-message-history',
   'dm-received',
   'dm-message-status',
+  'dm-preview-status',
   'dm-secret-get',
   'dm-secret-save',
   'dm-attachment-reserve',
@@ -105,6 +106,7 @@ export class SocialDmService {
         });
       },
       'dm-message-status': (a, d) => db.socialHistory.reads.status(a, d),
+      'dm-preview-status': (a, d) => db.socialHistory.reads.preview(a, d),
       'dm-received': async (a, d) => {
         keys(d, ['items']);
         if (!Array.isArray(d['items']) || d['items'].length > 16)

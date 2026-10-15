@@ -93,6 +93,7 @@ const authored = [
   'src/client/daily-text',
   'src/client/message-actions',
   'src/client/chat-ui',
+  'src/client/conversation-preview',
   'src/client/appearance',
   'src/client/preference-events',
   'src/client/account-settings',

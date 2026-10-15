@@ -785,6 +785,33 @@ await test('cortes 7–8: consentimento, E2EE, mídia e cofre social', async (t)
     },
   );
   await t.test(
+    'checks da lista pública consultam somente envios próprios e não marcam leitura',
+    async () => {
+      const before = await inspector.query(
+        'SELECT * FROM hash_talk.social_receipts WHERE message_id=$1 ORDER BY profile_id,device_id',
+        [packet.id],
+      );
+      const own = (await operate(alice, 'preview-status', {
+        own: [packet.id],
+      })) as { id: string; read: boolean }[];
+      assert.equal(own[0]?.id, packet.id);
+      assert.equal(own[0]?.read, false);
+      assert.deepEqual(
+        await operate(bob, 'preview-status', { own: [packet.id] }),
+        [],
+      );
+      assert.deepEqual(
+        await operate(outsider, 'preview-status', { own: [packet.id] }),
+        [],
+      );
+      const after = await inspector.query(
+        'SELECT * FROM hash_talk.social_receipts WHERE message_id=$1 ORDER BY profile_id,device_id',
+        [packet.id],
+      );
+      assert.deepEqual(after.rows, before.rows);
+    },
+  );
+  await t.test(
     'leitura de DM exige recebimento neste aparelho e consentimento, sem confundir ACK',
     async () => {
       await assert.rejects(

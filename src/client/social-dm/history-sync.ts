@@ -2,17 +2,17 @@ import { keys, object, uuid } from '../../shared/account/index.ts';
 import { fingerprint } from '../../shared/devices/index.ts';
 import { socialRevision } from '../../shared/social-dm/index.ts';
 
-interface Snapshot {
+export interface DmHistorySnapshot {
   anchor: number;
   removals: number;
   directory: string;
   profile: string;
 }
-export interface DmHistoryCursor extends Snapshot {
+export interface DmHistoryCursor extends DmHistorySnapshot {
   version: 3;
   after: number;
 }
-function snapshot(raw: unknown): Snapshot {
+function snapshot(raw: unknown): DmHistorySnapshot {
   const data = object(raw);
   keys(data, ['anchor', 'removals', 'directory', 'profile']);
   return {
@@ -22,7 +22,7 @@ function snapshot(raw: unknown): Snapshot {
     profile: uuid(data['profile']),
   };
 }
-function startingCursor(raw: unknown, current: Snapshot): number {
+function startingCursor(raw: unknown, current: DmHistorySnapshot): number {
   if (raw === null) return 0;
   const value = object(raw);
   if (
@@ -44,11 +44,11 @@ export async function synchronizeDmHistory(options: {
   cursor: () => Promise<unknown>;
   save: (cursor: DmHistoryCursor) => Promise<void>;
   page: (
-    snapshot: Snapshot,
+    snapshot: DmHistorySnapshot,
     after: number,
   ) => Promise<{ next: number | null; unavailable: readonly string[] }>;
   guard: () => void;
-}): Promise<void> {
+}): Promise<DmHistorySnapshot> {
   const current = snapshot(await options.snapshot());
   options.guard();
   const held = await options.cursor();
@@ -77,6 +77,7 @@ export async function synchronizeDmHistory(options: {
   const next: DmHistoryCursor = { ...current, version: 3, after };
   if (!gap && !sameCursor(held, next)) await options.save(next);
   options.guard();
+  return current;
 }
 function sameCursor(raw: unknown, next: DmHistoryCursor): boolean {
   if (raw === null) return false;

@@ -6,6 +6,8 @@ import {
 import { displayName, paintAvatar } from '../appearance/index.ts';
 import { pingNotice } from '../ping/index.ts';
 import type { PingMood } from '../ping/index.ts';
+import { paintConversationPreview } from '../conversation-preview/index.ts';
+import type { ConversationPreview } from '../conversation-preview/index.ts';
 export interface DirectoryMenu {
   update: (entries: readonly ConversationEntry[]) => void;
   bind: (
@@ -43,6 +45,7 @@ export interface ConversationEntry {
   hidden?: boolean;
   actions?: readonly ConversationAction[];
   menuNote?: string;
+  preview?: ConversationPreview;
 }
 export function filteredConversations(
   entries: readonly ConversationEntry[],
@@ -56,7 +59,11 @@ export function filteredConversations(
       if (filter === 'favorites') return !!entry.favorite;
       return filter !== 'groups' || entry.kind === 'group';
     })
-    .sort((a, b) => Number(!!b.pinned) - Number(!!a.pinned));
+    .sort(
+      (a, b) =>
+        Number(!!b.pinned) - Number(!!a.pinned) ||
+        (b.preview?.sequence ?? 0) - (a.preview?.sequence ?? 0),
+    );
 }
 
 export function matchingConversations(
@@ -100,6 +107,7 @@ export function conversationButton(
   const detail = document.createElement('small');
   detail.textContent = entry.detail;
   text.append(title, detail);
+  if (entry.preview) paintConversationPreview(text, entry.preview);
   button.append(avatar, text);
   if (entry.unread) {
     const unread = document.createElement('span');

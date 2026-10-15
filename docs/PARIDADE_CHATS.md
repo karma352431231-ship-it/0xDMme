@@ -4,6 +4,36 @@ O proprietário pediu alinhar a experiência dos chats, preservando as diferenç
 já aprovadas, e depois autorizou explicitamente edição também nas DMs pelo `@`.
 Essa autorização substitui somente a proibição histórica de edição.
 
+O pedido seguinte acrescentou prévias na lista dos dois contextos: mostrar a
+última mensagem enviada ou recebida, sem exigir abrir cada conversa, com checks
+somente nas enviadas e leitura verde apenas quando compartilhada pelo destinatário.
+A exibição da lista confirma recebimento quando necessário, sem marcar leitura.
+Horários das bolhas e prévias usam `hh:mm AM/PM` nos dois idiomas; mensagens antigas
+sem horário autenticado não recebem um horário inventado. Prévia de mídia é o
+tipo e a legenda, sem baixar o arquivo somente para compor a lista.
+
+No privado, um endpoint autenticado retorna em lote até 16 originais mais recentes
+por contatos solicitados. Seus pacotes, edições, entrega e recibos usam os leitores
+existentes e exigem confirmação final do snapshot. A DM pelo `@` sincroniza seu
+histórico cifrado, lê somente o original mais recente por conversa e suas ações,
+carrega remoções uma vez por lote e consulta os checks próprios em lotes de 16.
+Confere novamente o snapshot antes de publicar a prévia. A lista pública mantém
+seu stream quando nenhum chat está aberto, reutiliza fotos/linhas e encerra o
+ciclo de vida quando a vista deixa de existir. Prévia privada permanece somente
+em memória da sessão; o armazenamento existente continua cifrado. Não enviar
+texto de prévia ao backend, telemetria, notificações externas ou logs.
+
+Validação local: regressões de fila/navegação, invalidação e reutilização de foto,
+edição/autoria/backup, lista sem confirmação de leitura e horários nos dois
+idiomas; 45 testes PostgreSQL/HTTP dos dois mensageiros passaram. A conferência
+visual usa somente dados fictícios e não substitui o aceite em celular físico.
+
+**Ativação solicitada:** o proprietário pediu concluir os dois lotes, integrar tudo
+à main e ativar na VPS. Exigir CI integral do commit exato integrado, build local,
+executor `deploy:staging` existente, preservação, prontidão e rollback. Esta
+autorização substitui somente o limite de ativação deste documento; não inclui
+nova dependência, migração ou infraestrutura compartilhada.
+
 | Comportamento                                                            | Chat por wallet                        | DM pelo @                                                 |
 | ------------------------------------------------------------------------ | -------------------------------------- | --------------------------------------------------------- |
 | Apresentação, compositor, Enter, prévia, emoji/GIF e áudio gravado       | Mesma base de interface                | Mesma base de interface                                   |
@@ -28,8 +58,8 @@ preservado. Leitores anteriores recebem apenas os tipos que negociaram; o novo
 cliente declara `edits: true` e atualiza seu cursor cifrado para reler as ações.
 
 **Ponto importante:** paridade de experiência não funde identidades, chaves,
-consentimentos ou contatos. Esta entrega não autoriza ativação na VPS, novas
-migrações, dependências, retenção ou análise de conteúdo das DMs pelo servidor.
+consentimentos ou contatos. A ativação foi autorizada sob as condições acima,
+sem novas migrações, dependências, retenção ou análise de conteúdo das DMs pelo servidor.
 
 Os hotspots `communities/dms.ts` e `social-dm/index.ts` conservam a coordenação
 existente. Novas responsabilidades ficam em módulos de execução, sincronização

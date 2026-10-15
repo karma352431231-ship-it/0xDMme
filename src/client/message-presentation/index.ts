@@ -7,10 +7,10 @@ export function messageTime(sentAt: number | undefined): HTMLElement | null {
   const date = new Date(sentAt),
     language = currentLanguage();
   time.setAttribute('datetime', date.toISOString());
-  time.textContent = new Intl.DateTimeFormat(language, {
+  time.textContent = new Intl.DateTimeFormat('en-US', {
     hour: '2-digit',
     minute: '2-digit',
-    hour12: false,
+    hour12: true,
   }).format(date);
   time.title = date.toLocaleString(language);
   time.setAttribute('aria-label', t('message.sent-at {0}', [time.title]));

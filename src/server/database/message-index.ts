@@ -42,3 +42,28 @@ export async function changedMessageItems(
 function sequenceRow(row: Record<string, unknown>) {
   return { ...row, sequence: Number(row['sequence']) };
 }
+
+/** Latest live root per requested peer, in one bounded query; never a read ACK. */
+export async function latestMessageItems(
+  client: pg.PoolClient,
+  authority: ContactAuthority,
+  peers: string[],
+) {
+  const latest = await client.query<{ id: string }>(
+    `SELECT DISTINCT ON (CASE WHEN sender=$1 THEN recipient ELSE sender END) id
+     FROM hash_talk.message_packets m
+     WHERE ((sender=$1 AND recipient=ANY($2::uuid[])) OR (recipient=$1 AND sender=ANY($2::uuid[])))
+     AND kind<>'profile' AND relation IS NULL AND body IS NOT NULL
+     AND NOT EXISTS(SELECT 1 FROM hash_talk.personal_removals pr WHERE pr.account_id=$1 AND pr.kind='message' AND pr.id=m.id)
+     ORDER BY CASE WHEN sender=$1 THEN recipient ELSE sender END, sequence DESC LIMIT 16`,
+    [authority.session.accountId, peers],
+  );
+  return {
+    items: await changedMessageItems(
+      client,
+      authority,
+      latest.rows.map((row) => row.id),
+    ),
+    next: null,
+  };
+}

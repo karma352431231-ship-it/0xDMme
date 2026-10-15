@@ -1,5 +1,7 @@
 /** Authored app text. Tuple order: English, Simplified Chinese. */
 export const catalog: Record<string, readonly [string, string]> = {
+  'preview.audio': ['Voice message', '语音消息'],
+  'preview.unavailable': ['Message preview unavailable.', '无法显示消息预览。'],
   'Message action target is unavailable.': [
     'This message is no longer available for this action.',
     '此消息已无法进行此操作。',

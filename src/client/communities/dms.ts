@@ -16,7 +16,6 @@ import type { VaultAccess } from '../vault-authority/index.ts';
 import type { VaultSync } from '../vault-sync/index.ts';
 import { historyPosition, resetHistoryPosition } from '../chat-ui/index.ts';
 import { communityElement } from './elements.ts';
-import { paintAvatar } from '../appearance/index.ts';
 import type { ExternalMediaConsent } from '../external-media/index.ts';
 import {
   dmBubble,
@@ -30,6 +29,11 @@ import type { DmRequestAction, DmView } from './dm-chat.ts';
 import { startDmComposer } from './dm-composer.ts';
 import { DmWork } from './dm-work.ts';
 import { bindDmLifecycle } from './dm-lifecycle.ts';
+import {
+  DmDirectory,
+  dmDirectoryRow as directoryRow,
+  paintDmDirectoryPreviews,
+} from './dm-directory.ts';
 import { LiveUpdates } from '../message-live/index.ts';
 
 type DmPage = Awaited<ReturnType<SocialDms['cached']>>;
@@ -41,6 +45,10 @@ export function startSocialDmUi(
   privacy: ExternalMediaConsent,
 ) {
   const controller = new SocialDms(access, sync);
+  const publicDirectory = new DmDirectory({
+    list: () => controller.list(null),
+    previews: (peers) => controller.directoryPreviews(peers),
+  });
   const emojiPicker = new EmojiPicker();
   const playback = new VoicePlayback(),
     mediaUi = new AttachmentUi(playback, () => {});
@@ -76,7 +84,7 @@ export function startSocialDmUi(
   const live = new LiveMessages({
     access,
     event: (event) => {
-      if (!container) return;
+      if (!container && !publicDirectory.available) return;
       if (
         [
           'removed',
@@ -85,27 +93,46 @@ export function startSocialDmUi(
           'revoked',
           'ended',
         ].includes(event)
-      )
+      ) {
+        publicDirectory.invalidate();
         closeGate();
+      }
       refreshes.request();
     },
     changed: () => {
-      if (container && !live.current) closeGate();
+      if (!live.current) {
+        publicDirectory.invalidate();
+        if (container) closeGate();
+      }
     },
   });
   const workQueue = new DmWork();
   const refreshes = new LiveUpdates({
-    available: () => !!container && !busy && !composer.active,
+    available: () =>
+      (!!container || publicDirectory.available) && !busy && !composer.active,
     run: () => {
       void run(reload);
     },
   });
   let fallback: ReturnType<typeof setInterval> | null = null;
   let stopLifecycle: (() => void) | null = null;
+  function startLifecycle(): void {
+    stopLifecycle ??= bindDmLifecycle({
+      current: () => live.current,
+      pause: () => {
+        publicDirectory.invalidate();
+        closeGate();
+      },
+      refresh: () => refreshes.request(),
+      reconnect: () => live.retry(),
+    });
+  }
   function startFallback(): void {
+    if (fallback !== null) return;
     fallback = setInterval(() => {
+      if (closeIdleDirectory()) return;
       if (
-        !container ||
+        (!container && !publicDirectory.available) ||
         busy ||
         composer.active ||
         live.connected ||
@@ -114,6 +141,16 @@ export function startSocialDmUi(
         return;
       refreshes.request();
     }, 30000);
+  }
+  function closeIdleDirectory(): boolean {
+    if (container || publicDirectory.available) return false;
+    publicDirectory.clear();
+    stopLifecycle?.();
+    stopLifecycle = null;
+    live.stop();
+    if (fallback) clearInterval(fallback);
+    fallback = null;
+    return true;
   }
   let container: HTMLElement | null = null,
     session: AccountSession | null = null,
@@ -190,11 +227,16 @@ export function startSocialDmUi(
     return { writable, pending: pendingMedia, busy };
   }
   async function reload(): Promise<void> {
+    if (!container) {
+      await publicDirectory.refresh();
+      return;
+    }
     if (peer) await conversation();
     else {
       cursor = null;
       await list();
     }
+    if (publicDirectory.available) await publicDirectory.refresh();
   }
   async function sendText(selected: string, text: string): Promise<void> {
     await controller.send(selected, text, messageId);
@@ -209,7 +251,14 @@ export function startSocialDmUi(
     view = null;
     viewKey = '';
     const host = dmListView(container);
-    if (page) listRows(host, page);
+    if (page) {
+      listRows(host, page);
+      await listPreviews(
+        host,
+        page.items.map((row) => row.peer.id),
+        old,
+      );
+    }
     await copiesList(host);
     cursor = page?.next ?? null;
     if (cursor) moreButton(host, t('Mais conversas'), list);
@@ -229,6 +278,24 @@ export function startSocialDmUi(
           'chat-gate',
         ),
       );
+  }
+  async function listPreviews(
+    host: HTMLElement,
+    peers: readonly string[],
+    old: number,
+  ): Promise<void> {
+    try {
+      const previews = await controller.directoryPreviews(peers);
+      if (old !== generation) return;
+      paintDmDirectoryPreviews(host, previews);
+    } catch (error: unknown) {
+      if (old === generation)
+        status(
+          error instanceof Error
+            ? translatedError(error.message)
+            : t('preview.unavailable'),
+        );
+    }
   }
   async function copiesList(
     host: HTMLElement,
@@ -591,17 +658,21 @@ export function startSocialDmUi(
     return item.own && item.kind === 'text';
   }
   function leave(): void {
-    stopLifecycle?.();
-    stopLifecycle = null;
+    if (!publicDirectory.available) {
+      stopLifecycle?.();
+      stopLifecycle = null;
+    }
     workQueue.reset();
     refreshes.clear();
     if (view) clearDmChecks(view.history);
     emojiPicker.reset();
     clearRows();
     composer.leave();
-    live.stop();
-    if (fallback) clearInterval(fallback);
-    fallback = null;
+    if (!publicDirectory.available) {
+      live.stop();
+      if (fallback) clearInterval(fallback);
+      fallback = null;
+    }
     playback.close();
     generation++;
     controller.cancel();
@@ -618,13 +689,7 @@ export function startSocialDmUi(
       container = node;
       peer = id;
       localOnly = local;
-      if (!localOnly)
-        stopLifecycle = bindDmLifecycle({
-          current: () => live.current,
-          pause: closeGate,
-          refresh: () => refreshes.request(),
-          reconnect: () => live.retry(),
-        });
+      if (!localOnly) startLifecycle();
       cursor = null;
       before = null;
       nextBefore = null;
@@ -656,6 +721,7 @@ export function startSocialDmUi(
     setSession(value: AccountSession | null): void {
       if (sameSession(value, session)) return;
       const node = container;
+      publicDirectory.clear();
       leave();
       session = value;
       ownProfile = null;
@@ -663,10 +729,10 @@ export function startSocialDmUi(
       node?.replaceChildren();
     },
     canActivate: () => !busy && !composer.active,
-    /** Public @ conversations for the Contatos → Públicos list; handles and states only. */
+    /** Public identity only, independently live in the contact directory. */
     async directory(node: HTMLElement, valid: () => boolean): Promise<void> {
       if (!session) {
-        node.append(
+        node.replaceChildren(
           communityElement(
             'p',
             t('Entre pela wallet para ver suas mensagens @.'),
@@ -674,33 +740,10 @@ export function startSocialDmUi(
         );
         return;
       }
-      try {
-        const page = await controller.list(null);
-        if (!valid()) return;
-        for (const row of page.items) node.append(directoryRow(row));
-        if (!page.items.length)
-          node.append(
-            communityElement(
-              'p',
-              t(
-                'Nenhuma conversa @ ainda. Abra um perfil público para mandar mensagem.',
-              ),
-            ),
-          );
-        const all = communityElement('a', t('Todas as mensagens @ e pedidos'));
-        all.href = '#communities?view=dms';
-        node.append(all);
-      } catch (error: unknown) {
-        if (valid())
-          node.append(
-            communityElement(
-              'p',
-              error instanceof Error
-                ? translatedError(error.message)
-                : t('DMs indisponíveis.'),
-            ),
-          );
-      }
+      live.start();
+      startLifecycle();
+      startFallback();
+      await run(() => publicDirectory.mount(node, valid));
     },
   };
 }
@@ -713,32 +756,4 @@ function sameSession(
     a?.deviceId === b?.deviceId &&
     a?.csrf === b?.csrf
   );
-}
-
-/** Conversation list row, the same as the private conversations list. */
-function directoryRow(
-  row: SocialRelation | { peer: PublicProfile; label: string },
-  extra = '',
-): HTMLAnchorElement {
-  const link = communityElement('a', '', 'conversation-row public-row');
-  link.href = `#communities?view=dms&dm=${row.peer.id}${extra}`;
-  const avatar = communityElement('span', '', 'conversation-avatar');
-  avatar.setAttribute('aria-hidden', 'true');
-  paintAvatar(avatar, { label: row.peer.handle, seed: row.peer.id });
-  const copy = communityElement('span', '', 'conversation-copy');
-  copy.append(
-    communityElement('strong', `@${row.peer.handle}`),
-    communityElement('small', 'label' in row ? row.label : relationLabel(row)),
-  );
-  link.append(avatar, copy);
-  return link;
-}
-function relationLabel(row: SocialRelation): string {
-  if (row.blocked) return t('Bloqueada');
-  return {
-    approved: t('Conversa'),
-    pending: t('Solicitação'),
-    rejected: t('Recusada'),
-    none: t('Sem consentimento'),
-  }[row.state];
 }

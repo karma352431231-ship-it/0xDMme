@@ -204,6 +204,15 @@ export class MessageService {
           snapshot(d['snapshot']),
         );
       },
+      preview: (a, d) => {
+        keys(d, ['peers', 'snapshot']);
+        if (!Array.isArray(d['peers']) || d['peers'].length > 16)
+          throw new AccountError(400, 'Lote inválido.');
+        return db.messages.preview(a, {
+          peers: [...new Set(d['peers'].map(uuid))],
+          snapshot: snapshot(d['snapshot']),
+        });
+      },
       object: (a, d) => {
         keys(d, ['id', 'snapshot']);
         return db.messages.object(a, uuid(d['id']), snapshot(d['snapshot']));

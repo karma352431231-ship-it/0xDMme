@@ -3,6 +3,7 @@ import { messageStates } from '../message-state/index.ts';
 import { readPrefetchPage } from './prefetch-page.ts';
 import { ConfirmedConversations } from './confirmed-conversations.ts';
 import { readDelivery } from './delivery.ts';
+import { readDirectoryPreviews } from './directory-previews.ts';
 import { optionalSentAt } from '../../shared/message-presentation/index.ts';
 import { knownPeerProfile } from './known-profile.ts';
 import { readBackupWindow } from './backup-window.ts';
@@ -197,6 +198,66 @@ export class Messages {
       this.guard(generation);
       return card;
     });
+  }
+  async directoryPreviews(peers: readonly string[]) {
+    if (!peers.length) return new Map();
+    const generation = this.generation;
+    let snapshot: unknown;
+    const previews = await this.access.withVault(false, async (a) => {
+      const guard = () => this.guard(generation),
+        api = async (operation: string, payload: Record<string, unknown>) => {
+          const value = await messageApi(a, operation, payload, guard);
+          if (operation === 'snapshot') snapshot = value;
+          return value;
+        };
+      return readDirectoryPreviews({
+        peers,
+        api,
+        guard,
+        read: (snapshot, items) =>
+          this.readPreviewViews({ a, generation, api, snapshot, items }),
+      });
+    });
+    await this.savePins();
+    this.guard(generation);
+    await this.access.withVault(false, (a) =>
+      messageApi(a, 'confirm', { snapshot }, () => this.guard(generation)),
+    );
+    this.guard(generation);
+    return previews;
+  }
+  private async readPreviewViews(c: {
+    a: VaultAuthority;
+    generation: number;
+    api: (
+      operation: string,
+      payload: Record<string, unknown>,
+    ) => Promise<unknown>;
+    snapshot: unknown;
+    items: MessageItem[];
+  }): Promise<MessageView[]> {
+    const views: MessageView[] = [],
+      missing: MessageItem[] = [];
+    for (const item of c.items) {
+      const cached = await this.readCached(c.a, c.snapshot, item);
+      if (cached) views.push(cached);
+      else missing.push(item);
+    }
+    if (!missing.length) return views;
+    const machine = await this.machine(c.a, c.generation);
+    try {
+      await machine.prepare(c.a);
+      await this.receive(c.a, machine, c.generation, c.api);
+      const fetched = await this.readBatch({
+        ...c,
+        items: missing,
+        machine,
+        skipUnavailable: true,
+      });
+      return [...views, ...fetched.values()];
+    } finally {
+      machine.close();
+    }
   }
   setSession(session: AccountSession | null): void {
     if (
