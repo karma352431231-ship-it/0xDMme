@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { readdir } from 'node:fs/promises';
 import pg from 'pg';
 import { Database } from '../../src/server/database/index.ts';
 import { readWebConfiguration } from '../../src/server/web-configuration/index.ts';
@@ -15,6 +16,28 @@ await test('migrações concorrentes são atômicas e identidade sobrevive a rei
   let identity: string;
   try {
     await Promise.all([first.migrate(), second.migrate()]);
+    const inspector = new pg.Client({ connectionString: config.databaseUrl });
+    await inspector.connect();
+    try {
+      const files = (
+        await readdir(
+          new URL('../../src/server/database/migrations/', import.meta.url),
+        )
+      ).filter((name) => /^\d{3}.*\.sql$/u.test(name));
+      const applied = await inspector.query<{ version: number }>(
+        'SELECT version FROM hash_talk.schema_migrations ORDER BY version',
+      );
+      assert.deepEqual(
+        applied.rows.map((row) => row.version),
+        files.map((_, index) => index + 1),
+      );
+      const index = await inspector.query<{ ready: boolean }>(
+        "SELECT indisvalid AND indisready AS ready FROM pg_index WHERE indexrelid=to_regclass('hash_talk.social_messages_reaction_target')",
+      );
+      assert.equal(index.rows[0]?.ready, true);
+    } finally {
+      await inspector.end();
+    }
     assert.equal(await first.healthy(), true);
     identity = await first.installationIdentity();
     assert.equal(await second.installationIdentity(), identity);

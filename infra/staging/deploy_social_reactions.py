@@ -6,7 +6,7 @@ import deploy_background as background
 import deploy_public_upvotes as upvotes
 
 BEFORE = 'c4a164b6becb6ff1544de15589c0b5f3c19421f2'
-REVIEWED = 'b3f3dd49915b2af8c09e5a902d996802e7569d1b'
+REVIEWED = '5304a40162da5e021fc576129d27843043266ba8'
 OLD_TABLES = upvotes.OLD_TABLES + upvotes.NEW_TABLES
 
 SCHEMA_CHECK = """SELECT count(*)=1 FROM pg_index i
@@ -44,9 +44,10 @@ def snapshot():
 
 def verify_migration(candidate, before):
     after, versions = snapshot(), base.attachment_versions(candidate)
-    if (before['versions'] != versions[:68] or after['versions'] != versions
-            or after['tables'] != before['tables']):
-        raise RuntimeError('Reaction index changed existing rows, ledger or checksums.')
+    if before['versions'] != versions[:68] or after['versions'] != versions:
+        raise RuntimeError('Reaction index migration sequence or checksums differ.')
+    if after['tables'] != before['tables']:
+        raise RuntimeError('Reaction index changed existing rows or ledger.')
     base.verify_community_tables(OLD_TABLES)
     if backups.pg(['psql', '--no-psqlrc', '--set=ON_ERROR_STOP=1', '--tuples-only', '--no-align', '-c', SCHEMA_CHECK]).strip() != b't':
         raise RuntimeError('Reaction index target, keys, predicate or readiness differ.')

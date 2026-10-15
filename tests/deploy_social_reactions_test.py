@@ -73,11 +73,12 @@ class ReactionIndexMigrationTests(unittest.TestCase):
         versions = list(range(69))
         before = {'versions': versions[:68], 'tables': {'content_usage': 'balance', 'community_votes': 'votes'}}
         after = dict(before, versions=versions)
-        for changed in [dict(after, tables={}), dict(after, versions=versions[:68]),
-                        dict(after, tables={'content_usage': 'changed', 'community_votes': 'votes'})]:
+        for changed, error in [(dict(after, tables={}), 'existing rows or ledger'),
+                               (dict(after, versions=versions[:68]), 'migration sequence or checksums'),
+                               (dict(after, tables={'content_usage': 'changed', 'community_votes': 'votes'}), 'existing rows or ledger')]:
             with (patch.object(reactions, 'snapshot', return_value=changed),
                   patch.object(base, 'attachment_versions', return_value=versions),
-                  self.assertRaisesRegex(RuntimeError, 'existing rows, ledger or checksums')):
+                  self.assertRaisesRegex(RuntimeError, error)):
                 reactions.verify_migration(Path('candidate'), before)
         with (patch.object(reactions, 'snapshot', return_value=after),
               patch.object(base, 'attachment_versions', return_value=versions),

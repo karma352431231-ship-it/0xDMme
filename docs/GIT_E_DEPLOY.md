@@ -10,7 +10,7 @@ of that exact package; its preparation had already received specific approval.
 Use only the existing `npm run deploy:staging` command. Its internal transition
 module `deploy_social_reactions.py` pins the complete application/runtime exports
 from published `c4a164b6becb6ff1544de15589c0b5f3c19421f2` to reviewed
-`b3f3dd49915b2af8c09e5a902d996802e7569d1b`. All 68 prior SQL files, dependencies,
+`5304a40162da5e021fc576129d27843043266ba8`. All 68 prior SQL files, dependencies,
 Node, model configuration and installed service units remain exact. Migration 069
 adds only the partial reaction-target index on `social_messages`; it adds no
 columns or tables and rewrites no messages, permissions or retention.
@@ -27,6 +27,17 @@ Access, evidence, artifacts, backups and receipts stay exclusively in `.local/`.
 migrations, correct served assets/source and ready own workers. Forward remains
 private-only; re-clicking your emoji removes it in both chat types. Historical
 messages without a recorded send time remain undated. See [chat behavior](UI_CONVERSAS.md).
+
+The first activation of `6c197bc` stopped before reopening because migration
+069 was absent from the application's explicit migration catalog. The runtime
+reported 68 applied migrations; no old rows changed and the original release,
+68 checksums and three workers were independently verified after rollback. Register
+069 in that catalog and extend the real concurrent-migration test to require every
+published SQL version and the ready reaction index. The regression fails before
+this repair and passes afterward; repeat the preservation rehearsal through the
+actual application migration executor, not only direct SQL. Update the exact
+reviewed source binding above and require fresh full main CI before retrying.
+Keep the failed attempt and its private receipt/backup for review.
 
 ## Public upvotes and author identity — activation authorized on 15/10/2026
 
