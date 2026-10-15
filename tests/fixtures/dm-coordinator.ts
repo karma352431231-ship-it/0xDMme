@@ -18,7 +18,7 @@ const adapted: Record<string, string[]> = {
     'dmBubble',
     'dmConversationView',
     'dmListView',
-    'dmRequestState',
+    'dmComposerGate',
     'dmStateLabel',
     'paintDmPeer',
   ],
@@ -117,6 +117,7 @@ export function dmCoordinatorFixture(t: TestContext) {
             ? held.promise
             : Promise.resolve({
                 peer: { id: peer, handle: peer, avatar: null },
+                state: 'approved',
                 canSend: true,
               });
         },
@@ -186,7 +187,7 @@ export function dmCoordinatorFixture(t: TestContext) {
     ) => {
       view.title.textContent = input.profile.handle;
     },
-    dmRequestState: () => null,
+    dmComposerGate: () => null,
     dmStateLabel: () => '',
     clearDmChecks: noop,
     refreshDmChecks: asyncNoop,
@@ -205,6 +206,7 @@ export function dmCoordinatorFixture(t: TestContext) {
     TextEncoder,
     AbortController,
     AbortSignal,
+    DOMException,
     setTimeout,
     clearTimeout,
     setInterval,
@@ -239,6 +241,7 @@ export function dmCoordinatorFixture(t: TestContext) {
       hold = false;
       held.resolve({
         peer: { id: peer, handle: peer, avatar: null },
+        state: 'approved',
         canSend: true,
       });
     },

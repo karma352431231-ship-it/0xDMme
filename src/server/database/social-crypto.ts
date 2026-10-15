@@ -86,7 +86,7 @@ export class SocialCryptoStore {
   ) {
     return this.social.withActor(authority, async (context) => {
       const profile = input.peer ?? context.actor.id;
-      await this.social.requireConsent(context, profile);
+      await this.social.requireConversation(context, profile);
       const rows = await context.client.query<{ body: DirectoryEvent }>(
         'SELECT body FROM hash_talk.social_directories WHERE profile_id=$1 AND revision>$2 ORDER BY revision LIMIT 9',
         [profile, input.after],
@@ -229,7 +229,7 @@ export class SocialCryptoStore {
   ) {
     return this.social.withActor(authority, async (context) => {
       const profile = input.peer ?? context.actor.id;
-      await this.social.requireConsent(context, profile);
+      await this.social.requireConversation(context, profile);
       if (input.id && profile !== context.actor.id)
         throw new AccountError(403, 'Recuperação histórica restrita ao dono.');
       const current = await this.ready(context, profile);
@@ -268,7 +268,7 @@ export class SocialCryptoStore {
   async publish(authority: ContactAuthority, raw: unknown) {
     const packet = socialPacket(raw);
     return this.social.withActor(authority, async (context) => {
-      await this.social.requireConsent(context, packet.recipient);
+      await this.social.requireConversation(context, packet.recipient);
       const sender = await this.ready(context),
         recipient = await this.ready(context, packet.recipient),
         device = await this.ownDevice(context);
@@ -386,7 +386,7 @@ export class SocialCryptoStore {
     input: { peer: string; before: number | null },
   ) {
     return this.social.withActor(authority, async (context) => {
-      await this.social.requireConsent(context, input.peer);
+      await this.social.requireConversation(context, input.peer);
       const rows = await context.client.query<{
         sequence: string;
         body: MessagePacket;

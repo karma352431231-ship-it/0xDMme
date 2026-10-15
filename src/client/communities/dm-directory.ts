@@ -96,7 +96,7 @@ export class DmDirectory {
           ),
         ),
       );
-    const all = el('a', t('Todas as mensagens @ e pedidos'));
+    const all = el('a', t('Todas as mensagens @'));
     all.href = '#communities?view=dms';
     host.append(all);
   }
@@ -154,10 +154,5 @@ export function dmDirectoryRow(
 }
 function relationLabel(row: SocialRelation): string {
   if (row.blocked) return t('Bloqueada');
-  return {
-    approved: t('Conversa'),
-    pending: t('Solicitação'),
-    rejected: t('Recusada'),
-    none: t('Sem consentimento'),
-  }[row.state];
+  return row.canSend ? t('Conversa') : t('DM indisponível.');
 }

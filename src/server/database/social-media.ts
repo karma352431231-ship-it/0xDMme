@@ -57,7 +57,7 @@ export class SocialMediaStore {
   ) {
     const input = { ...data, media: socialMedia(data.media) };
     return this.social.withActor(a, async (context) => {
-      await this.social.requireConsent(context, input.peer);
+      await this.social.requireConversation(context, input.peer);
       const existing = await context.client.query(
         'SELECT 1 FROM hash_talk.social_messages WHERE id=$1',
         [input.message],
@@ -133,7 +133,7 @@ export class SocialMediaStore {
     const row = await this.row(context.client, id);
     if (!row || row.sender !== context.actor.id || row.status === 'deleting')
       throw new AccountError(404, 'Reserva de mídia de DM indisponível.');
-    await this.social.requireConsent(context, row.recipient);
+    await this.social.requireConversation(context, row.recipient);
     return row;
   }
   async preflight(a: ContactAuthority, id: string): Promise<void> {
@@ -263,7 +263,7 @@ export class SocialMediaStore {
         !row.descriptor.parts[input.index]
       )
         throw new AccountError(404, 'Mídia de DM indisponível.');
-      await this.social.requireConsent(
+      await this.social.requireConversation(
         context,
         row.sender === context.actor.id ? row.recipient : row.sender,
       );

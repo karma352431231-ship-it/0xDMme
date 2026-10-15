@@ -173,7 +173,7 @@
   margin-top: 24px;
   padding-top: 24px;
 }
-/* Followed communities: a row of photos, expanded into a named list. */
+/* Few communities show names; larger collections expand from a photo row. */
 /* Outranks the display of each part, including the toggle's button rule. */
 #app-shell .public-profile-communities [hidden] {
   display: none;
@@ -192,8 +192,7 @@
   display: inline-grid;
   border-radius: 28%;
 }
-.profile-community-photo .community-avatar,
-.profile-communities-toggle {
+.profile-community-photo .community-avatar {
   width: 44px;
   height: 44px;
   flex-basis: 44px;
@@ -205,13 +204,16 @@
 #app-shell .profile-communities-toggle {
   display: inline-grid;
   place-items: center;
-  min-height: 0;
+  min-height: 36px;
+  height: 36px;
+  flex: 0 0 auto;
   margin: 0;
-  padding: 0 6px;
+  padding: 0 12px;
   width: auto;
-  min-width: 44px;
+  min-width: 0;
   border: 1px dashed var(--line-strong);
-  border-radius: 28%;
+  border-radius: 99px;
+  white-space: nowrap;
   background: transparent;
   color: var(--text);
   font-size: var(--fs-small);

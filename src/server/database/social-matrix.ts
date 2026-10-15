@@ -35,7 +35,7 @@ export class SocialMatrixStore {
       );
     const result = new Map<string, DirectoryEvent>();
     for (const profile of unique) {
-      await this.social.requireConsent(context, profile);
+      await this.social.requireConversation(context, profile);
       result.set(profile, await this.crypto.ready(context, profile));
     }
     return result;
@@ -286,7 +286,7 @@ export class SocialMatrixStore {
         sequence: string;
         body: unknown;
       }>(
-        `SELECT e.sequence::text,e.body FROM hash_talk.social_matrix_envelopes e WHERE recipient=$1 AND device_id=$2 AND body IS NOT NULL AND (sender=$1 OR EXISTS(SELECT 1 FROM hash_talk.social_relations r WHERE r.lo=least(e.sender,e.recipient) AND r.hi=greatest(e.sender,e.recipient) AND r.state='approved')) AND NOT EXISTS(SELECT 1 FROM hash_talk.social_blocks b WHERE b.blocked AND ((b.actor=e.sender AND b.target=e.recipient) OR (b.actor=e.recipient AND b.target=e.sender))) ORDER BY sequence LIMIT 16`,
+        `SELECT e.sequence::text,e.body FROM hash_talk.social_matrix_envelopes e WHERE recipient=$1 AND device_id=$2 AND body IS NOT NULL AND (sender=$1 OR EXISTS(SELECT 1 FROM hash_talk.social_relations r WHERE r.lo=least(e.sender,e.recipient) AND r.hi=greatest(e.sender,e.recipient))) AND NOT EXISTS(SELECT 1 FROM hash_talk.social_blocks b WHERE b.blocked AND ((b.actor=e.sender AND b.target=e.recipient) OR (b.actor=e.recipient AND b.target=e.sender))) ORDER BY sequence LIMIT 16`,
         [context.actor.id, device],
       );
       return {

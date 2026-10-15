@@ -46,9 +46,46 @@ extração, sem misturá-la ao seletor.
 
 ## Perfil e métricas
 
+**Atualização de 15/10/2026:** Posts e Respostas passam a ocupar separadamente as
+duas primeiras métricas. O contador de conversas geradas deixa de aparecer; o
+contrato antigo do resumo é preservado para compatibilidade. Até três comunidades
+seguidas mostram foto e nome diretamente. Acima disso, conservar até cinco fotos
+e a lista paginada, com botão compacto de texto em uma linha. Essa regra substitui
+a compactação incondicional descrita em 12/10/2026. Seguidores em comum de usuários
+já usam a direção visitante → pessoa seguida → perfil visitado, com leitura
+assinada, paginação e bloqueios bilaterais entre os três participantes.
+
+DM pelo `@` passa a abrir diretamente, sem solicitação/aceite ou follow. O endpoint
+legado de pedido abre a conversa; aceitar também permanece compatível. Recusar um
+pedido legado informa que esse fluxo foi desativado e orienta usar Bloquear, sem
+simular uma recusa que permitiria mensagens. Abrir promove pedidos/recusas antigos
+sem bloqueio uma vez, sem reescrever relações já abertas. Não apaga histórico nem
+remove bloqueios. E2EE, dispositivos/chaves disponíveis, cotas, mídia permitida,
+recibos e consentimento do chat por wallet permanecem.
+
+**Ponto importante:** só DMs pela identidade pública dispensam aceite; isso não
+expõe mensagens ao público nem compartilha identidade/dados do perfil privado.
+
+Validação local: verificação completa (lint, tipos, fronteiras, licenças,
+formatação, idiomas, build e testes), 33 integrações de perfil social/controles/DMs
+em banco temporário exclusivo e nove regressões finais do cliente, incluindo
+troca de conversa antes de abrir uma DM. Prévia sintética no navegador a 320 e
+1280 px confirmou métricas, nomes imediatos, expansão/recolhimento e ausência de
+rolagem horizontal. O botão View names mediu aproximadamente 98 × 36 px a 320 px.
+Não substitui aceite em aparelho físico nem implica publicação na VPS.
+
+Revisão de responsabilidades: `public-profile/page.ts` e `communities/dms.ts`
+continuam hotspots. Esta alteração reduz suas regras existentes; abertura de DM
+fica em `dm-opening.ts` e a persistência da abertura em `social-conversations.ts`.
+Separação futura, em tarefa própria: primeiro identidade/ações do cabeçalho em
+`profile-header.ts`, depois abas/paginação em `profile-activity.ts`, deixando a
+página coordenar o ciclo de vida. Nas DMs, separar montagem/ciclo de vida antes de
+histórico/mídia. Riscos: respostas antigas, permissões, rolagem e descarte de URLs;
+validar navegação, snapshots, bloqueios, rascunhos, E2EE e limpeza em cada corte.
+
 - Visão geral combina posts, respostas e compartilhamentos por data; Posts e Respostas filtram apenas o conteúdo escrito pelo perfil. Respostas conservam comunidade, postagem original e destino da resposta. Conteúdo excluído/retirado e respostas cujo original não está visível não compõem atividade ou métricas públicas.
-- Conversas geradas conta posts visíveis do autor com ao menos uma resposta visível de outro perfil, uma vez por post. Auto-resposta não pontua; não é certificação de qualidade ou de pessoas únicas.
-- Participação mostra totais de posts e respostas elegíveis separados.
+- Posts mostra o total de posts elegíveis do perfil.
+- Respostas mostra o total de respostas elegíveis do perfil.
 - Idade conta a criação do perfil público, não o início da conta privada. Registrar futuras criações; manter desconhecida nos perfis existentes, sem usar primeiro post, UUID ou data da migração como idade.
 - Comunidades mostra o total e a lista completa das comunidades seguidas, paginada. O proprietário escolheu esta exposição mesmo sem publicar nelas. Esta regra substitui a lista privada dos cortes 3/6 de comunidades; salvos, ocultos e votos individuais mantêm a proteção anterior.
 

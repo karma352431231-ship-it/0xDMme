@@ -6309,6 +6309,16 @@ export const catalog: Record<string, readonly [string, string]> = {
     '查看我的已处理媒体（受限）',
   ],
   'Ver nomes': ['View names', '查看名称'],
+  'Todas as mensagens @': ['All handle messages', '全部用户名私信'],
+  'Conversa de DM não confirmada.': [
+    'DM conversation not confirmed.',
+    '私信会话尚未确认。',
+  ],
+  'Solicitações de DM foram desativadas. Use Bloquear para impedir mensagens.':
+    [
+      'DM requests have been disabled. Use Block to prevent messages.',
+      '私信申请已停用。请使用屏蔽来阻止消息。',
+    ],
   'Ver outros comentários': ['View other comments', '查看其他评论'],
   'Ver perfil público': ['View public profile', '查看公开个人资料'],
   'Ver postagem completa': ['View full post', '查看完整帖子'],
