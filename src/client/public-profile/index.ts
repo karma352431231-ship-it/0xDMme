@@ -1,3 +1,4 @@
+import { InteractionQueue } from '../interaction-queue/index.ts';
 import { t, translatedError } from '../../shared/i18n/index.ts';
 import { mentionNotificationPage } from '../../shared/mention-notifications/index.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
@@ -53,6 +54,7 @@ export function startPublicProfile(
   registerHoverCard(profileHoverProvider(controller));
   const editor = startProfileEditor(controller, {
     run,
+    prepare: (work) => run(work, { quiet: true }),
     changed: () => controller.refreshModeration(),
   });
   let mounted: HTMLElement | null = null,
@@ -104,40 +106,48 @@ export function startPublicProfile(
       },
     });
   }
-  async function run(work: () => Promise<void>): Promise<void> {
-    if (busy) return;
-    busy = true;
-    status = '';
-    const current = generation;
-    render();
-    try {
-      await work();
-    } catch (error: unknown) {
-      if (current === generation)
-        status =
-          error instanceof Error
-            ? translatedError(error.message)
-            : t('Perfil público indisponível.');
-    } finally {
-      busy = false;
-      if (current === generation) render();
+  const operations = new InteractionQueue({
+    generation: () => generation,
+    changed: (value, quiet) => {
+      busy = value;
+      if (quiet) return;
+      renderControls();
+    },
+    failed: (error) => {
+      status =
+        error instanceof Error
+          ? translatedError(error.message)
+          : t('Perfil público indisponível.');
+    },
+    settled: (old) => {
+      if (old === generation) render();
       else ready();
-    }
+    },
+  });
+  function run(
+    work: () => Promise<void>,
+    options: { background?: boolean; quiet?: boolean } = {},
+  ): Promise<void> {
+    status = '';
+    return operations.run(work, options);
   }
   function ready(): void {
     void review.ready();
     shortcut.ready();
     if (!mounted) return;
-    void run(async () => {
-      failed = true;
-      await controller.refresh();
-      await editor.refresh();
-      if (controller.profile) await controller.refreshModeration();
-      failed = false;
-      status = controller.profile
-        ? ''
-        : t('Você ainda não criou um perfil público.');
-    });
+    void run(
+      async () => {
+        failed = true;
+        await controller.refresh();
+        await editor.refresh();
+        if (controller.profile) await controller.refreshModeration();
+        failed = false;
+        status = controller.profile
+          ? ''
+          : t('Você ainda não criou um perfil público.');
+      },
+      { background: true },
+    );
   }
   function bindModeration(): void {
     for (const [action, cursor] of [

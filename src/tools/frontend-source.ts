@@ -25,6 +25,8 @@ const authored = [
   'src/client/moderation-evaluation',
   'src/shared/moderation-evaluation',
   'src/client/public-media',
+  'src/client/image-editor-preview',
+  'src/client/interaction-queue',
   'src/shared/public-media',
   'src/client/external-video',
   'src/client/external-media',

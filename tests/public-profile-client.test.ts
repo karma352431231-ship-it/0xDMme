@@ -358,3 +358,23 @@ await test('atalho com foto pública não mistura iniciais; sem foto mantém fal
     shortcut.clear();
   }
 });
+
+await test('a prepared avatar replacement sends its original revision after a profile recheck', async (context) => {
+  const own = session();
+  const controller = new PublicProfiles(
+    access(own, () => Promise.resolve('synthetic-signature')),
+  );
+  controller.setSession(own);
+  controller.profile = { ...result(), revision: 8 };
+  const revisions: unknown[] = [];
+  context.mock.method(
+    controller,
+    'perform',
+    (_operation: string, payload: Record<string, unknown>) => {
+      revisions.push(payload['revision']);
+      return Promise.resolve(result());
+    },
+  );
+  await controller.avatar(null, 7);
+  assert.deepEqual(revisions, [7]);
+});

@@ -85,7 +85,12 @@ function requestAfter(input?: RequestInit): string | null {
   return body.payload.after;
 }
 function fixture(
-  options: { post?: boolean; creation?: boolean; directory?: boolean } = {},
+  options: {
+    post?: boolean;
+    creation?: boolean;
+    directory?: boolean;
+    management?: boolean;
+  } = {},
 ) {
   const state: CommunityState = {
     community: {
@@ -99,7 +104,7 @@ function fixture(
       owner: null,
       followers: 1,
     },
-    role: 'participant',
+    role: options.management ? 'owner' : 'participant',
     following: true,
     canPost: true,
     pendingPhoto: null,
@@ -265,7 +270,11 @@ function fixture(
     new URLSearchParams(
       options.creation
         ? { view: 'create' }
-        : { id, ...(options.post ? { post: postId } : {}) },
+        : {
+            id,
+            ...(options.post ? { post: postId } : {}),
+            ...(options.management ? { view: 'manage' } : {}),
+          },
     ),
   );
   return { ui, host, sidebar, data };
@@ -707,3 +716,43 @@ for (const change of ['session', 'navigation'] as const) {
     ui.leave();
   });
 }
+
+await test('management rechecks keep image pickers and typed presentation fields mounted', async () => {
+  const { ui, host, data } = fixture({ management: true });
+  await settled(ui);
+  const form = host.querySelector('.community-presentation-editor');
+  assert.ok(form);
+  const fields = form
+    .querySelectorAll('input,textarea')
+    .filter((field) => field.type !== 'file');
+  fields[0]!.value = 'Unsaved replacement name';
+  // The minimal DOM fixture does not bubble events from child controls.
+  form.dispatchEvent(new Event('input'));
+  const pickers = form.querySelectorAll('.community-image-pick');
+  const replacements = host.replacements;
+  const reads = data.requests.length;
+  ui.ready();
+  await setImmediate();
+  await setImmediate();
+  assert.equal(host.querySelector('.community-presentation-editor'), form);
+  assert.deepEqual(form.querySelectorAll('.community-image-pick'), pickers);
+  assert.equal(fields[0]!.value, 'Unsaved replacement name');
+  assert.equal(host.replacements, replacements);
+  assert.ok(data.requests.length > reads, 'permissions are still read');
+  data.state.community.revision++;
+  ui.ready();
+  await setImmediate();
+  await setImmediate();
+  assert.equal(host.querySelector('.community-presentation-editor'), form);
+  assert.equal(fields[0]!.value, 'Unsaved replacement name');
+  data.state.role = 'participant';
+  ui.ready();
+  await settled(ui);
+  assert.equal(host.querySelector('.community-presentation-editor'), null);
+  data.failState = true;
+  ui.ready();
+  await setImmediate();
+  await setImmediate();
+  assert.equal(host.querySelector('.community-presentation-editor'), null);
+  ui.leave();
+});

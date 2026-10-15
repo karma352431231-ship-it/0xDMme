@@ -13,9 +13,10 @@ export function communityPresentationEditor(
   access: {
     signal: AbortSignal;
     run: (work: () => Promise<void>) => Promise<void>;
+    prepare: (work: () => Promise<void>) => Promise<void>;
     save: (payload: Record<string, unknown>) => Promise<void>;
   },
-): { dirty: () => boolean; dispose: () => void } {
+) {
   let photo = state.pendingPhoto,
     banner = state.pendingBanner ?? null,
     changed = false,
@@ -26,12 +27,30 @@ export function communityPresentationEditor(
     'community-presentation-editor community-card',
   );
   host.append(section);
+  function disableImages(busy: boolean): void {
+    section
+      .querySelectorAll<HTMLButtonElement>('.community-image-slot button')
+      .forEach((button) => {
+        button.disabled = busy;
+      });
+    confirm.disabled = busy;
+  }
+  function prepare(work: () => Promise<void>): Promise<void> {
+    return access.prepare(async () => {
+      disableImages(true);
+      try {
+        await work();
+      } finally {
+        if (!disposed) disableImages(false);
+      }
+    });
+  }
   const slots = [
     mountImageSlot(section, {
       slot: 'banner',
       current: banner,
       pickLabel: t('Trocar banner'),
-      access,
+      access: { signal: access.signal, run: prepare },
       change: (value) => {
         banner = value;
         changed = true;
@@ -41,7 +60,7 @@ export function communityPresentationEditor(
       slot: 'photo',
       current: photo,
       pickLabel: t('Trocar foto'),
-      access,
+      access: { signal: access.signal, run: prepare },
       change: (value) => {
         photo = value;
         changed = true;
@@ -95,5 +114,24 @@ export function communityPresentationEditor(
     access.signal.removeEventListener('abort', dispose);
   };
   access.signal.addEventListener('abort', dispose, { once: true });
-  return { dirty: () => changed, dispose };
+  return {
+    dirty: () => changed,
+    retainDraft: (next: CommunityState | null) =>
+      changed &&
+      next?.community.id === state.community.id &&
+      next.role === state.role &&
+      !next.community.archived,
+    accept: (next: CommunityState) => {
+      Object.assign(state, next);
+      photo = next.pendingPhoto;
+      banner = next.pendingBanner ?? null;
+      changed = false;
+      name.value = next.community.name;
+      description.value = next.community.description;
+      rules.value = next.community.rules;
+      slots[0]!.update(banner);
+      slots[1]!.update(photo);
+    },
+    dispose,
+  };
 }

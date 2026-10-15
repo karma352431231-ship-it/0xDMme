@@ -17,7 +17,7 @@ import type {
   ProfileDescription,
 } from '../../shared/profile-social/index.ts';
 import { preparePhoto } from '../attachment-images/index.ts';
-import { showPublicAvatar } from '../public-media/index.ts';
+import { EditorImagePreview } from '../image-editor-preview/index.ts';
 import type { PublicProfiles } from './controller.ts';
 
 const trash =
@@ -29,13 +29,6 @@ interface Image {
   type: 'image/png' | 'image/jpeg';
   bytes: Uint8Array<ArrayBuffer>;
 }
-function blobUrl(image: Image): string {
-  return URL.createObjectURL(new Blob([image.bytes], { type: image.type }));
-}
-function decoded(banner: ProfileBanner['banner']): Image | null {
-  return banner ? { type: banner.type, bytes: banner.bytes } : null;
-}
-
 /**
  * The owner edits the public profile where it is seen: a click on the banner
  * or the photo prepares a local preview; confirmation sends the draft.
@@ -48,15 +41,17 @@ export function startProfileEditor(
     run: (work: () => Promise<void>) => Promise<void>;
     /** A file changed: its analysis notice may have changed too. */
     changed: () => Promise<void>;
+    prepare: (work: () => Promise<void>) => Promise<void>;
   },
 ) {
   let host: HTMLElement | null = null,
     target: Target = 'avatar',
     generation = 0,
-    avatarAbort = new AbortController(),
     mentionsAbort = new AbortController();
-  const urls: string[] = [];
+  let bannerPreview: EditorImagePreview | null = null,
+    avatarPreview: EditorImagePreview | null = null;
   let draftAvatar: Image | null | undefined,
+    draftAvatarRevision: number | undefined,
     draftBanner: Image | null | undefined,
     draftDescription: string | null = null;
   let banner: ProfileBanner = { revision: 0, banner: null };
@@ -65,42 +60,28 @@ export function startProfileEditor(
     return host?.querySelector<T>(selector) ?? null;
   }
   function release(): void {
-    for (const url of urls.splice(0)) URL.revokeObjectURL(url);
-    avatarAbort.abort();
-    avatarAbort = new AbortController();
+    bannerPreview?.clear();
+    avatarPreview?.clear();
+    bannerPreview = null;
+    avatarPreview = null;
   }
   function paintBanner(): void {
-    const image = node<HTMLImageElement>('[data-pick="banner"] img'),
-      bytes = draftBanner === undefined ? decoded(banner.banner) : draftBanner;
-    if (image) {
-      image.hidden = !bytes;
-      if (bytes) urls.push((image.src = blobUrl(bytes)));
-      else image.removeAttribute('src');
-    }
+    const bytes = draftBanner === undefined ? banner.banner : draftBanner;
+    bannerPreview?.show(bytes);
     const remove = node('[data-remove="banner"]');
     if (remove) remove.hidden = !bytes;
   }
   function paintAvatar(): void {
-    const slot = node('[data-avatar-slot]'),
-      own = controller.profile;
-    if (!slot || !own) return;
-    slot.replaceChildren();
+    const own = controller.profile;
+    if (!own) return;
+    const photo = draftAvatar === undefined ? own.pendingAvatar : draftAvatar,
+      fallback = draftAvatar === undefined ? own.profile.avatar : null;
+    avatarPreview?.show(
+      photo,
+      fallback ? { target: own.profile.id, reference: fallback } : null,
+    );
     const remove = node('[data-remove="avatar"]');
-    const photo = draftAvatar === undefined ? own.pendingAvatar : draftAvatar;
-    if (remove) remove.hidden = !photo;
-    if (photo) {
-      const image = document.createElement('img');
-      image.alt = '';
-      urls.push((image.src = blobUrl(photo)));
-      slot.append(image);
-    } else if (draftAvatar === undefined && own.profile.avatar)
-      showPublicAvatar(slot, {
-        kind: 'avatar',
-        target: own.profile.id,
-        reference: own.profile.avatar,
-        signal: avatarAbort.signal,
-      });
-    else slot.textContent = '@';
+    if (remove) remove.hidden = !photo && !fallback;
   }
   function paintDescription(): void {
     const field = node<HTMLTextAreaElement>('[data-public-description]');
@@ -120,7 +101,6 @@ export function startProfileEditor(
   function paint(): void {
     const own = controller.profile;
     if (!host || !own) return;
-    release();
     const handle = node('[data-public-own-handle]');
     if (handle) handle.textContent = `@${own.profile.handle}`;
     const page = node<HTMLAnchorElement>('[data-public-page]');
@@ -138,8 +118,8 @@ export function startProfileEditor(
       controller.perform('description-state', {}).then(profileDescription),
     ]);
     if (old !== generation) return;
-    banner = nextBanner;
-    description = nextDescription;
+    if (draftBanner === undefined) banner = nextBanner;
+    if (draftDescription === null) description = nextDescription;
     paint();
   }
   async function saveBanner(next: Image | null): Promise<void> {
@@ -170,9 +150,8 @@ export function startProfileEditor(
     const finish = node('[data-description-save]');
     if (finish) finish.hidden = true;
   }
-  async function choose(file: File): Promise<void> {
-    const old = generation,
-      kind = target;
+  async function choose(file: File, kind: Target): Promise<void> {
+    const old = generation;
     const photo = await preparePhoto(file);
     if (old !== generation)
       throw new Error('Sessão ou página alterada durante a preparação.');
@@ -181,11 +160,14 @@ export function startProfileEditor(
       bytes: photo.bytes,
     };
     if (kind === 'banner') draftBanner = image;
-    else draftAvatar = image;
+    else {
+      draftAvatar = image;
+      draftAvatarRevision = controller.profile?.revision;
+    }
     paint();
   }
   async function saveAvatar(image: Image | null): Promise<void> {
-    await controller.avatar(image);
+    await controller.avatar(image, draftAvatarRevision);
     paint();
   }
   async function confirm(): Promise<void> {
@@ -205,9 +187,29 @@ export function startProfileEditor(
     if (draftAvatar !== undefined) {
       await saveAvatar(draftAvatar);
       draftAvatar = undefined;
+      draftAvatarRevision = undefined;
     }
     paint();
     await options.changed();
+  }
+  function disable(busy: boolean): void {
+    host
+      ?.querySelectorAll<
+        HTMLButtonElement | HTMLInputElement | HTMLTextAreaElement
+      >('button,input,textarea')
+      .forEach((button) => {
+        button.disabled = busy;
+      });
+  }
+  function prepare(work: () => Promise<void>): Promise<void> {
+    return options.prepare(async () => {
+      disable(true);
+      try {
+        await work();
+      } finally {
+        disable(false);
+      }
+    });
   }
   function bind(): void {
     const input = node<HTMLInputElement>('[data-pick-file]');
@@ -220,18 +222,20 @@ export function startProfileEditor(
     input?.addEventListener('change', () => {
       const file = input.files?.[0];
       input.value = '';
-      if (file) void options.run(() => choose(file));
+      const kind = target;
+      if (file) void prepare(() => choose(file, kind));
     });
     node('[data-remove="banner"]')?.addEventListener('click', () => {
-      void options.run(() => {
+      void prepare(() => {
         draftBanner = null;
         paint();
         return Promise.resolve();
       });
     });
     node('[data-remove="avatar"]')?.addEventListener('click', () => {
-      void options.run(() => {
+      void prepare(() => {
         draftAvatar = null;
+        draftAvatarRevision = controller.profile?.revision;
         paint();
         return Promise.resolve();
       });
@@ -254,32 +258,32 @@ export function startProfileEditor(
       draftBanner !== undefined ||
       (draftDescription !== null &&
         draftDescription.trim() !== description.description),
-    disable(busy: boolean): void {
-      host
-        ?.querySelectorAll<
-          HTMLButtonElement | HTMLInputElement | HTMLTextAreaElement
-        >('button,input,textarea')
-        .forEach((button) => {
-          button.disabled = busy;
-        });
-    },
+    disable,
     mount(container: HTMLElement | null): void {
       mentionsAbort.abort();
       mentionsAbort = new AbortController();
       release();
       generation++;
       draftAvatar = undefined;
+      draftAvatarRevision = undefined;
       draftBanner = undefined;
       draftDescription = null;
       host = container;
       if (!container) return;
       container.innerHTML = template;
+      const bannerImage = node<HTMLImageElement>('[data-pick="banner"] img'),
+        avatarSlot = node('[data-avatar-slot]');
+      if (bannerImage)
+        bannerPreview = new EditorImagePreview(bannerImage, bannerImage);
+      if (avatarSlot) avatarPreview = new EditorImagePreview(avatarSlot);
       bind();
     },
     clear(): void {
-      release();
+      bannerPreview?.clear();
+      avatarPreview?.clear();
       generation++;
       draftAvatar = undefined;
+      draftAvatarRevision = undefined;
       draftBanner = undefined;
       draftDescription = null;
       banner = { revision: 0, banner: null };

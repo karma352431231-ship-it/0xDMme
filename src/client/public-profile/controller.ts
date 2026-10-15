@@ -130,10 +130,13 @@ export class PublicProfiles {
       consent: true,
     });
   }
-  async avatar(avatar: PendingPublicAvatar | null): Promise<void> {
+  async avatar(
+    avatar: PendingPublicAvatar | null,
+    revision?: number,
+  ): Promise<void> {
     if (!this.profile) throw new Error('Crie seu perfil público primeiro.');
     await this.request('avatar', {
-      revision: this.profile.revision,
+      revision: revision ?? this.profile.revision,
       avatar: avatar
         ? { type: avatar.type, bytes: encode(avatar.bytes) }
         : null,

@@ -1,4 +1,4 @@
-import { CommunityOperations } from './operations.ts';
+import { InteractionQueue } from '../interaction-queue/index.ts';
 import {
   t,
   translatedError,
@@ -110,7 +110,7 @@ export function startCommunities(
     generation = 0,
     busy = false;
   let abort = new AbortController(),
-    presentation: { dirty: () => boolean; dispose: () => void } | null = null;
+    presentation: ReturnType<typeof communityPresentationEditor> | null = null;
   // Query of the last list shown (feed, ranking, community…), for the post arrow.
   let lastList: string | null = null;
   let view = 'feed',
@@ -158,7 +158,7 @@ export function startCommunities(
         button.disabled = busy;
       });
   }
-  const operations = new CommunityOperations({
+  const operations = new InteractionQueue({
     generation: () => generation,
     changed: (value, background) => {
       busy = value;
@@ -177,7 +177,7 @@ export function startCommunities(
   });
   function run(
     work: () => Promise<void>,
-    options: { background?: boolean } = {},
+    options: { background?: boolean; quiet?: boolean } = {},
   ): Promise<void> {
     return operations.run(work, options);
   }
@@ -591,6 +591,7 @@ export function startCommunities(
     presentation = communityPresentationEditor(groups.general, own, {
       signal: abort.signal,
       run,
+      prepare: (work) => run(work, { quiet: true }),
       save: (data) => mutateWork('presentation', data),
     });
     mountCommunityBadges(groups.general, own.community.id, {
@@ -626,9 +627,26 @@ export function startCommunities(
     const old = generation,
       result = communityState(await controller.request(operation, data));
     if (old !== generation) return;
-    state = result;
     current = result.community;
-    details();
+    if (operation === 'presentation' && presentation && state) {
+      Object.assign(state, result);
+      presentation.accept(result);
+      const header = mounted?.querySelector<HTMLElement>(
+        '.community-post-back',
+      );
+      if (header) {
+        clearPublicPhotos(header);
+        header.replaceWith(
+          backHeader(
+            result.community,
+            `#comunidades?id=${result.community.id}`,
+          ),
+        );
+      }
+    } else {
+      state = result;
+      details();
+    }
     if (output) output.textContent = t('Alteração salva.');
     followedDirectory.reset();
     await directory();
@@ -700,7 +718,8 @@ export function startCommunities(
       if (!next) return;
       current = next.community;
       state = next.state;
-      if (next.changed || ['manage', 'followers'].includes(view)) details();
+      if (view === 'manage' && presentation?.retainDraft(next.state)) return;
+      if (next.changed || view === 'followers') details();
       else await posts.refresh();
     } catch (error: unknown) {
       if (old === generation) {

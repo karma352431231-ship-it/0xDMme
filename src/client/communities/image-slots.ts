@@ -1,3 +1,4 @@
+import { EditorImagePreview } from '../image-editor-preview/index.ts';
 import { t } from '../../shared/i18n/index.ts';
 import type { PendingPublicAvatar } from '../../shared/public-avatar/index.ts';
 import { preparePhoto } from '../attachment-images/index.ts';
@@ -21,10 +22,12 @@ export function mountImageSlot(
     };
     change: (value: PendingPublicAvatar | null) => void;
   },
-): { dispose: () => void } {
+): {
+  update: (value: PendingPublicAvatar | null) => void;
+  dispose: () => void;
+} {
   const { slot, access } = options;
-  let currentUrl: string | null = null,
-    disposed = false;
+  let disposed = false;
   const slotNode = el(
     'div',
     '',
@@ -42,19 +45,8 @@ export function mountImageSlot(
   button.setAttribute('aria-label', options.pickLabel);
   button.append(image, hint);
   slotNode.append(button);
-  const paint = (value: PendingPublicAvatar | null) => {
-    if (currentUrl) URL.revokeObjectURL(currentUrl);
-    currentUrl = null;
-    image.hidden = !value;
-    if (!value) {
-      image.removeAttribute('src');
-      return;
-    }
-    currentUrl = URL.createObjectURL(
-      new Blob([value.bytes], { type: value.type }),
-    );
-    image.src = currentUrl;
-  };
+  const preview = new EditorImagePreview(image, image);
+  const paint = (value: PendingPublicAvatar | null) => preview.show(value);
   const input = el('input');
   input.type = 'file';
   input.accept = 'image/png,image/jpeg,image/webp';
@@ -90,10 +82,13 @@ export function mountImageSlot(
     });
   });
   return {
+    update: (value) => {
+      remove.hidden = !value;
+      paint(value);
+    },
     dispose: () => {
       disposed = true;
-      if (currentUrl) URL.revokeObjectURL(currentUrl);
-      currentUrl = null;
+      preview.clear();
     },
   };
 }
