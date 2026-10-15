@@ -437,18 +437,19 @@ function mountProfileSettings(content: HTMLElement): void {
   const privacySettings = content.querySelector<HTMLElement>(
     '[data-privacy-settings]',
   );
-  if (privacySettings) {
-    account.mountPrivacy(privacySettings);
+  if (privacySettings) account.mountPrivacy(privacySettings);
+  const appearanceSettings = content.querySelector<HTMLElement>(
+    '[data-appearance-settings]',
+  );
+  if (appearanceSettings) {
+    appearance.mount(appearanceSettings);
+    // Language sits with the theme under "Appearance and language" (16/10/2026).
     mountLanguageSettings(
-      privacySettings,
+      appearanceSettings,
       (language) => accountSettings.saveLanguage(language),
       interruptionReason,
     );
   }
-  const appearanceSettings = content.querySelector<HTMLElement>(
-    '[data-appearance-settings]',
-  );
-  if (appearanceSettings) appearance.mount(appearanceSettings);
   const dailyContainer = content.querySelector<HTMLElement>(
     '[data-daily-settings]',
   );

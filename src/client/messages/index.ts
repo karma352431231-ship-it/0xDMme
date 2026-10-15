@@ -736,10 +736,6 @@ export function startMessages(
       },
     ];
   }
-  function selectedOrganizationId(target: string): string {
-    if (groups.selected || !selected) return target;
-    return directoryUi.contactOrganizationId(agenda.find(selected), target);
-  }
   function renderContacts(): void {
     directoryUi.renderContacts();
   }
@@ -1457,28 +1453,6 @@ export function startMessages(
         container.querySelector(selector)?.addEventListener('click', () => {
           void run(work);
         });
-      const peerLabel = container.querySelector('[data-mute-peer]');
-      if (peerLabel)
-        peerLabel.textContent =
-          selected?.name ||
-          selected?.address ||
-          groups.selected?.title ||
-          t('selecione uma conversa primeiro');
-      on('[data-mute]', async () => {
-        const target = groups.selected?.state.groupId ?? selected?.accountId;
-        if (!target || selected?.localOnly)
-          throw new Error(
-            'Selecione uma conversa antes de alterar os alertas.',
-          );
-        await daily.mute(
-          target,
-          Number(
-            container.querySelector<HTMLSelectElement>('[data-mute-duration]')
-              ?.value ?? 0,
-          ),
-          { settingsId: selectedOrganizationId(target) },
-        );
-      });
       pushSettings = mountPushSettings(
         container.querySelector<HTMLElement>('[data-push-settings]')!,
         daily,

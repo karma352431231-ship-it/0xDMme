@@ -215,8 +215,8 @@ const profileContent = t('html.148d3089e900', [
   }),
   settingsSection({
     id: 'appearance',
-    title: t('Aparência'),
-    description: t('Tema Azul, Preto ou Branco'),
+    title: t('settings.appearance-language'),
+    description: t('settings.appearance-language.detail'),
     content: '<div data-appearance-settings></div>',
   }),
   settingsSection({

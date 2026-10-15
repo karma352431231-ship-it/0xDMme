@@ -2568,8 +2568,12 @@ footer {
 .conversation-menu button:focus-visible {
   background: var(--accent-soft);
 }
-.conversation-menu .menu-close {
+.conversation-menu .menu-close,
+.conversation-menu .menu-back {
   color: var(--text-muted);
+}
+.conversation-menu .menu-back::before {
+  content: '‹ ';
 }
 .conversation-menu small {
   display: block;

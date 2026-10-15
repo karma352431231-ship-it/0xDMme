@@ -20,6 +20,8 @@ export interface ConversationAction {
   id: string;
   label: string;
   perform: () => void;
+  /** A second step in the same menu, such as the mute durations. */
+  choices?: readonly ConversationAction[];
 }
 export interface ConversationEntry {
   id: string;

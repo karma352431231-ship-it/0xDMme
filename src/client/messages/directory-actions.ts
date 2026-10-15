@@ -44,5 +44,47 @@ export function organizationActions(options: {
         : t('Adicionar aos favoritos'),
       perform: () => perform(() => daily.setFavorite(favoriteId, !favorite)),
     },
+    ...(mutePeer
+      ? [muteAction({ daily, settingsId, peer: mutePeer, perform })]
+      : []),
   ];
+}
+
+const muteDurations = [
+  ['conversation.mute-1h', 3_600_000],
+  ['conversation.mute-8h', 28_800_000],
+  ['conversation.mute-24h', 86_400_000],
+  ['conversation.mute-7d', 604_800_000],
+  ['conversation.mute-forever', Number.MAX_SAFE_INTEGER],
+] as const;
+
+/**
+ * Muting moved here from Settings (16/10/2026): a muted conversation offers to
+ * resume alerts; otherwise the durations open in the same menu.
+ */
+function muteAction(options: {
+  daily: Daily;
+  settingsId: string;
+  peer: string;
+  perform: (work: () => Promise<void>) => void;
+}): ConversationAction {
+  const { daily, settingsId, peer, perform } = options;
+  const mute = (duration: number) =>
+    perform(() => daily.mute(peer, duration, { settingsId }));
+  if (daily.conversation(settingsId).mutedUntil > Date.now())
+    return {
+      id: 'mute',
+      label: t('conversation.resume-alerts'),
+      perform: () => mute(0),
+    };
+  return {
+    id: 'mute',
+    label: t('conversation.mute'),
+    perform: () => undefined,
+    choices: muteDurations.map(([label, duration]) => ({
+      id: `mute-${duration}`,
+      label: t(label),
+      perform: () => mute(duration),
+    })),
+  };
 }

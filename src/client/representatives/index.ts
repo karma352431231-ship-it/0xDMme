@@ -334,9 +334,16 @@ export function startRepresentatives(
       ?.addEventListener('click', () => {
         void run(refresh);
       });
-    const name = field(card, t('Nome da organização'));
+    // Creating is a step of its own, below the list (16/10/2026).
+    const create = document.createElement('details');
+    create.className = 'settings-subsection';
+    const summary = document.createElement('summary');
+    summary.textContent = t('representatives.new-organization');
+    create.append(summary);
+    card.append(create);
+    const name = field(create, t('Nome da organização'));
     name.maxLength = 80;
-    card.append(
+    create.append(
       button(t('Criar e assinar organização'), async () => {
         await controller.create(name.value);
         name.value = '';
