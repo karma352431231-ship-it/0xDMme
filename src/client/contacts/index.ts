@@ -16,17 +16,19 @@ import type {
 } from '../../shared/contacts/index.ts';
 import { digest } from '../../shared/devices/index.ts';
 import type { VaultAccess } from '../vault-authority/index.ts';
-import type { VaultSync, VaultEntry } from '../vault-sync/index.ts';
+import type { VaultSync } from '../vault-sync/index.ts';
 import { QrCamera, renderQr } from '../device-qr/index.ts';
 import { AddressBook, incomingInvitation, walletKey } from './agenda.ts';
 import type { BookVersion } from './agenda.ts';
 import { Contacts } from './controller.ts';
+import { ContactDirectory } from './directory.ts';
+import { directoryItems, renderDirectory } from './directory-view.ts';
+import { requestContact } from './request-contact.ts';
 import { template, settingsTemplate } from './template.ts';
 import {
   bindContactTabs,
   contactRow,
   contactMenu,
-  contactSearchMatches,
   emptyContacts,
   searchContacts,
   selectContactTab,
@@ -41,7 +43,8 @@ export function startContacts(
   } = {},
 ) {
   const contacts = new Contacts(access),
-    book = new AddressBook(sync);
+    book = new AddressBook(sync),
+    directory = new ContactDirectory(sync);
   let mounted: HTMLElement | null = null,
     busy = false,
     generation = 0,
@@ -125,7 +128,16 @@ export function startContacts(
         )?.next;
       });
     const next = node('[data-contact-action="book-more"]');
-    if (next) next.hidden = bookEntries().length <= 16;
+    if (next)
+      next.hidden =
+        !directory.more &&
+        directoryItems({
+          saved: directory.entries,
+          approved: contacts.pages.get('approved')?.items ?? [],
+          outgoing: contacts.pages.get('outgoing')?.items ?? [],
+          query: value('[data-book-search]'),
+        }).length <=
+          offset + 16;
   }
   function renderInvite(): void {
     const own = node('[data-contact-own-invite]');
@@ -208,6 +220,7 @@ export function startContacts(
     } while (!sync.complete);
     if (sync.pending) await sync.retry();
     await contacts.snapshot();
+    await directory.load();
     const mode = node<HTMLSelectElement>('[data-contact-mode]');
     if (mode) mode.value = contacts.state.mode;
     if (sync.complete)
@@ -223,48 +236,27 @@ export function startContacts(
     if (received && node('[data-contact-invite-form]')) await inspectInvite();
   }
   function renderBook(): void {
-    const entries = bookEntries();
-    text('[data-book-state]', t('Versões carregadas: {0}', [entries.length]));
-    const list = node('[data-book-list]');
+    const list = node('[data-contact-list="approved"]');
     if (!list) return;
-    list.replaceChildren();
-    for (const entry of entries.slice(offset, offset + 16)) {
-      const conflicts = sync.heads(entry.change.entity).length;
-      const { row, actions } = contactRow({
-        title: entry.change.label,
-        seed: entry.change.entity,
-        detail:
-          conflicts > 1
-            ? t('{0} versões em conflito', [conflicts])
-            : t('Registro da sua agenda particular'),
-      });
-      actions.append(
-        button(t('Abrir contato'), async () => edit(entry.commit.id, false)),
-      );
-      if (conflicts > 1)
-        contactMenu(actions, entry.change.label).append(
-          button(t('Resolver usando esta versão'), async () =>
-            edit(entry.commit.id, true),
-          ),
-        );
-      list.append(row);
-    }
-    if (!list.childElementCount)
-      emptyContacts(
-        list,
-        value('[data-book-search]')
-          ? t('Nenhum registro encontrado nesta agenda.')
-          : t(
-              'Sua agenda está vazia. Adicione uma wallet para guardar um apelido particular.',
-            ),
-      );
-  }
-  function bookEntries(): VaultEntry[] {
-    return book
-      .versions()
-      .filter((entry) =>
-        contactSearchMatches(entry.change.label, value('[data-book-search]')),
-      );
+    const items = directoryItems({
+      saved: directory.entries,
+      approved: contacts.pages.get('approved')?.items ?? [],
+      outgoing: contacts.pages.get('outgoing')?.items ?? [],
+      query: value('[data-book-search]'),
+    });
+    text(
+      '[data-contact-page-state="approved"]',
+      t('contacts.loaded', [items.length]),
+    );
+    renderDirectory({
+      list,
+      items: items.slice(offset, offset + 16),
+      versions: book.versions(),
+      sync,
+      peerRow,
+      button,
+      edit,
+    });
   }
   async function edit(id: string, resolve: boolean): Promise<void> {
     editing = await book.open(id);
@@ -333,6 +325,7 @@ export function startContacts(
       if (expected !== generation) throw new Error('Sessão alterada.');
     });
     if (expected !== generation) throw new Error('Sessão alterada.');
+    await directory.saved(contact);
     await options.saved?.(contact);
     status = sync.pending
       ? t('Contato salvo neste aparelho. Será enviado quando a conexão voltar.')
@@ -360,12 +353,7 @@ export function startContacts(
     actions?.replaceChildren();
   }
   function renderLists(): void {
-    for (const kind of [
-      'incoming',
-      'outgoing',
-      'approved',
-      'rejected',
-    ] as const) {
+    for (const kind of ['incoming', 'outgoing', 'rejected'] as const) {
       const list = node(`[data-contact-list="${kind}"]`);
       if (!list) continue;
       list.replaceChildren();
@@ -598,7 +586,20 @@ export function startContacts(
       );
   }
   async function requestInvite(selected: Peer, token: string): Promise<void> {
-    await contacts.request(selected.accountId, token);
+    const expected = generation;
+    const contact = await requestContact({
+      contacts,
+      book,
+      sync,
+      peer: selected,
+      token,
+      alias: '',
+      guard: () => {
+        if (expected !== generation) throw new Error('Sessão alterada.');
+      },
+    });
+    await directory.saved(contact);
+    await options.saved?.(contact);
     received = null;
     invitePeer = null;
     node('[data-contact-invite-peer]')?.replaceChildren();
@@ -612,7 +613,20 @@ export function startContacts(
   async function requestWallet(): Promise<void> {
     await discover();
     if (found) {
-      await contacts.request(found.accountId, null);
+      const expected = generation;
+      const contact = await requestContact({
+        contacts,
+        book,
+        sync,
+        peer: found,
+        token: null,
+        alias: value('[data-book-alias]'),
+        guard: () => {
+          if (expected !== generation) throw new Error('Sessão alterada.');
+        },
+      });
+      await directory.saved(contact);
+      await options.saved?.(contact);
       await refresh();
       status = t('Solicitação enviada. Aguarde o aceite.');
     }
@@ -634,8 +648,8 @@ export function startContacts(
       status = t('Link copiado. Compartilhe manualmente com o destinatário.');
     },
     'book-more': async () => {
-      offset = offset + 16 < bookEntries().length ? offset + 16 : 0;
-      await Promise.resolve();
+      if (directory.more) await directory.load(true);
+      offset += 16;
     },
     scan: async () => {
       camera?.start('invitation');
@@ -652,6 +666,7 @@ export function startContacts(
     node<HTMLDialogElement>('[data-contact-editor]')?.close();
     node<HTMLDialogElement>('[data-contact-invites]')?.close();
     contacts.clear();
+    directory.clear();
     ownLink = null;
     editing = null;
     prepared = null;
@@ -747,8 +762,9 @@ export function startContacts(
     },
     /** Received requests for Atividade; same signed API and checks as Contatos → Solicitações. */
     async incomingRequests(): Promise<readonly Peer[]> {
-      await contacts.refresh();
-      return (await contacts.list('incoming')).items;
+      const incoming = await contacts.snapshot({ preservePages: true });
+      if (mounted?.isConnected && !busy) render();
+      return incoming.items;
     },
     async respondRequest(accountId: string, accept: boolean): Promise<void> {
       await contacts.respond(accountId, accept);
@@ -825,6 +841,7 @@ export function startContacts(
                 b.dataset['contactPage'] as ContactList,
                 true,
               );
+              offset = 0;
             });
           }),
         );
@@ -846,7 +863,10 @@ export function startContacts(
       render();
       void run(async () => {
         if (navigator.onLine && contacts.session) await refresh();
-        else await sync.openLocal();
+        else {
+          await sync.openLocal();
+          await directory.load();
+        }
       });
     },
   };
@@ -855,3 +875,6 @@ export function startContacts(
 export { Contacts, checkPinnedIdentity } from './controller.ts';
 export { AddressBook, walletEntity, walletKey } from './agenda.ts';
 export type { BookVersion } from './agenda.ts';
+
+export { ContactDirectory, agendaContact } from './directory.ts';
+export type { SavedContact } from './directory.ts';

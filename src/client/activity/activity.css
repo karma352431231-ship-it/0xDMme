@@ -20,3 +20,7 @@
   max-width: min(100%, 220px);
   max-height: 220px;
 }
+
+#app-shell .activity-filters {
+  flex-wrap: wrap;
+}

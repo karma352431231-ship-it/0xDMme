@@ -21,7 +21,7 @@ import { ConversationSearch } from './search.ts';
 import type { SearchPage } from './search.ts';
 import type { ConversationAction } from './directory.ts';
 import { ConversationMenu } from './directory-menu.ts';
-import { ContactDirectory } from './contact-directory.ts';
+import { ContactDirectory } from '../contacts/index.ts';
 import { organizationActions } from './directory-actions.ts';
 import { startGroups } from '../groups/index.ts';
 import type { startRepresentatives } from '../representatives/index.ts';

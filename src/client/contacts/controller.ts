@@ -129,7 +129,11 @@ export class Contacts {
         data['inviteHash'] === null ? null : token(data['inviteHash']),
     };
   }
-  async snapshot(): Promise<void> {
+  async snapshot(
+    options: { preservePages?: boolean } = {},
+  ): Promise<ContactPage> {
+    const previousRevision = this.state.revision;
+    const previousPages = new Map(this.pages);
     const data = object(await this.api('snapshot', {}));
     keys(data, ['state', 'lists']);
     this.acceptState(data['state']);
@@ -143,6 +147,10 @@ export class Contacts {
       'rejected',
     ] as const)
       this.acceptPage(kind, lists[kind]);
+    const incoming = this.pages.get('incoming')!;
+    if (options.preservePages && previousRevision === this.state.revision)
+      for (const [kind, page] of previousPages) this.pages.set(kind, page);
+    return incoming;
   }
   private acceptPage(kind: ContactList, value: unknown): ContactPage {
     const data = object(value);

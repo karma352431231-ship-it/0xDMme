@@ -32,6 +32,7 @@ async function worker(
     unreadLimit?: number;
     networkDelayMs?: number;
     pushAllowed?: boolean;
+    openClient?: boolean;
     publicPreview?: unknown;
     pushCheckFails?: boolean;
     pushSound?: string;
@@ -69,6 +70,7 @@ async function worker(
   >();
   const notifications: { title: string; options: NotificationOptions }[] = [];
   const opened: string[] = [];
+  const clientMessages: { url: string; message: unknown }[] = [];
   const origin = 'https://hash-talk.example';
   const pushResult = {
     allowed: options.pushAllowed ?? false,
@@ -137,7 +139,18 @@ async function worker(
       },
     },
     clients: {
-      matchAll: () => Promise.resolve([]),
+      matchAll: () =>
+        Promise.resolve(
+          options.openClient
+            ? [origin, 'https://unrelated.example'].map((url) => ({
+                url,
+                focus: () => Promise.resolve(),
+                postMessage: (message: unknown) => {
+                  clientMessages.push({ url, message });
+                },
+              }))
+            : [],
+        ),
       openWindow: (url: string) => {
         opened.push(url);
         return Promise.resolve();
@@ -234,6 +247,7 @@ async function worker(
     },
     origin,
     notifications,
+    clientMessages,
     opened,
   };
 }
@@ -579,4 +593,16 @@ await test('Chinese background alerts localize app text without translating publ
   const invalid = await worker({ pushAllowed: true, language: 'pt-BR' });
   await invalid.dispatch('push');
   assert.equal(invalid.notifications.length, 0);
+});
+
+await test('verified push wakes same-origin open pages without notification contents; rejected pushes do not', async () => {
+  const scope = await worker({ pushAllowed: true, openClient: true });
+  await scope.dispatch('push');
+  assert.equal(scope.clientMessages.length, 1);
+  assert.deepEqual(JSON.parse(JSON.stringify(scope.clientMessages)), [
+    { url: scope.origin, message: { type: 'ACTIVITY_CHANGED' } },
+  ]);
+  const denied = await worker({ pushAllowed: false, openClient: true });
+  await denied.dispatch('push');
+  assert.equal(denied.clientMessages.length, 0);
 });

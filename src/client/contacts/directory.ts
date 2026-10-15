@@ -1,4 +1,4 @@
-import { AddressBook, walletEntity, walletKey } from '../contacts/index.ts';
+import { AddressBook, walletEntity, walletKey } from './agenda.ts';
 import type {
   AddressBookEntry,
   Peer,

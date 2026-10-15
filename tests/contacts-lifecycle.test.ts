@@ -72,7 +72,7 @@ for (const withInvite of [false, true])
     t.mock.method(sync, 'refresh', () => Promise.resolve());
     t.mock.method(Contacts.prototype, 'snapshot', () => {
       opened();
-      return Promise.resolve();
+      return Promise.resolve({ items: [], blocks: [], next: null });
     });
     t.mock.method(Contacts.prototype, 'invite', (value: Invitation) => {
       assert.deepEqual(value, invite);
@@ -158,7 +158,9 @@ await test('salvar e solicitar por endereço completo identificam EVM/Solana sem
   sync.complete = true;
   t.mock.method(sync, 'openLocal', () => Promise.resolve());
   t.mock.method(sync, 'refresh', () => Promise.resolve());
-  t.mock.method(Contacts.prototype, 'snapshot', () => Promise.resolve());
+  t.mock.method(Contacts.prototype, 'snapshot', () =>
+    Promise.resolve({ items: [], blocks: [], next: null }),
+  );
   const discovered: WalletContact[] = [],
     stored: AddressBookEntry[] = [],
     requested: string[] = [];
@@ -208,9 +210,16 @@ await test('salvar e solicitar por endereço completo identificam EVM/Solana sem
         ? [request]
         : [],
   } as unknown as HTMLElement;
+  async function finished(): Promise<void> {
+    const deadline = Date.now() + 2000;
+    do {
+      await new Promise<void>((resolve) => setImmediate(resolve));
+    } while (request.disabled && Date.now() < deadline);
+    assert.equal(request.disabled, false);
+  }
   const contacts = startContacts(access, sync);
   contacts.mount(container);
-  await new Promise<void>((resolve) => setImmediate(resolve));
+  await finished();
   for (const wallet of [
     { ecosystem: 'evm', address: '0x' + 'a'.repeat(40) },
     {
@@ -220,22 +229,22 @@ await test('salvar e solicitar por endereço completo identificam EVM/Solana sem
   ] as const) {
     address.value = ` ${wallet.address} `;
     request.dispatchEvent(new Event('click'));
-    await new Promise<void>((resolve) => setImmediate(resolve));
+    await finished();
     assert.deepEqual(discovered.at(-1), wallet);
     assert.equal(requested.at(-1), target);
     form.dispatchEvent(new Event('submit', { cancelable: true }));
-    await new Promise<void>((resolve) => setImmediate(resolve));
+    await finished();
     assert.equal(stored.at(-1)?.ecosystem, wallet.ecosystem);
     assert.equal(stored.at(-1)?.address, wallet.address);
     assert.equal(stored.at(-1)?.alias, alias.value);
   }
   address.value = 'endereço inválido';
   request.dispatchEvent(new Event('click'));
-  await new Promise<void>((resolve) => setImmediate(resolve));
+  await finished();
   form.dispatchEvent(new Event('submit', { cancelable: true }));
-  await new Promise<void>((resolve) => setImmediate(resolve));
+  await finished();
   assert.match(status.textContent, /Invalid wallet/u);
   assert.equal(discovered.length, 2);
   assert.equal(requested.length, 2);
-  assert.equal(stored.length, 2);
+  assert.equal(stored.length, 4);
 });

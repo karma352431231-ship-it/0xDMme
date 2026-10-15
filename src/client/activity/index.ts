@@ -11,7 +11,9 @@ import { PublicationPreview } from './publication-preview.ts';
 import type { ExternalMediaConsent } from '../external-media/index.ts';
 import { publicationTitle, publicationQuote } from './publications.ts';
 import { noticeLink, bindNoticeRow } from './notice-link.ts';
-import { moderationRows, watchModeration } from './moderation.ts';
+import { moderationRows } from './moderation.ts';
+import { ActivityUpdates } from './updates.ts';
+import type { LiveEvent } from '../message-live/index.ts';
 import type { ModerationActivity } from './moderation.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
 import { displayName, paintAvatar, shortAddress } from '../appearance/index.ts';
@@ -152,7 +154,7 @@ function relativeTime(iso: string): string {
     0,
     Math.floor((Date.now() - Date.parse(iso)) / 60_000),
   );
-  if (minutes < 1) return 'agora';
+  if (minutes < 1) return t('activity.now');
   if (minutes < 60) return t('há {0} min', [minutes]);
   if (minutes < 1440) return t('há {0} h', [Math.floor(minutes / 60)]);
   return new Date(iso).toLocaleDateString(currentLanguage());
@@ -184,7 +186,16 @@ export function startActivity(
   let busy = false;
   let feedback = '';
   let filter: ActivityFilter = 'all';
-  let moderationAbort = new AbortController();
+  const updates = new ActivityUpdates({
+    read,
+    failed: (error) => {
+      feedback =
+        error instanceof Error
+          ? translatedError(error.message)
+          : t('Não foi possível carregar.');
+      render();
+    },
+  });
 
   function count(): number {
     const ids = [
@@ -208,7 +219,7 @@ export function startActivity(
     }
     return seen.count(ids);
   }
-  async function refresh(): Promise<void> {
+  async function read(): Promise<void> {
     if (!session) return;
     const old = ++generation;
     const [requests, invites, replies, transfers, calls, moderation, mentions] =
@@ -234,17 +245,15 @@ export function startActivity(
     options.countChanged(count());
     render();
   }
-  async function refreshPublicNotices(): Promise<void> {
-    if (!session) return;
-    const old = generation;
-    const [moderation, mentions] = await Promise.all([
-      load(sources.moderation ?? (() => Promise.resolve([]))),
-      load(sources.mentions ?? (() => Promise.resolve([]))),
-    ]);
-    if (old !== generation) return;
-    snapshot.moderation = moderation;
-    snapshot.mentions = mentions;
-    options.countChanged(count());
+  function refresh(): Promise<void> {
+    return updates.refresh();
+  }
+  function invalidate(): void {
+    updates.stop();
+    generation++;
+    snapshot = empty();
+    publicationPreview.clear();
+    options.countChanged(0);
     render();
   }
   async function act(work: () => Promise<void>, done: string): Promise<void> {
@@ -589,8 +598,12 @@ export function startActivity(
     ];
   }
   return {
-    /** Loads once per call: opening the page or a new authorized session. */
     refresh,
+    ready: () => updates.start(),
+    event(event: LiveEvent): void {
+      if (['invalidated', 'revoked', 'ended'].includes(event)) invalidate();
+      else updates.event(event);
+    },
     mount(container: HTMLElement): void {
       host = container;
       options.countChanged(count());
@@ -613,10 +626,7 @@ export function startActivity(
       generation++;
       snapshot = empty();
       publicationPreview.clear();
-      moderationAbort.abort();
-      moderationAbort = new AbortController();
-      if (value && sources.moderation && typeof document !== 'undefined')
-        watchModeration(refreshPublicNotices, moderationAbort.signal);
+      updates.stop();
       feedback = '';
       filter = 'all';
       options.countChanged(0);

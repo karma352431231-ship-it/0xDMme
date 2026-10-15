@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import pg from 'pg';
+import { queueReplyNotice } from '../../src/server/database/public-notice-wake.ts';
 import { AccountError } from '../../src/shared/account/index.ts';
 import {
   communityState,
@@ -228,6 +229,63 @@ await test('corte 5: árvore, votos e avisos diretos com autorização e persist
         ),
         [root],
       );
+    },
+  );
+  await t.test(
+    'reply wakes the recipient without push consent, only after commit and never after rollback',
+    async () => {
+      const recipient = await make();
+      const profile = await recipient.publicIdentity(
+        `wake_${crypto.randomUUID().slice(0, 8)}`,
+      );
+      const listener = new pg.Client({ connectionString: config.databaseUrl });
+      const frames: {
+        accounts: string[];
+        removed: boolean;
+        authorization: boolean;
+      }[] = [];
+      await listener.connect();
+      listener.on('notification', (notice) => {
+        if (notice.channel === 'hash_talk_content_changes')
+          frames.push(
+            JSON.parse(notice.payload ?? '{}') as (typeof frames)[number],
+          );
+      });
+      await listener.query('LISTEN hash_talk_content_changes');
+      try {
+        assert.equal(
+          (
+            await inspector.query(
+              'SELECT 1 FROM hash_talk.push_subscriptions WHERE account_id=$1',
+              [recipient.login.session.accountId],
+            )
+          ).rowCount,
+          0,
+        );
+        await inspector.query('BEGIN');
+        await queueReplyNotice(inspector, profile.id);
+        await new Promise<void>((resolve) => setTimeout(resolve, 30));
+        assert.equal(frames.length, 0);
+        await inspector.query('ROLLBACK');
+        await new Promise<void>((resolve) => setTimeout(resolve, 30));
+        assert.equal(frames.length, 0);
+        await inspector.query('BEGIN');
+        await queueReplyNotice(inspector, profile.id);
+        await inspector.query('COMMIT');
+        const deadline = Date.now() + 2000;
+        while (!frames.length && Date.now() < deadline)
+          await new Promise<void>((resolve) => setTimeout(resolve, 10));
+        assert.deepEqual(frames, [
+          {
+            accounts: [recipient.login.session.accountId],
+            removed: false,
+            authorization: false,
+          },
+        ]);
+      } finally {
+        await inspector.query('ROLLBACK');
+        await listener.end();
+      }
     },
   );
   await t.test(

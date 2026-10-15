@@ -212,6 +212,7 @@ async function notify(): Promise<void> {
       data.allowed !== true
     )
       return;
+    await wakeOpenClients();
     const sound = await pushSoundEnabled();
     setActiveLanguage(await pushLanguage());
     const appearance = notificationAppearance(data);
@@ -224,6 +225,21 @@ async function notify(): Promise<void> {
     });
   } catch {
     /* Unverified authorization/mute never falls back to an alert. The message remains durable. */
+  }
+}
+/** A closing window must not prevent the independently authorized OS alert. */
+async function wakeOpenClients(): Promise<void> {
+  try {
+    const windows = await scope.clients.matchAll({
+      type: 'window',
+      includeUncontrolled: true,
+    });
+    for (const client of windows) {
+      if (new URL(client.url).origin === scope.location.origin)
+        client.postMessage({ type: 'ACTIVITY_CHANGED' });
+    }
+  } catch {
+    // Live hints, return-to-app reconciliation and the foreground fallback remain active.
   }
 }
 function notificationAppearance(data: object): {

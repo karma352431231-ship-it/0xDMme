@@ -3,8 +3,8 @@ import { shortAddress } from '../appearance/index.ts';
 import type { Daily, PeerState } from '../daily/index.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
 import type { Peer, AddressBookEntry } from '../../shared/contacts/index.ts';
-import { agendaContact } from './contact-directory.ts';
-import type { ContactDirectory, SavedContact } from './contact-directory.ts';
+import { agendaContact } from '../contacts/index.ts';
+import type { ContactDirectory, SavedContact } from '../contacts/index.ts';
 import type { ConversationPeer } from './directory-controller.ts';
 import {
   renderDirectory,

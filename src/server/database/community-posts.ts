@@ -8,7 +8,7 @@ import { discussionRows } from './community-discussion.ts';
 import type { DiscussionOrder } from '../../shared/community-discussion/index.ts';
 import { sharedPostIds } from './post-sharing.ts';
 import { withPostInteractions } from './community-interaction-view.ts';
-import { queueWatchedPost } from './profile-notifications.ts';
+import { queueWatchedPost } from './public-notice-wake.ts';
 import {
   blockedPost,
   blockedPosts,

@@ -7,30 +7,6 @@ export interface ModerationActivity {
   review?: string;
   read?: boolean;
 }
-/** Refresh the bounded public notice sources; background tabs do no polling. */
-export function watchModeration(
-  refresh: () => Promise<void>,
-  signal: AbortSignal,
-): void {
-  let timer: ReturnType<typeof setTimeout>;
-  const cancel = () => clearTimeout(timer);
-  const check = async () => {
-    signal.removeEventListener('abort', cancel);
-    if (signal.aborted) return;
-    try {
-      if (!document.hidden) await refresh();
-    } finally {
-      if (!signal.aborted) schedule();
-    }
-  };
-  function schedule(): void {
-    timer = setTimeout(() => {
-      void check();
-    }, 30_000);
-    signal.addEventListener('abort', cancel, { once: true });
-  }
-  schedule();
-}
 export function moderationRows(
   items: readonly ModerationActivity[],
   actions: {

@@ -165,6 +165,7 @@ const messages = startMessages(devices, vault.sync, {
   liveEvent: (event) => {
     statuses.event(event);
     calls.event(event);
+    activity.event(event);
   },
   liveState: (connected) => statuses.liveConnection(connected),
   sharedProfile: () => account.sharedProfile(),
@@ -223,7 +224,7 @@ const accountSettings = startAccountSettings({
   },
   contacts,
 });
-// Activity and status rings load once per authorized session, never on a timer.
+// Status rings load once per authorized session; activity has its own wakeups.
 let sessionExtrasFor = '';
 const account = startAccount({
   mobileOpening: true,
@@ -580,6 +581,7 @@ function connection(): void {
     if (messagesReady) messages.ready();
     calls.ready();
     contacts.ready();
+    activity.ready();
     groupEntrypoints.ready();
     statuses.ready();
     void vault.ready();
@@ -616,7 +618,7 @@ function railAvatar(session: AccountSession | null): void {
 function loadSessionExtras(accountId: string): void {
   if (sessionExtrasFor === accountId) return;
   sessionExtrasFor = accountId;
-  void activity.refresh();
+  activity.ready();
   refreshStatusAuthors(true);
 }
 let statusAuthorsAt = 0;

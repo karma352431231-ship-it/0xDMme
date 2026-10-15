@@ -1,6 +1,6 @@
 import type { Contacts } from '../contacts/index.ts';
 import type { Peer } from '../../shared/contacts/index.ts';
-import type { ContactDirectory } from './contact-directory.ts';
+import type { ContactDirectory } from '../contacts/index.ts';
 import type { Messages } from './controller.ts';
 
 export type ConversationPeer = Peer & { localOnly?: boolean };

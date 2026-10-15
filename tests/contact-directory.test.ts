@@ -1,8 +1,9 @@
 import assert from 'node:assert/strict';
+import { requestContact } from '../src/client/contacts/request-contact.ts';
 import { test } from 'node:test';
 import type { TestContext } from 'node:test';
 import { AddressBook, walletEntity } from '../src/client/contacts/index.ts';
-import { ContactDirectory } from '../src/client/messages/contact-directory.ts';
+import { ContactDirectory } from '../src/client/contacts/index.ts';
 import { VaultSync } from '../src/client/vault-sync/index.ts';
 import type { VaultEntry } from '../src/client/vault-sync/index.ts';
 import type { AddressBookEntry } from '../src/shared/contacts/index.ts';
@@ -173,4 +174,67 @@ await test('troca de conta antes de cifrar a remoção impede escrever o contato
   directory.clear();
   await assert.rejects(removing, /Sessão alterada/);
   assert.equal(f.save.mock.callCount(), 0);
+});
+
+await test('a request persists the contact before acceptance and preserves an existing private alias', async (t) => {
+  const f = fixture(t),
+    book = new AddressBook(f.sync),
+    value = contact(90);
+  const peer = {
+    accountId: crypto.randomUUID(),
+    ecosystem: value.ecosystem,
+    address: value.address,
+    name: 'Chosen name',
+  };
+  let requests = 0;
+  const input = {
+    contacts: {
+      request: () => {
+        requests++;
+        return Promise.resolve();
+      },
+    },
+    book,
+    sync: f.sync,
+    peer,
+    token: null,
+    alias: 'Private alias',
+    guard: () => {},
+  };
+  const first = await requestContact(input);
+  assert.equal(first.alias, 'Private alias');
+  const directory = new ContactDirectory(f.sync);
+  await directory.load();
+  assert.equal(directory.find(peer)?.contact.alias, 'Private alias');
+  const again = await requestContact({ ...input, alias: 'Do not overwrite' });
+  assert.equal(again.alias, 'Private alias');
+  assert.equal(f.save.mock.callCount(), 1);
+  assert.equal(requests, 2);
+});
+await test('failed bookmark reports a committed request without an automatic duplicate', async (t) => {
+  const f = fixture(t),
+    book = new AddressBook(f.sync),
+    value = contact(91);
+  t.mock.method(book, 'save', () =>
+    Promise.reject(new Error('synthetic full vault')),
+  );
+  let requests = 0;
+  await assert.rejects(
+    requestContact({
+      contacts: {
+        request: () => {
+          requests++;
+          return Promise.resolve();
+        },
+      },
+      book,
+      sync: f.sync,
+      peer: { ...value, name: 'Name', accountId: crypto.randomUUID() },
+      token: null,
+      alias: '',
+      guard: () => {},
+    }),
+    /contacts.request-sent-save-failed/u,
+  );
+  assert.equal(requests, 1);
 });
