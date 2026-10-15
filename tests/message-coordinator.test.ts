@@ -66,6 +66,26 @@ await test('abrir outra conversa marca sua leitura sem repetir a manutenção de
   assert.ok(calls.includes('read'));
   assert.ok(!calls.includes('heartbeat'));
   assert.ok(!calls.includes('states'));
+  assert.ok(!calls.includes('pins'));
+});
+
+await test('janela sem reuso confere identidades antes de carregar o histórico', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const f = coordinatorFixture(t);
+  f.messages.ready();
+  t.mock.timers.tick(150);
+  await turn();
+  f.state.probeChanged = true;
+  const before = f.calls.length;
+  await f.messages.openContact({
+    accountId: 'peer',
+    ecosystem: 'evm',
+    address: '0x' + '1'.repeat(40),
+    name: 'Sintético',
+  });
+  const calls = f.calls.slice(before);
+  assert.ok(calls.indexOf('probe') < calls.indexOf('pins'));
+  assert.ok(calls.indexOf('pins') < calls.indexOf('synchronize'));
 });
 
 await test('trocar de aba com stream atualizado conserva a visão e a página em preparação', async (t) => {

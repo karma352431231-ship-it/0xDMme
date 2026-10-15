@@ -15,11 +15,15 @@ export interface VaultAccess {
   withVault: <T>(
     offline: boolean,
     work: (authority: VaultAuthority) => Promise<T>,
+    options?: VaultWorkOptions,
   ) => Promise<T>;
   withLocalVault: <T>(
     locator: VaultLocator,
     work: (authority: VaultAuthority) => Promise<T>,
   ) => Promise<T>;
+}
+export interface VaultWorkOptions {
+  priority?: 'interactive';
 }
 export interface VaultLocator {
   accountId: string;

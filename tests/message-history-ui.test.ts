@@ -132,8 +132,7 @@ await test('read receipts patch checks without replacing the message and suppres
   const message = f.history.children[0],
     clears = f.clears();
   await f.ui.markRead({
-    read: () => Promise.resolve(),
-    receipts: () => Promise.resolve(new Set(['own'])),
+    readConversation: () => Promise.resolve(new Set(['own'])),
   });
   assert.equal(f.history.children[0], message);
   assert.equal(f.clears(), clears);
@@ -146,8 +145,7 @@ await test('read receipts patch checks without replacing the message and suppres
   const pending = deferred<Set<string>>(),
     started = deferred<void>();
   const reading = f.ui.markRead({
-    read: () => Promise.resolve(),
-    receipts: () => {
+    readConversation: () => {
       started.resolve();
       return pending.promise;
     },
@@ -166,8 +164,7 @@ await test('hidden conversation never sends read receipts', async (t) => {
   f.ui.render([row('incoming')]);
   f.hide();
   await f.ui.markRead({
-    read: () => Promise.reject(new Error('Hidden')),
-    receipts: () => Promise.reject(new Error('Hidden')),
+    readConversation: () => Promise.reject(new Error('Hidden')),
   });
 });
 

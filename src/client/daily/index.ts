@@ -18,6 +18,8 @@ import type { VaultAccess } from '../vault-authority/index.ts';
 import type { VaultSync } from '../vault-sync/index.ts';
 import { messageApi } from '../message-api/index.ts';
 import { announcePreference } from '../preference-events/index.ts';
+import { readConversationReceipts } from './receipts.ts';
+import type { ReceiptWindow } from './receipts.ts';
 type OrganizationSync = Pick<
   VaultSync,
   'complete' | 'currentHeads' | 'isRemoved' | 'open' | 'refresh' | 'save'
@@ -188,14 +190,22 @@ export class Daily {
     for (const notification of (await registration?.getNotifications()) ?? [])
       notification.close();
   }
-  async read(peer: string, ids: string[]): Promise<void> {
-    await this.api('daily-read', { peer, ids });
-  }
-  async receipts(ids: string[]): Promise<Set<string>> {
-    const raw = await this.api('daily-receipts', { ids });
-    if (!Array.isArray(raw) || raw.length > 16)
-      throw new Error('Confirmações inválidas.');
-    return new Set(raw.map((value) => String(value)));
+  async readConversation(input: ReceiptWindow): Promise<Set<string> | null> {
+    if (!input.current()) return null;
+    if (!input.incoming.length && !input.outgoing.length) return new Set();
+    const generation = this.generation;
+    return this.access.withVault(
+      false,
+      (authority) =>
+        readConversationReceipts({
+          ...input,
+          api: (operation, payload) =>
+            messageApi(authority, operation, payload, () =>
+              this.assertGeneration(generation),
+            ),
+        }),
+      { priority: 'interactive' },
+    );
   }
   async loadSettings(peers: readonly string[]): Promise<void> {
     if (!this.sync.complete)

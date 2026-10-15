@@ -2,6 +2,7 @@ import { t } from '../../shared/i18n/index.ts';
 import { messageStates } from '../message-state/index.ts';
 import { readPrefetchPage } from './prefetch-page.ts';
 import { ConfirmedConversations } from './confirmed-conversations.ts';
+import { readDelivery } from './delivery.ts';
 import { optionalSentAt } from '../../shared/message-presentation/index.ts';
 import { knownPeerProfile } from './known-profile.ts';
 import { readBackupWindow } from './backup-window.ts';
@@ -47,7 +48,11 @@ import type {
 } from '../../shared/messages/index.ts';
 import { integer } from '../../shared/vault/index.ts';
 import { localLocator } from '../vault-storage/index.ts';
-import type { VaultAccess, VaultAuthority } from '../vault-authority/index.ts';
+import type {
+  VaultAccess,
+  VaultAuthority,
+  VaultWorkOptions,
+} from '../vault-authority/index.ts';
 import type { VaultSync } from '../vault-sync/index.ts';
 import {
   createRecoveryKey,
@@ -146,6 +151,7 @@ export class Messages {
   private generation = 0;
   private readonly identities: PeerIdentity;
   private initializedDirectory = '';
+  private pinsGeneration = -1;
   private readonly histories = new Map<
     string,
     import('../../shared/devices/index.ts').DirectoryEvent[]
@@ -206,6 +212,7 @@ export class Messages {
     this.session = session;
   }
   close(): void {
+    this.pinsGeneration = -1;
     this.pauseSynchronization();
     this.prefetch.reset();
     this.conversations.clear();
@@ -220,6 +227,7 @@ export class Messages {
   /** Hide during a normal pause, retaining only a fully confirmed window.
    * probe() must authenticate the current snapshot before publishing it again. */
   pause(): void {
+    this.pinsGeneration = -1;
     this.probedSnapshot = null;
     this.pauseSynchronization();
     this.visibility.close();
@@ -233,6 +241,7 @@ export class Messages {
     this.visibility.close('pending');
   }
   hide(): void {
+    this.pinsGeneration = -1;
     this.conversations.clear();
     this.probedSnapshot = null;
     this.pauseSynchronization();
@@ -324,7 +333,10 @@ export class Messages {
     });
   }
   async loadPins(): Promise<void> {
+    const generation = this.generation;
     await this.identities.load();
+    this.guard(generation);
+    this.pinsGeneration = generation;
   }
   async savePins(): Promise<void> {
     await this.identities.save();
@@ -569,12 +581,15 @@ export class Messages {
     return chunks;
   }
   async shareProfile(peer: string, card: ProfileCard): Promise<void> {
-    const session = this.session;
+    const session = this.session,
+      generation = this.generation;
     if (!session) return;
     const serialized = encodeProfileCard(card),
       hash = await digest(serialized),
       name = `profile-sent:${peer}`;
-    if ((await localGet<string>(session.accountId, name)) === hash) return;
+    const sent = await localGet<string>(session.accountId, name);
+    this.guard(generation);
+    if (sent === hash) return;
     const key = await digest(
       canonical([
         '0xdmme-profile-card',
@@ -586,7 +601,8 @@ export class Messages {
       ]),
     );
     const id = `${key.slice(0, 8)}-${key.slice(8, 12)}-4${key.slice(13, 16)}-8${key.slice(17, 20)}-${key.slice(20, 32)}`;
-    const generation = this.generation;
+    await this.loadPins();
+    this.guard(generation);
     const known = await this.access.withVault(false, (a) =>
       messageApi(a, 'profile-known', { id, peer }, () =>
         this.guard(generation),
@@ -602,6 +618,10 @@ export class Messages {
   async sendPending(): Promise<void> {
     if (!(await this.pending()).length) return;
     const generation = this.generation;
+    // Opening a retained window defers the vault read, not identity validation
+    // before distributing keys or publishing new ciphertext.
+    if (this.pinsGeneration !== generation) await this.loadPins();
+    this.guard(generation);
     // Persist the first trusted identity before distributing a room key or
     // accepting ciphertext. VaultSync owns a separate lock, so save outside it.
     await this.access.withVault(false, async (a) => {
@@ -854,11 +874,13 @@ export class Messages {
     token: number,
     snapshot: unknown,
     generation: number,
+    authority?: VaultAuthority,
   ): Promise<void> {
     await this.visibility.confirm(token, async () => {
-      await this.access.withVault(false, (a) =>
-        messageApi(a, 'confirm', { snapshot }, () => this.guard(generation)),
-      );
+      const check = (a: VaultAuthority) =>
+        messageApi(a, 'confirm', { snapshot }, () => this.guard(generation));
+      if (authority) await check(authority);
+      else await this.access.withVault(false, check);
       this.guard(generation);
     });
   }
@@ -1555,34 +1577,41 @@ export class Messages {
       return bytes;
     });
   }
-  async probe(): Promise<boolean> {
+  async probe(options: VaultWorkOptions = {}): Promise<boolean> {
     this.probedSnapshot = null;
     const token = this.visibility.refresh(
         this.confirmed ? 'delivery' : 'history',
       ),
       generation = this.generation;
     try {
-      const snapshot = await this.access.withVault(false, (a) =>
-        messageApi(a, 'snapshot', {}, () => this.guard(generation)),
+      return await this.access.withVault(
+        false,
+        async (authority) => {
+          const snapshot = await messageApi(authority, 'snapshot', {}, () =>
+            this.guard(generation),
+          );
+          this.guard(generation);
+          if (this.confirmed?.snapshot === JSON.stringify(snapshot)) {
+            const views = await this.refreshDelivery(
+              snapshot,
+              generation,
+              this.confirmed.views,
+              authority,
+            );
+            this.visibility.stage(token, views);
+            await this.confirmVisible(token, snapshot, generation, authority);
+            this.guard(generation);
+            this.confirmed = { snapshot: JSON.stringify(snapshot), views };
+            this.rememberConversation();
+            return false;
+          }
+          this.confirmed = null;
+          this.probedSnapshot = snapshot;
+          this.visibility.discard(token);
+          return true;
+        },
+        options,
       );
-      this.guard(generation);
-      if (this.confirmed?.snapshot === JSON.stringify(snapshot)) {
-        const views = await this.refreshDelivery(
-          snapshot,
-          generation,
-          this.confirmed.views,
-        );
-        this.visibility.stage(token, views);
-        await this.confirmVisible(token, snapshot, generation);
-        this.guard(generation);
-        this.confirmed = { snapshot: JSON.stringify(snapshot), views };
-        this.rememberConversation();
-        return false;
-      }
-      this.confirmed = null;
-      this.probedSnapshot = snapshot;
-      this.visibility.discard(token);
-      return true;
     } catch (error: unknown) {
       this.conversations.clear();
       this.probedSnapshot = null;
@@ -1596,68 +1625,16 @@ export class Messages {
     snapshot: unknown,
     generation: number,
     views: readonly MessageView[],
+    authority?: VaultAuthority,
   ): Promise<MessageView[]> {
-    const raw = await this.access.withVault(false, async (a) => {
-      const result: unknown[] = [];
-      const onlineViews = views.filter((v) => !v.archived);
-      for (let offset = 0; offset < onlineViews.length; offset += 18) {
-        const batch = await messageApi(
-          a,
-          'delivery',
-          {
-            snapshot,
-            ids: onlineViews.slice(offset, offset + 18).map((view) => view.id),
-          },
-          () => this.guard(generation),
-        );
-        if (!Array.isArray(batch))
-          throw new Error('Estado de entrega inválido.');
-        const values: unknown[] = batch;
-        result.push(...values);
-      }
-      return result;
-    });
-    if (!Array.isArray(raw)) throw new Error('Estado de entrega inválido.');
-    const states = new Map(
-      raw.map((value) => {
-        const row = object(value);
-        if (
-          typeof row['queue_active'] !== 'boolean' ||
-          typeof row['recipient_received'] !== 'boolean'
-        )
-          throw new Error('Estado de entrega inválido.');
-        return [
-          String(row['id']),
-          {
-            hash: String(row['hash']),
-            pending: row['queue_active'],
-            received: row['recipient_received'],
-          },
-        ] as const;
-      }),
-    );
-    return views.map((view) => {
-      if (view.archived) return view;
-      const state = states.get(view.id);
-      if (!state || state.hash !== view.hash)
-        throw new Error('Estado de entrega divergente.');
-      return {
-        ...view,
-        ...(view.state === messageStates.suspended
-          ? {}
-          : {
-              delivery: state.received
-                ? ('received' as const)
-                : ('accepted' as const),
-            }),
-        state:
-          view.state === messageStates.suspended
-            ? view.state
-            : state.pending
-              ? messageStates.accepted
-              : receivedState,
-      };
-    });
+    const read = (a: VaultAuthority) =>
+      readDelivery({
+        snapshot,
+        views,
+        api: (operation, payload) =>
+          messageApi(a, operation, payload, () => this.guard(generation)),
+      });
+    return authority ? read(authority) : this.access.withVault(false, read);
   }
   async openOffline(peer: string | null): Promise<void> {
     if (navigator.onLine)

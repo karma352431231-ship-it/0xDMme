@@ -100,6 +100,8 @@ export function resumeFixture() {
     failure: null as string | null,
     confirmation: null as (() => Promise<Response>) | null,
     frames: [] as (MessageView[] | null)[],
+    authorityReads: 0,
+    beforeLocalRead: undefined as ((name: string) => void) | undefined,
   };
   const authority: VaultAuthority = {
     session,
@@ -111,7 +113,10 @@ export function resumeFixture() {
     key: () => Promise.reject(new Error('Sem chave real na fixture.')),
   };
   const access: VaultAccess = {
-    withVault: (_offline, work) => work(authority),
+    withVault: (_offline, work) => {
+      data.authorityReads++;
+      return work(authority);
+    },
     withLocalVault: (_locator, work) => work(authority),
   };
   const unused = () => {
@@ -125,6 +130,7 @@ export function resumeFixture() {
     historyPeers: unused,
     searchHistory: unused,
     localGet: (_scope: string, name: string) => {
+      data.beforeLocalRead?.(name);
       data.cacheReads.push(name);
       return Promise.resolve(data.records.get(name) ?? null);
     },

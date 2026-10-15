@@ -77,6 +77,7 @@ export function coordinatorFixture(t: TestContext) {
     liveConnected: true,
     groupVisible: false,
     groupPending: false,
+    probeChanged: false,
     signals: [] as AbortSignal[],
   };
   let emit: (event: LiveEvent) => void = () => {};
@@ -185,11 +186,14 @@ export function coordinatorFixture(t: TestContext) {
         calls.push('initialize');
         return Promise.resolve();
       },
-      loadPins: asyncNoop,
+      loadPins: () => {
+        calls.push('pins');
+        return Promise.resolve();
+      },
       savePins: asyncNoop,
       probe: () => {
         calls.push('probe');
-        return Promise.resolve(false);
+        return Promise.resolve(state.probeChanged);
       },
       synchronize: () => {
         calls.push('synchronize');
@@ -237,7 +241,6 @@ export function coordinatorFixture(t: TestContext) {
         return Promise.resolve(new Map());
       },
       loadSettings: asyncNoop,
-      read: asyncNoop,
     };
   };
   fixture.LiveMessages = function (options: {

@@ -747,7 +747,6 @@ export function startMessages(
       await controller.openArchive(peer.accountId);
       return;
     }
-    await controller.loadPins();
     const card = sharedProfile();
     if (card) await controller.shareProfile(peer.accountId, card);
     await synchronizeVisible();
@@ -885,7 +884,8 @@ export function startMessages(
   }
   async function synchronizeVisible(): Promise<void> {
     if (!conversationMounted('[data-direct-conversation]')) return;
-    if (await controller.probe()) {
+    if (await controller.probe({ priority: 'interactive' })) {
+      await controller.loadPins();
       synchronization.prepareHistory();
       await controller.synchronize();
     }

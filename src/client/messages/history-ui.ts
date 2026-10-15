@@ -354,7 +354,7 @@ export class MessageHistoryUi {
       this.options.visible()
     );
   }
-  async markRead(daily: Pick<Daily, 'read' | 'receipts'>): Promise<void> {
+  async markRead(daily: Pick<Daily, 'readConversation'>): Promise<void> {
     const window = this.readableWindow();
     if (!window) return;
     const { views, peer } = window;
@@ -368,17 +368,19 @@ export class MessageHistoryUi {
           row.state !== messageStates.suspended,
       )
       .map((row) => row.id);
-    if (incoming.length) await daily.read(peer, incoming);
-    if (!this.stillVisible(peer, views)) return;
-    const receipts = await daily.receipts(
-      views
-        .filter(
-          (row) =>
-            row.own && !row.archived && !row.relation && row.kind !== 'profile',
-        )
-        .map((row) => row.id),
-    );
-    if (!this.stillVisible(peer, views)) return;
+    const outgoing = views
+      .filter(
+        (row) =>
+          row.own && !row.archived && !row.relation && row.kind !== 'profile',
+      )
+      .map((row) => row.id);
+    const receipts = await daily.readConversation({
+      peer,
+      incoming,
+      outgoing,
+      current: () => this.stillVisible(peer, views),
+    });
+    if (receipts === null || !this.stillVisible(peer, views)) return;
     this.readIds = receipts;
     this.renderStates();
   }

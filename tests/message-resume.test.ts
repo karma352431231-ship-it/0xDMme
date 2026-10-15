@@ -3,6 +3,49 @@ import { test } from 'node:test';
 import { setImmediate } from 'node:timers/promises';
 import { resumeFixture } from './fixtures/message-resume.ts';
 
+await test('reabrir janela confirmada compartilha uma conferência de autoridade entre snapshot, entrega e confirmação', async () => {
+  const { controller, data, add, peer } = resumeFixture();
+  await add('Já confirmada');
+  await controller.synchronize();
+  controller.select(peer);
+  const before = data.authorityReads;
+  assert.equal(await controller.probe(), false);
+  assert.equal(data.authorityReads - before, 1);
+  assert.equal(data.frames.at(-1)?.[0]?.text, 'Já confirmada');
+});
+
+await test('troca de sessão durante a preparação do perfil impede conferir ou enviar dados pela nova conta', async () => {
+  const { controller, data, session, peer } = resumeFixture();
+  data.beforeLocalRead = (name) => {
+    if (name.startsWith('profile-sent:'))
+      controller.setSession({ ...session, csrf: 'd'.repeat(64) });
+  };
+  await assert.rejects(
+    controller.shareProfile(peer, {
+      name: 'Synthetic',
+      revision: 1,
+      photo: null,
+    }),
+    /Sessão/,
+  );
+  assert.equal(data.authorityReads, 0);
+  assert.equal(data.requests.length, 0);
+});
+
+await test('envio após selecionar janela retida exige identidades atuais antes de distribuir chaves ou publicar', async () => {
+  const { controller, data, peer } = resumeFixture();
+  controller.pending = () =>
+    Promise.resolve([{ id: crypto.randomUUID(), peer }]);
+  const failure = new Error('Identidades indisponíveis');
+  controller.loadPins = () => Promise.reject(failure);
+  await assert.rejects(
+    controller.sendPending(),
+    (error: unknown) => error === failure,
+  );
+  assert.equal(data.authorityReads, 0);
+  assert.equal(data.requests.length, 0);
+});
+
 await test('retomadas sem mudança conferem estado/entrega e confirmam sem reler índice ou conteúdo', async () => {
   const { controller, data, add } = resumeFixture();
   await add('Mensagem já carregada');
@@ -80,7 +123,7 @@ await test('exclusão/invalidação e troca de sessão descartam o reuso mesmo s
 });
 
 await test('falha na conferência ou confirmação fecha o histórico e impede fallback para a janela retida', async () => {
-  for (const operation of ['snapshot', 'confirm']) {
+  for (const operation of ['snapshot', 'delivery', 'confirm']) {
     const { controller, data, add } = resumeFixture();
     await add('Histórico confirmado');
     await controller.synchronize();
