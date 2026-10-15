@@ -55,9 +55,9 @@ await test('avisos repetidos conferem o índice sem baixar identidades já auten
       refreshed++;
       return Promise.resolve();
     },
-    open: () => {
-      opened++;
-      return Promise.resolve(value);
+    openMany: (ids: readonly string[]) => {
+      opened += ids.length;
+      return Promise.resolve(ids.map(() => value));
     },
     save: () => Promise.resolve(),
   });
@@ -164,7 +164,7 @@ await test('preparação cede entre gravações de identidades sem perder o pin 
     currentHeads: () => new Map(),
     isRemoved: () => false,
     refresh: () => Promise.resolve(),
-    open: () => Promise.reject(new Error('Sem leitura neste teste.')),
+    openMany: () => Promise.reject(new Error('Sem leitura neste teste.')),
     save: () => {
       writes++;
       abort.abort();

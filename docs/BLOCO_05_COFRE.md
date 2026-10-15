@@ -14,6 +14,12 @@ Implementação local autorizada pelo proprietário em 02/10/2026. Testes físic
 
 ## Contrato de implementação
 
+Desde a correção de boot de 15/10/2026, objetos imutáveis podem usar o ciphertext
+local também online, após autorização atual e com remoções conferidas antes e
+depois da abertura. Hash, tamanho, conta e AAD permanecem obrigatórios; corrupção
+não provoca fallback silencioso. Agenda/pins compartilham autoridade em lotes de
+até 16 objetos. [Limites, evidência e validação](BOOT_CONTATOS_CONVERSAS.md).
+
 - Web Crypto AES-256-GCM, IV aleatório de 96 bits e AAD com domínio, versão, conta, operação e época. Manifestos incrementais cifrados e assinados por aparelho autorizado; cadeia de hashes com sequência e referência ao diretório verificado do bloco 04. Não criar protocolo de mensagens: Olm/Megolm permanece no bloco 07.
 - Cada operação preserva um bloco imutável e um manifesto pequeno. Agenda privada, configurações e dados fictícios são o primeiro conteúdo; convites, consentimento e chat pertencem aos blocos seguintes. Identificadores de entidades, campos e relações entre versões ficam cifrados.
 - Edição informa explicitamente suas versões anteriores. Edições concorrentes preservam ambas; resolução explícita cria outra versão com até 16 pais escolhidos. Mais conflitos podem ser resolvidos em etapas, conservando os ramos restantes. Não usar relógio do aparelho para decidir vencedores. Todas as versões confirmadas permanecem recuperáveis, sem TTL automático.

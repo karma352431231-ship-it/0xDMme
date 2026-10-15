@@ -68,7 +68,7 @@ export async function pinFor(history: DirectoryEvent[]): Promise<PeerPin> {
 
 type IdentitySync = Pick<
   VaultSync,
-  'refresh' | 'complete' | 'currentHeads' | 'open' | 'save' | 'isRemoved'
+  'refresh' | 'complete' | 'currentHeads' | 'openMany' | 'save' | 'isRemoved'
 >;
 /** All conversation types share the existing encrypted contact identity records. */
 export class PeerIdentity {
@@ -105,21 +105,34 @@ export class PeerIdentity {
       this.guard(generation);
     } while (!this.sync.complete);
     const entries = [...this.sync.currentHeads().values()].flat();
-    for (const entry of entries)
-      if (!this.loaded.has(entry.commit.id))
-        await this.loadEntry(entry, generation);
+    const pending = entries.filter(
+      (entry) =>
+        !this.loaded.has(entry.commit.id) &&
+        !this.sync.isRemoved(entry.commit.id) &&
+        (entry.change.kind === 'address-book' ||
+          (entry.change.kind === 'contact' &&
+            entry.change.label === 'Identidade para mensagens')),
+    );
+    for (let offset = 0; offset < pending.length; offset += 16) {
+      const page = pending.slice(offset, offset + 16);
+      const values = await this.sync.openMany(
+        page.map((entry) => entry.commit.id),
+      );
+      this.guard(generation);
+      for (const [index, entry] of page.entries())
+        this.loadEntry(entry, values[index]!, generation);
+    }
     this.guard(generation);
     this.loaded = new Set(entries.map((entry) => entry.commit.id));
   }
-  private async loadEntry(
+  private loadEntry(
     entry: VaultEntry,
+    content: string,
     generation: number,
-  ): Promise<void> {
+  ): void {
     if (this.sync.isRemoved(entry.commit.id)) return;
     if (entry.change.kind === 'address-book') {
-      const stored = addressBookEntry(
-        JSON.parse(await this.sync.open(entry.commit.id)) as unknown,
-      );
+      const stored = addressBookEntry(JSON.parse(content) as unknown);
       this.guard(generation);
       if (stored.accountId && stored.identity && stored.directory)
         this.accept(stored.accountId, {
@@ -134,9 +147,7 @@ export class PeerIdentity {
       entry.change.label !== 'Identidade para mensagens'
     )
       return;
-    const value = object(
-        JSON.parse(await this.sync.open(entry.commit.id)) as unknown,
-      ),
+    const value = object(JSON.parse(content) as unknown),
       pin = object(value['pin']);
     this.guard(generation);
     this.accept(uuid(value['accountId']), {

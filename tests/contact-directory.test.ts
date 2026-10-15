@@ -56,6 +56,9 @@ function fixture(t: TestContext) {
     withLocalVault: () =>
       Promise.reject(new Error('Não consultar permissões neste teste.')),
   });
+  t.mock.method(sync, 'openMany', (ids: readonly string[]) =>
+    Promise.all(ids.map((id) => sync.open(id))),
+  );
   sync.complete = true;
   t.mock.method(sync, 'currentHeads', () => heads);
   t.mock.method(sync, 'heads', (entity: string) => heads.get(entity) ?? []);
