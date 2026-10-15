@@ -182,7 +182,8 @@ await test('salvar e solicitar por endereço completo identificam EVM/Solana sem
     stored.push(entry);
     return Promise.resolve();
   });
-  const address = { value: '' },
+  const address = { value: '', readOnly: false },
+    title = { textContent: '' },
     alias = { value: 'Contato particular' },
     status = { textContent: '' };
   const form = Object.assign(new EventTarget(), {
@@ -196,6 +197,7 @@ await test('salvar e solicitar por endereço completo identificam EVM/Solana sem
   });
   const nodes = new Map<string, unknown>([
     ['[data-book-address]', address],
+    ['[data-book-title]', title],
     ['[data-book-alias]', alias],
     ['[data-book-form]', form],
     ['[data-contact-status]', status],
@@ -247,4 +249,27 @@ await test('salvar e solicitar por endereço completo identificam EVM/Solana sem
   assert.equal(discovered.length, 2);
   assert.equal(requested.length, 2);
   assert.equal(stored.length, 4);
+  const contact: AddressBookEntry = {
+    version: 1,
+    ecosystem: 'evm',
+    address: '0x' + 'a'.repeat(40),
+    alias: 'Previous alias',
+    accountId: target,
+    identity: 'a'.repeat(64),
+    directory: 'b'.repeat(64),
+    identityRevision: 4,
+    removed: false,
+  };
+  contacts.showContact(contact);
+  assert.equal(title.textContent, 'Edit private contact');
+  assert.equal(address.value, contact.address);
+  assert.equal(address.readOnly, true);
+  assert.equal(alias.value, contact.alias);
+  alias.value = 'Updated alias';
+  form.dispatchEvent(new Event('submit', { cancelable: true }));
+  await finished();
+  assert.deepEqual(stored.at(-1), { ...contact, alias: 'Updated alias' });
+  assert.equal(address.readOnly, false);
+  assert.equal(discovered.length, 2);
+  assert.equal(requested.length, 2);
 });

@@ -158,6 +158,8 @@ export function startContacts(
     found = null;
     prepared = null;
     node<HTMLFormElement>('[data-book-form]')?.reset();
+    const address = node<HTMLInputElement>('[data-book-address]');
+    if (address) address.readOnly = false;
     text('[data-book-title]', t('Adicionar contato'));
     text('[data-contact-discovery]', '');
     node('[data-contact-discovery-actions]')?.replaceChildren();
@@ -779,6 +781,9 @@ export function startContacts(
     showContact(contact: AddressBookEntry): void {
       resetEditor();
       prepared = contact;
+      text('[data-book-title]', t('Editar contato particular'));
+      const address = node<HTMLInputElement>('[data-book-address]');
+      if (address) address.readOnly = true;
       for (const [selector, value] of [
         ['[data-book-address]', contact.address],
         ['[data-book-alias]', contact.alias],

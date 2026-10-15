@@ -73,3 +73,29 @@
   color: var(--text-muted);
   font-size: var(--fs-caption);
 }
+
+/* Edit menus have narrower content than the composer; keep tools in their own row. */
+:is(#app-shell, .community-scope) .post-edit .post-text-area {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+:is(#app-shell, .community-scope) .post-edit .post-text-area > textarea {
+  min-height: 132px;
+  padding-bottom: 12px;
+}
+:is(#app-shell, .community-scope) .post-edit .post-text-tools {
+  position: relative;
+  inset: auto;
+  align-self: flex-end;
+  flex-wrap: nowrap;
+}
+:is(#app-shell, .community-scope)
+  .post-edit
+  .post-text-tools
+  :is(.post-emoji-button, .post-gif-button, .media-picker-button) {
+  flex: 0 0 36px;
+  min-width: 36px;
+  white-space: nowrap;
+  font: 700 11px/1 var(--font-body);
+}

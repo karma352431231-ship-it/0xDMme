@@ -1,5 +1,27 @@
 # 0xDMme — Git e envio à VPS
 
+## Reply media, contact editing and discussion fixes — activation authorized on 15/10/2026
+
+The owner explicitly requested VPS activation of the completed client repairs.
+Integrate `2a8b915` and `0c32952` into main from published predecessor
+`cfecfc9b2b37ba57ffc8875bcedd7bfeaabc5caf`, preserving the earlier automatic
+Activity/contact repairs. Include smaller reply media, contact edit shortcuts and
+footer removal, confirmed post/reply edits, complete bounded subtree expansion,
+edit-control spacing and downward, clearer thread connectors.
+
+This release changes client code/styles, translations, tests and documentation
+only. All backend/database sources, 67 SQL migrations, dependencies, Node,
+detector configuration, installed units and deployment infrastructure retain
+the published predecessor. No new database-source pin or migration approval is
+needed. Require passing exact-commit main CI and the Mac-prepared build, then
+run only `npm run deploy:staging` from the clean, integrated, pushed checkout.
+Retain preservation/readiness checks, served asset/source verification and
+rollback; access, baselines, artifacts and receipts stay exclusively in `.local/`.
+
+**Ponto importante:** a push is not activation. Confirm the executor's published
+receipt and the served version. The reply view retains its 120-node budget with
+continuation; edited content remains subject to server confirmation/moderation.
+
 ## Automatic Activity and unified contacts — activation authorized on 14/10/2026
 
 The owner requested automatic private-request/reply notifications, bell increments

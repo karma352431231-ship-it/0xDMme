@@ -264,3 +264,55 @@ The existing `communities/index.ts`, `public-profile/index.ts`, `profile-editor.
 Validation passed: 39 targeted state/media/theme tests, two public-source packaging tests, types, lint, module boundaries, formatting, localization and the web build. The synthetic browser passed 24 slot/language/viewport cases, including concurrent state reads; desktop checks additionally passed failed-save retry, confirmed removal and public-profile partial-save recovery without resending a successful part. No real account or user media was exercised.
 
 **Ponto importante:** the owner subsequently authorized main integration and VPS activation on 14/10/2026. Require the exact integrated commit to pass CI and the existing deployment checks. Owner drafts are never published by selection or removal alone, and a failed save is never reported as success.
+
+### Smaller reply media — 15/10/2026
+
+Inline reply photos and GIFs are 30% smaller than the previous presentation:
+external GIF containers are capped at 448 px instead of 640 px and 70% of the
+available width; approved photo/GIF figures use 70% of their existing gallery
+slot. Their height limits scale by the same factor. The selected reply is marked
+consistently with feed replies, so opening it does not restore the larger size.
+Direct-child selectors leave the quoted parent, original posts, reply-editor
+previews, private chats, ordinary videos and full image viewer unchanged.
+
+The manual browser fixture uses real app CSS and the public picture/viewer
+lifecycle with synthetic media. At 320, 390 and 1280 px in both languages, compare
+reply dimensions with an original-post control, including GIF image/video
+rendering, and verify that clicking an approved picture still opens the full
+image. This layout check does not assess GIF providers or real user uploads.
+
+### Edit confirmation and complete reply branches — 15/10/2026
+
+A successful `post-edit` response replaces only the affected visible card.
+Previously the client discarded that response and reread the selected post and
+its first reply page; edits deeper in an expanded branch could leave both
+snapshots unchanged and the old text visible until reload. The confirmed state
+now renders immediately and updates public projection snapshots. Expanded
+children remain siblings of the replaced card, and unrelated drafts/media keep
+their DOM. Errors retain the old card and draft; navigation/session guards
+reject late results. Edited posts and replies show **Edited** / **已编辑**, with
+no public content diff. Existing moderation history is a separate private action.
+
+Edit-menu textareas and media tools occupy separate rows. GIF/emoji/attachment
+buttons retain their compact width and GIF labels cannot wrap. New-post/reply
+composers keep their existing layout. Tree connectors use `--line-strong`, descend
+from the parent's actions, turn into the child's avatar and stop at the last
+sibling rather than trailing below it. No extra collapse icon is introduced.
+
+One branch action expands its eligible descendants, including additional pages,
+in vote order. The view retains at most 120 reply nodes, one pending 24-item page
+per branch and a maximum of 120 sequential reads per expansion, with a 20-second
+scheduling window between reads and existing per-request deadlines. Larger or
+slow subtrees expose continuation/loading controls. Indentation is capped after
+three nested branch steps; content remains expandable beyond that depth.
+Collapsing releases descendant media and branch state; disposal rejects late
+reads. Reader-specific authorization, blocks, moderation and API pagination are
+unchanged. No schema, dependency or publication rule is added.
+
+The existing `posts.ts` coordinator and `presentation.ts` remain hotspots. Only
+mutation-result integration and the edited marker change there; replacement and
+snapshot reconciliation belong to the dedicated edit-update module. A separate
+reviewed split should extract post projection first, then screen reading/paging;
+separately extract icons, identity/time and card navigation from presentation.
+Validate authority, revision failures, drafts, cancellation, media cleanup and
+scroll after each step, with no concurrent edits of the same coordinator.
