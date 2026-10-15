@@ -1188,6 +1188,43 @@ class SavedBookmarkCodeTests(CommunityFeedCodeTests):
                     path.write_bytes(original)
 
 
+class ChatParityCodeTests(CommunityFeedCodeTests):
+    def setUp(self):
+        super().setUp()
+        for relative in ['communities.ts', 'community-discovery.ts']:
+            (self.candidate / 'src/server/database' / relative).write_bytes(
+                (self.live / 'src/server/database' / relative).read_bytes())
+        self.changed_modules = ['message-index.ts', 'messages.ts', 'social-crypto.ts',
+                                'social-history.ts', 'social-read-receipts.ts', 'social-actions.ts']
+        for relative in self.changed_modules[:-1]:
+            (self.live / 'src/server/database' / relative).write_text('existing chat operation')
+            (self.candidate / 'src/server/database' / relative).write_text('reviewed chat operation')
+        (self.live / 'src/server/database/social-reactions.ts').write_text('existing reaction admission')
+        (self.candidate / 'src/server/database/social-actions.ts').write_text('reviewed own-text edit admission')
+        self.exports = {
+            remote.CHAT_PARITY_BEFORE: self.export(self.live),
+            remote.CHAT_PARITY_REVIEWED: self.export(self.candidate),
+        }
+
+    def test_chat_modules_and_renamed_action_require_exact_reviewed_bytes(self):
+        for relative in self.changed_modules:
+            with self.subTest(path=relative):
+                path = self.candidate / 'src/server/database' / relative
+                original = path.read_bytes(); path.write_text('unreviewed chat operation')
+                try:
+                    with (patch.object(backups, 'git_export', side_effect=lambda sha: self.exports[sha]),
+                          self.assertRaises(RuntimeError)):
+                        remote.compatibility(self.candidate, self.live)
+                finally:
+                    path.write_bytes(original)
+
+    def test_old_reaction_module_cannot_remain_in_candidate(self):
+        (self.candidate / 'src/server/database/social-reactions.ts').write_text('unexpected legacy action path')
+        with (patch.object(backups, 'git_export', side_effect=lambda sha: self.exports[sha]),
+              self.assertRaises(RuntimeError)):
+            remote.compatibility(self.candidate, self.live)
+
+
 class OwnerReviewMediaCodeTests(CommunityFeedCodeTests):
     def setUp(self):
         super().setUp()

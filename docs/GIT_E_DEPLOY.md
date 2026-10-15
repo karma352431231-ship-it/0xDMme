@@ -16,6 +16,13 @@ Conservar as demais mudanças já integradas, verificar preservação, prontidã
 fontes/arquivos servidos e rollback. Acesso, evidências e recibos somente em
 `.local/`. [Contrato e limites](PARIDADE_CHATS.md).
 
+A verificação do executor registra a transição de código de banco entre
+`02b47e9` e `2fc2ed0`, comparando as árvores completas e os sete caminhos
+alterados, inclusive a troca de `social-reactions.ts` por `social-actions.ts`.
+Isso permite a troca de código deste lote sem executar uma migração. As 69
+migrações, seu executor e todos os demais arquivos de banco devem permanecer
+idênticos; um predecessor diferente ou bytes fora da revisão continuam bloqueados.
+
 **Ponto importante:** não anunciar a ativação antes de recibo `published` e
 conferência da versão servida. Prévia não marca mensagem recebida como lida;
 as funções exclusivas do contexto privado permanecem separadas. O aceite em

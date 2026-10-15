@@ -180,6 +180,11 @@ MEDIA_OUTPUT_REVIEWED = '5e024bfa606213f6c99760378a82fed68d2699e2'
 # migrations, accounting, write operations and other modules stay identical.
 SAVED_BOOKMARK_BEFORE = 'c2beaf05d3c62826580b752e8b31d94930386a4e'
 SAVED_BOOKMARK_REVIEWED = '877a9f9d80bd08a6dca23e2ad3616c7044f9f1c9'
+# Owner activation request of 15/10/2026: chat previews and public DM edits.
+# Pin both full database trees, including the reaction-to-action module rename.
+# All 69 migrations, their executor, dependencies and Node remain unchanged.
+CHAT_PARITY_BEFORE = '02b47e9050f78d7a770661ea0326945a1c992cd2'
+CHAT_PARITY_REVIEWED = '2fc2ed033851c69b8b54dbf962d2676b7b0f75a4'
 # Exact two-reader repair approved after explanation on 14/10/2026.
 # Pin both full database trees; all 66 migrations/executor stay exact.
 # Owner-requested mandatory topics: only new admission changes, without SQL or backfill.
@@ -392,6 +397,9 @@ def database_code_reviewed(candidate, live):
          POSE_MODERATION_BEFORE, POSE_MODERATION_REVIEWED),
         ({'community-discovery.ts', 'community-interaction-view.ts', 'community-preferences.ts'},
          SAVED_BOOKMARK_BEFORE, SAVED_BOOKMARK_REVIEWED),
+        ({'message-index.ts', 'messages.ts', 'social-actions.ts', 'social-crypto.ts',
+          'social-history.ts', 'social-reactions.ts', 'social-read-receipts.ts'},
+         CHAT_PARITY_BEFORE, CHAT_PARITY_REVIEWED),
     ]
     selected = next((review for review in reviews if changed == review[0]), None)
     if selected is None:
