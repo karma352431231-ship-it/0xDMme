@@ -1,5 +1,33 @@
 # 0xDMme — Git e envio à VPS
 
+## Chat actions and GIF notifications — activation authorized on 15/10/2026
+
+After full CI passed for `b3f3dd4`, the owner explicitly requested main integration
+and VPS activation of GIF previews in Activity, private Forward selection, chat
+reactions and recorded send times. This authorizes the prepared index 069 as part
+of that exact package; its preparation had already received specific approval.
+
+Use only the existing `npm run deploy:staging` command. Its internal transition
+module `deploy_social_reactions.py` pins the complete application/runtime exports
+from published `c4a164b6becb6ff1544de15589c0b5f3c19421f2` to reviewed
+`b3f3dd49915b2af8c09e5a902d996802e7569d1b`. All 68 prior SQL files, dependencies,
+Node, model configuration and installed service units remain exact. Migration 069
+adds only the partial reaction-target index on `social_messages`; it adds no
+columns or tables and rewrites no messages, permissions or retention.
+
+Retain the existing private backup and restore rehearsal, all-row/ledger/checksum
+and object comparisons, other-project fingerprints/health and scoped rollback.
+Verify the index table, keys, predicate and readiness. Pause only our web and
+three workers; preserve their units and the database process. Require a clean,
+integrated, pushed main commit with full exact-commit CI and the Mac build. After
+reopening, preserve new writes rather than automatically restoring old data.
+Access, evidence, artifacts, backups and receipts stay exclusively in `.local/`.
+
+**Ponto importante:** activation requires a `published` receipt, 69 verified
+migrations, correct served assets/source and ready own workers. Forward remains
+private-only; re-clicking your emoji removes it in both chat types. Historical
+messages without a recorded send time remain undated. See [chat behavior](UI_CONVERSAS.md).
+
 ## Public upvotes and author identity — activation authorized on 15/10/2026
 
 After the public upvote/author-identity implementation `84a9cbe` passed full CI,
