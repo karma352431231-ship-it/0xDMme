@@ -1,12 +1,12 @@
 /*
- * Community actions (docs/UI_PAINEIS_E_TEMAS.md, 14/10/2026): a visible "⋯"
- * that matches the filter chips, and a floating button to create a community.
- * Full page: a filled blue button. Beside Contacts, whose "+" is already the
- * filled blue action, it is outlined so the two do not compete. Phones keep
- * Post as their floating action and create from the "⋯" menu. The button is
- * fixed to the viewport corner, which is the communities column in both
- * layouts: inside the panel the tools row is itself positioned, so an
- * absolute button would follow that small box instead of the panel.
+ * Community actions (docs/UI_PAINEIS_E_TEMAS.md): a visible "⋯" that matches
+ * the filter chips, and a floating "+" that opens Post and Create community
+ * (15/10/2026; it replaced the Post buttons). Full page and phones: filled
+ * blue. Beside Contacts, whose "+" is already the filled blue action, it is
+ * outlined so the two do not compete. The button is fixed to the viewport:
+ * inside the panel the tools row is itself positioned, so an absolute button
+ * would follow that small box. With the conversation on the right (layout A)
+ * it moves left by the conversation column.
  */
 /* Flex with no gap: the hidden text label must not push the icon off center. */
 #app-shell .community-tools > details.community-more > summary {
@@ -37,11 +37,13 @@
   outline-offset: 2px;
 }
 
-#app-shell .community-tools > .community-create-fab {
+.community-create-menu {
   position: fixed;
   right: 28px;
   bottom: calc(28px + env(safe-area-inset-bottom));
   z-index: 20;
+}
+#app-shell .community-create-menu > .community-create-fab {
   display: grid;
   place-items: center;
   width: 56px;
@@ -52,38 +54,108 @@
   background: var(--accent);
   color: var(--accent-ink);
   box-shadow: 0 12px 28px -10px var(--shadow);
+  cursor: pointer;
+  list-style: none;
+  font-size: 0;
 }
-#app-shell .community-tools > .community-create-fab svg {
+.community-create-fab::-webkit-details-marker {
+  display: none;
+}
+#app-shell .community-create-menu > .community-create-fab svg {
   width: 24px;
   height: 24px;
+  transition: transform 0.15s ease;
 }
-#app-shell .community-tools > .community-create-fab:hover {
+#app-shell .community-create-menu[open] > .community-create-fab svg {
+  transform: rotate(45deg);
+}
+#app-shell .community-create-menu > .community-create-fab:hover {
   background: var(--accent-strong);
 }
-#app-shell .community-tools > .community-create-fab:focus-visible {
+#app-shell .community-create-menu > .community-create-fab:focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: 3px;
 }
-#app-shell #feed-panel .community-tools > .community-create-fab {
+.community-create-choices {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 10px);
+  display: grid;
+  gap: 4px;
+  min-width: 210px;
+  padding: 6px;
+  border: 1px solid var(--line-strong);
+  border-radius: 14px;
+  background: var(--surface);
+  box-shadow: 0 16px 36px -12px var(--shadow);
+}
+#app-shell .community-create-choices .community-create-choice {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 42px;
+  margin: 0;
+  padding: 8px 12px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text);
+  font-size: var(--fs-body);
+  font-weight: 600;
+  text-align: left;
+  white-space: nowrap;
+}
+#app-shell .community-create-choices .community-create-choice:hover,
+#app-shell .community-create-choices .community-create-choice:focus-visible {
+  background: var(--surface-2);
+}
+#app-shell .community-create-choices .community-create-choice svg {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  color: var(--accent-text);
+}
+@media (prefers-reduced-motion: reduce) {
+  #app-shell .community-create-menu > .community-create-fab svg {
+    transition: none;
+  }
+}
+
+/* Beside Contacts: outlined, inside the communities column. */
+#app-shell #feed-panel .community-create-menu {
   right: 24px;
   bottom: calc(24px + env(safe-area-inset-bottom));
+}
+@media (min-width: 1280px) {
+  #app-shell[data-layout='all']:not(
+      [data-account='guest']:not([data-history='available'])
+    )
+    #feed-panel
+    .community-create-menu {
+    right: calc(400px + 24px);
+  }
+}
+#app-shell #feed-panel .community-create-menu > .community-create-fab {
   width: 48px;
   height: 48px;
   border: 1.5px solid var(--accent);
   background: var(--surface-2);
   color: var(--accent-text);
 }
-#app-shell #feed-panel .community-tools > .community-create-fab:hover {
+#app-shell #feed-panel .community-create-menu > .community-create-fab:hover {
   background: var(--accent-soft);
 }
-.community-more-create {
-  display: none;
-}
+
+/* Phones: above the bottom navigation, where Post used to float. */
 @media (max-width: 700px) {
-  #app-shell .community-tools > .community-create-fab {
-    display: none;
+  .community-create-menu {
+    right: 16px;
+    bottom: calc(82px + env(safe-area-inset-bottom));
   }
-  .community-more-create {
-    display: revert;
+  #app-shell .community-create-menu > .community-create-fab {
+    width: 54px;
+    height: 54px;
+    border-radius: 17px;
   }
 }

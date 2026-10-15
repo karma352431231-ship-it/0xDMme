@@ -467,10 +467,29 @@
     border-radius: 0 3px 3px 0;
     background: var(--brand-grad);
   }
+  /* Option A (15/10/2026): Contacts | Feed in the center | Conversation on the
+     right edge. The conversation moves after the feed only in this layout;
+     visitors without history keep the sign-in card on the left (rules below). */
   #app-shell[data-page='conversas'][data-layout='all'] {
-    grid-template-columns:
-      64px 272px minmax(360px, 1fr)
-      minmax(440px, 1.4fr);
+    grid-template-columns: 64px 272px minmax(0, 1fr) 400px;
+  }
+  #app-shell[data-page='conversas'][data-layout='all']:not(
+      [data-account='guest']:not([data-history='available'])
+    )
+    > main {
+    order: 1;
+    border-left: 1px solid var(--line);
+  }
+  /* Same reading width as the full Communities page, centered. */
+  #app-shell[data-page='conversas']:is(
+      [data-layout='all'],
+      [data-layout='nochat']
+    )
+    .feed-panel
+    > :is(.feed-panel-heading, .feed-panel-body) {
+    width: 100%;
+    max-width: 944px;
+    margin-inline: auto;
   }
   #app-shell[data-page='conversas'][data-layout='nochat'] {
     grid-template-columns: 64px 272px minmax(0, 1fr);
@@ -524,6 +543,14 @@
   .app[data-page='conversas'][data-layout='all']
     :is(.chat-collapse, .public-chat-bar [data-chat-collapse]) {
     display: inline-flex;
+  }
+  /* The conversation sits on the right edge, so collapsing points right. */
+  .app[data-page='conversas'][data-layout='all']:not(
+      [data-account='guest']:not([data-history='available'])
+    )
+    :is(.chat-collapse, .public-chat-bar [data-chat-collapse])
+    svg {
+    transform: scaleX(-1);
   }
   .app[data-page='conversas'][data-layout='solo'] .feed-strip {
     display: flex;
@@ -584,27 +611,6 @@
 .feed-panel-tabs a[aria-current='page'] {
   background: var(--surface-3);
   color: var(--text);
-}
-.feed-panel-post {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  margin-left: auto;
-  padding: 6px 12px;
-  border-radius: 99px;
-  background: var(--accent);
-  color: var(--accent-ink);
-  font-size: 12.5px;
-  font-weight: 600;
-}
-.feed-panel-post svg {
-  width: 15px;
-  height: 15px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.8;
-  stroke-linecap: round;
-  stroke-linejoin: round;
 }
 .feed-panel-body {
   flex: 1 1 auto;
@@ -1027,10 +1033,6 @@
   #app-shell .feed-panel-tabs a {
     padding: 6px 10px;
     font-size: 12.5px;
-  }
-  #app-shell .feed-panel-post:hover {
-    background: var(--accent-strong);
-    color: var(--accent-ink);
   }
   #app-shell .feed-panel-heading .icon-button {
     flex: 0 0 32px;

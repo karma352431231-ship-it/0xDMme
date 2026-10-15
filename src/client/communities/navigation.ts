@@ -62,23 +62,37 @@ function moreChoices(options: {
     ['hidden', t('Ocultos')],
     ['replies', t('Respostas ao seu conteúdo')],
     ['invitations', t('Transferências')],
-    ['create', t('Criar comunidade')],
   ] as const)
     link(choices, title, `#comunidades?view=${key}`);
-  // Phones only: wider screens show the floating create button instead.
-  choices.lastElementChild?.classList.add('community-more-create');
   return choices;
 }
 
-/** The exposed way to create a community; CSS places it bottom-right. */
-function createCommunityButton(): HTMLAnchorElement {
-  const create = document.createElement('a');
-  create.className = 'community-create-fab';
+/**
+ * The floating "+" opens two choices: post (same composer trigger the old
+ * Post button used) or create a community. CSS places it bottom-right.
+ */
+function createCommunityButton(): HTMLDetailsElement {
+  const menu = el('details', '', 'community-create-menu');
+  menu.dataset['transientMenu'] = '';
+  const summary = el('summary', '', 'community-create-fab');
+  summary.setAttribute('aria-label', t('community.create-menu'));
+  summary.title = t('community.create-menu');
+  iconLabel(summary, 'plus');
+  const choices = el('div', '', 'community-create-choices');
+  const post = el('button', t('Postar'), 'community-create-choice');
+  post.type = 'button';
+  post.dataset['communityCompose'] = '';
+  iconLabel(post, 'pencil');
+  const create = el('a', t('Criar comunidade'), 'community-create-choice');
   create.href = '#comunidades?view=create';
-  create.setAttribute('aria-label', t('Criar comunidade'));
-  create.title = t('Criar comunidade');
-  iconLabel(create, 'plus');
-  return create;
+  iconLabel(create, 'community');
+  choices.append(post, create);
+  // A choice closes the menu; the composer or the create page takes over.
+  choices.addEventListener('click', () => {
+    menu.open = false;
+  });
+  menu.append(summary, choices);
+  return menu;
 }
 
 export function communityDirectoryNavigation(

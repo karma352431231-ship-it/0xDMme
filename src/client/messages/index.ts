@@ -55,6 +55,8 @@ import type { MessageView } from './controller.ts';
 import { MessageDirectory } from './directory-controller.ts';
 import type { ConversationPeer } from './directory-controller.ts';
 import { MessageDirectoryUi } from './directory-ui.ts';
+import { PeerPhotos } from './peer-photos.ts';
+import { ProfileBroadcast } from './profile-broadcast.ts';
 export function startMessages(
   access: VaultAccess,
   sync: VaultSync,
@@ -199,7 +201,17 @@ export function startMessages(
       renderContacts();
     },
   });
+  const peerPhotos = new PeerPhotos({
+    scope: () => session?.accountId ?? null,
+    load: (id) => controller.knownProfile(id),
+  });
+  const showPeerPhoto = (
+    host: HTMLElement,
+    peer: string,
+    signal: AbortSignal,
+  ) => peerPhotos.show(host, peer, signal);
   const directoryUi = new MessageDirectoryUi({
+    peerPhoto: showPeerPhoto,
     snapshot: () => ({
       peers: directoryData.peers,
       selected,
@@ -261,6 +273,16 @@ export function startMessages(
       );
     },
   });
+  // Confirmed contacts get the new card after a profile change, not only on open.
+  const profileBroadcast = new ProfileBroadcast({
+    card: sharedProfile,
+    peers: () =>
+      directoryData.peers
+        .filter((peer) => !peer.localOnly)
+        .map((peer) => peer.accountId),
+    share: (peer, card) => controller.shareProfile(peer, card),
+    ready: () => !!session && navigator.onLine && !synchronization.busy,
+  });
   const synchronization = new MessageSynchronization({
     state: () => ({
       generation,
@@ -304,6 +326,7 @@ export function startMessages(
     check: () => requestRefresh('probe'),
   });
   const historyUi = new MessageHistoryUi({
+    peerPhoto: showPeerPhoto,
     node,
     context: () => ({
       selected,
@@ -1165,6 +1188,11 @@ export function startMessages(
   function preferencesChanged(): void {
     if (!synchronization.busy && session && navigator.onLine)
       void synchronization.maintainPresence();
+    broadcastProfile();
+  }
+  /** Background round; a failure is retried by the next tick or profile save. */
+  function broadcastProfile(): void {
+    profileBroadcast.run().catch(() => undefined);
   }
   function pageHide(event: PageTransitionEvent): void {
     continuity.freeze();
@@ -1204,6 +1232,7 @@ export function startMessages(
     preferences: preferencesChanged,
     tick: () => {
       continuity.changed();
+      broadcastProfile();
       return synchronization.periodicTick();
     },
     progress: attachmentProgress,

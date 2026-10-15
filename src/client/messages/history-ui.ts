@@ -45,6 +45,8 @@ interface HistoryPresentation {
   representatives?: Pick<ReturnType<typeof startRepresentatives>, 'renderCard'>;
   forwarding?: ForwardDirectory;
   flush?: () => Promise<void>;
+  /** Covers the header initials with the contact's private card photo. */
+  peerPhoto?: (host: HTMLElement, peer: string, signal: AbortSignal) => void;
   actions: Pick<Actions, 'action' | 'picker' | 'choose' | 'react'> & {
     forward: (view: DailyView<MessageView>, peer: string) => Promise<void>;
     remove: (view: MessageView) => Promise<void>;
@@ -58,6 +60,7 @@ export class MessageHistoryUi {
   private readonly forwarding: MessageForwardSelection<MessageView> | null;
   private readIds = new Set<string>();
   private views: readonly MessageView[] | null = null;
+  private headerPhoto: AbortController | null = null;
   private pending: HistoryUpdate | null = null;
   constructor(options: HistoryPresentation) {
     this.options = options;
@@ -197,11 +200,26 @@ export class MessageHistoryUi {
       title.title = selected?.address ?? '';
     }
     const avatar = this.options.node('[data-chat-avatar]');
-    if (avatar)
-      paintAvatar(avatar, {
-        label: this.peerLabel(),
-        seed: selected?.address ?? '',
-      });
+    if (!avatar) return;
+    paintAvatar(avatar, {
+      label: this.peerLabel(),
+      seed: selected?.address ?? '',
+    });
+    this.paintHeaderPhoto(avatar, selected);
+  }
+  /** Each header paint cancels the previous photo request. */
+  private paintHeaderPhoto(
+    avatar: HTMLElement,
+    selected: ConversationPeer | null,
+  ): void {
+    this.headerPhoto?.abort();
+    this.headerPhoto = new AbortController();
+    if (!selected || selected.localOnly) return;
+    this.options.peerPhoto?.(
+      avatar,
+      selected.accountId,
+      this.headerPhoto.signal,
+    );
   }
   private messageState(view: DailyView<MessageView>): HTMLElement {
     const detail = document.createElement('small');

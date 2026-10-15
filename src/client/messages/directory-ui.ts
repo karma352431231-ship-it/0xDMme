@@ -54,6 +54,8 @@ interface DirectoryView {
   openGroup: (group: Groups['entries'][number]) => void;
   changed: (available: boolean) => void;
   presence: () => void;
+  /** Covers row initials with the contact's private card photo. */
+  peerPhoto?: (host: HTMLElement, peer: string, signal: AbortSignal) => void;
 }
 /** Projection and interaction only; no authority or persistence owned here. */
 export class MessageDirectoryUi {
@@ -112,6 +114,12 @@ export class MessageDirectoryUi {
       detail: this.contactLabel(peer, settingsId),
       kind: 'contact',
       seed: peer.address,
+      ...(peer.localOnly || !this.options.peerPhoto
+        ? {}
+        : {
+            avatar: (host: HTMLElement, signal: AbortSignal) =>
+              this.options.peerPhoto?.(host, peer.accountId, signal),
+          }),
       status: this.options.snapshot().statusAuthors.has(peer.accountId),
       searchText: t('{0} {1} {2}', [contact.alias, peer.name, peer.address]),
       selected:

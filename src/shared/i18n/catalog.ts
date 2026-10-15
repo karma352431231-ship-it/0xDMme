@@ -608,6 +608,7 @@ export const catalog: Record<string, readonly [string, string]> = {
   'Abrindo conversa…': ['Opening conversation…', '正在打开对话…'],
   'Abrindo sua conta…': ['Opening your account…', '正在打开账户…'],
   'chat.encrypted-on-device': ['Encrypted on this device', '已在此设备上加密'],
+  'community.create-menu': ['Create', '创建'],
   'community.create.images': ['Community banner and photo', '社区横幅和头像'],
   'community.create.add-banner': ['Add banner', '添加横幅'],
   'community.create.add-photo': ['Add photo', '添加头像'],

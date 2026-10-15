@@ -122,6 +122,8 @@ export function coordinatorFixture(t: TestContext) {
     'ExternalTextHistory',
     'GifSearch',
     'Contacts',
+    'PeerPhotos',
+    'ProfileBroadcast',
   ]) {
     fixture[name] = function () {
       return {
@@ -142,6 +144,8 @@ export function coordinatorFixture(t: TestContext) {
         },
         setBusy: noop,
         unlock: noop,
+        show: noop,
+        run: asyncNoop,
         dispose: asyncNoop,
       };
     };

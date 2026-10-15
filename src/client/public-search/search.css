@@ -148,9 +148,6 @@
 #app-shell .feed-panel-heading .public-search {
   margin-right: auto;
 }
-#app-shell .feed-panel-heading .feed-panel-post {
-  margin-left: 0;
-}
 #app-shell .feed-panel-body > .public-search {
   display: none;
 }

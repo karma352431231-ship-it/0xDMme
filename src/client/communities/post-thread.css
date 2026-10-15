@@ -9,6 +9,10 @@
 .post-thread-toolbar .community-thread-heading {
   margin: 0;
 }
+/* The opened post has no box (15/10/2026): its replies start closer. */
+.post-thread-toolbar {
+  margin-top: 10px;
+}
 .post-thread-item {
   position: relative;
   min-width: 0;

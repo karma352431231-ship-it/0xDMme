@@ -668,7 +668,6 @@ export function startCommunities(
     discovery.mount(container, {
       view,
       signedIn: session !== null,
-      openComposer: () => composer.open(),
       bookmark: returnBookmark,
       followChanged: async () => {
         followedDirectory.reset();

@@ -817,6 +817,11 @@
   font-size: 0;
 }
 
+/* Private contacts: the verified card photo covers the header initials. */
+.chat-panel .chat-peer-avatar {
+  overflow: hidden;
+}
+.chat-peer-avatar > img,
 .conversation-avatar > img {
   display: block;
   width: 100%;

@@ -311,6 +311,26 @@ existing executor. Access, baselines, artifacts and evidence remain in `.local/`
 served assets. Do not attribute connection failures to the app without evidence;
 this fix addresses the interface reconstruction demonstrated by the investigation.
 
+## Center Feed Batch Release Authorized on 15/10/2026
+
+The owner asked for `claude/layout-a-batch` to be merged into `main` and
+activated on the VPS: center feed with the conversation on the right, the "+"
+menu with Post and Create community, the opened post without a box, smaller
+reply media, colored Activity avatars, and private contact photos with card
+updates sent to confirmed contacts. See
+[UI decision](UI_PAINEIS_E_TEMAS.md#center-feed-and-fixes--15102026).
+
+Frontend release: backend, SQL migrations, dependencies, Node, detector, units
+and infrastructure keep the sources of the `main` it is based on. Use only
+`npm run deploy:staging` from the clean, pushed `main` with passing
+exact-commit CI, a locally prepared build and the existing preservation,
+readiness and rollback checks. Access, baselines, artifacts and receipts stay
+in `.local/`.
+
+**Ponto importante:** private contact photos and card updates were not exercised
+between two real accounts before release; confirm both directions after
+activation. A push alone does not confirm activation.
+
 ## Community Creation Back Arrow Release Authorized on 14/10/2026
 
 The owner asked to publish `claude/community-create-back` on the VPS through

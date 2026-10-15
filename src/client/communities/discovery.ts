@@ -47,7 +47,6 @@ import type { FeedBookmark } from './feed-return.ts';
 import {
   communityAvatar,
   communityIcon,
-  iconLabel,
   postHeader,
   postTagLink,
 } from './presentation.ts';
@@ -76,7 +75,6 @@ export function startCommunityDiscovery(
     busy = false,
     signedIn = false,
     abort = new AbortController();
-  let openComposer: () => void = () => undefined;
   let followChanged: () => Promise<void> = () => Promise.resolve();
   let view = 'feed',
     order: FeedOrder = 'mixed',
@@ -210,16 +208,9 @@ export function startCommunityDiscovery(
       },
     });
   }
-  /** Posting starts from the community the person chooses. */
+  /** Posting moved to the floating "+" menu; the toolbar keeps the own-profile shortcut. */
   function postShortcut(toolbar: HTMLElement): void {
     if (!signedIn || (view !== 'feed' && view !== 'following')) return;
-    button(toolbar, t('Postar'), () => {
-      openComposer();
-      return Promise.resolve();
-    });
-    const post = toolbar.lastElementChild as HTMLElement;
-    post.className = 'community-post-cta';
-    iconLabel(post, 'pencil');
     appendOwnProfileShortcut(toolbar);
   }
   function query(): string {
@@ -546,7 +537,6 @@ export function startCommunityDiscovery(
         view: string;
         signedIn: boolean;
         followChanged?: () => Promise<void>;
-        openComposer?: () => void;
         bookmark?: FeedBookmark | null;
       },
     ): void {
@@ -555,7 +545,6 @@ export function startCommunityDiscovery(
       abort = new AbortController();
       view = options.view;
       signedIn = options.signedIn;
-      openComposer = options.openComposer ?? (() => undefined);
       followChanged = options.followChanged ?? (() => Promise.resolve());
       initialFilters(options.bookmark);
       const titles: Record<string, string> = {
