@@ -192,7 +192,7 @@ def private_inputs():
 
 def executor_code(config):
     modules = []
-    for name in ['deploy_sources', 'deploy_runtime', 'deploy_remote', 'deploy_backup_io', 'deploy_blocks45', 'deploy_request_limit', 'deploy_background', 'deploy_profile_social', 'deploy_profile_description', 'deploy_group_links', 'deploy_post_tags', 'deploy_media_worker', 'deploy_social_controls', 'deploy_social_experience', 'deploy_discussion', 'deploy_mentions', 'deploy_message_changes', 'deploy_community_classification']:
+    for name in ['deploy_sources', 'deploy_runtime', 'deploy_remote', 'deploy_backup_io', 'deploy_blocks45', 'deploy_request_limit', 'deploy_background', 'deploy_profile_social', 'deploy_profile_description', 'deploy_group_links', 'deploy_post_tags', 'deploy_media_worker', 'deploy_social_controls', 'deploy_social_experience', 'deploy_discussion', 'deploy_mentions', 'deploy_message_changes', 'deploy_community_classification', 'deploy_public_upvotes']:
         path = ROOT / 'infra/staging' / (name + '.py')
         if digest(path) != config['files'].get('infra/staging/' + name + '.py'):
             raise RuntimeError('Deployment executor changed after the reviewed commit.')

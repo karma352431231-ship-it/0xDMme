@@ -1,9 +1,11 @@
 import type pg from 'pg';
+import { reconcileUpvoteNotice } from './community-upvotes.ts';
 import { queueReplyNotice } from './public-notice-wake.ts';
 import { blockedPosts } from './community-post-visibility.ts';
 import { AccountError, keys, uuid } from '../../shared/account/index.ts';
 import {
   communityArray,
+  communityBoolean,
   communityPageSize,
 } from '../../shared/communities/index.ts';
 import {
@@ -85,6 +87,7 @@ export async function setPostVote(
     `INSERT INTO hash_talk.community_votes(profile_id,post_id,position,revision) VALUES($1,$2,$3,1) ON CONFLICT(profile_id,post_id) DO UPDATE SET position=$3,revision=hash_talk.community_votes.revision+1`,
     [context.actor.id, row.id, position],
   );
+  await reconcileUpvoteNotice(context, row, position);
   await assertContentCapacity(context.client, capacity);
 }
 /** Exactly one direct recipient; no ancestor fanout, self-notification or copied content. */
@@ -127,7 +130,8 @@ export async function replyNotifications(
     );
     return { saved: true };
   }
-  keys(data, ['after']);
+  keys(data, ['after', ...(Object.hasOwn(data, 'authors') ? ['authors'] : [])]);
+  if (Object.hasOwn(data, 'authors')) communityBoolean(data['authors']);
   const [time, id] = (postCursor(data['after']) ?? '').split('/');
   const rows = await context.client.query<{
     reply: string;

@@ -51,13 +51,15 @@ class DeploymentTests(unittest.TestCase):
         names = ['deploy_sources', 'deploy_runtime', 'deploy_remote', 'deploy_backup_io', 'deploy_blocks45',
                  'deploy_request_limit', 'deploy_background', 'deploy_profile_social',
                  'deploy_profile_description', 'deploy_group_links',
-                 'deploy_post_tags', 'deploy_media_worker', 'deploy_social_controls', 'deploy_social_experience', 'deploy_discussion', 'deploy_mentions', 'deploy_message_changes', 'deploy_community_classification']
+                 'deploy_post_tags', 'deploy_media_worker', 'deploy_social_controls', 'deploy_social_experience', 'deploy_discussion', 'deploy_mentions', 'deploy_message_changes', 'deploy_community_classification', 'deploy_public_upvotes']
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory); (root / 'infra/staging').mkdir(parents=True)
             config = {'files': {}}
+            # Keep the original aggregate transport stress as module count grows.
+            repetitions = 8100 // len(names)
             for name in names:
                 path = root / 'infra/staging' / (name + '.py')
-                source = ("# quoted '\" transport fixture\n" * 450)
+                source = ("# quoted '\" transport fixture\n" * repetitions)
                 if name == 'deploy_remote': source += "def execute(): return {'restored': True}\n"
                 path.write_text(source)
                 config['files'][str(path.relative_to(root))] = remote.digest(path)
@@ -68,6 +70,10 @@ class DeploymentTests(unittest.TestCase):
             self.assertLess(len(code.encode()), 64 * 1024)
             path.write_text('tampered after review')
             with patch.object(deploy, 'ROOT', root), self.assertRaisesRegex(RuntimeError, 'changed after'):
+                deploy.executor_code(config)
+            path.write_text('# oversized source\n' * 15000)
+            config['files'][str(path.relative_to(root))] = remote.digest(path)
+            with patch.object(deploy, 'ROOT', root), self.assertRaisesRegex(RuntimeError, 'source budget exceeded'):
                 deploy.executor_code(config)
 
     def test_transition_diagnostics_classify_failures_without_private_details(self):

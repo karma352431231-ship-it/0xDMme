@@ -1,5 +1,38 @@
 # 0xDMme — Git e envio à VPS
 
+## Public upvotes and author identity — activation authorized on 15/10/2026
+
+After the public upvote/author-identity implementation `84a9cbe` passed full CI,
+the owner explicitly requested VPS activation in response to the exact proposed
+067→068 transition. Integrate that source with the earlier reply-media/contact/
+discussion fixes and the deterministic feed-fixture repair. This supersedes the
+local-only activation boundary for this reviewed package; it does not authorize
+other schema, dependency, runtime or shared-infrastructure changes.
+
+The existing `npm run deploy:staging` executor delegates this exact transition to
+`deploy_public_upvotes.py`. Pin the full source/runtime projections to published
+predecessor `cfecfc9b2b37ba57ffc8875bcedd7bfeaabc5caf` and reviewed application
+`84a9cbe9b24a43d08f14d215d16ff0f5100c09c7`. All 67 earlier SQL files remain exact.
+Migration 068 adds an initially empty active-arrival table and indexes; it neither
+backfills notices nor rewrites existing votes. Preserve every previous table row,
+object, capacity balance and migration checksum. Check new columns/defaults,
+constraints, cascading relations, accounting trigger, indexes and maintenance.
+
+Use the existing private backup and restore rehearsal. Temporarily stop only our
+web and three workers; retain their unit files, database process and configuration.
+Require a clean integrated pushed checkout, exact-commit full CI and a Mac build.
+Keep existing public hash/source/readiness and other-project preservation checks.
+Rollback before reopening may restore the reviewed backup; after reopening retain
+new writes and stop for review on failure. No new deployment command is introduced.
+Access, baselines, backups, artifacts and receipts stay solely in `.local/`.
+
+**Ponto importante:** activation is established only by a `published` receipt,
+verified 68 migrations, correct served assets and ready own workers. Current
+upvotes become public by chosen public profile only; downvote/neutral identities
+and private messaging data remain restricted. New arrivals notify in Activity,
+without historical backfill or new external Web Push delivery. Behavior and
+validation: [public upvotes](PUBLIC_UPVOTES.md).
+
 ## Reply media, contact editing and discussion fixes — activation authorized on 15/10/2026
 
 The owner explicitly requested VPS activation of the completed client repairs.

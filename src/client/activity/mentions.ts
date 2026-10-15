@@ -1,10 +1,15 @@
+import { publicIdentityAvatar } from '../public-identity/index.ts';
 import { t, currentLanguage } from '../../shared/i18n/index.ts';
 import type { MentionNotification } from '../../shared/mention-notifications/index.ts';
 import { mentionNotificationHref } from '../../shared/mention-notifications/index.ts';
 import { noticeLink, bindNoticeRow } from './notice-link.ts';
 export function mentionRows(
   items: readonly MentionNotification[],
-  actions: { open: (id: string) => Promise<void>; current: () => boolean },
+  actions: {
+    open: (id: string) => Promise<void>;
+    current: () => boolean;
+    signal: AbortSignal;
+  },
 ): HTMLElement[] {
   return items.map((item) => {
     const row = document.createElement('li'),
@@ -45,7 +50,11 @@ export function mentionRows(
     });
     controls.append(link);
     bindNoticeRow(row, link);
-    row.append(copy, controls);
+    row.append(
+      publicIdentityAvatar(item.actor, actions.signal),
+      copy,
+      controls,
+    );
     return row;
   });
 }

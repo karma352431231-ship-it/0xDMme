@@ -1,5 +1,28 @@
 /** Authored app text. Tuple order: English, Simplified Chinese. */
 export const catalog: Record<string, readonly [string, string]> = {
+  'follow.community': ['Community', '社区'],
+  'follow.user': ['User', '用户'],
+  'upvote.heading': ['Upvotes', '赞同'],
+  '@{0} upvoted your post': ['@{0} upvoted your post', '@{0} 赞同了你的帖子'],
+  '@{0} and {1} others upvoted your post': [
+    '@{0} and {1} others upvoted your post',
+    '@{0} 和其他 {1} 人赞同了你的帖子',
+  ],
+  '@{0} upvoted your reply': ['@{0} upvoted your reply', '@{0} 赞同了你的回复'],
+  '@{0} and {1} others upvoted your reply': [
+    '@{0} and {1} others upvoted your reply',
+    '@{0} 和其他 {1} 人赞同了你的回复',
+  ],
+  'upvote.show': ['View who upvoted', '查看赞同者'],
+  'upvote.more': ['Next page', '下一页'],
+  'upvote.loading': ['Loading upvotes…', '正在加载赞同…'],
+  'upvote.empty': ['No upvotes yet.', '暂无赞同。'],
+  'Invalid upvote notice.': ['Invalid upvote notice.', '赞同通知无效。'],
+  'Upvote read unavailable.': [
+    'Could not mark upvotes as read.',
+    '无法将赞同标记为已读。',
+  ],
+
   'post.edited': [' · Edited', ' · 已编辑'],
   'thread.load-remaining': ['Load remaining replies', '加载其余回复'],
   'activity.now': ['Now', '刚刚'],

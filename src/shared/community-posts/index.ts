@@ -381,6 +381,7 @@ function postTree(data: Record<string, unknown>) {
  * the start of the text. Removed or deleted replies carry no author or text.
  */
 export interface ReplyPreview {
+  identity?: PublicProfile | null;
   author: string | null;
   text: string;
   media: boolean;
@@ -398,12 +399,14 @@ export interface ReplyNotification {
 }
 export function replyPreview(
   post: CommunityPost | undefined,
+  options: { identity?: boolean } = {},
 ): ReplyPreview | null {
   if (!post) return null;
   if (post.status !== 'visible')
     return { author: null, text: '', media: false, status: post.status };
   return {
     author: post.author?.handle ?? null,
+    ...(options.identity ? { identity: post.author } : {}),
     text: mentionPlainText(post.text || post.title).slice(
       0,
       replyPreviewLength,
@@ -425,14 +428,38 @@ function previewText(value: unknown): string {
 function parseReplyPreview(value: unknown): ReplyPreview | null {
   if (value === null) return null;
   const data = object(value);
-  keys(data, ['author', 'text', 'media', 'status']);
+  keys(data, [
+    'author',
+    'text',
+    'media',
+    'status',
+    ...(Object.hasOwn(data, 'identity') ? ['identity'] : []),
+  ]);
   const status = previewStatus(data['status']),
     text = previewText(data['text']),
     author = data['author'] === null ? null : publicHandle(data['author']);
   // Hidden replies never carry who wrote them or what they said.
   if (status !== 'visible' && (author !== null || text !== ''))
     throw new AccountError(400, 'Prévia de resposta inválida.');
-  return { author, text, media: communityBoolean(data['media']), status };
+  const identity = previewIdentity(data['identity'], status, author);
+  return {
+    author,
+    text,
+    media: communityBoolean(data['media']),
+    status,
+    ...(Object.hasOwn(data, 'identity') ? { identity } : {}),
+  };
+}
+function previewIdentity(
+  value: unknown,
+  status: ReplyPreview['status'],
+  author: string | null,
+): PublicProfile | null {
+  if (value === undefined || value === null) return null;
+  const identity = publicProfile(value);
+  if (status !== 'visible' || identity.handle !== author)
+    throw new AccountError(400, 'Prévia de resposta inválida.');
+  return identity;
 }
 export interface ReplyNotificationPage {
   items: ReplyNotification[];

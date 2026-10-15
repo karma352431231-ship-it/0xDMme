@@ -77,6 +77,13 @@ export class CommunityService {
       after: selection.after,
     });
   }
+  upvoters(community: unknown, post: unknown, after: unknown) {
+    return this.requirePosts().upvoters(
+      uuid(community),
+      uuid(post),
+      communityCursor(after),
+    );
+  }
   tags(community: unknown, after: unknown) {
     return this.requirePosts().tags(uuid(community), communityCursor(after));
   }

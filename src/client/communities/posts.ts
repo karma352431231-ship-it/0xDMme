@@ -1,3 +1,4 @@
+import { publicUpvoteScore } from './upvoters.ts';
 import { t, translatedError } from '../../shared/i18n/index.ts';
 import { gifUrls } from '../gif-search/index.ts';
 import { postSharing } from './post-sharing.ts';
@@ -318,7 +319,7 @@ export function startCommunityPosts(
     state: PostState | null,
   ): void {
     if (own && !own.canPost && value.status === 'visible') {
-      const score = el('span', String(value.score), 'post-score');
+      const score = publicUpvoteScore(value);
       score.title = t('Votação indisponível nesta comunidade.');
       node.append(score);
       return;

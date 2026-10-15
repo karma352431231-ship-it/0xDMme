@@ -1,3 +1,4 @@
+import { upvoteNoticePage } from '../../shared/public-upvotes/index.ts';
 import { InteractionQueue } from '../interaction-queue/index.ts';
 import {
   t,
@@ -814,9 +815,20 @@ export function startCommunities(
     /** Bounded inbox history for Atividade, including durable read state. */
     async publicationNotifications(): Promise<readonly ReplyNotification[]> {
       const page = replyNotificationPage(
-        await controller.request('post-notifications', { after: null }),
+        await controller.request('post-notifications', {
+          after: null,
+          authors: true,
+        }),
       );
       return page.items;
+    },
+    async upvoteNotifications() {
+      return upvoteNoticePage(
+        await controller.request('post-upvote-notifications', { after: null }),
+      ).items;
+    },
+    async markUpvotesRead(ids: readonly string[]): Promise<void> {
+      await controller.request('post-upvote-notifications-read', { ids });
     },
     previewModeration(
       host: HTMLElement,

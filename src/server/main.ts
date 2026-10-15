@@ -153,6 +153,7 @@ try {
       feed: (filter, after) => communities.feed(filter, after),
       explore: (filter, after) => communities.explore(filter, after),
       post: (id, post) => communities.post(id, post),
+      upvoters: (id, post, after) => communities.upvoters(id, post, after),
       postPage: (id, after, tag) => communities.postPage(id, after, tag),
       replies: (id, parent, after) => communities.replies(id, parent, after),
       discussion: (id, parent, selection) =>

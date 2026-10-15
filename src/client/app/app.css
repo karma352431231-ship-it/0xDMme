@@ -1,3 +1,5 @@
+@import '../communities/upvotes.css';
+@import '../public-identity/identity.css';
 @import '../public-search/search.css';
 @import '../communities/post-bookmark.css';
 @import '../gif-search/gif.css';

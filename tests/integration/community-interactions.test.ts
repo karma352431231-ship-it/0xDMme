@@ -1,3 +1,7 @@
+import {
+  upvoteNoticePage,
+  upvoterPage,
+} from '../../src/shared/public-upvotes/index.ts';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import pg from 'pg';
@@ -66,6 +70,7 @@ await test('corte 5: árvore, votos e avisos diretos com autorização e persist
       read: (id) => communities.read(id),
       list: (after) => communities.list(after),
       post: (id, post) => communities.post(id, post),
+      upvoters: (id, post, after) => communities.upvoters(id, post, after),
       postPage: (id, after, tag) => communities.postPage(id, after, tag),
       replies: (id, parent, after) => communities.replies(id, parent, after),
       tags: (id, after) => communities.tags(id, after),
@@ -163,7 +168,9 @@ await test('corte 5: árvore, votos e avisos diretos com autorização e persist
   const state = async (who: typeof owner, id: string) =>
     postState(await who.operate('post-state', { id: community, post: id }));
   const notices = async (who: typeof owner, after: string | null = null) =>
-    replyNotificationPage(await who.operate('post-notifications', { after }));
+    replyNotificationPage(
+      await who.operate('post-notifications', { after, authors: true }),
+    );
   const bad = (status: number) => (error: unknown) =>
     error instanceof AccountError && error.status === status;
   await create(owner, root);
@@ -195,6 +202,13 @@ await test('corte 5: árvore, votos e avisos diretos com autorização e persist
       assert.equal(preview?.status, 'visible');
       assert.equal(preview?.text, 'Resposta sintética');
       assert.equal(typeof preview?.author, 'string');
+      assert.equal(preview?.identity?.id, authorProfile.id);
+      assert.equal(preview?.identity?.handle, authorProfile.handle);
+      const legacy = replyNotificationPage(
+        await owner.operate('post-notifications', { after: null }),
+      );
+      assert.equal(Object.hasOwn(legacy.items[0]!.preview!, 'identity'), false);
+
       assert.equal((await notices(author)).items.length, 0);
       const jobs = await db.daily.jobs();
       const job = jobs.find(
@@ -405,7 +419,7 @@ await test('corte 5: árvore, votos e avisos diretos com autorização e persist
     },
   );
   await t.test(
-    'um voto por conta/alvo, reversão, retry e conflito concorrente; nenhum aviso',
+    'one position per voter, current public upvotes and idempotent author arrivals',
     async () => {
       const before = (await notices(owner)).items.length;
       const vote = (
@@ -420,10 +434,92 @@ await test('corte 5: árvore, votos e avisos diretos com autorização e persist
           position,
           voteRevision,
         });
-      await Promise.all([vote(author, root, 1, 0), vote(author, root, 1, 0)]);
+      const upvotes = async (who: typeof owner) =>
+        upvoteNoticePage(
+          await who.operate('post-upvote-notifications', { after: null }),
+        );
+      const listener = new pg.Client({ connectionString: config.databaseUrl });
+      const frames: { accounts?: string[] }[] = [];
+      await listener.connect();
+      listener.on('notification', (frame) => {
+        if (frame.channel === 'hash_talk_content_changes')
+          frames.push(
+            JSON.parse(frame.payload ?? '{}') as (typeof frames)[number],
+          );
+      });
+      try {
+        await listener.query('LISTEN hash_talk_content_changes');
+        await Promise.all([vote(author, root, 1, 0), vote(author, root, 1, 0)]);
+        const until = Date.now() + 2000;
+        while (
+          !frames.some((frame) =>
+            frame.accounts?.includes(owner.login.session.accountId),
+          ) &&
+          Date.now() < until
+        )
+          await new Promise<void>((resolve) => setTimeout(resolve, 10));
+        assert.equal(
+          frames.filter((frame) =>
+            frame.accounts?.includes(owner.login.session.accountId),
+          ).length,
+          1,
+        );
+      } finally {
+        await listener.end();
+      }
+      const arrival = (await upvotes(owner)).items.find(
+        (item) => item.post === root,
+      )!;
+      assert.ok(arrival);
+      assert.equal(arrival.actor.id, authorProfile.id);
+      assert.equal(arrival.kind, 'post');
+      assert.equal(
+        (await upvotes(owner)).items.filter((item) => item.post === root)
+          .length,
+        1,
+      );
+      const response = await fetch(
+        `${origin}/api/communities/${community}/posts/${root}/upvoters`,
+      );
+      assert.equal(response.status, 200);
+      const voters = upvoterPage(await response.json());
+      assert.deepEqual(
+        voters.items.map((item) => item.id),
+        [authorProfile.id],
+      );
+      const serialized = JSON.stringify(voters);
+      assert.ok(!serialized.includes(author.wallet.address));
+      assert.ok(!serialized.includes(author.login.session.accountId));
+      await outsider.operate('post-upvote-notifications-read', {
+        ids: [arrival.id],
+      });
+      assert.equal(
+        (await upvotes(owner)).items.find((item) => item.id === arrival.id)
+          ?.read,
+        false,
+      );
+      await owner.operate('post-upvote-notifications-read', {
+        ids: [arrival.id],
+      });
+      assert.equal(
+        (await upvotes(owner)).items.find((item) => item.id === arrival.id)
+          ?.read,
+        true,
+      );
+
       assert.equal((await communities.post(community, root)).score, 1);
       await vote(author, root, -1, 1);
       await vote(author, root, -1, 1);
+      assert.equal(
+        (await communities.upvoters(community, root, null)).items.length,
+        0,
+      );
+      assert.equal(
+        (await upvotes(owner)).items.filter((item) => item.post === root)
+          .length,
+        0,
+      );
+
       assert.equal((await communities.post(community, root)).score, -1);
       await vote(author, root, 0, 2);
       await vote(author, root, 0, 2);
@@ -437,12 +533,207 @@ await test('corte 5: árvore, votos e avisos diretos com autorização e persist
         results.filter((result) => result.status === 'fulfilled').length,
         1,
       );
+      await vote(author, root, 1, 3);
+      const renewed = (await upvotes(owner)).items.find(
+        (item) => item.post === root,
+      )!;
+      assert.notEqual(renewed.id, arrival.id);
+      assert.equal(renewed.read, false);
+      await owner.operate('post-upvote-notifications-read', {
+        ids: [arrival.id],
+      });
+      assert.equal(
+        (await upvotes(owner)).items.find((item) => item.id === renewed.id)
+          ?.read,
+        false,
+      );
+      await vote(author, root, 0, 4);
       await vote(outsider, root, 1, 0);
+      assert.equal(
+        (await upvotes(owner)).items.filter((item) => item.post === root)
+          .length,
+        1,
+      );
+
       assert.equal((await state(owner, root)).vote.position, 0);
       assert.equal((await state(outsider, root)).vote.position, 1);
       assert.equal((await notices(owner)).items.length, before);
       const publicData = communityPost(await communities.post(community, root));
       assert.equal(Object.hasOwn(publicData, 'vote'), false);
+    },
+  );
+  await t.test(
+    'upvotes notify reply authors, suppress self/blocked arrivals and honor current visibility',
+    async () => {
+      const target = crypto.randomUUID(),
+        replyTarget = crypto.randomUUID();
+      await create(owner, target);
+      await create(author, replyTarget, target);
+      const inbox = async (who: typeof owner) =>
+        upvoteNoticePage(
+          await who.operate('post-upvote-notifications', { after: null }),
+        );
+      const vote = (
+        who: typeof owner,
+        post: string,
+        position: number,
+        voteRevision: number,
+      ) =>
+        who.operate('post-vote', {
+          id: community,
+          post,
+          position,
+          voteRevision,
+        });
+      await vote(owner, target, 1, 0);
+      assert.ok(
+        !(await inbox(owner)).items.some((item) => item.post === target),
+      );
+      await vote(owner, replyTarget, 1, 0);
+      const note = (await inbox(author)).items.find(
+        (item) => item.post === replyTarget,
+      )!;
+      assert.ok(note);
+      assert.equal(note.kind, 'reply');
+      assert.equal(note.actor.id, ownerProfile.id);
+      assert.equal(note.text, 'Resposta sintética');
+      await owner.operate('profile-block-set', {
+        target: authorProfile.id,
+        blocked: true,
+        revision: 0,
+      });
+      assert.ok(
+        !(await inbox(author)).items.some((item) => item.post === replyTarget),
+      );
+      await vote(author, target, 1, 0);
+      assert.ok(
+        !(await inbox(owner)).items.some((item) => item.post === target),
+      );
+      await owner.operate('profile-block-set', {
+        target: authorProfile.id,
+        blocked: false,
+        revision: 1,
+      });
+      assert.ok(
+        !(await inbox(owner)).items.some((item) => item.post === target),
+      );
+      await vote(author, target, 0, 1);
+      const before = await inspector.query<{ n: string }>(
+        'SELECT count(*) AS n FROM hash_talk.public_upvote_notifications WHERE post_id=$1',
+        [target],
+      );
+      const limited = new Database(config.databaseUrl, 1);
+      try {
+        const service = new CommunityService(
+          limited.communities,
+          limited.devices,
+          limited.communityPosts,
+        );
+        await assert.rejects(
+          service.operate(
+            'post-vote',
+            author.login.session,
+            await author.proof('post-vote', {
+              id: community,
+              post: target,
+              position: 1,
+              voteRevision: 2,
+            }),
+          ),
+          bad(503),
+        );
+        assert.equal((await state(author, target)).vote.position, 0);
+        assert.deepEqual(
+          (
+            await inspector.query(
+              'SELECT count(*) AS n FROM hash_talk.public_upvote_notifications WHERE post_id=$1',
+              [target],
+            )
+          ).rows,
+          before.rows,
+        );
+      } finally {
+        await limited.close();
+      }
+      await author.operate('post-delete', {
+        id: community,
+        post: replyTarget,
+        revision: 1,
+      });
+      assert.ok(
+        !(await inbox(author)).items.some((item) => item.post === replyTarget),
+      );
+      await assert.rejects(
+        communities.upvoters(community, replyTarget, null),
+        bad(404),
+      );
+      await assert.rejects(communities.upvoters(other, target, null), bad(404));
+      await assert.rejects(
+        owner.operate('post-upvote-notifications', {
+          after: null,
+          wallet: 'private',
+        }),
+        bad(400),
+      );
+      await inspector.query(
+        'DELETE FROM hash_talk.community_posts WHERE id=ANY($1::uuid[])',
+        [[replyTarget, target]],
+      );
+    },
+  );
+  await t.test(
+    'public upvoter pages are bounded, nonduplicating and exclude neutral/downvotes',
+    async () => {
+      const target = crypto.randomUUID();
+      await create(owner, target);
+      const voters = [];
+      for (let index = 0; index < 25; index++) {
+        const voter = await make();
+        const profile = await voter.publicIdentity(
+          'voter_' + crypto.randomUUID().slice(0, 8),
+        );
+        voters.push(profile.id);
+        await voter.operate('post-vote', {
+          id: community,
+          post: target,
+          position: 1,
+          voteRevision: 0,
+        });
+      }
+      await owner.operate('post-vote', {
+        id: community,
+        post: target,
+        position: -1,
+        voteRevision: 0,
+      });
+      const one = await communities.upvoters(community, target, null);
+      assert.equal(one.items.length, 24);
+      assert.ok(one.next);
+      const two = await communities.upvoters(community, target, one.next);
+      assert.equal(two.items.length, 1);
+      assert.equal(two.next, null);
+      assert.deepEqual(
+        [...one.items, ...two.items].map((item) => item.id).sort(),
+        voters.sort(),
+      );
+      const first = upvoteNoticePage(
+        await owner.operate('post-upvote-notifications', { after: null }),
+      );
+      assert.equal(first.items.length, 24);
+      assert.ok(first.next);
+      const second = upvoteNoticePage(
+        await owner.operate('post-upvote-notifications', { after: first.next }),
+      );
+      assert.equal(
+        new Set([...first.items, ...second.items].map((item) => item.id)).size,
+        first.items.length + second.items.length,
+      );
+      // Keep the pre-existing reply pagination fixture's subject count unchanged.
+      await owner.operate('post-delete', {
+        id: community,
+        post: target,
+        revision: 1,
+      });
     },
   );
   await t.test(
@@ -553,7 +844,7 @@ await test('corte 5: árvore, votos e avisos diretos com autorização e persist
           id: community,
           post: root,
           position: 1,
-          voteRevision: 3,
+          voteRevision: 5,
         }),
         bad(403),
       );
