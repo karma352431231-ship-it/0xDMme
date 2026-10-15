@@ -75,5 +75,7 @@ nos hotspots dos coordenadores do app/chat nesta entrega.
 
 **Ponto importante:** esta correção retira um custo comprovado da carga das
 listas; não comprova o tempo total de boot no aparelho nem resolve a investigação
-de voz. A entrega está em branch; ativação depende de autorização própria e CI
-do commit integrado, conforme [Git e deploy](GIT_E_DEPLOY.md).
+de voz. Após a CI integral de `9be4698`, o proprietário pediu integrar à main e
+ativar na VPS, substituindo a restrição anterior de entrega em branch. A ativação
+exige CI do commit integrado e confirmação operacional pelo executor existente,
+conforme [Git e deploy](GIT_E_DEPLOY.md#boot-de-contatos-e-conversas--ativação-autorizada-em-15102026).

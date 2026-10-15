@@ -1,5 +1,25 @@
 # 0xDMme — Git e envio à VPS
 
+## Boot de contatos e conversas — ativação autorizada em 15/10/2026
+
+Após a CI integral de `9be4698`, o proprietário pediu enviar à main e ativar
+na VPS a melhoria de carga das listas. Esta autorização substitui a restrição
+anterior de entrega em branch para os commits `b99e279` e `9be4698`.
+Preservar os trabalhos pendentes de outras branches fora desta release.
+
+O lote muda somente cliente, testes e documentação. Backend, 69 migrações,
+dependências, Node, modelos, unidades e configurações instaladas permanecem
+iguais à release `38e6dac`. Exigir checkout limpo e enviado, CI integral do
+commit integrado e build no Mac. Publicar somente pelo executor existente
+`npm run deploy:staging`, mantendo preservação, prontidão dos serviços próprios,
+hashes públicos/fontes e rollback. Acesso, artefatos e recibos ficam em `.local/`.
+
+**Ponto importante:** confirmar recibo `published` e versão servida. A entrega
+reutiliza somente ciphertext validado e mantém as guardas de autorização,
+remoção e sessão; não libera histórico antes de sua confirmação. Os tempos
+medidos cobrem a carga das listas com transporte fictício, não o boot completo
+em aparelhos físicos. [Contrato e validação](BOOT_CONTATOS_CONVERSAS.md).
+
 ## Atraso na abertura dos chats — ativação autorizada em 15/10/2026
 
 Após a correção `4aaa019` passar na CI integral, o proprietário pediu integrar
