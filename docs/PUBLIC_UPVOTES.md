@@ -114,3 +114,5 @@ boundaries, formatting, localization and the 48-asset build passed. This repair
 changes only client code/styles, one regression test and documentation; published
 database sources, all 68 migrations, dependencies and deployment guards remain
 unchanged. Branch CI/source delivery does not establish VPS activation.
+
+**Superseded on 16/10/2026:** the ranking now counts distinct public voters as active members (never voter lists). See [ranking](RANKING_COMUNIDADES_TRENDING.md#active-members-and-growth-display--owner-decision-on-16102026).

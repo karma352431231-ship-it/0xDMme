@@ -23,7 +23,7 @@ const featureExports: Record<string, string[]> = {
   contacts: ['startContacts'],
   'voice-playback': ['VoicePlayback'],
   calls: ['CallLog', 'startCalls'],
-  communities: ['startCommunities'],
+  communities: ['startCommunities', 'startRankingSide'],
   'public-profile': ['startPublicProfile'],
   activity: ['startActivity'],
   'external-media': ['ExternalMediaConsent'],

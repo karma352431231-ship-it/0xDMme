@@ -69,6 +69,8 @@ export interface ExplorePage {
     community: Community;
     activity: number;
     participants: number;
+    /** Active members in the previous window of the same length. */
+    previousParticipants: number;
     upvotes: number;
     historyComplete: boolean;
   }[];
@@ -307,6 +309,7 @@ export function explorePage(value: unknown): ExplorePage {
         'community',
         'activity',
         'participants',
+        'previousParticipants',
         'upvotes',
         'historyComplete',
       ]);
@@ -314,6 +317,7 @@ export function explorePage(value: unknown): ExplorePage {
         community: community(row['community']),
         activity: postCount(row['activity']),
         participants: postCount(row['participants']),
+        previousParticipants: postCount(row['previousParticipants']),
         upvotes: postCount(row['upvotes']),
         historyComplete: communityBoolean(row['historyComplete']),
       };

@@ -449,3 +449,12 @@ Owner decision after reviewing three options (option A chosen).
 - **Reply media.** Pictures and GIFs in replies are 49% of the post presentation (70% × 70%), with a 180 px floor on phones.
 - **Activity.** Read items dim their text only; avatars keep their colors.
 - **Private contact photos.** The conversation list and the private chat header show the photo from the contact's verified private profile card already received on this device, decrypted once per card version and never looked up publicly. After a profile change, the app sends the new card to every confirmed private contact in the background, one at a time, skipping contacts that already have that exact card. Before, the card only went to a contact whose conversation was opened. Cards remain end-to-end encrypted messages.
+
+## Ranking sidebar and Chat | Communities — 16/10/2026
+
+Owner decision after reviewing the sidebar (https://claude.ai/artifact/RNiWCXQr76ZREsgVRJYhP5) and the switch (https://claude.ai/artifact/UYxQs6rMMNcJXaXUw3sc62), option A.
+
+- **Full Communities page (1280 px or more).** The layout is rail | feed | ranking sidebar (380 px), FOMO "Trending" style. The left directory is hidden; the followed communities are the sidebar's **Following** tab. The tabs are Trending, Largest, New and Following. Each row shows position, photo, name, topic, followers and active growth. **»** collapses the sidebar into a strip of photos and **«** expands it; this choice is kept on the device. **See full ranking** opens the full table.
+- **Split screen.** A **Chat | Communities** switch sits above the right column, which shows the conversation or the ranking. It starts on **Chat**. Opening a conversation returns to Chat. New messages never switch the view; they add to the badge on Chat, which sums the unread counters the conversation list shows.
+- **Realtime.** See [active members and growth](RANKING_COMUNIDADES_TRENDING.md#active-members-and-growth-display--owner-decision-on-16102026).
+- Phones and screens below 1280 px are unchanged. Follower faces from the mockup are not drawn yet: they would need one extra request per row on every refresh.

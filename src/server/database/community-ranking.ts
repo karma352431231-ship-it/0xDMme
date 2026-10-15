@@ -157,8 +157,9 @@ export class CommunityRankingStore {
         [id, cutoff, rankingVersion, rankingMetricVersion],
       );
       await client.query(
-        `INSERT INTO hash_talk.community_ranking_entries(generation,community_id,period,score,participants,contributions,upvotes,history_complete,followers,trending,newly_created,source_revision)
+        `INSERT INTO hash_talk.community_ranking_entries(generation,community_id,period,score,participants,previous_participants,contributions,upvotes,history_complete,followers,trending,newly_created,source_revision)
         SELECT $1,s.community_id,p.period,(m.value->>'score')::bigint,(m.value->'current'->>'participants')::integer,
+        (m.value->'previous'->>'participants')::integer,
         (m.value->'current'->>'contributions')::integer,(m.value->'current'->>'upvotes')::integer,(m.value->>'historyComplete')::boolean,
         (s.metrics->>'followers')::integer,NOT (s.metrics->>'archived')::boolean AND (m.value->>'score')::bigint>0,
         (s.metrics->>CASE WHEN p.period='day' THEN 'newDay' ELSE 'newWeek' END)::boolean,s.processed
@@ -250,6 +251,7 @@ export class CommunityRankingStore {
         community_id: string;
         rank: string;
         participants: number;
+        previous_participants: number;
         contributions: number;
         upvotes: number;
         history_complete: boolean;
@@ -260,7 +262,7 @@ export class CommunityRankingStore {
         WHERE published AND version=$2 AND metrics_version=$3 AND expires_at>clock_timestamp()
         AND ($1::uuid IS NULL OR id=$1) ORDER BY sequence DESC LIMIT 1
       ), ranked AS (
-        SELECT e.community_id,${rank}::text AS rank,e.participants,e.contributions,e.upvotes,e.history_complete
+        SELECT e.community_id,${rank}::text AS rank,e.participants,e.previous_participants,e.contributions,e.upvotes,e.history_complete
         FROM head g JOIN hash_talk.community_ranking_entries e ON e.generation=g.id
         JOIN hash_talk.communities c ON c.id=e.community_id
         WHERE e.period=$4 AND ${condition} AND ${communityTopicPredicate()}

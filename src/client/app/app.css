@@ -33,6 +33,7 @@
 @import '../language/line-breaks.css';
 @import '../communities/community-actions.css';
 @import '../communities/community-create.css';
+@import '../communities/ranking-side.css';
 @import '../communities/classification.css';
 
 /* === Theme tokens: the only place with literal colors (see tests/appearance.test.ts). === */
@@ -480,6 +481,62 @@
     > main {
     order: 1;
     border-left: 1px solid var(--line);
+  }
+  /* Full Communities page (16/10/2026): feed in the center, ranking on the
+     right; the followed list now lives in the ranking's Following tab. */
+  #app-shell[data-page='comunidades'] {
+    grid-template-columns: 64px minmax(0, 1fr) 380px;
+  }
+  #app-shell[data-page='comunidades']:has(
+      > .ranking-side[data-collapsed='true']
+    ) {
+    grid-template-columns: 64px minmax(0, 1fr) 64px;
+  }
+  #app-shell[data-page='comunidades'] > .sidebar {
+    display: none;
+  }
+  #app-shell[data-page='comunidades'] > .ranking-side {
+    display: flex;
+  }
+  /* Split screen: "Chat | Communities" above the right column, which shows the
+     conversation or the ranking. Visitors without history keep their layout. */
+  #app-shell[data-page='conversas'][data-layout='all']:not(
+      [data-account='guest']:not([data-history='available'])
+    ) {
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+  #app-shell[data-page='conversas'][data-layout='all']:not(
+      [data-account='guest']:not([data-history='available'])
+    )
+    > :is(.rail, .sidebar, .feed-panel) {
+    grid-row: 1 / -1;
+  }
+  #app-shell[data-page='conversas'][data-layout='all']:not(
+      [data-account='guest']:not([data-history='available'])
+    )
+    > .right-switch {
+    display: grid;
+    grid-column: 4;
+    grid-row: 1;
+  }
+  #app-shell[data-page='conversas'][data-layout='all']:not(
+      [data-account='guest']:not([data-history='available'])
+    )
+    > :is(main, .ranking-side) {
+    grid-column: 4;
+    grid-row: 2;
+  }
+  #app-shell[data-page='conversas'][data-layout='all'][data-right='communities']:not(
+      [data-account='guest']:not([data-history='available'])
+    )
+    > main {
+    display: none;
+  }
+  #app-shell[data-page='conversas'][data-layout='all'][data-right='communities']:not(
+      [data-account='guest']:not([data-history='available'])
+    )
+    > .ranking-side {
+    display: flex;
   }
   /* Same reading width as the full Communities page, centered. */
   #app-shell[data-page='conversas']:is(

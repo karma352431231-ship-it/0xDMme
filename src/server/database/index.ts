@@ -167,6 +167,7 @@ const migrations = [
   '067-community-classification-publication-pause.sql',
   '068-public-upvotes.sql',
   '069-social-reaction-index.sql',
+  '070-ranking-activity.sql',
 ];
 
 export interface MaintenanceSnapshot {

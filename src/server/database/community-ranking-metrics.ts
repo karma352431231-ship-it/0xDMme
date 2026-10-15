@@ -56,6 +56,16 @@ async function readRanking(
       SELECT e.*,period,span,bucket,intervals,
         CASE WHEN e.created_at >= $2::timestamptz-span THEN 0 ELSE 1 END AS segment
       FROM eligible e CROSS JOIN periods WHERE e.created_at>=$2::timestamptz-2*span
+    ), voters AS (
+      SELECT p.community_id,v.profile_id AS actor,v.voted_at AS at FROM hash_talk.community_votes v
+      JOIN hash_talk.community_posts p ON p.id=v.post_id JOIN targets t ON t.id=p.community_id
+      WHERE v.position<>0 AND v.voted_at>=$2::timestamptz-interval '14 days' AND v.voted_at<$2 AND ${visiblePost('p')}
+    ), active AS (
+      SELECT a.community_id,period,CASE WHEN a.at >= $2::timestamptz-span THEN 0 ELSE 1 END AS segment,
+        count(DISTINCT a.actor)::integer AS n
+      FROM (SELECT community_id,author AS actor,created_at AS at FROM eligible WHERE author IS NOT NULL
+        UNION ALL SELECT community_id,actor,at FROM voters) a
+      CROSS JOIN periods WHERE a.at>=$2::timestamptz-2*span GROUP BY a.community_id,period,segment
     ), counts AS (
       SELECT community_id,period,segment,count(DISTINCT author)::integer AS participants,
         count(*)::integer AS contributions,
@@ -93,12 +103,13 @@ async function readRanking(
         count(*) FILTER(WHERE n>0)::integer AS posts FROM post_votes GROUP BY community_id,period,segment
     ), metrics AS (
       SELECT t.id,p.period,w.segment,
-        jsonb_build_object('participants',coalesce(c.participants,0),'contributions',coalesce(c.contributions,0),
+        jsonb_build_object('participants',coalesce(m.n,0),'contributions',coalesce(c.contributions,0),
           'conversations',coalesce(d.n,0),'returning',coalesce(r.n,0),'occupied',coalesce(c.occupied,0),
           'intervals',p.intervals,'authors',coalesce(c.authors,0),'originals',coalesce(c.originals,0),
           'authorSquares',coalesce(h.squares,0),'upvotes',coalesce(v.n,0),'upvoteSignal',coalesce(v.signal,0),'votedPosts',coalesce(v.posts,0)) AS value
       FROM targets t CROSS JOIN periods p CROSS JOIN (VALUES(0),(1)) w(segment)
       LEFT JOIN counts c ON c.community_id=t.id AND c.period=p.period AND c.segment=w.segment
+      LEFT JOIN active m ON m.community_id=t.id AND m.period=p.period AND m.segment=w.segment
       LEFT JOIN concentration h ON h.community_id=t.id AND h.period=p.period AND h.segment=w.segment
       LEFT JOIN discussions d ON d.community_id=t.id AND d.period=p.period AND d.segment=w.segment
       LEFT JOIN returners r ON r.community_id=t.id AND r.period=p.period
@@ -112,6 +123,7 @@ async function readRanking(
     ), temporal_sources AS (
       SELECT community_id,created_at AS at,true AS contribution FROM eligible
       UNION ALL SELECT community_id,at,false FROM deltas
+      UNION ALL SELECT community_id,at,false FROM voters
     ), deadlines AS (
       SELECT community_id,min(due) AS at FROM (
         SELECT e.community_id,

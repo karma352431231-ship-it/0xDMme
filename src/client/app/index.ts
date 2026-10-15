@@ -25,7 +25,8 @@ import { startRepresentatives } from '../representatives/index.ts';
 import { startContacts } from '../contacts/index.ts';
 import { VoicePlayback } from '../voice-playback/index.ts';
 import { CallLog, startCalls } from '../calls/index.ts';
-import { startCommunities } from '../communities/index.ts';
+import { startCommunities, startRankingSide } from '../communities/index.ts';
+import { startRightColumn } from './right-column.ts';
 import { startPublicProfile } from '../public-profile/index.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
 import type { AddressBookEntry } from '../../shared/contacts/index.ts';
@@ -81,6 +82,7 @@ function openConversation(): void {
     route();
   }
   element('app-shell').dataset['chatOpen'] = 'true';
+  rightColumn?.showChat();
   element('workspace').scrollTop = 0;
   panels?.privateChatOpened();
 }
@@ -117,6 +119,23 @@ const communities = startCommunities(
   externalMedia,
   publicProfiles.follows,
 );
+// Ranking beside the feed and the Chat | Communities switch (16/10/2026).
+// The wallet approval document has no app shell and gets neither.
+const appShell = document.getElementById('app-shell');
+const rankingSide = appShell
+  ? startRankingSide({
+      shell: appShell,
+      access: devices,
+      signedIn: () => connectedAccount !== null,
+    })
+  : null;
+const rightColumn =
+  appShell && rankingSide
+    ? startRightColumn({
+        shell: appShell,
+        showCommunities: rankingSide.refresh,
+      })
+    : null;
 const playback = new VoicePlayback();
 const callLog = new CallLog(vault.sync);
 const calls = startCalls({
