@@ -292,3 +292,37 @@ await test('an entry from another account cannot be opened using a cached block'
   await assert.rejects(f.sync.open(entry.commit.id), /outra conta/u);
   assert.equal(f.counts().requests, 0);
 });
+
+for (const failed of [false, true])
+  await test(`cold pages cap downloads at four and settle children before releasing authority: failure=${failed}`, async (t) => {
+    const f = await fixture(t, 16),
+      ids = [...f.remote.keys()];
+    f.cached.clear();
+    let active = 0,
+      peak = 0;
+    const fetch = f.context.fetch;
+    t.mock.method(
+      f.context,
+      'fetch',
+      async (url: string, init: RequestInit) => {
+        const input = JSON.parse(init.body as string) as { id: string };
+        active++;
+        peak = Math.max(peak, active);
+        try {
+          await new Promise<void>((resolve) => setImmediate(resolve));
+          if (failed && input.id === ids[0])
+            throw new Error('Synthetic object failure');
+          return await fetch(url, init);
+        } finally {
+          active--;
+        }
+      },
+    );
+    if (failed)
+      await assert.rejects(f.sync.openMany(ids), /vault\/object.*network/u);
+    else assert.equal((await f.sync.openMany(ids)).length, 16);
+    assert.equal(peak, 4);
+    assert.equal(active, 0);
+    assert.equal(f.counts().requests, failed ? 3 : 16);
+    assert.equal(f.cached.size, failed ? 3 : 16);
+  });

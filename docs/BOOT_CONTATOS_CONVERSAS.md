@@ -23,10 +23,10 @@ de histórico. As duas versões apresentam os mesmos 16 contatos.
 
 | Condição                                           | Antes   | Correção |
 | -------------------------------------------------- | ------- | -------- |
-| Reabertura com ciphertext local                    | 7270 ms | 1423 ms  |
-| Retomada da mesma sessão, com ciphertext local     | 3945 ms | 1152 ms  |
-| Reabertura sem ciphertext local                    | 7240 ms | 3349 ms  |
-| Retomada após a primeira carga remota              | 3948 ms | 965 ms   |
+| Reabertura com ciphertext local                    | 7270 ms | 1388 ms  |
+| Retomada da mesma sessão, com ciphertext local     | 3945 ms | 1554 ms  |
+| Reabertura sem ciphertext local                    | 7240 ms | 1921 ms  |
+| Retomada após a primeira carga remota              | 3948 ms | 989 ms   |
 | Downloads de objetos na reabertura com cópia local | 32      | 0        |
 | Leituras de autoridade na reabertura               | 35      | 5        |
 
@@ -38,6 +38,9 @@ teste físico. Evidências, harness e dados de execução ficam somente em `.loc
 - `VaultSync.openMany` abre até 16 IDs únicos por operação. Agenda mantém suas
   páginas de 16 contatos e até 16 versões por contato; conflitos maiores continuam
   recusados. A leitura de pins também cede a autoridade entre lotes de 16.
+- Dentro do lote, no máximo quatro objetos são lidos/decifrados em paralelo.
+  Mesmo com erro, aguardar todas as tarefas do grupo antes de devolver a
+  autoridade. Uma leitura não continua executando depois da liberação do lock.
 - Cada lote obtém a autoridade atual e confere remoções pessoais antes e depois
   de ler/decifrar. Exclusão, revogação, falha ou mudança de sessão recusam o lote
   completo antes do retorno. O cache não permite fallback após essas falhas.
@@ -62,7 +65,7 @@ A regressão de uma página com ciphertext válido falha na versão anterior:
 conferências de remoções. Testes cobrem evicção, corrupção, autorização recusada,
 remoções antes/depois da leitura, isolamento de conta, troca de sessão, offline,
 duplicatas e limite do lote. As regressões de contatos, pins, boot, retomada e
-chat pelo @ também passam: 77 testes dirigidos, mais 19 testes de montagem do
+chat pelo @ também passam: 79 testes dirigidos, mais 19 testes de montagem do
 app, sessão, cofre e criptografia real de mensagens/grupos, em arquivos distintos.
 
 Transporte do cofre e abertura/validação de objetos saem de `vault-sync/index.ts`

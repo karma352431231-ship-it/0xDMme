@@ -21,25 +21,40 @@ export async function openVaultObjects(
   ids: readonly string[],
 ): Promise<string[]> {
   const values: string[] = [];
-  for (const id of ids) {
-    read.guard();
-    const commit = availableCommit(read, id);
-    const account = read.authority.session.accountId;
-    const cached = await cachedBlock(account, id);
-    read.guard();
-    const bytes = cached ?? (await fetchObject(read.authority, id));
-    read.guard();
-    const value = await openBlock(
-      await read.authority.key(commit.epoch),
-      commit,
-      bytes,
+  for (let offset = 0; offset < ids.length; offset += 4) {
+    // Limit cold downloads/crypto to four. Settle the whole group before
+    // returning or failing, so work cannot outlive the authority lock.
+    const results = await Promise.allSettled(
+      ids.slice(offset, offset + 4).map((id) => openVaultObject(read, id)),
     );
-    read.guard();
-    if (!cached) await cacheBlock(account, id, bytes);
-    read.guard();
-    values.push(value);
+    for (const result of results) {
+      if (result.status === 'rejected') {
+        const error: unknown = result.reason;
+        throw error;
+      }
+      values.push(result.value);
+    }
   }
   return values;
+}
+
+async function openVaultObject(read: ObjectRead, id: string): Promise<string> {
+  read.guard();
+  const commit = availableCommit(read, id);
+  const account = read.authority.session.accountId;
+  const cached = await cachedBlock(account, id);
+  read.guard();
+  const bytes = cached ?? (await fetchObject(read.authority, id));
+  read.guard();
+  const value = await openBlock(
+    await read.authority.key(commit.epoch),
+    commit,
+    bytes,
+  );
+  read.guard();
+  if (!cached) await cacheBlock(account, id, bytes);
+  read.guard();
+  return value;
 }
 
 export function assertVaultObjectsAvailable(
