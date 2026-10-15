@@ -1,7 +1,12 @@
 import { optionalSentAt } from '../../shared/message-presentation/index.ts';
-import { encodeDailyText, validReaction } from '../../shared/daily/index.ts';
+import {
+  decodeDailyText,
+  encodeDailyText,
+  validReaction,
+} from '../../shared/daily/index.ts';
 import type { MessageRelation } from '../../shared/daily/index.ts';
 import { projectDmMessages } from './presentation.ts';
+import { synchronizeDmHistory } from './history-sync.ts';
 import { relatedDmHistory } from '../local-history/index.ts';
 import { t } from '../../shared/i18n/index.ts';
 import { prepareMessageRuntime } from '../message-runtime/index.ts';
@@ -318,10 +323,12 @@ export class SocialDms {
   ): Promise<void> {
     if (!text.trim() || new TextEncoder().encode(text).length > 3_000_000)
       throw new Error('Texto vazio ou excedido.');
+    const name = relation
+      ? `${relation.type === 'edit' ? 'dm-edit' : 'dm-react'}:${peer}:${relation.id}`
+      : `dm-send:${peer}`;
     await this.withCrypto(async (input) => {
       const { authority, privateAuthority, api } = input;
-      const scope = `${privateAuthority.session.accountId}:${privateAuthority.session.deviceId}`,
-        name = relation ? `dm-react:${peer}:${relation.id}` : `dm-send:${peer}`;
+      const scope = `${privateAuthority.session.accountId}:${privateAuthority.session.deviceId}`;
       const hash = await digest(
           canonical(
             relation
@@ -446,7 +453,12 @@ export class SocialDms {
   async historyPage(snapshot: unknown, after: number) {
     return this.withCrypto(async (context) => {
       const raw = personalPage(
-        await context.api('personal-page', { snapshot, after, actions: true }),
+        await context.api('personal-page', {
+          snapshot,
+          after,
+          actions: true,
+          edits: true,
+        }),
       );
       const profiles = new Map(
         raw['profiles'].map((value) => {
@@ -593,56 +605,71 @@ export class SocialDms {
       },
     );
   }
+  async edit(
+    peer: string,
+    target: Extract<BackupRecord, { type: 'dm-message' }>,
+    text: string,
+  ): Promise<void> {
+    if (!text.trim()) throw new Error('Texto vazio ou excedido.');
+    if (
+      !target.own ||
+      target.kind !== 'text' ||
+      target.relation ||
+      target.peer.id !== peer
+    )
+      throw new Error('Edição por outro autor.');
+    const content = decodeDailyText(target.text);
+    await this.send(
+      peer,
+      encodeDailyText({ ...content, text }),
+      crypto.randomUUID(),
+      {
+        id: target.id,
+        hash: target.hash,
+        author: target.self,
+        type: 'edit',
+      },
+    );
+  }
   async messageStates(input: { peer: string; read: string[]; own: string[] }) {
     return dmMessageStates(await this.request('message-status', input));
   }
   async read(peer: string, before: number | null) {
+    const generation = this.generation;
     if (navigator.onLine) {
-      const snapshot = await this.request('personal-snapshot', {}),
-        state = object(snapshot);
-      let after = await this.access.withVault(false, async (a) => {
-        const held = await localGet<LocalCipher>(
-          `${a.session.accountId}:${a.session.deviceId}`,
-          'dm-sync-state',
-        );
-        if (!held) return 0;
-        const value = object(JSON.parse(await openLocal(a, held)) as unknown);
-        return value['version'] === 2 && value['removals'] === state['removals']
-          ? socialRevision(value['after'])
-          : 0;
-      });
-      let blockedGap = false;
-      for (let pages = 0; pages < 64; pages++) {
-        const page = await this.historyPage(snapshot, after);
-        blockedGap ||= page.unavailable.length > 0;
-        if (page.next === null) break;
-        after = page.next;
-        if (!blockedGap)
-          await this.access.withVault(false, async (a) => {
+      await synchronizeDmHistory({
+        snapshot: () => this.request('personal-snapshot', {}),
+        guard: () => this.guard(generation),
+        page: (snapshot, after) => this.historyPage(snapshot, after),
+        cursor: () =>
+          this.access.withVault(false, async (a) => {
+            const held = await localGet<LocalCipher>(
+              `${a.session.accountId}:${a.session.deviceId}`,
+              'dm-sync-state',
+            );
+            return held
+              ? (JSON.parse(await openLocal(a, held)) as unknown)
+              : null;
+          }),
+        save: (cursor) =>
+          this.access.withVault(false, async (a) => {
+            this.guard(generation);
             const row = await sealLocal(
               a,
               crypto.randomUUID(),
-              JSON.stringify({
-                version: 2,
-                after,
-                removals: state['removals'],
-              }),
+              JSON.stringify(cursor),
             );
+            this.guard(generation);
             await localPut(
               `${a.session.accountId}:${a.session.deviceId}`,
               'dm-sync-state',
               row,
               row.bytes.length + 512,
             );
-          });
-        if (pages === 63)
-          throw new Error('Continue sincronizando o histórico de DMs.');
-      }
+          }),
+      });
     }
-    if (navigator.onLine)
-      await this.access.withVault(false, (a) =>
-        this.removals.load(a, () => this.guard(this.generation)),
-      );
+    this.guard(generation);
     return this.cached(peer, before);
   }
   async copies(after: string | null) {

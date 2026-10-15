@@ -1,5 +1,7 @@
 # Comunidades públicas — direção de produto em 05/10/2026
 
+**Paridade e edição — 15/10/2026:** a autorização posterior do proprietário permite editar texto próprio nas DMs pelo `@`. Substitui as proibições históricas de edição, preservando as demais restrições, identidade pública, consentimento separado e E2EE. A experiência de navegação, avisos, foto e composição converge com a do privado. [Matriz e contrato atual](PARIDADE_CHATS.md).
+
 ## Current public upvotes — 15/10/2026
 
 The owner explicitly made current upvotes publicly attributable by public profile

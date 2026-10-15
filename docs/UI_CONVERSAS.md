@@ -2,6 +2,8 @@
 
 ## Enquadramento e ampliação da foto privada — 15/10/2026
 
+> Atualização posterior de 15/10/2026: a DM pelo `@` passa a usar o mesmo visualizador de avatar e preserva a foto durante atualizações comuns. A edição de texto próprio foi autorizada também nesse contexto, substituindo a recusa histórica de edições registrada abaixo. Navegação e avisos usam execução serializada, invalidação imediata e preparação inicial reaproveitada na sessão; histórico já sincronizado consulta o snapshot autenticado e as remoções antes de usar sua cópia cifrada. O cursor versão 3 relê as novas ações uma vez. Identidade, chaves e consentimento continuam separados. [Matriz e contrato](PARIDADE_CHATS.md).
+
 O proprietário pediu retirar o fundo visível e centralizar a foto do cabeçalho,
 além de permitir ampliá-la. Quando existe foto, a moldura circular recorta uma
 imagem posicionada por toda a área, com `cover` e centro explícito; o degradê

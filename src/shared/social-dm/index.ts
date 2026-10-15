@@ -83,12 +83,11 @@ export function socialPacket(input: unknown): MessagePacket {
   if (
     packet.kind === 'profile' ||
     (packet.relation &&
-      (packet.relation.type !== 'reaction' || packet.kind !== 'text')) ||
+      (packet.kind !== 'text' ||
+        (packet.relation.type === 'edit' &&
+          packet.relation.author !== packet.sender))) ||
     (packet.kind === 'attachment' && !packet.socialMedia)
   )
-    throw new AccountError(
-      400,
-      'DM accepts text, declared media and reactions; private profile and edits are forbidden.',
-    );
+    throw new AccountError(400, 'Invalid public-identity message or action.');
   return packet;
 }

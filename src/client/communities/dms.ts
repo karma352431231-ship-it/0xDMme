@@ -28,6 +28,9 @@ import {
 } from './dm-chat.ts';
 import type { DmRequestAction, DmView } from './dm-chat.ts';
 import { startDmComposer } from './dm-composer.ts';
+import { DmWork } from './dm-work.ts';
+import { bindDmLifecycle } from './dm-lifecycle.ts';
+import { LiveUpdates } from '../message-live/index.ts';
 
 type DmPage = Awaited<ReturnType<SocialDms['cached']>>;
 type DmItem = DmPage['items'][number];
@@ -45,10 +48,13 @@ export function startSocialDmUi(
     playback,
     privacy,
     run,
+    changed: () => refreshes.resume(),
     submit: async ({ text, media, pending }) => {
       const selected = peer;
       if (!selected) return;
-      if (media) {
+      if (composer.editing) {
+        await controller.edit(selected, composer.editing, text);
+      } else if (media) {
         await controller.stageMedia(
           selected,
           media.selection,
@@ -70,18 +76,32 @@ export function startSocialDmUi(
   const live = new LiveMessages({
     access,
     event: (event) => {
-      if (!container || busy || composer.active) return;
-      if (['ready', 'changed', 'authorization', 'invalidated'].includes(event))
-        void run(async () => {
-          await playback.check((target) =>
-            controller.state(target).then((state) => state?.canSend ?? false),
-          );
-          await reload();
-        });
+      if (!container) return;
+      if (
+        [
+          'removed',
+          'authorization',
+          'invalidated',
+          'revoked',
+          'ended',
+        ].includes(event)
+      )
+        closeGate();
+      refreshes.request();
     },
-    changed: () => {},
+    changed: () => {
+      if (container && !live.current) closeGate();
+    },
+  });
+  const workQueue = new DmWork();
+  const refreshes = new LiveUpdates({
+    available: () => !!container && !busy && !composer.active,
+    run: () => {
+      void run(reload);
+    },
   });
   let fallback: ReturnType<typeof setInterval> | null = null;
+  let stopLifecycle: (() => void) | null = null;
   function startFallback(): void {
     fallback = setInterval(() => {
       if (
@@ -92,7 +112,7 @@ export function startSocialDmUi(
         document.visibilityState !== 'visible'
       )
         return;
-      void run(reload);
+      refreshes.request();
     }, 30000);
   }
   let container: HTMLElement | null = null,
@@ -100,10 +120,12 @@ export function startSocialDmUi(
     view: DmView | null = null,
     viewKey = '';
   let generation = 0,
+    verification = 0,
     busy = false,
     peer: string | null = null,
     cursor: string | null = null,
-    before: number | null = null;
+    before: number | null = null,
+    nextBefore: number | null = null;
   let messageId: string = crypto.randomUUID();
   let ownProfile: string | null = null;
   let localOnly = false;
@@ -125,23 +147,42 @@ export function startSocialDmUi(
       container.replaceChildren(communityElement('p', message, 'chat-gate'));
   }
   async function run(work: () => Promise<void>): Promise<void> {
-    if (busy) return;
     const old = generation;
-    busy = true;
-    composer.update({ ...composerState(), busy: true });
-    try {
-      await work();
-    } catch (error: unknown) {
-      if (old === generation)
-        status(
-          error instanceof Error
-            ? translatedError(error.message)
-            : t('DM indisponível.'),
-        );
-    } finally {
-      busy = false;
-      if (old === generation) composer.update(composerState());
+    await workQueue.run(async () => {
+      if (old !== generation) return;
+      busy = true;
+      composer.update(composerState());
+      try {
+        await work();
+      } catch (error: unknown) {
+        if (old === generation) {
+          closeGate();
+          status(
+            error instanceof Error
+              ? translatedError(error.message)
+              : t('DM indisponível.'),
+          );
+        }
+      } finally {
+        busy = false;
+        if (old === generation) composer.update(composerState());
+        refreshes.resume();
+      }
+    });
+  }
+  function closeGate(): void {
+    verification++;
+    controller.cancel();
+    writable = false;
+    clearRows();
+    if (view) {
+      view.history.replaceChildren();
+      view.history.hidden = true;
+      clearDmChecks(view.history);
     }
+    composer.cancelEdit();
+    playback.close();
+    composer.update(composerState());
   }
   let writable = false,
     pendingMedia = false;
@@ -243,6 +284,7 @@ export function startSocialDmUi(
     composer.bind(view);
     view.older.addEventListener('click', () => {
       void run(async () => {
+        before = nextBefore;
         await conversation();
       });
     });
@@ -272,8 +314,9 @@ export function startSocialDmUi(
     const selected = peer;
     if (!selected || !container) return;
     const old = generation,
+      expected = verification,
       data = await loadConversation(selected);
-    if (old !== generation || !container) return;
+    if (old !== generation || expected !== verification || !container) return;
     const current = frame(selected);
     current.gate.textContent = '';
     paintHeader(current, data);
@@ -309,6 +352,7 @@ export function startSocialDmUi(
     old: number,
     cached: DmPage | null,
   ): Promise<void> {
+    const expected = verification;
     const page =
       cached ??
       (writable
@@ -316,12 +360,13 @@ export function startSocialDmUi(
         : await controller.cached(selected, before));
     const draft = writable ? await controller.pending(selected) : null;
     pendingMedia = writable ? await controller.mediaDraft(selected) : false;
-    if (old !== generation) return;
+    if (old !== generation || expected !== verification) return;
     if (draft) {
       messageId = draft.id;
       composer.restoreDraft(draft.text);
     }
     renderHistory(current, page, { selected, localMedia: !writable });
+    current.history.hidden = false;
     composer.update(composerState());
     if (writable)
       await refreshDmChecks({
@@ -459,7 +504,7 @@ export function startSocialDmUi(
     if (!page.items.length)
       current.gate.textContent = t('Nenhuma mensagem ainda.');
     current.older.hidden = page.next === null;
-    before = page.next;
+    nextBefore = page.next;
     restore();
   }
   function messageRow(
@@ -473,6 +518,8 @@ export function startSocialDmUi(
         item.reactions,
         item.ownReaction,
         item.sentAt,
+        item.displayText,
+        item.edited,
         input.localMedia,
       ]),
       held = rows.get(item.id);
@@ -511,7 +558,11 @@ export function startSocialDmUi(
       picker: emojiPicker,
       run,
       ...(!input.localMedia
-        ? { react: (emoji: string) => react(item, emoji) }
+        ? {
+            react: (emoji: string) => react(item, emoji),
+            edit: () => composer.edit(item),
+            editable: editable(item),
+          }
         : {}),
     });
     dmReactionChips(bubble.row, {
@@ -536,7 +587,14 @@ export function startSocialDmUi(
     await controller.react(target, item, emoji);
     await conversation();
   }
+  function editable(item: DmItem): boolean {
+    return item.own && item.kind === 'text';
+  }
   function leave(): void {
+    stopLifecycle?.();
+    stopLifecycle = null;
+    workQueue.reset();
+    refreshes.clear();
     if (view) clearDmChecks(view.history);
     emojiPicker.reset();
     clearRows();
@@ -560,8 +618,16 @@ export function startSocialDmUi(
       container = node;
       peer = id;
       localOnly = local;
+      if (!localOnly)
+        stopLifecycle = bindDmLifecycle({
+          current: () => live.current,
+          pause: closeGate,
+          refresh: () => refreshes.request(),
+          reconnect: () => live.retry(),
+        });
       cursor = null;
       before = null;
+      nextBefore = null;
       if (!session) {
         node.replaceChildren(
           communityElement(
@@ -576,7 +642,9 @@ export function startSocialDmUi(
       const old = generation;
       void run(async () => {
         const profile =
-          navigator.onLine && !localOnly ? await controller.initialize() : null;
+          navigator.onLine && !localOnly
+            ? (ownProfile ?? (await controller.initialize()))
+            : ownProfile;
         if (old !== generation) return;
         ownProfile = profile;
         if (navigator.onLine && !localOnly) live.start();

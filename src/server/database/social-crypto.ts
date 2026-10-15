@@ -22,7 +22,7 @@ import type { PublicProfileStore } from './public-profile.ts';
 import type { SocialMediaStore } from './social-media.ts';
 import type { SocialContext, SocialDmStore } from './social-dm.ts';
 
-import { admitSocialReaction } from './social-reactions.ts';
+import { admitSocialAction } from './social-actions.ts';
 
 export class SocialCryptoStore {
   private readonly social: SocialDmStore;
@@ -302,7 +302,7 @@ export class SocialCryptoStore {
           throw new AccountError(409, 'Identificador de DM já utilizado.');
         return { status: 'accepted', hash };
       }
-      await admitSocialReaction(context, packet);
+      await admitSocialAction(context, packet);
       await this.admitMedia(context, packet);
       const body = JSON.stringify(packet),
         charge = Buffer.byteLength(body) + 512;

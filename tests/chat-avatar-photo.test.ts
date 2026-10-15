@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { TestContext } from 'node:test';
 import { ChatAvatarPhoto } from '../src/client/chat-ui/index.ts';
+import { paintDmAvatar } from '../src/client/communities/dm-peer-photo.ts';
+import { publicAvatarPath } from '../src/shared/public-media/index.ts';
 import { CommunityNode } from './fixtures/community-dom.ts';
 
 class ViewerNode extends CommunityNode {
@@ -107,4 +109,42 @@ await test('zoom toggles fit/full size; Escape, navigation and session reset clo
   assert.equal(f.body.querySelector('dialog'), null);
   assert.equal(f.fetch.mock.callCount(), 0);
   f.photo.clear();
+});
+
+await test('avatar público amplia os bytes já recebidos, não recarrega em repaint e fecha ao trocar de foto', async (t) => {
+  const f = fixture(t),
+    id = crypto.randomUUID();
+  f.fetch.mock.mockImplementation(() =>
+    Promise.resolve(
+      new Response(new Uint8Array(8), {
+        headers: { 'content-type': 'image/png', 'content-length': '8' },
+      }),
+    ),
+  );
+  const profile = {
+    id,
+    handle: 'synthetic',
+    avatar: publicAvatarPath('avatar', id, crypto.randomUUID()),
+  };
+  const trigger = f.trigger as unknown as HTMLButtonElement;
+  paintDmAvatar(trigger, profile, f.lifetime.signal);
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  assert.equal(f.trigger.disabled, false);
+  f.trigger.click();
+  const dialog = f.body.querySelector('dialog');
+  assert.ok(dialog);
+  paintDmAvatar(trigger, profile, f.lifetime.signal);
+  assert.equal(f.fetch.mock.callCount(), 1);
+  assert.equal(f.body.querySelector('dialog'), dialog);
+  paintDmAvatar(
+    trigger,
+    { ...profile, avatar: publicAvatarPath('avatar', id, crypto.randomUUID()) },
+    f.lifetime.signal,
+  );
+  assert.equal(f.body.querySelector('dialog'), null);
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  f.trigger.click();
+  assert.ok(f.body.querySelector('dialog'));
+  f.lifetime.abort();
+  assert.equal(f.body.querySelector('dialog'), null);
 });

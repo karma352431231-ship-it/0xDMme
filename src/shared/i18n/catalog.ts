@@ -1,5 +1,17 @@
 /** Authored app text. Tuple order: English, Simplified Chinese. */
 export const catalog: Record<string, readonly [string, string]> = {
+  'Message action target is unavailable.': [
+    'This message is no longer available for this action.',
+    '此消息已无法进行此操作。',
+  ],
+  'Message action limit reached.': [
+    'This message has reached its edit and reaction limit.',
+    '该消息的编辑和回应次数已达上限。',
+  ],
+  'Invalid public-identity message or action.': [
+    'This message or action is unavailable in handle chats.',
+    '用户名聊天中不支持此消息或操作。',
+  ],
   'message.sent-at {0}': ['Sent at {0}', '发送于 {0}'],
   'message.remove-reaction {0} {1}': [
     'Remove my {0} reaction · {1}',
@@ -6547,8 +6559,8 @@ export const catalog: Record<string, readonly [string, string]> = {
     '<section class="chat-conversation"><header class="chat-header"><div class="chat-peer"><h3>用户名私信</h3><p>与公开个人资料的对话</p></div>{0}</header><div class="chat-thread"><div data-dm-list class="dm-list"></div></div></section>',
   ],
   'html.bac5e10aced2': [
-    '<section class="chat-conversation">\n    <header class="chat-header"><a class="chat-icon chat-mobile-back" href="#communities?view=dms" aria-label="Back to handle messages">{0}</a><span data-dm-avatar class="chat-peer-avatar" aria-hidden="true">@</span><div class="chat-peer"><h3 data-dm-peer></h3><p data-dm-state></p></div><details class="chat-options"><summary class="chat-icon" aria-label="Conversation options" title="Conversation options">{1}</summary><div class="chat-popover" data-dm-options></div></details>{2}</header>\n    <div class="chat-thread"><p data-dm-gate class="chat-gate" role="status"></p><button data-dm-older class="chat-older" type="button" hidden>Earlier messages</button><div data-dm-history class="chat-history" tabindex="0" aria-label="Conversation messages"></div></div>\n    <div data-dm-request class="dm-request" hidden></div>\n    {3}\n  </section>',
-    '<section class="chat-conversation">\n    <header class="chat-header"><a class="chat-icon chat-mobile-back" href="#communities?view=dms" aria-label="返回用户名私信">{0}</a><span data-dm-avatar class="chat-peer-avatar" aria-hidden="true">@</span><div class="chat-peer"><h3 data-dm-peer></h3><p data-dm-state></p></div><details class="chat-options"><summary class="chat-icon" aria-label="对话选项" title="对话选项">{1}</summary><div class="chat-popover" data-dm-options></div></details>{2}</header>\n    <div class="chat-thread"><p data-dm-gate class="chat-gate" role="status"></p><button data-dm-older class="chat-older" type="button" hidden>更早的消息</button><div data-dm-history class="chat-history" tabindex="0" aria-label="对话消息"></div></div>\n    <div data-dm-request class="dm-request" hidden></div>\n    {3}\n  </section>',
+    '<section class="chat-conversation">\n    <header class="chat-header"><a class="chat-icon chat-mobile-back" href="#communities?view=dms" aria-label="Back to handle messages">{0}</a><button data-dm-avatar class="chat-peer-avatar" type="button" aria-label="View profile photo" disabled>@</button><div class="chat-peer"><h3 data-dm-peer></h3><p data-dm-state></p></div><details class="chat-options"><summary class="chat-icon" aria-label="Conversation options" title="Conversation options">{1}</summary><div class="chat-popover" data-dm-options></div></details>{2}</header>\n    <div class="chat-thread"><p data-dm-gate class="chat-gate" role="status"></p><button data-dm-older class="chat-older" type="button" hidden>Earlier messages</button><div data-dm-history class="chat-history" tabindex="0" aria-label="Conversation messages"></div></div>\n    <div data-dm-request class="dm-request" hidden></div>\n    {3}\n  </section>',
+    '<section class="chat-conversation">\n    <header class="chat-header"><a class="chat-icon chat-mobile-back" href="#communities?view=dms" aria-label="返回用户名私信">{0}</a><button data-dm-avatar class="chat-peer-avatar" type="button" aria-label="查看头像" disabled>@</button><div class="chat-peer"><h3 data-dm-peer></h3><p data-dm-state></p></div><details class="chat-options"><summary class="chat-icon" aria-label="对话选项" title="对话选项">{1}</summary><div class="chat-popover" data-dm-options></div></details>{2}</header>\n    <div class="chat-thread"><p data-dm-gate class="chat-gate" role="status"></p><button data-dm-older class="chat-older" type="button" hidden>更早的消息</button><div data-dm-history class="chat-history" tabindex="0" aria-label="对话消息"></div></div>\n    <div data-dm-request class="dm-request" hidden></div>\n    {3}\n  </section>',
   ],
   ' · Arquivada': [' · Archived', ' · 已归档'],
   ' · referência de identidade guardada': [

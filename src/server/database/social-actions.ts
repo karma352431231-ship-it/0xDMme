@@ -2,8 +2,8 @@ import { AccountError } from '../../shared/account/index.ts';
 import type { MessagePacket } from '../../shared/messages/index.ts';
 import type { SocialContext } from './social-dm.ts';
 
-/** Lock the immutable root before admitting a reaction; concurrent authors share the same 64-action budget. */
-export async function admitSocialReaction(
+/** Lock the immutable root before admitting an action; edits and reactions share the 64-action budget. */
+export async function admitSocialAction(
   context: SocialContext,
   packet: MessagePacket,
 ): Promise<void> {
@@ -17,19 +17,19 @@ export async function admitSocialReaction(
   ]);
   const target = result.rows[0];
   if (!validTarget(target, packet))
-    throw new AccountError(409, 'Reaction target is unavailable.');
+    throw new AccountError(409, 'Message action target is unavailable.');
   const removed = await context.client.query(
     "SELECT 1 FROM hash_talk.personal_removals WHERE account_id=$1 AND kind='dm-message' AND id=$2",
     [context.authority.session.accountId, relation.id],
   );
   if (removed.rowCount)
-    throw new AccountError(409, 'Reaction target is unavailable.');
+    throw new AccountError(409, 'Message action target is unavailable.');
   const actions = await context.client.query(
     "SELECT id FROM hash_talk.social_messages WHERE body->'relation' IS NOT NULL AND sender=ANY($1::uuid[]) AND body->'relation'->>'id'=$2 LIMIT 64",
     [[packet.sender, packet.recipient], relation.id],
   );
   if (actions.rowCount === 64)
-    throw new AccountError(409, 'Message reaction limit reached.');
+    throw new AccountError(409, 'Message action limit reached.');
 }
 
 function validTarget(
@@ -42,6 +42,8 @@ function validTarget(
     target.hash === relation.hash &&
     !target.body.relation &&
     target.body.sender === relation.author &&
+    (relation.type !== 'edit' ||
+      (packet.sender === target.body.sender && target.body.kind === 'text')) &&
     [target.body.sender, target.body.recipient].includes(packet.sender) &&
     [target.body.sender, target.body.recipient].includes(packet.recipient)
   );
