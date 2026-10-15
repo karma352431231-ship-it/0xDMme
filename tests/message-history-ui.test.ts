@@ -34,9 +34,11 @@ function fixture(t: TestContext) {
   t.after(() => Reflect.deleteProperty(globalThis, 'document'));
   const history = new ChatNode(),
     gate = new ChatNode(),
-    older = new ChatNode();
+    older = new ChatNode(),
+    peer = new ChatNode();
   const nodes = new Map([
     ['[data-message-history]', history],
+    ['[data-message-peer]', peer],
     ['[data-message-gate]', gate],
     ['[data-message-older]', older],
   ]);
@@ -44,7 +46,7 @@ function fixture(t: TestContext) {
     accountId: 'peer',
     ecosystem: 'evm',
     address: '0x' + '1'.repeat(40),
-    name: 'Synthetic peer',
+    name: '',
   };
   let visible = true,
     clears = 0;
@@ -53,6 +55,7 @@ function fixture(t: TestContext) {
       (nodes.get(selector) ?? null) as T | null,
     context: () => ({
       selected,
+      title: selected ? 'Saved name' : null,
       peers: selected ? [selected] : [],
       session: null,
       calls: false,
@@ -87,6 +90,7 @@ function fixture(t: TestContext) {
     history,
     gate,
     older,
+    peer,
     clears: () => clears,
     show: () => {
       visible = true;
@@ -111,6 +115,11 @@ await test('verified window renders; null gate removes old rows and never expose
   assert.equal(f.history.children.length, 0);
   f.ui.render([row('new')]);
   assert.equal(f.history.children[0]?.dataset['message'], 'new');
+});
+await test('the header shows the name the conversation list shows, not the wallet address', (t) => {
+  const f = fixture(t);
+  f.ui.render([row('incoming')]);
+  assert.equal(f.peer.textContent, 'Saved name');
 });
 await test('delete capability is offered only on own live messages; archived and incoming rows keep their menus', (t) => {
   const f = fixture(t);

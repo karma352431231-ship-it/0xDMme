@@ -35,6 +35,8 @@ interface HistoryPresentation {
   node: <T extends HTMLElement>(selector: string) => T | null;
   context: () => {
     selected: ConversationPeer | null;
+    /** Same name as the conversation list, so a saved name replaces the address. */
+    title: string | null;
     peers: readonly ConversationPeer[];
     session: AccountSession | null;
     calls: boolean;
@@ -191,10 +193,7 @@ export class MessageHistoryUi {
     );
   }
   private peerLabel(): string {
-    const { selected } = this.options.context();
-    return (
-      selected?.name || selected?.address || t('Selecione um contato aprovado')
-    );
+    return this.options.context().title || t('Selecione um contato aprovado');
   }
   private renderPeer(): void {
     const { selected, calls } = this.options.context();

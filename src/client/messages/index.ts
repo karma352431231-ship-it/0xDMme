@@ -338,11 +338,15 @@ export function startMessages(
     reconnect: () => live.retry(),
     check: () => requestRefresh('probe'),
   });
+  /** The name the conversation list shows: saved alias, profile name, then the address. */
+  const peerTitle = (peer: ConversationPeer) =>
+    agenda.find(peer)?.contact.alias || peer.name || peer.address;
   const historyUi = new MessageHistoryUi({
     peerPhoto: showPeerPhoto,
     node,
     context: () => ({
       selected,
+      title: selected ? peerTitle(selected) : null,
       peers: directoryData.peers,
       session,
       calls: !!options.calls,
@@ -357,8 +361,7 @@ export function startMessages(
           .filter((peer) => !peer.localOnly)
           .map((peer) => ({
             id: peer.accountId,
-            title:
-              agenda.find(peer)?.contact.alias || peer.name || peer.address,
+            title: peerTitle(peer),
             seed: peer.address,
           })),
       profile: (id) => controller.knownProfile(id),
