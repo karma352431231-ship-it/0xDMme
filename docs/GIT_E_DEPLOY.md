@@ -1,5 +1,26 @@
 # 0xDMme — Git e envio à VPS
 
+## Paridade dos chats, edição e prévias — ativação autorizada em 15/10/2026
+
+O proprietário pediu concluir a paridade das DMs pelo `@` com as restrições de
+cada contexto, acrescentou edição de texto próprio, depois pediu prévias da
+última mensagem enviada/recebida na lista, checks e horários AM/PM. Autorizou
+integrar o conjunto à main e ativar na VPS. Inclui a correção do registro de DM
+`ff2e132` e a coordenação/edição `2f1497a`, com as prévias no lote seguinte.
+
+Exigir CI integral do commit exato integrado e publicado, checkout limpo,
+build no Mac e `npm run deploy:staging` existente. Os handlers novos de prévia
+devolvem somente metadados autorizados; conteúdo continua cifrado. Sem nova
+dependência, alteração de Node, migração, serviço compartilhado ou infraestrutura.
+Conservar as demais mudanças já integradas, verificar preservação, prontidão,
+fontes/arquivos servidos e rollback. Acesso, evidências e recibos somente em
+`.local/`. [Contrato e limites](PARIDADE_CHATS.md).
+
+**Ponto importante:** não anunciar a ativação antes de recibo `published` e
+conferência da versão servida. Prévia não marca mensagem recebida como lida;
+as funções exclusivas do contexto privado permanecem separadas. O aceite em
+celular físico continua pendente.
+
 ## Enquadramento e zoom da foto privada — ativação autorizada em 15/10/2026
 
 Após a CI integral de `af5e05f`, o proprietário pediu integrar à main e enviar

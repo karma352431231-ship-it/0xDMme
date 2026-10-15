@@ -24,6 +24,7 @@ import { mountOfflineNotice } from '../ping/index.ts';
 import { showGroupDirectoryPhoto } from '../groups/index.ts';
 import { releaseConversationAvatars } from './directory-avatars.ts';
 import type { startGroups } from '../groups/index.ts';
+import type { ConversationPreview } from '../conversation-preview/index.ts';
 type Groups = Pick<
   ReturnType<typeof startGroups>,
   'entries' | 'selected' | 'listLabel' | 'unread' | 'photo'
@@ -56,6 +57,8 @@ interface DirectoryView {
   presence: () => void;
   /** Covers row initials with the contact's private card photo. */
   peerPhoto?: (host: HTMLElement, peer: string, signal: AbortSignal) => void;
+  previews?: ReadonlyMap<string, ConversationPreview>;
+  previewsFailed?: () => boolean;
 }
 /** Projection and interaction only; no authority or persistence owned here. */
 export class MessageDirectoryUi {
@@ -111,7 +114,7 @@ export class MessageDirectoryUi {
     return {
       id: peer.accountId,
       title: this.contactTitle(contact, peer),
-      detail: this.contactLabel(peer, settingsId),
+      ...this.previewPresentation(peer, settingsId),
       kind: 'contact',
       seed: peer.address,
       ...(peer.localOnly || !this.options.peerPhoto
@@ -152,6 +155,18 @@ export class MessageDirectoryUi {
       },
       ...this.options.contactActions(contact, settingsId, mutePeer),
     ];
+  }
+  private previewPresentation(
+    peer: Peer,
+    settingsId: string,
+  ): Pick<ConversationEntry, 'detail' | 'preview'> {
+    const preview = this.options.previews?.get(peer.accountId);
+    return {
+      detail: this.options.previewsFailed?.()
+        ? t('preview.unavailable')
+        : this.contactLabel(peer, settingsId),
+      ...(preview ? { preview } : {}),
+    };
   }
   contactOrganizationId(saved: SavedContact | undefined, peer: string): string {
     return saved && this.options.daily.hasOrganization(saved.entity)

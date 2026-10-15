@@ -163,6 +163,7 @@ export function showPublicAvatar(
     target: string;
     reference: string;
     signal: AbortSignal;
+    ready?: (url: string | null) => void;
   },
 ): () => void {
   if (input.signal.aborted) return () => undefined;
@@ -180,6 +181,7 @@ export function showPublicAvatar(
   const stop = () => {
     stopped = true;
     pending.abort();
+    input.ready?.(null);
     if (url) URL.revokeObjectURL(url);
     image.remove();
     status.remove();
@@ -192,6 +194,7 @@ export function showPublicAvatar(
       url = URL.createObjectURL(blob);
       image.src = url;
       image.hidden = false;
+      input.ready?.(url);
     })
     .catch(() => {
       if (!stopped && !input.signal.aborted)

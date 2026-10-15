@@ -1,5 +1,7 @@
 # Comunidades públicas — direção de produto em 05/10/2026
 
+**Paridade e edição — 15/10/2026:** a autorização posterior do proprietário permite editar texto próprio nas DMs pelo `@`. Substitui as proibições históricas de edição, preservando as demais restrições, identidade pública, consentimento separado e E2EE. A experiência de navegação, avisos, foto e composição converge com a do privado. [Matriz e contrato atual](PARIDADE_CHATS.md).
+
 ## Current public upvotes — 15/10/2026
 
 The owner explicitly made current upvotes publicly attributable by public profile
@@ -243,6 +245,8 @@ Conferência montada com as contas e os arquivos sintéticos locais: foto normal
 **Ponto importante:** o corte 8 não habilita vídeos, chamadas, grupos, contratos, transações nem análise de conteúdo nas DMs. Migração 036 aplicada somente no banco de testes. Nenhuma alteração na VPS, na cota vigente ou nas dependências. A rota por wallet rejeita explicitamente o campo de mídia exclusivo da DM social; a regressão assina o pacote e verifica a recusa antes de publicar a voz no formato privado vigente. As regras do mensageiro por wallet foram preservadas.
 
 ### Corte 7 — base de DMs pelo @ local em 06/10/2026
+
+**Correção do registro em 15/10/2026:** o cliente estava traduzindo o nome técnico do aparelho para `DM device` ou `私信设备`, mas `dm-register` aceita somente o identificador histórico `Aparelho de DMs`. A autoridade do cliente e o validador passam a compartilhar esse valor fixo de protocolo. Identidades locais de tentativas recusadas têm somente esse nome corrigido antes da assinatura, mantendo alias e chaves; eventos já assinados não são reescritos. A regra de isolamento do servidor permanece estrita. A regressão usa a autoridade real do cliente, o mesmo validador do registro e criptografia real, com fixture limitada às transações de armazenamento: primeiro registro e identidade traduzida persistida nos dois idiomas, reabertura sem novo registro, recuperação em outro navegador e colisão de alias, preservando a leitura com chaves anteriores. Passaram nove testes direcionados, lint com tipos, TypeScript estrito, fronteiras/ciclos, formatação, cobertura de traduções e build local de 48 assets. **Ponto importante:** correção em branch, sem ativação na VPS, migração, nova dependência ou troca de identidade privada/pública; não substitui o aceite em aparelho físico.
 
 O [cliente de DMs](../src/client/social-dm/index.ts) e a [tela](../src/client/communities/dms.ts) abrem uma conversa individual pelo perfil público, com lista na área Comunidades e no diretório lateral. Solicitações mostram somente identidade pública, sem mensagem livre/anexo antes do aceite. Seguir, votar, participar da mesma comunidade ou já conversar por wallet não concede consentimento. Pedidos cruzados não aceitam automaticamente; somente o destinatário decide, com revisão e retry idempotente. Recusa impede insistência do solicitante; o destinatário pode iniciar um novo pedido.
 

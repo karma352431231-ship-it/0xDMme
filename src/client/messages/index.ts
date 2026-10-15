@@ -57,6 +57,7 @@ import type { ConversationPeer } from './directory-controller.ts';
 import { MessageDirectoryUi } from './directory-ui.ts';
 import { PeerPhotos } from './peer-photos.ts';
 import { ProfileBroadcast } from './profile-broadcast.ts';
+import { ConversationPreviewLoader } from '../conversation-preview/index.ts';
 export function startMessages(
   access: VaultAccess,
   sync: VaultSync,
@@ -173,6 +174,10 @@ export function startMessages(
     rows = value;
     renderHistory(update);
   });
+  const previews = new ConversationPreviewLoader({
+    load: (peers) => controller.directoryPreviews(peers),
+    changed: renderContacts,
+  });
   const groups = startGroups(access, sync, {
     externalMedia: options.externalMedia,
     playback,
@@ -212,6 +217,8 @@ export function startMessages(
     ready?: (url: string | null) => void,
   ) => peerPhotos.show(host, peer, signal, ready);
   const directoryUi = new MessageDirectoryUi({
+    previews: previews.values,
+    previewsFailed: () => previews.failed,
     peerPhoto: showPeerPhoto,
     snapshot: () => ({
       peers: directoryData.peers,
@@ -299,6 +306,11 @@ export function startMessages(
       message = value;
     },
     complete: () => {
+      void previews.refresh(
+        directoryData.peers
+          .filter((peer) => !peer.localOnly)
+          .map((peer) => peer.accountId),
+      );
       message = controller.transportPending
         ? t('Alguns envios ainda estão pendentes. A retomada é automática.')
         : t('Conversas atualizadas.');
@@ -399,6 +411,8 @@ export function startMessages(
     if (['authorization', 'invalidated', 'revoked', 'ended'].includes(event))
       suspend('invalidate');
     else if (event === 'removed') {
+      previews.clear();
+      renderContacts();
       // Cancel the history token immediately without cancelling an in-flight
       // signed mutation (the sender receives its own deletion before its reply).
       controller.removed();
@@ -1067,6 +1081,8 @@ export function startMessages(
     return result;
   }
   function suspend(reason: 'pause' | 'invalidate' = 'pause'): void {
+    previews.clear();
+    renderContacts();
     stopPreload();
     menu.close();
     emojiPicker.close();
@@ -1383,6 +1399,7 @@ export function startMessages(
       }
       generation++;
       continuity.reset();
+      previews.clear();
       historyUi.clear();
       externalAbort.abort();
       externalAbort = new AbortController();

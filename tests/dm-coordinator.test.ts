@@ -1,0 +1,43 @@
+import assert from 'node:assert/strict';
+import { test } from 'node:test';
+import { dmCoordinatorFixture } from './fixtures/dm-coordinator.ts';
+const turn = () => new Promise<void>((resolve) => setImmediate(resolve));
+
+await test('DM inicializa uma vez por sessão e a última navegação espera a anterior', async (t) => {
+  const f = dmCoordinatorFixture(t);
+  f.ui.mount(f.host, 'first');
+  await turn();
+  f.hold();
+  f.ui.mount(f.host, 'held');
+  await turn();
+  f.ui.mount(f.host, 'stale');
+  f.ui.mount(f.host, 'latest');
+  f.release('held');
+  await turn();
+  await turn();
+  assert.equal(f.calls.filter((call) => call === 'initialize').length, 1);
+  assert.equal(f.views.at(-1)?.title.textContent, 'latest');
+  assert.equal(f.calls.includes('read:stale'), false);
+  assert.equal(f.calls.includes('read:held'), false);
+  assert.equal(f.calls.includes('read:latest'), true);
+});
+await test('avisos durante operação são reunidos; remoção fecha imediatamente e resultado antigo não reabre', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const f = dmCoordinatorFixture(t);
+  f.ui.mount(f.host, 'first');
+  await turn();
+  f.hold();
+  f.emit('changed');
+  t.mock.timers.tick(150);
+  await turn();
+  f.emit('changed');
+  f.emit('removed');
+  assert.equal(f.views.at(-1)?.history.hidden, true);
+  f.release('first');
+  await turn();
+  assert.equal(f.views.at(-1)?.history.hidden, true);
+  t.mock.timers.tick(150);
+  await turn();
+  assert.equal(f.views.at(-1)?.history.hidden, false);
+  assert.equal(f.calls.filter((call) => call === 'read:first').length, 2);
+});

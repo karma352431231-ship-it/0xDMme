@@ -124,6 +124,7 @@ export function coordinatorFixture(t: TestContext) {
     'Contacts',
     'PeerPhotos',
     'ProfileBroadcast',
+    'ConversationPreviewLoader',
   ]) {
     fixture[name] = function () {
       return {
@@ -132,6 +133,8 @@ export function coordinatorFixture(t: TestContext) {
         selected: null,
         state: { phase: 'idle' },
         ids: [],
+        values: new Map(),
+        refresh: asyncNoop,
         more: false,
         renderContacts: noop,
         pause: noop,

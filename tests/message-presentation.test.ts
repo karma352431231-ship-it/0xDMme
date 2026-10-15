@@ -77,6 +77,24 @@ await test('public reaction actions fold into their original bubble without expo
   assert.equal(result[0]?.displayText, 'Original');
   assert.equal(result[0]?.sentAt, root.sentAt);
   assert.equal(result[0]?.ownReaction, '😂');
+  const edit = {
+    ...reaction,
+    id: crypto.randomUUID(),
+    own: false,
+    text: encodeDailyText({
+      text: 'Edited public text',
+      reply: null,
+      forwarded: false,
+    }),
+    relation: { ...reaction.relation, type: 'edit' as const },
+  };
+  assert.deepEqual(backupRecord(edit), edit);
+  const edited = projectDmMessages([root], [reaction, edit])[0];
+  assert.equal(edited?.displayText, 'Edited public text');
+  assert.equal(edited?.edited, true);
+  assert.equal(edited?.sentAt, root.sentAt);
+  assert.deepEqual(edited?.reactions, ['😂']);
+  assert.throws(() => backupRecord({ ...edit, own: true }), /autor/u);
   assert.throws(() =>
     projectDmMessages(
       [root],

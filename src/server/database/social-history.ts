@@ -101,7 +101,12 @@ export class SocialHistoryStore {
   }
   async page(
     a: ContactAuthority,
-    input: { snapshot: SocialSnapshot; after: number; actions?: boolean },
+    input: {
+      snapshot: SocialSnapshot;
+      after: number;
+      actions?: boolean;
+      edits?: boolean;
+    },
   ) {
     return this.social.withActor(a, async (context) => {
       await this.stable(context, input.snapshot);
@@ -114,6 +119,7 @@ export class SocialHistoryStore {
       }>(
         `WITH bounded AS (
         SELECT m.* FROM hash_talk.social_messages m WHERE (sender=$1 OR recipient=$1) AND sequence>$2 AND sequence<=$3 AND body IS NOT NULL AND ($6::boolean OR body->'relation' IS NULL)
+        AND ($7::boolean OR body->'relation'->>'type' IS DISTINCT FROM 'edit')
         AND NOT EXISTS(SELECT 1 FROM hash_talk.personal_removals r WHERE r.account_id=$4 AND r.kind='dm-message' AND r.id=m.id) ORDER BY sequence LIMIT 16
       ), candidates AS (
         SELECT id,hash,sequence,body,EXISTS(SELECT 1 FROM hash_talk.social_receipts r WHERE r.message_id=m.id AND r.profile_id=$1 AND r.device_id=$5 AND r.received) AS received,sum(charge) OVER(ORDER BY sequence) AS total,row_number() OVER(ORDER BY sequence) AS position
@@ -126,6 +132,7 @@ export class SocialHistoryStore {
           a.session.accountId,
           a.session.deviceId,
           input.actions ?? false,
+          input.edits ?? false,
         ],
       );
       const allowed = await this.social.deliveryBatch(

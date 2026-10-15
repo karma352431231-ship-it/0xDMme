@@ -672,6 +672,146 @@ await test('cortes 7–8: consentimento, E2EE, mídia e cofre social', async (t)
     },
   );
   await t.test(
+    'edição pública exige autoria e texto, é idempotente e negocia leitura com clientes anteriores',
+    async () => {
+      const root = await am.encrypt({
+        authority: a.authority,
+        peerHistory: [b.directory],
+        recovery: [ar, br],
+        id: crypto.randomUUID(),
+        text: 'Texto original público',
+      });
+      const accepted = (await operate(alice, 'publish', { packet: root })) as {
+        hash: string;
+      };
+      const relation = {
+        id: root.id,
+        hash: accepted.hash,
+        author: ap.id,
+        type: 'edit' as const,
+      };
+      const edit = await am.encrypt({
+        authority: a.authority,
+        peerHistory: [b.directory],
+        recovery: [ar, br],
+        id: crypto.randomUUID(),
+        text: encodeDailyText({
+          text: 'Texto corrigido público',
+          reply: null,
+          forwarded: false,
+        }),
+        relation,
+      });
+      await operate(alice, 'publish', { packet: edit });
+      await operate(alice, 'publish', { packet: edit });
+      const count = await inspector.query<{ count: number }>(
+        'SELECT count(*)::integer AS count FROM hash_talk.social_messages WHERE id=$1',
+        [edit.id],
+      );
+      assert.equal(count.rows[0]?.count, 1);
+      const forged = await bm.encrypt({
+        authority: b.authority,
+        peerHistory: [a.directory],
+        recovery: [br, ar],
+        id: crypto.randomUUID(),
+        text: 'Tentativa de outro autor',
+        relation: { ...relation, author: bp.id },
+      });
+      await assert.rejects(operate(bob, 'publish', { packet: forged }), {
+        status: 409,
+      });
+      const wrongHash = await am.encrypt({
+        authority: a.authority,
+        peerHistory: [b.directory],
+        recovery: [ar, br],
+        id: crypto.randomUUID(),
+        text: 'Hash errado',
+        relation: { ...relation, hash: 'f'.repeat(64) },
+      });
+      await assert.rejects(operate(alice, 'publish', { packet: wrongHash }), {
+        status: 409,
+      });
+      const snapshot = await operate(alice, 'personal-snapshot', {});
+      const first = await inspector.query<{ sequence: string }>(
+        'SELECT sequence::text FROM hash_talk.social_messages WHERE id=$1',
+        [root.id],
+      );
+      const after = Number(first.rows[0]!.sequence) - 1;
+      const legacy = (await operate(alice, 'personal-page', {
+        snapshot,
+        after,
+        actions: true,
+      })) as { items: { packet?: { id: string } }[] };
+      assert.equal(
+        legacy.items.some((row) => row.packet?.id === edit.id),
+        false,
+      );
+      const current = (await operate(alice, 'personal-page', {
+        snapshot,
+        after,
+        actions: true,
+        edits: true,
+      })) as { items: { packet?: { id: string } }[] };
+      assert.equal(
+        current.items.some((row) => row.packet?.id === edit.id),
+        true,
+      );
+      const key = await openRecoveryKey(br, b.authority);
+      try {
+        const content = await bm.decryptContent({
+          packet: edit,
+          senderEvent: a.directory,
+          exported: openRoomKey(
+            key,
+            edit.archives.find((row) => row.accountId === bp.id)!,
+          ),
+        });
+        assert.equal(content.text.includes('Texto corrigido público'), true);
+        assert.equal(
+          JSON.stringify(edit).includes('Texto corrigido público'),
+          false,
+        );
+      } finally {
+        key.free();
+      }
+      await inspector.query(
+        'DELETE FROM hash_talk.social_receipts WHERE message_id=ANY($1::uuid[])',
+        [[root.id, edit.id]],
+      );
+      await inspector.query(
+        'DELETE FROM hash_talk.social_messages WHERE id=ANY($1::uuid[])',
+        [[root.id, edit.id]],
+      );
+    },
+  );
+  await t.test(
+    'checks da lista pública consultam somente envios próprios e não marcam leitura',
+    async () => {
+      const before = await inspector.query(
+        'SELECT * FROM hash_talk.social_receipts WHERE message_id=$1 ORDER BY profile_id,device_id',
+        [packet.id],
+      );
+      const own = (await operate(alice, 'preview-status', {
+        own: [packet.id],
+      })) as { id: string; read: boolean }[];
+      assert.equal(own[0]?.id, packet.id);
+      assert.equal(own[0]?.read, false);
+      assert.deepEqual(
+        await operate(bob, 'preview-status', { own: [packet.id] }),
+        [],
+      );
+      assert.deepEqual(
+        await operate(outsider, 'preview-status', { own: [packet.id] }),
+        [],
+      );
+      const after = await inspector.query(
+        'SELECT * FROM hash_talk.social_receipts WHERE message_id=$1 ORDER BY profile_id,device_id',
+        [packet.id],
+      );
+      assert.deepEqual(after.rows, before.rows);
+    },
+  );
+  await t.test(
     'leitura de DM exige recebimento neste aparelho e consentimento, sem confundir ACK',
     async () => {
       await assert.rejects(

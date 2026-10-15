@@ -103,10 +103,21 @@ await test('DM pelo @ reutiliza Megolm com identidade/chaves próprias e não re
       },
     };
     assert.equal(socialPacket(reaction).relation?.type, 'reaction');
-    assert.throws(() =>
+    assert.equal(
       socialPacket({
         ...reaction,
         relation: { ...reaction.relation, type: 'edit' },
+      }).relation?.type,
+      'edit',
+    );
+    assert.throws(() =>
+      socialPacket({
+        ...reaction,
+        relation: {
+          ...reaction.relation,
+          type: 'edit',
+          author: recipient.accountId,
+        },
       }),
     );
 

@@ -227,17 +227,16 @@ function dmRecord(
   }
   return null;
 }
-function validateDmReaction(
+function validateDmAction(
   relation: MessageRelation | undefined,
   kind: unknown,
   text: unknown,
 ): void {
   if (!relation) return;
   if (
-    relation.type !== 'reaction' ||
     kind !== 'text' ||
     typeof text !== 'string' ||
-    !validReaction(decodeDailyText(text).text)
+    (relation.type === 'reaction' && !validReaction(decodeDailyText(text).text))
   )
     throw new Error('Invalid message reaction.');
 }
@@ -267,7 +266,8 @@ function dmMessage(
   )
     throw new Error('Registro de DM inválido.');
   const relation = optionalRelation(d['relation']).relation;
-  validateDmReaction(relation, d['kind'], d['text']);
+  validateDmAction(relation, d['kind'], d['text']);
+  validateDmEditor(relation, d);
   const text = boundedText(d['text'], 3_000_000),
     media = d['media'] === null ? null : socialMedia(d['media']);
   if (d['kind'] === 'attachment') {
@@ -289,6 +289,14 @@ function dmMessage(
     ...optionalSentAt(d['sentAt']),
     ...optionalRelation(d['relation']),
   };
+}
+function validateDmEditor(
+  relation: MessageRelation | undefined,
+  data: Record<string, unknown>,
+): void {
+  if (relation?.type !== 'edit') return;
+  const author = data['own'] ? data['self'] : publicProfile(data['peer']).id;
+  if (relation.author !== author) throw new Error('Edição por outro autor.');
 }
 function groupBackupRecord(
   d: Record<string, unknown>,
