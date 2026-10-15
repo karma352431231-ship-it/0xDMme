@@ -62,7 +62,7 @@ export class MessageForwardSelection<T extends DailyRow> {
     ) ?? [])
       this.checkbox(row);
     if (this.count)
-      this.count.textContent = t('forward.selected', [this.selected.size]);
+      this.count.textContent = t('forward.selected {0}', [this.selected.size]);
     if (this.send) this.send.disabled = this.busy || this.selected.size === 0;
   }
   private mount(): void {

@@ -13,7 +13,7 @@ export function messageTime(sentAt: number | undefined): HTMLElement | null {
     hour12: false,
   }).format(date);
   time.title = date.toLocaleString(language);
-  time.setAttribute('aria-label', t('message.sent-at', [time.title]));
+  time.setAttribute('aria-label', t('message.sent-at {0}', [time.title]));
   return time;
 }
 /** One chip per emoji; only the current author's choice is removable. */
@@ -31,7 +31,10 @@ export function messageReactions(input: {
   for (const [emoji, count] of counts) {
     const own = emoji === input.ownReaction;
     const button = input.action(
-      t(own ? 'message.remove-reaction' : 'message.reaction', [emoji, count]),
+      t(own ? 'message.remove-reaction {0} {1}' : 'message.reaction {0} {1}', [
+        emoji,
+        count,
+      ]),
       async () => {
         if (own && input.remove) await input.remove();
       },

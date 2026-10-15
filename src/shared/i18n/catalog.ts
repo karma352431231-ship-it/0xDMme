@@ -1,11 +1,11 @@
 /** Authored app text. Tuple order: English, Simplified Chinese. */
 export const catalog: Record<string, readonly [string, string]> = {
-  'message.sent-at': ['Sent at {0}', '发送于 {0}'],
-  'message.remove-reaction': [
+  'message.sent-at {0}': ['Sent at {0}', '发送于 {0}'],
+  'message.remove-reaction {0} {1}': [
     'Remove my {0} reaction · {1}',
     '移除我的 {0} 回应 · {1}',
   ],
-  'message.reaction': ['{0} reaction · {1}', '{0} 回应 · {1}'],
+  'message.reaction {0} {1}': ['{0} reaction · {1}', '{0} 回应 · {1}'],
   'forward.choose-contact': ['Forward to', '转发至'],
   'forward.more': ['Load more contacts', '加载更多联系人'],
   'forward.search': ['Search contacts', '搜索联系人'],
@@ -18,7 +18,7 @@ export const catalog: Record<string, readonly [string, string]> = {
     'Could not load contacts.',
     '无法加载联系人。',
   ],
-  'forward.selected': ['{0} selected', '已选择 {0} 条'],
+  'forward.selected {0}': ['{0} selected', '已选择 {0} 条'],
   'forward.select-message': ['Select message to forward', '选择要转发的消息'],
   'forward.pending-target': [
     'Retry forwarding to the same contact to finish the pending send.',
