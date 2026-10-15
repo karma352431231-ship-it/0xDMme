@@ -1,3 +1,4 @@
+import { CommunityUpvotes } from './community-upvotes.ts';
 import { reconcileMentionNotifications } from './mention-admission.ts';
 import {
   discussionOrder,
@@ -271,6 +272,7 @@ function page(rows: PostRow[]) {
   };
 }
 export class CommunityPostStore {
+  private readonly upvotes: CommunityUpvotes;
   private readonly pool: pg.Pool;
   private readonly communities: CommunityStore;
   private readonly profiles: PublicProfileStore;
@@ -288,6 +290,7 @@ export class CommunityPostStore {
     this.profiles = options.profiles;
     this.capacity = options.capacity;
     this.media = options.media;
+    this.upvotes = new CommunityUpvotes({ ...options, posts: this });
   }
   private async lookups(client: Pick<pg.PoolClient, 'query'>, rows: PostRow[]) {
     const authors = await this.profiles.identities(
@@ -391,6 +394,7 @@ export class CommunityPostStore {
   private async withPreviews(
     client: Pick<pg.PoolClient, 'query'>,
     page: ReplyNotificationPage,
+    identity: boolean,
   ): Promise<ReplyNotificationPage> {
     const posts = new Map(
       (
@@ -404,9 +408,12 @@ export class CommunityPostStore {
       ...page,
       items: page.items.map((item) => ({
         ...item,
-        preview: replyPreview(posts.get(item.reply)),
+        preview: replyPreview(posts.get(item.reply), { identity }),
       })),
     };
+  }
+  upvoters(community: string, post: string, after: string | null) {
+    return this.upvotes.voters(community, post, after);
   }
   async tags(community: string, after: string | null) {
     return communityTagPage(this.pool, { community, after, all: false });
@@ -726,10 +733,17 @@ export class CommunityPostStore {
     authority: ContactAuthority,
     data: Record<string, unknown>,
   ): Promise<unknown> {
+    if (
+      operation === 'post-upvote-notifications' ||
+      operation === 'post-upvote-notifications-read'
+    )
+      return this.upvotes.operate(operation, authority, data);
     if (operation === 'post-notifications')
       return this.communities.withActor(authority, async (context) => {
         const page = await replyNotifications(context, operation, data);
-        return 'items' in page ? this.withPreviews(context.client, page) : page;
+        return 'items' in page
+          ? this.withPreviews(context.client, page, data['authors'] === true)
+          : page;
       });
     if (operation === 'post-notifications-read')
       return this.communities.withActor(authority, async (context) => {

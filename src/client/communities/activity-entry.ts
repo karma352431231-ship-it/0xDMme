@@ -54,11 +54,11 @@ export function renderActivityEntry(
     : entryCard(post);
   if (entry.share) return row;
   const avatar = postHeader(row, post, community);
-  if (community.avatar)
+  if (post.author?.avatar)
     showPublicAvatar(avatar, {
-      kind: 'community-photo',
-      target: community.id,
-      reference: community.avatar,
+      kind: 'avatar',
+      target: post.author.id,
+      reference: post.author.avatar,
       signal,
     });
   appendReplyContext(row, entry, signal, privacy);

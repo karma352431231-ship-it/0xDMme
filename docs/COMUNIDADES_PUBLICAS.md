@@ -1,5 +1,13 @@
 # Comunidades públicas — direção de produto em 05/10/2026
 
+## Current public upvotes — 15/10/2026
+
+The owner explicitly made current upvotes publicly attributable by public profile
+in public communities, including posts and replies. This supersedes the historical
+individual-upvote privacy statements below. Downvotes/neutral positions and
+private messaging data remain private. New upvotes notify the content author in
+Activity. See the [implemented contract](PUBLIC_UPVOTES.md).
+
 ## Current override — 14/10/2026
 
 The owner requested temporary suspension of automatic sexual-content analysis
@@ -14,7 +22,11 @@ Estado: plano consolidado em 10 cortes; cortes 1–9 implementados localmente. P
 
 ## Decisões do proprietário
 
-**Atualização em 10/10/2026:** a lista de comunidades seguidas passa a ser pública no perfil individual por escolha explícita do proprietário, incluindo comunidades sem posts/respostas desse perfil. A privacidade de seguidos descrita nos cortes históricos abaixo foi substituída somente para comunidades; novas relações de seguir perfis, salvos, ocultos e posições de votos não se tornam listas públicas. Perfil, métricas, banner e composição dos feeds no [contrato atualizado](PERFIL_PUBLICO_E_FEEDS.md).
+**Follow-list update on 10/10/2026:** the owner made followed communities public
+on individual profiles, including communities without that profile's posts or
+replies. Historical follow-list privacy is superseded only for communities;
+profile-follow relationships, saved and hidden items remain private. The later
+15/10/2026 upvote exception is recorded above. See the [profile/feed contract](PERFIL_PUBLICO_E_FEEDS.md).
 
 - Preservar Conversas com a tela existente, contatos e grupos privados; Comunidades é uma área separada.
 - Perfil e Configurações formam uma única tela no desktop/mobile: foto, nome, wallet e demais dados da própria conta no topo; configurações existentes logo abaixo. Não obrigar outra navegação para configurar. Informações privadas dessa tela pertencem ao dono autenticado e não compõem o perfil público por `@`.
@@ -103,7 +115,7 @@ Portanto, DM pelo `@` não pode simplesmente reutilizar a resposta de contatos p
 | Posts, imagens, comentários, tags, horários e placares | Públicos após aceitação; cópias externas não são revogáveis pelo app.                                          |
 | Conteúdo enviado e aguardando análise                  | Restrito à operação própria de publicação/moderação; ainda não disponível na web.                              |
 | Perfil público                                         | `@` e avatar explicitamente escolhidos; sem wallet ou dados do perfil privado.                                 |
-| Identidade de quem vota                                | Sem listagem pública; validação interna de unicidade/abuso a definir.                                          |
+| Identidade de quem vota                                | Current upvotes are public by the 15/10/2026 decision; downvotes/neutral remain private.                       |
 | Comunidades seguidas e posts salvos                    | Restritos à própria conta e aparelhos autorizados; referências conhecidas pelo servidor, sem listagem pública. |
 | Denúncia e denunciante                                 | Acesso restrito conforme papel e finalidade; denúncia não aparece no post.                                     |
 | Wallet, vínculo de login e sessões                     | Restritos à autenticação/operação necessária; não entregues a visitantes ou moderadores de comunidade.         |
@@ -274,9 +286,26 @@ Respostas de texto usam a mesma autorização, edição, exclusão e moderação
 
 A árvore é lida sem conta em páginas de 24 filhos diretos, por horário/UUID. Marcadores ocultos/excluídos continuam navegáveis com seus descendentes, sem devolver o texto retido. Novas respostas/votos exigem alvo e post original visíveis e participação vigente; arquivamento/sanção não impedem exclusão própria, contestação ou consulta dos avisos. Edição de resposta substitui só o texto, sem título/tag nem histórico de versões. Motivos/contestações continuam restritos ao autor e gestores e os registros de moderação não expiram. Exclusão limpa o texto ativo e impede restauração, preservando referências e os limites de backups/cópias externas.
 
-O [contrato de interações](../src/server/database/community-interactions.ts) mantém uma posição por perfil/alvo: +1, −1 ou neutra. Revisão da posição e valor desejado fazem retries idempotentes e impedem que um pedido antigo sobrescreva uma escolha posterior. Contagem e capacidade são transacionais; exclusão futura da conta retira sua contribuição, sem reatribuir autoria a quem reutilize o `@`. Público recebe somente o placar; sessão autorizada consulta exclusivamente seu próprio voto. Essas posições são conhecidas pelo backend e não são E2EE nem prova de pessoa única.
+The [interaction contract](../src/server/database/community-interactions.ts)
+keeps one position per profile/target: +1, −1 or neutral. The expected revision
+and desired position make retries idempotent and prevent an older request from
+overwriting a later choice. Counts and capacity are transactional; deleting an
+account removes its contribution without reassigning authorship to a reused
+handle. The 15/10/2026 decision makes current positive voters public through
+public profiles only. Downvote/neutral positions remain restricted to their
+voter. Positions are known to the backend, are not E2EE and do not establish
+human uniqueness.
 
-Cada resposta aceita cria um único aviso para o autor do pai imediato, sem copiar texto e sem fanout aos ancestrais ou ao próprio autor da resposta. Posts novos, edições, votos, follows e atividade genérica não criam avisos. Caixa **Respostas** paginada na área Comunidades e marcação de leitura idempotente, sincronizadas por conta e conservadas na recuperação. Sem expiração automática dos avisos neste corte; capacidade global limita a admissão. O push genérico existente agrupa pendências por aparelho, respeita consentimento, autorização/revogação e a preferência **Avisos de mensagens e respostas**; revalida pendência visível e não lida antes do envio/exibição, sem levar texto, `@` ou wallet ao provedor. Toque no push conserva a abertura genérica do app; a caixa de respostas oferece os links específicos. Som/entrega dependem do navegador/SO como nos avisos privados existentes.
+Every accepted reply creates one notice for its immediate parent's author,
+without copying text, ancestor fanout or self-notification. The 15/10/2026
+addition admits author Activity notices for new upvotes. Generic activity and
+edits do not create notices; followed-publication notices retain their separately
+approved opt-in contract. The paginated publication inbox keeps idempotent,
+account-scoped reading across recovery. Global capacity limits admission.
+Existing generic Web Push for replies retains device consent, authorization,
+revocation and visibility/read checks. It carries no text, handle or wallet to
+the provider and opens the app generically. This upvote addition uses in-app
+Activity wakeups only; it does not add Web Push delivery or alter consent.
 
 A [interface](../src/client/communities/posts.ts) oferece responder, expandir filhos, abrir subárvore, navegar ao pai/original, votar/retirar e gerir respostas com os mesmos controles de posts. A expansão em uma tela mostra até três níveis adicionais; árvores mais profundas continuam acessíveis pelo link da subárvore, sem limitar a profundidade persistida nem carregar a árvore inteira. Cada página substitui a anterior e troca de sessão desmonta conteúdo/controles. Feed classificado e novos formatos de mídia continuam nos cortes responsáveis.
 

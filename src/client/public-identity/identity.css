@@ -1,0 +1,26 @@
+.public-identity-avatar {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  flex: 0 0 40px;
+  overflow: hidden;
+  border-radius: 50%;
+  text-decoration: none;
+}
+.public-identity-avatar img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: inherit;
+}
+.public-identity-avatar [role='status'] {
+  display: none;
+}
+
+.public-identity-avatar:has(img:not([hidden])) {
+  background: var(--surface-3);
+}

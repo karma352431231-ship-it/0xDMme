@@ -39,3 +39,14 @@ export function queueWatchedPost(
     value: author,
   });
 }
+
+/** In-app Activity only; no new Web Push subscription or delivery consent. */
+export async function wakePublicActivity(
+  client: Pick<pg.PoolClient, 'query'>,
+  recipient: string,
+): Promise<void> {
+  await client.query(
+    `SELECT pg_notify('hash_talk_content_changes',json_build_object('accounts',json_build_array(account_id),'removed',false,'authorization',false)::text) FROM hash_talk.public_profiles WHERE id=$1`,
+    [recipient],
+  );
+}

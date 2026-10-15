@@ -170,7 +170,7 @@ Não usar UUID aleatório ou data do primeiro post como se comprovassem a criaç
 ## 8. Privacidade, moderação e recursos
 
 - Usar contribuições publicadas e agregados de votação para o propósito definido. Não usar wallet, patrimônio, nome privado, DMs, agenda, tempo de leitura, listas de seguidores, salvos, ocultações ou denúncias individuais como sinais públicos de classificação.
-- Votos individuais continuam privados perante visitantes, outras contas e moderadores. O novo sinal aprovado é o agregado de positivos; não autoriza publicar quem votou nem analisar seu comportamento entre comunidades.
+- The 15/10/2026 owner decision makes current upvotes publicly attributable through public profiles; downvotes and neutral positions remain private. Ranking inputs remain positive aggregates only, without voter lists or cross-community voter analysis.
 - Reutilizar autorização, voto reversível por perfil/alvo, revisões e idempotência. Retries, troca de aparelho e reversões não podem multiplicar o peso do mesmo voto. Não criar ranking de pessoas ou exigir seguir para contribuir.
 - Perfis distintos não comprovam pessoas únicas. Limites de contribuição reduzem algumas formas de spam, mas não resolvem múltiplas contas ou coordenação. Não introduzir fingerprint persistente, análise financeira de wallets ou serviços externos como solução automática.
 - Preservar exclusão/moderação, aprovação de mídia e contestação. Volume de denúncias não deve virar penalidade automática de ranking. Decisão do proprietário: comunidades arquivadas ficam fora de Trending/recém-criadas, conservando leitura, Maiores e descoberta histórica.

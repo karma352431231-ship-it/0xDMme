@@ -1,3 +1,4 @@
+import { upvoterLookup } from './upvotes.ts';
 import { directoryLookup } from './directory.ts';
 import {
   communityFollowerTab,
@@ -41,6 +42,11 @@ import type {
 } from '../../shared/community-posts/index.ts';
 
 export function createCommunityHandler(read: {
+  upvoters?: (
+    id: string,
+    post: string,
+    after: string | null,
+  ) => Promise<unknown>;
   followers?: (
     id: string,
     after: string | null,
@@ -214,6 +220,8 @@ export function createCommunityHandler(read: {
     throw new AccountError(404, 'Descoberta indisponível.');
   }
   function communitySubresource(address: URL): Promise<unknown> {
+    if (address.pathname.endsWith('/upvoters'))
+      return upvoterLookup(address, read.upvoters);
     return address.pathname.endsWith('/followers')
       ? followerLookup(address)
       : postLookup(address);

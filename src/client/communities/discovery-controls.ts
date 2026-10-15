@@ -1,3 +1,4 @@
+import { publicUpvoteScore } from './upvoters.ts';
 import { t } from '../../shared/i18n/index.ts';
 import { postBookmark } from './post-bookmark.ts';
 import { keys, object } from '../../shared/account/index.ts';
@@ -148,8 +149,7 @@ export function postVoting(
     node.setAttribute('aria-pressed', String(actions?.position === position));
     node.append(communityIcon(icon));
     if (!actions) controls.append(node);
-    if (position === 1)
-      controls.append(el('span', String(post.score), 'post-score'));
+    if (position === 1) controls.append(publicUpvoteScore(post));
   }
 }
 /** Compact menu for order/period choices; same values and validation as before. */

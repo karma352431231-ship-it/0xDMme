@@ -517,7 +517,22 @@ Provas podem ser verificadas no backend sem transação on-chain. Medir custo de
 
 **Seguir pelo feed mobile — 12/10/2026:** o proprietário escolheu um popup ao tocar no botão compacto “Seguir” de um card do Feed/Seguindo no mobile, para escolher explicitamente a comunidade ou o autor. Reutilizar vínculos e autorização existentes, sem alterar outros pontos de entrada nem as regras da timeline nesta etapa. Manter as correções apenas no Git, sem envio à VPS. [Contrato](docs/PERFIL_PUBLICO_E_FEEDS.md#escolha-de-seguir-no-feed-mobile--12102026).
 
-**Perfil público individual aprovado em 10/10/2026:** expandir a página por `@` com banner público, Visão geral/Posts/Respostas e quatro métricas: conversas geradas (posts com alguma resposta pública de outro perfil, uma vez por post), participação (posts e respostas separados), idade desde a criação do perfil público e comunidades seguidas. O proprietário autorizou explicitamente tornar pública a lista completa das comunidades seguidas, mesmo sem publicação; esta decisão substitui a privacidade dessa lista nos cortes anteriores. Perfis antigos sem data comprovada não recebem idade inventada. Seguir perfis é reversível, independente de DM e sem notificações; suas relações individuais permanecem restritas à própria conta. O Feed mistura publicações recentes das comunidades, atividade de perfis seguidos e posts em alta. Seguindo reúne posts das comunidades seguidas e posts/respostas de perfis seguidos, inclusive em comunidades não seguidas, sem duplicar itens. Toda publicação conserva comunidade e contexto da discussão; não criar post pessoal fora de comunidade. Banner segue preparo e moderação de imagem pública, até 3 MB/2.048 px e prazo vigente de sete dias para candidatos sem aprovação. Wallet, identidade privada, DMs, salvos, ocultos e posições individuais de voto continuam privados. Implementação local autorizada; migração/ativação na VPS permanecem separadas. [Contrato do perfil e feeds](docs/PERFIL_PUBLICO_E_FEEDS.md).
+**Individual public profiles approved on 10/10/2026:** the handle page adds a
+public banner, Overview/Posts/Replies and four metrics: distinct posts that
+received a public reply from another profile, participation (posts and replies
+separately), public-profile age and followed communities. The owner explicitly
+made the complete followed-community list public, including communities without
+posts; this supersedes its earlier private treatment. Do not invent dates for
+older profiles. Following profiles remains reversible and independent of DM,
+with individual follow relationships restricted to their owner. Separate later
+decisions govern opted-in publication notifications. Feed combines recent public
+community activity, followed profiles and trending posts. Following includes
+followed communities and followed profiles' posts/replies, without duplicates.
+Every publication keeps its community and discussion context. Public banners
+retain preparation/moderation, 3 MB/2,048 px and the existing seven-day candidate
+deadline. Wallets, private identity, DMs, saved and hidden items remain private.
+The 15/10/2026 decision below supersedes upvote privacy only. Local implementation
+does not authorize VPS migration/activation. See the [profile/feed contract](docs/PERFIL_PUBLICO_E_FEEDS.md).
 
 **Descrição do perfil e edição no lugar (10/10/2026):** o proprietário pediu descrição pública de texto e emoji e configurações sem botões e avisos de análise desnecessários: banner e foto trocados ao tocar neles, prévia igual ao perfil público, aviso de análise só quando o arquivo é recusado ou não aprovado. Escolhas de implementação: até 280 caracteres/cinco linhas, sem análise automática (mesma regra do `@`), tabela própria com revisão e cobrança (migração 053). Migração/ativação na VPS dependem de aprovação separada. [Contrato](docs/PERFIL_PUBLICO_E_FEEDS.md).
 
@@ -2039,3 +2054,29 @@ Integrate both commits into main and use the existing deployment executor with
 exact-commit CI, local build, preservation, readiness, served-version checks and
 rollback, as recorded in [Git and deployment](docs/GIT_E_DEPLOY.md#reply-media-contact-editing-and-discussion-fixes--activation-authorized-on-15102026).
 Backend sources, SQL migrations, dependencies and infrastructure stay unchanged.
+
+## Public upvotes and author identity — approved on 15/10/2026
+
+The owner explicitly removed individual upvote privacy in public communities and
+requested public voter identities and author notifications modeled on X. Current
+positive voters, including existing positive votes, expose only their chosen
+public profile (`@` and approved avatar). Downvotes and neutral positions remain
+private; private contacts, groups, wallets and E2EE data are outside this change.
+The ranking still consumes anonymous aggregates and never receives voter lists.
+
+Only new transitions into an upvote create an author Activity arrival, for posts
+and replies, without self-notifications. Group arrivals by target in the UI,
+show public avatars/names and the current content excerpt, but count each new
+arrival separately in the bell. Retries do not duplicate arrivals. Withdrawal or
+inversion removes the active arrival; a later upvote is a new arrival. Do not
+backfill notifications for existing votes or retain a voting history. Inbox
+reads remain recipient-only, with current visibility and bilateral blocks.
+Opening Activity acknowledges loaded arrivals; opening an item records reading
+without acknowledging a later concurrent arrival.
+
+Post/feed/profile cards and public Activity notices must use the author's public
+avatar, not the community photo or a private contact photo. The mobile follow
+chooser labels community and user beneath their names. All app copy is English
+and Simplified Chinese. No new dependency or external service is introduced.
+The additive migration and implementation are local; VPS activation requires
+review of the exact schema transition and the normal integrated CI/deploy gates.

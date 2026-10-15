@@ -80,14 +80,13 @@ export function relativePostTime(createdAt: string, now = Date.now()): string {
     0,
     Math.floor((now - Date.parse(createdAt)) / 60_000),
   );
-  if (minutes < 1) return 'agora';
+  if (minutes < 1) return t('activity.now');
   if (minutes < 60) return t('há {0} min', [minutes]);
   if (minutes < 1440) return t('há {0} h', [Math.floor(minutes / 60)]);
   return t('há {0} d', [Math.floor(minutes / 1440)]);
 }
 /**
- * Who posted leads; the community is secondary. Feeds mixing communities show
- * the community photo and name; inside a community the author's own avatar.
+ * Every post uses its public author identity. The community remains a secondary link.
  */
 export function postHeader(
   node: HTMLElement,
@@ -96,8 +95,7 @@ export function postHeader(
   context: 'feed' | 'community' = 'feed',
 ): HTMLElement {
   const header = el('div', '', 'community-post-header'),
-    avatar =
-      context === 'feed' ? communityAvatar(group.name) : authorAvatar(post),
+    avatar = authorAvatar(post),
     identity = el('div', '', 'community-post-identity');
   header.append(avatar, identity);
   if (post.author) {
@@ -147,8 +145,11 @@ function authorAvatar(post: CommunityPost): HTMLElement {
   const avatar = post.author
     ? el('a', '', 'community-avatar person')
     : el('span', '', 'community-avatar person');
-  if (avatar instanceof HTMLAnchorElement && post.author) {
-    avatar.href = `#publico?handle=${encodeURIComponent(post.author.handle)}`;
+  if (post.author) {
+    avatar.setAttribute(
+      'href',
+      `#publico?handle=${encodeURIComponent(post.author.handle)}`,
+    );
     avatar.setAttribute(
       'aria-label',
       t('Abrir perfil de @{0}', [post.author.handle]),

@@ -10,6 +10,9 @@ export class PublicationPreview {
   constructor(privacy?: ExternalMediaConsent) {
     this.privacy = privacy;
   }
+  get signal(): AbortSignal {
+    return this.pending.signal;
+  }
   clear(): void {
     this.pending.abort();
     this.pending = new AbortController();

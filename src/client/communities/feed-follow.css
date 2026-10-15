@@ -85,3 +85,13 @@
   outline: 2px solid var(--focus);
   outline-offset: 2px;
 }
+
+.feed-follow-identity {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+.feed-follow-identity small {
+  color: var(--text-muted);
+  font-size: var(--fs-caption);
+}

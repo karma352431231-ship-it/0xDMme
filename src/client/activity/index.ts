@@ -1,3 +1,7 @@
+import type { UpvoteNotice } from '../../shared/public-upvotes/index.ts';
+import type { ReplyPreview } from '../../shared/community-posts/index.ts';
+import { publicIdentityAvatar } from '../public-identity/index.ts';
+import { upvoteRows } from './upvotes.ts';
 import {
   t,
   translatedError,
@@ -25,6 +29,8 @@ import { pingNotice } from '../ping/index.ts';
  * only reads them on demand and calls the same actions as the original screens.
  */
 export interface ActivitySources {
+  upvotes?: () => Promise<readonly UpvoteNotice[]>;
+  markUpvotesRead?: (ids: readonly string[]) => Promise<void>;
   mentions?: () => Promise<readonly MentionNotification[]>;
   markMentionsRead?: (ids: readonly string[]) => Promise<void>;
   moderation?: () => Promise<readonly ModerationActivity[]>;
@@ -50,12 +56,7 @@ export interface ActivitySources {
       read?: boolean;
       kind?: 'post' | 'reply';
       /** Author and start of the reply, already filtered by public visibility. */
-      preview: {
-        author: string | null;
-        text: string;
-        media: boolean;
-        status: 'visible' | 'removed' | 'deleted';
-      } | null;
+      preview: ReplyPreview | null;
     }[]
   >;
   markRepliesRead: (replies: readonly string[]) => Promise<void>;
@@ -76,12 +77,14 @@ export type ActivityGroup =
   | 'replies'
   | 'transfers'
   | 'moderation'
+  | 'upvotes'
   | 'mentions';
 const groupOrder: readonly ActivityGroup[] = [
   'requests',
   'calls',
   'invites',
   'replies',
+  'upvotes',
   'mentions',
   'transfers',
   'moderation',
@@ -104,6 +107,7 @@ type Item<
 > = Awaited<ReturnType<ActivitySources[K]>>[number];
 
 interface Snapshot {
+  upvotes: Loaded<UpvoteNotice>;
   mentions: Loaded<MentionNotification>;
   moderation: Loaded<ModerationActivity>;
   requests: Loaded<Item<'requests'>>;
@@ -115,6 +119,7 @@ interface Snapshot {
 
 function empty(): Snapshot {
   return {
+    upvotes: { items: [], problem: '' },
     mentions: { items: [], problem: '' },
     moderation: { items: [], problem: '' },
     requests: { items: [], problem: '' },
@@ -199,6 +204,9 @@ export function startActivity(
 
   function count(): number {
     const ids = [
+      ...snapshot.upvotes.items
+        .filter((item) => !item.read)
+        .map((item) => 'upvote:' + item.id),
       ...snapshot.requests.items.map((item) => 'request:' + item.accountId),
       ...snapshot.invites.items.map((item) => 'invite:' + item.id),
       ...snapshot.transfers.items.map((item) => 'transfer:' + item.id),
@@ -222,18 +230,28 @@ export function startActivity(
   async function read(): Promise<void> {
     if (!session) return;
     const old = ++generation;
-    const [requests, invites, replies, transfers, calls, moderation, mentions] =
-      await Promise.all([
-        load(sources.requests),
-        load(sources.groupInvites),
-        load(sources.replies),
-        load(sources.transfers),
-        load(sources.missedCalls),
-        load(sources.moderation ?? (() => Promise.resolve([]))),
-        load(sources.mentions ?? (() => Promise.resolve([]))),
-      ]);
+    const [
+      requests,
+      invites,
+      replies,
+      transfers,
+      calls,
+      moderation,
+      mentions,
+      upvotes,
+    ] = await Promise.all([
+      load(sources.requests),
+      load(sources.groupInvites),
+      load(sources.replies),
+      load(sources.transfers),
+      load(sources.missedCalls),
+      load(sources.moderation ?? (() => Promise.resolve([]))),
+      load(sources.mentions ?? (() => Promise.resolve([]))),
+      load(sources.upvotes ?? (() => Promise.resolve([]))),
+    ]);
     if (old !== generation) return;
     snapshot = {
+      upvotes,
       requests,
       invites,
       replies,
@@ -313,7 +331,7 @@ export function startActivity(
     return node;
   }
   function row(input: {
-    avatar?: { label: string; seed: string };
+    avatar?: HTMLElement | { label: string; seed: string };
     title: string;
     /** Content shown in full contrast between the title and the detail. */
     quote?: string | HTMLElement;
@@ -323,7 +341,8 @@ export function startActivity(
   }): HTMLLIElement {
     const item = element('li', '', 'activity-row');
     item.dataset['read'] = String(input.read === true);
-    if (input.avatar) {
+    if (input.avatar instanceof HTMLElement) item.append(input.avatar);
+    else if (input.avatar) {
       const avatar = element('span', '', 'conversation-avatar');
       avatar.setAttribute('aria-hidden', 'true');
       paintAvatar(avatar, input.avatar);
@@ -414,9 +433,16 @@ export function startActivity(
       const current = generation;
       return row({
         read: reply.read === true,
-        ...(preview?.author
-          ? { avatar: { label: preview.author, seed: preview.author } }
-          : {}),
+        ...(preview?.identity
+          ? {
+              avatar: publicIdentityAvatar(
+                preview.identity,
+                publicationPreview.signal,
+              ),
+            }
+          : preview?.author
+            ? { avatar: { label: preview.author, seed: preview.author } }
+            : {}),
         title: publicationTitle(preview?.author, reply.kind ?? 'reply'),
         quote: publicationPreview.quote(preview, reply.kind ?? 'reply'),
         detail: relativeTime(reply.createdAt),
@@ -565,6 +591,7 @@ export function startActivity(
           t('Menções a você'),
           snapshot.mentions,
           mentionRows(snapshot.mentions.items, {
+            signal: publicationPreview.signal,
             open: async (id) => {
               if (!sources.markMentionsRead)
                 throw new Error('Leitura de menção indisponível.');
@@ -585,6 +612,24 @@ export function startActivity(
           t('Publicações nas comunidades'),
           snapshot.replies,
           replyRows(),
+        ),
+      ],
+      [
+        'upvotes',
+        section(
+          t('upvote.heading'),
+          snapshot.upvotes,
+          upvoteRows(snapshot.upvotes.items, {
+            signal: publicationPreview.signal,
+            current: () =>
+              current === generation && host !== null && session !== null,
+            open: async (ids) => {
+              if (!sources.markUpvotesRead)
+                throw new Error('Upvote read unavailable.');
+              await sources.markUpvotesRead(ids);
+            },
+            changed: () => options.countChanged(count()),
+          }),
         ),
       ],
       [

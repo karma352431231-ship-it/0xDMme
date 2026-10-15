@@ -162,7 +162,15 @@ function choiceRow(input: {
   );
   button.setAttribute('aria-pressed', String(input.following));
   button.addEventListener('click', input.choose);
-  row.append(avatar, el('strong', input.name), button);
+  const identity = el('div', '', 'feed-follow-identity');
+  identity.append(
+    el('strong', input.name),
+    el(
+      'small',
+      input.photo.kind === 'avatar' ? t('follow.user') : t('follow.community'),
+    ),
+  );
+  row.append(avatar, identity, button);
   if (input.photo.reference)
     showPublicAvatar(avatar, {
       ...input.photo,

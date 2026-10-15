@@ -16,6 +16,8 @@ const authored = [
   'src/client/public-mentions',
   'src/shared/public-mentions',
   'src/shared/mention-notifications',
+  'src/shared/public-upvotes',
+  'src/client/public-identity',
   'src/shared/community-name',
   'src/shared/moderation-details',
   'src/client/api-response',

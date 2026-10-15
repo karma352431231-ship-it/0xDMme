@@ -1,3 +1,4 @@
+import { showIdentityPhoto } from '../public-identity/index.ts';
 import { classificationBadges, rankingTopicFilter } from './classification.ts';
 import type { CommunityTopic } from '../../shared/community-classification/index.ts';
 import {
@@ -359,15 +360,7 @@ export function startCommunityDiscovery(
       const avatar = postHeader(row, post, entry.community);
       appendReplyContext(row, entry, abort.signal, privacy);
       followControl(row, entry, old);
-      if (entry.community.avatar)
-        mediaCleanup.add(
-          showPublicAvatar(avatar, {
-            kind: 'community-photo',
-            target: entry.community.id,
-            reference: entry.community.avatar,
-            signal: abort.signal,
-          }),
-        );
+      mediaCleanup.add(showIdentityPhoto(avatar, post.author, abort.signal));
       postContent(row, post);
       const toolbar = el('div', '', 'post-actions');
       row.append(toolbar);

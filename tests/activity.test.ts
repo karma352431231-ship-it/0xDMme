@@ -85,6 +85,7 @@ await test('filtros: Pedidos reúne o que espera resposta e Respostas só as res
         'calls',
         'invites',
         'replies',
+        'upvotes',
         'mentions',
         'transfers',
         'moderation',
@@ -138,4 +139,44 @@ await test('avisos já lidos permanecem no histórico e não entram no contador'
   activity.setSession(session);
   await activity.refresh();
   assert.equal(counts.at(-1), 3);
+});
+
+await test('grouped upvotes count each unread arrival and deduplicate repeated reads', async () => {
+  const first = {
+    id: '11111111-1111-4111-a111-111111111111',
+    actor: {
+      id: '22222222-2222-4222-a222-222222222222',
+      handle: 'voter',
+      avatar: null,
+    },
+    post: '33333333-3333-4333-a333-333333333333',
+    community: '44444444-4444-4444-a444-444444444444',
+    kind: 'reply' as const,
+    text: 'Current reply',
+    createdAt: new Date().toISOString(),
+    read: false,
+  };
+  let items = [first, { ...first, id: '55555555-5555-4555-a555-555555555555' }];
+  const counts: number[] = [];
+  const activity = startActivity(
+    sources({
+      requests: () => Promise.resolve([]),
+      groupInvites: () => Promise.resolve([]),
+      replies: () => Promise.resolve([]),
+      upvotes: () => Promise.resolve(items),
+    }),
+    { countChanged: (count) => counts.push(count) },
+  );
+  activity.setSession(session);
+  await activity.refresh();
+  assert.equal(counts.at(-1), 2);
+  await activity.refresh();
+  assert.equal(counts.at(-1), 2);
+  items = items.map((item) => ({ ...item, read: true }));
+  await activity.refresh();
+  assert.equal(counts.at(-1), 0);
+  items = [...items, { ...first, id: '66666666-6666-4666-a666-666666666666' }];
+  await activity.refresh();
+  assert.equal(counts.at(-1), 1);
+  activity.setSession(null);
 });

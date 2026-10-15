@@ -24,3 +24,15 @@
 #app-shell .activity-filters {
   flex-wrap: wrap;
 }
+
+.activity-upvote-avatars {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+#app-shell .activity-row > .activity-copy {
+  flex-basis: 0;
+}
+#app-shell .activity-upvote > .activity-copy {
+  flex-basis: auto;
+}
