@@ -1,5 +1,26 @@
 # 0xDMme — Git e envio à VPS
 
+## Owner image editor repairs — activation authorized on 14/10/2026
+
+The owner explicitly requested main integration and VPS activation after the
+completed repairs, superseding the earlier branch-only choice. Include `24806b9`
+(image clipping and neutral frame backing) and `9f9a81e` (replacement/removal of
+all four owner images and stable settings editors), preserving the current main
+predecessor `de509a01d39f0be23b9ab3a8c2866543c8ca4d5f` and its required topics.
+Behavior and validation are recorded in [owner image editors](PERFIL_PUBLICO_E_FEEDS.md#replace-and-remove-owner-images-without-editor-redraws--14102026).
+
+This is a client, corresponding-source packaging, tests and documentation update.
+All backend/database sources, 67 SQL migrations, dependencies, Node, model
+configuration, units and deployment infrastructure retain the main predecessor.
+Use only `npm run deploy:staging` from clean, integrated, pushed main with passing
+exact-commit CI and the Mac build. Keep preservation, readiness, public asset and
+source checks and rollback. No banner retry or detector acceptance change is
+needed. Access, artifacts, baselines and operational receipts stay in `.local/`.
+
+**Ponto importante:** publication requires a `published` receipt and verified
+served assets. Selection/removal remains a local draft until Confirm changes;
+local synthetic browser validation does not establish real-account acceptance.
+
 ## Required community topics — activation requested on 14/10/2026
 
 The owner now requires one or two topics for new communities. Validate the

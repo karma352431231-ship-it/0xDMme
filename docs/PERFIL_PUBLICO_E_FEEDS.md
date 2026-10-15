@@ -243,7 +243,7 @@ The manual browser regression in `tests/fixtures/public-image-frames-browser.ts`
 
 `community.css` and `profile.css` remain existing stylesheet hotspots. The former spans directory, posts, hero and management; the latter spans the public header, followed communities and profile editing. This repair changes its existing image rules only. A separate reviewed task should extract directory/avatar styles first, hero/management second, and post/reply styles last, preserving cascade order and specificity. For `profile.css`, extract the public header first, followed communities second and the profile editor last. Check full page/panel/mobile layout, placeholders, image clipping, menus and focus after each extraction; do not mix either refactor into this repair.
 
-The owner chose “Manter só na branch” after reviewing the publication question. Keep this repair on `codex/community-banner-flow`; main integration and VPS activation are outside this delivery.
+The owner initially chose “Manter só na branch”. Later on 14/10/2026, the owner explicitly requested main integration and VPS activation for the completed image repairs, superseding that delivery restriction. Publish through the existing executor with exact-commit CI and preservation checks; see [release authorization](GIT_E_DEPLOY.md#owner-image-editor-repairs--activation-authorized-on-14102026).
 
 **Ponto importante:** image bytes, public visibility, loading and synchronization stay unchanged; this correction affects their presentation.
 
@@ -263,4 +263,4 @@ The existing `communities/index.ts`, `public-profile/index.ts`, `profile-editor.
 
 Validation passed: 39 targeted state/media/theme tests, two public-source packaging tests, types, lint, module boundaries, formatting, localization and the web build. The synthetic browser passed 24 slot/language/viewport cases, including concurrent state reads; desktop checks additionally passed failed-save retry, confirmed removal and public-profile partial-save recovery without resending a successful part. No real account or user media was exercised.
 
-**Ponto importante:** keep this work on `codex/community-banner-flow` as requested. Main and VPS activation remain outside this delivery. Owner drafts are never published by selection or removal alone, and a failed save is never reported as success.
+**Ponto importante:** the owner subsequently authorized main integration and VPS activation on 14/10/2026. Require the exact integrated commit to pass CI and the existing deployment checks. Owner drafts are never published by selection or removal alone, and a failed save is never reported as success.
