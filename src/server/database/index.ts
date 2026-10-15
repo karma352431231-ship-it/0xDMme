@@ -166,6 +166,7 @@ const migrations = [
   '066-group-message-changes.sql',
   '067-community-classification-publication-pause.sql',
   '068-public-upvotes.sql',
+  '069-social-reaction-index.sql',
 ];
 
 export interface MaintenanceSnapshot {
