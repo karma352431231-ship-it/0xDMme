@@ -172,6 +172,22 @@ await test('corte 6: feeds públicos, descoberta e referências privadas', async
     filter: FeedFilter = baseline,
     after: string | null = null,
   ) => feedPage(await actor.operate('discovery-feed', { filter, after }));
+  async function fixtureRoot(actor: typeof reader | null) {
+    const read = (after: string | null) =>
+      actor
+        ? feed(actor, baseline, after)
+        : communities.feed(baseline, after).then(feedPage);
+    const first = await read(null);
+    const pages = first.next ? [first, await read(first.next)] : [first];
+    const entry = pages
+      .flatMap((page) => page.items)
+      .find((item) => item.post.id === root);
+    assert.ok(
+      entry,
+      'The fixture root must be present in the loaded feed pages.',
+    );
+    return entry;
+  }
   const preference = async (actor: typeof reader, post: string) =>
     postPreference(
       await actor.operate('discovery-preference', { id: community, post }),
@@ -193,6 +209,8 @@ await test('corte 6: feeds públicos, descoberta e referências privadas', async
     posts.push(id);
     await create(id);
   }
+  // Equal timestamps sort by UUID; put the target on the second recent page.
+  posts.sort();
   await inspector.query(
     'UPDATE hash_talk.community_posts SET created_at=$2 WHERE community_id=$1',
     [community, new Date(Date.now() - 60_000).toISOString()],
@@ -214,6 +232,7 @@ await test('corte 6: feeds públicos, descoberta e referências privadas', async
       );
       const first = feedPage(await communities.feed(baseline, null));
       assert.equal(first.items.length, 24);
+      assert.ok(!first.items.some((entry) => entry.post.id === root));
       assert.ok(first.next);
       const second = feedPage(await communities.feed(baseline, first.next));
       assert.equal(second.items.length, 3);
@@ -330,22 +349,9 @@ await test('corte 6: feeds públicos, descoberta e referências privadas', async
       const usage = await globalUsage();
       const saved = await set(reader, root, { ...initial, saved: true });
       assert.equal(saved.revision, 1);
-      assert.equal(
-        (await feed(reader)).items.find((entry) => entry.post.id === root)
-          ?.viewerSaved,
-        true,
-      );
-      assert.equal(
-        (await feed(stranger)).items.find((entry) => entry.post.id === root)
-          ?.viewerSaved,
-        false,
-      );
-      assert.equal(
-        (await communities.feed(baseline, null)).items.find(
-          (entry) => entry.post.id === root,
-        )?.viewerSaved,
-        undefined,
-      );
+      assert.equal((await fixtureRoot(reader)).viewerSaved, true);
+      assert.equal((await fixtureRoot(stranger)).viewerSaved, false);
+      assert.equal((await fixtureRoot(null)).viewerSaved, undefined);
       assert.equal((await globalUsage()) - usage, 256);
       assert.deepEqual(
         await set(reader, root, { ...initial, saved: true }),
@@ -393,11 +399,7 @@ await test('corte 6: feeds públicos, descoberta e referências privadas', async
         bad(409),
       );
       assert.equal((await preference(reader, root)).revision, changed.revision);
-      assert.equal(
-        (await feed(reader)).items.find((entry) => entry.post.id === root)
-          ?.viewerSaved,
-        false,
-      );
+      assert.equal((await fixtureRoot(reader)).viewerSaved, false);
     },
   );
   await t.test(

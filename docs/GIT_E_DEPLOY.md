@@ -22,6 +22,16 @@ rollback; access, baselines, artifacts and receipts stay exclusively in `.local/
 receipt and the served version. The reply view retains its 120-node budget with
 continuation; edited content remains subject to server confirmation/moderation.
 
+The first integrated CI (`a8277af`) exposed a pre-existing nondeterministic
+feed fixture: its preference assertions searched only the first 24 of 27 posts
+with equal timestamps, so UUID tie-breaking could hide the chosen post. Sort the
+synthetic IDs to force that target onto the second recent page, assert its
+absence from the first page, and read both pages for signed/other/anonymous
+viewer assertions. Preserve every permission, retry, conflict and quota check.
+The deterministic case fails before the fixture repair and passes afterward on
+the existing local test database. No application/backend behavior changes;
+require fresh full main CI before activation.
+
 ## Automatic Activity and unified contacts — activation authorized on 14/10/2026
 
 The owner requested automatic private-request/reply notifications, bell increments
