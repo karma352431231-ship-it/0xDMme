@@ -27,18 +27,36 @@ export class PeerPhotos {
   }
 
   /** Covers the initials in `host` with the photo when one exists. */
-  show(host: PhotoHost, peer: string, signal: AbortSignal): void {
+  show(
+    host: PhotoHost,
+    peer: string,
+    signal: AbortSignal,
+    ready?: (url: string | null) => void,
+  ): void {
+    if (signal.aborted) return;
+    const scope = this.options.scope();
     const last = this.shown.get(peer);
-    if (last && this.options.scope() === this.scope) paint(host, last);
+    if (last && scope === this.scope) {
+      paint(host, last);
+      ready?.(last);
+    }
     void this.url(peer).then(
       (url) => {
+        if (
+          signal.aborted ||
+          scope !== this.options.scope() ||
+          !host.isConnected
+        )
+          return;
         if (url) this.shown.set(peer, url);
         else this.shown.delete(peer);
-        if (!url || url === last || signal.aborted || !host.isConnected) return;
-        paint(host, url);
+        if (url && url !== last) paint(host, url);
+        ready?.(url);
       },
       // Without a readable card the initials stay; nothing private is shown.
-      () => undefined,
+      () => {
+        if (!signal.aborted) ready?.(null);
+      },
     );
   }
 

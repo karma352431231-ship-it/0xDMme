@@ -1,5 +1,38 @@
 # Conversas — revisão aprovada em 07/10/2026
 
+## Enquadramento e ampliação da foto privada — 15/10/2026
+
+O proprietário pediu retirar o fundo visível e centralizar a foto do cabeçalho,
+além de permitir ampliá-la. Quando existe foto, a moldura circular recorta uma
+imagem posicionada por toda a área, com `cover` e centro explícito; o degradê
+das iniciais sai somente enquanto a foto está disponível. A lista privada usa
+o mesmo recorte circular sem fundo sob a imagem. Sem foto, permanecem as iniciais.
+
+A foto do cabeçalho é um botão acessível que abre a imagem já recebida neste
+aparelho. O visualizador oferece ampliar, ajustar à tela, fechar e Escape,
+sem buscar bytes, sincronizar contatos ou consultar perfis públicos. O mesmo
+visualizador já usado por fotos públicas fica em `image-viewer`, separado dos
+leitores de mídia pública; a origem e o ciclo de vida dos bytes continuam com
+seu módulo de origem.
+
+`chat-ui/avatar-photo.ts` conserva a ampliação durante atualizações normais do
+cabeçalho e fecha ao substituir/remover a foto, trocar contato, navegar ou mudar
+de sessão. URLs privadas continuam pertencendo ao cache de cartões recebidos;
+o visualizador não persiste nem cria cópias adicionais. Nome, E2EE, acesso ao
+cartão e distribuição da foto permanecem iguais.
+
+**Ponto importante:** alteração de apresentação e interação, sem backend,
+migração, dependência, retenção ou ativação automática na VPS. A verificação
+visual usa fotos sintéticas, sem copiar a foto privada enviada pelo proprietário.
+
+O bootstrap de `messages/index.ts` continua um hotspot; esta alteração conecta
+somente o callback da foto existente. Proposta para tarefa própria: separar a
+inicialização/sessão do coordenador de sincronização e da montagem da interface,
+nessa ordem, mantendo os contratos de cancelamento e os testes de inicialização,
+troca de conversa, exclusão, retomada e navegação antes da conferência no browser.
+
+## Histórico da revisão
+
 Em 09/10/2026, a navegação e o tema desta revisão passam a ser substituídos por [painéis e temas](UI_PAINEIS_E_TEMAS.md), por etapas. As regras de conversa abaixo continuam.
 
 O proprietário escolheu a proposta **Conversa em foco** e autorizou sua implementação, com o menu atual incorporado à composição. As imagens fornecidas são referências de organização; dados pessoais e conteúdo das imagens não entram na interface.

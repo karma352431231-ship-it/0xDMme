@@ -818,14 +818,36 @@
 }
 
 /* Private contacts: the verified card photo covers the header initials. */
-.chat-panel .chat-peer-avatar {
+.chat-panel .chat-peer-avatar,
+.conversation-avatar {
+  position: relative;
   overflow: hidden;
+}
+#app-shell .chat-panel button.chat-peer-avatar {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  cursor: zoom-in;
+}
+#app-shell .chat-panel button.chat-peer-avatar:disabled {
+  opacity: 1;
+  cursor: default;
+}
+#app-shell .chat-peer-avatar:has(> img:not([hidden])),
+#app-shell .conversation-avatar:has(> img) {
+  background: transparent;
+}
+.chat-peer-avatar > img {
+  position: absolute;
+  inset: 0;
+  object-position: center;
 }
 .chat-peer-avatar > img,
 .conversation-avatar > img {
   display: block;
   width: 100%;
   height: 100%;
-  border-radius: inherit;
+  border-radius: 0;
   object-fit: cover;
 }

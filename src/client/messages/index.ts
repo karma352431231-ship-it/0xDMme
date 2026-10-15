@@ -209,7 +209,8 @@ export function startMessages(
     host: HTMLElement,
     peer: string,
     signal: AbortSignal,
-  ) => peerPhotos.show(host, peer, signal);
+    ready?: (url: string | null) => void,
+  ) => peerPhotos.show(host, peer, signal, ready);
   const directoryUi = new MessageDirectoryUi({
     peerPhoto: showPeerPhoto,
     snapshot: () => ({
