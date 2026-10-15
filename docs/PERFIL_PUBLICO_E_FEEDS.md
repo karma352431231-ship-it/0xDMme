@@ -264,3 +264,19 @@ The existing `communities/index.ts`, `public-profile/index.ts`, `profile-editor.
 Validation passed: 39 targeted state/media/theme tests, two public-source packaging tests, types, lint, module boundaries, formatting, localization and the web build. The synthetic browser passed 24 slot/language/viewport cases, including concurrent state reads; desktop checks additionally passed failed-save retry, confirmed removal and public-profile partial-save recovery without resending a successful part. No real account or user media was exercised.
 
 **Ponto importante:** the owner subsequently authorized main integration and VPS activation on 14/10/2026. Require the exact integrated commit to pass CI and the existing deployment checks. Owner drafts are never published by selection or removal alone, and a failed save is never reported as success.
+
+### Smaller reply media — 15/10/2026
+
+Inline reply photos and GIFs are 30% smaller than the previous presentation:
+external GIF containers are capped at 448 px instead of 640 px and 70% of the
+available width; approved photo/GIF figures use 70% of their existing gallery
+slot. Their height limits scale by the same factor. The selected reply is marked
+consistently with feed replies, so opening it does not restore the larger size.
+Direct-child selectors leave the quoted parent, original posts, reply-editor
+previews, private chats, ordinary videos and full image viewer unchanged.
+
+The manual browser fixture uses real app CSS and the public picture/viewer
+lifecycle with synthetic media. At 320, 390 and 1280 px in both languages, compare
+reply dimensions with an original-post control, including GIF image/video
+rendering, and verify that clicking an approved picture still opens the full
+image. This layout check does not assess GIF providers or real user uploads.

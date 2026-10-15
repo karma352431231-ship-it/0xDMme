@@ -14,6 +14,7 @@ import {
 import { GroupController } from '../src/client/groups/controller.ts';
 import type { GroupSummary } from '../src/client/groups/controller.ts';
 import { GroupCache } from '../src/client/groups/cache.ts';
+import type { AddressBookEntry } from '../src/shared/contacts/index.ts';
 import type { AccountSession } from '../src/shared/account/index.ts';
 import type {
   VaultAccess,
@@ -73,6 +74,21 @@ function dom(t: TestContext) {
 }
 const settle = () => new Promise<void>((resolve) => setImmediate(resolve));
 
+function editContactFromMenu(
+  entries: readonly ConversationEntry[],
+  language: 'en' | 'zh-CN',
+): void {
+  const contact = entries.find((entry) => entry.kind === 'contact')!;
+  assert.equal(contact.menuNote, undefined);
+  const action = contact.actions?.find((item) => item.id === 'edit-contact');
+  assert.ok(action);
+  assert.equal(action.label, language === 'en' ? 'Edit contact' : '编辑联系人');
+  action.perform();
+  const groupActions =
+    entries.find((entry) => entry.kind === 'group')?.actions ?? [];
+  assert.ok(!groupActions.some((item) => item.id === 'edit-contact'));
+}
+
 await test('directory shows the private group avatar and marks only the opened group, and return to a contact', async (t) => {
   const { list, revoked } = dom(t);
   for (const language of ['en', 'zh-CN'] as const) {
@@ -84,6 +100,8 @@ await test('directory shows the private group avatar and marks only the opened g
         address: '0x' + '1'.repeat(40),
         name: 'Contact',
       };
+    const edited: AddressBookEntry[] = [];
+    const headerEdit = new CommunityNode('button');
     let selected: GroupSummary | null = current,
       entries: readonly ConversationEntry[] = [];
     const options = {
@@ -119,26 +137,38 @@ await test('directory shows the private group avatar and marks only the opened g
         },
       },
       node: (selector: string) =>
-        selector === '[data-message-contacts]' ? list : null,
+        selector === '[data-message-contacts]'
+          ? list
+          : selector === '[data-chat-edit-contact]'
+            ? headerEdit
+            : null,
       host: () => null,
       contactActions: () => [],
       perform: () => {},
       openPeer: () => {},
-      openContact: () => {},
+      openContact: (contact: AddressBookEntry) => edited.push(contact),
       openGroup: () => {},
       changed: () => {},
       presence: () => {},
     } as unknown as ConstructorParameters<typeof MessageDirectoryUi>[0];
     const ui = new MessageDirectoryUi(options);
+    ui.bind();
+    headerEdit.click();
+    assert.equal(edited.length, 0);
     ui.renderContacts();
     await settle();
     assert.deepEqual(
       entries.filter((entry) => entry.selected).map((entry) => entry.id),
       [current.state.groupId],
     );
+    editContactFromMenu(entries, language);
+    assert.equal(edited.at(-1)?.address, peer.address);
     assert.equal(list.querySelectorAll('img').length, 1);
     assert.equal(list.querySelector('img')?.src, 'blob:private-group');
     selected = null;
+    headerEdit.click();
+    assert.equal(edited.length, 2);
+    assert.equal(edited.at(-1)?.address, peer.address);
     ui.renderContacts();
     await settle();
     assert.deepEqual(

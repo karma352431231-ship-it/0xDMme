@@ -287,6 +287,7 @@ export function startCommunityPosts(
       : card(value.title || t('Postagem'));
     if (value.parent && value.title) node.append(el('h2', value.title));
     node.classList.add('community-post');
+    if (value.parent) node.classList.add('community-post-is-reply');
     if (value.id === selected) node.classList.add('community-post-focus');
     else if (value.parent) node.classList.add('community-reply');
     return node;

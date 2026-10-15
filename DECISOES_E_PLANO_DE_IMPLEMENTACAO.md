@@ -1996,3 +1996,21 @@ Sending a private conversation request also remembers the peer in the encrypted 
 The owner subsequently requested main integration and VPS activation of both repairs and explicitly authorized continuation after context compaction until both are active. Use the existing executor, exact-commit CI, reviewed database source binding, all preservation/readiness/source checks and rollback. All 67 migrations, schema, dependencies, models and shared infrastructure remain unchanged. [Notification contract](docs/BLOCO_10_NOTIFICACOES_E_EXPERIENCIA.md#automatic-activity-refresh--14102026) and [contact contract](docs/UI_CONTATOS.md#unified-private-contact-directory--14102026).
 
 **Ponto importante:** no new notification store, remote notification provider or plaintext private-contact persistence is introduced. An unresolved permission still prevents conversation, even when the contact remains visible.
+
+### Reply media and private contact shortcuts — 15/10/2026
+
+The owner requested a roughly 30% reduction of inline photos/GIFs in replies,
+removal of the explanatory footer in contact menus, and an edit-contact action
+in those menus. Complete the media adjustment first and deliver these changes
+in one commit. Reply photos and external GIFs use 70% of their previous width
+and height limits across discussion, feed and panel views. Original posts,
+quoted context, ordinary videos and the full image viewer retain their sizing.
+
+Contact row menus and the private conversation header open the existing private
+address-book editor with the current alias and identity. Editing the nickname
+keeps the wallet fixed and preserves stored identity references; saving uses the
+existing encrypted address-book operation and does not request or approve a
+conversation. Remove the contact-menu footer in both official languages.
+Representative authorizations remain the optional organization-issued, scoped,
+time-limited credentials described in the existing representatives contract;
+this request asks for an explanation, not their removal or a protocol change.

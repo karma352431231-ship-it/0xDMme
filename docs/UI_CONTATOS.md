@@ -42,3 +42,28 @@ Reuse the existing bounded address-book reader, now owned by `contacts/directory
 The existing `contacts/index.ts` remains a mixed screen/lifecycle hotspot. In a separate reviewed task, first extract session/readiness into `contacts-session.ts`, then dialog/form coordination into `contacts-request-screen.ts`. Keep list projection, signed controller and encrypted persistence separate; validate late session changes, draft preservation, alias/conflict handling, partial failure and keyboard/mobile behavior after each extraction. Do not combine that refactor with this repair.
 
 **Ponto importante:** the owner authorized both repairs on main and VPS and continuation after compaction. Stored contact identity remains private and encrypted; acceptance is still mandatory for chat. No schema, dependency or wallet discovery rule changes.
+
+## Edit shortcuts in contact menus — 15/10/2026
+
+Contact row menus now include **Edit contact** / **编辑联系人**, including saved
+contacts whose conversation is not approved. The private conversation header's
+three-dot menu offers the same shortcut. Both reuse the existing navigation to
+Contacts and its prefilled private address-book form. The form identifies itself
+as editing, keeps the wallet address read-only, and lets the owner change the
+private nickname. Saving retains stored account/identity references and uses
+the existing encrypted address-book save and directory update. It sends no
+conversation request, approval or profile change to the other person.
+
+The explanatory contact-menu footer is removed for both approved and saved-only
+rows. Group actions retain their own existing behavior. Representative
+authorizations remain available as optional organization credentials; they do
+not grant financial powers or become a requirement for ordinary chat.
+
+The existing `startContacts` and community `posts.ts` coordinators remain
+hotspots. This change only adjusts the existing editor's field state and reply
+classification. A separate reviewed split should first extract contact-editor
+presentation/lifecycle, then contact request/invitation actions; separately split
+post projection from reading/pagination. Preserve session guards, encrypted
+identity fields, conflicts, drafts, media cleanup and scroll through their
+existing unit tests and targeted browser checks. Do not combine that split with
+concurrent edits of either coordinator.

@@ -71,6 +71,20 @@ export class MessageDirectoryUi {
     if (list) releaseConversationAvatars(list);
   }
   bind(): void {
+    this.options
+      .node('[data-chat-edit-contact]')
+      ?.addEventListener('click', () => {
+        const { selected } = this.options.snapshot();
+        if (!selected || this.options.groups.selected) return;
+        this.options
+          .node('[data-chat-edit-contact]')
+          ?.closest('details')
+          ?.removeAttribute('open');
+        this.options.openContact(
+          this.options.agenda.find(selected)?.contact ??
+            agendaContact(selected),
+        );
+      });
     const filters: readonly ConversationFilter[] = [
       'all',
       'unread',
@@ -107,18 +121,29 @@ export class MessageDirectoryUi {
       ...settings,
       favorite: this.options.daily.favorite(favoriteId),
       unread: this.options.snapshot().states.get(peer.accountId)?.unread ?? 0,
-      actions: this.options.contactActions(
+      actions: this.contactActions(
         contact,
         settingsId,
         peer.localOnly ? null : peer.accountId,
-      ),
-      menuNote: t(
-        'Remover contato preserva histórico e permissões. Arquivar silencia; desarquivar não retoma alertas automaticamente.',
       ),
       open: () => {
         this.options.openPeer(peer);
       },
     };
+  }
+  private contactActions(
+    contact: AddressBookEntry,
+    settingsId: string,
+    mutePeer: string | null,
+  ): ConversationAction[] {
+    return [
+      {
+        id: 'edit-contact',
+        label: t('contacts.edit'),
+        perform: () => this.options.openContact(contact),
+      },
+      ...this.options.contactActions(contact, settingsId, mutePeer),
+    ];
   }
   contactOrganizationId(saved: SavedContact | undefined, peer: string): string {
     return saved && this.options.daily.hasOrganization(saved.entity)
@@ -146,10 +171,7 @@ export class MessageDirectoryUi {
       ...settings,
       favorite: this.options.daily.favorite(entity),
       unread: 0,
-      actions: this.options.contactActions(contact, entity, null),
-      menuNote: t(
-        'Salvar ou remover da agenda não altera o consentimento nem apaga o histórico.',
-      ),
+      actions: this.contactActions(contact, entity, null),
       open: () => this.options.openContact(contact),
     };
   }
