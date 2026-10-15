@@ -19,7 +19,7 @@ export class SocialReadReceipts {
       read = messageIds(data['read']),
       own = messageIds(data['own']);
     return this.social.withActor(authority, async (context) => {
-      await this.social.requireConsent(context, peer);
+      await this.social.requireConversation(context, peer);
       if (read.length) await this.share(context, peer, read);
       return this.own(context, own, [peer]);
     });

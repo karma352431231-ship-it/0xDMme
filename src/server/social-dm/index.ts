@@ -31,6 +31,7 @@ export const socialDmOperations = [
   'dm-profile',
   'dm-list',
   'dm-state',
+  'dm-open',
   'dm-request',
   'dm-decide',
   'dm-block',
@@ -157,6 +158,10 @@ export class SocialDmService {
       'dm-request': (a, d) => {
         keys(d, ['peer']);
         return db.socialDm.request(a, uuid(d['peer']));
+      },
+      'dm-open': (a, d) => {
+        keys(d, ['peer']);
+        return db.socialDm.open(a, uuid(d['peer']));
       },
       'dm-decide': (a, d) => {
         keys(d, ['peer', 'revision', 'accept']);

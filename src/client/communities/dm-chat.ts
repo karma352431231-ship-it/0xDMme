@@ -82,61 +82,25 @@ export function paintDmPeer(
 /** Header subtitle, as the private chat shows presence. */
 export function dmStateLabel(
   value: SocialRelation | null,
-  own: string | null,
   local: boolean,
 ): string {
   if (local) return t('Cópia neste aparelho');
   if (!value || value.state === 'none') return t('Sem conversa ainda');
   if (value.blocked) return t('Bloqueada');
-  if (value.state === 'pending')
-    return value.requester === own
-      ? t('Aguardando aceite')
-      : t('Pedido de conversa');
-  if (value.state === 'rejected') return t('Pedido recusado');
+  if (!value.canSend) return t('DM indisponível.');
   return t('Mensagem pública pelo @');
 }
 
-export type DmRequestAction = 'request' | 'accept' | 'reject';
-/**
- * What replaces the composer while there is no approved conversation; null
- * means the composer is shown. The text and actions follow the relation.
- */
-export function dmRequestState(input: {
+/** Only local copies or unavailable/blocked peers replace the composer. */
+export function dmComposerGate(input: {
   value: SocialRelation | null;
-  own: string | null;
   local: boolean;
-  canRequest: boolean;
-  handle: string;
-}): { text: string; actions: DmRequestAction[] } | null {
-  const { value, handle } = input;
+}): string | null {
   if (input.local)
-    return {
-      text: t('Cópia local. Conecte para sincronizar e enviar mensagens.'),
-      actions: [],
-    };
-  if (input.canRequest)
-    return {
-      text: t('Peça para conversar com @{0}. A pessoa precisa aceitar.', [
-        handle,
-      ]),
-      actions: ['request'],
-    };
-  if (value?.state === 'pending' && value.requester === input.own)
-    return {
-      text: t('Pedido enviado. Aguardando @{0} aceitar.', [handle]),
-      actions: [],
-    };
-  if (value?.state === 'pending')
-    return {
-      text: t('@{0} quer conversar com você.', [handle]),
-      actions: ['accept', 'reject'],
-    };
-  if (!value?.canSend)
-    return {
-      text: t('Esta conversa está recusada, bloqueada ou indisponível.'),
-      actions: [],
-    };
-  return null;
+    return t('Cópia local. Conecte para sincronizar e enviar mensagens.');
+  return input.value?.canSend && !input.value.blocked
+    ? null
+    : t('DM indisponível.');
 }
 
 /** A message bubble; attachments are filled by the media renderer. */

@@ -46,14 +46,8 @@ function about(host: HTMLElement, summary: ProfileSummary): void {
   const metrics = element('dl', '', 'public-profile-metrics');
   const number = (count: number) => count.toLocaleString(currentLanguage());
   for (const [value, label] of [
-    [number(summary.conversations), t('Conversas geradas')],
-    [
-      t('{0} posts · {1} respostas', [
-        number(summary.posts),
-        number(summary.replies),
-      ]),
-      t('Participação'),
-    ],
+    [number(summary.posts), t('Posts')],
+    [number(summary.replies), t('Respostas')],
     [
       summary.createdAt
         ? new Date(summary.createdAt).toLocaleDateString(currentLanguage(), {
@@ -241,7 +235,7 @@ export function showProfilePage(
     if (!block.blocked)
       link(
         actions,
-        t('Solicitar DM'),
+        t('Mensagem'),
         `#communities?view=dms&dm=${summary.profile.id}`,
       );
     void follow(actions, summary, block).catch(error);

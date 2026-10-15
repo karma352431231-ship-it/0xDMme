@@ -6,6 +6,7 @@ import { showPublicAvatar } from '../public-media/index.ts';
 
 // Photos shown before the “+N” control in the compact row.
 const compactCount = 5;
+const namedCount = 3;
 
 function element<K extends keyof HTMLElementTagNameMap>(
   tag: K,
@@ -24,9 +25,8 @@ function button(text: string, className: string): HTMLButtonElement {
 }
 
 /**
- * Communities followed by a public profile: a row of photos (up to five and a
- * “+N” that expands) and, expanded, the full list with names, read page by
- * page from the public endpoint as the person asks for more.
+ * Up to three communities show their names immediately. Larger collections
+ * use up to five photos and an expandable, paginated named list.
  */
 export function profileCommunities(
   host: HTMLElement,
@@ -72,6 +72,12 @@ export function profileCommunities(
   function fillCompact(total: number): void {
     if (!loaded.length) {
       compact.append(element('p', t('Nenhuma comunidade seguida.')));
+      return;
+    }
+    if (loaded.length <= namedCount && next === null) {
+      compact.hidden = true;
+      list.hidden = false;
+      list.append(...loaded.map((group) => row(group, avatar(group))));
       return;
     }
     for (const group of loaded.slice(0, compactCount)) {

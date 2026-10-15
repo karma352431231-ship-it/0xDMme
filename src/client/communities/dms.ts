@@ -5,7 +5,6 @@ import { clearDmChecks, refreshDmChecks } from './dm-checks.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
 import { publicProfile } from '../../shared/public-profile/index.ts';
 import type { PublicProfile } from '../../shared/public-profile/index.ts';
-import { socialRelation } from '../../shared/social-dm/index.ts';
 import type { SocialRelation } from '../../shared/social-dm/index.ts';
 import { AttachmentUi } from '../attachment-ui/index.ts';
 import { VoicePlayback } from '../voice-playback/index.ts';
@@ -21,11 +20,12 @@ import {
   dmBubble,
   dmConversationView,
   dmListView,
-  dmRequestState,
+  dmComposerGate,
   dmStateLabel,
   paintDmPeer,
 } from './dm-chat.ts';
-import type { DmRequestAction, DmView } from './dm-chat.ts';
+import type { DmView } from './dm-chat.ts';
+import { openDmConversation } from './dm-opening.ts';
 import { startDmComposer } from './dm-composer.ts';
 import { DmWork } from './dm-work.ts';
 import { bindDmLifecycle } from './dm-lifecycle.ts';
@@ -192,7 +192,10 @@ export function startSocialDmUi(
       try {
         await work();
       } catch (error: unknown) {
-        if (old === generation) {
+        if (
+          old === generation &&
+          !(error instanceof DOMException && error.name === 'AbortError')
+        ) {
           closeGate();
           status(
             error instanceof Error
@@ -358,7 +361,7 @@ export function startSocialDmUi(
     return view;
   }
   /** What the server (or, offline, this device) knows about the conversation. */
-  async function loadConversation(selected: string) {
+  async function loadConversation(selected: string, usable: () => boolean) {
     const offline = localOnly || !navigator.onLine;
     if (offline) {
       const page = await controller.cached(selected, before);
@@ -369,7 +372,7 @@ export function startSocialDmUi(
         profile: page.items[0]?.peer ?? null,
       };
     }
-    const value = await controller.state(selected);
+    const value = await openDmConversation(controller, selected, usable);
     return {
       offline,
       value,
@@ -382,21 +385,22 @@ export function startSocialDmUi(
     if (!selected || !container) return;
     const old = generation,
       expected = verification,
-      data = await loadConversation(selected);
+      data = await loadConversation(
+        selected,
+        () => old === generation && expected === verification,
+      );
     if (old !== generation || expected !== verification || !container) return;
     const current = frame(selected);
     current.gate.textContent = '';
     paintHeader(current, data);
     options(current, selected, data.profile, data.value);
-    const request = dmRequestState({
+    const gate = dmComposerGate({
       value: data.value,
-      own: ownProfile,
       local: data.offline,
-      canRequest: !data.offline && canRequest(data.value),
-      handle: data.profile?.handle ?? '',
     });
-    requestBanner(current, selected, data.value, request);
-    writable = !data.offline && request === null;
+    current.request.hidden = gate === null;
+    current.request.textContent = gate ?? '';
+    writable = !data.offline && gate === null;
     await messages(current, selected, old, data.page);
   }
   function paintHeader(
@@ -409,7 +413,7 @@ export function startSocialDmUi(
     }
     paintDmPeer(current, {
       profile: data.profile,
-      state: dmStateLabel(data.value, ownProfile, data.offline),
+      state: dmStateLabel(data.value, data.offline),
       signal: externalAbort.signal,
     });
   }
@@ -490,57 +494,6 @@ export function startSocialDmUi(
       void run(work);
     });
     current.options.append(button);
-  }
-  function requestBanner(
-    current: DmView,
-    selected: string,
-    value: SocialRelation | null,
-    request: ReturnType<typeof dmRequestState>,
-  ): void {
-    current.request.hidden = request === null;
-    current.request.replaceChildren();
-    if (!request) return;
-    current.request.append(communityElement('p', request.text));
-    const labels: Record<DmRequestAction, string> = {
-      request: t('Solicitar DM'),
-      accept: t('Aceitar'),
-      reject: t('Recusar'),
-    };
-    for (const action of request.actions) {
-      const button = communityElement(
-        'button',
-        labels[action],
-        action === 'reject' ? '' : 'primary',
-      );
-      button.type = 'button';
-      button.addEventListener('click', () => {
-        void run(() => decide(selected, value, action));
-      });
-      current.request.append(button);
-    }
-  }
-  async function decide(
-    selected: string,
-    value: SocialRelation | null,
-    action: DmRequestAction,
-  ): Promise<void> {
-    if (action === 'request')
-      socialRelation(await controller.request('request', { peer: selected }));
-    else if (value)
-      await controller.request('decide', {
-        peer: selected,
-        revision: value.revision,
-        accept: action === 'accept',
-      });
-    await conversation();
-  }
-  function canRequest(value: SocialRelation | null): boolean {
-    return (
-      !value ||
-      ((value.state === 'none' || value.state === 'rejected') &&
-        !value.blocked &&
-        value.requester !== ownProfile)
-    );
   }
   /**
    * Rows are reused by id and content, so a refresh neither reloads media nor

@@ -53,7 +53,7 @@ import {
 import { createCommunityAccount } from './community-fixture.ts';
 import { groupParticipant } from '../fixtures/group-participant.ts';
 
-await test('cortes 7–8: consentimento, E2EE, mídia e cofre social', async (t) => {
+await test('cortes 7–8: DMs diretas, bloqueio, E2EE, mídia e cofre social', async (t) => {
   const config = readWebConfiguration(process.env);
   if (!new URL(config.databaseUrl).pathname.startsWith('/hash_talk_test'))
     throw new Error('Banco exclusivo de testes necessário.');
@@ -170,7 +170,7 @@ await test('cortes 7–8: consentimento, E2EE, mídia e cofre social', async (t)
       deviceName: 'Aparelho de DMs',
     });
   await t.test(
-    'contato privado não dá consentimento social; pedido não contém dados privados',
+    'DM pública abre sem aceite/follow e sem revelar dados do contato privado',
     async () => {
       await inspector.query(
         "INSERT INTO hash_talk.contact_relations(lo,hi,requester,state) VALUES(least($1::uuid,$2::uuid),greatest($1::uuid,$2::uuid),$1,'approved')",
@@ -181,9 +181,14 @@ await test('cortes 7–8: consentimento, E2EE, mídia e cofre social', async (t)
         { status: 403 },
       );
       const requested = socialRelation(
-        await operate(alice, 'request', { peer: bp.id }),
+        await operate(alice, 'open', { peer: bp.id }),
       );
-      assert.equal(requested.canSend, false);
+      assert.equal(requested.canSend, true);
+      assert.equal(requested.state, 'approved');
+      assert.equal(
+        socialRelation(await operate(bob, 'state', { peer: ap.id })).canSend,
+        true,
+      );
       assert.equal(
         socialRelation(await operate(alice, 'request', { peer: bp.id }))
           .revision,
@@ -197,8 +202,8 @@ await test('cortes 7–8: consentimento, E2EE, mídia e cofre social', async (t)
       ])
         assert.equal(JSON.stringify(requested).includes(value), false);
       await assert.rejects(
-        operate(alice, 'decide', { peer: bp.id, revision: 1, accept: true }),
-        { status: 403 },
+        operate(bob, 'decide', { peer: ap.id, revision: 1, accept: false }),
+        { status: 409 },
       );
       await operate(bob, 'decide', { peer: ap.id, revision: 1, accept: true });
       await operate(bob, 'decide', { peer: ap.id, revision: 1, accept: true });
@@ -206,6 +211,35 @@ await test('cortes 7–8: consentimento, E2EE, mídia e cofre social', async (t)
         socialRelation(await operate(alice, 'state', { peer: bp.id })).canSend,
         true,
       );
+    },
+  );
+  await t.test(
+    'pedidos/recusas antigos abrem uma vez, inclusive com abertura simultânea',
+    async () => {
+      for (const state of ['pending', 'rejected']) {
+        await inspector.query(
+          'UPDATE hash_talk.social_relations SET state=$3,revision=revision+1 WHERE lo=least($1::uuid,$2::uuid) AND hi=greatest($1::uuid,$2::uuid)',
+          [ap.id, bp.id, state],
+        );
+        const previous = socialRelation(
+          await operate(alice, 'state', { peer: bp.id }),
+        );
+        assert.equal(previous.canSend, true);
+        const opened = await Promise.all([
+          operate(alice, 'open', { peer: bp.id }).then(socialRelation),
+          operate(bob, 'open', { peer: ap.id }).then(socialRelation),
+        ]);
+        for (const row of opened) {
+          assert.equal(row.canSend, true);
+          assert.equal(row.state, 'approved');
+          assert.equal(row.revision, previous.revision + 1);
+        }
+        assert.equal(
+          socialRelation(await operate(alice, 'open', { peer: bp.id }))
+            .revision,
+          previous.revision + 1,
+        );
+      }
     },
   );
   await t.test(
@@ -964,15 +998,13 @@ await test('cortes 7–8: consentimento, E2EE, mídia e cofre social', async (t)
       assert.equal(
         socialPage(await operate(alice, 'list', { after: null })).items[0]
           ?.canSend,
-        false,
+        true,
       );
       const fresh = socialRelation(
         await operate(bob, 'request', { peer: ap.id }),
       );
-      await assert.rejects(
-        operate(bob, 'decide', { peer: ap.id, revision: 1, accept: true }),
-        { status: 403 },
-      );
+      assert.equal(fresh.canSend, true);
+      assert.equal(fresh.state, 'approved');
       await operate(alice, 'decide', {
         peer: bp.id,
         revision: fresh.revision,
@@ -981,7 +1013,7 @@ await test('cortes 7–8: consentimento, E2EE, mídia e cofre social', async (t)
     },
   );
   await t.test(
-    'capacidade global recusa nova solicitação sem efeito parcial',
+    'capacidade global recusa nova conversa sem efeito parcial',
     async () => {
       const small = new Database(config.databaseUrl, 1),
         service = new MessageService(small, small.devices);
