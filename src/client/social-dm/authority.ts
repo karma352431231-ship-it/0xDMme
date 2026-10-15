@@ -1,4 +1,3 @@
-import { t } from '../../shared/i18n/index.ts';
 import { object, uuid } from '../../shared/account/index.ts';
 import {
   canonical,
@@ -8,7 +7,10 @@ import {
   verifyHistory,
 } from '../../shared/devices/index.ts';
 import type { DirectoryEvent } from '../../shared/devices/index.ts';
-import { socialDirectory } from '../../shared/social-dm/index.ts';
+import {
+  socialDeviceName,
+  socialDirectory,
+} from '../../shared/social-dm/index.ts';
 import {
   aesKey,
   createRecovery,
@@ -22,6 +24,7 @@ import {
 } from '../device-operations/index.ts';
 import {
   localIdentity,
+  nameIdentity,
   readCheckpoint,
   saveCheckpoint,
 } from '../device-storage/index.ts';
@@ -114,6 +117,13 @@ export async function pinSocialHistory(
   if (events.length > old.events.length)
     await saveCheckpoint(profile, { events, trustedRoot });
 }
+async function localSocialIdentity(profile: string, alias: string) {
+  const identity = await localIdentity(profile, alias, socialDeviceName);
+  if (identity.public.name === socialDeviceName) return identity;
+  // Failed localized registrations may have saved keys. Correct only local
+  // metadata before signing; keep those keys and all signed history intact.
+  return nameIdentity(profile, identity, socialDeviceName);
+}
 /** Reuses the established signed directory and key encapsulation, never private peer data. */
 export async function socialAuthority(input: {
   privateAuthority: VaultAuthority;
@@ -124,11 +134,7 @@ export async function socialAuthority(input: {
 }): Promise<VaultAuthority> {
   const { directory, secret, api } = input,
     profile = directory.profile;
-  let identity = await localIdentity(
-      profile,
-      input.alias,
-      t('Aparelho de DMs'),
-    ),
+  let identity = await localSocialIdentity(profile, input.alias),
     current = directory.events.at(-1) ?? null;
   const events = [...directory.events];
   let ring;
@@ -157,11 +163,7 @@ export async function socialAuthority(input: {
     )
   ) {
     if (current.devices.some((d) => d.id === identity.public.id))
-      identity = await localIdentity(
-        profile,
-        crypto.randomUUID(),
-        t('Aparelho de DMs'),
-      );
+      identity = await localSocialIdentity(profile, crypto.randomUUID());
     const recovered = await recoverSecrets(current, secret);
     ring = freshKeyring(profile, recovered.ring);
     const retained = current.devices.filter(
