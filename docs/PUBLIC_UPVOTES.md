@@ -87,3 +87,30 @@ executor to the reviewed full sources, preserves all prior rows/objects/checksum
 uses backup/restore rehearsal and requires exact-commit full main CI. Approval and
 source synchronization do not establish activation; require the published receipt,
 served hashes and readiness. See the [activation contract](GIT_E_DEPLOY.md#public-upvotes-and-author-identity--activation-authorized-on-15102026).
+
+## GIF previews in Activity — 15/10/2026
+
+Upvote and mention excerpts now use the same consent-aware GIF presentation as
+publication/reply notices. Approved KLIPY media links render as compact animations
+below the current text excerpt; displayed media links are hidden by the existing
+renderer. Unknown links remain text. Denied/revoked external-media consent keeps
+the established link/permission fallback. The reader's account choice, three-GIF
+budget and refresh/navigation/session cancellation remain unchanged.
+
+Only the caption is clamped to three lines. Its media container stays visible,
+with the existing 220 px maximum GIF size. No notification data, migration,
+dependency or provider contract changes. The Activity coordinator remains a
+hotspot; this repair connects existing preview ownership rather than adding a
+new rendering lifecycle to its closure. The separate extraction proposal above
+still applies. Validate consent, fallback, URL omission, visible media bounds,
+read/navigation and cleanup in both app languages and mobile/desktop layouts.
+
+Local validation passed 25 targeted notification/GIF/consent tests and six
+synthetic browser combinations (English/Chinese, 320/390/1280 px). The browser
+verified GIFs in all three notice types, hidden loaded URLs, 220 px bounds,
+unclipped media below clamped captions, denied/revoked consent without provider
+requests, cancellation on leave and no horizontal overflow. Lint, types,
+boundaries, formatting, localization and the 48-asset build passed. This repair
+changes only client code/styles, one regression test and documentation; published
+database sources, all 68 migrations, dependencies and deployment guards remain
+unchanged. Branch CI/source delivery does not establish VPS activation.

@@ -591,6 +591,7 @@ export function startActivity(
           t('Menções a você'),
           snapshot.mentions,
           mentionRows(snapshot.mentions.items, {
+            preview: (text) => publicationPreview.text(text),
             signal: publicationPreview.signal,
             open: async (id) => {
               if (!sources.markMentionsRead)
@@ -620,6 +621,7 @@ export function startActivity(
           t('upvote.heading'),
           snapshot.upvotes,
           upvoteRows(snapshot.upvotes.items, {
+            preview: (text) => publicationPreview.text(text),
             signal: publicationPreview.signal,
             current: () =>
               current === generation && host !== null && session !== null,

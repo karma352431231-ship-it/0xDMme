@@ -9,13 +9,14 @@ export function mentionRows(
     open: (id: string) => Promise<void>;
     current: () => boolean;
     signal: AbortSignal;
+    preview: (text: string) => HTMLElement;
   },
 ): HTMLElement[] {
   return items.map((item) => {
     const row = document.createElement('li'),
       copy = document.createElement('div'),
       title = document.createElement('strong'),
-      text = document.createElement('p'),
+      text = actions.preview(item.text),
       detail = document.createElement('small'),
       controls = document.createElement('div');
     row.className = 'activity-row';
@@ -23,8 +24,6 @@ export function mentionRows(
     copy.className = 'activity-copy';
     controls.className = 'activity-actions';
     title.textContent = t('@{0} mencionou você', [item.actor.handle]);
-    text.className = 'activity-quote';
-    text.textContent = item.text;
     const labels = {
       post: t('em uma postagem'),
       reply: t('em uma resposta'),
