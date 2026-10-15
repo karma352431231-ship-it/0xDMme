@@ -285,15 +285,15 @@ await test('seta do post volta à lista de origem; sem origem, à comunidade', (
   const community = crypto.randomUUID();
   assert.equal(
     postReturnTarget('view=feed', community),
-    '#comunidades?view=feed',
+    '#communities?view=feed',
   );
   assert.equal(
     postReturnTarget('view=explore&period=week', community),
-    '#comunidades?view=explore&period=week',
+    '#communities?view=explore&period=week',
   );
   assert.equal(
     postReturnTarget(null, community),
-    `#comunidades?id=${community}`,
+    `#communities?id=${community}`,
   );
 });
 

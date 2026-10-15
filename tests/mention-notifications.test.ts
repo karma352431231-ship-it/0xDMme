@@ -28,7 +28,7 @@ await test('menções validam contexto público e destinos próprios sem campos 
   assert.deepEqual(result.items, [item]);
   assert.equal(
     mentionNotificationHref(result.items[0]!),
-    `#comunidades?id=${item.source.community}&post=${item.source.id}`,
+    `#communities?id=${item.source.community}&post=${item.source.id}`,
   );
   for (const kind of ['profile', 'community'] as const) {
     const note = { ...item, source: { ...item.source, kind, community: null } };
@@ -37,8 +37,8 @@ await test('menções validam contexto público e destinos próprios sem campos 
         mentionNotificationPage({ items: [note], next: null }).items[0]!,
       ),
       kind === 'profile'
-        ? `#publico?id=${item.source.id}`
-        : `#comunidades?id=${item.source.id}`,
+        ? `#users?id=${item.source.id}`
+        : `#communities?id=${item.source.id}`,
     );
   }
   for (const invalid of [

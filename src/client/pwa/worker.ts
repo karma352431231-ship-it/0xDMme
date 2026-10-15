@@ -259,7 +259,7 @@ function notificationAppearance(data: object): {
       body: preview.text || t('Nova publicação com mídia.'),
       tag: '0xdmme-public-activity',
       data: {
-        href: `/#comunidades?id=${preview.community}&post=${preview.post}`,
+        href: `/#communities?id=${preview.community}&post=${preview.post}`,
       },
     };
   }
@@ -283,8 +283,13 @@ function notificationHref(data: unknown): string {
       ? data.href
       : '';
   const publicPost =
-    /^\/#comunidades\?id=[a-f0-9-]{36}&post=[a-f0-9-]{36}$/u.test(href);
-  return new URL(publicPost ? href : '/#conversas', scope.location.origin).href;
+    /^\/#(?:comunidades|communities)\?id=[a-f0-9-]{36}&post=[a-f0-9-]{36}$/u.test(
+      href,
+    );
+  return new URL(
+    publicPost ? href.replace('/#comunidades', '/#communities') : '/#chats',
+    scope.location.origin,
+  ).href;
 }
 scope.addEventListener('notificationclick', (event) => {
   event.notification.close();
@@ -299,7 +304,7 @@ scope.addEventListener('notificationclick', (event) => {
         (client) => new URL(client.url).origin === scope.location.origin,
       );
       if (existing) {
-        if (url.includes('#comunidades'))
+        if (url.includes('#communities'))
           existing.postMessage({
             type: 'OPEN_PUBLIC_POST',
             hash: new URL(url).hash,

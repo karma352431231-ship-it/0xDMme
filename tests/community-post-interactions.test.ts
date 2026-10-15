@@ -262,8 +262,8 @@ await test('resposta no perfil é marcada como resposta e mostra inteira a posta
   assert.deepEqual(
     links.map((node) => node?.href),
     [
-      `#comunidades?id=${root.community}&post=${answered.id}`,
-      `#comunidades?id=${root.community}&post=${root.id}`,
+      `#communities?id=${root.community}&post=${answered.id}`,
+      `#communities?id=${root.community}&post=${root.id}`,
     ],
   );
   // The answered post comes before the reply's own text.
@@ -302,7 +302,7 @@ await test('atividade do perfil apresenta título, conteúdo e depois tag, conse
   assert.deepEqual(
     card.children[tag]?.children.map((node) => node.href),
     value.tags.map(
-      (item) => `#comunidades?id=${value.community}&tag=${item.id}`,
+      (item) => `#communities?id=${value.community}&tag=${item.id}`,
     ),
   );
 });

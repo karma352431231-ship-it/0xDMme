@@ -76,7 +76,7 @@ export function profileCommunities(
     }
     for (const group of loaded.slice(0, compactCount)) {
       const link = element('a', '', 'profile-community-photo');
-      link.href = `#comunidades?id=${group.id}`;
+      link.href = `#communities?id=${group.id}`;
       link.title = group.name;
       link.setAttribute('aria-label', group.name);
       link.append(avatar(group));
@@ -124,7 +124,7 @@ export function profileCommunities(
 function row(group: Community, avatar: HTMLElement): HTMLLIElement {
   const item = element('li');
   const link = element('a', '', 'profile-community-row');
-  link.href = `#comunidades?id=${group.id}`;
+  link.href = `#communities?id=${group.id}`;
   link.append(avatar, element('span', group.name));
   item.append(link);
   return item;

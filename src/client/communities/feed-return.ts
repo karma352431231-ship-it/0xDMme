@@ -26,7 +26,9 @@ function navigationLink(event: MouseEvent): HTMLAnchorElement | null {
     event.altKey
   )
     return null;
-  return event.target.closest<HTMLAnchorElement>('a[href^="#comunidades"]');
+  return event.target.closest<HTMLAnchorElement>(
+    'a[href^="#communities"], a[href^="#comunidades"]',
+  );
 }
 export function feedScroller(container: HTMLElement): HTMLElement {
   let node: HTMLElement | null = container;
@@ -131,7 +133,7 @@ export class FeedReturn {
   }
   target(): string | null {
     return this.saved
-      ? `#comunidades?view=${this.saved.view}&return=feed`
+      ? `#communities?view=${this.saved.view}&return=feed`
       : null;
   }
   take(params: URLSearchParams): FeedBookmark | null {

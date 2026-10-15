@@ -22,7 +22,7 @@ await test('abrir post conserva página, filtros e posição; retorno é consumi
     navigation.take(new URLSearchParams('id=comunidade&post=post')),
     null,
   );
-  assert.equal(navigation.target(), '#comunidades?view=following&return=feed');
+  assert.equal(navigation.target(), '#communities?view=following&return=feed');
   assert.deepEqual(
     navigation.take(new URLSearchParams('view=following')),
     bookmark,

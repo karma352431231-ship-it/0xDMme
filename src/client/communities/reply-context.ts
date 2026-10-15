@@ -18,7 +18,7 @@ interface Place {
   name: string;
 }
 const postHref = (post: CommunityPost) =>
-  `#comunidades?id=${post.community}&post=${post.id}`;
+  `#communities?id=${post.community}&post=${post.id}`;
 
 /** “↩ Resposta” chip in a reply's header, so replies never pass for posts. */
 export function markReply(card: HTMLElement): void {

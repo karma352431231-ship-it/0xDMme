@@ -140,7 +140,7 @@ export function postVoting(
           }),
         )
       : el('a');
-    if (node instanceof HTMLAnchorElement) node.href = '#perfil';
+    if (node instanceof HTMLAnchorElement) node.href = '#settings';
     node.setAttribute(
       'aria-label',
       actions ? title : t('Entre pelo Perfil para votar'),

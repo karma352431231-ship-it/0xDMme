@@ -1,8 +1,23 @@
 /** Desktop panel arrangement (docs/UI_PAINEIS_E_TEMAS.md); a device-only preference. */
+import { appRoute } from '../../shared/app-routes/index.ts';
+import {
+  communityTarget,
+  panelLayouts,
+  splitTarget,
+  splitHref,
+  standalonePanelHref,
+  samePanelTarget,
+  isPlainNavigationClick,
+} from './panel-route.ts';
+import type {
+  PanelLayout,
+  CommunityTarget,
+  PublicChatTarget,
+} from './panel-route.ts';
+export { communityTarget, panelLayouts } from './panel-route.ts';
+export type { PanelLayout, CommunityTarget } from './panel-route.ts';
 export const layoutPreferenceKey = '0xdmme:layout';
-export const panelLayouts = ['all', 'nochat', 'solo'] as const;
 /** all: Contatos | Conversa | Feed · nochat: Contatos | Feed · solo: Contatos | Conversa. */
-export type PanelLayout = (typeof panelLayouts)[number];
 
 /** Attributes that mark clickable layout controls. */
 export const panelControlAttributes = [
@@ -46,29 +61,6 @@ export function toggledChat(layout: PanelLayout): PanelLayout {
   return layout === 'nochat' ? 'all' : 'nochat';
 }
 
-export type CommunityTarget =
-  | { kind: 'dm'; id: string | null; local: boolean }
-  | { kind: 'feed'; params: URLSearchParams }
-  | { kind: 'profile'; handle: string };
-
-/** Reads in-app community and public profile links so panels can open them without leaving the workspace. */
-export function communityTarget(href: string): CommunityTarget | null {
-  const [path, query = ''] = href.split('?');
-  const params = new URLSearchParams(query);
-  if (path === '#publico') {
-    const handle = params.get('id') ?? params.get('handle');
-    return handle ? { kind: 'profile', handle } : null;
-  }
-  if (path !== '#comunidades') return null;
-  if (params.get('view') === 'dms')
-    return {
-      kind: 'dm',
-      id: params.get('dm'),
-      local: params.get('history') === 'local',
-    };
-  return { kind: 'feed', params };
-}
-
 /** Community operations the workspace needs; the module keeps its own state and requests. */
 export interface PanelCommunities {
   mountFeed: (container: HTMLElement, params: URLSearchParams) => void;
@@ -102,6 +94,8 @@ export function startPanels(input: {
   let feedParams = new URLSearchParams('view=feed');
   let closeProfile: (() => void) | null = null;
   let directoryGeneration = 0;
+  let panelTarget: CommunityTarget = { kind: 'feed', params: feedParams };
+  let publicTarget: PublicChatTarget | null = null;
 
   function save(next: PanelLayout): void {
     layout = next;
@@ -133,7 +127,8 @@ export function startPanels(input: {
       });
     if (feedVisible() && !feedMounted) {
       feedMounted = true;
-      showFeed(feedParams);
+      if (panelTarget.kind === 'profile') showProfile(panelTarget.handle);
+      else showFeed(feedParams);
     } else if (!feedVisible() && feedMounted) {
       feedMounted = false;
       leaveProfile();
@@ -148,6 +143,7 @@ export function startPanels(input: {
   function showFeed(params: URLSearchParams): void {
     leaveProfile();
     feedParams = params;
+    panelTarget = { kind: 'feed', params };
     communities.mountFeed(feedBody, params);
     markFeedTab();
   }
@@ -156,6 +152,7 @@ export function startPanels(input: {
     leaveProfile();
     communities.leaveFeed();
     closeProfile = communities.showProfile(feedBody, handle);
+    panelTarget = { kind: 'profile', handle };
     markFeedTab(null);
   }
   function setScope(scope: Scope): void {
@@ -179,9 +176,44 @@ export function startPanels(input: {
     );
   }
   function openPublic(id: string | null, local: boolean): void {
+    publicTarget = { id, local };
     shell.dataset['chatScope'] = 'public';
     communities.openDm(publicChat, id, local);
     save(withChat(layout));
+  }
+  function closePublic(): void {
+    if (shell.dataset['chatScope'] === 'public') communities.closeDm();
+    publicTarget = null;
+    shell.dataset['chatScope'] = 'private';
+  }
+  function restorePublic(dm: PublicChatTarget | null): void {
+    if (!dm) {
+      closePublic();
+      return;
+    }
+    if (!split.matches) return;
+    if (dm.id !== publicTarget?.id || dm.local !== publicTarget.local)
+      openPublic(dm.id, dm.local);
+  }
+  function readPanelRoute(): ReturnType<typeof splitTarget> | false {
+    const standalone = standalonePanelHref(
+      location.hash,
+      wide.matches,
+      split.matches,
+    );
+    if (standalone) {
+      location.hash = standalone;
+      return false;
+    }
+    const target = splitTarget(location.hash);
+    if (target) layout = target.layout;
+    else if (appRoute(location.hash)?.params.get('layout') === 'chat')
+      layout = 'solo';
+    if (target) {
+      panelTarget = target.target;
+      if (target.target.kind === 'feed') feedParams = target.target.params;
+    }
+    return target;
   }
   function click(event: MouseEvent): void {
     if (!(event.target instanceof Element)) return;
@@ -200,8 +232,9 @@ export function startPanels(input: {
       return;
     }
     const link = event.target.closest<HTMLAnchorElement>(
-      'a[href^="#comunidades"], a[href^="#publico"]',
+      'a[href^="#comunidades"], a[href^="#publico"], a[href^="#communities"], a[href^="#users"]',
     );
+    if (link && !isPlainNavigationClick(event)) return;
     if (link && page === 'conversas' && openInPanel(link))
       event.preventDefault();
   }
@@ -213,12 +246,16 @@ export function startPanels(input: {
     if (!feedMounted) return false;
     // A profile opens beside the chat from the feed or from a public DM.
     if (target.kind === 'profile') {
-      showProfile(target.handle);
+      location.hash = splitHref({
+        layout: withChat(layout),
+        target,
+        dm: publicTarget,
+      });
       return true;
     }
     if (!feedBody.contains(link) && !link.hasAttribute('data-feed-tab'))
       return false;
-    showFeed(target.params);
+    location.hash = splitHref({ layout, target, dm: publicTarget });
     return true;
   }
   function openDmInPanel(target: {
@@ -227,6 +264,11 @@ export function startPanels(input: {
   }): boolean {
     if (!split.matches) return false;
     openPublic(target.id, target.local);
+    location.hash = splitHref({
+      layout: withChat(layout),
+      target: panelTarget,
+      dm: publicTarget,
+    });
     return true;
   }
   /** `null` marks no tab: the panel shows a profile, not a feed section. */
@@ -250,37 +292,72 @@ export function startPanels(input: {
     }
     const mode = control.dataset['layoutMode'];
     if (mode === 'all' || mode === 'solo') {
-      save(mode);
-      if (page !== 'conversas') location.hash = '#conversas';
-    } else if (control.hasAttribute('data-chat-collapse')) save('nochat');
-    else if (control.hasAttribute('data-chat-split')) save(toggledChat(layout));
-    else if (control.hasAttribute('data-feed-collapse')) save('solo');
+      location.hash = splitHref({
+        layout: mode,
+        target: panelTarget,
+        dm: publicTarget,
+      });
+      return;
+    }
+    let next = layout;
+    if (control.hasAttribute('data-chat-collapse')) next = 'nochat';
+    else if (control.hasAttribute('data-chat-split'))
+      next = toggledChat(layout);
+    else if (control.hasAttribute('data-feed-collapse')) next = 'solo';
+    location.hash = splitHref({
+      layout: next,
+      target: panelTarget,
+      dm: publicTarget,
+    });
   }
   document.addEventListener('click', click);
   wide.addEventListener('change', apply);
   setScope('private');
   shell.dataset['chatScope'] = 'private';
   apply();
+  function publishAddress(): void {
+    if (
+      !wide.matches ||
+      splitTarget(location.hash) ||
+      page !== 'conversas' ||
+      layout === 'solo'
+    )
+      return;
+    history.replaceState(
+      null,
+      '',
+      splitHref({ layout, target: panelTarget, dm: publicTarget }),
+    );
+  }
   return {
     /** Called after each route; the route already left any feed it had mounted. */
     routed(next: string): void {
+      const previous = panelTarget,
+        previousPage = page;
+      const target = readPanelRoute();
+      if (target === false) return;
       page = next;
-      feedMounted = false;
-      leaveProfile();
-      if (page !== 'conversas' && shell.dataset['chatScope'] === 'public') {
-        // A hidden public chat must not keep polling after leaving the workspace.
-        communities.closeDm();
-        shell.dataset['chatScope'] = 'private';
+      if (previousPage !== page || !samePanelTarget(previous, panelTarget)) {
+        feedMounted = false;
+        leaveProfile();
       }
-      apply();
+      if (page !== 'conversas') closePublic();
+      save(layout);
+      if (target) restorePublic(target.dm);
+      publishAddress();
       if (page === 'conversas' && shell.dataset['contactScope'] === 'public')
         void renderPublicDirectory();
     },
     /** A private chat or group was opened from the list or from elsewhere. */
     privateChatOpened(): void {
+      publicTarget = null;
       if (shell.dataset['chatScope'] === 'public') communities.closeDm();
       shell.dataset['chatScope'] = 'private';
       save(withChat(layout));
+      const href = wide.matches
+        ? splitHref({ layout, target: panelTarget, dm: null })
+        : '#chats';
+      if (location.hash !== href) location.hash = href;
     },
     sessionChanged(): void {
       if (shell.dataset['contactScope'] === 'public')

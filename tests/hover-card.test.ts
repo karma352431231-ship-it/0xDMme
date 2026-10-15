@@ -120,7 +120,7 @@ await test('prévia de menção por UUID mantém identidade estável e recusa @ 
   } as unknown as import('../src/client/public-profile/controller.ts').PublicProfiles);
   const link = (target: string) => {
     const node = new CommunityNode('a');
-    node.setAttribute('href', `#publico?id=${target}`);
+    node.setAttribute('href', `#users?id=${target}`);
     return node as unknown as HTMLAnchorElement;
   };
   try {
@@ -140,7 +140,7 @@ await test('prévia de menção por UUID mantém identidade estável e recusa @ 
             (node) => node.className === 'hover-card-title',
           ) as unknown as HTMLAnchorElement
         ).href,
-      `#publico?id=${id}`,
+      `#users?id=${id}`,
     );
     await assert.rejects(
       provider(link(removed))!(

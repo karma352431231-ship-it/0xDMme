@@ -108,7 +108,7 @@ export function postHeader(
     link(
       identity,
       `@${post.author.handle}`,
-      `#publico?handle=${encodeURIComponent(post.author.handle)}`,
+      `#users?handle=${encodeURIComponent(post.author.handle)}`,
     );
     identity.lastElementChild?.classList.add('community-post-author');
     authorBadges(identity, post);
@@ -116,7 +116,7 @@ export function postHeader(
     identity.append(el('span', t('Conta removida'), 'community-post-author'));
   const byline = el('div', '', 'community-post-byline');
   if (context === 'feed') {
-    link(byline, group.name, `#comunidades?id=${group.id}`);
+    link(byline, group.name, `#communities?id=${group.id}`);
     byline.lastElementChild?.classList.add('community-post-community');
   }
   const time = el(
@@ -154,7 +154,7 @@ function authorAvatar(post: CommunityPost): HTMLElement {
   if (post.author) {
     avatar.setAttribute(
       'href',
-      `#publico?handle=${encodeURIComponent(post.author.handle)}`,
+      `#users?handle=${encodeURIComponent(post.author.handle)}`,
     );
     avatar.setAttribute(
       'aria-label',
@@ -172,7 +172,7 @@ export function postComments(
   post: CommunityPost,
 ): void {
   const a = el('a', '', 'post-action post-comments');
-  a.href = `#comunidades?id=${post.community}&post=${post.id}`;
+  a.href = `#communities?id=${post.community}&post=${post.id}`;
   a.setAttribute(
     'aria-label',
     t('Abrir postagem e {0} respostas diretas', [post.replies]),
@@ -189,7 +189,7 @@ export function postTagLink(node: HTMLElement, post: CommunityPost): void {
   if (!post.tags.length) return;
   const row = el('div', '', 'post-tags');
   for (const tag of post.tags) {
-    link(row, tag.label, `#comunidades?id=${post.community}&tag=${tag.id}`);
+    link(row, tag.label, `#communities?id=${post.community}&tag=${tag.id}`);
     row.lastElementChild?.classList.add('post-tag');
   }
   node.append(row);

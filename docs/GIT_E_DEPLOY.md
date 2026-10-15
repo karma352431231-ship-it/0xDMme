@@ -1,5 +1,24 @@
 # 0xDMme — Git e envio à VPS
 
+## Foto privada e URLs — ativação autorizada em 15/10/2026
+
+Após a entrega de `0455607`, o proprietário pediu integrar à main e ativar na
+VPS. Integrar somente este lote, mantendo os demais trabalhos pendentes fora da
+release. Exigir CI integral do commit exato integrado e enviado e publicar pelo
+`npm run deploy:staging` existente, com build local, preservação, prontidão dos
+serviços próprios, hashes públicos/fontes e rollback.
+
+As alterações são de cliente, regras compartilhadas de links, testes e
+documentação. Conservar backend, as 69 migrações, dependências, Node, modelos,
+unidades e configurações instaladas. Nenhuma mudança de serviço compartilhado
+ou de infraestrutura faz parte desta autorização. Acesso, artefatos e recibos
+ficam exclusivamente em `.local/`.
+
+**Ponto importante:** exigir recibo `published` e versão servida conferida. Foto
+privada passa a salvar automaticamente; nome e privacidade continuam exigindo
+confirmação. Links antigos continuam válidos, e conversa privada não entra na
+URL. O aceite com conta real em celular físico continua pendente. [Contrato](PERFIL_PRIVADO_E_ROTAS.md).
+
 ## Boot de contatos e conversas — ativação autorizada em 15/10/2026
 
 Após a CI integral de `9be4698`, o proprietário pediu enviar à main e ativar

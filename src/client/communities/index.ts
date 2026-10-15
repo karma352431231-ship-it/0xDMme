@@ -215,7 +215,7 @@ export function startCommunities(
       const a = communityElement('a', '', 'community-row-link'),
         avatar = communityAvatar(item.name),
         copy = communityElement('span', '', 'community-row-copy');
-      a.href = `#comunidades?id=${item.id}`;
+      a.href = `#communities?id=${item.id}`;
       if (item.id === selected) a.setAttribute('aria-current', 'page');
       copy.append(
         communityElement('strong', item.name),
@@ -330,7 +330,7 @@ export function startCommunities(
         ['replies', t('Respostas')],
         ['create', t('Criar comunidade')],
       ] as const)
-        communityLink(links, label, `#comunidades?view=${key}`);
+        communityLink(links, label, `#communities?view=${key}`);
       card.append(links);
     }
     rows(card, page);
@@ -380,7 +380,7 @@ export function startCommunities(
       request: (operation, data) => controller.request(operation, data),
       current: () => old === generation,
       open: (id) => {
-        location.hash = `#comunidades?id=${id}`;
+        location.hash = `#communities?id=${id}`;
       },
     });
   }
@@ -438,7 +438,7 @@ export function startCommunities(
     const about = communityAbout(value);
     if (about) hero.append(about);
     if (!state) {
-      communityLink(head, t('Entre pelo Perfil para participar'), '#perfil');
+      communityLink(head, t('Entre pelo Perfil para participar'), '#settings');
       return;
     }
     participant(head, state);
@@ -499,7 +499,7 @@ export function startCommunities(
     arrow.href = href;
     arrow.title = t('Voltar');
     arrow.setAttribute('aria-label', t('Voltar'));
-    identity.href = `#comunidades?id=${value.id}`;
+    identity.href = `#communities?id=${value.id}`;
     identity.append(avatar, communityElement('span', value.name));
     header.append(arrow, identity);
     publicPhoto(avatar, value);
@@ -579,7 +579,7 @@ export function startCommunities(
   function manageScreen(value: Community, own: CommunityState): void {
     if (!mounted) return;
     mounted.dataset['communityLayout'] = 'manage';
-    const back = backHeader(value, `#comunidades?id=${value.id}`);
+    const back = backHeader(value, `#communities?id=${value.id}`);
     const management = communityElement('section', '', 'community-manage');
     management.append(communityElement('h1', t('Gerenciar comunidade')));
     mounted.append(back, management);
@@ -640,7 +640,7 @@ export function startCommunities(
         header.replaceWith(
           backHeader(
             result.community,
-            `#comunidades?id=${result.community.id}`,
+            `#communities?id=${result.community.id}`,
           ),
         );
       }

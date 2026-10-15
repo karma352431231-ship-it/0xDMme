@@ -166,12 +166,18 @@ async function page(approval: boolean, userAgent: string, hash = '#conversas') {
     },
     Daily: class {},
   });
+  const location = { hash: approval ? '#configuracoes' : hash };
   runInNewContext(source, {
     fixture,
     document,
     window: new EventTarget(),
     navigator: { onLine: true, userAgent },
-    location: { hash: approval ? '#configuracoes' : hash },
+    location,
+    history: {
+      replaceState: (_state: unknown, _unused: string, value: string) => {
+        location.hash = value;
+      },
+    },
     matchMedia: () => Object.assign(new EventTarget(), { matches: !approval }),
     localStorage: { getItem: () => null, setItem: () => {} },
     URLSearchParams,

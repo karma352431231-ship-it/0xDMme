@@ -15,7 +15,7 @@ export function startGroupEntrypoints(options: GroupEntrypoints): {
       options.join(pending);
       pending = '';
       if (location.hash.startsWith('#grupo='))
-        history.replaceState(null, '', '#conversas');
+        history.replaceState(null, '', '#chats');
     } catch (error: unknown) {
       showError(error);
     }

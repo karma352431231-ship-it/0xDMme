@@ -105,7 +105,7 @@ export function startProfileEditor(
     if (handle) handle.textContent = `@${own.profile.handle}`;
     const page = node<HTMLAnchorElement>('[data-public-page]');
     if (page)
-      page.href = `#publico?handle=${encodeURIComponent(own.profile.handle)}`;
+      page.href = `#users?handle=${encodeURIComponent(own.profile.handle)}`;
     paintBanner();
     paintAvatar();
     paintDescription();

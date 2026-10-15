@@ -407,7 +407,7 @@ await test('push revalida mute/sessão, ignora conteúdo recebido e abre somente
     },
   });
   assert.equal(closed, true);
-  assert.deepEqual(scope.opened, [scope.origin + '/#conversas']);
+  assert.deepEqual(scope.opened, [scope.origin + '/#chats']);
   for (const options of [
     { pushAllowed: false },
     { pushAllowed: true, pushCheckFails: true },
@@ -530,8 +530,17 @@ await test('push público mostra autor e prévia validada, com símbolo monocrom
     notification: { close() {}, data: notification.options.data as unknown },
   });
   assert.deepEqual(scope.opened, [
-    `${scope.origin}/#comunidades?id=${publicPreview.community}&post=${publicPreview.post}`,
+    `${scope.origin}/#communities?id=${publicPreview.community}&post=${publicPreview.post}`,
   ]);
+  await scope.dispatch('notificationclick', {
+    notification: {
+      close() {},
+      data: {
+        href: `/#comunidades?id=${publicPreview.community}&post=${publicPreview.post}`,
+      },
+    },
+  });
+  assert.equal(scope.opened[1], scope.opened[0]);
   const blocked = await worker({ pushAllowed: false, publicPreview });
   await blocked.dispatch('push');
   assert.equal(blocked.notifications.length, 0);

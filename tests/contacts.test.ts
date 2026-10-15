@@ -98,7 +98,11 @@ await test('convite fica no fragmento, não autoriza dispositivo e rejeita orige
   const invite = { owner: accountId, token: 'a'.repeat(64) };
   const link = invitationLink('https://0xdmme.app', invite);
   assert.equal(new URL(link).search, '');
+  assert.match(new URL(link).hash, /^#contacts\?invite=/u);
   assert.deepEqual(readInvitation(link, 'https://0xdmme.app'), invite);
+  const legacy = link.replace('#contacts?invite=', '#contatos?convite=');
+  assert.deepEqual(readInvitation(legacy, 'https://0xdmme.app'), invite);
+  assert.equal(readQrPayload(legacy, 'invitation'), legacy);
   assert.throws(() =>
     readInvitation(
       link.replace('0xdmme.app', 'outro.app'),

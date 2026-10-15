@@ -7,6 +7,7 @@ import { promisify } from 'node:util';
 const execute = promisify(execFile);
 const authored = [
   'src/shared/i18n',
+  'src/shared/app-routes',
   'src/client/language',
   'src/client/language-record',
   'src/client/vault-labels',

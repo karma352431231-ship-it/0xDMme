@@ -1,5 +1,11 @@
 # Perfil e configurações — revisão solicitada em 07/10/2026
 
+**Revisão de 15/10/2026:** foto privada passa a salvar automaticamente ao escolher
+ou remover; nome e privacidade ainda exigem confirmação. As categorias têm URLs
+`#settings?section=<id>`, com os links anteriores compatíveis. A decisão substitui
+somente o rascunho de foto descrito nas revisões históricas abaixo. [Contrato,
+validação e limites](PERFIL_PRIVADO_E_ROTAS.md).
+
 O proprietário pediu enxugar a tela no browser e mobile e mover os links privados de convite para a nova aba Contatos. Perfil e Configurações continuam reunidos; a revisão organiza a apresentação sem alterar regras de conta, descoberta ou recuperação.
 
 - Foto, nome, wallet e cópia permanecem no topo. Editar nome e preferências privadas usa uma seção compacta na mesma tela.

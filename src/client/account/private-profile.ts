@@ -10,7 +10,6 @@ import {
   encodePrivateProfile,
   openProfile,
   profileKey,
-  sealProfile,
   PrivatePhotoDraft,
   PrivatePreferencesDraft,
 } from '../account-profile/index.ts';
@@ -20,6 +19,8 @@ import type {
 } from '../account-profile/index.ts';
 import { api, node } from './core.ts';
 import type { AccountCore } from './core.ts';
+import { writePrivateProfile } from './private-profile-write.ts';
+import { savePrivatePhoto } from './private-photo-save.ts';
 
 export interface ProfileOptions {
   privacyChanged?: (preferences: ProfilePreferences) => Promise<void>;
@@ -156,9 +157,10 @@ export class AccountPrivateProfile {
   }
   bind(): void {
     this.find('[data-private-photo-remove]')?.addEventListener('click', () => {
-      this.photoDraft.remove();
-      this.dirtyProfile = true;
-      this.host.render();
+      void this.changePhoto(() => {
+        this.photoDraft.remove();
+        return Promise.resolve();
+      });
     });
     this.find('[data-name-form]')?.addEventListener('submit', (event) => {
       void this.confirmChanges(event);
@@ -227,25 +229,48 @@ export class AccountPrivateProfile {
     }
   }
   async selectPhoto(): Promise<void> {
-    const file =
-      document.querySelector<HTMLInputElement>('#account-photo')?.files?.[0];
-    const currentProfile = this.profile;
-    if (!file || !currentProfile || file.size > 3_000_000) {
+    const input = document.querySelector<HTMLInputElement>('#account-photo');
+    const file = input?.files?.[0];
+    if (!file || !this.profile || file.size > 3_000_000) {
       this.core.status = t('Selecione uma foto de até 3 MB.');
       this.host.render();
       return;
     }
+    try {
+      await this.changePhoto(() => this.photoDraft.choose(file));
+    } finally {
+      if (input) input.value = '';
+    }
+  }
+  private async changePhoto(stage: () => Promise<void>): Promise<void> {
+    const session = this.core.session,
+      profile = this.profile,
+      key = this.key,
+      epoch = this.core.epoch;
+    if (!session || !profile || !key) return;
     await this.host.operation(async () => {
-      await this.photoDraft.choose(file);
-      if (this.profile !== currentProfile) {
-        this.photoDraft.clear();
-        return;
-      }
-      this.dirtyProfile = true;
-      this.core.status = t(
-        'Foto preparada. Confirme as alterações em Perfil para salvar.',
-      );
+      const revision = await savePrivatePhoto({
+        session,
+        profile,
+        key,
+        draft: this.photoDraft,
+        stage,
+        current: () =>
+          this.core.session?.csrf === session.csrf &&
+          this.profile === profile &&
+          this.key === key &&
+          this.core.epoch === epoch &&
+          !this.core.disposed,
+        ...(this.options.saveProfile ? { save: this.options.saveProfile } : {}),
+      });
+      if (revision === null) return;
+      this.dirtyProfile =
+        JSON.stringify(this.preferencesDraft.value(profile.preferences)) !==
+        JSON.stringify(profile.preferences);
+      this.host.setSession({ ...session, profileRevision: revision });
+      this.core.status = t('Perfil salvo.');
       this.renderPhoto();
+      this.host.renderSidebar();
     });
   }
   /** Configurações iniciais: the same encrypted profile save as the form, with errors raised to the caller. */
@@ -365,20 +390,20 @@ export class AccountPrivateProfile {
     profile: PrivateProfile,
   ): Promise<void> {
     const visible = this.profile;
-    const revision = current.profileRevision + 1;
-    const envelope = await sealProfile({
-      profile: {
+    const revision = await writePrivateProfile({
+      session: current,
+      value: {
         ...profile,
         photo: this.photoDraft.value(profile.photo),
         preferences: this.preferencesDraft.value(profile.preferences),
       },
       key: currentKey,
-      accountId: current.accountId,
-      revision,
+      current: () =>
+        this.core.session?.csrf === current.csrf &&
+        this.profile === visible &&
+        !this.core.disposed,
+      ...(this.options.saveProfile ? { save: this.options.saveProfile } : {}),
     });
-    if (this.options.saveProfile)
-      await this.options.saveProfile(current, envelope, currentKey);
-    else await api('profile', { input: envelope, csrf: current.csrf });
     if (this.core.session?.csrf !== current.csrf || this.profile !== visible)
       return;
     this.photoDraft.commit(profile);

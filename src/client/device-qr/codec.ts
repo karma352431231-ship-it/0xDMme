@@ -37,7 +37,7 @@ export function readQrPayload(payload: string, kind: QrKind): string {
   if (kind === 'invitation') {
     if (
       payload.length > 512 ||
-      !/^https?:\/\/[^\s]+\/#contatos\?convite=[a-f0-9-]{36}\.[a-f0-9]{64}$/u.test(
+      !/^https?:\/\/[^\s]+\/#(?:contacts\?invite|contatos\?convite)=[a-f0-9-]{36}\.[a-f0-9]{64}$/u.test(
         payload,
       )
     )

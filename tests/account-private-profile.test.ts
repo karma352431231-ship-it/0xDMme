@@ -10,7 +10,7 @@ class PreferenceInput extends EventTarget {
   checked = false;
   value = '';
 }
-await test('perfil privado modular conserva foto e privacidade ativas até confirmar', async (t) => {
+await test('foto privada salva automaticamente sem confirmar preferências em edição', async (t) => {
   const core = createCore();
   core.session = {
     accountId: crypto.randomUUID(),
@@ -110,16 +110,19 @@ await test('perfil privado modular conserva foto e privacidade ativas até confi
   Object.defineProperty(change, 'target', { value: input });
   preferences.dispatchEvent(change);
   await profile.selectPhoto();
-  assert.equal(writes.length, 0);
-  assert.equal(profile.privacyPreferences()?.online, false);
-  assert.equal(profile.shared()?.photo, null);
-  preferences.dispatchEvent(new Event('submit'));
-  await pending;
   assert.equal(writes.length, 1);
-  assert.equal(writes[0]?.preferences.online, true);
-  assert.equal(profile.privacyPreferences()?.online, true);
+  assert.equal(writes[0]?.preferences.online, false);
+  assert.equal(profile.privacyPreferences()?.online, false);
   assert.ok(profile.shared()?.photo);
   assert.equal(core.session?.profileRevision, 1);
+  assert.equal(profile.clean, false);
+  preferences.dispatchEvent(new Event('submit'));
+  await pending;
+  assert.equal(writes.length, 2);
+  assert.equal(writes[1]?.preferences.online, true);
+  assert.equal(profile.privacyPreferences()?.online, true);
+  assert.ok(profile.shared()?.photo);
+  assert.equal(core.session?.profileRevision, 2);
   assert.equal(profile.clean, true);
   profile.clear();
 });

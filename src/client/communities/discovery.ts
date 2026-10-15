@@ -133,7 +133,7 @@ export function startCommunityDiscovery(
         ['feed', t('Descobrir')],
         ['following', t('Seguindo')],
       ] as const) {
-        link(scopes, label, `#comunidades?view=${key}`);
+        link(scopes, label, `#communities?view=${key}`);
         if (view === key)
           scopes.lastElementChild?.setAttribute('aria-current', 'page');
       }
@@ -289,7 +289,7 @@ export function startCommunityDiscovery(
         open = el('a', '', 'ranking-link'),
         avatar = communityAvatar(item.community.name),
         copy = el('span', '', 'ranking-copy');
-      open.href = `#comunidades?id=${item.community.id}`;
+      open.href = `#communities?id=${item.community.id}`;
       copy.append(
         el('strong', item.community.name),
         el('small', item.community.description),
@@ -560,7 +560,11 @@ export function startCommunityDiscovery(
       heading.append(text);
       mounted.append(heading);
       if (!signedIn && view !== 'feed' && view !== 'explore') {
-        link(mounted, t('Entre pelo Perfil para acessar sua lista'), '#perfil');
+        link(
+          mounted,
+          t('Entre pelo Perfil para acessar sua lista'),
+          '#settings',
+        );
         return;
       }
       const label = el(
@@ -574,7 +578,7 @@ export function startCommunityDiscovery(
         link(
           mounted,
           t('Ver comunidades seguidas'),
-          '#comunidades?view=communities',
+          '#communities?view=communities',
         );
       filters();
       feedback = el('p', '', 'community-feedback');
