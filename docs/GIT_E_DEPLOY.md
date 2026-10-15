@@ -1,5 +1,26 @@
 # 0xDMme — Git e envio à VPS
 
+## Perfil e DMs públicas diretas — ativação autorizada em 15/10/2026
+
+Após a CI integral de `3bfc25d`, o proprietário pediu integrar o lote à main e
+ativar na VPS. Inclui contadores separados de Posts/Respostas, nomes imediatos
+para até três comunidades, botão View names em uma linha e DMs pelo `@` sem
+solicitação/aceite. Seguidores em comum de usuários já existem e foram validados.
+
+O executor registra somente a transição de código de banco de `08dff88` para
+`3bfc25d`, comparando árvores completas e seis módulos sociais. Não executar
+migrações: conservar os 69 SQLs e seu executor, dependências, Node, modelos,
+unidades/configurações e demais serviços. Build no Mac, checkout limpo/enviado,
+CI integral do commit exato integrado e `npm run deploy:staging` existente.
+Conferir preservação, prontidão, arquivos/fontes públicos e rollback. Acesso,
+artefatos, baselines e recibos ficam exclusivamente em `.local/`.
+
+**Ponto importante:** pedidos/recusas históricos sem bloqueio deixam de impedir
+DMs públicas; bloqueios bilaterais continuam protegendo conteúdo, chaves e mídia.
+Chats por wallet conservam o consentimento. A autorização não implica publicação:
+exigir recibo `published` e versão servida conferida. O aceite em aparelho físico
+continua pendente. [Contrato](PERFIL_PUBLICO_E_FEEDS.md#perfil-e-métricas).
+
 ## Paridade dos chats, edição e prévias — ativação autorizada em 15/10/2026
 
 O proprietário pediu concluir a paridade das DMs pelo `@` com as restrições de

@@ -1225,6 +1225,42 @@ class ChatParityCodeTests(CommunityFeedCodeTests):
             remote.compatibility(self.candidate, self.live)
 
 
+class PublicDmOpeningCodeTests(CommunityFeedCodeTests):
+    def setUp(self):
+        super().setUp()
+        for relative in ['communities.ts', 'community-discovery.ts']:
+            (self.candidate / 'src/server/database' / relative).write_bytes(
+                (self.live / 'src/server/database' / relative).read_bytes())
+        self.changed_modules = ['social-crypto.ts', 'social-dm.ts', 'social-matrix.ts',
+                                'social-media.ts', 'social-read-receipts.ts', 'social-conversations.ts']
+        for relative in self.changed_modules[:-1]:
+            (self.live / 'src/server/database' / relative).write_text('existing public DM operation')
+            (self.candidate / 'src/server/database' / relative).write_text('reviewed direct public DM operation')
+        (self.candidate / 'src/server/database/social-conversations.ts').write_text('reviewed atomic opening')
+        self.exports = {
+            remote.PUBLIC_DM_OPENING_BEFORE: self.export(self.live),
+            remote.PUBLIC_DM_OPENING_REVIEWED: self.export(self.candidate),
+        }
+
+    def test_direct_dm_operations_require_exact_reviewed_bytes(self):
+        for relative in self.changed_modules:
+            with self.subTest(path=relative):
+                path = self.candidate / 'src/server/database' / relative
+                original = path.read_bytes(); path.write_text('unreviewed public DM operation')
+                try:
+                    with (patch.object(backups, 'git_export', side_effect=lambda sha: self.exports[sha]),
+                          self.assertRaises(RuntimeError)):
+                        remote.compatibility(self.candidate, self.live)
+                finally:
+                    path.write_bytes(original)
+
+    def test_opening_module_cannot_be_omitted(self):
+        (self.candidate / 'src/server/database/social-conversations.ts').unlink()
+        with (patch.object(backups, 'git_export', side_effect=lambda sha: self.exports[sha]),
+              self.assertRaises(RuntimeError)):
+            remote.compatibility(self.candidate, self.live)
+
+
 class OwnerReviewMediaCodeTests(CommunityFeedCodeTests):
     def setUp(self):
         super().setUp()

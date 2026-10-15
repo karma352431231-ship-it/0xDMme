@@ -546,6 +546,12 @@ até três comunidades mostram foto/nome, acima disso usam o resumo expansível.
 Seguidores em comum de usuários já existem e conservam a leitura assinada e os
 bloqueios entre os participantes. Contrato em [perfil público](docs/PERFIL_PUBLICO_E_FEEDS.md).
 
+Após a CI integral de `3bfc25d`, o proprietário autorizou integrar este lote à
+main e ativar na VPS pelo executor existente, com CI do commit final, build no
+Mac, preservação e rollback. Conservar as 69 migrações, dependências, Node,
+modelos e infraestrutura. O executor fixa somente a transição exata de código
+social entre `08dff88` e `3bfc25d`; chats por wallet mantêm aceite e bloqueios.
+
 **Feed e discussões aprovados em 12/10/2026:** Descobrir → Destaques aceita replies com cinco votos líquidos ou três outros perfis na ramificação, priorizando autores seguidos entre os elegíveis e limitando um comentário por original/autor. Seguindo aceita um reply por original, o mais antigo entre autores seguidos. Discussão começa em Mais discutidos, com alternativas por votos/data; ramificações priorizam as respostas com maior placar líquido de votos (esclarecimento do proprietário em 12/10/2026), preservando linhas de parentesco, recolher/expandir e outras respostas. Continuar este fio abre a subdiscussão inicialmente em Mais votados. Participantes distintos pesam mais que mensagens repetidas das mesmas contas. Escolhas técnicas, limites de renderização, privacidade e migração local no [contrato](docs/PERFIL_PUBLICO_E_FEEDS.md#feed-e-árvore-de-discussão--critérios-aprovados-em-12102026). Manter apenas no Git, sem envio à VPS.
 
 **Interações no perfil ajustadas em 10/10/2026:** o proprietário solicitou responder, votar e usar os controles normais das publicações diretamente na atividade do perfil, mantendo comunidade e pai original. Reutilizar autorização e operações da comunidade; seguir um perfil não concede participação. A ordem visual passa a ser Título → Conteúdo (texto e mídia) → Tag → Ações nos cards do perfil, feed e comunidade. Atualizar o placar sem descartar respostas em edição. Sem novas migrações ou dependências. [Contrato e revisão de responsabilidades](docs/PERFIL_PUBLICO_E_FEEDS.md#interações-nas-publicações--ajuste-de-10102026).
