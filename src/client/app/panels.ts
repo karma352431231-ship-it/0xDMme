@@ -84,6 +84,8 @@ export function startPanels(input: {
   publicChat: HTMLElement;
   publicDirectory: HTMLElement;
   communities: PanelCommunities;
+  /** A public conversation opened: the right column shows Chat again. */
+  publicChatOpened: () => void;
 }) {
   const { shell, feedBody, publicChat, publicDirectory, communities } = input;
   const wide = matchMedia('(min-width: 1280px)');
@@ -179,6 +181,7 @@ export function startPanels(input: {
     publicTarget = { id, local };
     shell.dataset['chatScope'] = 'public';
     communities.openDm(publicChat, id, local);
+    input.publicChatOpened();
     save(withChat(layout));
   }
   function closePublic(): void {

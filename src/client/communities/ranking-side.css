@@ -179,27 +179,37 @@
   display: none;
 }
 
-/* Chat | Communities switch for the split screen's right column. */
+/* Chat | Communities switch for the split screen's right column. The cell
+   carries the column's divider and background so switch and content read as
+   one column; the track inside holds the compact choices. */
 .right-switch {
+  padding: 12px 14px 6px;
+  border-left: 1px solid var(--line);
+}
+#app-shell[data-right='communities'] > .right-switch {
+  background: var(--surface);
+}
+.right-switch-track {
+  display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 4px;
-  margin: 12px 14px 8px;
-  padding: 4px;
-  border-radius: 14px;
+  gap: 3px;
+  padding: 3px;
+  border-radius: 11px;
   background: var(--surface-2);
 }
 #app-shell .right-switch button {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
+  gap: 6px;
   min-height: 0;
   margin: 0;
-  padding: 8px;
+  padding: 5px 8px;
   border: 0;
-  border-radius: 10px;
+  border-radius: 8px;
   background: transparent;
   color: var(--text-muted);
+  font-size: var(--fs-small);
   font-weight: 700;
 }
 #app-shell .right-switch button[aria-pressed='true'] {
@@ -207,12 +217,12 @@
   color: var(--text);
 }
 .right-switch-badge {
-  min-width: 18px;
-  height: 18px;
+  min-width: 16px;
+  height: 16px;
   padding: 0 5px;
   border-radius: 999px;
   background: var(--accent);
   color: var(--accent-ink);
-  font-size: 11px;
-  line-height: 18px;
+  font-size: 10.5px;
+  line-height: 16px;
 }

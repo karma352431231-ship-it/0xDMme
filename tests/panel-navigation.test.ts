@@ -15,6 +15,7 @@ function checkNavigation(width: number): void {
   const container = { replaceChildren: () => {} } as unknown as HTMLElement;
   const opened: (string | null)[] = [];
   let closed = 0;
+  let chatShown = 0;
   const globals = {
     document: { addEventListener: () => {} },
     location,
@@ -52,6 +53,9 @@ function checkNavigation(width: number): void {
         dmDirectory: () => Promise.resolve(),
         showProfile: () => () => {},
       },
+      publicChatOpened: () => {
+        chatShown++;
+      },
     });
     panels.routed('conversas');
     if (width < 1280) assert.equal(location.hash, '#chats');
@@ -63,6 +67,7 @@ function checkNavigation(width: number): void {
     panels.routed('conversas');
     panels.routed('conversas');
     assert.deepEqual(opened, [null]);
+    assert.equal(chatShown, 1);
     assert.equal(closed, 0);
     assert.equal(shell.dataset['chatScope'], 'public');
     panels.privateChatOpened();

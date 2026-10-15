@@ -12,17 +12,22 @@ export function startRightColumn(options: {
   shell: HTMLElement;
   showCommunities: () => void;
 }): { showChat: () => void } {
+  // The outer cell continues the column's border and background; the track
+  // inside holds the two choices.
   const bar = document.createElement('div');
   bar.className = 'right-switch';
-  bar.setAttribute('role', 'group');
-  bar.setAttribute('aria-label', t('right-column.label'));
+  const track = document.createElement('div');
+  track.className = 'right-switch-track';
+  track.setAttribute('role', 'group');
+  track.setAttribute('aria-label', t('right-column.label'));
+  bar.append(track);
   const chat = choice(t('right-column.chat'));
   const communities = choice(t('right-column.communities'));
   const badge = document.createElement('span');
   badge.className = 'right-switch-badge';
   badge.hidden = true;
   chat.append(badge);
-  bar.append(chat, communities);
+  track.append(chat, communities);
   options.shell.append(bar);
   const show = (column: RightColumn) => {
     options.shell.dataset['right'] = column;

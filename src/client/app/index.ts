@@ -323,6 +323,7 @@ const panels = account.approvalPage
         showProfile: (container, handle) =>
           publicProfiles.show(container, handle),
       },
+      publicChatOpened: () => rightColumn?.showChat(),
     });
 // Approval HTML is loaded online and does not install or activate a shell.
 const pwa = account.approvalPage
