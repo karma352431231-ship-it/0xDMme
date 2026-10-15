@@ -5,7 +5,7 @@
 The owner requested automatic private-request/reply notifications, bell increments
 and one mobile contact directory with peers retained before acceptance. The owner
 then explicitly requested VPS activation of both repairs and continuation after
-context compaction until both are active. Application source review is bound to
+context compaction until both are active. Database source review is bound to
 `0a2df41fb7e3e3f236ea108e2826f2d93939b3f8`, from published main predecessor
 `803a569a4d2b2c9fec9895762759e11ad290d7ec`.
 
@@ -27,6 +27,21 @@ and [unified contacts](UI_CONTATOS.md#unified-private-contact-directory--1410202
 **Ponto importante:** approval and push do not establish activation. Require a
 `published` receipt, correct served hashes and readiness. Saving a requested
 contact remains encrypted and does not grant conversation authority.
+
+The first integrated CI exposed a catalog placeholder-key mismatch and a duplicated
+public-module import that confused the coordinator adapter fixture. Both are
+corrected without changing the rendered count or the coordinator behavior. Its
+profile-social fixture also attempted 25 synthetic login admissions concurrently
+and hit the existing lock timeout. Prepare those accounts in batches of four;
+retain all 25 pagination subjects and every application admission/timeout rule.
+Require fresh full CI for the final commit before activation.
+
+Subsequent local validation passed all 761 application tests, both targeted
+PostgreSQL suites (24 tests), six synthetic browser combinations and the combined
+lint/types/boundaries/licenses/format/language/build stages. The remaining Python
+groups passed with the existing Python 3.14 runtime: 224 deployment tests and
+51 evaluation tests. The initial local runner selected an older unsupported
+Python; no application or toolchain rule was changed to accommodate it.
 
 ## Owner image editor repairs — activation authorized on 14/10/2026
 

@@ -326,9 +326,14 @@ await test('perfil social: métricas, comunidades públicas, follows, feeds e ba
   await t.test(
     'seguidores em comum: direção correta, paginação e bloqueios em ambos os lados',
     async () => {
-      const people = await Promise.all(
-        Array.from({ length: 25 }, () => make()),
-      );
+      // This test exercises follower pagination, not 25 concurrent login admissions.
+      const people: Awaited<ReturnType<typeof make>>[] = [];
+      for (let offset = 0; offset < 25; offset += 4)
+        people.push(
+          ...(await Promise.all(
+            Array.from({ length: Math.min(4, 25 - offset) }, () => make()),
+          )),
+        );
       const publicIds: string[] = [];
       for (const person of people) {
         const publicIdentity = await person.publicIdentity(

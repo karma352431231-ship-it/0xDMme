@@ -246,7 +246,7 @@ export function startContacts(
     });
     text(
       '[data-contact-page-state="approved"]',
-      t('contacts.loaded', [items.length]),
+      t('{0} loaded', [items.length]),
     );
     renderDirectory({
       list,
@@ -762,8 +762,14 @@ export function startContacts(
     },
     /** Received requests for Atividade; same signed API and checks as Contatos → Solicitações. */
     async incomingRequests(): Promise<readonly Peer[]> {
+      const previousRevision = contacts.state.revision;
       const incoming = await contacts.snapshot({ preservePages: true });
-      if (mounted?.isConnected && !busy) render();
+      if (
+        mounted?.isConnected &&
+        !busy &&
+        previousRevision !== contacts.state.revision
+      )
+        render();
       return incoming.items;
     },
     async respondRequest(accountId: string, accept: boolean): Promise<void> {

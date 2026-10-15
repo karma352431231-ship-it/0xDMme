@@ -5,7 +5,7 @@ export const catalog: Record<string, readonly [string, string]> = {
     'Request sent, but the contact could not be saved. Refresh contacts before trying again.',
     '请求已发送，但无法保存联系人。请刷新联系人后再试。',
   ],
-  'contacts.loaded': ['{0} loaded', '已加载 {0} 个'],
+  '{0} loaded': ['{0} loaded', '已加载 {0} 个'],
   'contacts.waiting': [
     'Request sent · Waiting for acceptance',
     '请求已发送 · 等待接受',
