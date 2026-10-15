@@ -348,6 +348,25 @@ existing executor. Access, baselines, artifacts and evidence remain in `.local/`
 served assets. Do not attribute connection failures to the app without evidence;
 this fix addresses the interface reconstruction demonstrated by the investigation.
 
+## Settings Organization Release Authorized on 16/10/2026
+
+The owner asked for `claude/settings-layout` to be merged into `main` and
+activated on the VPS. It contains the Profile and settings organization (card
+spacing, a one-column vault with a danger zone, the New organization step, the
+language under Appearance and language) and moves muting to the conversation
+menu. See [settings UI](UI_CONFIGURACOES.md#settings-organization--16102026).
+
+Frontend release: backend, SQL migrations, dependencies, Node, detector, units
+and infrastructure keep the sources of the `main` it is based on. Use only
+`npm run deploy:staging` from the clean, pushed `main` with passing
+exact-commit CI, a locally prepared build and the existing preservation,
+readiness and rollback checks. Access, baselines, artifacts and receipts stay
+in `.local/`.
+
+**Ponto importante:** the conversation-menu mute and the settings categories
+were not exercised with a real account before release; confirm them after
+activation. A push alone does not confirm activation.
+
 ## Center Feed Batch Release Authorized on 15/10/2026
 
 The owner asked for `claude/layout-a-batch` to be merged into `main` and
