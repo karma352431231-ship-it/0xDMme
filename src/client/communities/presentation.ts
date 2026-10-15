@@ -117,7 +117,7 @@ export function postHeader(
   }
   const time = el(
     'time',
-    `${context === 'feed' ? ' · ' : ''}${relativePostTime(post.createdAt)}${post.editedAt ? t(' · Post Editado') : ''}`,
+    `${context === 'feed' ? ' · ' : ''}${relativePostTime(post.createdAt)}${post.editedAt ? t('post.edited') : ''}`,
   );
   time.dateTime = post.createdAt;
   time.title = new Date(post.createdAt).toLocaleString(currentLanguage());

@@ -2014,3 +2014,21 @@ conversation. Remove the contact-menu footer in both official languages.
 Representative authorizations remain the optional organization-issued, scoped,
 time-limited credentials described in the existing representatives contract;
 this request asks for an explanation, not their removal or a protocol change.
+
+### Confirmed post edits and reply subtree expansion — 15/10/2026
+
+The owner requested immediate visible updates after saving posts/replies, an
+edited marker without a content diff, non-overlapping edit controls and a reply
+tree that opens the chosen subtree in one action. Apply the validated mutation
+response directly to that card, preserve sibling drafts and expanded branches,
+and update the current snapshots so an identical refresh does not redraw them.
+Do not publish an optimistic edit before the server confirms it. Existing
+revision checks, moderation and private moderation history remain unchanged.
+
+Opening a reply branch now walks its descendants and pages automatically in
+vote order. This supersedes the three-children-per-click and three-level display
+cutoffs. Keep the 120-node view budget and 24-item API pages, serialize reads,
+use a bounded scheduling window and offer continuation for larger subtrees.
+Deep levels stop adding indentation so the full available branch fits mobile.
+Draw connectors downward from the parent, ending at the last child's avatar;
+use the existing stronger line token and retain the existing collapse button.

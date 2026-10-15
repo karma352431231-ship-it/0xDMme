@@ -9,6 +9,8 @@ import type {
   DiscussionOrder,
   DiscussionPage,
 } from '../../shared/community-discussion/index.ts';
+import { PostSnapshot } from './post-snapshot.ts';
+import { editedPost } from './post-edit-update.ts';
 import { communityRead } from './controller.ts';
 import { discoveryMenu } from './discovery-controls.ts';
 import {
@@ -34,6 +36,7 @@ interface Branch {
   toggle: HTMLButtonElement;
   queue: CommunityPost[];
   next: string | null;
+  loaded: boolean;
 }
 /** Owns ordering, bounded tree rendering and asynchronous lifecycle, separate from post operations. */
 export class PostThread {
@@ -45,7 +48,8 @@ export class PostThread {
   private active = true;
   private order: DiscussionOrder = 'discussed';
   private after: string | null = null;
-  private snapshot = '';
+  private readonly snapshot = new PostSnapshot();
+  private readonly branches = new Map<string, Branch>();
   async refresh(parent: CommunityPost): Promise<void> {
     await this.page(parent, this.after);
   }
@@ -91,6 +95,20 @@ export class PostThread {
   }
   dispose(): void {
     this.active = false;
+    this.branches.clear();
+  }
+  accept(post: CommunityPost): void {
+    this.snapshot.accept(post);
+    for (const branch of this.branches.values()) {
+      branch.parent = editedPost(branch.parent, post);
+      branch.queue = branch.queue.map((previous) => editedPost(previous, post));
+    }
+  }
+  private forget(container: HTMLElement): void {
+    for (const [id, branch] of this.branches) {
+      if (branch.children !== container && container.contains(branch.children))
+        this.branches.delete(id);
+    }
   }
   private valid(): boolean {
     return this.active && !this.actions.signal.aborted && this.actions.valid();
@@ -120,9 +138,9 @@ export class PostThread {
     if (!this.valid()) return;
     this.order = order;
     this.after = after;
-    const snapshot = JSON.stringify([parent.id, order, after, page]);
-    if (snapshot === this.snapshot) return;
-    this.snapshot = snapshot;
+    if (!this.snapshot.changed(JSON.stringify([parent.id, order, after]), page))
+      return;
+    this.branches.clear();
     this.actions.cleanup(this.replies);
     this.replies.replaceChildren();
     for (const post of page.items) this.row(this.replies, post, 0);
@@ -144,16 +162,12 @@ export class PostThread {
     container: HTMLElement,
     post: CommunityPost,
     depth: number,
-  ): void {
+  ): Branch | null {
     const item = el('div', '', 'post-thread-item');
     container.append(item);
     this.actions.render(item, post);
-    if (!post.replies) return;
-    if (depth >= 3) {
-      this.continue(item, post);
-      return;
-    }
-    this.branch(item, post, depth + 1);
+    if (!post.replies) return null;
+    return this.branch(item, post, depth + 1);
   }
   private continue(container: HTMLElement, post: CommunityPost): void {
     link(
@@ -166,11 +180,12 @@ export class PostThread {
     container: HTMLElement,
     parent: CommunityPost,
     depth: number,
-  ): void {
+  ): Branch {
     const wrap = el('section', '', 'post-thread-branch'),
       children = el('div', '', 'post-thread-children'),
       controls = el('div', '', 'post-thread-more');
     wrap.setAttribute('aria-label', t('Respostas a este comentário'));
+    if (depth >= 4) wrap.classList.add('post-thread-deep');
     const toggle = button(
       wrap,
       t('＋ Ver {0} {1}', [
@@ -194,15 +209,20 @@ export class PostThread {
       toggle,
       queue: [],
       next: null,
+      loaded: false,
     };
+    this.branches.set(parent.id, branch);
+    return branch;
   }
   private async toggle(branch: Branch): Promise<void> {
     if (!branch.children.hidden) {
+      this.forget(branch.children);
       this.actions.cleanup(branch.children);
       branch.children.replaceChildren();
       branch.controls.replaceChildren();
       branch.queue = [];
       branch.next = null;
+      branch.loaded = false;
       branch.children.hidden = true;
       branch.toggle.textContent = t('＋ Ver {0} respostas', [
         branch.parent.replies,
@@ -210,29 +230,79 @@ export class PostThread {
       branch.toggle.setAttribute('aria-expanded', 'false');
       return;
     }
-    await this.more(branch);
-    if (!this.valid()) return;
-    branch.children.hidden = false;
-    branch.toggle.textContent = t('− Recolher respostas');
-    branch.toggle.setAttribute('aria-expanded', 'true');
+    await this.expand(branch);
   }
-  private async more(branch: Branch): Promise<void> {
-    // At most 120 reply nodes per view and one queued page (24) per opened branch.
-    // A continuation opens the chosen subtree; no server-side depth/content limit.
-    if (this.host.querySelectorAll('.post-thread-item').length >= 120) {
+  private capacity(): number {
+    return 120 - this.host.querySelectorAll('.post-thread-item').length;
+  }
+  private async expand(start: Branch): Promise<void> {
+    const pending = [
+      start,
+      ...[...this.branches.values()].filter(
+        (branch) =>
+          branch !== start &&
+          start.children.contains(branch.children) &&
+          (branch.children.hidden ||
+            branch.queue.length > 0 ||
+            branch.next !== null),
+      ),
+    ];
+    const deadline = Date.now() + 20_000;
+    let remaining = 120;
+    while (this.mayExpand(pending, deadline, remaining--)) {
+      const branch = pending.shift()!;
+      await this.more(branch, pending);
+      if (!this.valid()) return;
+      branch.children.hidden = false;
+      branch.toggle.textContent = t('− Recolher respostas');
+      branch.toggle.setAttribute('aria-expanded', 'true');
+      if (branch.queue.length || branch.next) pending.push(branch);
+    }
+    if (!pending.length || !this.valid()) return;
+    start.controls.replaceChildren();
+    if (this.capacity() <= 0) this.continue(start.controls, pending[0]!.parent);
+    else
+      button(start.controls, t('thread.load-remaining'), () =>
+        this.actions.run(() => this.expand(start)),
+      );
+  }
+  private mayExpand(
+    pending: readonly Branch[],
+    deadline: number,
+    remaining: number,
+  ): boolean {
+    return (
+      pending.length > 0 &&
+      this.valid() &&
+      this.capacity() > 0 &&
+      remaining > 0 &&
+      Date.now() < deadline
+    );
+  }
+  private async fill(branch: Branch): Promise<boolean> {
+    if (branch.queue.length) return true;
+    if (branch.loaded && !branch.next) return false;
+    const page = await this.read(branch.parent.id, 'votes', branch.next);
+    if (!this.valid() || this.branches.get(branch.parent.id) !== branch)
+      return false;
+    branch.loaded = true;
+    branch.queue = page.items;
+    branch.next = page.next;
+    return true;
+  }
+  private async more(branch: Branch, pending: Branch[]): Promise<void> {
+    // One expansion is bounded by 120 nodes/reads, one page per branch and a 20-second scheduling window.
+    // Deeper replies flatten their indentation rather than requiring repeated navigation.
+    if (this.capacity() <= 0) {
       branch.controls.replaceChildren();
       this.continue(branch.controls, branch.parent);
       return;
     }
-    if (!branch.queue.length) {
-      const page = await this.read(branch.parent.id, 'votes', branch.next);
-      if (!this.valid()) return;
-      branch.queue = page.items;
-      branch.next = page.next;
+    if (!(await this.fill(branch))) return;
+    for (const post of branch.queue.splice(0, this.capacity())) {
+      const child = this.row(branch.children, post, branch.depth);
+      if (child) pending.push(child);
     }
-    const slots = 120 - this.host.querySelectorAll('.post-thread-item').length;
-    for (const post of branch.queue.splice(0, Math.min(3, slots)))
-      this.row(branch.children, post, branch.depth);
     if (!branch.children.children.length && !branch.next)
       branch.children.append(
         el(
@@ -251,7 +321,7 @@ export class PostThread {
       branch.parent.replies - branch.children.children.length,
     );
     button(branch.controls, t('＋ Ver {0} outras respostas', [remaining]), () =>
-      this.actions.run(() => this.more(branch)),
+      this.actions.run(() => this.expand(branch)),
     );
   }
 }

@@ -280,3 +280,39 @@ lifecycle with synthetic media. At 320, 390 and 1280 px in both languages, compa
 reply dimensions with an original-post control, including GIF image/video
 rendering, and verify that clicking an approved picture still opens the full
 image. This layout check does not assess GIF providers or real user uploads.
+
+### Edit confirmation and complete reply branches — 15/10/2026
+
+A successful `post-edit` response replaces only the affected visible card.
+Previously the client discarded that response and reread the selected post and
+its first reply page; edits deeper in an expanded branch could leave both
+snapshots unchanged and the old text visible until reload. The confirmed state
+now renders immediately and updates public projection snapshots. Expanded
+children remain siblings of the replaced card, and unrelated drafts/media keep
+their DOM. Errors retain the old card and draft; navigation/session guards
+reject late results. Edited posts and replies show **Edited** / **已编辑**, with
+no public content diff. Existing moderation history is a separate private action.
+
+Edit-menu textareas and media tools occupy separate rows. GIF/emoji/attachment
+buttons retain their compact width and GIF labels cannot wrap. New-post/reply
+composers keep their existing layout. Tree connectors use `--line-strong`, descend
+from the parent's actions, turn into the child's avatar and stop at the last
+sibling rather than trailing below it. No extra collapse icon is introduced.
+
+One branch action expands its eligible descendants, including additional pages,
+in vote order. The view retains at most 120 reply nodes, one pending 24-item page
+per branch and a maximum of 120 sequential reads per expansion, with a 20-second
+scheduling window between reads and existing per-request deadlines. Larger or
+slow subtrees expose continuation/loading controls. Indentation is capped after
+three nested branch steps; content remains expandable beyond that depth.
+Collapsing releases descendant media and branch state; disposal rejects late
+reads. Reader-specific authorization, blocks, moderation and API pagination are
+unchanged. No schema, dependency or publication rule is added.
+
+The existing `posts.ts` coordinator and `presentation.ts` remain hotspots. Only
+mutation-result integration and the edited marker change there; replacement and
+snapshot reconciliation belong to the dedicated edit-update module. A separate
+reviewed split should extract post projection first, then screen reading/paging;
+separately extract icons, identity/time and card navigation from presentation.
+Validate authority, revision failures, drafts, cancellation, media cleanup and
+scroll after each step, with no concurrent edits of the same coordinator.

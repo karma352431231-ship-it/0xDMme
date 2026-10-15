@@ -1,5 +1,7 @@
 /** Authored app text. Tuple order: English, Simplified Chinese. */
 export const catalog: Record<string, readonly [string, string]> = {
+  'post.edited': [' · Edited', ' · 已编辑'],
+  'thread.load-remaining': ['Load remaining replies', '加载其余回复'],
   'activity.now': ['Now', '刚刚'],
   'contacts.request-sent-save-failed': [
     'Request sent, but the contact could not be saved. Refresh contacts before trying again.',
@@ -6465,7 +6467,6 @@ export const catalog: Record<string, readonly [string, string]> = {
     '<section class="chat-conversation">\n    <header class="chat-header"><a class="chat-icon chat-mobile-back" href="#comunidades?view=dms" aria-label="返回用户名私信">{0}</a><span data-dm-avatar class="chat-peer-avatar" aria-hidden="true">@</span><div class="chat-peer"><h3 data-dm-peer></h3><p data-dm-state></p></div><details class="chat-options"><summary class="chat-icon" aria-label="对话选项" title="对话选项">{1}</summary><div class="chat-popover" data-dm-options></div></details>{2}</header>\n    <div class="chat-thread"><p data-dm-gate class="chat-gate" role="status"></p><button data-dm-older class="chat-older" type="button" hidden>更早的消息</button><div data-dm-history class="chat-history" tabindex="0" aria-label="对话消息"></div></div>\n    <div data-dm-request class="dm-request" hidden></div>\n    {3}\n  </section>',
   ],
   ' · Arquivada': [' · Archived', ' · 已归档'],
-  ' · Post Editado': [' · Edited post', ' · 帖子已编辑'],
   ' · referência de identidade guardada': [
     ' · saved identity reference',
     ' · 已保存身份参考',

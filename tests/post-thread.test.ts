@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import type { TestContext } from 'node:test';
 import { PostThread } from '../src/client/communities/post-thread.ts';
 import { discussionKey } from '../src/shared/community-discussion/index.ts';
 import type { CommunityPost } from '../src/shared/community-posts/index.ts';
@@ -10,6 +11,17 @@ class ThreadElement extends EventTarget {
   className = '';
   textContent = '';
   hidden = false;
+  href = '';
+  classList = {
+    add: (name: string) => {
+      this.className += ' ' + name;
+    },
+  };
+  contains(other: ThreadElement): boolean {
+    return (
+      other === this || this.children.some((child) => child.contains(other))
+    );
+  }
   readonly tag: string;
   constructor(tag: string) {
     super();
@@ -24,7 +36,8 @@ class ThreadElement extends EventTarget {
   setAttribute(): void {}
   querySelectorAll(selector: string): ThreadElement[] {
     return this.children.flatMap((child) => [
-      ...(child.tag === selector || child.className === selector.slice(1)
+      ...(child.tag === selector ||
+      child.className.split(' ').includes(selector.slice(1))
         ? [child]
         : []),
       ...child.querySelectorAll(selector),
@@ -53,7 +66,7 @@ function post(parent: CommunityPost | null, score: number): CommunityPost {
     replies: 0,
   };
 }
-await test('ramos mostram os mais votados nas primeiras respostas, demais páginas e continuação do fio', async (t) => {
+function threadDocument(t: TestContext): void {
   const previous = Object.getOwnPropertyDescriptor(globalThis, 'document');
   Object.defineProperty(globalThis, 'document', {
     configurable: true,
@@ -70,6 +83,10 @@ await test('ramos mostram os mais votados nas primeiras respostas, demais págin
     if (previous) Object.defineProperty(globalThis, 'document', previous);
     else Reflect.deleteProperty(globalThis, 'document');
   });
+}
+
+await test('one click expands the selected reply subtree across pages in vote order', async (t) => {
+  threadDocument(t);
   const root = post(null, 0),
     parent = post(root, 0),
     children = Array.from({ length: 27 }, (_, i) => post(parent, (i * 7) % 27)),
@@ -122,19 +139,8 @@ await test('ramos mostram os mais votados nas primeiras respostas, demais págin
   const branch = host.querySelectorAll('.post-thread-children')[0]!;
   assert.deepEqual(
     branch.children.map((child) => child.textContent),
-    ['26', '25', '24'],
-  );
-  for (let i = 0; i < 8; i++) {
-    const more = host
-      .querySelectorAll('button')
-      .find((node) => node.textContent.includes('more replies'))!;
-    await more.click();
-  }
-  assert.deepEqual(
-    branch.children.map((child) => child.textContent),
     Array.from({ length: 27 }, (_, i) => String(26 - i)),
   );
-  await host.querySelectorAll('.post-thread-toggle')[1]!.click();
   const nested = host.querySelectorAll('.post-thread-children')[1]!;
   assert.deepEqual(
     nested.children.map((child) => child.textContent),
@@ -153,7 +159,7 @@ await test('ramos mostram os mais votados nas primeiras respostas, demais págin
   await host.querySelectorAll('.post-thread-toggle')[0]!.click();
   await host.querySelectorAll('.post-thread-toggle')[0]!.click();
   assert.equal(branch.querySelectorAll('.community-thread-empty').length, 0);
-  assert.equal(branch.querySelectorAll('.post-thread-item').length, 3);
+  assert.equal(branch.querySelectorAll('.post-thread-item').length, 29);
   thread.dispose();
   const continuation = new ThreadElement('main'),
     subtree = new PostThread(actions);
@@ -165,4 +171,76 @@ await test('ramos mostram os mais votados nas primeiras respostas, demais págin
     Array.from({ length: 24 }, (_, i) => String(26 - i)),
   );
   subtree.dispose();
+});
+
+await test('deep expansion keeps the 120-node budget and continues from the remaining frontier', async (t) => {
+  threadDocument(t);
+  const root = post(null, 0),
+    replies: CommunityPost[] = [];
+  let parent = root,
+    reads = 0;
+  for (let index = 0; index < 150; index++) {
+    parent.replies = 1;
+    const child = post(parent, index);
+    replies.push(child);
+    parent = child;
+  }
+  const host = new ThreadElement('main');
+  const tree = new PostThread({
+    community: root.community,
+    signal: new AbortController().signal,
+    valid: () => true,
+    run: (work) => work(),
+    cleanup: () => {},
+    render: (container, value) => {
+      container.textContent = value.id;
+    },
+    request: (payload) => {
+      reads++;
+      return Promise.resolve({
+        items: replies.filter((value) => value.parent === payload['post']),
+        next: null,
+      });
+    },
+  });
+  await tree.mount(host as unknown as HTMLElement, root);
+  await host.querySelectorAll('.post-thread-toggle')[0]!.click();
+  const rows = host.querySelectorAll('.post-thread-item');
+  assert.equal(rows.length, 120);
+  assert.equal(reads, 120);
+  const continuation = host.querySelectorAll('a').at(-1)!;
+  assert.ok(continuation.href.endsWith(rows.at(-1)!.textContent));
+  assert.ok(host.querySelectorAll('.post-thread-deep').length > 0);
+  tree.dispose();
+});
+
+await test('a disposed tree rejects late expansion data', async (t) => {
+  threadDocument(t);
+  const root = post(null, 0),
+    parent = post(root, 0),
+    child = post(parent, 0);
+  parent.replies = 1;
+  let finish: (value: unknown) => void = () => {};
+  const pending = new Promise<unknown>((resolve) => {
+    finish = resolve;
+  });
+  const host = new ThreadElement('main');
+  const tree = new PostThread({
+    community: root.community,
+    signal: new AbortController().signal,
+    valid: () => true,
+    run: (work) => work(),
+    cleanup: () => {},
+    render: () => {},
+    request: (payload) =>
+      payload['post'] === root.id
+        ? Promise.resolve({ items: [parent], next: null })
+        : pending,
+  });
+  await tree.mount(host as unknown as HTMLElement, root);
+  await host.querySelectorAll('.post-thread-toggle')[0]!.click();
+  tree.dispose();
+  finish({ items: [child], next: null });
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  assert.equal(host.querySelectorAll('.post-thread-item').length, 1);
 });

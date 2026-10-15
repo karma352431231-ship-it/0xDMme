@@ -46,6 +46,7 @@ import { postActions, postTagSelect } from './post-forms.ts';
 import { postText } from './post-text.ts';
 import { postPreview } from './post-preview.ts';
 import { inlinePostReply } from './inline-post-reply.ts';
+import { replaceEditedPost } from './post-edit-update.ts';
 import { PostSnapshot } from './post-snapshot.ts';
 import { showRepliedAbove } from './reply-context.ts';
 import { showPostExternalMedia } from './post-external-media.ts';
@@ -188,6 +189,24 @@ export function startCommunityPosts(
           typeof data === 'function' ? await data() : data,
         );
       if (old !== generation) return;
+      if (op === 'post-edit' && list) {
+        const state = postState(result);
+        if (
+          replaceEditedPost({
+            host: list,
+            state,
+            cleanup: clearMedia,
+            render: (container, accepted) =>
+              row(accepted.post, accepted, container),
+          })
+        ) {
+          postSnapshot.accept(state.post);
+          pageSnapshot.accept(state.post);
+          threadView?.accept(state.post);
+          if (feedback) feedback.textContent = t('Alteração salva.');
+          return;
+        }
+      }
       if (op === 'report') communityState(result);
       else postState(result);
       after = null;
@@ -199,8 +218,8 @@ export function startCommunityPosts(
     value: CommunityPost,
     privateState: PostState | null = null,
     container: HTMLElement | null = list,
-  ): void {
-    if (!container) return;
+  ): HTMLElement | null {
+    if (!container) return null;
     const node = postCard(value);
     node.dataset['postId'] = value.id;
     container.append(node);
@@ -226,7 +245,7 @@ export function startCommunityPosts(
         : null,
     );
     mediaCleanup.set(postViews(node, value, toolbar), node);
-    if (!own) return;
+    if (!own) return node;
     const old = generation;
     preferenceControls(toolbar, value, {
       controller,
@@ -261,6 +280,7 @@ export function startCommunityPosts(
         return state;
       },
     });
+    return node;
   }
   /** Author first, with their public photo when they have one. */
   function rowHeader(node: HTMLElement, value: CommunityPost): void {
