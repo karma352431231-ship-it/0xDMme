@@ -1,5 +1,23 @@
 # 0xDMme — Git e envio à VPS
 
+## Enquadramento e zoom da foto privada — ativação autorizada em 15/10/2026
+
+Após a CI integral de `af5e05f`, o proprietário pediu integrar à main e enviar
+à VPS a correção do avatar e sua ampliação. Esta autorização substitui o limite
+anterior de entrega em branch somente para este lote. Integrar sem incluir
+trabalhos pendentes de outras branches, exigir CI do commit integrado e enviado
+e publicar pelo `npm run deploy:staging` existente, com build no Mac,
+preservação, prontidão, conferência dos arquivos públicos/fontes e rollback.
+
+Conservar backend, 69 migrações, dependências, Node, modelos, unidades e
+configurações da release `d05646a`. Nenhuma mudança de infraestrutura ou serviço
+compartilhado faz parte deste lote. Acesso, evidências e recibos ficam em `.local/`.
+
+**Ponto importante:** publicação exige recibo `published` e versão servida
+conferida. O zoom reutiliza os bytes privados já recebidos, sem sincronização
+adicional. A validação visual usou imagens sintéticas em larguras de celular
+e desktop; o aceite em celular físico continua pendente. [Contrato](UI_CONVERSAS.md#enquadramento-e-ampliação-da-foto-privada--15102026).
+
 ## Foto privada e URLs — ativação autorizada em 15/10/2026
 
 Após a entrega de `0455607`, o proprietário pediu integrar à main e ativar na

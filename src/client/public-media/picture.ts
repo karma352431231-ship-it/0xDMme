@@ -1,6 +1,6 @@
 import { t } from '../../shared/i18n/index.ts';
 import type { PublicPostMedia } from '../../shared/public-media/index.ts';
-import { openImageViewer } from './image-viewer.ts';
+import { openImageViewer } from '../image-viewer/index.ts';
 
 /** Full approved photos/GIFs near the screen, released when scrolling away. No stretched thumbnail. */
 export function mountPublicPicture(

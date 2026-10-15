@@ -6,7 +6,11 @@ import {
 } from '../message-presentation/index.ts';
 import { t } from '../../shared/i18n/index.ts';
 import { messageStates, messageStateText } from '../message-state/index.ts';
-import { historyPosition, updateMessageStates } from '../chat-ui/index.ts';
+import {
+  ChatAvatarPhoto,
+  historyPosition,
+  updateMessageStates,
+} from '../chat-ui/index.ts';
 import { displayName, paintAvatar } from '../appearance/index.ts';
 import type { HistoryUpdate } from '../message-visibility/index.ts';
 import { dailyViews } from '../daily-text/index.ts';
@@ -46,7 +50,12 @@ interface HistoryPresentation {
   forwarding?: ForwardDirectory;
   flush?: () => Promise<void>;
   /** Covers the header initials with the contact's private card photo. */
-  peerPhoto?: (host: HTMLElement, peer: string, signal: AbortSignal) => void;
+  peerPhoto?: (
+    host: HTMLElement,
+    peer: string,
+    signal: AbortSignal,
+    ready?: (url: string | null) => void,
+  ) => void;
   actions: Pick<Actions, 'action' | 'picker' | 'choose' | 'react'> & {
     forward: (view: DailyView<MessageView>, peer: string) => Promise<void>;
     remove: (view: MessageView) => Promise<void>;
@@ -61,6 +70,7 @@ export class MessageHistoryUi {
   private readIds = new Set<string>();
   private views: readonly MessageView[] | null = null;
   private headerPhoto: AbortController | null = null;
+  private readonly avatarPhoto = new ChatAvatarPhoto();
   private pending: HistoryUpdate | null = null;
   constructor(options: HistoryPresentation) {
     this.options = options;
@@ -78,6 +88,8 @@ export class MessageHistoryUi {
         : null;
   }
   clear(): void {
+    this.avatarPhoto.clear();
+    this.headerPhoto?.abort();
     this.forwarding?.clear();
     this.pending = null;
     this.views = null;
@@ -85,6 +97,8 @@ export class MessageHistoryUi {
     this.externalRows.clear();
   }
   clearMedia(): void {
+    this.avatarPhoto.clear();
+    this.headerPhoto?.abort();
     this.externalRows.clear();
   }
   /** Apply background results only when the conversation is visible. Closing
@@ -214,11 +228,20 @@ export class MessageHistoryUi {
   ): void {
     this.headerPhoto?.abort();
     this.headerPhoto = new AbortController();
-    if (!selected || selected.localOnly) return;
+    if (!selected || selected.localOnly) {
+      this.avatarPhoto.clear();
+      return;
+    }
+    const ready = this.avatarPhoto.bind({
+      trigger: avatar as HTMLButtonElement,
+      peer: selected.accountId,
+      signal: this.options.signal(),
+    });
     this.options.peerPhoto?.(
       avatar,
       selected.accountId,
       this.headerPhoto.signal,
+      ready,
     );
   }
   private messageState(view: DailyView<MessageView>): HTMLElement {

@@ -13,6 +13,7 @@
 @import '../communities/followers.css';
 @import '../message-menu/message-menu.css';
 @import '../public-media/picture.css';
+@import '../image-viewer/image-viewer.css';
 @import '../communities/community.css';
 @import '../communities/post-sharing.css';
 @import '../communities/post-composer.css';
