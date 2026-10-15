@@ -1,5 +1,26 @@
 # 0xDMme — Git e envio à VPS
 
+## Atraso na abertura dos chats — ativação autorizada em 15/10/2026
+
+Após a correção `4aaa019` passar na CI integral, o proprietário pediu integrar
+à main e ativar na VPS. Esta autorização substitui o limite anterior de entrega
+em branch da investigação e da correção de atraso. Integrar os commits do
+medidor local e da correção sem incluir trabalhos pendentes de outras branches.
+O medidor continua opcional, executado no console, sem importação pelo app.
+
+Este lote altera cliente, ferramenta local, testes e documentação. Preservar
+integralmente backend, 69 migrações, dependências, Node, modelos, configurações
+e serviços instalados. Exigir CI integral do commit exato integrado e enviado,
+build no Mac e publicação somente pelo `npm run deploy:staging` existente.
+Conservar verificações de preservação, prontidão, hashes públicos/fontes e
+rollback; acesso, artefatos e recibos ficam exclusivamente em `.local/`.
+
+**Ponto importante:** exigir recibo `published` e versão servida conferida.
+O ganho medido usa respostas sintéticas e não estabelece latência em aparelhos
+físicos; a nova captura no aparelho afetado continua necessária. A conferência
+autenticada final permanece e o primeiro envio pode esperar identidades.
+Quedas de voz ficam para investigação posterior. [Contrato e validação](BLOCO_07_MENSAGENS.md#redução-do-atraso-na-abertura--15102026).
+
 ## Chat actions and GIF notifications — activation authorized on 15/10/2026
 
 After full CI passed for `b3f3dd4`, the owner explicitly requested main integration
