@@ -63,7 +63,7 @@ function row(item: Community, signal: AbortSignal): HTMLElement {
   const link = el('a', '', 'community-row-link'),
     avatar = communityAvatar(item.name),
     copy = el('span', '', 'community-row-copy');
-  link.href = `#comunidades?id=${encodeURIComponent(item.id)}`;
+  link.href = `#communities?id=${encodeURIComponent(item.id)}`;
   copy.append(
     el('strong', item.name),
     el(

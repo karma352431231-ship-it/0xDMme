@@ -32,7 +32,7 @@ async function community(id: string, signal: AbortSignal): Promise<Community> {
 /** Only a plain community link previews; post, tag and view links do not. */
 function communityOf(link: HTMLAnchorElement): string | null {
   const [path, query = ''] = (link.getAttribute('href') ?? '').split('?');
-  if (path !== '#comunidades') return null;
+  if (path !== '#communities' && path !== '#comunidades') return null;
   const params = new URLSearchParams(query);
   const id = params.get('id');
   return id && [...params.keys()].length === 1 ? id : null;
@@ -62,7 +62,7 @@ export function communityHoverProvider(input: {
         });
       head.append(avatar, actions);
       const name = el('a', value.name, 'hover-card-title');
-      name.href = `#comunidades?id=${encodeURIComponent(value.id)}`;
+      name.href = `#communities?id=${encodeURIComponent(value.id)}`;
       const banner = previewBanner(value, avatar, signal);
       card.append(
         banner,

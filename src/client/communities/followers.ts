@@ -23,7 +23,7 @@ function identity(
   signal: AbortSignal,
 ): HTMLElement {
   const link = el('a', '', 'community-follower');
-  link.href = `#publico?id=${profile.id}`;
+  link.href = `#users?id=${profile.id}`;
   const avatar = el(
     'span',
     profile.handle.slice(0, 2).toUpperCase(),
@@ -112,7 +112,7 @@ function knownFollowers(
   input: FollowersAccess,
 ): void {
   const link = el('a', '', 'community-known-link');
-  link.href = `#comunidades?id=${input.id}&view=followers`;
+  link.href = `#communities?id=${input.id}&view=followers`;
   const stack = el('span', '', 'community-known-stack');
   stack.append(
     ...page.items
@@ -139,7 +139,7 @@ export function mountCommunityFollowerPreview(
     el('strong', input.total.toLocaleString(currentLanguage())),
     el('span', ` ${input.total === 1 ? t('seguidor') : t('seguidores')}`),
   );
-  count.href = `#comunidades?id=${input.id}&view=followers`;
+  count.href = `#communities?id=${input.id}&view=followers`;
   line.append(count);
   host.append(line);
   if (!input.signedIn) return;
@@ -167,7 +167,7 @@ export function mountCommunityFollowerPage(
     list = el('div', '', 'community-followers-list'),
     status = el('p'),
     more = el('button', t('Ver mais'));
-  back.href = `#comunidades?id=${input.id}`;
+  back.href = `#communities?id=${input.id}`;
   more.type = 'button';
   tabs.setAttribute('aria-label', t('Listas de seguidores'));
   status.setAttribute('role', 'status');

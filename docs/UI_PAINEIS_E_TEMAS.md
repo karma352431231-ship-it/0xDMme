@@ -1,5 +1,10 @@
 # Painéis e temas — redesign aprovado em 09/10/2026
 
+**Revisão de 15/10/2026:** o arranjo e o destino público do painel passam a ter
+URL própria em inglês, restaurável pela recarga e pelo histórico, preservando a
+conversa privada montada. Perfis de usuário/comunidade e categorias de configurações
+também têm destinos próprios. [Formatos, privacidade e validação](PERFIL_PRIVADO_E_ROTAS.md).
+
 O proprietário avaliou a proposta de redesign apresentada em 09/10/2026 (página privada do proprietário: <https://claude.ai/artifact/BbkJaQgG4LP3oJLuiFNMcG>, versão 2) e aprovou a direção, com dois ajustes no desktop e um no mobile. A interface atual era uma base de MVP para testar funções; esta revisão define a interface do produto final. As imagens da FOMO e da GMGN foram referências de organização, não de conteúdo, dados ou marca.
 
 ## Decisões

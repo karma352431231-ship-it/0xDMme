@@ -81,7 +81,7 @@ export class AccountView {
   bindSidebar(): void {
     document.getElementById('account-avatar')?.addEventListener('click', () => {
       if (!this.core.session || !this.profile.loaded) {
-        location.hash = '#configuracoes';
+        location.hash = '#settings';
         return;
       }
       document.getElementById('account-photo')?.click();

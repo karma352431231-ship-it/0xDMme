@@ -1,4 +1,5 @@
 /** Open a public push target inside the current app, preserving drafts. */
+import { publicPostHash } from '../../shared/app-routes/index.ts';
 export function startNotificationNavigation(): () => void {
   const service = navigator.serviceWorker;
   const receive = (event: MessageEvent<unknown>) => {
@@ -12,8 +13,8 @@ export function startNotificationNavigation(): () => void {
       typeof data.hash !== 'string'
     )
       return;
-    if (/^#comunidades\?id=[a-f0-9-]{36}&post=[a-f0-9-]{36}$/u.test(data.hash))
-      location.hash = data.hash;
+    const hash = publicPostHash(data.hash);
+    if (hash) location.hash = hash;
   };
   service.addEventListener('message', receive);
   return () => service.removeEventListener('message', receive);

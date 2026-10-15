@@ -1,4 +1,8 @@
 import { t, currentLanguage } from '../../shared/i18n/index.ts';
+import {
+  canonicalAppHash,
+  routeParams,
+} from '../../shared/app-routes/index.ts';
 import { mountPublicSearch } from '../public-search/index.ts';
 import { startGroupEntrypoints } from './group-entrypoints.ts';
 import { paintAvatar, startAppearance } from '../appearance/index.ts';
@@ -72,8 +76,8 @@ let currentHash = '';
 let profileAuthenticated = false;
 let closePublicProfile: (() => void) | null = null;
 function openConversation(): void {
-  if (location.hash !== '#conversas') {
-    location.hash = '#conversas';
+  if (pageKey(location.hash) !== 'conversas') {
+    location.hash = '#chats';
     route();
   }
   element('app-shell').dataset['chatOpen'] = 'true';
@@ -153,7 +157,7 @@ const messages = startMessages(devices, vault.sync, {
   playback,
   openConversation,
   openContact: (contact: AddressBookEntry) => {
-    location.hash = '#contatos';
+    location.hash = '#contacts';
     route();
     contacts.showContact(contact);
   },
@@ -341,24 +345,37 @@ function leaveFeatures(next: PageKey): void {
   backups.leave();
   vault.leave();
 }
+function canonicalizeRoute(): void {
+  const canonical = canonicalAppHash(location.hash);
+  if (canonical && canonical !== location.hash)
+    history.replaceState(null, '', canonical);
+}
+function updateMountedPage(key: PageKey): boolean {
+  if (currentPage !== key) return false;
+  if (key === 'perfil') {
+    openSettingsSection(
+      element('page-content'),
+      requestedSettingsSection(location.hash),
+    );
+    return true;
+  }
+  if (key === 'conversas') {
+    if (currentHash !== location.hash) panels?.routed(key);
+    return true;
+  }
+  return currentHash === location.hash;
+}
 function route(): void {
   if (account.approvalPage) {
     renderApprovalPage();
     return;
   }
+  canonicalizeRoute();
   const key = pageKey(location.hash);
   if (key === null) return;
-  if (
-    currentPage === key &&
-    (currentHash === location.hash || key === 'perfil')
-  ) {
+  if (updateMountedPage(key)) {
     // Account handles wallet-return fragments; keep profile drafts/camera mounted.
     currentHash = location.hash;
-    if (key === 'perfil')
-      openSettingsSection(
-        element('page-content'),
-        requestedSettingsSection(location.hash),
-      );
     return;
   }
   currentPage = key;
@@ -399,9 +416,7 @@ function showAboutLinks(): void {
 }
 function renderPageHeader(key: PageKey): void {
   const dm =
-    key === 'comunidades' &&
-    new URLSearchParams(location.hash.split('?')[1] ?? '').get('view') ===
-      'dms';
+    key === 'comunidades' && routeParams(location.hash).get('view') === 'dms';
   const title = dm ? t('Mensagens pelo @') : pages[key].title;
   element('page-title').textContent = title;
   // Phones name the screen in the top bar (the page heading is read, not shown).
@@ -460,7 +475,7 @@ function mountProfileSettings(content: HTMLElement): void {
   );
   if (vaultSettings) mountVault(vaultSettings);
 }
-/** Same vault and backup cards as #cofre, now also inside Perfil → Cofre e backup. */
+/** Same vault and backup cards as #vault, now also inside Perfil → Cofre e backup. */
 function mountVault(container: HTMLElement): void {
   vault.mount(container);
   const backupContainer = document.createElement('div');
@@ -479,7 +494,7 @@ function mountFeature(key: PageKey): void {
     communities.mount(
       communityContainer,
       element('community-directory'),
-      new URLSearchParams(location.hash.split('?')[1] ?? ''),
+      routeParams(location.hash),
     );
   if (key === 'conversas') {
     messages.ready();
@@ -510,16 +525,13 @@ function mountPublicProfiles(content: HTMLElement): void {
   if (own) publicProfiles.mount(own);
   const review = content.querySelector<HTMLElement>('[data-moderation-review]');
   if (review)
-    publicProfiles.mountReview(
-      review,
-      new URLSearchParams(location.hash.split('?')[1] ?? '').get('id'),
-    );
+    publicProfiles.mountReview(review, routeParams(location.hash).get('id'));
   const view = content.querySelector<HTMLElement>('[data-public-profile-view]');
   if (view)
     closePublicProfile = publicProfiles.show(
       view,
-      new URLSearchParams(location.hash.split('?')[1] ?? '').get('handle') ??
-        new URLSearchParams(location.hash.split('?')[1] ?? '').get('id'),
+      routeParams(location.hash).get('handle') ??
+        routeParams(location.hash).get('id'),
     );
 }
 
@@ -533,10 +545,7 @@ function mountStatusFeature(key: PageKey, content: HTMLElement): void {
     '[data-status-container]',
   );
   if (key === 'status' && container)
-    statuses.mount(
-      container,
-      new URLSearchParams(location.hash.split('?')[1] ?? '').get('autor'),
-    );
+    statuses.mount(container, routeParams(location.hash).get('autor'));
 }
 
 function mountAccountPanels(key: PageKey): void {

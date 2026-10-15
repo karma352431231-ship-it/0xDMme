@@ -90,7 +90,7 @@ await test('QR abre confirmação sem autenticar; consentimento conecta e remove
     enrollmentState: () => state,
   });
   assert.equal(joins, 0);
-  assert.equal(location.hash, '#perfil');
+  assert.equal(location.hash, '#settings');
   const dialog = dialogs[0]!;
   assert.equal(dialog.open, true);
   dialog
@@ -117,7 +117,7 @@ await test('QR abre confirmação sem autenticar; consentimento conecta e remove
   location.href = enrollmentUrl(code, 'https://other.example');
   location.hash = new URL(location.href).hash;
   window.dispatchEvent(new Event('hashchange'));
-  assert.equal(location.hash, '#perfil');
+  assert.equal(location.hash, '#settings');
   assert.equal(alerts.length, 1);
   assert.equal(joins, 1);
 });

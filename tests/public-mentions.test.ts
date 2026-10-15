@@ -24,8 +24,8 @@ await test('menções conservam UUID independente do nome, e links só apontam a
   const text = `Olá ${mentionToken(user)} e ${mentionToken(group)}!`;
   assert.equal(mentionPlainText(text), 'Olá @ana e @Comunidade [Arte]!');
   assert.equal(mentionSpans(text).length, 2);
-  assert.equal(mentionHref(group), `#comunidades?id=${group.id}`);
-  assert.equal(mentionHref(user), `#publico?id=${user.id}`);
+  assert.equal(mentionHref(group), `#communities?id=${group.id}`);
+  assert.equal(mentionHref(user), `#users?id=${user.id}`);
   for (const unsafe of [
     '@[ana](javascript:alert(1))',
     '@[ana](https://site.invalid)',

@@ -1,6 +1,7 @@
 import { t, currentLanguage } from '../../shared/i18n/index.ts';
 import {
   addressBookEntry,
+  contactInvitationValue,
   invitation,
   invitationLink,
   readInvitation,
@@ -222,7 +223,7 @@ export function incomingInvitation(
   hash: string,
   origin: string,
 ): Invitation | null {
-  return hash.startsWith('#contatos?convite=')
+  return contactInvitationValue(hash) !== null
     ? readInvitation(origin + '/' + hash, origin)
     : null;
 }

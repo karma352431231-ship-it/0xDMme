@@ -67,7 +67,7 @@ function postIdentity(detail: PublicModerationDetails): HTMLElement | null {
   else if (post.text)
     section.append(el('p', post.text, 'community-text moderation-post-text'));
   const link = el('a', t('Abrir a discussão'));
-  link.href = `#comunidades?id=${post.community}&post=${post.id}`;
+  link.href = `#communities?id=${post.community}&post=${post.id}`;
   section.append(link);
   return section;
 }
@@ -144,7 +144,7 @@ function showFailure(
   );
   status.setAttribute('role', 'alert');
   const back = el('a', t('Voltar à Atividade'));
-  back.href = '#atividade';
+  back.href = '#activity';
   const button = el('button', t('Tentar novamente'));
   button.type = 'button';
   button.addEventListener('click', retry);
@@ -221,7 +221,7 @@ export function startModerationReview(
     abort.abort();
     abort = new AbortController();
     const back = el('a', t('← Voltar à Atividade'), 'moderation-back');
-    back.href = '#atividade';
+    back.href = '#activity';
     const card = el('article', '', 'moderation-review-card');
     card.append(
       el('h1', t('Análise do conteúdo')),
@@ -291,7 +291,7 @@ export function startModerationReview(
     status.dataset['reviewFeedback'] = '';
     status.setAttribute('role', 'status');
     const back = el('a', t('← Voltar à Atividade'));
-    back.href = '#atividade';
+    back.href = '#activity';
     host.replaceChildren(back, status);
     try {
       id = uuid(value);

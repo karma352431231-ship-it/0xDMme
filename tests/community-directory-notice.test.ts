@@ -43,7 +43,7 @@ await test('missing public profile offers a localized direct setup link; unrelat
     const link = host.querySelector('a') as CommunityNode & { href: string };
     assert.equal(host.querySelector('strong')?.textContent, title);
     assert.equal(link.textContent, text);
-    assert.equal(link.href, '#perfil?secao=profile');
+    assert.equal(link.href, '#settings?section=profile');
     assert.equal(host.textContent.includes('HTTP'), false);
     assert.equal(mobile.hidden, false);
     assert.equal(mobile.querySelector('a')?.textContent, text);

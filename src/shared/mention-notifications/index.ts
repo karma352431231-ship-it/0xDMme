@@ -63,7 +63,7 @@ export function mentionNotificationPage(
 }
 export function mentionNotificationHref(item: MentionNotification): string {
   const { source } = item;
-  if (source.kind === 'profile') return `#publico?id=${source.id}`;
-  if (source.kind === 'community') return `#comunidades?id=${source.id}`;
-  return `#comunidades?id=${source.community}&post=${source.id}`;
+  if (source.kind === 'profile') return `#users?id=${source.id}`;
+  if (source.kind === 'community') return `#communities?id=${source.id}`;
+  return `#communities?id=${source.community}&post=${source.id}`;
 }

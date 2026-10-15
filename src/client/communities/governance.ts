@@ -104,7 +104,7 @@ function staffRow(
   communityLink(
     row,
     `@${profile.handle}`,
-    `#publico?handle=${encodeURIComponent(profile.handle)}`,
+    `#users?handle=${encodeURIComponent(profile.handle)}`,
   );
   if (state.role === 'owner')
     communityButton(row, t('Remover'), () =>

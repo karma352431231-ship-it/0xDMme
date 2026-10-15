@@ -242,7 +242,7 @@ export function showProfilePage(
       link(
         actions,
         t('Solicitar DM'),
-        `#comunidades?view=dms&dm=${summary.profile.id}`,
+        `#communities?view=dms&dm=${summary.profile.id}`,
       );
     void follow(actions, summary, block).catch(error);
     profileCommunities(communities, {
@@ -327,13 +327,13 @@ export function showProfilePage(
   ): Promise<void> {
     const controller = options.controller;
     if (!controller?.hasSession()) {
-      link(host, t('Entrar para seguir'), '#perfil');
+      link(host, t('Entrar para seguir'), '#settings');
       return;
     }
     if (!controller.profile) await controller.refresh();
     if (lifetime.signal.aborted) return;
     if (!controller.profile) {
-      link(host, t('Criar perfil para seguir'), '#perfil');
+      link(host, t('Criar perfil para seguir'), '#settings');
       return;
     }
     if (controller.profile.profile.id === summary.profile.id) {

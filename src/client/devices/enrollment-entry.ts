@@ -21,7 +21,7 @@ export function startEnrollmentEntry(access: EnrollmentAccess): void {
     if (!location.hash.startsWith('#vincular=')) return;
     const incoming = location.href;
     // Strip even invalid capabilities before mounting, login, or other requests.
-    history.replaceState(null, '', '#perfil');
+    history.replaceState(null, '', '#settings');
     let code: string;
     try {
       code = enrollmentPayload(readEnrollment(incoming, location.origin));

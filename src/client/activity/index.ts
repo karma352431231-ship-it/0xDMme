@@ -449,7 +449,7 @@ export function startActivity(
         actions: [
           noticeLink({
             label: t('Abrir'),
-            href: `#comunidades?id=${reply.community}&post=${reply.reply}`,
+            href: `#communities?id=${reply.community}&post=${reply.reply}`,
             read: reply.read === true,
             acknowledge: () => sources.markRepliesRead([reply.reply]),
             current: () => current === generation,
@@ -468,7 +468,7 @@ export function startActivity(
         avatar: { label: community.name, seed: community.id },
         title: community.name,
         detail: t('Transferência de comunidade aguardando você'),
-        actions: [link(t('Ver'), '#comunidades?view=invitations')],
+        actions: [link(t('Ver'), '#communities?view=invitations')],
       }),
     );
   }

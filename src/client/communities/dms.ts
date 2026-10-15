@@ -343,7 +343,7 @@ export function startSocialDmUi(
     current.options.replaceChildren();
     if (profile) {
       const link = communityElement('a', t('Ver perfil público'));
-      link.href = `#publico?handle=${encodeURIComponent(profile.handle)}`;
+      link.href = `#users?handle=${encodeURIComponent(profile.handle)}`;
       current.options.append(link);
     }
     if (localOnly || !navigator.onLine) return;
@@ -620,7 +620,7 @@ export function startSocialDmUi(
             ),
           );
         const all = communityElement('a', t('Todas as mensagens @ e pedidos'));
-        all.href = '#comunidades?view=dms';
+        all.href = '#communities?view=dms';
         node.append(all);
       } catch (error: unknown) {
         if (valid())
@@ -653,7 +653,7 @@ function directoryRow(
   extra = '',
 ): HTMLAnchorElement {
   const link = communityElement('a', '', 'conversation-row public-row');
-  link.href = `#comunidades?view=dms&dm=${row.peer.id}${extra}`;
+  link.href = `#communities?view=dms&dm=${row.peer.id}${extra}`;
   const avatar = communityElement('span', '', 'conversation-avatar');
   avatar.setAttribute('aria-hidden', 'true');
   paintAvatar(avatar, { label: row.peer.handle, seed: row.peer.id });

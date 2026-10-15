@@ -12,7 +12,7 @@ function profileLink(
   profile: MutualFollowers['items'][number],
 ): HTMLAnchorElement {
   const link = document.createElement('a');
-  link.href = `#publico?handle=${encodeURIComponent(profile.handle)}`;
+  link.href = `#users?handle=${encodeURIComponent(profile.handle)}`;
   link.textContent = `@${profile.handle}`;
   return link;
 }

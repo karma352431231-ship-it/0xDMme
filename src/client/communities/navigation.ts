@@ -26,7 +26,7 @@ export function communityNavigation(
   if (options.view === 'create') return;
   const tools = el('nav', '', 'community-tools');
   tools.setAttribute('aria-label', t('Acessos de comunidades'));
-  if (options.selected) link(tools, t('← Feed'), '#comunidades?view=feed');
+  if (options.selected) link(tools, t('← Feed'), '#communities?view=feed');
   const menu = el('details', '', 'community-more'),
     summary = el('summary', t('Mais opções'));
   iconLabel(summary, 'more');
@@ -51,10 +51,10 @@ function moreChoices(options: {
     link(
       choices,
       t('Gerenciar comunidade'),
-      `#comunidades?id=${options.manage}&view=manage`,
+      `#communities?id=${options.manage}&view=manage`,
     );
   if (!options.signedIn) {
-    link(choices, t('Entrar pelo Perfil'), '#perfil');
+    link(choices, t('Entrar pelo Perfil'), '#settings');
     return choices;
   }
   for (const [key, title] of [
@@ -63,7 +63,7 @@ function moreChoices(options: {
     ['replies', t('Respostas ao seu conteúdo')],
     ['invitations', t('Transferências')],
   ] as const)
-    link(choices, title, `#comunidades?view=${key}`);
+    link(choices, title, `#communities?view=${key}`);
   return choices;
 }
 
@@ -84,7 +84,7 @@ function createCommunityButton(): HTMLDetailsElement {
   post.dataset['communityCompose'] = '';
   iconLabel(post, 'pencil');
   const create = el('a', t('Criar comunidade'), 'community-create-choice');
-  create.href = '#comunidades?view=create';
+  create.href = '#communities?view=create';
   iconLabel(create, 'community');
   choices.append(post, create);
   // A choice closes the menu; the composer or the create page takes over.
@@ -108,7 +108,7 @@ export function communityDirectoryNavigation(
     ['feed', t('Comunidades')],
     ['dms', t('Mensagens @')],
   ] as const) {
-    link(tabs, title, `#comunidades?view=${key}`);
+    link(tabs, title, `#communities?view=${key}`);
     if ((view === 'dms') === (key === 'dms'))
       tabs.lastElementChild?.setAttribute('aria-current', 'page');
   }
@@ -118,7 +118,7 @@ export function communityDirectoryNavigation(
     ['feed', t('Feed'), 'layers'],
     ['explore', t('Ranking'), 'compass'],
   ] as const) {
-    link(nav, title, `#comunidades?view=${key}`);
+    link(nav, title, `#communities?view=${key}`);
     const a = nav.lastElementChild as HTMLAnchorElement;
     iconLabel(a, icon);
     if (!selected && (view === key || (key === 'feed' && view === 'following')))
@@ -138,8 +138,8 @@ export function postReturnTarget(
   community: string,
 ): string {
   return lastList
-    ? `#comunidades?${lastList}`
-    : `#comunidades?id=${encodeURIComponent(community)}`;
+    ? `#communities?${lastList}`
+    : `#communities?id=${encodeURIComponent(community)}`;
 }
 
 const communityViews = new Set([

@@ -441,7 +441,7 @@ export function startCommunityPosts(
     const nav = el('nav', '', 'post-context');
     nav.setAttribute('aria-label', t('Navegação da resposta'));
     const post = (id: string | null) =>
-      `#comunidades?id=${community}&post=${id}`;
+      `#communities?id=${community}&post=${id}`;
     if (value.id === selected) {
       // An opened reply has the answered post above it (reply-context.ts);
       // a deeper reply also links to the thread's first post.

@@ -86,6 +86,7 @@ function browser(locationValues: { search?: string; hash?: string } = {}) {
     window,
     navigator: { serviceWorker },
     location,
+    URLSearchParams,
   }) as { startPwa: typeof startPwa };
   const status = () => elements.get('pwa-state')?.textContent ?? '';
   const expire = () => {
@@ -286,13 +287,19 @@ await test('abrir push público muda só a rota da aba, sem recarga, e recusa de
   scope.serviceWorker.dispatchEvent(
     new MessageEvent('message', { data: { type: 'OPEN_PUBLIC_POST', hash } }),
   );
-  assert.equal(scope.location.hash, hash);
+  assert.equal(
+    scope.location.hash,
+    hash.replace('#comunidades', '#communities'),
+  );
   scope.serviceWorker.dispatchEvent(
     new MessageEvent('message', {
       data: { type: 'OPEN_PUBLIC_POST', hash: 'https://other.example' },
     }),
   );
-  assert.equal(scope.location.hash, hash);
+  assert.equal(
+    scope.location.hash,
+    hash.replace('#comunidades', '#communities'),
+  );
   assert.equal(scope.reloads(), 0);
   scope.window.dispatchEvent(new Event('pagehide'));
 });
