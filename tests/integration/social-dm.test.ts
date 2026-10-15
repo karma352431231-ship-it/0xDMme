@@ -9,6 +9,8 @@ import {
   sealFile,
   openFile,
 } from '../../src/client/attachment-crypto/index.ts';
+import { encodeDailyText } from '../../src/shared/daily/index.ts';
+import { canonical, digest } from '../../src/shared/devices/index.ts';
 import { encode } from '../../src/shared/account/index.ts';
 import { voiceWav } from '../../src/client/voice-audio/index.ts';
 import { cleanupSelection } from '../../src/shared/backups/index.ts';
@@ -554,6 +556,119 @@ await test('cortes 7–8: consentimento, E2EE, mídia e cofre social', async (t)
         assert.equal(cleared.rows[0]?.body, null);
         await assert.rejects(objects.readSocialAttachment(sealed.file.ref.id));
       }
+    },
+  );
+
+  await t.test(
+    'public reactions bind the original, isolate participants and enforce idempotent admission',
+    async () => {
+      const root = await am.encrypt({
+        authority: a.authority,
+        peerHistory: [b.directory],
+        recovery: [ar, br],
+        id: crypto.randomUUID(),
+        text: 'Reaction root',
+      });
+      const accepted = (await operate(alice, 'publish', { packet: root })) as {
+        hash: string;
+      };
+      const relation = {
+        id: root.id,
+        hash: accepted.hash,
+        author: ap.id,
+        type: 'reaction' as const,
+      };
+      const make = (target = relation, text = '😂') =>
+        am.encrypt({
+          authority: a.authority,
+          peerHistory: [b.directory],
+          recovery: [ar, br],
+          id: crypto.randomUUID(),
+          text: encodeDailyText({ text, reply: null, forwarded: false }),
+          relation: target,
+        });
+      const first = await make();
+      await operate(alice, 'publish', { packet: first });
+      await operate(alice, 'publish', { packet: first });
+      const snapshot = await operate(alice, 'personal-snapshot', {});
+      const oldPage = (await operate(alice, 'personal-page', {
+        snapshot,
+        after: 0,
+      })) as { items: { packet?: { relation?: unknown } }[] };
+      assert.ok(oldPage.items.every((row) => !row.packet?.relation));
+      const newPage = (await operate(alice, 'personal-page', {
+        snapshot,
+        after: 0,
+        actions: true,
+      })) as { items: { packet?: { id: string } }[] };
+      assert.ok(newPage.items.some((row) => row.packet?.id === first.id));
+
+      const count = await inspector.query<{ count: number }>(
+        "SELECT count(*)::integer AS count FROM hash_talk.social_messages WHERE body->'relation'->>'id'=$1",
+        [root.id],
+      );
+      assert.equal(count.rows[0]?.count, 1);
+      await assert.rejects(
+        operate(alice, 'publish', {
+          packet: await make({ ...relation, hash: 'f'.repeat(64) }),
+        }),
+        { status: 409 },
+      );
+      await assert.rejects(
+        operate(alice, 'publish', {
+          packet: await make({ ...relation, author: bp.id }),
+        }),
+        { status: 409 },
+      );
+      const firstHash = await digest(canonical(first));
+      await assert.rejects(
+        operate(alice, 'publish', {
+          packet: await make({ ...relation, id: first.id, hash: firstHash }),
+        }),
+        { status: 409 },
+      );
+      await assert.rejects(operate(outsider, 'publish', { packet: first }), {
+        status: 403,
+      });
+      for (let i = 1; i < 63; i++)
+        await operate(alice, 'publish', {
+          packet: await make(relation, i % 2 ? '' : '👍'),
+        });
+      const racing = await Promise.all([
+        make(),
+        bm.encrypt({
+          authority: b.authority,
+          peerHistory: [a.directory],
+          recovery: [br, ar],
+          id: crypto.randomUUID(),
+          text: encodeDailyText({ text: '👍', reply: null, forwarded: false }),
+          relation,
+        }),
+      ]);
+      const results = await Promise.allSettled([
+        operate(alice, 'publish', { packet: racing[0] }),
+        operate(bob, 'publish', { packet: racing[1] }),
+      ]);
+      assert.equal(
+        results.filter((result) => result.status === 'fulfilled').length,
+        1,
+      );
+      const rejected = results.find((result) => result.status === 'rejected');
+      assert.ok(rejected && rejected.status === 'rejected');
+      assert.equal((rejected.reason as { status: number }).status, 409);
+      await assert.rejects(
+        operate(alice, 'publish', { packet: await make() }),
+        { status: 409 },
+      );
+      await operate(alice, 'publish', { packet: first });
+      await inspector.query(
+        "DELETE FROM hash_talk.social_receipts WHERE message_id IN (SELECT id FROM hash_talk.social_messages WHERE id=$1 OR body->'relation'->>'id'=$2)",
+        [root.id, root.id],
+      );
+      await inspector.query(
+        "DELETE FROM hash_talk.social_messages WHERE id=$1 OR body->'relation'->>'id'=$2",
+        [root.id, root.id],
+      );
     },
   );
   await t.test(

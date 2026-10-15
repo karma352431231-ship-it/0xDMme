@@ -22,7 +22,12 @@ import { profileCard } from '../message-profile/index.ts';
 import { decodePrivateProfile } from '../account-profile/index.ts';
 import { peer } from '../../shared/contacts/index.ts';
 import type { Peer } from '../../shared/contacts/index.ts';
-import { optionalRelation, relationKeys } from '../../shared/daily/index.ts';
+import {
+  decodeDailyText,
+  validReaction,
+  optionalRelation,
+  relationKeys,
+} from '../../shared/daily/index.ts';
 import type { MessageRelation } from '../../shared/daily/index.ts';
 import { backupRecordLimit } from '../../shared/backups/index.ts';
 import type { BackupTarget } from '../../shared/backups/index.ts';
@@ -33,10 +38,16 @@ import {
 import type { SocialMedia } from '../../shared/social-media/index.ts';
 import { publicProfile } from '../../shared/public-profile/index.ts';
 import type { PublicProfile } from '../../shared/public-profile/index.ts';
+import {
+  optionalSentAt,
+  sentAtKeys,
+} from '../../shared/message-presentation/index.ts';
 export type BackupRecord =
   | { type: 'dm-identity'; id: string; hash: string; value: string }
   | {
       type: 'dm-message';
+      sentAt?: number;
+      relation?: MessageRelation;
       id: string;
       hash: string;
       self: string;
@@ -96,6 +107,7 @@ export type BackupRecord =
     }
   | {
       type: 'message';
+      sentAt?: number;
       sequence?: number;
       participant?: Peer;
       relation?: MessageRelation;
@@ -215,6 +227,20 @@ function dmRecord(
   }
   return null;
 }
+function validateDmReaction(
+  relation: MessageRelation | undefined,
+  kind: unknown,
+  text: unknown,
+): void {
+  if (!relation) return;
+  if (
+    relation.type !== 'reaction' ||
+    kind !== 'text' ||
+    typeof text !== 'string' ||
+    !validReaction(decodeDailyText(text).text)
+  )
+    throw new Error('Invalid message reaction.');
+}
 function dmMessage(
   d: Record<string, unknown>,
   id: string,
@@ -232,12 +258,16 @@ function dmMessage(
     'kind',
     'media',
     'text',
+    ...sentAtKeys(d),
+    ...relationKeys(d),
   ]);
   if (
     typeof d['own'] !== 'boolean' ||
     (d['kind'] !== 'text' && d['kind'] !== 'attachment')
   )
     throw new Error('Registro de DM inválido.');
+  const relation = optionalRelation(d['relation']).relation;
+  validateDmReaction(relation, d['kind'], d['text']);
   const text = boundedText(d['text'], 3_000_000),
     media = d['media'] === null ? null : socialMedia(d['media']);
   if (d['kind'] === 'attachment') {
@@ -256,6 +286,8 @@ function dmMessage(
     kind: d['kind'],
     media,
     text,
+    ...optionalSentAt(d['sentAt']),
+    ...optionalRelation(d['relation']),
   };
 }
 function groupBackupRecord(
@@ -348,6 +380,7 @@ function messageRecord(
     'own',
     'kind',
     'text',
+    ...sentAtKeys(d),
     ...(Object.hasOwn(d, 'sequence') ? ['sequence'] : []),
     ...(Object.hasOwn(d, 'participant') ? ['participant'] : []),
     ...relationKeys(d),
@@ -364,6 +397,7 @@ function messageRecord(
     type: 'message',
     id,
     hash,
+    ...optionalSentAt(d['sentAt']),
     ...optionalSequence(d),
     ...participant(d),
     peer: uuid(d['peer']),

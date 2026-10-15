@@ -1,6 +1,7 @@
+import { EmojiPicker } from '../emoji/index.ts';
 import { t, translatedError } from '../../shared/i18n/index.ts';
-import { dmMessageMenu } from './dm-message-menu.ts';
-import { refreshDmChecks } from './dm-checks.ts';
+import { dmMessageMenu, dmReactionChips } from './dm-message-menu.ts';
+import { clearDmChecks, refreshDmChecks } from './dm-checks.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
 import { publicProfile } from '../../shared/public-profile/index.ts';
 import type { PublicProfile } from '../../shared/public-profile/index.ts';
@@ -37,6 +38,7 @@ export function startSocialDmUi(
   privacy: ExternalMediaConsent,
 ) {
   const controller = new SocialDms(access, sync);
+  const emojiPicker = new EmojiPicker();
   const playback = new VoicePlayback(),
     mediaUi = new AttachmentUi(playback, () => {});
   const composer = startDmComposer({
@@ -327,6 +329,7 @@ export function startSocialDmUi(
         controller,
         peer: selected,
         items: page.items,
+        reactionReads: page.reactionReads,
         usable: () =>
           old === generation && writable && current.history.isConnected,
       });
@@ -464,18 +467,28 @@ export function startSocialDmUi(
     page: DmPage,
     input: { selected: string; localMedia: boolean },
   ): HTMLElement {
-    const key = `${item.kind}:${item.text}:${input.localMedia}`,
+    const key = JSON.stringify([
+        item.kind,
+        item.text,
+        item.reactions,
+        item.ownReaction,
+        item.sentAt,
+        input.localMedia,
+      ]),
       held = rows.get(item.id);
     if (held?.key === key) return held.row;
     held?.stop();
     held?.row.remove();
     const handle = item.peer.handle,
-      bubble = dmBubble(item, {
-        own: item.sender === page.self,
-        handle,
-        privacy,
-        signal: externalAbort.signal,
-      });
+      bubble = dmBubble(
+        { ...item, text: item.displayText },
+        {
+          own: item.sender === page.self,
+          handle,
+          privacy,
+          signal: externalAbort.signal,
+        },
+      );
     if (item.kind === 'attachment' && item.media)
       mediaUi.render({
         article: bubble.row,
@@ -495,6 +508,17 @@ export function startSocialDmUi(
           : socialAttachment(JSON.parse(item.text) as unknown, item.media!)
               .caption,
       signal: externalAbort.signal,
+      picker: emojiPicker,
+      run,
+      ...(!input.localMedia
+        ? { react: (emoji: string) => react(item, emoji) }
+        : {}),
+    });
+    dmReactionChips(bubble.row, {
+      reactions: item.reactions,
+      ownReaction: item.ownReaction,
+      run,
+      ...(!input.localMedia ? { react: () => react(item, '') } : {}),
     });
     rows.set(item.id, {
       key,
@@ -506,7 +530,15 @@ export function startSocialDmUi(
     });
     return bubble.row;
   }
+  async function react(item: DmItem, emoji: string): Promise<void> {
+    const target = peer;
+    if (!target || !writable) return;
+    await controller.react(target, item, emoji);
+    await conversation();
+  }
   function leave(): void {
+    if (view) clearDmChecks(view.history);
+    emojiPicker.reset();
     clearRows();
     composer.leave();
     live.stop();

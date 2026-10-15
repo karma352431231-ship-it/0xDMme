@@ -19,6 +19,7 @@ export type DailyView<T> = T & {
   content: DailyText;
   edited: boolean;
   reactions: string[];
+  ownReaction: string;
 };
 /** Profile cards are identity metadata; authenticated actions never become bubbles. */
 export function dailyViews<T extends DailyRow>(
@@ -30,24 +31,28 @@ export function dailyViews<T extends DailyRow>(
       ...row,
       content: rowContent(row),
       edited: false,
+      ownReaction: '',
       reactions: [] as string[],
     }));
   const byId = new Map(base.map((row) => [row.id, row])),
-    reacted = new Map<string, Map<string, string>>();
+    reacted = new Map<string, Map<string, { text: string; own: boolean }>>();
   for (const row of [...rows].sort(
     (a, b) => (a.sequence ?? 0) - (b.sequence ?? 0),
   )) {
     applyAction(row, byId, reacted);
   }
 
-  for (const row of base)
-    row.reactions = [...(reacted.get(row.id)?.values() ?? [])].filter(Boolean);
+  for (const row of base) {
+    const values = [...(reacted.get(row.id)?.values() ?? [])];
+    row.reactions = values.map((value) => value.text).filter(Boolean);
+    row.ownReaction = values.find((value) => value.own)?.text ?? '';
+  }
   return base;
 }
 function applyAction<T extends DailyRow>(
   row: T,
   byId: Map<string, DailyView<T>>,
-  reacted: Map<string, Map<string, string>>,
+  reacted: Map<string, Map<string, { text: string; own: boolean }>>,
 ): void {
   if (row.state === messageStates.suspended) return;
   const relation = row.relation;
@@ -74,11 +79,12 @@ function updateReaction(
   target: string,
   row: DailyRow,
   text: string,
-  reacted: Map<string, Map<string, string>>,
+  reacted: Map<string, Map<string, { text: string; own: boolean }>>,
 ): void {
   if (!validReaction(text)) throw new Error('Reação inválida.');
-  const values = reacted.get(target) ?? new Map<string, string>();
-  values.set(row.author ?? String(row.own), text);
+  const values =
+    reacted.get(target) ?? new Map<string, { text: string; own: boolean }>();
+  values.set(row.author ?? String(row.own), { text, own: row.own });
   reacted.set(target, values);
 }
 function rowContent(row: DailyRow): DailyText {

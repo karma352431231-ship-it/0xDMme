@@ -37,9 +37,3 @@
 #app-shell .message-menu button:hover {
   background: var(--surface-3);
 }
-#app-shell .message-menu select {
-  min-width: 0;
-  width: 100%;
-  margin: 0;
-  font-size: var(--fs-caption);
-}

@@ -1,3 +1,9 @@
+import { MessageForwardSelection } from './forward-selection.ts';
+import type { ForwardDirectory } from '../message-forward/index.ts';
+import {
+  messageTime,
+  messageReactions,
+} from '../message-presentation/index.ts';
 import { t } from '../../shared/i18n/index.ts';
 import { messageStates, messageStateText } from '../message-state/index.ts';
 import { historyPosition, updateMessageStates } from '../chat-ui/index.ts';
@@ -37,10 +43,10 @@ interface HistoryPresentation {
   composerChanged: () => void;
   externalMedia?: ExternalMediaConsent;
   representatives?: Pick<ReturnType<typeof startRepresentatives>, 'renderCard'>;
-  actions: Pick<
-    Actions,
-    'action' | 'picker' | 'choose' | 'react' | 'forward'
-  > & {
+  forwarding?: ForwardDirectory;
+  flush?: () => Promise<void>;
+  actions: Pick<Actions, 'action' | 'picker' | 'choose' | 'react'> & {
+    forward: (view: DailyView<MessageView>, peer: string) => Promise<void>;
     remove: (view: MessageView) => Promise<void>;
   };
 }
@@ -49,13 +55,27 @@ interface HistoryPresentation {
 export class MessageHistoryUi {
   private readonly options: HistoryPresentation;
   private readonly externalRows = new ExternalTextHistory();
+  private readonly forwarding: MessageForwardSelection<MessageView> | null;
   private readIds = new Set<string>();
   private views: readonly MessageView[] | null = null;
   private pending: HistoryUpdate | null = null;
   constructor(options: HistoryPresentation) {
     this.options = options;
+    this.forwarding =
+      options.forwarding && options.flush
+        ? new MessageForwardSelection({
+            history: () => options.node('[data-message-history]'),
+            views: () => dailyViews(this.views ?? []),
+            signal: options.signal,
+            directory: options.forwarding,
+            run: options.run,
+            stage: options.actions.forward,
+            flush: options.flush,
+          })
+        : null;
   }
   clear(): void {
+    this.forwarding?.clear();
     this.pending = null;
     this.views = null;
     this.readIds.clear();
@@ -73,6 +93,7 @@ export class MessageHistoryUi {
     rows: readonly MessageView[] | null,
     update: HistoryUpdate = 'history',
   ): void {
+    if (rows === null) this.forwarding?.clear();
     this.views = rows;
     if (rows !== null && !this.options.visible()) {
       this.pending = this.pending === 'history' ? 'history' : update;
@@ -83,19 +104,23 @@ export class MessageHistoryUi {
     if (!history) return;
     const restoreScroll = historyPosition(history);
     this.renderContent(history, update);
-    history.hidden = rows === null;
+    this.forwarding?.update();
+    this.renderGate(history);
+    this.renderPeer();
+    restoreScroll();
+    this.options.composerChanged();
+  }
+  private renderGate(history: HTMLElement): void {
+    history.hidden = this.views === null;
     const gate = this.options.node('[data-message-gate]');
     if (gate) {
-      gate.hidden = rows !== null;
+      gate.hidden = this.views !== null;
       gate.textContent = t(
         'Sincronizando mensagens… O histórico abre após conferir as atualizações e exclusões.',
       );
     }
     const older = this.options.node('[data-message-older]');
-    if (older) older.hidden = dailyViews(rows ?? []).length === 0;
-    this.renderPeer();
-    restoreScroll();
-    this.options.composerChanged();
+    if (older) older.hidden = dailyViews(this.views ?? []).length === 0;
   }
   private renderContent(history: HTMLElement, update: HistoryUpdate): void {
     if (update === 'pending') return;
@@ -125,6 +150,8 @@ export class MessageHistoryUi {
       view.text,
       view.content,
       view.reactions,
+      view.ownReaction,
+      view.sentAt,
       view.edited,
       view.archived,
       view.own,
@@ -192,6 +219,8 @@ export class MessageHistoryUi {
     else detail.textContent = messageStateText(view.state);
     if (view.edited)
       detail.prepend(detail.childNodes.length ? t('Editada · ') : t('Editada'));
+    const time = messageTime(view.sentAt);
+    if (time) detail.prepend(time);
     return detail;
   }
   private renderAnnotations(
@@ -212,11 +241,6 @@ export class MessageHistoryUi {
       const forwarded = document.createElement('small');
       forwarded.textContent = t('Encaminhada');
       article.append(forwarded);
-    }
-    if (view.reactions.length) {
-      const reactions = document.createElement('p');
-      emojiText(reactions, view.reactions.join(' '));
-      article.append(reactions);
     }
   }
   private renderMessage(
@@ -249,12 +273,22 @@ export class MessageHistoryUi {
         ...actions,
         signal,
         view,
+        forward: () => this.forwarding?.start(view),
         peers: this.options.context().peers.filter((peer) => !peer.localOnly),
         replyAllowed: !this.options.context().selected?.localOnly,
         // A remove capability exists in composition, but is offered only for an own live row.
         ...(!view.archived && view.own ? { remove: () => remove(view) } : {}),
       }),
     );
+    if (view.reactions.length)
+      article.append(
+        messageReactions({
+          reactions: view.reactions,
+          ownReaction: view.ownReaction,
+          action: actions.action,
+          remove: view.archived ? null : () => actions.react(view, ''),
+        }),
+      );
     return article;
   }
   private renderMessageContent(input: {

@@ -640,3 +640,27 @@ await test('falha de mute impede arquivamento; falha de salvar não religa alert
   assert.equal(state.mutedUntil, Number.MAX_SAFE_INTEGER);
   assert.equal(daily.conversation(original.peer).archived, false);
 });
+
+await test('own reaction ownership survives identical emojis from both authors and removing only one', () => {
+  const mine = {
+    ...original,
+    id: crypto.randomUUID(),
+    sequence: 2,
+    text: '😂',
+    relation: { ...relation, type: 'reaction' as const },
+  };
+  const theirs = {
+    ...mine,
+    id: crypto.randomUUID(),
+    own: false,
+    author: original.peer,
+    sequence: 3,
+  };
+  const view = dailyViews([original, mine, theirs])[0]!;
+  assert.equal(view.ownReaction, '😂');
+  assert.deepEqual(view.reactions, ['😂', '😂']);
+  const removed = { ...mine, id: crypto.randomUUID(), sequence: 4, text: '' };
+  const after = dailyViews([original, mine, theirs, removed])[0]!;
+  assert.equal(after.ownReaction, '');
+  assert.deepEqual(after.reactions, ['😂']);
+});

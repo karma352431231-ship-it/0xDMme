@@ -5,6 +5,9 @@ export class ChatNode extends CommunityNode {
   scrollTop = 0;
   scrollHeight = 1200;
   clientHeight = 400;
+  get parentNode(): CommunityNode | null {
+    return this.parent;
+  }
   get childNodes(): CommunityNode[] {
     return this.children;
   }

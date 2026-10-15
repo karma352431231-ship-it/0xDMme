@@ -314,6 +314,21 @@ export function startMessages(
     visible: () => conversationVisible('[data-direct-conversation]'),
     signal: () => externalAbort.signal,
     attachments,
+    flush: transmit,
+    forwarding: {
+      contacts: () =>
+        directoryData.peers
+          .filter((peer) => !peer.localOnly)
+          .map((peer) => ({
+            id: peer.accountId,
+            title:
+              agenda.find(peer)?.contact.alias || peer.name || peer.address,
+            seed: peer.address,
+          })),
+      profile: (id) => controller.knownProfile(id),
+      more: () => directoryData.hasMore(navigator.onLine),
+      loadMore: () => directoryData.refresh(true, navigator.onLine),
+    },
     media: (view, thumbnail) => controller.media(view, thumbnail),
     run,
     composerChanged: composerStatus,
@@ -601,7 +616,6 @@ export function startMessages(
         thumbnail?.fill(0);
       }
     }
-    await transmit();
   }
   function sameSession(value: AccountSession | null): boolean {
     return (

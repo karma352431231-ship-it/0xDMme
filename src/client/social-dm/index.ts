@@ -1,3 +1,8 @@
+import { optionalSentAt } from '../../shared/message-presentation/index.ts';
+import { encodeDailyText, validReaction } from '../../shared/daily/index.ts';
+import type { MessageRelation } from '../../shared/daily/index.ts';
+import { projectDmMessages } from './presentation.ts';
+import { relatedDmHistory } from '../local-history/index.ts';
 import { t } from '../../shared/i18n/index.ts';
 import { prepareMessageRuntime } from '../message-runtime/index.ts';
 import { dmMessageStates } from './read-receipts.ts';
@@ -305,15 +310,24 @@ export class SocialDms {
       }),
     );
   }
-  async send(peer: string, text: string, id: string): Promise<void> {
+  async send(
+    peer: string,
+    text: string,
+    id: string,
+    relation?: MessageRelation,
+  ): Promise<void> {
     if (!text.trim() || new TextEncoder().encode(text).length > 3_000_000)
       throw new Error('Texto vazio ou excedido.');
     await this.withCrypto(async (input) => {
       const { authority, privateAuthority, api } = input;
       const scope = `${privateAuthority.session.accountId}:${privateAuthority.session.deviceId}`,
-        name = `dm-send:${peer}`;
+        name = relation ? `dm-react:${peer}:${relation.id}` : `dm-send:${peer}`;
       const hash = await digest(
-          canonical([authority.session.accountId, peer, text]),
+          canonical(
+            relation
+              ? [authority.session.accountId, peer, text, relation]
+              : [authority.session.accountId, peer, text],
+          ),
         ),
         old = await localGet<LocalCipher>(scope, name);
       let packet;
@@ -327,7 +341,13 @@ export class SocialDms {
           );
         packet = socialPacket(held['packet']);
       } else {
-        packet = await this.encrypt({ ...input, peer, text, id });
+        packet = await this.encrypt({
+          ...input,
+          peer,
+          text,
+          id,
+          ...(relation ? { relation } : {}),
+        });
         const row = await sealLocal(
           privateAuthority,
           crypto.randomUUID(),
@@ -346,7 +366,13 @@ export class SocialDms {
           packet.senderRevision !== authority.events.length ||
           packet.recipientRevision !== recipient.events.length
         ) {
-          packet = await this.encrypt({ ...input, peer, text, id: packet.id });
+          packet = await this.encrypt({
+            ...input,
+            peer,
+            text,
+            id: packet.id,
+            ...(relation ? { relation } : {}),
+          });
           const renewed = await sealLocal(
             privateAuthority,
             crypto.randomUUID(),
@@ -366,6 +392,7 @@ export class SocialDms {
     peer: string;
     text: string;
     id: string;
+    relation?: MessageRelation;
   }) {
     const { authority, api, machine, peer, id, text } = input;
     const peerDirectory = await readSocialDirectory(api, peer),
@@ -381,6 +408,7 @@ export class SocialDms {
       recovery: [own, recoveryKey(raw)],
       id,
       text,
+      ...(input.relation ? { relation: input.relation } : {}),
     });
   }
   async pending(peer: string): Promise<{ id: string; text: string } | null> {
@@ -418,7 +446,7 @@ export class SocialDms {
   async historyPage(snapshot: unknown, after: number) {
     return this.withCrypto(async (context) => {
       const raw = personalPage(
-        await context.api('personal-page', { snapshot, after }),
+        await context.api('personal-page', { snapshot, after, actions: true }),
       );
       const profiles = new Map(
         raw['profiles'].map((value) => {
@@ -495,11 +523,12 @@ export class SocialDms {
       (await context.api('recovery-key', { id: archive.keyId }));
     const key = await openRecoveryKey(raw, context.authority);
     try {
-      const text = await context.machine.decrypt({
+      const content = await context.machine.decryptContent({
         packet,
         senderEvent: event,
         exported: openRoomKey(key, archive),
       });
+      const text = content.text;
       if (packet.socialMedia)
         socialAttachment(JSON.parse(text) as unknown, packet.socialMedia);
       return {
@@ -513,6 +542,8 @@ export class SocialDms {
         kind: packet.kind === 'attachment' ? 'attachment' : 'text',
         media: packet.socialMedia ?? null,
         text,
+        ...optionalSentAt(content.sentAt),
+        ...(packet.relation ? { relation: packet.relation } : {}),
       };
     } finally {
       key.free();
@@ -543,6 +574,25 @@ export class SocialDms {
     }
     return events;
   }
+  async react(
+    peer: string,
+    target: Extract<BackupRecord, { type: 'dm-message' }>,
+    reaction: string,
+  ): Promise<void> {
+    if (!validReaction(reaction) || target.relation || target.peer.id !== peer)
+      throw new Error('Invalid message reaction.');
+    await this.send(
+      peer,
+      encodeDailyText({ text: reaction, reply: null, forwarded: false }),
+      crypto.randomUUID(),
+      {
+        id: target.id,
+        hash: target.hash,
+        author: target.own ? target.self : target.peer.id,
+        type: 'reaction',
+      },
+    );
+  }
   async messageStates(input: { peer: string; read: string[]; own: string[] }) {
     return dmMessageStates(await this.request('message-status', input));
   }
@@ -557,7 +607,7 @@ export class SocialDms {
         );
         if (!held) return 0;
         const value = object(JSON.parse(await openLocal(a, held)) as unknown);
-        return value['removals'] === state['removals']
+        return value['version'] === 2 && value['removals'] === state['removals']
           ? socialRevision(value['after'])
           : 0;
       });
@@ -572,7 +622,11 @@ export class SocialDms {
             const row = await sealLocal(
               a,
               crypto.randomUUID(),
-              JSON.stringify({ after, removals: state['removals'] }),
+              JSON.stringify({
+                version: 2,
+                after,
+                removals: state['removals'],
+              }),
             );
             await localPut(
               `${a.session.accountId}:${a.session.deviceId}`,
@@ -614,11 +668,30 @@ export class SocialDms {
           source !== liveSource || !this.removals.has('dm-message', id),
       );
       this.guard(generation);
+      const actions = await relatedDmHistory(
+        a,
+        items.map((row) => row.id),
+        () => this.guard(generation),
+        (id, source) =>
+          source !== liveSource || !this.removals.has('dm-message', id),
+      );
+      this.guard(generation);
+      const visible = [...items, ...actions];
+      const roots = visible.filter((row) => !row.relation);
       return {
-        items: items.map((row) => ({
-          ...row,
-          sender: row.own ? row.self : row.peer.id,
-        })),
+        items: projectDmMessages(
+          roots,
+          visible.filter((row) => row.relation),
+        ),
+        reactionReads: visible
+          .filter(
+            (row) =>
+              row.relation &&
+              !row.own &&
+              !this.removals.has('dm-message', row.id) &&
+              !this.removals.has('dm-message', row.relation.id),
+          )
+          .map((row) => row.id),
         next: items.length === 16 ? (items[0]?.sequence ?? null) : null,
         self: items[0]?.self ?? '',
       };
