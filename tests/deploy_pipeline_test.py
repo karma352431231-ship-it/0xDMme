@@ -1218,6 +1218,28 @@ class RequiredCommunityTopicsCodeTests(CommunityFeedCodeTests):
             remote.compatibility(self.candidate, self.live)
 
 
+class AutomaticActivityCodeTests(CommunityFeedCodeTests):
+    def setUp(self):
+        super().setUp()
+        for relative in ['communities.ts', 'community-discovery.ts']:
+            (self.candidate / 'src/server/database' / relative).write_bytes(
+                (self.live / 'src/server/database' / relative).read_bytes())
+        for relative in ['community-interactions.ts', 'community-posts.ts', 'profile-notifications.ts']:
+            (self.live / 'src/server/database' / relative).write_text('existing committed notifications')
+            (self.candidate / 'src/server/database' / relative).write_text('reviewed generic transaction wakeups')
+        (self.candidate / 'src/server/database/public-notice-wake.ts').write_text('reviewed bounded recipient frames')
+        self.exports = {
+            remote.AUTOMATIC_ACTIVITY_BEFORE: self.export(self.live),
+            remote.AUTOMATIC_ACTIVITY_REVIEWED: self.export(self.candidate),
+        }
+
+    def test_new_wake_module_must_match_the_exact_review(self):
+        (self.candidate / 'src/server/database/public-notice-wake.ts').write_text('unreviewed wake')
+        with (patch.object(backups, 'git_export', side_effect=lambda sha: self.exports[sha]),
+              self.assertRaises(RuntimeError)):
+            remote.compatibility(self.candidate, self.live)
+
+
 class CallsDeploymentTests(AttachmentDeploymentTests):
     count = 27
     previous_count = 25

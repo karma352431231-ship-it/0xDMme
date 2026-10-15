@@ -1,5 +1,33 @@
 # 0xDMme — Git e envio à VPS
 
+## Automatic Activity and unified contacts — activation authorized on 14/10/2026
+
+The owner requested automatic private-request/reply notifications, bell increments
+and one mobile contact directory with peers retained before acceptance. The owner
+then explicitly requested VPS activation of both repairs and continuation after
+context compaction until both are active. Application source review is bound to
+`0a2df41fb7e3e3f236ea108e2826f2d93939b3f8`, from published main predecessor
+`803a569a4d2b2c9fec9895762759e11ad290d7ec`.
+
+The existing executor admits only the exact whole-database projections of this
+pair: `community-interactions.ts`, `community-posts.ts`,
+`profile-notifications.ts` and new `public-notice-wake.ts`. The change retains
+existing push jobs and adds generic account wakeups after commit, including
+recipients without push subscriptions. Every one of the 67 SQL migrations, the
+migration executor, all other database files, dependencies, Node, model
+configuration and installed units remains exact. This is a code release; no
+schema change, backfill, detector acceptance or shared-service change is included.
+
+Require full exact-commit CI on integrated pushed main, a locally prepared build
+and only `npm run deploy:staging`. Preserve the existing checks, public served
+hashes, service readiness and rollback. Access, baselines, artifacts and receipts
+stay in `.local/`. Behavior and validation: [automatic Activity](BLOCO_10_NOTIFICACOES_E_EXPERIENCIA.md#automatic-activity-refresh--14102026)
+and [unified contacts](UI_CONTATOS.md#unified-private-contact-directory--14102026).
+
+**Ponto importante:** approval and push do not establish activation. Require a
+`published` receipt, correct served hashes and readiness. Saving a requested
+contact remains encrypted and does not grant conversation authority.
+
 ## Owner image editor repairs — activation authorized on 14/10/2026
 
 The owner explicitly requested main integration and VPS activation after the

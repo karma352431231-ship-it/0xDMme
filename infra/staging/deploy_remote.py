@@ -183,6 +183,9 @@ SAVED_BOOKMARK_REVIEWED = '877a9f9d80bd08a6dca23e2ad3616c7044f9f1c9'
 # Exact two-reader repair approved after explanation on 14/10/2026.
 # Pin both full database trees; all 66 migrations/executor stay exact.
 # Owner-requested mandatory topics: only new admission changes, without SQL or backfill.
+# Owner-authorized notification repair: generic commit-only wakes; all 67 SQL files unchanged.
+AUTOMATIC_ACTIVITY_BEFORE = '803a569a4d2b2c9fec9895762759e11ad290d7ec'
+AUTOMATIC_ACTIVITY_REVIEWED = '0a2df41fb7e3e3f236ea108e2826f2d93939b3f8'
 REQUIRED_COMMUNITY_TOPICS_BEFORE = '8d94f34ca6637cec6518a53d095a50c7af19a9b0'
 REQUIRED_COMMUNITY_TOPICS_REVIEWED = 'b086ad511cd3338a5246f7f6752ca250be7892ff'
 OWNER_REVIEW_MEDIA_BEFORE = '28b851b29ff11883511f5992083969534f7f7733'
@@ -372,6 +375,8 @@ def database_code_reviewed(candidate, live):
     before, after = database_files(live), database_files(candidate)
     changed = {name for name in set(before) | set(after) if before.get(name) != after.get(name)}
     reviews = [
+        ({'community-interactions.ts', 'community-posts.ts', 'profile-notifications.ts', 'public-notice-wake.ts'},
+         AUTOMATIC_ACTIVITY_BEFORE, AUTOMATIC_ACTIVITY_REVIEWED),
         ({'community-classification.ts'}, REQUIRED_COMMUNITY_TOPICS_BEFORE, REQUIRED_COMMUNITY_TOPICS_REVIEWED),
         ({'public-profile.ts', 'public-moderation.ts'}, OWNER_REVIEW_MEDIA_BEFORE, OWNER_REVIEW_MEDIA_REVIEWED),
         ({'community-media.ts'}, MEDIA_OUTPUT_BEFORE, MEDIA_OUTPUT_REVIEWED),
