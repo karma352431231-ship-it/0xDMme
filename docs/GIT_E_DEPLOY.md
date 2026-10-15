@@ -1,5 +1,31 @@
 # 0xDMme — Git e envio à VPS
 
+## Ranking activity — activation authorized on 16/10/2026
+
+The owner approved the ranking sidebar, the Chat | Communities switch and the
+active-member metric (posted, replied or voted in 24 hours) delivered through a
+migration, then explicitly asked to integrate it into main and activate it on the VPS.
+
+Use only the existing `npm run deploy:staging`. Its transition module
+`deploy_ranking_activity.py` pins published `ae7bd3023e5872d733909a11d2cb6f1251e77ed0`
+to reviewed `29d2804ebe48f63829b9e4069013f93d41ff3d18`. The 69 prior SQL files,
+dependencies, Node, model configuration and installed service units remain exact.
+Migration 070 adds only nullable `community_votes.voted_at`, its partial index
+`community_votes_recent` and `community_ranking_entries.previous_participants`
+(default 0); it refuses to run if any of them already exists and rewrites no rows.
+
+Keep the private backup, all-row/ledger/checksum comparisons with only the two new
+columns omitted, the community-table check, other-project fingerprints/health and
+scoped rollback. Pause only our web and three workers. Require a clean, integrated,
+pushed main commit with full exact-commit CI and the Mac build. Access, evidence,
+artifacts, backups and receipts stay exclusively in `.local/`.
+
+**Ponto importante:** activation requires a `published` receipt, 70 verified
+migrations and ready workers. Votes cast before the migration have no time and do
+not count, so growth reads inflated for about 48 hours; the metric version bump
+recomputes every community and the ranking may briefly report it is preparing.
+See [ranking metric](RANKING_COMUNIDADES_TRENDING.md).
+
 ## Perfil e DMs públicas diretas — ativação autorizada em 15/10/2026
 
 Após a CI integral de `3bfc25d`, o proprietário pediu integrar o lote à main e
