@@ -1,3 +1,5 @@
+import { t } from '../../shared/i18n/index.ts';
+
 interface WaitingWork {
   interactive: boolean;
   run: () => Promise<void>;
@@ -31,7 +33,7 @@ export class AuthorityWork {
           if (remaining <= 0) {
             reject(
               new DOMException(
-                'Aguarde a atualização das conversas e tente novamente.',
+                t('Aguarde a atualização das conversas e tente novamente.'),
                 'TimeoutError',
               ),
             );
@@ -54,7 +56,7 @@ export class AuthorityWork {
         this.waiting.splice(index, 1);
         reject(
           new DOMException(
-            'Aguarde a atualização das conversas e tente novamente.',
+            t('Aguarde a atualização das conversas e tente novamente.'),
             'TimeoutError',
           ),
         );
