@@ -2,6 +2,7 @@ import { t } from '../../shared/i18n/index.ts';
 import { messageStates } from '../message-state/index.ts';
 import { readPrefetchPage } from './prefetch-page.ts';
 import { ConfirmedConversations } from './confirmed-conversations.ts';
+import { optionalSentAt } from '../../shared/message-presentation/index.ts';
 import { knownPeerProfile } from './known-profile.ts';
 import { readBackupWindow } from './backup-window.ts';
 import { RemovalIndex } from '../personal-removals/index.ts';
@@ -97,6 +98,7 @@ import { PeerIdentity } from '../peer-identity/index.ts';
 /** Normal state of an accepted message; the bubble shows it only as a tooltip to keep the thread quiet. */
 export const receivedState = messageStates.received;
 export interface MessageView {
+  sentAt?: number;
   archived?: boolean;
   delivery?: DeliveryState;
   relation?: MessageRelation;
@@ -1068,13 +1070,14 @@ export class Messages {
       rawKey = recoveryKey(await api('recovery-key', { id: archive.keyId }));
       c.keys.set(archive.keyId, rawKey);
     }
-    const text = await this.decryptPacket({
+    const content = await this.decryptPacket({
       a,
       machine,
       packet,
       event,
       key: rawKey,
     });
+    const text = content.text;
     const peer =
         packet.sender === a.session.accountId
           ? packet.recipient
@@ -1088,17 +1091,20 @@ export class Messages {
       own,
       item,
       snapshot,
+      sentAt: content.sentAt,
     });
     if (c.acknowledge) await c.acknowledge(packet.id, item.hash);
     else await api('acknowledge', { id: packet.id, hash: item.hash });
-    return this.viewFromItem(a, item, text);
+    return this.viewFromItem(a, item, text, content.sentAt);
   }
   private viewFromItem(
     a: VaultAuthority,
     item: MessageItem,
     text: string,
+    sentAt?: number,
   ): MessageView {
     return {
+      ...optionalSentAt(sentAt),
       kind: item.kind,
       ...(item.relation ? { relation: item.relation } : {}),
       id: item.id,
@@ -1117,14 +1123,14 @@ export class Messages {
     packet: MessagePacket;
     event: import('../../shared/devices/index.ts').DirectoryEvent;
     key: RecoveryKey;
-  }): Promise<string> {
+  }): Promise<{ text: string; sentAt?: number }> {
     const { a, machine, packet, event } = c,
       archive = packet.archives.find(
         (x) => x.accountId === a.session.accountId,
       );
     if (!archive) throw new Error('Arquivo recuperável ausente.');
     try {
-      return await machine.decrypt({ packet, senderEvent: event });
+      return await machine.decryptContent({ packet, senderEvent: event });
     } catch (error: unknown) {
       if (
         !(error instanceof MegolmDecryptionError) ||
@@ -1133,7 +1139,7 @@ export class Messages {
         throw error;
       const key = await openRecoveryKey(c.key, a);
       try {
-        return await machine.decrypt({
+        return await machine.decryptContent({
           packet,
           senderEvent: event,
           exported: openRoomKey(key, archive),
@@ -1151,12 +1157,13 @@ export class Messages {
     own: boolean;
     item: MessageItem;
     snapshot: unknown;
+    sentAt: number | undefined;
   }): Promise<void> {
     const { a, packet, text, peer, own, item } = c;
     const verification = await sealLocal(
       a,
       packet.id,
-      verifiedReceipt(c.snapshot, item, await digest(text)),
+      verifiedReceipt(c.snapshot, item, await digest(text), c.sentAt),
     );
     if (packet.kind === 'profile') {
       profileCard(JSON.parse(text) as unknown);
@@ -1300,15 +1307,17 @@ export class Messages {
     if (item.deleted || item.status !== 'received') return null;
     const cached = await this.cachedCipherText(a, item);
     if (!cached) return null;
-    const hash = verifiedReceiptHash(
-      await openLocal(a, cached.verification),
-      snapshot,
-      item,
-    );
+    const receipt = await openLocal(a, cached.verification);
+    const hash = verifiedReceiptHash(receipt, snapshot, item);
     if (hash === null) return null;
     if ((await digest(cached.text)) !== hash)
       throw new Error('Conteúdo local divergente do pacote verificado.');
-    return this.viewFromItem(a, item, cached.text);
+    return this.viewFromItem(
+      a,
+      item,
+      cached.text,
+      optionalSentAt(object(JSON.parse(receipt) as unknown)['sentAt']).sentAt,
+    );
   }
   private async cachedCipherText(
     a: VaultAuthority,
@@ -1679,6 +1688,15 @@ export class Messages {
             id: value.id,
             peer: value.peer,
             own: value.own,
+            ...optionalSentAt(
+              value.verification
+                ? object(
+                    JSON.parse(
+                      await openLocal(a, value.verification),
+                    ) as unknown,
+                  )['sentAt']
+                : undefined,
+            ),
             text: await openLocal(a, value),
             hash: value.hash,
             state: messageStates.offline,

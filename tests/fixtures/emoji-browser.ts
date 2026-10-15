@@ -24,6 +24,8 @@ const publicRow = root.querySelector<HTMLElement>('[data-public-message]');
 if (publicRow)
   dmMessageMenu(publicRow, {
     text: 'Texto sintético da DM pública.',
+    picker,
+    run: (work) => work(),
     signal: new AbortController().signal,
   });
 const renderedText = 'Teste: 😀 👩🏽‍💻 🇧🇷 <script>texto literal</script>';
@@ -58,6 +60,7 @@ const view: DailyView<DailyRow> = {
   content: { text: renderedText, reply: null, forwarded: false },
   edited: false,
   reactions: [],
+  ownReaction: '',
 };
 actions.append(
   messageActions({
@@ -76,7 +79,7 @@ actions.append(
       );
       return Promise.resolve();
     },
-    forward: () => Promise.resolve(),
+    forward: () => {},
   }),
 );
 root.querySelector('[data-reset]')?.addEventListener('click', () => {

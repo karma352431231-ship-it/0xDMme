@@ -1,5 +1,48 @@
 /** Authored app text. Tuple order: English, Simplified Chinese. */
 export const catalog: Record<string, readonly [string, string]> = {
+  'message.sent-at {0}': ['Sent at {0}', '发送于 {0}'],
+  'message.remove-reaction {0} {1}': [
+    'Remove my {0} reaction · {1}',
+    '移除我的 {0} 回应 · {1}',
+  ],
+  'message.reaction {0} {1}': ['{0} reaction · {1}', '{0} 回应 · {1}'],
+  'forward.choose-contact': ['Forward to', '转发至'],
+  'forward.more': ['Load more contacts', '加载更多联系人'],
+  'forward.search': ['Search contacts', '搜索联系人'],
+  'forward.empty': ['No approved contacts found.', '未找到已批准的联系人。'],
+  'forward.photo-unavailable': [
+    'Contact photo unavailable.',
+    '无法显示联系人照片。',
+  ],
+  'forward.contacts-unavailable': [
+    'Could not load contacts.',
+    '无法加载联系人。',
+  ],
+  'forward.selected {0}': ['{0} selected', '已选择 {0} 条'],
+  'forward.select-message': ['Select message to forward', '选择要转发的消息'],
+  'forward.pending-target': [
+    'Retry forwarding to the same contact to finish the pending send.',
+    '请重试转发给同一联系人，以完成待发送的消息。',
+  ],
+  'Invalid message time.': ['Invalid message time.', '消息时间无效。'],
+  'Invalid message presentation.': [
+    'Invalid message presentation.',
+    '消息显示信息无效。',
+  ],
+  'Invalid message reaction.': ['Invalid message reaction.', '消息回应无效。'],
+  'Reaction target is unavailable.': [
+    'The message is no longer available for reactions.',
+    '该消息已无法回应。',
+  ],
+  'Message reaction limit reached.': [
+    'This message has reached its reaction limit.',
+    '该消息的回应次数已达上限。',
+  ],
+  'DM accepts text, declared media and reactions; private profile and edits are forbidden.':
+    [
+      'This chat accepts text, media and reactions; private profile cards and edits are unavailable.',
+      '此聊天支持文字、媒体和回应，不支持私密资料卡和编辑。',
+    ],
   'follow.community': ['Community', '社区'],
   'follow.user': ['User', '用户'],
   'upvote.heading': ['Upvotes', '赞同'],

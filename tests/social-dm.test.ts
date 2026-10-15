@@ -75,6 +75,15 @@ await test('DM pelo @ reutiliza Megolm com identidade/chaves próprias e não re
     );
     assert.ok(archive);
     assert.throws(() => openRoomKey(wrong, archive));
+    const before = Date.now();
+    const decoded = await reader.decryptContent({
+      packet,
+      senderEvent: sender.directory,
+      exported: openRoomKey(key, archive),
+    });
+    assert.equal(decoded.text, 'Texto sintético e https://0xdmme.app');
+    assert.ok(decoded.sentAt && decoded.sentAt <= before);
+    assert.equal(body.includes('sentAt'), false);
     assert.equal(
       await reader.decrypt({
         packet,
@@ -84,6 +93,23 @@ await test('DM pelo @ reutiliza Megolm com identidade/chaves próprias e não re
       'Texto sintético e https://0xdmme.app',
     );
     assert.throws(() => socialPacket({ ...packet, kind: 'profile' }));
+    const reaction = {
+      ...packet,
+      relation: {
+        id: crypto.randomUUID(),
+        hash: 'b'.repeat(64),
+        author: sender.accountId,
+        type: 'reaction' as const,
+      },
+    };
+    assert.equal(socialPacket(reaction).relation?.type, 'reaction');
+    assert.throws(() =>
+      socialPacket({
+        ...reaction,
+        relation: { ...reaction.relation, type: 'edit' },
+      }),
+    );
+
     assert.throws(() =>
       socialDirectory({ ...sender.directory, profile: 'a'.repeat(64) }),
     );

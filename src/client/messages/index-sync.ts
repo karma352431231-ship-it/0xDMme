@@ -339,11 +339,13 @@ export function verifiedReceipt(
   snapshot: unknown,
   item: MessageItem,
   payloadHash: string,
+  sentAt?: number,
 ): string {
   return JSON.stringify({
     scope: authorityScope(snapshot),
     identity: packetIdentity(item),
     payloadHash,
+    ...(sentAt === undefined ? {} : { sentAt }),
   });
 }
 export function verifiedReceiptHash(

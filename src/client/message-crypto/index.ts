@@ -72,6 +72,8 @@ import type {
   MessagePacket,
   RecoveryKey,
 } from '../../shared/messages/index.ts';
+import { messagePresentation } from '../../shared/message-presentation/index.ts';
+import type { MessagePresentation } from '../../shared/message-presentation/index.ts';
 import type { VaultAuthority } from '../vault-authority/index.ts';
 import { archiveRoomKey } from '../message-recovery/index.ts';
 export interface GroupEncryptionInput {
@@ -145,6 +147,7 @@ function roomContent(input: {
       id: input.id,
       sender: input.account,
       recipient: input.peer,
+      presentation: { version: 1, sentAt: Date.now() },
     },
   });
   if (
@@ -872,6 +875,13 @@ export class MessageCrypto {
     senderEvent: DirectoryEvent;
     exported?: string;
   }): Promise<string> {
+    return (await this.decryptContent(input)).text;
+  }
+  async decryptContent(input: {
+    packet: MessagePacket;
+    senderEvent: DirectoryEvent;
+    exported?: string;
+  }): Promise<MessagePresentation & { text: string }> {
     this.assertOpen();
     const packet = await verifyPacket(input.packet, input.senderEvent);
     if (input.exported !== undefined) {
@@ -915,7 +925,10 @@ export class MessageCrypto {
         )
           throw new Error('Conteúdo não corresponde à mensagem autenticada.');
         checkAttachmentPacket(packet, payload['body']);
-        return payload['body'];
+        return {
+          text: payload['body'],
+          ...messagePresentation(identity['presentation']),
+        };
       } finally {
         event.free();
       }

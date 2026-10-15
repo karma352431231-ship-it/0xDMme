@@ -420,6 +420,7 @@ export class Backups {
         ? { participant: this.peers.get(view.peer)! }
         : {}),
       ...(view.relation ? { relation: view.relation } : {}),
+      ...(view.sentAt === undefined ? {} : { sentAt: view.sentAt }),
       text: view.text,
     };
   }

@@ -278,7 +278,7 @@ function historyIndex(record: BackupRecord): {
     return {
       peer: record.peer.id,
       sequence: record.sequence,
-      relation: '',
+      relation: record.relation?.id ?? '',
       kind: record.kind,
     };
   if (record.type === 'message')
@@ -398,6 +398,7 @@ export async function dmConversationHistory(
       const row = cursor.value as StoredRecord;
       if (
         row.type !== 'dm-message' ||
+        !!row.relation ||
         seen.has(row.id) ||
         !visible(row.id, row.source)
       ) {
@@ -583,7 +584,9 @@ export async function cacheDmRecord(
   if (previous) {
     if (previous.hash !== record.hash)
       throw new Error('Histórico de DM diverge da cópia autenticada.');
-    return;
+    if (record.type !== 'dm-message' || record.sentAt === undefined) return;
+    const old = await openHistoryRecord(a, previous);
+    if (old.type !== 'dm-message' || old.sentAt !== undefined) return;
   }
   const source = await bytesHash(
     new TextEncoder().encode(`0xdmme-dm-cache:${a.session.accountId}`),
@@ -1039,27 +1042,44 @@ export async function relatedHistory(
   ids: readonly string[],
   guard: () => void,
 ): Promise<Extract<BackupRecord, { type: 'message' }>[]> {
-  return (await readRelatedHistory(a, ids, guard, 'message')).filter(
-    (row) => row.type === 'message',
-  );
+  return (
+    await readRelatedHistory(a, ids, guard, { family: 'message' })
+  ).filter((row) => row.type === 'message');
 }
 export async function relatedGroupHistory(
   a: VaultAuthority,
   ids: readonly string[],
   guard: () => void,
 ): Promise<Extract<BackupRecord, { type: 'group-message' }>[]> {
-  return (await readRelatedHistory(a, ids, guard, 'group-message')).filter(
-    (row) => row.type === 'group-message',
-  );
+  return (
+    await readRelatedHistory(a, ids, guard, { family: 'group-message' })
+  ).filter((row) => row.type === 'group-message');
+}
+export async function relatedDmHistory(
+  a: VaultAuthority,
+  ids: readonly string[],
+  guard: () => void,
+  visible: (id: string, source: string) => boolean = () => true,
+): Promise<Extract<BackupRecord, { type: 'dm-message' }>[]> {
+  return (
+    await readRelatedHistory(a, ids, guard, { family: 'dm-message', visible })
+  ).filter((row) => row.type === 'dm-message');
 }
 async function readRelatedHistory(
   a: VaultAuthority,
   ids: readonly string[],
   guard: () => void,
-  family: 'message' | 'group-message',
-): Promise<Extract<BackupRecord, { type: 'message' | 'group-message' }>[]> {
-  const result: Extract<BackupRecord, { type: 'message' | 'group-message' }>[] =
-    [];
+  options: {
+    family: 'message' | 'group-message' | 'dm-message';
+    visible?: (id: string, source: string) => boolean;
+  },
+): Promise<
+  Extract<BackupRecord, { type: 'message' | 'group-message' | 'dm-message' }>[]
+> {
+  const result: Extract<
+    BackupRecord,
+    { type: 'message' | 'group-message' | 'dm-message' }
+  >[] = [];
   for (const id of ids) {
     let after: IDBValidKey | null = null;
     do {
@@ -1100,10 +1120,14 @@ async function readRelatedHistory(
           );
         };
       });
-      for (const row of page.rows.filter((row) => row.type === family)) {
+      for (const row of page.rows.filter(
+        (row) =>
+          row.type === options.family &&
+          (options.visible?.(row.id, row.source) ?? true),
+      )) {
         guard();
         const record = await openHistoryRecord(a, row);
-        result.push(historicalAction(record, id, family));
+        result.push(historicalAction(record, id, options.family));
       }
       after = page.next;
     } while (after !== null);
@@ -1114,9 +1138,13 @@ async function readRelatedHistory(
 function historicalAction(
   record: BackupRecord,
   id: string,
-  family: 'message' | 'group-message',
-): Extract<BackupRecord, { type: 'message' | 'group-message' }> {
-  if (record.type !== 'message' && record.type !== 'group-message')
+  family: 'message' | 'group-message' | 'dm-message',
+): Extract<BackupRecord, { type: 'message' | 'group-message' | 'dm-message' }> {
+  if (
+    record.type !== 'message' &&
+    record.type !== 'group-message' &&
+    record.type !== 'dm-message'
+  )
     throw new Error('Alteração histórica divergente.');
   if (record.type !== family || record.relation?.id !== id)
     throw new Error('Alteração histórica divergente.');

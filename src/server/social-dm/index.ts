@@ -77,11 +77,16 @@ export class SocialDmService {
         return db.socialHistory.snapshot(a);
       },
       'dm-personal-page': (a, d) => {
-        keys(d, ['snapshot', 'after']);
+        keys(d, [
+          'snapshot',
+          'after',
+          ...(Object.hasOwn(d, 'actions') ? ['actions'] : []),
+        ]);
         const s = object(d['snapshot']);
         keys(s, ['anchor', 'removals', 'directory', 'profile']);
         return db.socialHistory.page(a, {
           after: socialRevision(d['after']),
+          actions: Object.hasOwn(d, 'actions') ? boolean(d['actions']) : false,
           snapshot: {
             anchor: socialRevision(s['anchor']),
             removals: socialRevision(s['removals']),

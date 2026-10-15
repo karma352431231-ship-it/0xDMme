@@ -2094,3 +2094,7 @@ and served-version verification. Require full CI of the final pushed main commit
 Operational evidence stays in `.local/`; an approval/push alone is not activation.
 The [deployment contract](docs/GIT_E_DEPLOY.md#public-upvotes-and-author-identity--activation-authorized-on-15102026)
 records scope and consequences.
+
+### Chat actions approved on 15/10/2026
+
+The owner requested multi-message forwarding in private chats, a recipient chooser with local aliases and received private photos, removal of the redundant reaction-removal menu item, and reaction chips below message bubbles in both private and public-identity chats. Public-identity chats must not offer Forward. New messages show their authenticated sender-device time; historical messages without a recorded clock remain undated. The implementation preserves current consent, identity separation, E2EE, recovery and quotas. Optional versioned application presentation metadata does not change cryptographic envelopes or signing formats. Public reactions extend only the existing signed reaction relation; edits/private cards remain excluded. See [the UI contract](docs/UI_CONVERSAS.md#message-forwarding-and-reaction-presentation--15102026) for compatibility, lifecycle and validation details.

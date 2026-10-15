@@ -22,15 +22,26 @@ export class PublicationPreview {
     kind: 'post' | 'reply',
   ): string | HTMLElement {
     const text = publicationQuote(preview, kind);
-    if (!this.privacy || preview?.status !== 'visible' || !gifUrls(text).length)
-      return text;
-    const host = document.createElement('p');
-    host.className = 'activity-quote';
+    return preview?.status === 'visible' ? this.text(text) : text;
+  }
+  text(text: string): HTMLElement {
+    if (!this.privacy || !gifUrls(text).length) {
+      const paragraph = document.createElement('p');
+      paragraph.className = 'activity-quote';
+      paragraph.textContent = text;
+      return paragraph;
+    }
+    const host = document.createElement('div');
+    host.className = 'activity-quote activity-quote-media';
     showGifText(host, text, {
       privacy: this.privacy,
       signal: this.pending.signal,
       renderText: (node, body) => {
-        node.textContent = body;
+        if (!body) return;
+        const paragraph = document.createElement('p');
+        paragraph.className = 'activity-quote';
+        paragraph.textContent = body;
+        node.append(paragraph);
       },
     });
     return host;

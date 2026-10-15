@@ -12,7 +12,7 @@ interface MessageActionOptions<T extends DailyRow> {
   choose: (mode: 'reply' | 'edit', view: T) => void;
   react: (view: T, reaction: string) => Promise<void>;
   picker: EmojiPicker;
-  forward: (view: DailyView<T>, peer: string) => Promise<void>;
+  forward: (view: DailyView<T>) => void;
   remove?: () => Promise<void>;
 }
 export function messageActions<T extends DailyRow>(
@@ -45,13 +45,9 @@ export function messageActions<T extends DailyRow>(
     );
   const reaction = c.action(t('Reagir…'), async () => {
     const emoji = await c.picker.choose(trigger);
-    if (emoji !== null) await c.react(c.view, emoji);
+    if (emoji !== null && !c.signal.aborted) await c.react(c.view, emoji);
   });
-  if (!c.view.archived)
-    menu.append(
-      reaction,
-      c.action(t('Remover minha reação'), () => c.react(c.view, '')),
-    );
+  if (!c.view.archived) menu.append(reaction);
   appendForward(menu, c);
   appendRemove(menu, c);
   return host;
@@ -61,18 +57,12 @@ function appendForward<T extends DailyRow>(
   menu: HTMLElement,
   c: MessageActionOptions<T>,
 ): void {
-  const target = document.createElement('select');
-  target.setAttribute('aria-label', t('Contato para encaminhar'));
-  for (const peer of c.peers) {
-    const option = document.createElement('option');
-    option.value = peer.accountId;
-    option.textContent = peer.name || peer.address;
-    target.append(option);
-  }
-  if (c.peers.length)
+  if (c.peers.length && ['text', 'attachment'].includes(c.view.kind))
     menu.append(
-      target,
-      c.action(t('Encaminhar'), () => c.forward(c.view, target.value)),
+      c.action(t('Encaminhar'), () => {
+        c.forward(c.view);
+        return Promise.resolve();
+      }),
     );
 }
 

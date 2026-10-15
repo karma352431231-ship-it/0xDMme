@@ -79,12 +79,13 @@ export function socialPacket(input: unknown): MessagePacket {
   const packet = messagePacket(input);
   if (
     packet.kind === 'profile' ||
-    packet.relation ||
+    (packet.relation &&
+      (packet.relation.type !== 'reaction' || packet.kind !== 'text')) ||
     (packet.kind === 'attachment' && !packet.socialMedia)
   )
     throw new AccountError(
       400,
-      'DM aceita texto, fotos, GIFs e voz declarados; perfil privado e outras operações são proibidos.',
+      'DM accepts text, declared media and reactions; private profile and edits are forbidden.',
     );
   return packet;
 }

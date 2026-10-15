@@ -40,6 +40,7 @@ export function upvoteRows(
     current: () => boolean;
     open: (ids: readonly string[]) => Promise<void>;
     changed: () => void;
+    preview: (text: string) => HTMLElement;
   },
 ): HTMLElement[] {
   return groupUpvoteNotices(items).map((group) => {
@@ -48,7 +49,7 @@ export function upvoteRows(
       copy = document.createElement('div'),
       faces = document.createElement('div'),
       title = document.createElement('strong'),
-      quote = document.createElement('p'),
+      quote = actions.preview(first.text),
       time = document.createElement('small');
     row.className = 'activity-row activity-upvote';
     row.dataset['read'] = String(group.every((item) => item.read));
@@ -57,8 +58,6 @@ export function upvoteRows(
     for (const item of group.slice(0, 3))
       faces.append(publicIdentityAvatar(item.actor, actions.signal));
     title.textContent = upvoteTitle(group);
-    quote.className = 'activity-quote';
-    quote.textContent = first.text;
     time.textContent = new Date(first.createdAt).toLocaleString(
       currentLanguage(),
     );

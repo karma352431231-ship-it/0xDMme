@@ -1,0 +1,46 @@
+.chat-message:has(> .message-reactions:not(:empty)) {
+  margin-bottom: 26px;
+}
+.chat-message > .message-reactions {
+  position: absolute;
+  top: calc(100% - 2px);
+  left: 10px;
+  display: flex;
+  gap: 4px;
+  z-index: 1;
+}
+.chat-message.own > .message-reactions {
+  left: auto;
+  right: 10px;
+}
+#app-shell .chat-message .message-reaction {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  min-width: 32px;
+  min-height: 28px;
+  padding: 2px 6px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--surface);
+  color: var(--text);
+  opacity: 1;
+  font-size: var(--fs-caption);
+  white-space: nowrap;
+}
+#app-shell .chat-message .message-reaction:disabled {
+  cursor: default;
+}
+.chat-message .message-meta time {
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.chat-message .message-meta {
+  flex-wrap: wrap;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  #app-shell .chat-message:has(> .message-actions) > p {
+    padding-inline-end: 32px;
+  }
+}

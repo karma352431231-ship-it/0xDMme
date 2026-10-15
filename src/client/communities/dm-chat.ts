@@ -1,3 +1,4 @@
+import { messageTime } from '../message-presentation/index.ts';
 import { t } from '../../shared/i18n/index.ts';
 import type { PublicProfile } from '../../shared/public-profile/index.ts';
 import type { SocialRelation } from '../../shared/social-dm/index.ts';
@@ -156,7 +157,12 @@ export function dmRequestState(input: {
 
 /** A message bubble; attachments are filled by the media renderer. */
 export function dmBubble(
-  item: { id: string; kind: 'text' | 'attachment'; text: string },
+  item: {
+    id: string;
+    kind: 'text' | 'attachment';
+    text: string;
+    sentAt?: number;
+  },
   input: {
     own: boolean;
     handle: string;
@@ -176,6 +182,10 @@ export function dmBubble(
       ? t('Mensagem enviada por você')
       : t('Mensagem recebida de @{0}', [input.handle]),
   );
+  const time = messageTime(item.sentAt),
+    meta = el('small', '', 'message-meta');
+  if (time) meta.append(time);
+  row.append(meta);
   if (item.kind !== 'text') return { row, stop: () => undefined };
   const text = el('p');
   const gif = gifUrls(item.text).length;
@@ -188,7 +198,7 @@ export function dmBubble(
         })
       : (emojiText(text, item.text), () => undefined),
   ];
-  row.append(text);
+  row.prepend(text);
   stops.push(
     showExternalVideos(row, item.text, {
       privacy: input.privacy,

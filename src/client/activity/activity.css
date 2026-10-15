@@ -36,3 +36,17 @@
 #app-shell .activity-upvote > .activity-copy {
   flex-basis: auto;
 }
+
+/* Clamp only the text excerpt; the compact GIF remains visible underneath. */
+#app-shell .activity-quote.activity-quote-media {
+  display: block;
+  overflow: visible;
+  white-space: normal;
+  -webkit-line-clamp: unset;
+  line-clamp: none;
+}
+
+#app-shell :is(.activity-group, .activity-copy) {
+  grid-template-columns: minmax(0, 1fr);
+  min-width: 0;
+}

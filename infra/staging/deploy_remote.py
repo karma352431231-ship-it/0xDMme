@@ -477,6 +477,9 @@ def backup_review(candidate, live):
 
 def database_review(candidate, live):
     count = len(list((candidate / 'src/server/database/migrations').glob('*.sql')))
+    if count == 69:
+        import deploy_social_reactions
+        return deploy_social_reactions.review(candidate, live)
     if count == 68:
         import deploy_public_upvotes
         return deploy_public_upvotes.review(candidate, live)
@@ -1081,6 +1084,9 @@ def activate(config, work):
     if (database_files(candidate) != database_files(DATA / 'release')
             and not database_code_reviewed(candidate, DATA / 'release')):
         # Any unreviewed database change was rejected by prepare()/compatibility().
+        if len(list((candidate / 'src/server/database/migrations').glob('*.sql'))) == 69:
+            import deploy_social_reactions
+            return deploy_social_reactions.activate(config, work, candidate, before)
         if len(list((candidate / 'src/server/database/migrations').glob('*.sql'))) == 68:
             import deploy_public_upvotes
             return deploy_public_upvotes.activate(config, work, candidate, before)

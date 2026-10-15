@@ -416,7 +416,7 @@ await test('outro aparelho aplica a cópia da conta e só grava quando algo muda
   await settle();
   assert.equal(sync.entries.size, 1);
   announcePreference({ theme: 'white' });
-  await settle();
+  await waitFor(() => sync.entries.size === 2);
   assert.equal(sync.entries.size, 2);
   assert.equal(
     (await new SettingsRecord(sync).load(account.accountId))?.theme,

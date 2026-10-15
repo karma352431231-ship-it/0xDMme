@@ -22,6 +22,8 @@ import type { PublicProfileStore } from './public-profile.ts';
 import type { SocialMediaStore } from './social-media.ts';
 import type { SocialContext, SocialDmStore } from './social-dm.ts';
 
+import { admitSocialReaction } from './social-reactions.ts';
+
 export class SocialCryptoStore {
   private readonly social: SocialDmStore;
   private readonly profiles: PublicProfileStore;
@@ -300,6 +302,7 @@ export class SocialCryptoStore {
           throw new AccountError(409, 'Identificador de DM já utilizado.');
         return { status: 'accepted', hash };
       }
+      await admitSocialReaction(context, packet);
       await this.admitMedia(context, packet);
       const body = JSON.stringify(packet),
         charge = Buffer.byteLength(body) + 512;
@@ -388,7 +391,7 @@ export class SocialCryptoStore {
         sequence: string;
         body: MessagePacket;
       }>(
-        `SELECT sequence::text,body FROM hash_talk.social_messages WHERE ((sender=$1 AND recipient=$2) OR (sender=$2 AND recipient=$1)) AND ($3::bigint IS NULL OR sequence<$3) AND body IS NOT NULL AND NOT EXISTS(SELECT 1 FROM hash_talk.personal_removals r WHERE r.account_id=$4 AND r.kind='dm-message' AND r.id=hash_talk.social_messages.id) ORDER BY sequence DESC LIMIT 17`,
+        `SELECT sequence::text,body FROM hash_talk.social_messages WHERE ((sender=$1 AND recipient=$2) OR (sender=$2 AND recipient=$1)) AND ($3::bigint IS NULL OR sequence<$3) AND body IS NOT NULL AND body->'relation' IS NULL AND NOT EXISTS(SELECT 1 FROM hash_talk.personal_removals r WHERE r.account_id=$4 AND r.kind='dm-message' AND r.id=hash_talk.social_messages.id) ORDER BY sequence DESC LIMIT 17`,
         [
           context.actor.id,
           input.peer,
