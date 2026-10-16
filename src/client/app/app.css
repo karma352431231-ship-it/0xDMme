@@ -485,18 +485,16 @@
     order: 1;
     border-left: 1px solid var(--line);
   }
-  /* Full Communities page (16/10/2026): feed in the center, ranking on the
-     right; the followed list now lives in the ranking's Following tab. */
+  /* Full Communities page (16/10/2026): the left navigation (Feed, Ranking,
+     followed communities) stays, the feed is in the center and the ranking
+     sidebar on the right. */
   #app-shell[data-page='comunidades'] {
-    grid-template-columns: 64px minmax(0, 1fr) 380px;
+    grid-template-columns: 64px 260px minmax(0, 1fr) 380px;
   }
   #app-shell[data-page='comunidades']:has(
       > .ranking-side[data-collapsed='true']
     ) {
-    grid-template-columns: 64px minmax(0, 1fr) 64px;
-  }
-  #app-shell[data-page='comunidades'] > .sidebar {
-    display: none;
+    grid-template-columns: 64px 260px minmax(0, 1fr) 64px;
   }
   #app-shell[data-page='comunidades'] > .ranking-side {
     display: flex;
