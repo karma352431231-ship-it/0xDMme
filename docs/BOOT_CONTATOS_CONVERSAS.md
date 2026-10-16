@@ -11,7 +11,7 @@ that analysis. Captures, exact timings and operational evidence stay in `.local/
 
 `app/session-boot.ts` now owns a bounded startup gate for one current session.
 When opening the foreground private chat directory, start its existing loader
-and calls normally. Defer optional profile/community readiness, contacts-screen
+and calls normally; incoming group links remain immediate as well. Defer optional profile/community readiness, contacts-screen
 warmup, activity, status, vault, settings and session decoration until the first
 directory publication. Repeated readiness callbacks coalesce into that single
 pending warmup. After startup, normal readiness rechecks keep their behavior.

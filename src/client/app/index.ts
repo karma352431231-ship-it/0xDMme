@@ -257,7 +257,6 @@ const sessionBoot = new SessionBoot((session) => {
   communities.ready();
   contacts.ready();
   activity.ready();
-  groupEntrypoints.ready();
   statuses.ready();
   void vault.ready();
   loadSessionExtras(session.accountId);
@@ -632,6 +631,7 @@ function connection(): void {
     });
     if (messagesReady) messages.ready();
     calls.ready();
+    groupEntrypoints.ready();
   } else sessionBoot.reset();
   renderConnection();
 }

@@ -4,7 +4,7 @@
 physical console capture located repeated authenticated work before initial
 directory publication, the owner approved applying the fixes. Defer optional
 session warmups while the foreground private chat directory starts, coalescing
-readiness rechecks during that interval. Keep calls immediate, keep other
+readiness rechecks during that interval. Keep calls and incoming group links immediate, keep other
 foreground screens on their normal startup path and release deferred work on
 navigation, directory publication or a current-session directory failure.
 Logout, device/CSRF changes and authorization loss discard the pending warmup.
