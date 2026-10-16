@@ -621,10 +621,13 @@ def communities_snapshot():
 
 def verify_community_tables(expected):
     import deploy_blocks45 as backups
+    reviewed = set(expected) | {'schema_migrations'}
+    # Include the whole reviewed set plus one row to detect unexpected tables.
+    limit = len(reviewed) + 1
     tables = backups.pg(['psql', '--no-psqlrc', '--set=ON_ERROR_STOP=1',
         '--tuples-only', '--no-align', '-c',
-        "SELECT tablename FROM pg_tables WHERE schemaname='hash_talk' ORDER BY tablename LIMIT 100"])
-    if set(tables.decode().splitlines()) != set(expected) | {'schema_migrations'}:
+        "SELECT tablename FROM pg_tables WHERE schemaname='hash_talk' ORDER BY tablename LIMIT " + str(limit)])
+    if set(tables.decode().splitlines()) != reviewed:
         raise RuntimeError('Community transition table set differs; existing data not reviewed.')
 
 

@@ -3,6 +3,7 @@ from pathlib import Path
 import sys
 import tempfile
 import runpy
+import re
 import unittest
 from unittest.mock import patch, Mock
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'infra/staging'))
@@ -29,6 +30,24 @@ class CommunityAddressMigrationTests(unittest.TestCase):
         self.assertEqual(command.call_args.args[0], [
             'git', '-C', '/original/checkout', 'check-ignore', '--', '.local/VPS_SSH_TARGET',
         ])
+
+    def test_inventory_reads_all_101_reviewed_tables_but_rejects_extra_or_missing(self):
+        expected = addresses.OLD_TABLES + addresses.NEW_TABLES
+        names = sorted([*expected, 'schema_migrations'])
+        self.assertEqual(len(names), 101)
+        def result(rows):
+            def query(args):
+                limit = re.search(r'LIMIT (\d+)$', args[-1])
+                self.assertIsNotNone(limit, 'Metadata query must remain bounded')
+                self.assertLessEqual(int(limit.group(1)), len(expected) + 2)
+                return ('\n'.join(sorted(rows)[:int(limit.group(1))]) + '\n').encode()
+            return query
+        with patch.object(backups, 'pg', side_effect=result(names)):
+            base.verify_community_tables(expected)
+        for rows in [names + ['zz_unreviewed_table'], names[1:]]:
+            with (patch.object(backups, 'pg', side_effect=result(rows)),
+                  self.assertRaisesRegex(RuntimeError, 'table set differs')):
+                base.verify_community_tables(expected)
 
     def test_unreviewed_sources_stop_before_database_access(self):
         with (patch.object(addresses, 'REVIEWED', 'UNREVIEWED'),

@@ -2265,3 +2265,16 @@ confere o caminho de leitura; o acesso não é copiado. Fontes da aplicação,
 migração, predecessor e autorização permanecem idênticos. Reutilizar os
 resultados válidos, exigir CI do commit corrigido e repetir a preparação uma
 vez depois desse diagnóstico; nenhuma ativação ocorreu nessa tentativa.
+
+Na primeira ativação desse lote, a migração chegou à verificação com 101 tabelas
+(incluindo o catálogo). A consulta histórica do verificador tinha `LIMIT 100` e
+truncou o conjunto. A falha ocorreu antes de abrir os escritores: o executor
+restaurou o backup e a release antiga; schema 071, ausência da tabela nova,
+fontes antigas e prontidão foram conferidos em leitura, com rollback verificado.
+A correção limita a enumeração ao tamanho do conjunto explicitamente revisado
+mais uma linha, permitindo verificar as 101 tabelas e recusando qualquer tabela
+extra ou ausente. Não ampliar o conjunto permitido nem dispensar checksums,
+linhas, ledger, backup ou manutenção. A regressão falhou com o limite anterior
+e cobre o conjunto completo e ambas as divergências. Preservar backup/recibo da
+tentativa e exigir CI do commit corrigido antes de nova ativação pelo mesmo
+executor. Fontes da aplicação, SQL e aprovação continuam iguais às revisadas.
