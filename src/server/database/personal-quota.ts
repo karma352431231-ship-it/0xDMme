@@ -1,6 +1,6 @@
 import type pg from 'pg';
 
-/** Direct ownership is incremental; attachment exclusions retain their current contract. */
+/** Exact indexed counters preserve direct, profile and attachment ownership. */
 export async function vaultUsage(
   client: Pick<pg.PoolClient, 'query'>,
   accountId: string,
@@ -9,15 +9,13 @@ export async function vaultUsage(
     account_bytes: string | null;
     profile_id: string | null;
     profile_bytes: string | null;
-    attachments: string;
+    attachments: string | null;
   }>(
     `SELECT q.used_bytes::text AS account_bytes,p.id AS profile_id,pq.used_bytes::text AS profile_bytes,
-     coalesce((SELECT sum(charge) FROM hash_talk.message_attachments
-       WHERE (sender=$1 OR recipient=$1) AND NOT EXISTS(
-         SELECT 1 FROM hash_talk.personal_removals r
-         WHERE r.account_id=$1 AND r.kind='message' AND r.id=message_id)),0)::text AS attachments
+     aq.used_bytes::text AS attachments
      FROM hash_talk.accounts a
      LEFT JOIN hash_talk.account_quota_usage q ON q.account_id=a.id
+     LEFT JOIN hash_talk.attachment_quota_usage aq ON aq.account_id=a.id
      LEFT JOIN hash_talk.public_profiles p ON p.account_id=a.id
      LEFT JOIN hash_talk.profile_quota_usage pq ON pq.profile_id=p.id
      WHERE a.id=$1`,

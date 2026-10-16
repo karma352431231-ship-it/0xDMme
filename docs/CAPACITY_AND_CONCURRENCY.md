@@ -379,13 +379,30 @@ charges, retained-byte subtraction, owner mapping, no-op behavior and rollback.
 New owners start with zero counters; missing accounting fails closed. All
 existing individual quotas, authorization and global coordination remain.
 
-**Ponto importante:** private-attachment usage still applies the previous sum
-and personal-removal exclusion. That cross-table dependency and the singleton
-global byte counter remain pending. Migration 071 is prepared locally and needs
+**Ponto importante:** block 12 retained the private-attachment sum and
+personal-removal exclusion; block 13 below prepares their incremental accounting.
+The singleton global byte counter remains pending. Migration 071 needs
 schema/preservation/backfill/rollback review before the integrated activation.
 Migration 072 preserves global-ledger-before-counter order for deltas that
 change no global bytes; unchanged totals do not acquire the added guard.
 See [exact quota accounting](QUOTA_ACCOUNTING.md).
+
+## Thirteenth block: exact private attachment quota counters
+
+Personal usage reads an indexed attachment total alongside the account/profile
+counters. Attachment and removal triggers reconcile only affected message and
+participant pairs, aggregate account deltas and preserve the existing charge
+formula through changes, deletion, rollback and combined writable statements.
+All statuses stay charged until collection unless that participant has removed
+the message personally. Existing message-index and removal-primary-key lookups
+replace account-history scans. Unchanged totals do not rewrite derived rows.
+
+**Ponto importante:** migration 073 is prepared locally, with populated backfill,
+reference reconciliation and missing-accounting refusal. It retains the global
+guard and current READ COMMITTED mutation contract; replacing that guard must
+preserve cross-table serialization. Schema activation, backfill/resource/load
+acceptance and rollback review remain pending. See
+[exact quota accounting](QUOTA_ACCOUNTING.md).
 
 ## Remaining audit work
 
@@ -394,8 +411,8 @@ See [exact quota accounting](QUOTA_ACCOUNTING.md).
   quotas or admitting writes that endanger accepted data.
 - Extend scoped coordination to the remaining general authority/group/retention
   operations, with explicit lock orders and revocation/deletion regressions.
-- Replace the remaining attachment historical sum and singleton byte-counter
-  contention; validate the prepared group/personal counters and reconciliation under load.
+- Replace singleton byte-counter contention; validate the prepared group,
+  personal and attachment counters and reconciliation under load.
 - Measure reservation/transfer/execution memory and queued deadlines under
   representative load; validate abandoned-upload cleanup throughput.
 - Activate the prepared TURN/push changes with effective inherited limits and

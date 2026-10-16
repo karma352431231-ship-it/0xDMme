@@ -1,10 +1,21 @@
 # Capacity audit follow-up — 16 October 2026
 
+The thirteenth source block prepares exact incremental attachment quota totals,
+preserving all statuses, participant charges and personal-removal exclusions.
+Reconcile affected message/participant state under the existing global guard,
+so cross-table and combined-statement changes cannot double-apply deltas.
+Personal quota reads use indexed counters only. Preserve retained bytes,
+individual quotas, authorization, accepted data and earlier migrations.
+Migration 073 includes populated backfill and historical reconciliation;
+activation/backfill/rollback review and representative load remain separate.
+Global physical admission, singleton contention and remaining coordination are
+still pending. See [exact quota accounting](docs/QUOTA_ACCOUNTING.md).
+
 The twelfth source block prepares exact counters for directly owned personal
 charges, separately keyed by account and public profile. Preserve the former
 formula, 1 GB quota, owner mapping, retained-byte subtraction and transactional
-rollback. Keep the attachment sum and its personal-removal exclusion unchanged
-until their cross-table accounting is designed. Prepare migration/backfill and
+rollback. Block 12 retained the attachment sum; block 13 above prepares its
+cross-table accounting without changing exclusions. Prepare migration/backfill and
 reference reconciliation with a separate activation/rollback review; no VPS or
 global-capacity changes are included. Migration 072 preserves ledger-before-owner
 lock order for personal/group deltas without changing earlier checksums or

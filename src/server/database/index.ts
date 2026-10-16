@@ -176,6 +176,7 @@ const migrations = [
   '070-group-quota-accounting.sql',
   '071-personal-quota-accounting.sql',
   '072-quota-lock-order.sql',
+  '073-attachment-quota-accounting.sql',
 ];
 
 export interface MaintenanceSnapshot {

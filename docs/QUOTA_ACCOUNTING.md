@@ -1,5 +1,54 @@
 # Exact quota accounting
 
+## Prepared attachment accounting — 16 October 2026
+
+Migration `073-attachment-quota-accounting.sql` replaces the last online personal
+history sum with `attachment_quota_usage`, one indexed total per account.
+`attachment_quota_messages` holds only positive charged totals per message and
+participant. These derived rows let both attachment changes and personal-removal
+changes reconcile the same desired state, including a statement that changes
+both sources. They contain identifiers and byte counts, never media or plaintext.
+The existing attachment charge counts for each participant until that participant
+has a `kind='message'` removal; all attachment statuses retain the same rule.
+Retained-byte subtraction remains in the separate direct account counter.
+
+Statement triggers identify changed message/participant pairs from transition
+rows, acquire the existing global ledger, then read the current sources in a
+fresh `READ COMMITTED` snapshot. Reconcile only those pairs, aggregate net account
+deltas in UUID order and skip unchanged rows. A removal lookup uses its primary
+key; attachment lookups use the existing message index, rather than scanning an
+account's history. Keep the global guard ahead of these derived rows. Replacing
+that guard requires equivalent cross-table serialization in the pending global
+capacity design. Mutations of these keys at other transaction isolation levels
+fail closed instead of relying on a stale cross-table snapshot. The application
+already uses `READ COMMITTED`; reads and unrelated/no-op changes stay unaffected.
+PostgreSQL documents [fresh snapshots for volatile procedural functions](https://www.postgresql.org/docs/16/xfunc-volatility.html).
+
+Backfill the totals and positive message rows under write-conflicting locks on
+accounts, attachments and personal removals in the migration transaction.
+`attachment_quota_totals` retains the historical formula for read-only
+reconciliation, separately from online admission. Existing records, charge
+amounts, direct/group counters, global usage and earlier checksums stay intact.
+Fresh accounts initialize a zero total; account cascades remove derived rows.
+Missing totals fail closed on reads and nonzero accounting changes.
+
+**Ponto importante:** this completes the prepared incremental personal quota
+formula, but does not remove singleton global contention or establish throughput.
+Measure backfill, transition tables, one derived row per charged message/participant
+pair and account contention under representative history before activation.
+Schema activation remains separate. With our writers stopped, a reviewed rollback
+removes only migration 073's triggers, functions, view, derived tables and exact
+catalog entry before restoring compatible source; authoritative records and
+earlier counters remain. Roll back later dependent migrations first.
+
+Regression coverage includes a populated migration-072 predecessor, unchanged
+direct counters/global usage/checksums, source and owner moves, every attachment
+status, bilateral personal cleanup, combined writable statements, ledger-wait
+interleavings in both directions, quota refusal, rollback, missing totals and
+account cascades. Holding history tables blocks the exact predecessor getter
+while the new counter getter returns the same bytes. Existing assembled private
+message/attachment, vault, account and device integration remains required.
+
 ## Prepared personal accounting — 16 October 2026
 
 Migration `071-personal-quota-accounting.sql` maintains the directly owned
@@ -17,11 +66,9 @@ and media charges. Update both participants' counters in UUID order when a
 statement changes their charges. Initialize zero counters for new accounts and
 public profiles, preserve cascades and fail closed for missing accounting.
 
-**Ponto importante:** the private-attachment sum and its personal-removal
-exclusion remain in the online formula. Their cross-table visibility contract
-still needs its own incremental design. This block removes the other historical
-sums; it does not complete all personal-accounting scalability work or replace
-the singleton global byte counter.
+**Ponto importante:** block 12 left the private-attachment sum and personal-removal
+exclusion in the online formula. Migration 073 above subsequently prepares their
+incremental replacement. Neither block replaces the singleton global byte counter.
 
 The `account_quota_totals` and `profile_quota_totals` views are backfill and
 reconciliation references, not admission paths. Install the counters and
