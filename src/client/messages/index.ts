@@ -4,6 +4,7 @@ import { initializeMessageDirectory } from './startup.ts';
 import { MessageSynchronization } from './synchronization.ts';
 import { MessageWarmup } from './warmup.ts';
 import { TextSendQueue } from './text-send.ts';
+import { OutgoingTexts } from './outgoing-text.ts';
 import { MessageHistoryUi } from './history-ui.ts';
 import { bindMessageLifecycle } from './lifecycle.ts';
 import {
@@ -181,20 +182,21 @@ export function startMessages(
         voice.active ||
         !!attachments.selected?.voice;
   }
+  const outgoing = new OutgoingTexts();
+  let pendingRender = 0;
   const controller = new Messages(
     access,
     sync,
     (value, update) => {
+      pendingRender++;
       rows = value;
-      if (value)
-        textQueue.observed(
-          value.map((row) => row.id),
-          selected?.accountId,
-        );
-      else textQueue.clearPublished();
+      outgoing.observed(value);
       renderHistory(update);
     },
-    (value) => textQueue.acknowledge(value),
+    (value) => {
+      outgoing.acknowledge(value);
+      renderHistory();
+    },
   );
   const previews = new ConversationPreviewLoader({
     load: (peers) => controller.directoryPreviews(peers),
@@ -359,16 +361,18 @@ export function startMessages(
     periodic: periodicMessages,
     periodicWork: periodicMessageWork,
     pending: () => controller.pending(),
-    sendPending: () => controller.sendPending(),
+    sendPending: () => sendPending(),
   });
   const textQueue: TextSendQueue = new TextSendQueue({
+    draftChanged: (draft, phase) => outgoing.update(draft, phase),
     save: (draft) => controller.queueText(draft),
     available: () => synchronization.foregroundReady,
     transmit: async () => {
-      const ok = await synchronization.run(() => controller.sendPending());
+      const ok = await synchronization.run(() => sendPending());
       return { ok, more: (await controller.pending()).length > 0 };
     },
     changed: () => {
+      renderHistory();
       renderPending().catch(reportTextSaveError);
       status();
       synchronization.resume();
@@ -397,7 +401,7 @@ export function startMessages(
       },
       async () => {
         const current = generation;
-        await controller.sendPending();
+        await sendPending();
         if (current === generation) await controller.savePins();
       },
       dailyTick,
@@ -453,6 +457,11 @@ export function startMessages(
     media: (view, thumbnail) => controller.media(view, thumbnail),
     run,
     composerChanged: composerStatus,
+    outgoing: () => outgoing.forPeer(selected?.accountId),
+    retryOutgoing: () => {
+      outgoing.retry();
+      textQueue.retry();
+    },
     ...(options.externalMedia ? { externalMedia: options.externalMedia } : {}),
     ...(options.representatives
       ? { representatives: options.representatives }
@@ -707,9 +716,19 @@ export function startMessages(
     node('[data-message-pending]')?.replaceChildren();
     if (mounted) delete mounted.dataset['voicePeer'];
   }
+  async function sendPending(): Promise<void> {
+    outgoing.beginTransfer();
+    try {
+      await controller.sendPending();
+    } catch (error: unknown) {
+      outgoing.failTransfer();
+      renderHistory();
+      throw error;
+    }
+  }
   async function transmit(): Promise<void> {
     if (navigator.onLine) {
-      await controller.sendPending();
+      await sendPending();
       await synchronizeVisible();
       await controller.savePins();
     }
@@ -763,13 +782,21 @@ export function startMessages(
   async function renderPending(): Promise<void> {
     const list = node('[data-message-pending]');
     if (!list) return;
-    const current = generation;
+    const expected = generation,
+      peer = selected?.accountId,
+      revision = ++pendingRender;
+    const current = () =>
+      expected === generation &&
+      revision === pendingRender &&
+      peer === selected?.accountId &&
+      list === node('[data-message-pending]');
     const pending = await controller.pending();
-    if (current !== generation || list !== node('[data-message-pending]'))
-      return;
+    if (!current()) return;
     list.replaceChildren(
       ...pending
-        .filter((item) => item.peer === selected?.accountId)
+        .filter(
+          (item) => item.peer === peer && !item.text && !outgoing.has(item.id),
+        )
         .map((item) =>
           pendingBubble(
             action(t('Apagar envio'), async () => {
@@ -777,32 +804,16 @@ export function startMessages(
             }),
           ),
         ),
-      ...textQueue.waiting
-        .filter(
-          (draft) =>
-            draft.peer === selected?.accountId &&
-            !pending.some((item) => item.id === draft.id),
-        )
-        .map((draft) =>
-          pendingBubble(
-            draft.failed
-              ? action(t('chat.retry-save'), () => {
-                  textQueue.retry();
-                  return Promise.resolve();
-                })
-              : null,
-            t(draft.failed ? 'chat.save-failed' : 'chat.saving-local'),
-            '↻',
-          ),
-        ),
-      ...textQueue.published
-        .filter(
-          (draft) =>
-            draft.peer === selected?.accountId &&
-            !rows?.some((row) => row.id === draft.id),
-        )
-        .map(() => pendingBubble(null, t('chat.sent-awaiting-history'))),
     );
+    if (!peer || rows === null) return;
+    const restored = await outgoing.restorePending({
+      peer,
+      pending,
+      verified: rows,
+      current: () => current() && rows !== null,
+      read: (ids) => controller.pendingTexts(peer, ids),
+    });
+    if (restored) renderHistory();
   }
   function reportTextSaveError(error: unknown): void {
     message =
@@ -1121,7 +1132,7 @@ export function startMessages(
     recordingPeer = null;
     await renderPending();
     if (navigator.onLine) {
-      await controller.sendPending();
+      await sendPending();
       await synchronizeVisible();
       await controller.savePins();
     }
@@ -1146,7 +1157,7 @@ export function startMessages(
     );
     await renderPending();
     if (navigator.onLine) {
-      await controller.sendPending();
+      await sendPending();
       await synchronizeVisible();
     }
   }
@@ -1400,6 +1411,7 @@ export function startMessages(
       );
     if (!event.persisted) {
       textQueue.reset();
+      outgoing.reset();
       startupWarmup.reset();
       voice.cancel();
       groups.suspend(true);
@@ -1578,6 +1590,7 @@ export function startMessages(
       }
       generation++;
       textQueue.reset();
+      outgoing.reset();
       continuity.reset();
       previews.clear();
       historyUi.clear();
@@ -1707,16 +1720,8 @@ export { Messages } from './controller.ts';
 
 export type { MessageView } from './controller.ts';
 
-/**
- * A message still on its way (16/10/2026): an outgoing bubble with animated
- * dots in this conversation, replacing the raw "pending send to <id>" line.
- * The sealed draft is not opened here; the discard action stays available.
- */
-function pendingBubble(
-  discard: HTMLButtonElement | null,
-  text = t('message.sending'),
-  actionText = '×',
-): HTMLLIElement {
+/** Legacy media/control sends keep their existing discardable progress row. */
+function pendingBubble(discard: HTMLButtonElement): HTMLLIElement {
   const li = document.createElement('li'),
     dots = document.createElement('span'),
     label = document.createElement('span');
@@ -1725,14 +1730,11 @@ function pendingBubble(
   dots.setAttribute('aria-hidden', 'true');
   dots.append(...[0, 1, 2].map(() => document.createElement('i')));
   label.className = 'chat-pending-label';
-  label.textContent = text;
-  li.append(dots, label);
-  if (discard) {
-    discard.className = 'chat-pending-discard';
-    discard.setAttribute('aria-label', discard.textContent ?? '');
-    discard.title = discard.textContent ?? '';
-    discard.textContent = actionText;
-    li.append(discard);
-  }
+  label.textContent = t('message.sending');
+  discard.className = 'chat-pending-discard';
+  discard.setAttribute('aria-label', discard.textContent ?? '');
+  discard.title = discard.textContent ?? '';
+  discard.textContent = '×';
+  li.append(dots, label, discard);
   return li;
 }

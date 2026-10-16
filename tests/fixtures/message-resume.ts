@@ -105,6 +105,7 @@ export function resumeFixture() {
     frames: [] as (MessageView[] | null)[],
     authorityReads: 0,
     beforeLocalRead: undefined as ((name: string) => void) | undefined,
+    beforeLocalOpen: undefined as (() => void) | undefined,
   };
   const authority: VaultAuthority = {
     session,
@@ -142,10 +143,17 @@ export function resumeFixture() {
     localPage: unused,
     sealLocal: unused,
     enqueueOutbox: unused,
-    outboxPage: unused,
+    outboxPage: (_scope: string, names: readonly string[]) =>
+      Promise.resolve(
+        names
+          .filter((name) => data.records.has(name))
+          .map((name) => ({ name, value: data.records.get(name) })),
+      ),
     removeOutbox: unused,
-    openLocal: (_a: unknown, cipher: { text: string }) =>
-      Promise.resolve(cipher.text),
+    openLocal: (_a: unknown, cipher: { text: string }) => {
+      data.beforeLocalOpen?.();
+      return Promise.resolve(cipher.text);
+    },
     indexSearch: () => Promise.resolve(),
     searchMessages: unused,
   };

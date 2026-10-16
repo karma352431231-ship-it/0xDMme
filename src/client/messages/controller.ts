@@ -78,6 +78,7 @@ import {
   removeOutbox,
 } from '../message-storage/index.ts';
 import type { LocalCipher } from '../message-storage/index.ts';
+import type { TextDraft } from './text-send.ts';
 import { encodeProfileCard, profileCard } from '../message-profile/index.ts';
 import type { ProfileCard } from '../message-profile/index.ts';
 import {
@@ -126,6 +127,7 @@ export interface MessageView {
 }
 interface Outbox {
   outboxOrder?: string;
+  createdAt?: number;
   relation?: MessageRelation;
   id: string;
   peer: string;
@@ -473,11 +475,7 @@ export class Messages {
     });
   }
   /** Local ciphertext admission only; SDK selection/publication stay exclusive. */
-  async queueText(input: {
-    id: string;
-    peer: string;
-    text: string;
-  }): Promise<void> {
+  async queueText(input: TextDraft): Promise<void> {
     const generation = this.generation;
     await this.access.withVault(
       !navigator.onLine,
@@ -494,6 +492,7 @@ export class Messages {
             draft,
             kind: 'text',
             packet: null,
+            createdAt: input.createdAt ?? Date.now(),
           },
           size: draft[0]!.bytes.length + 512,
           current: () => generation === this.generation,
@@ -762,9 +761,9 @@ export class Messages {
   }): Promise<void> {
     const { a, api, own, machine, generation, name, value } = context;
     if (await this.alreadyAccepted(api, value)) {
+      this.notifyPublished(value, generation);
       await removeOutbox(a.session.accountId, name);
       await this.retainOutbox(a, value);
-      this.notifyPublished(value, generation);
       return;
     }
     const history = await this.history({ a, generation }, value.peer, null),
@@ -807,12 +806,16 @@ export class Messages {
     }
     await this.transferOutbox(a, api, value);
     await this.publishOutbox(api, value);
+    this.notifyPublished(value, generation);
     await this.retainOutbox(a, value);
     await removeOutbox(a.session.accountId, name);
-    this.notifyPublished(value, generation);
   }
   private notifyPublished(value: Outbox, generation: number): void {
-    if (generation === this.generation && value.outboxOrder)
+    if (
+      generation === this.generation &&
+      value.kind === 'text' &&
+      !value.relation
+    )
       this.published({ id: value.id, peer: value.peer });
   }
   private async retainOutbox(a: VaultAuthority, value: Outbox): Promise<void> {
@@ -1937,7 +1940,40 @@ export class Messages {
     }
     return accepted;
   }
-  async pending(): Promise<{ id: string; peer: string }[]> {
+  /** Reopen only ordinary own drafts after the selected history gate has opened.
+   * Fresh authority and generation checks also cover local pending plaintext. */
+  async pendingTexts(
+    peer: string,
+    ids: readonly string[],
+  ): Promise<TextDraft[]> {
+    const generation = this.generation;
+    return this.access.withVault(!navigator.onLine, async (a) => {
+      this.guard(generation);
+      const page = await outboxPage<Outbox>(
+        a.session.accountId,
+        ids.map((id) => `outbox:${id}`),
+      );
+      const drafts: TextDraft[] = [];
+      for (const { value } of page) {
+        if (value.peer !== peer || value.kind !== 'text' || value.relation)
+          continue;
+        const text = await openLocal(a, value.draft[0]!);
+        this.guard(generation);
+        drafts.push({
+          id: value.id,
+          peer,
+          text,
+          ...(value.createdAt === undefined
+            ? {}
+            : { createdAt: value.createdAt }),
+          ...(value.outboxOrder ? { order: value.outboxOrder } : {}),
+        });
+      }
+      this.guard(generation);
+      return drafts;
+    });
+  }
+  async pending(): Promise<{ id: string; peer: string; text?: boolean }[]> {
     const session = this.session;
     if (!session) return [];
     return (
@@ -1945,6 +1981,7 @@ export class Messages {
     ).items.map((x) => ({
       id: x.value.id,
       peer: x.value.peer,
+      text: x.value.kind === 'text' && !x.value.relation,
     }));
   }
 }

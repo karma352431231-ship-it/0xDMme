@@ -3,6 +3,61 @@ import { test } from 'node:test';
 import { setImmediate } from 'node:timers/promises';
 import { resumeFixture } from './fixtures/message-resume.ts';
 
+await test('restoring outgoing text uses current authority and excludes other recipients, attachments and message actions', async () => {
+  const { controller, data, peer } = resumeFixture();
+  const input = {
+    id: 'own-text',
+    peer,
+    kind: 'text',
+    draft: [{ text: 'Own pending content' }],
+    createdAt: 1700000000000,
+  };
+  data.records.set('outbox:own-text', input);
+  data.records.set('outbox:other', { ...input, id: 'other', peer: 'another' });
+  data.records.set('outbox:media', {
+    ...input,
+    id: 'media',
+    kind: 'attachment',
+  });
+  data.records.set('outbox:action', {
+    ...input,
+    id: 'action',
+    relation: { type: 'edit' },
+  });
+  const before = data.authorityReads;
+  const drafts = await controller.pendingTexts(peer, [
+    'own-text',
+    'other',
+    'media',
+    'action',
+  ]);
+  assert.equal(data.authorityReads, before + 1);
+  assert.deepEqual(
+    Array.from(drafts, (draft) => ({ ...draft })),
+    [
+      {
+        id: 'own-text',
+        peer,
+        text: 'Own pending content',
+        createdAt: 1700000000000,
+      },
+    ],
+  );
+});
+
+await test('session replacement during a pending-text restore prevents publishing decrypted content', async () => {
+  const { controller, data, peer, session } = resumeFixture();
+  data.records.set('outbox:stale', {
+    id: 'stale',
+    peer,
+    kind: 'text',
+    draft: [{ text: 'Old account draft' }],
+  });
+  data.beforeLocalOpen = () =>
+    controller.setSession({ ...session, csrf: 'd'.repeat(64) });
+  await assert.rejects(controller.pendingTexts(peer, ['stale']), /Sessão/u);
+});
+
 await test('reabrir janela confirmada compartilha uma conferência de autoridade entre snapshot, entrega e confirmação', async () => {
   const { controller, data, add, peer } = resumeFixture();
   await add('Já confirmada');

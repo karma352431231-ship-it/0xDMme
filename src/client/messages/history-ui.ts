@@ -29,6 +29,8 @@ import type { ConversationPeer } from './directory-controller.ts';
 import type { startRepresentatives } from '../representatives/index.ts';
 import { receivedState } from './controller.ts';
 import type { Messages, MessageView } from './controller.ts';
+import { outgoingTextRows } from './outgoing-text.ts';
+import type { OutgoingText } from './outgoing-text.ts';
 
 type Actions = Parameters<typeof messageActions<MessageView>>[0];
 interface HistoryPresentation {
@@ -47,6 +49,8 @@ interface HistoryPresentation {
   media: Messages['media'];
   run: (work: () => Promise<void>) => Promise<void>;
   composerChanged: () => void;
+  outgoing?: () => readonly OutgoingText[];
+  retryOutgoing?: () => void;
   externalMedia?: ExternalMediaConsent;
   representatives?: Pick<ReturnType<typeof startRepresentatives>, 'renderCard'>;
   forwarding?: ForwardDirectory;
@@ -147,15 +151,25 @@ export class MessageHistoryUi {
       if (this.views === null) this.options.attachments.clearMedia();
       this.externalRows.render(
         history,
-        dailyViews(this.views ?? []).map((view) => ({
-          id: view.id,
-          key: this.rowKey(view),
-          render: (signal) => this.renderMessage(view, signal),
-        })),
+        [
+          ...dailyViews(this.views ?? []).map((view) => ({
+            id: view.id,
+            key: this.rowKey(view),
+            render: (signal: AbortSignal) => this.renderMessage(view, signal),
+          })),
+          ...this.outgoingRows(),
+        ],
         this.options.signal(),
       );
       this.renderStates();
     } else if (this.views !== null) this.renderStates();
+  }
+  private outgoingRows(): ReturnType<typeof outgoingTextRows> {
+    return outgoingTextRows({
+      drafts: this.views === null ? [] : (this.options.outgoing?.() ?? []),
+      verified: this.views ?? [],
+      retry: this.options.retryOutgoing ?? (() => {}),
+    });
   }
   private rowKey(view: DailyView<MessageView>): string {
     const original = view.content.reply

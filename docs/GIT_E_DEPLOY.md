@@ -1,5 +1,29 @@
 # 0xDMme — Git e envio à VPS
 
+## Optimistic private texts — activation authorized on 16/10/2026
+
+After initially requesting Git-only delivery, the owner explicitly authorized
+main integration and VPS activation, then resumed the release after context
+compaction. The reviewed source task ends at `b875691`. Show own ordinary text
+and replies immediately in the keyed conversation history, replacing verbose
+send/history placeholders with a retry cross on failure. Only actual server
+acceptance earns a sent check; preserve verified delivery/read markers, E2EE,
+encrypted persistence, stable IDs, authorization and session invalidation.
+
+Merge into current main, preserving its independently integrated navigation and
+community-address release. Require full CI for the exact pushed integration
+commit and use only `npm run deploy:staging` from its clean checkout, building on
+the Mac. This text presentation release adds no backend, database, dependency,
+Node, service-unit or infrastructure transition. Preserve the active main's
+72 SQL migrations and executor; no migration or operational flag is needed.
+Keep preservation/readiness checks, public asset and corresponding-source
+verification and the actual previous release for rollback. Access, baselines,
+artifacts and operational receipts remain exclusively in `.local/`.
+
+**Ponto importante:** report activation only after the matching `published`
+receipt and served build are verified. Immediate display does not establish
+durable saving, acceptance or delivery; real device acceptance remains necessary.
+
 ## Consecutive private texts — activation authorized on 16/10/2026
 
 The owner authorized integrating the reviewed branch ending at `d55990d` into

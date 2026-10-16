@@ -1,4 +1,5 @@
 @import '../message-presentation/message-presentation.css';
+@import '../messages/outgoing-text.css';
 @import '../message-forward/message-forward.css';
 @import '../communities/upvotes.css';
 @import '../public-identity/identity.css';
