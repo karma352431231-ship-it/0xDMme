@@ -7,7 +7,7 @@ import deploy_chat_attachments as chat
 
 # Owner explicitly approved the new migration after its explanation on 16/10/2026.
 BEFORE = '21fc70c0d508230fa26146be32ad8faa67890812'
-REVIEWED = 'a39aaa4815b68749d8a2f75863bd19a524822b1b'
+REVIEWED = '9bf1bdaaa507a8c12cf3566e3d4e9c6d090a1fdd'
 OLD_TABLES = chat.OLD_TABLES
 NEW_TABLES = ('community_addresses',)
 

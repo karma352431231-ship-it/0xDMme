@@ -2228,7 +2228,7 @@ Exigir checkout limpo/enviado e CI integral do commit exato. Reusar `npm run dep
 
 O proprietário pediu integrar à main e ativar este lote. Após explicação da
 necessidade de guardar endereços únicos, aprovou expressamente a nova migração.
-Fontes revisadas: `a39aaa4815b68749d8a2f75863bd19a524822b1b`; predecessor ativo
+Fontes revisadas: `9bf1bdaaa507a8c12cf3566e3d4e9c6d090a1fdd`; predecessor ativo
 conferido por hashes de todas as fontes públicas, package/lockfile e Node:
 `21fc70c0d508230fa26146be32ad8faa67890812`.
 
@@ -2284,3 +2284,11 @@ ao abrir uma conversa. A fonte revisada acima incorpora a sincronização do
 endereço canônico com o roteador e os painéis, sem remontar conteúdo/rascunhos.
 Os 21 testes de navegação pertinentes, tipos, lint, fronteiras, build e formato
 passaram; o SQL 072 e todas as migrações anteriores permanecem idênticos.
+
+A fonte final distingue também nomes em formato de UUID do identificador da
+comunidade, na página e no miniperfil. A regressão falhou antes da correção e
+passou com a leitura explícita pelo endereço. Isso não altera SQL, autenticação,
+identidade persistente, protocolo, dependências ou Node. A tentativa anterior
+com rollback verificado foi arquivada integralmente na área privada de backups,
+com dump, objetos, candidato e recibo preservados, liberando somente a vaga de
+workspace operacional. A próxima ativação exige novo backup dos dados atuais.
