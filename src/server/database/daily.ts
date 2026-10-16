@@ -4,6 +4,7 @@ import {
   readPublicNotificationPreview,
 } from './public-notification-preview.ts';
 import { AccountError } from '../../shared/account/index.ts';
+import type { PublicProfileStore } from './public-profile.ts';
 import type {
   DailyPreferences,
   PushRegistration,
@@ -36,10 +37,17 @@ export class DailyStore {
   private readonly pool: pg.Pool;
   private readonly contacts: ContactStore;
   private readonly capacity: number;
-  constructor(pool: pg.Pool, contacts: ContactStore, capacity: number) {
+  private readonly profiles: Pick<PublicProfileStore, 'readById'>;
+  constructor(
+    pool: pg.Pool,
+    contacts: ContactStore,
+    capacity: number,
+    profiles: Pick<PublicProfileStore, 'readById'>,
+  ) {
     this.pool = pool;
     this.contacts = contacts;
     this.capacity = capacity;
+    this.profiles = profiles;
   }
   private async budget(c: pg.PoolClient, account: string): Promise<void> {
     await assertVaultQuota(c, account);
@@ -204,7 +212,7 @@ export class DailyStore {
   }
   async publicPreview(a: ContactAuthority) {
     if (!(await this.check(a))) return null;
-    return readPublicNotificationPreview(this.contacts, a);
+    return readPublicNotificationPreview(this.contacts, a, this.profiles);
   }
   async check(a: ContactAuthority): Promise<boolean> {
     return this.contacts.withMessageAuthority(a, async (c) => {

@@ -519,6 +519,7 @@ await test('push público mostra autor e prévia validada, com símbolo monocrom
     community: crypto.randomUUID(),
     text: 'Pequena prévia pública',
     reply: true,
+    followed: false,
   };
   const scope = await worker({ pushAllowed: true, publicPreview });
   await scope.dispatch('push');
@@ -555,6 +556,50 @@ await test('push público mostra autor e prévia validada, com símbolo monocrom
   assert.equal(invalid.notifications.length, 0);
 });
 
+await test('posts and replies from followed profiles show the author photo and handle, one alert per post', async () => {
+  const author = crypto.randomUUID(),
+    review = crypto.randomUUID();
+  const publicPreview = {
+    author: {
+      id: author,
+      handle: 'followed',
+      avatar: `/api/public-media/avatar/${author}/${review}`,
+    },
+    post: crypto.randomUUID(),
+    community: crypto.randomUUID(),
+    text: 'Oui Madamme',
+    reply: false,
+    followed: true,
+  };
+  const scope = await worker({ pushAllowed: true, publicPreview });
+  await scope.dispatch('push');
+  const notification = scope.notifications[0]!;
+  assert.equal(notification.title, '@followed');
+  assert.equal(notification.options.body, 'Oui Madamme');
+  assert.equal(notification.options.icon, publicPreview.author.avatar);
+  assert.equal(notification.options.tag, `0xdmme-post-${publicPreview.post}`);
+  const plain = await worker({
+    pushAllowed: true,
+    publicPreview: {
+      ...publicPreview,
+      reply: true,
+      author: { ...publicPreview.author, avatar: null },
+    },
+  });
+  await plain.dispatch('push');
+  assert.equal(plain.notifications[0]?.title, '@followed');
+  assert.equal(plain.notifications[0]?.options.icon, '/icon-192.png');
+  const foreign = await worker({
+    pushAllowed: true,
+    publicPreview: {
+      ...publicPreview,
+      author: { ...publicPreview.author, avatar: 'https://example.com/a.png' },
+    },
+  });
+  await foreign.dispatch('push');
+  assert.equal(foreign.notifications.length, 0);
+});
+
 await test('Chinese background alerts localize app text without translating public content', async () => {
   const generic = await worker({ pushAllowed: true, language: 'zh-CN' });
   await generic.dispatch('push');
@@ -579,6 +624,7 @@ await test('Chinese background alerts localize app text without translating publ
     community: crypto.randomUUID(),
     text: publicNotificationText('', ''),
     reply: true,
+    followed: false,
   };
   assert.equal(preview.text, '');
   const media = await worker({

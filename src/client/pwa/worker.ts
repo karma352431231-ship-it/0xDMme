@@ -218,7 +218,7 @@ async function notify(): Promise<void> {
     const appearance = notificationAppearance(data);
     await scope.registration.showNotification(appearance.title, {
       ...appearance,
-      icon: '/icon-192.png',
+      icon: appearance.icon ?? '/icon-192.png',
       badge: '/notification-badge.png',
       silent: !sound,
       renotify: sound,
@@ -242,33 +242,57 @@ async function wakeOpenClients(): Promise<void> {
     // Live hints, return-to-app reconciliation and the foreground fallback remain active.
   }
 }
-function notificationAppearance(data: object): {
+interface NotificationAppearance {
   title: string;
   body: string;
   tag: string;
+  icon?: string;
   data?: { href: string };
-} {
+}
+function notificationAppearance(data: object): NotificationAppearance {
   const call = 'call' in data && data.call === true;
   const showCall = call && 'showCall' in data && data.showCall === true;
-  if (!call && 'publicPreview' in data) {
-    const preview = publicNotificationPreview(data.publicPreview);
-    return {
-      title: preview.reply
-        ? t('@{0} respondeu · 0xDMme', [preview.author.handle])
-        : t('@{0} publicou · 0xDMme', [preview.author.handle]),
-      body: preview.text || t('Nova publicação com mídia.'),
-      tag: '0xdmme-public-activity',
-      data: {
-        href: `/#communities?id=${preview.community}&post=${preview.post}`,
-      },
-    };
-  }
+  if (!call && 'publicPreview' in data)
+    return publicAppearance(publicNotificationPreview(data.publicPreview));
   return {
     title: genericNotification.title,
     body: showCall
       ? t('Chamada de voz recebida. Abra o app para atender.')
       : t(genericNotification.body),
     tag: call ? '0xdmme-call' : '0xdmme-activity',
+  };
+}
+function publicAppearance(
+  preview: ReturnType<typeof publicNotificationPreview>,
+): NotificationAppearance {
+  if (preview.followed) return followedAppearance(preview);
+  return {
+    title: preview.reply
+      ? t('@{0} respondeu · 0xDMme', [preview.author.handle])
+      : t('@{0} publicou · 0xDMme', [preview.author.handle]),
+    body: preview.text || t('Nova publicação com mídia.'),
+    tag: '0xdmme-public-activity',
+    data: {
+      href: `/#communities?id=${preview.community}&post=${preview.post}`,
+    },
+  };
+}
+/**
+ * X-style alert for posts and replies by profiles followed with notifications
+ * on (16/10/2026): the author's handle on top, the post below, the author's
+ * public photo as the image. One alert per post, so several stay visible.
+ */
+function followedAppearance(
+  preview: ReturnType<typeof publicNotificationPreview>,
+): NotificationAppearance {
+  return {
+    title: `@${preview.author.handle}`,
+    body: preview.text || t('Nova publicação com mídia.'),
+    tag: `0xdmme-post-${preview.post}`,
+    ...(preview.author.avatar ? { icon: preview.author.avatar } : {}),
+    data: {
+      href: `/#communities?id=${preview.community}&post=${preview.post}`,
+    },
   };
 }
 scope.addEventListener('push', (event) => {

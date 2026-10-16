@@ -362,7 +362,12 @@ export class Database {
       this.contacts,
       contentCapacity,
     );
-    this.daily = new DailyStore(this.pool, this.contacts, contentCapacity);
+    this.daily = new DailyStore(
+      this.pool,
+      this.contacts,
+      contentCapacity,
+      this.publicProfiles,
+    );
     this.messageRecovery = new MessageRecoveryStore(
       this.contacts,
       contentCapacity,
