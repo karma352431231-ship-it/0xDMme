@@ -1,5 +1,43 @@
 # Medidor local de sincronização — 15/10/2026
 
+## Optimistic own-text presentation — 16/10/2026
+
+The owner requested normal own-message bubbles immediately after Enter, a retry
+cross on failure, and Git-only delivery of this follow-up. This supersedes only
+the verbose presentation in the earlier send repair; main and VPS stay at their
+previous published release until separately authorized.
+
+`messages/outgoing-text.ts` owns a bounded session-only display cache and draft
+rendering. Stable IDs join optimistic and verified rows in the same keyed history;
+confirmation replaces one row while unchanged rows and their embedded resources
+remain retained. Own text, reply context and a local composition time appear
+immediately. Local time is never claimed to be an authenticated send timestamp.
+No sending/history status sentence is inserted into the message content. A single
+check requires actual server acceptance; recipient delivery/read checks retain
+their existing verified meaning. A failed save or transfer keeps the text and
+offers a localized retry cross with the original message ID. A partial failure
+does not mark already accepted drafts as failed.
+
+The display window holds at most 64 encoded texts of 128 KiB, retaining at most
+8 MiB of encoded content, plus at most 128 IDs for evicted display entries so
+repeated projections do not continuously reopen old ciphertext. The queue still
+admits at most 32 unsaved drafts.
+Old durable display entries can leave that window; their ciphertext/server state
+is preserved. Session replacement/page departure clears its plaintext. Closing
+the history gate hides all own draft content immediately and drops accepted
+display entries, preventing a removed message from being resurrected by that
+cache. Recovery opens only ordinary text drafts for the selected recipient in
+bounded batches, with existing authority and generation guards. Message actions,
+media, remote previews and read receipts wait for the verified history path.
+
+**Ponto importante:** this is client presentation around the existing E2EE queue,
+not moving plaintext or cryptography to the backend. A browser/process terminated
+before an encrypted save completes can still lose an unsaved draft; the existing
+close/PWA guards remain. No dependency, server, SQL, wire-format, main integration
+or VPS activation belongs to this follow-up. The coordinator remains a hotspot;
+keep broader session/identity, outbox/media and history extraction separate,
+with cancellation, recovery and authorization tests.
+
 ## Applying the measured private text-send repair — 16/10/2026
 
 The owner supplied a complete desktop capture and authorized the repair. It

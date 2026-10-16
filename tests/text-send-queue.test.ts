@@ -11,6 +11,28 @@ const draft = (id: string): TextDraft => ({
   text: `Synthetic ${id}`,
 });
 
+await test('an explicit retry resumes a recovered durable draft without requiring a new Enter or a new message ID', async (t) => {
+  let sends = 0;
+  const q = new TextSendQueue({
+    save: () => Promise.reject(new Error('No new draft should be saved.')),
+    available: () => true,
+    transmit: () => {
+      sends++;
+      return Promise.resolve({ ok: true, more: false });
+    },
+    changed: () => {},
+    failed: (error) => {
+      throw error;
+    },
+  });
+  t.after(() => q.reset());
+  assert.equal(sends, 0);
+  q.retry();
+  await turn();
+  assert.equal(sends, 1);
+  assert.equal(q.unsaved, false);
+});
+
 await test('offline drafts save locally and a failed transfer does not spin; explicit new input resumes the durable queue', async (t) => {
   let online = false,
     sends = 0;
@@ -42,10 +64,12 @@ await test('offline drafts save locally and a failed transfer does not spin; exp
   assert.equal(sends, 2);
 });
 
-await test('admission captures its recipient and published placeholders contain only bounded metadata until verified history replaces them', async (t) => {
+await test('admission captures its recipient and reports the admitted and saved draft lifecycle', async (t) => {
   const held = deferred<void>(),
-    saved: string[] = [];
+    saved: string[] = [],
+    phases: string[] = [];
   const q = new TextSendQueue({
+    draftChanged: (_draft, phase) => phases.push(phase),
     save: async (value) => {
       await held.promise;
       saved.push(value.peer);
@@ -64,12 +88,7 @@ await test('admission captures its recipient and published placeholders contain 
   held.resolve();
   await turn();
   assert.deepEqual(saved, ['captured-recipient']);
-  for (let n = 0; n < 40; n++) q.acknowledge({ id: String(n), peer: 'one' });
-  assert.equal(q.published.length, 32);
-  q.observed([], 'another');
-  assert.equal(q.published.length, 32);
-  q.observed([], 'one');
-  assert.equal(q.published.length, 0);
+  assert.deepEqual(phases, ['admitted', 'saved']);
 });
 
 await test('rapid texts save in FIFO order while transmission waits, without dropping the next drafts', async (t) => {
@@ -134,7 +153,7 @@ await test('a save failure retains the original ID and remaining texts, without 
   q.resume();
   await turn();
   assert.deepEqual(ids, ['a']);
-  assert.equal(q.waiting[0]?.failed, true);
+  assert.equal(q.unsaved, true);
   assert.equal(errors.length, 1);
   failed = false;
   q.retry();
@@ -191,7 +210,7 @@ await test('admission is bounded and typing defers background reads for one quie
   t.after(() => q.reset());
   for (let n = 0; n < 32; n++) q.enqueue(draft(String(n)));
   assert.throws(() => q.enqueue(draft('overflow')), /Aguarde/u);
-  assert.equal(q.waiting.length, 32);
+  assert.equal(q.full, true);
   q.reset();
   q.deferBackground();
   assert.equal(q.pending, true);

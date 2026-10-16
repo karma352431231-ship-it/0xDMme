@@ -34,6 +34,7 @@ const real = new Set([
   './continuity.ts',
   './warmup.ts',
   './text-send.ts',
+  './outgoing-text.ts',
 ]);
 const bundle = await build({
   entryPoints: [entry],

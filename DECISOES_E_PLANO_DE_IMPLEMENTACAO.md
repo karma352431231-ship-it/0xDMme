@@ -1,5 +1,19 @@
 # 0xDMme — decisões e plano de implementação
 
+**Optimistic private text presentation — authorized on 16/10/2026:** the owner
+requested displaying own text immediately and replacing verbose send/history
+placeholders with a retry cross when sending fails. Render session-local drafts
+in the same keyed history as verified messages, using their existing stable IDs.
+Only real server acceptance earns a sent check; delivery/read markers retain
+their existing verified meaning. Keep ciphertext-before-transmission, authority,
+retention, quotas and exclusive SDK operation. Restore ordinary encrypted drafts
+under current authority after the history gate opens. Bound the own-text display
+cache to 64 entries of at most 128 KiB, hide it on invalidation and clear session
+plaintext on replacement. The owner explicitly requested saving this change in
+Git without main integration or VPS activation. **Ponto importante:** presentation
+is optimistic; actual persistence, acceptance and delivery remain distinct.
+See the [presentation contract](docs/DIAGNOSTICO_LAG_CHAT.md#optimistic-own-text-presentation--16102026).
+
 **Measured private text-send repair — authorized on 16/10/2026:** after the
 complete desktop capture demonstrated rejected Enter attempts and foreground
 blocking beyond publication, the owner approved applying the fix. Separate
