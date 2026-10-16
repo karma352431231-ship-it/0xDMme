@@ -40,6 +40,7 @@ import type {
   WalletName,
 } from '../src/client/wallet/index.ts';
 import { deviceDatabase } from './fixtures/device-database.ts';
+import { reserveOperationMemory } from '../src/server/memory-admission/index.ts';
 import { setActiveLanguage } from '../src/shared/i18n/index.ts';
 
 const origin = 'https://0xdmme.app';
@@ -153,6 +154,7 @@ for (const ecosystem of ['evm', 'solana'] as const)
         const { records, window, document } = globals(t),
           user = session(ecosystem),
           server = new LoginOpening(origin);
+        t.after(() => server.close());
         t.after(() => setActiveLanguage('en'));
         setActiveLanguage('zh-CN');
         const receiver = await prepareLoginOpening(name);
@@ -328,6 +330,7 @@ await test('abertura rejeita troca de destinatário, sessão, wallet, replay e r
   const user = session(),
     receiver = await prepareLoginOpening('MetaMask');
   const server = new LoginOpening(origin);
+  t.after(() => server.close());
   const ticket = await server.start('browser', receiver, Date.now() + 300000);
   const created = createWalletRecovery(user, origin);
   const legacy = walletRecovery({
@@ -423,9 +426,10 @@ await test('ACK tardio e cancelamento antigo não removem o pedido substituto; e
   assert.equal(await loginOpeningTicket(), undefined);
 });
 
-await test('abertura limita entradas concorrentes e encerra provas no prazo original', async (t) => {
+await test('opening admits more than 128 concurrent entries and keeps the original expiry', async (t) => {
   const identity = await createIdentity(crypto.randomUUID(), 'Destino');
   const server = new LoginOpening(origin);
+  t.after(() => server.close());
   const expires = Date.now() + 300000;
   const attempts = await Promise.allSettled(
     Array.from({ length: 130 }, (_, index) =>
@@ -442,7 +446,7 @@ await test('abertura limita entradas concorrentes e encerra provas no prazo orig
   );
   assert.equal(
     attempts.filter((result) => result.status === 'fulfilled').length,
-    128,
+    130,
   );
   const first = attempts[0];
   assert.ok(first?.status === 'fulfilled');
@@ -456,4 +460,35 @@ await test('abertura limita entradas concorrentes e encerra provas no prazo orig
     }),
     first.value,
   );
+});
+
+await test('opening pressure preserves existing requests and close rejects in-flight creation', async (t) => {
+  let available = 1_048_576;
+  t.mock.method(process, 'availableMemory', () => available);
+  const identity = await createIdentity(crypto.randomUUID(), 'Receiver');
+  const input = {
+    receiver: identity.public.wrapping,
+    wallet: 'MetaMask',
+    nonce: 'a'.repeat(64),
+  };
+  const server = new LoginOpening(origin);
+  t.after(() => server.close());
+  const ticket = await server.start('browser', input, Date.now() + 300_000);
+  available = 0;
+  await assert.rejects(
+    server.start(
+      'other',
+      { ...input, nonce: 'b'.repeat(64) },
+      Date.now() + 300_000,
+    ),
+  );
+  assert.equal(server.expected(ticket), true);
+  available = 1_048_576;
+  server.cancel('browser');
+  const pending = server.start('other', input, Date.now() + 300_000);
+  server.close();
+  await assert.rejects(pending);
+  const release = reserveOperationMemory(available);
+  assert.ok(release);
+  release();
 });

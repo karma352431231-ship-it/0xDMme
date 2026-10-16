@@ -141,18 +141,23 @@ export class AccountService {
             data['opening'],
             expiresAt.getTime(),
           );
-    if (previousBrowserToken) {
-      await this.store.cancelHandoff(tokenHash(previousBrowserToken));
-      this.opening.cancel(tokenHash(previousBrowserToken));
+    try {
+      if (previousBrowserToken) {
+        await this.store.cancelHandoff(tokenHash(previousBrowserToken));
+        this.opening.cancel(tokenHash(previousBrowserToken));
+      }
+      await this.store.createHandoff({
+        browserHash: tokenHash(browserToken),
+        ticketHash: tokenHash(ticket),
+        ecosystem: network,
+        deviceId,
+        expiresAt,
+      });
+      return { ticket, browserToken, expiresAt: expiresAt.toISOString() };
+    } catch (error: unknown) {
+      this.opening.cancel(tokenHash(browserToken));
+      throw error;
     }
-    await this.store.createHandoff({
-      browserHash: tokenHash(browserToken),
-      ticketHash: tokenHash(ticket),
-      ecosystem: network,
-      deviceId,
-      expiresAt,
-    });
-    return { ticket, browserToken, expiresAt: expiresAt.toISOString() };
   }
   async handoffChallenge(input: unknown) {
     const data = object(input);

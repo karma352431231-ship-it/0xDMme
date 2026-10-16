@@ -8,6 +8,10 @@ import {
   recoveryTransfer,
 } from '../../shared/wallet-recovery/index.ts';
 import type { RecoveryTransfer } from '../../shared/wallet-recovery/index.ts';
+import {
+  TemporaryRequests,
+  withTemporaryAdmission,
+} from '../temporary-admission/index.ts';
 
 interface Pending {
   session: Pick<AccountSession, 'accountId' | 'deviceId' | 'csrf'>;
@@ -20,33 +24,24 @@ interface Pending {
 /** Temporary, opaque transport only. Restart cancels requests; no accepted
  * vault data, signatures, keys or plaintext are stored here. */
 export class RecoveryReturn {
-  private readonly pending = new Map<string, Pending>();
+  private readonly pending: TemporaryRequests<Pending>;
+  private readonly byDevice = new Map<string, string>();
   private readonly origin: string;
   private readonly now: () => number;
-  private timer: ReturnType<typeof setTimeout> | null = null;
   constructor(origin: string, now: () => number = Date.now) {
     this.origin = origin;
     this.now = now;
+    this.pending = new TemporaryRequests({
+      unavailable: 'Muitos retornos de recuperação. Aguarde.',
+      now,
+      removed: (ticket, state) => {
+        const device = state.session.accountId + ':' + state.session.deviceId;
+        if (this.byDevice.get(device) === ticket) this.byDevice.delete(device);
+      },
+    });
   }
   close(): void {
-    if (this.timer) clearTimeout(this.timer);
-    this.timer = null;
-    this.pending.clear();
-  }
-  private prune(): void {
-    for (const [ticket, state] of this.pending)
-      if (state.expires <= this.now()) this.pending.delete(ticket);
-    this.schedule();
-  }
-  private schedule(): void {
-    if (this.timer) clearTimeout(this.timer);
-    this.timer = null;
-    if (!this.pending.size) return;
-    const next = Math.min(
-      ...Array.from(this.pending.values(), (state) => state.expires),
-    );
-    this.timer = setTimeout(() => this.prune(), Math.max(1, next - this.now()));
-    this.timer.unref();
+    this.pending.close();
   }
   private timestamps(state: Pending) {
     return {
@@ -55,6 +50,12 @@ export class RecoveryReturn {
     };
   }
   async start(session: AccountSession, input: unknown) {
+    return withTemporaryAdmission(
+      'Muitos retornos de recuperação. Aguarde.',
+      () => this.create(session, input),
+    );
+  }
+  private async create(session: AccountSession, input: unknown) {
     const data = object(input);
     keys(data, ['wallet', 'config', 'receiver', 'count']);
     const transfer = recoveryTransfer({
@@ -73,19 +74,6 @@ export class RecoveryReturn {
     if ((receiver.algorithm as RsaHashedKeyAlgorithm).modulusLength !== 3072)
       throw new AccountError(400, 'Destino de recuperação inválido.');
     const commitment = await digest(canonical(transfer));
-    this.prune();
-    if (this.pending.size >= 128)
-      throw new AccountError(429, 'Muitos retornos de recuperação. Aguarde.');
-    // A fresh request cancels that device's earlier request, without renewing it.
-    for (const state of this.pending.values())
-      if (
-        state.session.accountId === session.accountId &&
-        state.session.deviceId === session.deviceId
-      ) {
-        state.consumed = true;
-        state.envelope = null;
-      }
-    // No await between the capacity check and insert: simultaneous starts share this budget.
     const state: Pending = {
       session: {
         accountId: session.accountId,
@@ -98,8 +86,16 @@ export class RecoveryReturn {
       envelope: null,
       consumed: false,
     };
-    this.pending.set(transfer.ticket, state);
-    this.schedule();
+    if (!this.pending.add(transfer.ticket, state, state.expires))
+      throw new AccountError(429, 'Muitos retornos de recuperação. Aguarde.');
+    const device = session.accountId + ':' + session.deviceId;
+    const prior = this.pending.get(this.byDevice.get(device) ?? '');
+    // Keep the earlier request's original expiry and replay rejection.
+    if (prior) {
+      prior.consumed = true;
+      prior.envelope = null;
+    }
+    this.byDevice.set(device, transfer.ticket);
     return {
       ticket: transfer.ticket,
       commitment: state.commitment,
@@ -109,7 +105,6 @@ export class RecoveryReturn {
   private request(input: unknown): Pending {
     const data = object(input);
     keys(data, ['ticket', 'commitment']);
-    this.prune();
     const state =
       typeof data['ticket'] === 'string'
         ? this.pending.get(data['ticket'])

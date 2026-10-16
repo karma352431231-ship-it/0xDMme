@@ -17,6 +17,10 @@ import {
   walletRecoveryVersion,
 } from '../../shared/wallet-recovery/index.ts';
 import type { WalletRecovery } from '../../shared/wallet-recovery/index.ts';
+import {
+  TemporaryRequests,
+  withTemporaryAdmission,
+} from '../temporary-admission/index.ts';
 
 type Identity = Pick<AccountSession, 'accountId' | 'address' | 'ecosystem'>;
 interface Pending {
@@ -30,14 +34,18 @@ interface Pending {
 /** Public metadata and ciphertext only; confirmation still belongs to the
  * original browser. Restart/expiry cancels unfinished entries, never vault data. */
 export class LoginOpening {
-  private readonly pending = new Map<string, Pending>();
+  private readonly byBrowser = new Map<string, Set<string>>();
+  private readonly pending = new TemporaryRequests<Pending>({
+    unavailable: 'Muitas entradas pendentes. Aguarde.',
+    removed: (ticket, state) => {
+      const tickets = this.byBrowser.get(state.browser);
+      tickets?.delete(ticket);
+      if (!tickets?.size) this.byBrowser.delete(state.browser);
+    },
+  });
   private readonly origin: string;
   constructor(origin: string) {
     this.origin = origin;
-  }
-  private prune(): void {
-    for (const [ticket, state] of this.pending)
-      if (state.expires <= Date.now()) this.pending.delete(ticket);
   }
   async start(
     browser: string,
@@ -45,6 +53,16 @@ export class LoginOpening {
     expires: number,
   ): Promise<string> {
     const receiver = openingReceiver(input);
+    return withTemporaryAdmission('Muitas entradas pendentes. Aguarde.', () =>
+      this.startReceiver({ browser, receiver, expires }),
+    );
+  }
+  private async startReceiver(input: {
+    browser: string;
+    receiver: OpeningReceiver;
+    expires: number;
+  }): Promise<string> {
+    const { browser, receiver, expires } = input;
     const key = await crypto.subtle.importKey(
       'spki',
       Uint8Array.from(Buffer.from(receiver.receiver, 'base64')),
@@ -55,17 +73,23 @@ export class LoginOpening {
     if ((key.algorithm as RsaHashedKeyAlgorithm).modulusLength !== 3072)
       throw new AccountError(400, 'Destino de abertura inválido.');
     const ticket = await openingTicket(receiver);
-    this.prune();
-    if (this.pending.has(ticket) || this.pending.size >= 128)
-      throw new AccountError(429, 'Muitas entradas pendentes. Aguarde.');
-    this.pending.set(ticket, {
-      browser,
-      receiver,
+    const retained = this.pending.add(
+      ticket,
+      {
+        browser,
+        receiver,
+        expires,
+        request: null,
+        envelope: null,
+        session: null,
+      },
       expires,
-      request: null,
-      envelope: null,
-      session: null,
-    });
+    );
+    if (!retained)
+      throw new AccountError(429, 'Muitas entradas pendentes. Aguarde.');
+    const tickets = this.byBrowser.get(browser) ?? new Set<string>();
+    tickets.add(ticket);
+    this.byBrowser.set(browser, tickets);
     return ticket;
   }
   prepare(ticket: string, identity: Identity, saved: WalletRecovery | null) {
@@ -97,20 +121,22 @@ export class LoginOpening {
     return state.request;
   }
   private find(ticket: string): Pending | undefined {
-    this.prune();
     return this.pending.get(ticket);
   }
   expected(ticket: string): boolean {
     return this.find(ticket) !== undefined;
   }
   close(): void {
-    this.pending.clear();
+    this.pending.close();
   }
   private browser(browser: string): Pending | undefined {
-    this.prune();
-    return [...this.pending.values()].find(
-      (state) => state.browser === browser,
-    );
+    const tickets = this.byBrowser.get(browser);
+    if (!tickets) return undefined;
+    for (const ticket of tickets) {
+      const state = this.pending.get(ticket);
+      if (state) return state;
+    }
+    return undefined;
   }
   ready(browser: string): boolean {
     const state = this.browser(browser);
@@ -190,8 +216,8 @@ export class LoginOpening {
     return { request: state.request, envelope: state.envelope };
   }
   cancel(browser: string): void {
-    for (const [ticket, state] of this.pending)
-      if (state.browser === browser) this.pending.delete(ticket);
+    const tickets = this.byBrowser.get(browser);
+    if (tickets) for (const ticket of tickets) this.pending.delete(ticket);
   }
   acknowledge(session: AccountSession, input: unknown): void {
     this.read(session, input);

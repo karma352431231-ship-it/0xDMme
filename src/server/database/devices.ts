@@ -10,6 +10,7 @@ import type {
   DeviceIdentity,
   DirectoryEvent,
 } from '../../shared/devices/index.ts';
+import { withTemporaryAdmission } from '../temporary-admission/index.ts';
 
 export interface DirectoryRow {
   head: string;
@@ -187,53 +188,53 @@ export class DeviceStore {
     });
   }
   async createLink(session: AccountSession, link: DeviceLink): Promise<void> {
-    await this.transaction(async (client) => {
-      await client.query(
-        "SELECT pg_advisory_xact_lock(hashtext('hash-talk:device-link-admission'))",
-      );
-      await this.lock(client, session);
-      const reused = await client.query(
-        'SELECT id FROM hash_talk.device_links WHERE id=$1',
-        [link.id],
-      );
-      if (reused.rowCount)
-        throw new AccountError(
-          409,
-          'Código já utilizado. Crie um novo pedido.',
+    await withTemporaryAdmission('Muitos pedidos de vinculação. Aguarde.', () =>
+      this.transaction(async (client) => {
+        await this.lock(client, session);
+        const reused = await client.query(
+          'SELECT id FROM hash_talk.device_links WHERE id=$1',
+          [link.id],
         );
-      await client.query(
-        `DELETE FROM hash_talk.device_links WHERE id IN (SELECT id FROM hash_talk.device_links WHERE expires_at<=now() ORDER BY expires_at LIMIT 64)`,
-      );
-      const count = await client.query<{ total: number }>(
-        'SELECT count(*)::integer AS total FROM hash_talk.device_links',
-      );
-      if ((count.rows[0]?.total ?? 256) >= 256)
-        throw new AccountError(429, 'Muitos pedidos de vinculação. Aguarde.');
-      const existing = await client.query(
-        'SELECT account_id FROM hash_talk.device_directories WHERE account_id=$1',
-        [session.accountId],
-      );
-      if (!existing.rowCount)
-        throw new AccountError(
-          409,
-          'Configure primeiro a recuperação em um aparelho autorizado.',
+        if (reused.rowCount)
+          throw new AccountError(
+            409,
+            'Código já utilizado. Crie um novo pedido.',
+          );
+        await client.query(
+          `DELETE FROM hash_talk.device_links WHERE id IN (SELECT id FROM hash_talk.device_links WHERE expires_at<=now() ORDER BY expires_at LIMIT 64 FOR UPDATE SKIP LOCKED)`,
         );
-      await client.query(
-        'UPDATE hash_talk.device_links SET cancelled=true WHERE account_id=$1 AND device_id=$2 AND NOT cancelled',
-        [session.accountId, session.deviceId],
-      );
-      await client.query(
-        'INSERT INTO hash_talk.device_links (id,account_id,device_id,code_hash,device,expires_at) VALUES ($1,$2,$3,$4,$5,$6)',
-        [
-          link.id,
-          session.accountId,
-          session.deviceId,
-          link.codeHash,
-          link.device,
-          link.expiresAt,
-        ],
-      );
-    });
+        const existing = await client.query(
+          'SELECT account_id FROM hash_talk.device_directories WHERE account_id=$1',
+          [session.accountId],
+        );
+        if (!existing.rowCount)
+          throw new AccountError(
+            409,
+            'Configure primeiro a recuperação em um aparelho autorizado.',
+          );
+        await client.query(
+          'UPDATE hash_talk.device_links SET cancelled=true WHERE account_id=$1 AND device_id=$2 AND NOT cancelled',
+          [session.accountId, session.deviceId],
+        );
+        const inserted = await client.query(
+          `INSERT INTO hash_talk.device_links (id,account_id,device_id,code_hash,device,expires_at) VALUES ($1,$2,$3,$4,$5,$6)
+         ON CONFLICT DO NOTHING RETURNING id`,
+          [
+            link.id,
+            session.accountId,
+            session.deviceId,
+            link.codeHash,
+            link.device,
+            link.expiresAt,
+          ],
+        );
+        if (!inserted.rowCount)
+          throw new AccountError(
+            409,
+            'Código já utilizado. Crie um novo pedido.',
+          );
+      }),
+    );
   }
   async cancelLink(session: AccountSession, id: string): Promise<void> {
     await this.pool.query(

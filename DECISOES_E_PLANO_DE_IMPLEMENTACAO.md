@@ -1,5 +1,15 @@
 # Capacity audit follow-up — 16 October 2026
 
+The tenth source block replaces fixed global login/handoff/device-link and
+volatile opening/recovery/enrollment counts with shared memory admission.
+Retained opaque state owns its original expiry and memory reservation; indexed
+lookups and per-entry timers avoid full-state scans. Keep challenge attempts,
+abuse windows, signatures, session binding, account locks, unique-use conflicts
+and existing temporary validity. Bounded SQL expiry cleanup skips locked rows;
+remove only advisory locks used for the retired counts. Shutdown and failed
+handoff persistence release their state. No schema or VPS activation is included;
+physical storage admission and representative load acceptance remain pending.
+
 The ninth source block removes serial notification dispatch and the call-push
 three-send/512-entry counts. Durable markers use stable bounded keyset pages;
 independent sends from later pages can proceed while earlier sends wait, subject

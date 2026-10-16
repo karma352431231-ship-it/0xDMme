@@ -8,6 +8,7 @@ import {
   transferContext,
   recoveryMessage,
 } from '../src/shared/wallet-recovery/index.ts';
+import { reserveOperationMemory } from '../src/server/memory-admission/index.ts';
 import { RecoveryReturn } from '../src/server/recovery-return/index.ts';
 import {
   createIdentity,
@@ -144,7 +145,7 @@ await test('retorno opaco vincula conta/aparelho/sessão/destino; rejeita replay
     }),
   );
 });
-await test('128 pedidos concorrentes respeitam orçamento; novo pedido cancela anterior sem renovar tombstone', async (t) => {
+await test('recovery admits more than 128 requests and supersedes without renewing old expiry', async (t) => {
   let now = Date.now();
   const relay = new RecoveryReturn(origin, () => now);
   t.after(() => relay.close());
@@ -162,11 +163,11 @@ await test('128 pedidos concorrentes respeitam orçamento; novo pedido cancela a
   );
   assert.equal(
     requests.filter((result) => result.status === 'fulfilled').length,
-    127,
+    130,
   );
   assert.equal(
     requests.filter((result) => result.status === 'rejected').length,
-    3,
+    0,
   );
   assert.throws(() =>
     relay.requestPublic({ ticket: prior.ticket, commitment: prior.commitment }),
@@ -285,4 +286,32 @@ await test('entrada privada tem URL estrita e fica fora do cache PWA mesmo com a
       cacheableRequest(new Request(`${origin}${entry}`), origin, [entry]),
       false,
     );
+});
+
+await test('recovery pressure preserves the previous request and shutdown releases in-flight admission', async (t) => {
+  let available = 1_048_576;
+  t.mock.method(process, 'availableMemory', () => available);
+  const user = session();
+  const identity = await createIdentity(user.deviceId, 'Receiver');
+  const input = {
+    config: createWalletRecovery(user, origin),
+    wallet: 'MetaMask',
+    receiver: identity.public.wrapping,
+    count: 1,
+  };
+  const relay = new RecoveryReturn(origin);
+  t.after(() => relay.close());
+  const prior = await relay.start(user, input);
+  available = 0;
+  await assert.rejects(relay.start(user, input));
+  assert.ok(
+    relay.requestPublic({ ticket: prior.ticket, commitment: prior.commitment }),
+  );
+  available = 1_048_576;
+  const attempt = relay.start(user, input);
+  relay.close();
+  await assert.rejects(attempt);
+  const release = reserveOperationMemory(available);
+  assert.ok(release);
+  release();
 });

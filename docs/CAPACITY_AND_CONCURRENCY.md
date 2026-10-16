@@ -318,6 +318,44 @@ Validate queue latency, query plans/history growth, descriptor pressure,
 provider throttling and recovery under representative synthetic load before the
 deferred activation. No real provider receives a notification in these tests.
 
+## Tenth block: temporary authentication admission
+
+Login challenges, browser handoffs and persisted device links no longer stop at
+1,024/256/256 rows. Their creation reserves shared process memory before waiting
+for SQL. Remove the global advisory locks and full-table counts used only for
+those ceilings; preserve account/session coordination and unique keys. Expired
+rows are collected in batches of at most 64 with locked rows skipped. A racing
+duplicate device-link insert has one winner and a controlled conflict; the
+losing transaction also rolls back any cancellation of an earlier link.
+
+Opening, recovery-return and enrollment state no longer stop at 128 entries.
+Each asynchronous creation owns a 128 KiB reservation; each retained entry owns
+a separate 128 KiB reservation until its original expiry, cancellation/removal
+or shutdown. These are admission estimates, not measured memory peaks. A shared
+temporary-state module owns individual expiry timers; browser/device indexes
+avoid scanning every unrelated request on each lookup or replacement. Recovery
+replay tombstones keep their original deadline. No accepted message or vault
+object gains an expiry.
+
+Pressure retains existing entries and uses existing translated errors. Closing
+during validation cannot recreate state; closing an enrollment during receiver
+issuance cancels that session before durable linking. Failed browser-handoff
+persistence releases its newly prepared opening. Signature checks, RSA receiver
+validation, browser/session binding, three challenge attempts, abuse windows
+and five-minute validity remain in force.
+
+Regressions admit 130 concurrent openings/recovery requests and 140 independent
+enrollment sources, and exercise idle expiry, pressure, replacement and shutdown
+during validation/issuance. SQL regressions seed the former 1,024/256/256 counts,
+hold the retired admission locks and an expired row, and preserve challenge
+attempts, account authorization, duplicate-link conflicts and bounded cleanup.
+
+**Ponto importante:** no schema, environment or VPS activation changes here.
+Persisted temporary state retains its existing expiry/index/autovacuum policy
+and bounded cleanup on creation; the physical-volume admission review remains
+separate. Validate transient memory peaks, admission fairness and expired-row
+cleanup throughput under representative synthetic load before activation.
+
 ## Remaining audit work
 
 - Size global content admission from the own data volume and operational space;

@@ -14,6 +14,14 @@ import {
 } from '../../shared/devices/index.ts';
 import type { LinkCode } from '../../shared/devices/index.ts';
 import type { DeviceService } from '../devices/index.ts';
+import {
+  TemporaryRequests,
+  withTemporaryAdmission,
+} from '../temporary-admission/index.ts';
+type EnrollmentDevices = Pick<
+  DeviceService,
+  'enrollmentSource' | 'assertEnrollmentSource' | 'start'
+>;
 interface Invitation {
   source: AccountSession;
   id: string;
@@ -24,15 +32,19 @@ interface Invitation {
   candidate: { code: LinkCode; signature: string; proof: string } | null;
 }
 export class EnrollmentLinks {
-  private readonly devices: DeviceService;
-  private readonly invitations = new Map<string, Invitation>();
-  constructor(devices: DeviceService) {
+  private readonly devices: EnrollmentDevices;
+  private readonly bySource = new Map<string, string>();
+  private readonly invitations = new TemporaryRequests<Invitation>({
+    unavailable: 'Muitos pedidos de vinculação. Aguarde.',
+    removed: (id, value) => {
+      const source = value.source.accountId + ':' + value.source.deviceId;
+      if (this.bySource.get(source) === id) this.bySource.delete(source);
+    },
+  });
+  constructor(devices: EnrollmentDevices) {
     this.devices = devices;
   }
   private current(id: string): Invitation {
-    for (const [key, value] of this.invitations)
-      if (Date.parse(value.expiresAt) <= Date.now())
-        this.invitations.delete(key);
     const invitation = this.invitations.get(id);
     if (!invitation)
       throw new AccountError(
@@ -42,6 +54,12 @@ export class EnrollmentLinks {
     return invitation;
   }
   async create(session: AccountSession, input: unknown) {
+    return withTemporaryAdmission(
+      'Muitos pedidos de vinculação. Aguarde.',
+      () => this.createInvitation(session, input),
+    );
+  }
+  private async createInvitation(session: AccountSession, input: unknown) {
     const data = object(input);
     keys(data, ['id', 'codeHash', 'root', 'head', 'expiresAt', 'signature']);
     const payload = {
@@ -59,25 +77,43 @@ export class EnrollmentLinks {
       payload,
       boundedText(data['signature'], 256),
     );
-    for (const [id, value] of this.invitations)
-      if (
-        Date.parse(value.expiresAt) <= Date.now() ||
-        (value.source.accountId === session.accountId &&
-          value.source.deviceId === session.deviceId)
-      )
-        this.invitations.delete(id);
-    if (this.invitations.size >= 128)
-      throw new AccountError(429, 'Muitos pedidos de vinculação. Aguarde.');
-    if (this.invitations.has(payload.id))
+    const source = session.accountId + ':' + session.deviceId;
+    const previous = this.bySource.get(source);
+    const existing = this.invitations.get(payload.id);
+    if (existing && previous !== payload.id)
       throw new AccountError(409, 'Código já usado.');
-    this.invitations.set(payload.id, {
+    const invitation: Invitation = {
       ...payload,
       source: session,
       candidate: null,
-    });
+    };
+    if (
+      !this.invitations.add(
+        payload.id,
+        invitation,
+        Date.parse(payload.expiresAt),
+        previous === payload.id ? existing : undefined,
+      )
+    )
+      throw new AccountError(429, 'Muitos pedidos de vinculação. Aguarde.');
+    if (previous && previous !== payload.id) this.invitations.delete(previous);
+    this.bySource.set(source, payload.id);
     return { expiresAt: payload.expiresAt };
   }
   async join(
+    input: unknown,
+    issue: (
+      source: AccountSession,
+      device: string,
+    ) => Promise<{ sessionToken: string; session: AccountSession }>,
+    cancel: (token: string) => Promise<void>,
+  ) {
+    return withTemporaryAdmission(
+      'Muitos pedidos de vinculação. Aguarde.',
+      () => this.joinInvitation(input, issue, cancel),
+    );
+  }
+  private async joinInvitation(
     input: unknown,
     issue: (
       source: AccountSession,
@@ -114,10 +150,12 @@ export class EnrollmentLinks {
     try {
       const result = await issue(invitation.source, code.device.id);
       issued = result.sessionToken;
+      if (this.current(invitation.id) !== invitation)
+        throw new AccountError(409, 'Código já usado ou inválido.');
       await this.devices.start(result.session, { code, signature });
       return result;
     } catch (error: unknown) {
-      this.invitations.delete(invitation.id);
+      this.invitations.delete(invitation.id, invitation);
       if (issued) await cancel(issued);
       throw error;
     }
@@ -136,6 +174,6 @@ export class EnrollmentLinks {
     return invitation.candidate;
   }
   close(): void {
-    this.invitations.clear();
+    this.invitations.close();
   }
 }
