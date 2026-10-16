@@ -208,6 +208,42 @@ await test('a failed local save keeps its own text and a retry cross, without a 
   assert.ok(f.history.children[0]!.querySelector('.message-send-failed'));
   assert.equal(f.history.children[0]!.querySelector('svg'), null);
 });
+
+await test('an optimistic reply quotes the current verified edit rather than the original serialized text', (t) => {
+  const f = fixture(t),
+    original = { ...row(crypto.randomUUID()), author: 'peer' };
+  const edit = {
+    ...row(crypto.randomUUID()),
+    author: 'peer',
+    relation: {
+      type: 'edit' as const,
+      id: original.id,
+      hash: original.hash,
+      author: 'peer',
+    },
+    text: encodeDailyText({
+      text: 'Edited original',
+      reply: null,
+      forwarded: false,
+    }),
+  };
+  const draft = {
+    id: crypto.randomUUID(),
+    peer: 'peer',
+    text: encodeDailyText({
+      text: 'My reply',
+      reply: original.id,
+      forwarded: false,
+    }),
+  };
+  f.outgoing.update(draft, 'admitted');
+  f.ui.render([original, edit]);
+  const bubble = f.history.children.find(
+    (node) => node.dataset['message'] === draft.id,
+  )!;
+  assert.match(bubble.textContent, /Edited original/u);
+  assert.match(bubble.textContent, /My reply/u);
+});
 await test('verified window renders; null gate removes old rows and never exposes an intermediate history', (t) => {
   const f = fixture(t);
   f.ui.render([row('incoming')]);

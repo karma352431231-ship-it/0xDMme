@@ -1,6 +1,7 @@
 import { decodeDailyText } from '../../shared/daily/index.ts';
 import { t } from '../../shared/i18n/index.ts';
 import { emojiText } from '../emoji/index.ts';
+import { dailyViews } from '../daily-text/index.ts';
 import { messageTime } from '../message-presentation/index.ts';
 import { checksIcon, messageChecks } from '../message-status/index.ts';
 import type { MessageView } from './controller.ts';
@@ -187,11 +188,11 @@ function outgoingBubble(input: {
   article.setAttribute('aria-label', t('chat.outgoing-message'));
   if (content.reply) {
     const quote = document.createElement('small'),
-      original = input.verified.find((view) => view.id === content.reply);
+      original = dailyViews(input.verified).find(
+        (view) => view.id === content.reply,
+      );
     quote.textContent = original
-      ? t('Em resposta: {0}', [
-          decodeDailyText(original.text).text.slice(0, 120),
-        ])
+      ? t('Em resposta: {0}', [original.content.text.slice(0, 120)])
       : t('Resposta: mensagem original fora desta página ou indisponível.');
     article.append(quote);
   }
