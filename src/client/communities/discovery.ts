@@ -1,11 +1,8 @@
+import { renderCommunityRanking } from './ranking-view.ts';
 import { showIdentityPhoto } from '../public-identity/index.ts';
-import { classificationBadges, rankingTopicFilter } from './classification.ts';
+import { rankingTopicFilter } from './classification.ts';
 import type { CommunityTopic } from '../../shared/community-classification/index.ts';
-import {
-  t,
-  translatedError,
-  currentLanguage,
-} from '../../shared/i18n/index.ts';
+import { t, translatedError } from '../../shared/i18n/index.ts';
 import { mountPublicSearchToolbar } from '../public-search/index.ts';
 import { feedReply, hasOpenFeedReply } from './feed-reply.ts';
 import { gifUrls } from '../gif-search/index.ts';
@@ -16,7 +13,6 @@ import {
   discoveryPeriod,
   feedPage,
   exploreFilter,
-  explorePage,
 } from '../../shared/community-discovery/index.ts';
 import type {
   DiscoveryPeriod,
@@ -46,16 +42,8 @@ import { feedPosition, restoreFeedPosition } from './feed-return.ts';
 import { FeedRefresh } from './feed-refresh.ts';
 import type { PublicProfile } from '../../shared/public-profile/index.ts';
 import type { FeedBookmark } from './feed-return.ts';
-import {
-  communityAvatar,
-  communityIcon,
-  postHeader,
-  postTagLink,
-} from './presentation.ts';
-import {
-  showPublicAvatar,
-  showPublicPostMedia,
-} from '../public-media/index.ts';
+import { communityIcon, postHeader, postTagLink } from './presentation.ts';
+import { showPublicPostMedia } from '../public-media/index.ts';
 import {
   discoveryMenu,
   feedOrders,
@@ -308,73 +296,19 @@ export function startCommunityDiscovery(
     first: boolean,
   ): void {
     if (page.kind === 'explore') {
-      renderExplore(page.value);
+      if (list)
+        rankOffset = renderCommunityRanking(list, page.value, {
+          order: exploreOrder,
+          offset: rankOffset,
+          signal: abort.signal,
+          addCleanup: (cleanup) => {
+            mediaCleanup.add(cleanup);
+          },
+        });
       return;
     }
     renderFeed(page.value, old);
     if (first) rememberNewest(page.value);
-  }
-  function renderExplore(page: ReturnType<typeof explorePage>): void {
-    if (!list) return;
-    for (const item of page.items) {
-      const row = el('li', '', 'ranking-row'),
-        open = el('a', '', 'ranking-link'),
-        avatar = communityAvatar(item.community.name),
-        copy = el('span', '', 'ranking-copy');
-      open.href = `#communities?id=${item.community.id}`;
-      copy.append(
-        el('strong', item.community.name),
-        el('small', item.community.description),
-        classificationBadges(item.community.classification),
-      );
-      open.append(
-        el('span', String(++rankOffset), 'ranking-position'),
-        avatar,
-        copy,
-        ...rankingStats(item),
-      );
-      row.append(open);
-      list.append(row);
-      if (item.community.avatar)
-        mediaCleanup.add(
-          showPublicAvatar(avatar, {
-            kind: 'community-photo',
-            target: item.community.id,
-            reference: item.community.avatar,
-            signal: abort.signal,
-          }),
-        );
-    }
-  }
-  /** Same figures as before, laid out as columns; growth is never shown as comparable while history forms. */
-  function rankingStats(
-    item: ReturnType<typeof explorePage>['items'][number],
-  ): HTMLElement[] {
-    const number = (value: number) => value.toLocaleString(currentLanguage());
-    const stat = (value: string, label: string, className = '') => {
-      const node = el('span', '', `ranking-stat ${className}`.trim());
-      node.append(el('strong', value), el('small', label));
-      return node;
-    };
-    const followers = stat(
-      number(item.community.followers),
-      item.community.archived ? t('seguidores · arquivada') : t('seguidores'),
-    );
-    if (exploreOrder === 'size') return [followers];
-    const growth = stat(
-      `+${number(item.upvotes)}`,
-      item.historyComplete ? t('upvotes em alta') : t('em formação'),
-      'ranking-growth',
-    );
-    if (!item.historyComplete)
-      growth.title = t(
-        'Histórico em formação; crescimento ainda não comparável.',
-      );
-    return [
-      followers,
-      stat(number(item.participants), t('ranking.active-label')),
-      growth,
-    ];
   }
   function renderFeed(page: ReturnType<typeof feedPage>, old: number): void {
     for (const entry of page.items) {
