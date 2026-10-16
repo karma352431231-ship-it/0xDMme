@@ -11,6 +11,9 @@ when hardware is exhausted.
 
 Implementation is split into reviewable blocks. Removing a global lock without
 preserving its consistency guarantees is outside the transport block below.
+The owner chose to prepare the remaining blocks locally and activate the
+integrated result once, after its verification. A source push does not activate
+any block.
 
 ## First block: HTTP admission and proxy identity
 
@@ -57,6 +60,34 @@ missing/invalid forwarded identity and the removed 256-client ceiling.
 These tests establish the removed admission barriers, not a supported user
 count. High-load validation needs realistic mixes of open streams, messages,
 media, calls and history growth, using synthetic data and aggregate metrics.
+
+## Second block: concurrent authenticated reads
+
+Authenticated contact reads now share admission and account locks. The same
+contract covers private-message snapshots, index pages, changes, receipts,
+delivery metadata and device history; Matrix inboxes and device-key queries;
+current/historical recovery capsules; notification preferences and eligibility;
+and call authorization. Independent reads, including reads from the same
+account, can progress together instead of forming a single exclusive queue.
+
+The transaction acquires its authorization locks before entering PostgreSQL's
+read-only mode. SQL writes through this contract fail rather than bypassing
+mutation coordination. Device revocation still conflicts with the account
+lock. Contact mutations and content admission retain their exclusive lock, so
+a read cannot mix consent states across its queries. A read waiting behind a
+device change validates the newly committed directory before returning data.
+Failure rolls back and releases both locks and the connection.
+
+Message-body downloads and backup windows still use the mutation contract:
+opening an object can create a durable delivery reference and charge bytes.
+Claiming a one-time Matrix key also remains a mutation. Treating these methods
+as reads would break delivery/accounting guarantees.
+
+Integration regressions verify concurrent reads under an existing shared
+admission/account lock, rejection of SQL writes, exclusion of a conflicting
+mutation, account revocation protection and authorization after a queued read.
+This block needs no schema migration. It does not yet remove serialization
+between unrelated writes or the singleton content counter.
 
 ## Remaining audit work
 

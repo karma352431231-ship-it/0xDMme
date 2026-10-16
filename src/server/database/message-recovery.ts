@@ -52,7 +52,7 @@ export class MessageRecoveryStore {
     });
   }
   async current(authority: ContactAuthority): Promise<RecoveryKey | null> {
-    return this.contacts.withMessageAuthority(authority, async (client) => {
+    return this.contacts.withMessageRead(authority, async (client) => {
       const directory = await client.query<{ event: unknown }>(
         'SELECT event FROM hash_talk.device_directories WHERE account_id=$1',
         [authority.session.accountId],
@@ -70,7 +70,7 @@ export class MessageRecoveryStore {
     authority: ContactAuthority,
     id: string,
   ): Promise<RecoveryKey> {
-    return this.contacts.withMessageAuthority(authority, async (client) => {
+    return this.contacts.withMessageRead(authority, async (client) => {
       const result = await client.query<{ body: RecoveryKey }>(
         'SELECT body FROM hash_talk.message_recovery_keys WHERE account_id=$1 AND id=$2',
         [authority.session.accountId, id],

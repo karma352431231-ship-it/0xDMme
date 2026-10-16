@@ -46,7 +46,7 @@ export class MessageStore {
     id: string,
     peer: string,
   ): Promise<boolean> {
-    return this.contacts.withMessageAuthority(authority, async (client) => {
+    return this.contacts.withMessageRead(authority, async (client) => {
       const result = await client.query(
         `SELECT 1 FROM hash_talk.message_packets WHERE id=$1 AND sender=$2 AND recipient=$3 AND kind='profile'`,
         [id, authority.session.accountId, peer],
@@ -59,7 +59,7 @@ export class MessageStore {
     id: string,
     hash: string,
   ): Promise<boolean> {
-    return this.contacts.withMessageAuthority(authority, async (client) => {
+    return this.contacts.withMessageRead(authority, async (client) => {
       const existing = await this.record(client, id);
       if (!existing) return false;
       if (
@@ -350,7 +350,7 @@ export class MessageStore {
     );
   }
   async snapshot(authority: ContactAuthority): Promise<MessageSnapshot> {
-    return this.contacts.withMessageAuthority(authority, (client) =>
+    return this.contacts.withMessageRead(authority, (client) =>
       this.state(client, authority),
     );
   }
@@ -385,7 +385,7 @@ export class MessageStore {
     authority: ContactAuthority,
     input: { snapshot: MessageSnapshot; after: number },
   ): Promise<{ items: unknown[]; next: number | null }> {
-    return this.contacts.withMessageAuthority(authority, async (client) => {
+    return this.contacts.withMessageRead(authority, async (client) => {
       await this.expect(client, authority, input.snapshot);
       return messageIndexPage(client, authority, input.after);
     });
@@ -394,7 +394,7 @@ export class MessageStore {
     authority: ContactAuthority,
     range: { from: MessageSnapshot; snapshot: MessageSnapshot },
   ) {
-    return this.contacts.withMessageAuthority(authority, async (client) => {
+    return this.contacts.withMessageRead(authority, async (client) => {
       await this.expect(client, authority, range.snapshot);
       return readMessageChanges(client, authority, range);
     });
@@ -404,7 +404,7 @@ export class MessageStore {
     ids: string[],
     snapshot: MessageSnapshot,
   ): Promise<{ items: unknown[]; next: null }> {
-    return this.contacts.withMessageAuthority(a, async (c) => {
+    return this.contacts.withMessageRead(a, async (c) => {
       await this.expect(c, a, snapshot);
       const r = await c.query<Record<string, unknown>>(
         `SELECT * FROM (SELECT DISTINCT ON (m.relation->>'id',m.relation->>'type',m.sender) m.id,m.kind,m.sender,m.recipient,m.sequence::text,m.hash,m.relation,m.sender_revision,m.recipient_revision,m.queue_active,false AS deleted,NULL AS deletion,r.status FROM hash_talk.message_packets m LEFT JOIN hash_talk.message_references r ON r.message_id=m.id AND r.account_id=$1 AND r.device_id=$2 WHERE (m.sender=$1 OR m.recipient=$1) AND m.relation->>'id'=ANY($3::text[]) AND m.body IS NOT NULL AND NOT EXISTS(SELECT 1 FROM hash_talk.personal_removals pr WHERE pr.account_id=$1 AND pr.kind='message' AND pr.id IN (m.id,(m.relation->>'id')::uuid)) ORDER BY m.relation->>'id',m.relation->>'type',m.sender,m.sequence DESC) current ORDER BY sequence::bigint`,
@@ -420,7 +420,7 @@ export class MessageStore {
     authority: ContactAuthority,
     snapshot: MessageSnapshot,
   ): Promise<void> {
-    return this.contacts.withMessageAuthority(authority, (client) =>
+    return this.contacts.withMessageRead(authority, (client) =>
       this.expect(client, authority, snapshot),
     );
   }
@@ -428,7 +428,7 @@ export class MessageStore {
     authority: ContactAuthority,
     input: { snapshot: MessageSnapshot; ids: string[] },
   ): Promise<unknown[]> {
-    return this.contacts.withMessageAuthority(authority, async (client) => {
+    return this.contacts.withMessageRead(authority, async (client) => {
       await this.expect(client, authority, input.snapshot);
       const rows = await client.query(
         "SELECT m.id,m.hash,m.queue_active,EXISTS(SELECT 1 FROM hash_talk.message_references r WHERE r.message_id=m.id AND r.account_id=m.recipient AND r.status='received') AS recipient_received FROM hash_talk.message_packets m WHERE m.id=ANY($1::uuid[]) AND (m.sender=$2 OR m.recipient=$2) AND m.body IS NOT NULL",
@@ -441,7 +441,7 @@ export class MessageStore {
     authority: ContactAuthority,
     input: { accountId: string; after: number; through: number },
   ): Promise<unknown[]> {
-    return this.contacts.withMessageAuthority(authority, async (client) => {
+    return this.contacts.withMessageRead(authority, async (client) => {
       if (
         input.accountId !== authority.session.accountId &&
         !(await this.contacts.messageDeliveryAllowed(

@@ -1,5 +1,12 @@
 # Capacity audit follow-up — 16 October 2026
 
+The owner subsequently chose a single activation after the remaining blocks
+are integrated and verified. The second source block allows authenticated
+read operations to share admission/account locks, with PostgreSQL read-only
+enforcement and unchanged consent/device-revocation coordination. Mutations,
+message-body opening, backup references and one-time-key claims keep exclusive
+coordination until their accounting and lock scope are revised separately.
+
 The owner authorized starting removal of the artificial limits found in the
 capacity audit. Keep individual storage quotas, encryption, authorization,
 retention and abuse protection. Replace small test-environment visitor counts

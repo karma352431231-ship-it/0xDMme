@@ -86,7 +86,7 @@ export class DailyStore {
     return rows[0];
   }
   async states(a: ContactAuthority, peers: string[]): Promise<unknown[]> {
-    return this.contacts.withMessageAuthority(a, async (c) => {
+    return this.contacts.withMessageRead(a, async (c) => {
       const rows = await c.query(
         `SELECT root.peer,coalesce(cc.revision,0) AS revision,coalesce(cc.muted_until,0)::text AS "mutedUntil",
         (SELECT count(*)::integer FROM hash_talk.message_packets m WHERE m.sender=root.peer AND m.recipient=$1 AND m.kind<>'profile' AND m.relation IS NULL AND m.body IS NOT NULL AND NOT EXISTS(SELECT 1 FROM hash_talk.message_reads mr WHERE mr.account_id=m.recipient AND mr.message_id=m.id) AND NOT EXISTS(SELECT 1 FROM hash_talk.personal_removals pr WHERE pr.account_id=$1 AND pr.kind='message' AND pr.id=m.id)) AS unread,
@@ -159,7 +159,7 @@ export class DailyStore {
     });
   }
   async receipts(a: ContactAuthority, ids: string[]): Promise<string[]> {
-    return this.contacts.withMessageAuthority(a, async (c) => {
+    return this.contacts.withMessageRead(a, async (c) => {
       const rows = await c.query<{ id: string }>(
         `SELECT m.id FROM hash_talk.message_packets m JOIN hash_talk.message_reads r ON r.message_id=m.id AND r.account_id=m.recipient JOIN hash_talk.daily_controls dc ON dc.account_id=m.recipient AND dc.read_receipts AND dc.receipt_epoch=r.share_epoch WHERE m.sender=$1 AND m.id=ANY($2::uuid[]) AND m.body IS NOT NULL AND EXISTS(SELECT 1 FROM hash_talk.contact_relations cr WHERE cr.lo=least(m.sender,m.recipient) AND cr.hi=greatest(m.sender,m.recipient) AND cr.state='approved')`,
         [a.session.accountId, ids],
@@ -207,7 +207,7 @@ export class DailyStore {
     return readPublicNotificationPreview(this.contacts, a);
   }
   async check(a: ContactAuthority): Promise<boolean> {
-    return this.contacts.withMessageAuthority(a, async (c) => {
+    return this.contacts.withMessageRead(a, async (c) => {
       const r = await c.query(
         `SELECT 1 FROM hash_talk.push_subscriptions s WHERE s.account_id=$1 AND s.device_id=$2 AND ${authorizedDevice} AND ${eligible}`,
         [a.session.accountId, a.session.deviceId],
@@ -216,7 +216,7 @@ export class DailyStore {
     });
   }
   async pushPreferences(a: ContactAuthority): Promise<PushPreferences> {
-    return this.contacts.withMessageAuthority(a, async (c) => {
+    return this.contacts.withMessageRead(a, async (c) => {
       const row = await c.query<PushPreferences>(
         'SELECT messages,calls,show_calls AS "showCalls" FROM hash_talk.push_controls WHERE account_id=$1 AND device_id=$2',
         [a.session.accountId, a.session.deviceId],
@@ -277,7 +277,7 @@ export class DailyStore {
   async pushState(
     a: ContactAuthority,
   ): Promise<{ registered: boolean; showCalls: boolean; calls: boolean }> {
-    return this.contacts.withMessageAuthority(a, async (c) => {
+    return this.contacts.withMessageRead(a, async (c) => {
       const rows = await c.query<{ showCalls: boolean; calls: boolean }>(
         `SELECT coalesce(pc.show_calls,true) AS "showCalls",coalesce(pc.calls,true) AS calls FROM hash_talk.push_subscriptions s LEFT JOIN hash_talk.push_controls pc USING(account_id,device_id) WHERE s.account_id=$1 AND s.device_id=$2 AND ${authorizedDevice}`,
         [a.session.accountId, a.session.deviceId],

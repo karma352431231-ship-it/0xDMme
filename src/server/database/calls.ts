@@ -27,7 +27,7 @@ export class CallStore {
     peer: string | null,
     work: (gate: CallGate) => T,
   ): Promise<T> {
-    return this.contacts.withMessageAuthority(a, async (client) => {
+    return this.contacts.withMessageRead(a, async (client) => {
       const prefs = await client.query<{
         account_id: string;
         enabled: boolean;

@@ -97,7 +97,7 @@ export class MatrixStore {
     authority: ContactAuthority,
     after: number,
   ): Promise<unknown> {
-    return this.contacts.withMessageAuthority(authority, async (client) => {
+    return this.contacts.withMessageRead(authority, async (client) => {
       const rows = await client.query<{
         group_id: string;
         epoch: number;
@@ -244,7 +244,7 @@ export class MatrixStore {
     authority: ContactAuthority,
     accounts: string[],
   ): Promise<unknown> {
-    return this.contacts.withMessageAuthority(authority, async (client) => {
+    return this.contacts.withMessageRead(authority, async (client) => {
       const bindings: MatrixBinding[] = [];
       const devices: Record<string, Record<string, unknown>> = {};
       for (const account of accounts) {
@@ -385,7 +385,7 @@ export class MatrixStore {
     await assertVaultQuota(client, input.account);
   }
   async inbox(authority: ContactAuthority): Promise<unknown> {
-    return this.contacts.withMessageAuthority(authority, async (client) => {
+    return this.contacts.withMessageRead(authority, async (client) => {
       const result = await client.query<{ sequence: string; body: unknown }>(
         `SELECT e.sequence::text,e.body FROM hash_talk.matrix_envelopes e WHERE e.account_id=$1 AND e.device_id=$2 AND e.body IS NOT NULL AND (e.sender=$1 OR EXISTS(SELECT 1 FROM hash_talk.contact_relations r WHERE r.lo=least(e.sender,$1::uuid) AND r.hi=greatest(e.sender,$1::uuid) AND r.state='approved')) ORDER BY e.sequence LIMIT 16`,
         [authority.session.accountId, authority.session.deviceId],

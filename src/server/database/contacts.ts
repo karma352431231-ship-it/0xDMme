@@ -79,6 +79,7 @@ export class ContactStore {
   private async transaction<T>(
     authority: ContactAuthority | null,
     work: (client: pg.PoolClient) => Promise<T>,
+    access: 'read' | 'write' = 'write',
   ): Promise<T> {
     const client = await this.pool.connect();
     const pending = {
@@ -89,18 +90,23 @@ export class ContactStore {
     this.pendingChanges.set(client, pending);
     try {
       await client.query('BEGIN');
-      // All contact admissions share one bounded, short transaction. Device
-      // commits use the same account lock and cannot revoke during admission.
+      // Readers coexist while mutations retain exclusive admission. The account
+      // lock still coordinates device commits and revocation with authorization.
       await client.query(
-        "SELECT pg_advisory_xact_lock(hashtext('hash-talk:contact-admission'))",
+        access === 'read'
+          ? "SELECT pg_advisory_xact_lock_shared(hashtext('hash-talk:contact-admission'))"
+          : "SELECT pg_advisory_xact_lock(hashtext('hash-talk:contact-admission'))",
       );
       if (authority) {
         await client.query(
-          'SELECT id FROM hash_talk.accounts WHERE id=$1 FOR UPDATE',
+          access === 'read'
+            ? 'SELECT id FROM hash_talk.accounts WHERE id=$1 FOR SHARE'
+            : 'SELECT id FROM hash_talk.accounts WHERE id=$1 FOR UPDATE',
           [authority.session.accountId],
         );
         await this.authorize(client, authority);
       }
+      if (access === 'read') await client.query('SET TRANSACTION READ ONLY');
       const result = await work(client);
       if (this.relayChanges) {
         const accounts = Array.from(pending.accounts);
@@ -242,9 +248,16 @@ export class ContactStore {
     return invite !== null && controls.inviteHash === (await digest(invite));
   }
   async state(authority: ContactAuthority): Promise<Controls> {
-    return this.transaction(authority, (c) =>
+    return this.withMessageRead(authority, (c) =>
       this.controls(c, authority.session.accountId),
     );
+  }
+  /** Read-only work shares admission and account locks without weakening revocation. */
+  async withMessageRead<T>(
+    authority: ContactAuthority,
+    work: (client: pg.PoolClient) => Promise<T>,
+  ): Promise<T> {
+    return this.transaction(authority, work, 'read');
   }
   /** Coordinate message persistence with contact/device authority in this transaction. */
   async withMessageAuthority<T>(
@@ -370,7 +383,7 @@ export class ContactStore {
     kind: ContactList,
     after: string | null,
   ): Promise<{ items: unknown[]; next: string | null }> {
-    return this.transaction(authority, (client) =>
+    return this.withMessageRead(authority, (client) =>
       this.readList(client, { id: authority.session.accountId, kind, after }),
     );
   }
@@ -422,7 +435,7 @@ export class ContactStore {
     };
   }
   async snapshot(authority: ContactAuthority): Promise<unknown> {
-    return this.transaction(authority, async (client) => {
+    return this.withMessageRead(authority, async (client) => {
       const id = authority.session.accountId,
         lists: Partial<Record<ContactList, unknown>> = {};
       for (const kind of [
@@ -440,7 +453,7 @@ export class ContactStore {
     authority: ContactAuthority,
     wallet: WalletContact,
   ): Promise<Peer | null> {
-    return this.transaction(authority, async (client) => {
+    return this.withMessageRead(authority, async (client) => {
       const result = await client.query<{ id: string }>(
         'SELECT id FROM hash_talk.accounts WHERE ecosystem=$1 AND address=$2',
         [wallet.ecosystem, wallet.address],
@@ -457,7 +470,7 @@ export class ContactStore {
     owner: string,
     token: string,
   ): Promise<Peer | null> {
-    return this.transaction(authority, async (client) => {
+    return this.withMessageRead(authority, async (client) => {
       const exists = await client.query(
         'SELECT 1 FROM hash_talk.accounts WHERE id=$1',
         [owner],
@@ -646,7 +659,7 @@ export class ContactStore {
     authority: ContactAuthority,
     targetId: string,
   ): Promise<boolean> {
-    return this.transaction(
+    return this.withMessageRead(
       authority,
       async (client) =>
         !(await this.blocked(
@@ -661,7 +674,7 @@ export class ContactStore {
     authority: ContactAuthority,
     targetId: string,
   ): Promise<boolean> {
-    return this.transaction(authority, (c) =>
+    return this.withMessageRead(authority, (c) =>
       this.allowed(c, authority.session.accountId, targetId),
     );
   }
@@ -683,7 +696,7 @@ export class ContactStore {
     targetId: string,
     after: number,
   ): Promise<{ events: unknown[]; revision: number; head: string }> {
-    return this.transaction(authority, async (client) => {
+    return this.withMessageRead(authority, async (client) => {
       if (!(await this.allowed(client, authority.session.accountId, targetId)))
         unavailable();
       const current = await client.query<{ revision: number; head: string }>(

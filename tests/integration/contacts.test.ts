@@ -27,6 +27,7 @@ import {
 import type { ContactList } from '../../src/shared/contacts/index.ts';
 import { digest, eventHash, sign } from '../../src/shared/devices/index.ts';
 import { object } from '../../src/shared/account/index.ts';
+import { verifyContactConcurrency } from './contact-concurrency-fixture.ts';
 await test('contatos persistentes: descoberta, consentimento, bloqueio, ausência de tetos e HTTP', async (t) => {
   const config = readWebConfiguration(process.env);
   if (!new URL(config.databaseUrl).pathname.startsWith('/hash_talk_test'))
@@ -272,6 +273,12 @@ await test('contatos persistentes: descoberta, consentimento, bloqueio, ausênci
     b = await create(),
     c = await create(),
     pending = await create(false);
+  await verifyContactConcurrency(t, {
+    database,
+    inspector,
+    authority: { session: a.session, directory: await eventHash(a.event) },
+    peer: { session: b.session, directory: await eventHash(b.event) },
+  });
   await t.test(
     'modo conservador oculta cadastro; apenas aparelhos autorizados consultam; ecossistema/endereço são exatos',
     async () => {
