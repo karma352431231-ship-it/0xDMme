@@ -8,6 +8,7 @@ import { once } from 'node:events';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import webpush from 'web-push';
+import { deferred } from './fixtures/deferred.ts';
 import {
   createPushSender,
   dispatchPush,
@@ -223,25 +224,25 @@ await test(
     assert.equal(await readFile(socketPath, 'utf8'), 'Preservar');
   },
 );
-await test('emissor limita a quatro envios simultâneos e recupera capacidade', async (t) => {
+await test('sender accepts concurrent sockets beyond eight and more than 600 sends in one window', async (t) => {
+  t.mock.method(process, 'availableMemory', () => 64 * 1_048_576);
+  t.mock.timers.enable({ apis: ['Date'], now: 100_000 });
   const directory = await mkdtemp(temporaryPrefix),
     socketPath = join(directory, 'sender.sock');
-  const resolvers: (() => void)[] = [];
-  let four!: () => void;
-  const ready = new Promise<void>((resolve) => {
-    four = resolve;
-  });
+  const release = deferred<void>(),
+    ready = deferred<void>();
+  let sent = 0;
   const server = createPushSender({
     config: { ...keys, subject: 'https://0xdmme.app' },
     token,
-    send: () =>
-      new Promise<void>((resolve) => {
-        resolvers.push(resolve);
-        if (resolvers.length === 4) four();
-      }),
+    send: () => {
+      sent++;
+      if (sent === 16) ready.resolve();
+      return release.promise;
+    },
   });
   t.after(async () => {
-    for (const resolve of resolvers) resolve();
+    release.resolve();
     await new Promise<void>((resolve) => server.close(() => resolve()));
     await rm(directory, { recursive: true, force: true });
   });
@@ -250,11 +251,66 @@ await test('emissor limita a quatro envios simultâneos e recupera capacidade', 
     server.listen(socketPath, resolve);
   });
   const config = { publicKey: keys.publicKey, socketPath, token };
-  const pending = Array.from({ length: 4 }, () =>
+  const pending = Array.from({ length: 16 }, () =>
     dispatchPush(config, subscription),
   );
-  await ready;
-  await assert.rejects(dispatchPush(config, subscription), { statusCode: 429 });
-  for (const resolve of resolvers) resolve();
+  for (const request of pending)
+    void request.catch((error: unknown) => ready.reject(error));
+  await ready.promise;
+  release.resolve();
   await Promise.all(pending);
+  // Keep socket pressure bounded while proving the old shared minute ceiling is gone.
+  for (let batch = 0; batch < 38; batch++)
+    await Promise.all(
+      Array.from({ length: 16 }, () => dispatchPush(config, subscription)),
+    );
+  assert.equal(sent, 624);
+});
+
+await test('sender refuses memory pressure and recovers after success and transport failure', async (t) => {
+  let bytes = 1_048_576,
+    fail = false;
+  t.mock.method(process, 'availableMemory', () => bytes);
+  const directory = await mkdtemp(temporaryPrefix),
+    socketPath = join(directory, 'sender.sock');
+  const release = deferred<void>(),
+    entered = deferred<void>();
+  let sent = 0;
+  const server = createPushSender({
+    config: { ...keys, subject: 'https://0xdmme.app' },
+    token,
+    send: () => {
+      sent++;
+      entered.resolve();
+      if (fail)
+        return Promise.reject(new Error('Synthetic transport failure.'));
+      return release.promise;
+    },
+  });
+  t.after(async () => {
+    release.resolve();
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+    await rm(directory, { recursive: true, force: true });
+  });
+  await new Promise<void>((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(socketPath, resolve);
+  });
+  const config = { publicKey: keys.publicKey, socketPath, token };
+  const first = dispatchPush(config, subscription);
+  void first.catch((error: unknown) => entered.reject(error));
+  await entered.promise;
+  await assert.rejects(dispatchPush(config, subscription), { statusCode: 429 });
+  assert.equal(sent, 1);
+  release.resolve();
+  await first;
+  fail = true;
+  await assert.rejects(dispatchPush(config, subscription), { statusCode: 503 });
+  fail = false;
+  await dispatchPush(config, subscription);
+  bytes = 0;
+  await assert.rejects(dispatchPush(config, subscription), { statusCode: 429 });
+  bytes = 1_048_576;
+  await dispatchPush(config, subscription);
+  assert.equal(sent, 4);
 });

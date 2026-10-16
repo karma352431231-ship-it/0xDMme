@@ -89,6 +89,37 @@ mutation, account revocation protection and authorization after a queued read.
 This block needs no schema migration. It does not yet remove serialization
 between unrelated writes or the singleton content counter.
 
+## Third block: push admission and prepared service resources
+
+The owner explicitly approved preparation of the TURN/push resource changes
+after reviewing their shared-host impact. Their activation remains deferred.
+
+- The push sender replaces four active sends and 600 requests/minute with a
+  memory-derived in-flight budget, and removes its eight-socket ceiling. Each
+  admitted request reserves one MiB of headroom against the smaller of available
+  process memory and remaining V8 heap. Pressure returns 429 before an external
+  send; success, invalid requests and transport errors release the reservation.
+  There is no new pending sender queue. Authentication, provider restrictions,
+  fixed generic payloads, byte envelopes and network deadlines remain.
+- The push unit template removes its own CPU/RAM/task/V8-heap caps. The TURN
+  template removes its own CPU/RAM/task/descriptor caps. Effective inherited
+  host/slice/descriptor limits must be checked before activation. Swap and core
+  dumps remain prohibited; identities, namespaces and network ACLs stay intact.
+- The TURN configuration template sets aggregate allocation quota and bandwidth
+  quotas to zero and removes CPU/relay-thread overrides. Coturn's
+  [pinned sample](https://github.com/coturn/coturn/blob/4.18.0/examples/etc/turnserver.conf)
+  defines these quota values and OS-dependent worker sizing. The existing relay
+  port window and four-allocation limit per short-lived random credential remain.
+  Port expansion must be coordinated with the own firewall and destination tests.
+
+Socket regressions hold 16 sends pending simultaneously, complete 624 sends
+inside a fixed minute, and verify overload rejection and recovery after success,
+transport failure and exhausted available memory. External delivery is mocked;
+no notification is sent to a real provider. The one-MiB reservation is an
+admission estimate, not an established peak TLS-memory measurement. Actual
+resource use, latency, descriptor pressure and relay packet loss still need
+representative operational validation before activation.
+
 ## Remaining audit work
 
 - Size global content admission from the own data volume and operational space;
@@ -101,8 +132,9 @@ between unrelated writes or the singleton content counter.
 - Replace single-job media preparation, the remaining four-operation gates in
   private/group/status transfer services and small global reservation counts
   with fair recoverable resource-based queues.
-- Remove/recalibrate TURN and push service quotas; coordinate call admission,
-  relay ports, bandwidth, descriptors and sender concurrency.
+- Activate the prepared TURN/push changes with effective inherited limits and
+  rollback; coordinate call admission, relay ports, web dispatch queues and
+  representative resource validation.
 - Validate feed query growth, recurring polling, SSE recovery, database pools,
   event-loop latency, WAL/checkpoints and overload recovery.
 

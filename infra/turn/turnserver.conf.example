@@ -12,19 +12,17 @@ pkey=/etc/0xdmme-turn/tls/privkey.pem
 min-port=49160
 max-port=49223
 user-quota=4
-total-quota=64
-# Bytes/s per direction, not bits/s. Initial limits require capacity measurement.
-max-bps=64000
-bps-capacity=2048000
+# No aggregate allocation or bandwidth ceiling below the available resources.
+total-quota=0
+max-bps=0
+bps-capacity=0
 max-allocate-lifetime=600
 stale-nonce=600
 no-tcp-relay
 no-stun
 no-multicast-peers
 no-auth-pings
-# Bound the workers independently of the shared host's visible CPU count.
-cpus=2
-relay-threads=2
+# Use Coturn's OS-dependent worker sizing rather than two fixed relay threads.
 no-stdout-log
 log-file=/dev/null
 simple-log

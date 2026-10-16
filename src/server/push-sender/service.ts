@@ -5,6 +5,7 @@ import { validatePushToken } from './client.ts';
 import { pushDispatch } from './protocol.ts';
 import { sendPush } from './network.ts';
 import type { PushConfiguration } from './network.ts';
+import { PushSendBudget } from './admission.ts';
 
 async function body(request: IncomingMessage): Promise<unknown> {
   const chunks: Buffer[] = [];
@@ -37,19 +38,13 @@ export function createPushSender(options: {
   send?: typeof sendPush;
 }) {
   validatePushToken(options.token);
-  let active = 0,
-    requests = 0,
-    windowStart = Date.now();
+  const budget = new PushSendBudget();
   const send = options.send ?? sendPush;
   function admission(request: IncomingMessage): number {
     if (!authorized(request, options.token)) return 401;
     if (request.method !== 'POST' || request.url !== '/send') return 404;
     if (request.headers['x-push-key'] !== options.config.publicKey) return 503;
-    if (Date.now() - windowStart >= 60_000) {
-      requests = 0;
-      windowStart = Date.now();
-    }
-    return active >= 4 || ++requests > 600 ? 429 : 0;
+    return 0;
   }
   async function handle(
     request: IncomingMessage,
@@ -57,7 +52,8 @@ export function createPushSender(options: {
   ): Promise<void> {
     const status = admission(request);
     if (status) return reply(response, status);
-    active++;
+    const release = budget.take();
+    if (!release) return reply(response, 429);
     try {
       const d = pushDispatch(await body(request));
       await send(d.subscription, options.config, d);
@@ -70,7 +66,7 @@ export function createPushSender(options: {
           : 503;
       reply(response, status === 404 || status === 410 ? status : 503);
     } finally {
-      active--;
+      release();
     }
   }
   const server = createServer(
@@ -82,7 +78,6 @@ export function createPushSender(options: {
       });
     },
   );
-  server.maxConnections = 8;
   server.timeout = 8000;
   server.keepAliveTimeout = 1000;
   return server;

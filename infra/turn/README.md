@@ -10,7 +10,24 @@ Backend: `HASH_TALK_TURN_URLS` recebe URLs TURN próprias separadas por vírgula
 
 Credencial por participante: expira em 10 minutos, nome aleatório sem conta/aparelho; renovada antes de um ICE restart. Alocações existentes renováveis não equivalem a revogação instantânea. Cliente encerra por perda de autorização em até 20 s, e revalida a sessão durante a chamada. Sem limite artificial de duração.
 
-Antes de ativar: inventário/baseline privado, distribuição/licenças dos pacotes, usuário dedicado, permissões do segredo/certificado, ausência de logs/CoreDump/swap com memória de chamadas, UDP/TCP 3478 e TLS/TCP 5349 próprios e faixa relay 49160–49223. A ACL e o firewall de egress devem permitir somente endereço/portas do nosso relay como destinos; negar serviços do host, privados, multicast e IPv4 mapeado em IPv6. Validar duas alocações comunicando-se pelo relay próprio (não habilitar `server-relay`). Limites iniciais: 64 alocações, 4 por credencial, 64.000 bytes/s por alocação/direção e 2.048.000 bytes/s totais por direção. `CPUQuota=20%`, `MemoryMax=128M`, `TasksMax=48`; medir impacto e ajustar capacidade autorizada antes do piloto.
+Capacity follow-up approved on 16/10/2026: the prepared templates remove the
+aggregate allocation/bandwidth ceilings, fixed CPU/thread overrides and own
+CPU/RAM/task/descriptor caps. Coturn uses its OS-dependent worker sizing;
+`total-quota=0`, `max-bps=0` and `bps-capacity=0` disable those traffic quotas.
+See the [pinned upstream options](https://github.com/coturn/coturn/blob/4.18.0/examples/etc/turnserver.conf).
+This is template preparation, not a change to the active relay. Keep four
+allocations per short-lived random credential as abuse protection. The existing
+49160–49223 relay-port range still bounds available allocations; expanding it
+needs a coordinated own-port/firewall change and must not expose other services.
+
+Before the final activation: compare private fingerprints/service health,
+effective inherited resource/descriptor budgets, distribution/license notices,
+dedicated users, secret/certificate permissions and no-log/core-dump/swap
+settings. Preserve the own UDP/TCP 3478 and TLS/TCP 5349 listeners. The ACL and
+own egress table must allow only the own relay address/ports, rejecting host,
+private, multicast and mapped-IPv6 destinations. Validate communication between
+two own-relay allocations, saturation/recovery and representative packet loss;
+never enable `server-relay`. Increased use can affect the shared host.
 
 Não disputar 443 com Nginx; redes que só aceitam TLS/443 podem continuar incompatíveis. Não reutilizar certificados privados do outro projeto. O serviço web mantém a rede privada existente: credenciais são derivadas localmente, não exigem saída de rede do backend.
 

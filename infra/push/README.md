@@ -17,7 +17,26 @@ A aplicação aceita somente hosts de provedores já suportados (Google/Mozilla/
 
 Revisar a disponibilidade de nftables/resolvedor/IPv6 e caminhos no host, sem instalar pacotes, alterar o resolvedor compartilhado ou liberar rede por conveniência. Confirmar a efetividade das regras em namespace e que o UID é exclusivo. Testar que destino privado, host estranho, outras portas, acesso ao banco/objetos e credencial errada falham. O filtro trata saída do UID exclusivo; não interfere no Unix socket. Reavaliar DNS/rota em caso de falha, sem ampliar destinos automaticamente.
 
-Limites: unidade 10% CPU, 96 MiB, 16 tarefas, sem swap, temporários 8 MiB; processo no máximo 8 conexões, 4 envios ativos, 600 pedidos/minuto, header 1 KiB, corpo 4 KiB, corpo/headers 3 s, envio 5 s e destruição de conexão externa em 8 s. Fila de chamadas no web: até 512 entradas em RAM (16 chamadas × 32 dispositivos), 3 envios simultâneos, no máximo 2 tentativas espaçadas em 3 s e somente enquanto o convite vale. Mensagens conservam seu marcador durável/coalescido, lote 16, até 3 tentativas e espaçamento 60 s; envio continua pelo emissor. Não gravar diagnósticos identificáveis; saída da unidade desativada. Contabilizar recursos agregados na slice própria e não garantir ausência de impacto no host compartilhado.
+Capacity follow-up approved on 16/10/2026: the prepared unit removes the own
+10% CPU, 96 MiB RAM, 16-task and 64 MiB V8-heap ceilings. Source removes the
+8-socket, 4-send and 600-request/minute counts. Admission instead reserves one
+MiB of headroom per in-flight send against the smaller of available process
+memory and remaining V8 heap. Resource pressure returns 429 before an external
+send; every admitted operation releases its reservation on success or failure.
+There is no pending in-memory sender queue. The reservation is a conservative
+admission estimate, not a measured maximum TLS allocation; validate actual peak
+memory and throughput before the single final activation. Templates/source do
+not change the running service on their own.
+
+Keep swap disabled, temporary storage at 8 MiB, headers at 1 KiB, bodies at
+4 KiB, body/header deadlines at 3 seconds, external-send timeout at 5 seconds
+and external-connection destruction at 8 seconds. The web call queue still has
+512 RAM entries, three active sends and two attempts separated by three seconds
+while the invitation is valid; revising it is separate remaining capacity work.
+Messages retain durable/coalesced markers, batches of 16, three attempts and
+60-second spacing. Preserve null service output and aggregate-only observations.
+Removing own service caps does not remove inherited host/slice limits or promise
+zero impact on the shared VPS.
 
 Antes de ativar: CI exata, release limpa/pushed, revisão da migração 027 junto às ainda não publicadas, backup/restauração ensaiada e cota; fingerprints/saúde do outro projeto antes/depois; validar socket e política de rede com inscrições sintéticas consentidas. A unidade/drop-in/regras novos exigem revisão operacional, além do deploy rotineiro. Build no Mac, usar o executor existente para o código quando seu conjunto de preservação incluir este serviço. Não executar automaticamente instalação, migração ou alteração de compartilhados.
 

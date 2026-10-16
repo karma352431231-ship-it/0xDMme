@@ -17,17 +17,14 @@ RuntimeDirectory=0xdmme-push
 RuntimeDirectoryMode=0750
 RuntimeDirectoryPreserve=yes
 EnvironmentFile=/etc/0xdmme/push.env
-Environment=NODE_OPTIONS=--max-old-space-size=64
 WorkingDirectory=/opt/0xdmme/release
 ExecStart=/usr/bin/node src/server/push-sender/main.ts
 Restart=on-failure
 RestartSec=10
 TimeoutStopSec=10
-CPUQuota=10%
-MemoryMax=96M
+# Capacity follows the host; preserve swap/core-dump prohibitions and isolation.
 MemorySwapMax=0
 LimitCORE=0
-TasksMax=16
 UMask=0007
 NoNewPrivileges=yes
 CapabilityBoundingSet=

@@ -1,5 +1,13 @@
 # Capacity audit follow-up — 16 October 2026
 
+The owner explicitly approved preparing removal of the remaining TURN/push CPU,
+memory, task, connection and bandwidth ceilings, accepting increased resource
+use on the shared VPS. Preserve overload control, validate the resource budgets
+and network isolation, and defer activation to the single integrated release.
+Swap/core-dump prohibitions, short-lived credentials, the own-relay ACL and
+generic notification payloads remain unchanged. Relay-port expansion and other
+remaining capacity work still require their coordinated implementation/tests.
+
 The owner subsequently chose a single activation after the remaining blocks
 are integrated and verified. The second source block allows authenticated
 read operations to share admission/account locks, with PostgreSQL read-only

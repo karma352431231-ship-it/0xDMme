@@ -27,11 +27,8 @@ RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
 CapabilityBoundingSet=
 AmbientCapabilities=
 LimitCORE=0
-LimitNOFILE=512
-TasksMax=48
-MemoryMax=128M
+# Inherit reviewed host budgets; keep call memory out of swap and core dumps.
 MemorySwapMax=0
-CPUQuota=20%
 StandardOutput=null
 StandardError=null
 ReadOnlyPaths=/etc/0xdmme-turn
