@@ -127,6 +127,7 @@ try {
       origin: mobile.origin,
       views: (input) => database!.communityViews.observe(input),
       read: (id) => communities.read(id),
+      readAddress: (slug) => communities.readAddress(slug),
       list: (after) => communities.list(after),
       feed: (filter, after) => communities.feed(filter, after),
       explore: (filter, after) => communities.explore(filter, after),

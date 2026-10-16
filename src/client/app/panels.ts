@@ -1,3 +1,4 @@
+import { appAddress, navigateApp } from '../app-navigation/index.ts';
 /** Desktop panel arrangement (docs/UI_PAINEIS_E_TEMAS.md); a device-only preference. */
 import { appRoute } from '../../shared/app-routes/index.ts';
 import {
@@ -200,17 +201,17 @@ export function startPanels(input: {
   }
   function readPanelRoute(): ReturnType<typeof splitTarget> | false {
     const standalone = standalonePanelHref(
-      location.hash,
+      appAddress(),
       wide.matches,
       split.matches,
     );
     if (standalone) {
-      location.hash = standalone;
+      navigateApp(standalone);
       return false;
     }
-    const target = splitTarget(location.hash);
+    const target = splitTarget(appAddress());
     if (target) layout = target.layout;
-    else if (appRoute(location.hash)?.params.get('layout') === 'chat')
+    else if (appRoute(appAddress())?.params.get('layout') === 'chat')
       layout = 'solo';
     if (target) {
       panelTarget = target.target;
@@ -235,7 +236,7 @@ export function startPanels(input: {
       return;
     }
     const link = event.target.closest<HTMLAnchorElement>(
-      'a[href^="#comunidades"], a[href^="#publico"], a[href^="#communities"], a[href^="#users"]',
+      'a[href^="/communities"], a[href^="/users"], a[href^="#comunidades"], a[href^="#publico"], a[href^="#communities"], a[href^="#users"]',
     );
     if (link && !isPlainNavigationClick(event)) return;
     if (link && page === 'conversas' && openInPanel(link))
@@ -249,16 +250,18 @@ export function startPanels(input: {
     if (!feedMounted) return false;
     // A profile opens beside the chat from the feed or from a public DM.
     if (target.kind === 'profile') {
-      location.hash = splitHref({
-        layout: withChat(layout),
-        target,
-        dm: publicTarget,
-      });
+      navigateApp(
+        splitHref({
+          layout: withChat(layout),
+          target,
+          dm: publicTarget,
+        }),
+      );
       return true;
     }
     if (!feedBody.contains(link) && !link.hasAttribute('data-feed-tab'))
       return false;
-    location.hash = splitHref({ layout, target, dm: publicTarget });
+    navigateApp(splitHref({ layout, target, dm: publicTarget }));
     return true;
   }
   function openDmInPanel(target: {
@@ -267,11 +270,13 @@ export function startPanels(input: {
   }): boolean {
     if (!split.matches) return false;
     openPublic(target.id, target.local);
-    location.hash = splitHref({
-      layout: withChat(layout),
-      target: panelTarget,
-      dm: publicTarget,
-    });
+    navigateApp(
+      splitHref({
+        layout: withChat(layout),
+        target: panelTarget,
+        dm: publicTarget,
+      }),
+    );
     return true;
   }
   /** `null` marks no tab: the panel shows a profile, not a feed section. */
@@ -295,11 +300,13 @@ export function startPanels(input: {
     }
     const mode = control.dataset['layoutMode'];
     if (mode === 'all' || mode === 'solo') {
-      location.hash = splitHref({
-        layout: mode,
-        target: panelTarget,
-        dm: publicTarget,
-      });
+      navigateApp(
+        splitHref({
+          layout: mode,
+          target: panelTarget,
+          dm: publicTarget,
+        }),
+      );
       return;
     }
     let next = layout;
@@ -307,11 +314,13 @@ export function startPanels(input: {
     else if (control.hasAttribute('data-chat-split'))
       next = toggledChat(layout);
     else if (control.hasAttribute('data-feed-collapse')) next = 'solo';
-    location.hash = splitHref({
-      layout: next,
-      target: panelTarget,
-      dm: publicTarget,
-    });
+    navigateApp(
+      splitHref({
+        layout: next,
+        target: panelTarget,
+        dm: publicTarget,
+      }),
+    );
   }
   document.addEventListener('click', click);
   wide.addEventListener('change', apply);
@@ -321,7 +330,7 @@ export function startPanels(input: {
   function publishAddress(): void {
     if (
       !wide.matches ||
-      splitTarget(location.hash) ||
+      splitTarget(appAddress()) ||
       page !== 'conversas' ||
       layout === 'solo'
     )
@@ -360,7 +369,7 @@ export function startPanels(input: {
       const href = wide.matches
         ? splitHref({ layout, target: panelTarget, dm: null })
         : '#chats';
-      if (location.hash !== href) location.hash = href;
+      if (appAddress() !== href) navigateApp(href);
     },
     sessionChanged(): void {
       if (shell.dataset['contactScope'] === 'public')

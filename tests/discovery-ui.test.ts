@@ -206,7 +206,7 @@ await test('confirmed feed votes preserve the displayed page, scroll, card and d
   const fixture = discoveryFixture({ signedIn: true });
   t.after(() => fixture.ui.leave());
   const cursor = JSON.stringify({
-    filter: 'all/mixed/all',
+    filter: 'all/mixed/day',
     anchor: '2026-10-15T12:00:00.000Z',
     rank: 1,
     time: '2026-10-15T12:00:00.000Z',
@@ -291,4 +291,15 @@ await test('deleted and moderated feed cards preserve their notices and omit con
     assert.equal(fixture.host.querySelector('.community-text'), null);
     assert.equal(fixture.host.querySelector('.post-votes'), null);
   }
+});
+
+await test('Discover starts at 24 hours and respects an explicit period choice', async (t) => {
+  const fixture = discoveryFixture();
+  t.after(() => fixture.ui.leave());
+  await settled(fixture);
+  assert.equal(fixture.ui.bookmark()?.period, 'day');
+  button(fixture.host, fixture.t('Todo o histórico')).click();
+  await settled(fixture);
+  assert.equal(fixture.ui.bookmark()?.period, 'all');
+  assert.ok(fixture.requests.length >= 2);
 });

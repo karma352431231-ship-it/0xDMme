@@ -1,3 +1,8 @@
+import {
+  appDocumentPath,
+  publicPostHash,
+  appHref,
+} from '../../shared/app-routes/index.ts';
 import { t } from '../../shared/i18n/index.ts';
 import { cacheableRequest } from '../../shared/pwa-policy/index.ts';
 import { genericNotification } from '../../shared/daily/index.ts';
@@ -144,14 +149,18 @@ scope.addEventListener('activate', (event) => {
 });
 
 scope.addEventListener('fetch', (event) => {
-  if (!cacheableRequest(event.request, scope.location.origin, assets)) return;
-  if (
-    event.request.mode === 'navigate' &&
-    new URL(event.request.url).pathname === '/'
-  ) {
+  const url = new URL(event.request.url);
+  const documentRequest =
+    event.request.method === 'GET' &&
+    url.origin === scope.location.origin &&
+    !event.request.headers.has('authorization') &&
+    ((url.pathname === '/' && !url.search) ||
+      appDocumentPath(url.pathname + url.search));
+  if (event.request.mode === 'navigate' && documentRequest) {
     event.respondWith(appDocument(event.request));
     return;
   }
+  if (!cacheableRequest(event.request, scope.location.origin, assets)) return;
   event.respondWith(
     caches.open(cacheName).then(async (cache) => {
       const cached = await cache.match(event.request.url);
@@ -171,7 +180,7 @@ async function appDocument(request: Request): Promise<Response> {
     });
   } catch (error) {
     const cache = await caches.open(cacheName);
-    const cached = await cache.match(request.url);
+    const cached = await cache.match('/');
     // Keep the offline document paired with its fully installed release assets.
     if (cached) return cached;
     throw error;
@@ -273,7 +282,10 @@ function publicAppearance(
     body: preview.text || t('Nova publicação com mídia.'),
     tag: '0xdmme-public-activity',
     data: {
-      href: `/#communities?id=${preview.community}&post=${preview.post}`,
+      href: appHref(
+        'communities',
+        new URLSearchParams({ id: preview.community, post: preview.post }),
+      ),
     },
   };
 }
@@ -291,7 +303,10 @@ function followedAppearance(
     tag: `0xdmme-post-${preview.post}`,
     ...(preview.author.avatar ? { icon: preview.author.avatar } : {}),
     data: {
-      href: `/#communities?id=${preview.community}&post=${preview.post}`,
+      href: appHref(
+        'communities',
+        new URLSearchParams({ id: preview.community, post: preview.post }),
+      ),
     },
   };
 }
@@ -306,14 +321,10 @@ function notificationHref(data: unknown): string {
     typeof data.href === 'string'
       ? data.href
       : '';
-  const publicPost =
-    /^\/#(?:comunidades|communities)\?id=[a-f0-9-]{36}&post=[a-f0-9-]{36}$/u.test(
-      href,
-    );
-  return new URL(
-    publicPost ? href.replace('/#comunidades', '/#communities') : '/#chats',
-    scope.location.origin,
-  ).href;
+  const publicPost = publicPostHash(
+    href.startsWith('/#') ? href.slice(1) : href,
+  );
+  return new URL(publicPost ?? '/chats', scope.location.origin).href;
 }
 scope.addEventListener('notificationclick', (event) => {
   event.notification.close();
@@ -328,10 +339,10 @@ scope.addEventListener('notificationclick', (event) => {
         (client) => new URL(client.url).origin === scope.location.origin,
       );
       if (existing) {
-        if (url.includes('#communities'))
+        if (publicPostHash(new URL(url).pathname + new URL(url).search))
           existing.postMessage({
             type: 'OPEN_PUBLIC_POST',
-            hash: new URL(url).hash,
+            hash: new URL(url).pathname + new URL(url).search,
           });
         await existing.focus();
       } else await scope.clients.openWindow(url);

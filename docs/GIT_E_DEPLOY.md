@@ -2223,3 +2223,36 @@ O proprietário pediu executar os cortes do plano temporário e ativar na VPS ao
 Exigir checkout limpo/enviado e CI integral do commit exato. Reusar `npm run deploy:staging`, build no Mac, verificações de preservação, prontidão dos serviços próprios e rollback já existentes. São mudanças apenas de organização do cliente e testes/documentação; conservar as 61 migrações, backend, dependências, Node, infraestrutura e configuração ativa. Guardar recibos e acesso exclusivamente em `.local/`.
 
 **Ponto importante:** a autorização cobre esta release do chat. Não autoriza incluir a outra branch, trocar o detector de moderação, migrar banco ou alterar serviços compartilhados.
+
+## URLs simples e endereços de comunidades — ativação autorizada em 16/10/2026
+
+O proprietário pediu integrar à main e ativar este lote. Após explicação da
+necessidade de guardar endereços únicos, aprovou expressamente a nova migração.
+Fontes revisadas: `cf957aab8304dc5503300aeadffb631dfc97e40c`; predecessor ativo
+conferido por hashes de todas as fontes públicas, package/lockfile e Node:
+`21fc70c0d508230fa26146be32ad8faa67890812`.
+
+Reusar `npm run deploy:staging`, de checkout integrado, limpo, enviado e com CI
+integral do commit exato aprovada. `deploy_community_addresses.py` é módulo
+interno desse executor, restrito à transição 071→072 e às fontes exatas. Não é
+um comando alternativo de implantação. O executor resolve o Git comum do
+worktree somente depois da verificação de Python e mantém acesso, baseline,
+builds, backups e evidências na `.local/` do checkout original, sem copiar o
+acesso para as outras árvores. Código/build e validação do checkout continuam
+na árvore integrada escolhida.
+
+A migração acrescenta somente `community_addresses`, inicialmente vazia, sem
+backfill, com unicidade, vínculo à comunidade, cobrança global e autovacuum.
+Comparar todas as colunas/linhas das tabelas antigas e ledger e checksums 001–071
+antes/depois, conferir a tabela vazia e suas guardas, ensaiar a restauração do
+backup e conservar o rollback existente. Parar/reabrir somente os serviços
+próprios conforme o ciclo já existente. Depois da abertura, preservar escritas
+novas e não restaurar um banco antigo sobre elas.
+
+**Ponto importante:** caminhos públicos agora são servidos pelo shell existente,
+sem ajuste de Nginx, certificados, firewall, limites de tráfego ou serviços de
+outro projeto. Preservar dependências, Node, detector, dados e prazos antigos.
+Links/capacidades privadas continuam no fragmento; somente rotas reconhecidas
+recebem o shell e somente `/` armazena o documento offline. Conferir os hashes
+públicos, saúde e fingerprints existentes antes/depois. Acesso e evidências
+operacionais ficam exclusivamente em `.local/`.

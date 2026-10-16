@@ -1,3 +1,4 @@
+import { appAddress, navigateApp } from '../app-navigation/index.ts';
 import { t } from '../../shared/i18n/index.ts';
 import {
   appHref,
@@ -95,11 +96,11 @@ export function openSettingsSection(
 function rememberSettingsSection(section: HTMLDetailsElement): void {
   const id = section.dataset['settingsSection'];
   if (!section.isConnected || !section.open || !id) return;
-  const route = appRoute(location.hash);
+  const route = appRoute(appAddress());
   if (route?.page !== 'settings') return;
   saveSettingsSection(localStorage, id);
   if (route.params.get('section') !== id)
-    location.hash = appHref('settings', new URLSearchParams({ section: id }));
+    navigateApp(appHref('settings', new URLSearchParams({ section: id })));
 }
 
 /** Category list, shortcuts and the always-open category of the wide layout. */
@@ -135,7 +136,7 @@ export function startSettingsCategories(
   // category returns; on phones the plain Profile tab shows the list instead
   // (16/10/2026), and a reload keeps its category through the URL.
   const saved =
-    requestedSettingsSection(location.hash) ??
+    requestedSettingsSection(appAddress()) ??
     (wide() ? savedSettingsSection(localStorage) : null);
   const last = sections.find(
     (section) => section.dataset['settingsSection'] === saved,

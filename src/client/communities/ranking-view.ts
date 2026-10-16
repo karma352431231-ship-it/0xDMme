@@ -1,3 +1,4 @@
+import { communityHref } from '../../shared/app-routes/index.ts';
 import { currentLanguage, t } from '../../shared/i18n/index.ts';
 import type {
   ExploreFilter,
@@ -27,7 +28,7 @@ export function renderCommunityRanking(
       open = el('a', '', 'ranking-link'),
       avatar = communityAvatar(item.community.name),
       copy = el('span', '', 'ranking-copy');
-    open.href = `#communities?id=${item.community.id}`;
+    open.href = communityHref(item.community);
     copy.append(
       el('strong', item.community.name),
       el('small', item.community.description),

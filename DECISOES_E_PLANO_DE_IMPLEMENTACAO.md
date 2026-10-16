@@ -2257,3 +2257,29 @@ records scope and consequences.
 ### Chat actions approved on 15/10/2026
 
 The owner requested multi-message forwarding in private chats, a recipient chooser with local aliases and received private photos, removal of the redundant reaction-removal menu item, and reaction chips below message bubbles in both private and public-identity chats. Public-identity chats must not offer Forward. New messages show their authenticated sender-device time; historical messages without a recorded clock remain undated. The implementation preserves current consent, identity separation, E2EE, recovery and quotas. Optional versioned application presentation metadata does not change cryptographic envelopes or signing formats. Public reactions extend only the existing signed reaction relation; edits/private cards remain excluded. See [the UI contract](docs/UI_CONVERSAS.md#message-forwarding-and-reaction-presentation--15102026) for compatibility, lifecycle and validation details.
+
+### URLs simples, Discover e miniperfis — 16/10/2026
+
+O proprietário pediu caminhos sem `#` para perfis e comunidades, `/split/feed`
+para a tela dividida e a logo, Discover inicialmente em 24 horas e banners dos
+dois miniperfis no mesmo quadro 3:1 do editor. Escolheu endereços únicos para
+comunidades e restringiu a atribuição às novas; preservar as existentes por UUID.
+Endereços são gerados uma vez, com sufixo em colisões, e não mudam na edição do
+nome. Posts conservam ID público no final. Links antigos continuam aceitos;
+capacidades privadas e retornos da wallet mantêm os fragmentos originais.
+Contrato e validação em [URLs](docs/PERFIL_PRIVADO_E_ROTAS.md#endereços-das-comunidades--decisão-de-16102026).
+
+Depois pediu integrar à main e ativar na VPS. Após a explicação da necessidade
+de persistência, aprovou explicitamente a migração nova (071→072), que acrescenta
+somente `community_addresses`, sem backfill, com unicidade, FK, cobrança e
+manutenção. Publicar pelo executor existente, com fontes exatas, CI, backup,
+ensaio de restauração e preservação de todas as linhas antigas/ledger.
+
+**Ponto importante:** a decisão cobre esta transição e publicação; não altera
+política de privacidade/retenção, dependências/Node, detector ou serviços de
+outros projetos. Os hotspots de montagem `app/index.ts`, `startPanels` e
+`startCommunities` conservam suas responsabilidades; em tarefa própria, separar
+primeiro rotas/montagem da sessão, depois ciclos de feed/perfil/DM e a montagem
+de detalhe/gestão de comunidades, com regressões de cancelamento, permissões,
+rascunhos, histórico e montagem única. As novas regras ficam em módulos de
+rotas, navegação e atribuição de endereços.

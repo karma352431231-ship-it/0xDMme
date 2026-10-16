@@ -94,6 +94,9 @@ export class CommunityService {
   suggestions(query: string) {
     return this.store.suggestions(query);
   }
+  readAddress(slug: string) {
+    return this.store.readAddress(slug);
+  }
   read(id: unknown) {
     return this.store.read(uuid(id));
   }

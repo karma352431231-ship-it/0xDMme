@@ -227,6 +227,7 @@ for (const [name, expected] of fonts) {
 }
 for (const name of [
   'icon.svg',
+  'logo.svg',
   'icon-192.png',
   'icon-512.png',
   'notification-badge.png',

@@ -1,3 +1,4 @@
+import { communityHref } from '../../shared/app-routes/index.ts';
 import { t, currentLanguage } from '../../shared/i18n/index.ts';
 import { communityPage } from '../../shared/communities/index.ts';
 import type { Community } from '../../shared/communities/index.ts';
@@ -82,7 +83,7 @@ export function profileCommunities(
     }
     for (const group of loaded.slice(0, compactCount)) {
       const link = element('a', '', 'profile-community-photo');
-      link.href = `#communities?id=${group.id}`;
+      link.href = communityHref(group);
       link.title = group.name;
       link.setAttribute('aria-label', group.name);
       link.append(avatar(group));
@@ -130,7 +131,7 @@ export function profileCommunities(
 function row(group: Community, avatar: HTMLElement): HTMLLIElement {
   const item = element('li');
   const link = element('a', '', 'profile-community-row');
-  link.href = `#communities?id=${group.id}`;
+  link.href = communityHref(group);
   link.append(avatar, element('span', group.name));
   item.append(link);
   return item;

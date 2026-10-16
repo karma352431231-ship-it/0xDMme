@@ -159,7 +159,7 @@ export function startPwa(
     const changed = () => {
       stop();
       if (location.search === '?atualizar=1')
-        location.replace('/' + location.hash);
+        location.replace((location.pathname ?? '/') + location.hash);
       else location.reload();
     };
     const stop = () => {

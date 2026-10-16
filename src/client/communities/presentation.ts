@@ -1,3 +1,4 @@
+import { communityHref } from '../../shared/app-routes/index.ts';
 import { t, currentLanguage } from '../../shared/i18n/index.ts';
 import type { CommunityPost } from '../../shared/community-posts/index.ts';
 import { avatarInitials, avatarTone } from '../appearance/index.ts';
@@ -117,7 +118,7 @@ export function postHeader(
     identity.append(el('span', t('Conta removida'), 'community-post-author'));
   const byline = el('div', '', 'community-post-byline');
   if (context === 'feed') {
-    link(byline, group.name, `#communities?id=${group.id}`);
+    link(byline, group.name, communityHref(group));
     byline.lastElementChild?.classList.add('community-post-community');
   }
   const time = el(

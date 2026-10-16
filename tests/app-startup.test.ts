@@ -44,12 +44,13 @@ const bundle = await build({
     {
       name: 'feature-controllers',
       setup(builder) {
-        builder.onResolve(
-          { filter: /^\.\.\/[^/]+\/index\.ts$/ },
-          ({ path }) => ({
-            path: path.split('/')[1] ?? '',
-            namespace: 'fixture',
-          }),
+        builder.onResolve({ filter: /^\.\.\/[^/]+\/index\.ts$/ }, ({ path }) =>
+          path === '../app-navigation/index.ts'
+            ? undefined
+            : {
+                path: path.split('/')[1] ?? '',
+                namespace: 'fixture',
+              },
         );
         builder.onLoad({ filter: /.*/, namespace: 'fixture' }, ({ path }) => {
           const names = featureExports[path];
@@ -190,18 +191,38 @@ async function page(
     },
     Daily: class {},
   });
-  const location = { hash: approval ? '#configuracoes' : hash };
+  const location = {
+    hash: approval ? '#configuracoes' : hash,
+    pathname: '/',
+    search: '',
+  };
+  const setAddress = (
+    _state: unknown,
+    _unused: string,
+    value: string,
+  ): void => {
+    const url = new URL(value, 'http://local.invalid');
+    Object.assign(location, {
+      hash: url.hash,
+      pathname: url.pathname,
+      search: url.search,
+    });
+  };
+  Object.assign(document, { documentElement: new Node() });
   runInNewContext(source, {
     fixture,
     document,
     window: new EventTarget(),
     navigator: { onLine: true, userAgent },
     location,
-    history: {
-      replaceState: (_state: unknown, _unused: string, value: string) => {
-        location.hash = value;
-      },
+    history: { replaceState: setAddress, pushState: setAddress },
+    MutationObserver: class {
+      observe(): void {}
     },
+    HTMLAnchorElement: class extends Node {},
+    Element: Node,
+    Event,
+    queueMicrotask,
     matchMedia: () => Object.assign(new EventTarget(), { matches: !approval }),
     localStorage: { getItem: () => null, setItem: () => {} },
     URLSearchParams,

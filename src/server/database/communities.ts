@@ -1,3 +1,5 @@
+import { assignCommunityAddress } from './community-address.ts';
+import { communitySlug } from '../../shared/community-address/index.ts';
 import {
   createCommunityClassification,
   readCommunityClassifications,
@@ -57,7 +59,7 @@ import { storePublicReport } from './public-reports.ts';
 import { postCount } from '../../shared/community-posts/index.ts';
 
 const columns =
-  'c.id,c.created_at,c.owner,c.name,c.description,c.rules,c.revision,c.archived,(SELECT count(*)::text FROM hash_talk.community_follows f WHERE f.community_id=c.id) AS followers';
+  '(SELECT slug FROM hash_talk.community_addresses a WHERE a.community_id=c.id) AS slug,c.id,c.created_at,c.owner,c.name,c.description,c.rules,c.revision,c.archived,(SELECT count(*)::text FROM hash_talk.community_follows f WHERE f.community_id=c.id) AS followers';
 const privateColumns = columns + ',c.transfer_id,c.transfer_to';
 type CommunityStateWire = Omit<
   CommunityState,
@@ -165,6 +167,7 @@ export class CommunityStore {
     );
     return rows.map((row) => ({
       id: row.id,
+      slug: row.slug ?? null,
       createdAt: row.created_at?.toISOString() ?? null,
       name: row.name,
       description: row.description,
@@ -187,6 +190,14 @@ export class CommunityStore {
       [query],
     );
     return { items: await this.visible(this.pool, found.rows), next: null };
+  }
+  async readAddress(value: string): Promise<Community> {
+    const found = await this.pool.query<{ community_id: string }>(
+      'SELECT community_id FROM hash_talk.community_addresses WHERE slug=$1',
+      [communitySlug(value)],
+    );
+    if (!found.rows[0]) throw new AccountError(404, 'Comunidade indisponível.');
+    return this.read(found.rows[0].community_id);
   }
   async read(id: string): Promise<Community> {
     const found = await this.pool.query<CommunityRecord>(
@@ -350,6 +361,7 @@ export class CommunityStore {
       'INSERT INTO hash_talk.communities(id,owner,name,description,rules) VALUES($1,$2,$3,$4,$5)',
       [id, actor.id, meta.name, meta.description, meta.rules],
     );
+    await assignCommunityAddress(client, id, meta.name);
     await createCommunityClassification(client, id, data['classification']);
     await seedCommunityTags(client, id);
     await reconcileMentionNotifications(client, {

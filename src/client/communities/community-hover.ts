@@ -1,3 +1,4 @@
+import { appRoute, communityHref } from '../../shared/app-routes/index.ts';
 import { classificationBadges } from './classification.ts';
 import {
   t,
@@ -31,11 +32,10 @@ async function community(id: string, signal: AbortSignal): Promise<Community> {
 }
 /** Only a plain community link previews; post, tag and view links do not. */
 function communityOf(link: HTMLAnchorElement): string | null {
-  const [path, query = ''] = (link.getAttribute('href') ?? '').split('?');
-  if (path !== '#communities' && path !== '#comunidades') return null;
-  const params = new URLSearchParams(query);
-  const id = params.get('id');
-  return id && [...params.keys()].length === 1 ? id : null;
+  const route = appRoute(link.getAttribute('href') ?? '');
+  if (route?.page !== 'communities') return null;
+  const params = route.params;
+  return params.size === 1 ? (params.get('slug') ?? params.get('id')) : null;
 }
 
 /** Community preview: photo, name, description, followers and Seguir. */
@@ -62,7 +62,7 @@ export function communityHoverProvider(input: {
         });
       head.append(avatar, actions);
       const name = el('a', value.name, 'hover-card-title');
-      name.href = `#communities?id=${encodeURIComponent(value.id)}`;
+      name.href = communityHref(value);
       const banner = previewBanner(value, avatar, signal);
       card.append(
         banner,

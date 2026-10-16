@@ -1,3 +1,5 @@
+import { pathRoute, routePath } from './paths.ts';
+export { reservedCommunitySlug } from './paths.ts';
 /** Navigation only. Private identifiers, wallets, bearer tickets and contents
  * are never added to a route. Legacy fragments remain valid on old links. */
 const aliases = {
@@ -28,6 +30,15 @@ export interface AppRoute {
 }
 
 export function appRoute(hash: string): AppRoute | null {
+  if (hash.startsWith('/')) {
+    const route = pathRoute(hash);
+    return route && Object.hasOwn(aliases, route.page)
+      ? {
+          page: aliases[route.page as keyof typeof aliases],
+          params: route.params,
+        }
+      : null;
+  }
   const [path = '', query = ''] = hash.replace(/^#/u, '').split('?');
   if (!Object.hasOwn(aliases, path)) return null;
   const params = new URLSearchParams(query);
@@ -41,8 +52,7 @@ export function appHref(
   page: AppRoutePage,
   params: URLSearchParams = new URLSearchParams(),
 ): string {
-  const query = params.toString();
-  return `#${page}${query ? '?' + query : ''}`;
+  return routePath(page, params);
 }
 
 /** Wallet and invitation fragments are parsed by their existing owners first. */
@@ -70,4 +80,18 @@ export function publicPostHash(hash: string): string | null {
   return id && post && uuid.test(id) && uuid.test(post)
     ? appHref('communities', new URLSearchParams({ id, post }))
     : null;
+}
+
+/** Only recognized public paths may receive the application shell. */
+export function appDocumentPath(address: string): boolean {
+  return address.startsWith('/') && appRoute(address) !== null;
+}
+export function communityHref(value: {
+  id: string;
+  slug?: string | null;
+}): string {
+  return appHref(
+    'communities',
+    new URLSearchParams(value.slug ? { slug: value.slug } : { id: value.id }),
+  );
 }

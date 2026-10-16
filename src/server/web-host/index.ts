@@ -1,3 +1,4 @@
+import { appDocumentPath } from '../../shared/app-routes/index.ts';
 import { createServer } from 'node:http';
 import { createServer as createTlsServer } from 'node:https';
 import type { IncomingMessage, ServerResponse } from 'node:http';
@@ -123,7 +124,11 @@ function sendPublicAsset(
 function appShellRequest(request: IncomingMessage): boolean {
   // This fixed public entry bypasses old offline shells without clearing keys.
   // Other query strings remain outside the public asset allowlist.
-  return request.url === '/' || request.url === '/?atualizar=1';
+  return (
+    request.url === '/' ||
+    request.url === '/?atualizar=1' ||
+    appDocumentPath(request.url ?? '')
+  );
 }
 
 function publicAssetPath(request: IncomingMessage): string {
