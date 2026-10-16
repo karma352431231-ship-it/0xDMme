@@ -1,13 +1,11 @@
+import { renderFeedCard } from './feed-card.ts';
 import { renderCommunityRanking } from './ranking-view.ts';
-import { showIdentityPhoto } from '../public-identity/index.ts';
 import { rankingTopicFilter } from './classification.ts';
 import type { CommunityTopic } from '../../shared/community-classification/index.ts';
 import { t, translatedError } from '../../shared/i18n/index.ts';
 import { mountPublicSearchToolbar } from '../public-search/index.ts';
-import { feedReply, hasOpenFeedReply } from './feed-reply.ts';
-import { gifUrls } from '../gif-search/index.ts';
+import { hasOpenFeedReply } from './feed-reply.ts';
 import { appendOwnProfileShortcut } from '../profile-shortcut/index.ts';
-import { postSharing } from './post-sharing.ts';
 import {
   feedFilter,
   discoveryPeriod,
@@ -21,8 +19,6 @@ import type {
   ExploreFilter,
 } from '../../shared/community-discovery/index.ts';
 import type { Communities } from './controller.ts';
-import type { CommunityPost } from '../../shared/community-posts/index.ts';
-import { feedFollowControl } from './feed-follow.ts';
 import type { FeedProfileFollows } from './feed-follow.ts';
 import { communityRead } from './controller.ts';
 import {
@@ -30,26 +26,17 @@ import {
   communityElement as el,
   communityLink as link,
 } from './elements.ts';
-import { postPreview } from './post-preview.ts';
-import { postManagementMenu } from './post-menu.ts';
-import { postState } from '../../shared/community-posts/index.ts';
-import { showPostExternalMedia } from './post-external-media.ts';
 import type { ExternalMediaConsent } from '../external-media/index.ts';
-import { postViews } from './post-views.ts';
 import { DiscoverySnapshot } from './discovery-page.ts';
-import { appendReplyContext, entryCard } from './activity-entry.ts';
 import { feedPosition, restoreFeedPosition } from './feed-return.ts';
 import { FeedRefresh } from './feed-refresh.ts';
 import type { PublicProfile } from '../../shared/public-profile/index.ts';
 import type { FeedBookmark } from './feed-return.ts';
-import { communityIcon, postHeader, postTagLink } from './presentation.ts';
-import { showPublicPostMedia } from '../public-media/index.ts';
+import { communityIcon } from './presentation.ts';
 import {
   discoveryMenu,
   feedOrders,
   discoveryPeriods,
-  preferenceControls,
-  postVoting,
 } from './discovery-controls.ts';
 
 export function startCommunityDiscovery(
@@ -317,123 +304,23 @@ export function startCommunityDiscovery(
       // Keep only a bounded recent window; pagination does not accumulate DOM/content.
       seen.add(post.id);
       if (seen.size > 240) seen.delete(seen.values().next().value!);
-      const row = entryCard(post);
-      const avatar = postHeader(row, post, entry.community);
-      appendReplyContext(row, entry, abort.signal, privacy);
-      followControl(row, entry, old);
-      mediaCleanup.add(showIdentityPhoto(avatar, post.author, abort.signal));
-      postContent(row, post);
-      const toolbar = el('div', '', 'post-actions');
-      row.append(toolbar);
-      const actions = {
+      const row = renderFeedCard(entry, {
         controller,
+        profiles,
+        privacy,
+        signal: abort.signal,
+        signedIn,
+        chooseOnMobile: view === 'feed' || view === 'following',
         run,
         valid: () => old === generation,
         changed: reload,
-      };
-      postVoting(
-        toolbar,
-        post,
-        signedIn ? { ...actions, position: entry.viewerVote } : null,
-      );
-      mediaCleanup.add(
-        feedReply(
-          toolbar,
-          post,
-          signedIn
-            ? {
-                ...actions,
-                canReply: async () =>
-                  (await controller.state(post.community)).canPost,
-                media: {
-                  community: post.community,
-                  request: (op, data) => controller.request(op, data),
-                  valid: actions.valid,
-                  signal: abort.signal,
-                  privacy,
-                },
-              }
-            : null,
-        ),
-      );
-      postSharing(
-        toolbar,
-        post,
-        signedIn ? { ...actions, shared: entry.viewerShared } : null,
-      );
-      mediaCleanup.add(postViews(row, post, toolbar));
-      if (signedIn) {
-        preferenceControls(toolbar, post, {
-          ...actions,
-          saved: entry.viewerSaved,
-          options: (host) =>
-            postManagementMenu(host, post, {
-              run,
-              request: (op, data) => controller.request(op, data),
-              media: {
-                community: post.community,
-                request: (op, data) => controller.request(op, data),
-                valid: actions.valid,
-                signal: abort.signal,
-              },
-              mutate: (op, data) =>
-                run(async () => {
-                  const payload =
-                    typeof data === 'function' ? await data() : data;
-                  if (!actions.valid()) return;
-                  postState(await controller.request(op, payload));
-                  if (actions.valid()) await reload();
-                }),
-            }),
-        });
-      }
+        followChanged: () => followChanged(),
+        addCleanup: (cleanup) => {
+          mediaCleanup.add(cleanup);
+        },
+      });
       list?.append(row);
     }
-  }
-  function followControl(
-    row: HTMLElement,
-    entry: ReturnType<typeof feedPage>['items'][number],
-    old: number,
-  ): void {
-    const header = row.querySelector<HTMLElement>('.community-post-header');
-    if (!header || !signedIn || entry.ownCommunity) return;
-    feedFollowControl(
-      header,
-      { community: entry.community, author: entry.post.author },
-      {
-        controller,
-        profiles,
-        run,
-        valid: () => old === generation,
-        changed: () => followChanged(),
-        signal: abort.signal,
-        chooseOnMobile: view === 'feed' || view === 'following',
-      },
-    );
-  }
-  function postContent(row: HTMLElement, post: CommunityPost): void {
-    if (post.status === 'visible') {
-      row.append(postPreview(post.text, gifUrls(post.text)));
-      mediaCleanup.add(
-        showPostExternalMedia(row, post.text, {
-          privacy,
-          signal: abort.signal,
-        }),
-      );
-      if (post.media?.length)
-        mediaCleanup.add(showPublicPostMedia(row, post.media, abort.signal));
-      else if (!post.text)
-        row.append(el('p', t('Mídia aguardando liberação.')));
-      postTagLink(row, post);
-    } else
-      row.append(
-        el(
-          'p',
-          post.status === 'deleted'
-            ? t('Conteúdo excluído pelo autor.')
-            : t('Conteúdo ocultado pela moderação.'),
-        ),
-      );
   }
   async function reload(): Promise<void> {
     if (mounted) feedScrollerReset();

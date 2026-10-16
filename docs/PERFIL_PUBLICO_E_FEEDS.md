@@ -23,6 +23,14 @@ late-result rejection, feed return and resource cleanup. Each extraction is a
 separate commit after the preceding checks and CI pass; compare full-page and
 split-layout previews at desktop and phone widths before any publication.
 
+The remaining coordinator still encloses filters, mounting and page lifecycle in
+one large closure. Do not add new screen responsibilities there. A separate
+future task can extract `discovery-filters.ts` first and the screen frame into
+`discovery-shell.ts` second, leaving request/pagination/session ownership in the
+coordinator. Preserve topic/order/period callbacks, search cancellation, guest
+gates and mount/leave ordering; verify those contracts and responsive layouts
+after each extraction. These further moves are outside the approved two extractions.
+
 **Ponto importante:** a source checkpoint allows code recovery; it is not a
 database or VPS backup. This refactor does not change live data or activate a
 release. Publication, if requested, uses the existing deployment executor and

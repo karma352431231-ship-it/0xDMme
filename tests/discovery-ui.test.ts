@@ -161,3 +161,68 @@ await test('ranking media is retained on identical rechecks and released on repl
   assert.equal(fixture.media.size, 0);
   assert.equal(lifetime.aborted, true);
 });
+
+await test('feed card photos are disposed on replacement and leave', async (t) => {
+  const fixture = discoveryFixture();
+  t.after(() => fixture.ui.leave());
+  const post = fixture.state.feed.items[0]!.post;
+  post.author = {
+    ...post.author!,
+    avatar: `/api/public-media/avatar/${post.author!.id}/${crypto.randomUUID()}`,
+  };
+  await settled(fixture);
+  assert.equal(fixture.media.size, 1);
+  const original = [...fixture.media.keys()][0]!;
+  post.text = 'Updated public text';
+  await fixture.ui.refresh();
+  assert.equal(fixture.media.has(original), false);
+  assert.equal(fixture.media.size, 1);
+  fixture.ui.leave();
+  assert.equal(fixture.media.size, 0);
+});
+
+await test('hiding a feed card uses the existing preference operation and reloads confirmed data', async (t) => {
+  const fixture = discoveryFixture({ signedIn: true });
+  t.after(() => fixture.ui.leave());
+  await settled(fixture);
+  fixture.state.request = (operation) => {
+    const hidden = operation === 'discovery-preference-set';
+    if (hidden) fixture.state.feed.items = [];
+    return Promise.resolve({ saved: true, hidden, revision: hidden ? 8 : 7 });
+  };
+  button(fixture.host, fixture.t('Ocultar ou mostrar nos meus feeds')).click();
+  await settled(fixture);
+  assert.deepEqual(fixture.state.operations, [
+    'discovery-feed',
+    'discovery-preference',
+    'discovery-preference-set',
+    'discovery-feed',
+  ]);
+  assert.equal(fixture.host.querySelector('.community-post'), null);
+});
+
+await test('deleted and moderated feed cards preserve their notices and omit content and votes', async (t) => {
+  for (const status of ['deleted', 'removed'] as const) {
+    const fixture = discoveryFixture();
+    t.after(() => fixture.ui.leave());
+    Object.assign(fixture.state.feed.items[0]!.post, {
+      status,
+      author: null,
+      title: '',
+      text: '',
+      revision: 2,
+    });
+    await settled(fixture);
+    assert.ok(
+      fixture.host.textContent.includes(
+        fixture.t(
+          status === 'deleted'
+            ? 'Conteúdo excluído pelo autor.'
+            : 'Conteúdo ocultado pela moderação.',
+        ),
+      ),
+    );
+    assert.equal(fixture.host.querySelector('.community-text'), null);
+    assert.equal(fixture.host.querySelector('.post-votes'), null);
+  }
+});
