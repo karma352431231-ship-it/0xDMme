@@ -35,6 +35,8 @@ export class FeedRefresh {
 
   constructor(options: {
     container: HTMLElement;
+    /** The list: the pill sits just above it, below the filters. */
+    before: HTMLElement;
     signal: AbortSignal;
     refresh: () => Promise<void>;
     peek: PeekNewAuthors | null;
@@ -49,16 +51,13 @@ export class FeedRefresh {
     this.pill = document.createElement('button');
     this.pill.type = 'button';
     this.pill.className = 'feed-refresh-pill';
-    const arrow = document.createElement('span');
-    arrow.className = 'feed-refresh-arrow';
-    arrow.setAttribute('aria-hidden', 'true');
-    arrow.textContent = '↑';
+    const arrow = upArrow();
     this.faces = document.createElement('span');
     this.faces.className = 'feed-refresh-faces';
     this.label = document.createElement('span');
     this.pill.append(arrow, this.faces, this.label);
     this.bar.append(this.pill);
-    this.container.prepend(this.bar);
+    options.before.before(this.bar);
     this.pill.addEventListener('click', () => void this.activate());
     document.addEventListener('scroll', () => this.queueScroll(), {
       capture: true,
@@ -180,4 +179,15 @@ export class FeedRefresh {
     this.releases = [];
     this.faces.replaceChildren();
   }
+}
+
+function upArrow(): SVGSVGElement {
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('class', 'feed-refresh-arrow');
+  svg.setAttribute('viewBox', '0 0 24 24');
+  svg.setAttribute('aria-hidden', 'true');
+  const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+  path.setAttribute('d', 'M12 19V5M5 12l7-7 7 7');
+  svg.append(path);
+  return svg;
 }

@@ -630,6 +630,7 @@ export function startCommunityDiscovery(
       mounted.append(feedback, list, paging);
       feedRefresh = new FeedRefresh({
         container: mounted,
+        before: list,
         signal: abort.signal,
         refresh: () => run(reload),
         peek: view === 'explore' ? null : peekNewAuthors,
