@@ -77,8 +77,16 @@ export class VaultService {
     const authority = await this.authority(session);
     const directory = await eventHash(authority);
     if (path === 'read') {
-      keys(data, ['after']);
-      return this.store.page(session, directory, integer(data['after']));
+      keys(
+        data,
+        Object.hasOwn(data, 'pendingId') ? ['after', 'pendingId'] : ['after'],
+      );
+      return this.store.page(
+        session,
+        directory,
+        integer(data['after']),
+        Object.hasOwn(data, 'pendingId') ? uuid(data['pendingId']) : null,
+      );
     }
     if (path === 'object') {
       keys(data, ['id']);

@@ -10,7 +10,7 @@ import {
   assertVaultQuota,
   lockContentUsage,
 } from './vault-quota.ts';
-import { pendingMedia } from './media-quota.ts';
+import { withUploadAdmission } from './upload-admission.ts';
 interface AttachmentRow {
   id: string;
   message_id: string;
@@ -34,61 +34,55 @@ export class AttachmentStore {
     a: ContactAuthority,
     input: { message: string; peer: string; refs: AttachmentRef[] },
   ): Promise<unknown> {
-    return this.contacts.withMessageConsent(a, input.peer, async (c) => {
-      const message = await c.query(
-        'SELECT 1 FROM hash_talk.message_packets WHERE id=$1',
-        [input.message],
-      );
-      if (message.rowCount)
-        throw new AccountError(409, 'Mensagem já aceita ou apagada.');
-      // Keep the remaining shared reservation count atomic under pair admission.
-      await lockContentUsage(c);
-      const counts = await pendingMedia(c, a.session.accountId);
-      for (const ref of input.refs) {
-        const existing = await this.row(c, ref.id);
-        if (existing) {
-          this.sameReservation(existing, a, input, ref);
-          continue;
-        }
-        if (counts.personal >= 4 || counts.global >= 256)
-          throw new AccountError(
-            429,
-            'Transferências em andamento. Conclua ou cancele antes de iniciar outras.',
+    return withUploadAdmission(() =>
+      this.contacts.withMessageConsent(a, input.peer, async (c) => {
+        const message = await c.query(
+          'SELECT 1 FROM hash_talk.message_packets WHERE id=$1',
+          [input.message],
+        );
+        if (message.rowCount)
+          throw new AccountError(409, 'Mensagem já aceita ou apagada.');
+        // Match accounting maintenance's ledger-before-byte-owner lock order.
+        await lockContentUsage(c);
+        for (const ref of input.refs) {
+          const existing = await this.row(c, ref.id);
+          if (existing) {
+            this.sameReservation(existing, a, input, ref);
+            continue;
+          }
+          const other = await c.query(
+            'SELECT 1 FROM hash_talk.message_attachments WHERE message_id=$1 AND NOT(id=ANY($2::uuid[]))',
+            [input.message, input.refs.map((r) => r.id)],
           );
-        const other = await c.query(
-          'SELECT 1 FROM hash_talk.message_attachments WHERE message_id=$1 AND NOT(id=ANY($2::uuid[]))',
-          [input.message, input.refs.map((r) => r.id)],
+          if (other.rowCount)
+            throw new AccountError(409, 'Referências do envio divergentes.');
+          await c.query(
+            'INSERT INTO hash_talk.message_attachments(id,message_id,sender,recipient,descriptor,bytes,charge) VALUES($1,$2,$3,$4,$5::jsonb,$6,$7)',
+            [
+              ref.id,
+              input.message,
+              a.session.accountId,
+              input.peer,
+              JSON.stringify(ref),
+              ref.bytes,
+              ref.bytes + 4096,
+            ],
+          );
+        }
+        await assertVaultQuota(c, a.session.accountId);
+        await assertVaultQuota(c, input.peer);
+        await assertContentCapacity(c, this.capacity);
+        const rows = await c.query<AttachmentRow>(
+          'SELECT * FROM hash_talk.message_attachments WHERE id=ANY($1::uuid[])',
+          [input.refs.map((r) => r.id)],
         );
-        if (other.rowCount)
-          throw new AccountError(409, 'Referências do envio divergentes.');
-        await c.query(
-          'INSERT INTO hash_talk.message_attachments(id,message_id,sender,recipient,descriptor,bytes,charge) VALUES($1,$2,$3,$4,$5::jsonb,$6,$7)',
-          [
-            ref.id,
-            input.message,
-            a.session.accountId,
-            input.peer,
-            JSON.stringify(ref),
-            ref.bytes,
-            ref.bytes + 4096,
-          ],
-        );
-        counts.personal++;
-        counts.global++;
-      }
-      await assertVaultQuota(c, a.session.accountId);
-      await assertVaultQuota(c, input.peer);
-      await assertContentCapacity(c, this.capacity);
-      const rows = await c.query<AttachmentRow>(
-        'SELECT * FROM hash_talk.message_attachments WHERE id=ANY($1::uuid[])',
-        [input.refs.map((r) => r.id)],
-      );
-      return rows.rows.map((r) => ({
-        id: r.id,
-        received: r.received,
-        ready: r.status === 'ready',
-      }));
-    });
+        return rows.rows.map((r) => ({
+          id: r.id,
+          received: r.received,
+          ready: r.status === 'ready',
+        }));
+      }),
+    );
   }
   private sameReservation(
     row: AttachmentRow,

@@ -1,4 +1,6 @@
 import type pg from 'pg';
+import { pendingVaultCommits } from './vault-pending.ts';
+import { withUploadAdmission } from './upload-admission.ts';
 import { AccountError } from '../../shared/account/index.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
 import { operationBytes, pageSize } from '../../shared/vault/index.ts';
@@ -96,57 +98,39 @@ export class VaultStore {
     commit: VaultCommit,
     hash: string,
   ): Promise<{ status: string }> {
-    return this.transaction(async (client) => {
-      await this.lock(client, session, commit.directory);
-      const existing = await this.operation(
-        client,
-        session.accountId,
-        commit.id,
-      );
-      if (existing) {
-        if (existing.hash !== hash)
-          throw new AccountError(
-            409,
-            'Identificador já usado por outra operação.',
-          );
-        return { status: existing.state };
-      }
-      await this.assertHead(client, commit);
-      await client.query(
-        'SELECT used_bytes FROM hash_talk.content_usage WHERE singleton FOR UPDATE',
-      );
-      const global = await client.query<{ total: number }>(
-        "SELECT count(*)::integer AS total FROM hash_talk.vault_operations WHERE state<>'accepted'",
-      );
-      if ((global.rows[0]?.total ?? 256) >= 256)
-        throw new AccountError(
-          503,
-          'Uploads temporários ocupados. Retome depois.',
-        );
-      const count = await client.query<{ total: number }>(
-        "SELECT count(*)::integer AS total FROM hash_talk.vault_operations WHERE account_id=$1 AND state<>'accepted'",
-        [session.accountId],
-      );
-      if ((count.rows[0]?.total ?? 4) >= 4)
-        throw new AccountError(
-          429,
-          'Há quatro uploads incompletos. Retome ou descarte antes de criar outro.',
-        );
-      await client.query(
-        "INSERT INTO hash_talk.vault_operations(account_id,id,hash,object_hash,commit,charge,state) VALUES($1,$2,$3,$4,$5,$6,'reserved')",
-        [
+    return withUploadAdmission(() =>
+      this.transaction(async (client) => {
+        await this.lock(client, session, commit.directory);
+        const existing = await this.operation(
+          client,
           session.accountId,
           commit.id,
-          hash,
-          commit.block.hash,
-          commit,
-          operationBytes(commit),
-        ],
-      );
-      await assertVaultQuota(client, session.accountId);
-      await assertContentCapacity(client, this.contentCapacity);
-      return { status: 'reserved' };
-    });
+        );
+        if (existing) {
+          if (existing.hash !== hash)
+            throw new AccountError(
+              409,
+              'Identificador já usado por outra operação.',
+            );
+          return { status: existing.state };
+        }
+        await this.assertHead(client, commit);
+        await client.query(
+          "INSERT INTO hash_talk.vault_operations(account_id,id,hash,object_hash,commit,charge,state) VALUES($1,$2,$3,$4,$5,$6,'reserved')",
+          [
+            session.accountId,
+            commit.id,
+            hash,
+            commit.block.hash,
+            commit,
+            operationBytes(commit),
+          ],
+        );
+        await assertVaultQuota(client, session.accountId);
+        await assertContentCapacity(client, this.contentCapacity);
+        return { status: 'reserved' };
+      }),
+    );
   }
   async beginUpload(
     session: AccountSession,
@@ -245,7 +229,12 @@ export class VaultStore {
       return row ? { hash: row.object_hash, writer } : null;
     });
   }
-  async page(session: AccountSession, directory: string, after: number) {
+  async page(
+    session: AccountSession,
+    directory: string,
+    after: number,
+    pendingId: string | null = null,
+  ) {
     return this.transaction(async (client) => {
       await this.lock(client, session, directory);
       const rows = await client.query<{ commit: unknown }>(
@@ -263,14 +252,14 @@ export class VaultStore {
           409,
           'Cofre remoto anterior ao checkpoint local.',
         );
-      const pending = await client.query<{ commit: unknown }>(
-        "SELECT commit FROM hash_talk.vault_operations WHERE account_id=$1 AND state<>'accepted' ORDER BY id LIMIT 4",
-        [session.accountId],
-      );
+      const pending = await pendingVaultCommits(client, {
+        accountId: session.accountId,
+        pendingId,
+      });
       return {
         ...head,
         commits: rows.rows.map((r) => r.commit),
-        pending: pending.rows.map((r) => r.commit),
+        pending,
         used: await vaultUsage(client, session.accountId),
       };
     });

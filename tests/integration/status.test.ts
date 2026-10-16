@@ -326,10 +326,19 @@ await test('status persistente: audiência congelada, novo contato, bloqueio, fo
     previous: null,
     envelopes: photoEnvelopes,
   });
-  await op(author, 'status-attachment-reserve', {
-    statusId: photoId,
-    refs: [sealed.file.ref],
-  });
+  await withPendingUploadPressure(
+    inspector,
+    {
+      sender: author.accountId,
+      recipient: newContact.accountId,
+      ref: sealed.file.ref,
+    },
+    () =>
+      op(author, 'status-attachment-reserve', {
+        statusId: photoId,
+        refs: [sealed.file.ref],
+      }),
+  );
   await op(author, 'status-attachment-part', {
     statusId: photoId,
     id: sealed.file.ref.id,
@@ -394,3 +403,4 @@ await test('status persistente: audiência congelada, novo contato, bloqueio, fo
   );
   await assert.rejects(objects.readStatusMedia(photoId));
 });
+import { withPendingUploadPressure } from './upload-pressure-fixture.ts';

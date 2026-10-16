@@ -236,7 +236,12 @@ export class VaultSync {
     for (let page = 0; page < 8; page++) {
       await this.acceptPage(
         authority,
-        readPage(await api(authority, 'read', { after: this.state.sequence })),
+        readPage(
+          await api(authority, 'read', {
+            after: this.state.sequence,
+            ...(this.pending ? { pendingId: this.pending.commit.id } : {}),
+          }),
+        ),
       );
       await this.reconcileDraft(authority);
       if (this.complete) return;

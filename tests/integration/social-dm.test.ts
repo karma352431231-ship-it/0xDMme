@@ -436,7 +436,15 @@ await test('cortes 7–8: consentimento, E2EE, mídia e cofre social', async (t)
           refs: [sealed.file.ref],
           media,
         };
-        await operate(alice, 'attachment-reserve', reserve);
+        await withPendingUploadPressure(
+          inspector,
+          {
+            sender: alice.login.session.accountId,
+            recipient: bob.login.session.accountId,
+            ref: sealed.file.ref,
+          },
+          () => operate(alice, 'attachment-reserve', reserve),
+        );
         await operate(alice, 'attachment-reserve', reserve);
         await assert.rejects(
           operate(outsider, 'attachment-part', {
@@ -1002,3 +1010,4 @@ await test('cortes 7–8: consentimento, E2EE, mídia e cofre social', async (t)
     },
   );
 });
+import { withPendingUploadPressure } from './upload-pressure-fixture.ts';

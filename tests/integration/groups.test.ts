@@ -1244,7 +1244,15 @@ await test('governança persistente: criação atômica, convites, transferênci
   await assert.rejects(
     message(messages, outsider, 'group-attachment-reserve', mediaReserve),
   );
-  await message(messages, owner, 'group-attachment-reserve', mediaReserve);
+  await withPendingUploadPressure(
+    inspector,
+    {
+      sender: owner.accountId,
+      recipient: member.accountId,
+      ref: sealed.file.ref,
+    },
+    () => message(messages, owner, 'group-attachment-reserve', mediaReserve),
+  );
   await assert.rejects(
     message(messages, owner, 'group-message-publish', {
       packet: mediaMessage.packet,
@@ -1589,3 +1597,4 @@ await test('governança persistente: criação atômica, convites, transferênci
   );
   assert.equal(events.rows[0]?.count, 5);
 });
+import { withPendingUploadPressure } from './upload-pressure-fixture.ts';

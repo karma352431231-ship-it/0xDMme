@@ -1,4 +1,5 @@
 import { vaultQuota } from '../../src/shared/vault/index.ts';
+import { withPendingUploadPressure } from './upload-pressure-fixture.ts';
 import { MessageLive } from '../../src/server/message-live/index.ts';
 import { WakeupFrames } from '../../src/client/message-live/index.ts';
 import { voiceWav } from '../../src/client/voice-audio/index.ts';
@@ -841,11 +842,20 @@ await test('mensagens persistentes: Olm/Megolm, recuperação, idempotência, ex
         text: JSON.stringify(content),
         kind: 'attachment',
       });
-      await op(alice, 'attachment-reserve', {
-        message: media.id,
-        peer: bob.session.accountId,
-        refs: contentRefs(content),
-      });
+      await withPendingUploadPressure(
+        inspector,
+        {
+          sender: alice.session.accountId,
+          recipient: bob.session.accountId,
+          ref: sealed.file.ref,
+        },
+        () =>
+          op(alice, 'attachment-reserve', {
+            message: media.id,
+            peer: bob.session.accountId,
+            refs: contentRefs(content),
+          }),
+      );
       await op(alice, 'attachment-part', {
         id: sealed.file.ref.id,
         index: 0,

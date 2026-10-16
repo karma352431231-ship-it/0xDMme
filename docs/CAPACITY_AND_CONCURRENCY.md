@@ -195,8 +195,8 @@ the locks, and current consent is checked before the callback.
 
 Contact/consent mutations, general authority operations and retention work keep
 exclusive coordination. They cannot change consent while a pair admission is
-running. The remaining aggregate upload-count check acquires the content ledger
-before counting, preserving its atomicity across simultaneous pairs. The global
+running. Attachment admission acquires the content ledger before its byte-owner
+rows, matching accounting maintenance's lock order across simultaneous pairs. The global
 byte counter still serializes accounting writes and historical quota sums remain
 unchanged; this block does not claim to remove those separate bottlenecks.
 
@@ -205,6 +205,43 @@ hold one pair admission open while a separate pair and its reads proceed, then
 verify that opposite directions of one pair wait safely. Existing message,
 contact, device, quota, group and vault regressions protect the surrounding
 contracts. No migration is needed for this coordination change.
+
+## Seventh block: resource admission for pending uploads
+
+Private, group, status, social and vault reservations no longer stop at four
+pending uploads per account or 256 globally. Each reservation operation first
+reserves one MiB from the same process memory ledger used by transfers and object
+writes. Pressure rejects work before it opens a transaction; success, database
+failure and authorization failure release the reservation. The estimate covers
+in-flight metadata, not a retained file or a promise of measured peak memory.
+
+Durable reservations remain bounded by charged bytes, including metadata:
+personal or group quotas and the global content budget still apply atomically
+before commit. Existing byte limits, signatures, consent, idempotency, exclusive
+writer leases, cancellation and abandoned-upload cleanup remain. Removing the
+cross-domain count queries also avoids recounting all pending transfers on each
+new reservation. The singleton byte counter and historical quota sums remain
+unchanged and are still separate bottlenecks.
+
+Vault reads retain their four-item pending preview and 16-item accepted page;
+these are response bounds, not admission ceilings. An optional `pendingId` selects
+the local draft by account and ID and fills the remaining preview slots with
+other reservations. The client sends its pending draft ID so rebase/discard can
+find it even behind hundreds of other uploads. Existing read requests and the
+response shape remain compatible. Invalid IDs fail validation; another account's
+reservation cannot enter the preview.
+
+Regressions seed 256 charged pending uploads before admitting each media domain,
+and exercise 257 vault reservations with bounded preferred-draft recovery,
+idempotent retries and released bytes after discard. Existing quota, consent,
+concurrent global-budget and media lifecycle tests remain required. Memory
+pressure/failure tests verify rejection before transaction work and recovery.
+
+**Ponto importante:** no VPS setting or schema is changed. The existing global
+environment budget still needs sizing from physical resources before final
+activation. This block preserves that guard rather than treating its removal as
+unlimited storage. Peak metadata memory, sustained load and cleanup throughput
+remain acceptance work.
 
 ## Remaining audit work
 
@@ -215,8 +252,8 @@ contracts. No migration is needed for this coordination change.
   operations, with explicit lock orders and revocation/deletion regressions.
 - Replace repeated historical quota sums and the singleton byte-counter
   contention with exact transactional accounting that preserves admission.
-- Replace small global reservation counts with resource admission; measure
-  transfer/execution reservations and queued deadlines under representative load.
+- Measure reservation/transfer/execution memory and queued deadlines under
+  representative load; validate abandoned-upload cleanup throughput.
 - Activate the prepared TURN/push changes with effective inherited limits and
   rollback; coordinate call admission, relay ports, web dispatch queues and
   representative resource validation.

@@ -9,7 +9,7 @@ import type { SocialMedia } from '../../shared/social-media/index.ts';
 import type { ContactAuthority } from './contacts.ts';
 import type { SocialContext, SocialDmStore } from './social-dm.ts';
 import type { SocialHistoryStore } from './social-history.ts';
-import { pendingMedia } from './media-quota.ts';
+import { withUploadAdmission } from './upload-admission.ts';
 
 interface Row {
   id: string;
@@ -56,62 +56,56 @@ export class SocialMediaStore {
     },
   ) {
     const input = { ...data, media: socialMedia(data.media) };
-    return this.social.withActor(a, async (context) => {
-      await this.social.requireConsent(context, input.peer);
-      const existing = await context.client.query(
-        'SELECT 1 FROM hash_talk.social_messages WHERE id=$1',
-        [input.message],
-      );
-      if (existing.rowCount)
-        throw new AccountError(409, 'Mensagem de DM já aceita.');
-      const counts = await pendingMedia(context.client, a.session.accountId);
-      for (const ref of input.refs) {
-        const old = await this.row(context.client, ref.id);
-        if (old) {
-          this.same(old, context, input, ref);
-          continue;
+    return withUploadAdmission(() =>
+      this.social.withActor(a, async (context) => {
+        await this.social.requireConsent(context, input.peer);
+        const existing = await context.client.query(
+          'SELECT 1 FROM hash_talk.social_messages WHERE id=$1',
+          [input.message],
+        );
+        if (existing.rowCount)
+          throw new AccountError(409, 'Mensagem de DM já aceita.');
+        for (const ref of input.refs) {
+          const old = await this.row(context.client, ref.id);
+          if (old) {
+            this.same(old, context, input, ref);
+            continue;
+          }
+          const other = await context.client.query(
+            'SELECT 1 FROM hash_talk.social_media WHERE message_id=$1 AND NOT(id=ANY($2::uuid[]))',
+            [input.message, input.refs.map((r) => r.id)],
+          );
+          if (other.rowCount)
+            throw new AccountError(
+              409,
+              'Referências da transferência de DM mudaram.',
+            );
+          await context.client.query(
+            'INSERT INTO hash_talk.social_media(id,message_id,sender,recipient,descriptor,media,bytes,sender_charge,recipient_charge,charge) VALUES($1,$2,$3,$4,$5::jsonb,$6,$7,$8,$8,$8)',
+            [
+              ref.id,
+              input.message,
+              context.actor.id,
+              input.peer,
+              JSON.stringify(ref),
+              input.media,
+              ref.bytes,
+              ref.bytes + 4096,
+            ],
+          );
         }
-        if (counts.personal >= 4 || counts.global >= 256)
-          throw new AccountError(
-            429,
-            'Transferências em andamento. Retome ou cancele antes de iniciar outras.',
-          );
-        const other = await context.client.query(
-          'SELECT 1 FROM hash_talk.social_media WHERE message_id=$1 AND NOT(id=ANY($2::uuid[]))',
-          [input.message, input.refs.map((r) => r.id)],
+        await this.social.limits(context, [context.actor.id, input.peer]);
+        const rows = await context.client.query<Row>(
+          'SELECT * FROM hash_talk.social_media WHERE id=ANY($1::uuid[])',
+          [input.refs.map((r) => r.id)],
         );
-        if (other.rowCount)
-          throw new AccountError(
-            409,
-            'Referências da transferência de DM mudaram.',
-          );
-        await context.client.query(
-          'INSERT INTO hash_talk.social_media(id,message_id,sender,recipient,descriptor,media,bytes,sender_charge,recipient_charge,charge) VALUES($1,$2,$3,$4,$5::jsonb,$6,$7,$8,$8,$8)',
-          [
-            ref.id,
-            input.message,
-            context.actor.id,
-            input.peer,
-            JSON.stringify(ref),
-            input.media,
-            ref.bytes,
-            ref.bytes + 4096,
-          ],
-        );
-        counts.personal++;
-        counts.global++;
-      }
-      await this.social.limits(context, [context.actor.id, input.peer]);
-      const rows = await context.client.query<Row>(
-        'SELECT * FROM hash_talk.social_media WHERE id=ANY($1::uuid[])',
-        [input.refs.map((r) => r.id)],
-      );
-      return rows.rows.map((r) => ({
-        id: r.id,
-        received: r.received,
-        ready: r.status === 'ready',
-      }));
-    });
+        return rows.rows.map((r) => ({
+          id: r.id,
+          received: r.received,
+          ready: r.status === 'ready',
+        }));
+      }),
+    );
   }
   private same(
     row: Row,

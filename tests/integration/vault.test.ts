@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { verifyVaultReservationCapacity } from './vault-reservation-fixture.ts';
 import { test } from 'node:test';
 import { mkdtemp, rm, writeFile, realpath } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -352,6 +353,12 @@ await test('cofre persistente: reservas, isolamento, concorrência, falhas, quot
         commits: VaultCommit[];
       }
     ).commits.at(-1) ?? first.commit;
+  await verifyVaultReservationCapacity(t, {
+    inspector,
+    vault,
+    session: a.session,
+    prepare: (value) => prepare({ previous: last, value }),
+  });
   await t.test(
     'upload interrompido/corrompido e reinício não promovem dados incompletos',
     async () => {
@@ -589,6 +596,16 @@ await test('cofre persistente: reservas, isolamento, concorrência, falhas, quot
         key: otherKey,
         sign: (proof) => sign(otherIdentity.signing, proof),
       });
+      await vault.operate('reserve', outsider.session, { commit: two });
+      try {
+        const scoped = (await vault.operate('read', a.session, {
+          after: 0,
+          pendingId: two.id,
+        })) as { pending: VaultCommit[] };
+        assert.ok(scoped.pending.every((commit) => commit.id !== two.id));
+      } finally {
+        await vault.operate('discard', outsider.session, { id: two.id });
+      }
       const usage = await inspector.query<{ used_bytes: string }>(
         'SELECT used_bytes FROM hash_talk.content_usage WHERE singleton',
       );

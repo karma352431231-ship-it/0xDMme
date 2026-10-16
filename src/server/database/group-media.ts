@@ -14,7 +14,7 @@ import {
   groupMediaUsage,
 } from './group-quota.ts';
 import { assertContentCapacity } from './vault-quota.ts';
-import { pendingMedia } from './media-quota.ts';
+import { withUploadAdmission } from './upload-admission.ts';
 export interface GroupScope {
   groupId: string;
   head: string;
@@ -74,67 +74,61 @@ export class GroupMediaStore {
     authority: ContactAuthority,
     input: GroupScope & { message: string; refs: AttachmentRef[] },
   ): Promise<unknown> {
-    return this.groups.withGroupAuthority(
-      authority,
-      input,
-      async (client, state) => {
-        await this.writable(client, input.groupId);
-        const accepted = await client.query(
-          'SELECT 1 FROM hash_talk.group_packets WHERE id=$1',
-          [input.message],
-        );
-        if (accepted.rowCount)
-          throw new AccountError(409, 'Mensagem já aceita ou apagada.');
-        const pending = await pendingMedia(client, authority.session.accountId);
-        for (const ref of input.refs) {
-          const row = await this.row(client, ref.id);
-          if (row) {
-            this.same(row, authority, { ...input, epoch: state.epoch }, ref);
-            continue;
-          }
-          if (pending.personal >= 4 || pending.global >= 256)
-            throw new AccountError(
-              429,
-              'Conclua ou cancele as transferências em andamento.',
+    return withUploadAdmission(() =>
+      this.groups.withGroupAuthority(
+        authority,
+        input,
+        async (client, state) => {
+          await this.writable(client, input.groupId);
+          const accepted = await client.query(
+            'SELECT 1 FROM hash_talk.group_packets WHERE id=$1',
+            [input.message],
+          );
+          if (accepted.rowCount)
+            throw new AccountError(409, 'Mensagem já aceita ou apagada.');
+          for (const ref of input.refs) {
+            const row = await this.row(client, ref.id);
+            if (row) {
+              this.same(row, authority, { ...input, epoch: state.epoch }, ref);
+              continue;
+            }
+            const extra = await client.query(
+              'SELECT 1 FROM hash_talk.group_media WHERE group_id=$1 AND message_id=$2 AND NOT(id=ANY($3::uuid[]))',
+              [input.groupId, input.message, input.refs.map((r) => r.id)],
             );
-          const extra = await client.query(
-            'SELECT 1 FROM hash_talk.group_media WHERE group_id=$1 AND message_id=$2 AND NOT(id=ANY($3::uuid[]))',
-            [input.groupId, input.message, input.refs.map((r) => r.id)],
+            if (extra.rowCount)
+              throw new AccountError(409, 'Referências do envio divergentes.');
+            const body = JSON.stringify(ref),
+              overhead = Buffer.byteLength(body) + 512;
+            await client.query(
+              'INSERT INTO hash_talk.group_media(id,group_id,epoch,message_id,sender,descriptor,bytes,text_charge,charge) VALUES($1,$2,$3,$4,$5,$6::jsonb,$7,$8,$9)',
+              [
+                ref.id,
+                input.groupId,
+                state.epoch,
+                input.message,
+                authority.session.accountId,
+                body,
+                ref.bytes,
+                overhead,
+                ref.bytes + overhead,
+              ],
+            );
+          }
+          await assertGroupMediaQuota(client, input.groupId);
+          await assertGroupContentQuota(client, input.groupId);
+          await assertContentCapacity(client, this.capacity);
+          const rows = await client.query<MediaRow>(
+            'SELECT * FROM hash_talk.group_media WHERE id=ANY($1::uuid[])',
+            [input.refs.map((r) => r.id)],
           );
-          if (extra.rowCount)
-            throw new AccountError(409, 'Referências do envio divergentes.');
-          const body = JSON.stringify(ref),
-            overhead = Buffer.byteLength(body) + 512;
-          await client.query(
-            'INSERT INTO hash_talk.group_media(id,group_id,epoch,message_id,sender,descriptor,bytes,text_charge,charge) VALUES($1,$2,$3,$4,$5,$6::jsonb,$7,$8,$9)',
-            [
-              ref.id,
-              input.groupId,
-              state.epoch,
-              input.message,
-              authority.session.accountId,
-              body,
-              ref.bytes,
-              overhead,
-              ref.bytes + overhead,
-            ],
-          );
-          pending.personal++;
-          pending.global++;
-        }
-        await assertGroupMediaQuota(client, input.groupId);
-        await assertGroupContentQuota(client, input.groupId);
-        await assertContentCapacity(client, this.capacity);
-        const rows = await client.query<MediaRow>(
-          'SELECT * FROM hash_talk.group_media WHERE id=ANY($1::uuid[])',
-          [input.refs.map((r) => r.id)],
-        );
-        return rows.rows.map((r) => ({
-          id: r.id,
-          received: r.received,
-          ready: r.status === 'ready',
-        }));
-      },
+          return rows.rows.map((r) => ({
+            id: r.id,
+            received: r.received,
+            ready: r.status === 'ready',
+          }));
+        },
+      ),
     );
   }
   private same(

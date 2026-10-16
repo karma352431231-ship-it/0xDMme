@@ -7,7 +7,7 @@ import type { StatusPacket } from '../../shared/status/index.ts';
 import type { ContactAuthority } from './contacts.ts';
 import type { StatusStore } from './status.ts';
 import { assertVaultQuota, assertContentCapacity } from './vault-quota.ts';
-import { pendingMedia } from './media-quota.ts';
+import { withUploadAdmission } from './upload-admission.ts';
 interface MediaRow {
   id: string;
   status_id: string;
@@ -39,55 +39,49 @@ export class StatusMediaStore {
     a: ContactAuthority,
     input: { statusId: string; refs: AttachmentRef[] },
   ): Promise<unknown> {
-    return this.posts.withDraft(a, input.statusId, async (client) => {
-      const extra = await client.query(
-        'SELECT 1 FROM hash_talk.status_media WHERE status_id=$1 AND NOT(id=ANY($2::uuid[]))',
-        [input.statusId, input.refs.map((r) => r.id)],
-      );
-      if (extra.rowCount)
-        throw new AccountError(409, 'Referências de status divergentes.');
-      const counts = await pendingMedia(client, a.session.accountId);
-      for (const ref of input.refs) {
-        const existing = await client.query<MediaRow>(
-          'SELECT * FROM hash_talk.status_media WHERE id=$1',
-          [ref.id],
+    return withUploadAdmission(() =>
+      this.posts.withDraft(a, input.statusId, async (client) => {
+        const extra = await client.query(
+          'SELECT 1 FROM hash_talk.status_media WHERE status_id=$1 AND NOT(id=ANY($2::uuid[]))',
+          [input.statusId, input.refs.map((r) => r.id)],
         );
-        if (existing.rows[0]) {
-          this.assertReservation(existing.rows[0], a, input.statusId, ref);
-          continue;
-        }
-        if (counts.personal >= 4 || counts.global >= 256)
-          throw new AccountError(
-            429,
-            'Conclua ou cancele as transferências em andamento.',
+        if (extra.rowCount)
+          throw new AccountError(409, 'Referências de status divergentes.');
+        for (const ref of input.refs) {
+          const existing = await client.query<MediaRow>(
+            'SELECT * FROM hash_talk.status_media WHERE id=$1',
+            [ref.id],
           );
-        const descriptor = JSON.stringify(ref);
-        await client.query(
-          'INSERT INTO hash_talk.status_media(id,status_id,author,descriptor,bytes,charge) VALUES($1,$2,$3,$4::jsonb,$5,$6)',
-          [
-            ref.id,
-            input.statusId,
-            a.session.accountId,
-            descriptor,
-            ref.bytes,
-            ref.bytes + Buffer.byteLength(descriptor) + 512,
-          ],
+          if (existing.rows[0]) {
+            this.assertReservation(existing.rows[0], a, input.statusId, ref);
+            continue;
+          }
+          const descriptor = JSON.stringify(ref);
+          await client.query(
+            'INSERT INTO hash_talk.status_media(id,status_id,author,descriptor,bytes,charge) VALUES($1,$2,$3,$4::jsonb,$5,$6)',
+            [
+              ref.id,
+              input.statusId,
+              a.session.accountId,
+              descriptor,
+              ref.bytes,
+              ref.bytes + Buffer.byteLength(descriptor) + 512,
+            ],
+          );
+        }
+        await assertVaultQuota(client, a.session.accountId);
+        await assertContentCapacity(client, this.capacity);
+        const rows = await client.query<MediaRow>(
+          'SELECT * FROM hash_talk.status_media WHERE status_id=$1',
+          [input.statusId],
         );
-        counts.personal++;
-        counts.global++;
-      }
-      await assertVaultQuota(client, a.session.accountId);
-      await assertContentCapacity(client, this.capacity);
-      const rows = await client.query<MediaRow>(
-        'SELECT * FROM hash_talk.status_media WHERE status_id=$1',
-        [input.statusId],
-      );
-      return rows.rows.map((r) => ({
-        id: r.id,
-        received: r.received,
-        ready: r.status === 'ready',
-      }));
-    });
+        return rows.rows.map((r) => ({
+          id: r.id,
+          received: r.received,
+          ready: r.status === 'ready',
+        }));
+      }),
+    );
   }
   private assertReservation(
     row: MediaRow,

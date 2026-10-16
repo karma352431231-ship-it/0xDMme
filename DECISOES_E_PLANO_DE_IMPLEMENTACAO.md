@@ -1,9 +1,19 @@
 # Capacity audit follow-up — 16 October 2026
 
+The seventh source block replaces the four-per-account and 256-global pending
+upload counts with resource admission. Each reservation operation owns a shared
+memory reservation before entering the database; durable payload and metadata
+bytes continue to count atomically toward the existing storage budgets. Keep
+authorization, idempotency, writer leases, abandoned-upload cleanup and all
+accepted-data retention rules. A bounded vault preview prioritizes the requesting
+device's local draft, so resumability does not depend on its place among other
+reservations. Global storage sizing and exact-accounting scalability remain
+separate work; no environment setting or migration is activated by this block.
+
 The sixth source block scopes private-message consent admission to ordered
 participant locks. Independent pairs share the consent gate; consent mutations
-and remaining general/maintenance operations stay exclusive. Preserve aggregate
-reservation-count atomicity with the existing content ledger. Singleton byte
+and remaining general/maintenance operations stay exclusive. Preserve the
+ledger-before-byte-owner lock order for attachment accounting. Singleton byte
 accounting and historical quota sums remain separate pending capacity work.
 
 The fifth source block queues independent media preparations instead of refusing
