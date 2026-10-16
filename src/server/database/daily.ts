@@ -12,14 +12,13 @@ import type {
 import { defaultPushPreferences } from '../../shared/daily/index.ts';
 import type { ContactAuthority, ContactStore } from './contacts.ts';
 import { assertContentCapacity, assertVaultQuota } from './vault-quota.ts';
-
-export interface PushJob {
-  account_id: string;
-  device_id: string;
-  generation: string;
-  subscription: PushRegistration;
-  attempts: number;
-}
+import { readPushJobPage } from './push-jobs.ts';
+import type {
+  PushJob,
+  PushJobKey,
+  PushJobCursor,
+  PushJobPage,
+} from './push-jobs.ts';
 const individualEligible = `EXISTS(SELECT 1 FROM hash_talk.message_packets m
   LEFT JOIN hash_talk.conversation_controls cc ON cc.account_id=s.account_id AND cc.peer=m.sender
   WHERE m.recipient=s.account_id AND m.body IS NOT NULL AND m.kind<>'profile' AND m.relation IS NULL
@@ -290,6 +289,13 @@ export class DailyStore {
     });
   }
   async jobs(): Promise<PushJob[]> {
+    return (await this.jobPage(null)).items;
+  }
+  async jobPage(after: PushJobCursor | null): Promise<PushJobPage> {
+    if (!after) await this.cleanPushJobs();
+    return readPushJobPage(this.pool, after);
+  }
+  private async cleanPushJobs(): Promise<void> {
     await this.pool.query(
       `DELETE FROM hash_talk.device_presence WHERE (account_id,device_id) IN (SELECT account_id,device_id FROM hash_talk.device_presence WHERE expires_at<now() LIMIT 16)`,
     );
@@ -299,15 +305,22 @@ export class DailyStore {
     await this.pool.query(
       `DELETE FROM hash_talk.push_controls pc WHERE (pc.account_id,pc.device_id) IN (SELECT s.account_id,s.device_id FROM hash_talk.push_controls s WHERE NOT ${authorizedDevice} LIMIT 16)`,
     );
-    return (
-      await this.pool.query<PushJob>(
-        `SELECT account_id,device_id,generation::text,subscription,attempts FROM hash_talk.push_subscriptions s WHERE pending AND attempts<3 AND next_attempt<=now() ORDER BY next_attempt LIMIT 16`,
-      )
-    ).rows;
   }
-  async nextPushAttempt(): Promise<number | null> {
+  async nextPushAttempt(
+    active: readonly PushJobKey[] = [],
+  ): Promise<number | null> {
     const result = await this.pool.query<{ at: Date | null }>(
-      'SELECT min(next_attempt) AS at FROM hash_talk.push_subscriptions WHERE pending AND attempts<3',
+      `SELECT min(next_attempt) AS at FROM hash_talk.push_subscriptions s WHERE pending AND attempts<3
+       AND NOT EXISTS(SELECT 1 FROM jsonb_to_recordset($1::jsonb) AS active(account_id uuid,device_id uuid)
+                      WHERE active.account_id=s.account_id AND active.device_id=s.device_id)`,
+      [
+        JSON.stringify(
+          active.map(({ account_id, device_id }) => ({
+            account_id,
+            device_id,
+          })),
+        ),
+      ],
     );
     return result.rows[0]?.at?.getTime() ?? null;
   }

@@ -8,3 +8,21 @@ export function deferred<T>() {
   });
   return { promise, resolve, reject };
 }
+
+/** Fail a missing asynchronous boundary while still allowing the test to clean up. */
+export async function waitForBoundary<T>(promise: Promise<T>): Promise<T> {
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<never>((_, reject) => {
+        timeout = setTimeout(
+          () => reject(new Error('Asynchronous boundary did not progress.')),
+          3000,
+        );
+      }),
+    ]);
+  } finally {
+    if (timeout) clearTimeout(timeout);
+  }
+}

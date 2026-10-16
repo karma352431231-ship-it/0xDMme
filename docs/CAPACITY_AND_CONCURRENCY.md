@@ -272,6 +272,52 @@ prove that the host can carry 132 media calls. Relay configuration, effective
 descriptor limits, port ownership/firewall checks and synthetic network/load
 acceptance remain part of the deferred integrated activation.
 
+## Ninth block: resource-admitted notification delivery
+
+Ordinary push reads stable pages of 16 markers, ordered by exact PostgreSQL
+timestamp and account/device IDs. Page size bounds each query, not simultaneous
+delivery: later pages start independent sends while earlier sends are pending.
+Each dispatch owns 64 KiB for page metadata and one MiB for each admitted send.
+Pressure leaves unadmitted markers untouched and schedules another attempt after
+250 ms instead of consuming a delivery attempt or spinning immediately. One
+device has at most one send in flight within the dispatch owner. New generations
+remain guarded by the existing conditional completion and are reconciled in the
+next drain. New markers and send completions wake the consumer while slower
+sends remain active; next-attempt queries exclude active devices to avoid an
+immediate rescan loop. Page/persistence failures keep active work owned, and a
+failed marker commit is not classified as a provider outcome. Explicit flush
+and shutdown await that owned work. Shutdown stops new admission and owns both
+durable and call delivery cleanup.
+
+Call push replaces the three-active/512-pending ceilings with a one-MiB shared
+memory reservation per queued or active notification. Preparing a device batch
+either admits every entry or releases all new reservations without altering an
+existing invitation. Replacing one device's invitation waits for its current send
+to settle and keeps that send's resource reservation until completion. Each entry
+owns its expiry/retry timer; enqueue and completion no longer scan all unrelated
+entries. Expiry, invalid authorization, supersession, success and shutdown
+release inactive entries, while active work retains memory until it settles.
+
+Ordinary notifications keep their three attempts and 60-second retry spacing;
+calls keep two attempts, three-second spacing and their invitation deadline.
+Device/consent/mute/visibility checks, generic transport payloads, provider
+allowlists, network deadlines and generation-guarded persistence remain. Nothing
+in this block confirms delivery of an accepted message or expires its content.
+
+Regressions hold sends across three durable pages and 544 call notifications at
+once, admit a new device while an earlier send remains blocked, verify atomic
+admission under pressure, supersession, expiry and shutdown,
+and preserve retired-subscription/retry outcomes. Database regressions verify
+timestamp precision, tie ordering, excluded future/exhausted markers and newer
+generation retention and active-device scheduling exclusion. Existing assembled message/call/public-notification
+integration remains required.
+
+**Ponto importante:** these are source changes. The memory sizes are admission
+estimates, not measured network-memory peaks or a supported delivery rate.
+Validate queue latency, query plans/history growth, descriptor pressure,
+provider throttling and recovery under representative synthetic load before the
+deferred activation. No real provider receives a notification in these tests.
+
 ## Remaining audit work
 
 - Size global content admission from the own data volume and operational space;
@@ -284,8 +330,7 @@ acceptance remain part of the deferred integrated activation.
 - Measure reservation/transfer/execution memory and queued deadlines under
   representative load; validate abandoned-upload cleanup throughput.
 - Activate the prepared TURN/push changes with effective inherited limits and
-  rollback; coordinate relay ports, web dispatch queues and
-  representative resource validation.
+  rollback; coordinate relay ports and representative resource validation.
 - Validate feed query growth, recurring polling, SSE recovery, database pools,
   event-loop latency, WAL/checkpoints and overload recovery.
 

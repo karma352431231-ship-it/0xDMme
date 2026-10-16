@@ -5,7 +5,11 @@ import type {
   DailyStore,
   DeviceStore,
   PushJob,
+  PushJobKey,
+  WorkSignals,
 } from '../src/server/database/index.ts';
+import { deferred, waitForBoundary } from './fixtures/deferred.ts';
+import { pushJob } from './fixtures/push-job.ts';
 
 await test('push drena mais de um lote e preserva chegada de trabalho durante envio', async () => {
   const jobs: PushJob[] = Array.from({ length: 35 }, () => ({
@@ -20,7 +24,7 @@ await test('push drena mais de um lote e preserva chegada de trabalho durante en
   }));
   let delivered = 0;
   const store = {
-    jobs: () => Promise.resolve(jobs.slice(0, 16)),
+    jobPage: () => Promise.resolve({ items: jobs.slice(0, 16), next: null }),
     eligible: () => Promise.resolve(true),
     finish: (job: PushJob) => {
       jobs.splice(jobs.indexOf(job), 1);
@@ -47,6 +51,68 @@ await test('push drena mais de um lote e preserva chegada de trabalho durante en
     await service.close();
   }
 });
+
+await test('new device notifications progress while an unrelated slow send is pending', async () => {
+  const slow = pushJob(),
+    fast = pushJob(),
+    held = deferred<void>(),
+    started = deferred<void>(),
+    fastFinished = deferred<void>();
+  const markers = [slow];
+  const signals: { notify: () => void; subscribe: WorkSignals['subscribe'] } = {
+    notify: () => {},
+    subscribe: (_topic, listener) => {
+      signals.notify = listener;
+      return () => {};
+    },
+  };
+  const store = {
+    jobPage: () => Promise.resolve({ items: [...markers], next: null }),
+    eligible: () => Promise.resolve(true),
+    finish: (job: PushJob) => {
+      markers.splice(markers.indexOf(job), 1);
+      if (job === fast) fastFinished.resolve();
+      return Promise.resolve();
+    },
+    nextPushAttempt: (active: readonly PushJobKey[]) =>
+      Promise.resolve(
+        markers.some(
+          (job) =>
+            !active.some(
+              (a) =>
+                a.account_id === job.account_id &&
+                a.device_id === job.device_id,
+            ),
+        )
+          ? Date.now()
+          : null,
+      ),
+  } as unknown as DailyStore;
+  const service = new NotificationService({
+    store,
+    devices: {} as DeviceStore,
+    config: { publicKey: 'synthetic' },
+    signals: signals as unknown as WorkSignals,
+    send: (subscription) => {
+      if (subscription === slow.subscription) {
+        started.resolve();
+        return held.promise;
+      }
+      return Promise.resolve();
+    },
+  });
+  try {
+    service.start();
+    await waitForBoundary(started.promise);
+    markers.push(fast);
+    signals.notify();
+    await waitForBoundary(fastFinished.promise);
+    assert.deepEqual(markers, [slow]);
+  } finally {
+    held.resolve();
+    await service.close();
+  }
+});
 await test('push indisponível não consome trabalhos; elegibilidade é revalidada e retries permanecem limitados', async () => {
   const job = {
     account_id: crypto.randomUUID(),
@@ -62,9 +128,9 @@ await test('push indisponível não consome trabalhos; elegibilidade é revalida
   let eligible = false,
     calls = 0;
   const store = {
-    jobs: () => {
+    jobPage: () => {
       calls++;
-      return Promise.resolve(calls === 1 ? [job] : []);
+      return Promise.resolve({ items: calls === 1 ? [job] : [], next: null });
     },
     eligible: () => Promise.resolve(eligible),
     finish: (_job: PushJob, outcome: string) => {

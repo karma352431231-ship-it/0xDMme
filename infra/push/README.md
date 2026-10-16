@@ -30,11 +30,15 @@ not change the running service on their own.
 
 Keep swap disabled, temporary storage at 8 MiB, headers at 1 KiB, bodies at
 4 KiB, body/header deadlines at 3 seconds, external-send timeout at 5 seconds
-and external-connection destruction at 8 seconds. The web call queue still has
-512 RAM entries, three active sends and two attempts separated by three seconds
-while the invitation is valid; revising it is separate remaining capacity work.
-Messages retain durable/coalesced markers, batches of 16, three attempts and
-60-second spacing. Preserve null service output and aggregate-only observations.
+and external-connection destruction at 8 seconds. The prepared web call queue
+replaces its three-active/512-entry counts with one MiB of shared memory per
+queued/active notification, retaining two attempts separated by three seconds
+while the invitation is valid. Owned timers collect expired entries and delay
+same-device replacements until their previous send settles. Messages retain
+durable/coalesced markers and queries of 16 entries, but independent sends cross
+page boundaries under memory admission rather than waiting for a serial batch.
+Three attempts and 60-second spacing remain. Preserve null service output and
+aggregate-only observations. These source changes still await final activation.
 Removing own service caps does not remove inherited host/slice limits or promise
 zero impact on the shared VPS.
 

@@ -12,7 +12,13 @@ export type {
   CredentialReceipt,
   DomainRow,
 } from './representatives.ts';
-export type { DailyStore, PushJob } from './daily.ts';
+export type { DailyStore } from './daily.ts';
+export type {
+  PushJob,
+  PushJobKey,
+  PushJobCursor,
+  PushJobPage,
+} from './push-jobs.ts';
 export type { BackupStore } from './backups.ts';
 import { AttachmentStore } from './attachments.ts';
 export type { AttachmentStore } from './attachments.ts';

@@ -1,9 +1,4 @@
-import {
-  AccountError,
-  keys,
-  object,
-  uuid,
-} from '../../shared/account/index.ts';
+import { AccountError, keys, uuid } from '../../shared/account/index.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
 import {
   dailyPreferences,
@@ -15,7 +10,6 @@ import type {
   ContactAuthority,
   DailyStore,
   DeviceStore,
-  PushJob,
   WorkSignals,
 } from '../database/index.ts';
 import type { PushDelivery, PushConfiguration } from '../push-sender/index.ts';
@@ -33,6 +27,7 @@ import { WorkScheduler } from '../work-scheduler/index.ts';
 import type { PublicNotificationPreview } from '../../shared/public-notification/index.ts';
 import { CallPushQueue } from './call-push.ts';
 import type { CallInvitation } from './call-push.ts';
+import { PushDispatcher } from './dispatcher.ts';
 
 export class NotificationService {
   private readonly store: DailyStore;
@@ -43,6 +38,7 @@ export class NotificationService {
   private readonly unsubscribe: (() => void) | undefined;
   private stopped = false;
   private readonly calls: CallPushQueue;
+  private readonly dispatcher: PushDispatcher;
   private incoming: (
     session: AccountSession,
     directory: string,
@@ -69,6 +65,15 @@ export class NotificationService {
     this.send =
       options.send ??
       (() => Promise.reject(new Error('Emissor push indisponível.')));
+    this.dispatcher = new PushDispatcher({
+      store: this.store,
+      wake: () => this.scheduler.wake(),
+      send: (subscription) => {
+        if (!this.config)
+          return Promise.reject(new Error('Push indisponível.'));
+        return this.send(subscription, this.config);
+      },
+    });
     this.calls = new CallPushQueue(this.store, (subscription, delivery) => {
       if (!this.config) return Promise.reject(new Error('Push indisponível.'));
       return this.send(subscription, this.config, delivery);
@@ -201,45 +206,33 @@ export class NotificationService {
     if (this.config) this.scheduler.start();
   }
   async flush(): Promise<void> {
-    if (this.config) await this.scheduler.flush();
+    if (!this.config) return;
+    await this.scheduler.flush();
+    while (this.dispatcher.busy) {
+      await this.dispatcher.settle();
+      await this.scheduler.flush();
+    }
   }
   private async dispatch(): Promise<number | null> {
     if (this.stopped || !this.config) return null;
-    const jobs = await this.store.jobs();
-    for (const job of jobs) {
-      if (this.stopped) return null;
-      await this.dispatchOne(job);
-    }
-    return jobs.length === 16 ? Date.now() : this.store.nextPushAttempt();
-  }
-  private async dispatchOne(job: PushJob): Promise<void> {
-    if (!this.config) return;
-    if (!(await this.store.eligible(job))) {
-      await this.store.finish(job, 'sent');
-      return;
-    }
-    try {
-      await this.send(job.subscription, this.config);
-      await this.store.finish(job, 'sent');
-    } catch (error: unknown) {
-      const status = objectErrorStatus(error);
-      await this.store.finish(
-        job,
-        status === 404 || status === 410 ? 'gone' : 'retry',
-      );
-    }
+    return this.dispatcher.dispatch();
   }
   async close(): Promise<void> {
     this.stopped = true;
     this.unsubscribe?.();
-    await this.scheduler.close();
-    await this.calls.close();
+    this.dispatcher.stop();
+    const results = await Promise.allSettled([
+      this.scheduler.close(),
+      this.dispatcher.settle(),
+      this.calls.close(),
+    ]);
+    const failures = results.filter((r) => r.status === 'rejected');
+    if (failures.length)
+      throw new AggregateError(
+        failures.map((r): unknown => r.reason),
+        'Notification shutdown failed.',
+      );
   }
-}
-function objectErrorStatus(error: unknown): number {
-  return typeof error === 'object' && error !== null && 'statusCode' in error
-    ? Number(object(error)['statusCode'])
-    : 0;
 }
 
 function messageIds(input: unknown): string[] {

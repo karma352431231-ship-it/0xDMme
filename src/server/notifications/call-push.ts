@@ -1,6 +1,7 @@
 import type { DailyStore, PushJob } from '../database/index.ts';
 import type { PushDelivery } from '../push-sender/index.ts';
 import type { PushRegistration } from '../../shared/daily/index.ts';
+import { reserveOperationMemory } from '../memory-admission/index.ts';
 
 export interface CallInvitation {
   account: string;
@@ -14,6 +15,8 @@ interface Pending {
   attempts: number;
   due: number;
   active: boolean;
+  release: () => void;
+  timer: ReturnType<typeof setTimeout> | null;
 }
 /** Bounded volatile invitations; ordinary message retry markers remain independent. */
 export class CallPushQueue {
@@ -27,7 +30,7 @@ export class CallPushQueue {
   ) => Promise<void>;
   private readonly pending = new Map<string, Pending>();
   private readonly running = new Set<Promise<void>>();
-  private timer: ReturnType<typeof setTimeout> | null = null;
+  private readonly runningKeys = new Set<string>();
   private stopped = false;
   constructor(
     store: Pick<
@@ -49,53 +52,91 @@ export class CallPushQueue {
       invitation.devices,
     );
     if (this.stopped) return;
-    for (const job of jobs) {
-      const key = `${job.account_id}:${job.device_id}`;
-      if (this.pending.size >= 512 && !this.pending.has(key))
-        throw new Error('Orçamento temporário de avisos de chamada excedido.');
-      this.pending.set(key, {
-        job,
-        invitation,
-        attempts: 0,
-        due: 0,
-        active: false,
-      });
+    const prepared = this.admit(jobs, invitation);
+    for (const [key, pending] of prepared) {
+      const previous = this.pending.get(key);
+      if (previous) this.retire(key, previous);
+      this.pending.set(key, pending);
+      this.start(key, pending);
     }
-    this.kick();
   }
-  private kick(): void {
-    if (this.stopped) return;
-    for (const [key, pending] of this.pending) {
-      if (pending.invitation.deadline <= Date.now()) {
-        this.pending.delete(key);
-        continue;
+  private admit(
+    jobs: PushJob[],
+    invitation: CallInvitation,
+  ): Map<string, Pending> {
+    const prepared = new Map<string, Pending>();
+    try {
+      for (const job of jobs) {
+        const key = `${job.account_id}:${job.device_id}`;
+        if (prepared.has(key)) continue;
+        const release = reserveOperationMemory(1_048_576);
+        if (!release)
+          throw new Error(
+            'Orçamento temporário de avisos de chamada excedido.',
+          );
+        prepared.set(key, {
+          job,
+          invitation,
+          attempts: 0,
+          due: 0,
+          active: false,
+          release,
+          timer: null,
+        });
       }
-      if (this.running.size >= 3) break;
-      if (pending.active || pending.due > Date.now()) continue;
-      pending.active = true;
-      const work = this.dispatch(pending).finally(() => {
-        pending.active = false;
-        this.running.delete(work);
-        if (!pending.due && this.pending.get(key) === pending)
-          this.pending.delete(key);
-        this.kick();
-      });
-      this.running.add(work);
+      return prepared;
+    } catch (error: unknown) {
+      for (const pending of prepared.values()) pending.release();
+      throw error;
     }
-    this.schedule();
   }
-  private schedule(): void {
-    if (this.timer) clearTimeout(this.timer);
-    this.timer = null;
-    let next = Infinity;
-    for (const pending of this.pending.values()) {
-      next = Math.min(next, pending.invitation.deadline);
-      if (!pending.active && this.running.size < 3)
-        next = Math.min(next, pending.due);
+  private start(key: string, pending: Pending): void {
+    if (this.stopped || pending.invitation.deadline <= Date.now()) {
+      this.retire(key, pending);
+      return;
     }
-    if (!Number.isFinite(next) || this.stopped) return;
-    this.timer = setTimeout(() => this.kick(), Math.max(1, next - Date.now()));
-    this.timer.unref();
+    this.arm(key, pending, pending.invitation.deadline);
+    if (pending.active || this.runningKeys.has(key)) return;
+    pending.active = true;
+    this.runningKeys.add(key);
+    const work = this.dispatch(pending).finally(() => {
+      pending.active = false;
+      this.running.delete(work);
+      this.runningKeys.delete(key);
+      this.finished(key, pending);
+    });
+    this.running.add(work);
+  }
+  private finished(key: string, pending: Pending): void {
+    if (
+      this.stopped ||
+      this.pending.get(key) !== pending ||
+      !pending.due ||
+      pending.invitation.deadline <= Date.now()
+    ) {
+      this.retire(key, pending);
+    } else {
+      this.arm(key, pending, pending.due);
+    }
+    const replacement = this.pending.get(key);
+    if (replacement && replacement !== pending) this.start(key, replacement);
+  }
+  private arm(key: string, pending: Pending, at: number): void {
+    if (pending.timer) clearTimeout(pending.timer);
+    pending.timer = setTimeout(
+      () => {
+        pending.timer = null;
+        this.start(key, pending);
+      },
+      Math.max(1, at - Date.now()),
+    );
+    pending.timer.unref();
+  }
+  private retire(key: string, pending: Pending): void {
+    if (pending.timer) clearTimeout(pending.timer);
+    pending.timer = null;
+    if (this.pending.get(key) === pending) this.pending.delete(key);
+    if (!pending.active) pending.release();
   }
   private async dispatch(pending: Pending): Promise<void> {
     pending.due = 0;
@@ -131,13 +172,14 @@ export class CallPushQueue {
       pending.due = Date.now() + 3000;
   }
   async flush(): Promise<void> {
-    this.kick();
+    for (const [key, pending] of this.pending)
+      if (!pending.active && pending.due <= Date.now())
+        this.start(key, pending);
     while (this.running.size) await Promise.all(this.running);
   }
   async close(): Promise<void> {
     this.stopped = true;
-    if (this.timer) clearTimeout(this.timer);
-    this.pending.clear();
+    for (const [key, pending] of this.pending) this.retire(key, pending);
     await Promise.all(this.running);
   }
 }

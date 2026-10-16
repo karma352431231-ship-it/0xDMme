@@ -38,7 +38,22 @@ Payload fixo: título **0xDMme**, corpo **Há nova atividade. Abra o app para si
 
 Há corrida entre a conferência de mute e o sistema exibir um alerta já entregue. Aplicar mute fecha notificações genéricas existentes nesse navegador; não se promete retirar alertas vistos em outro aparelho. Provedores observam inscrição, IP/horários e tamanho do transporte; push não promete anonimato de metadados.
 
-Um marcador por aparelho agrupa eventos. Fila a cada 30 segundos, até 16 inscrições sequenciais, timeout de cinco segundos e conexão encerrada em até oito segundos. Até três tentativas, espaçadas em 60 segundos; 404/410 retiram inscrição. Gerações impedem que conclusão antiga apague trabalho novo. TTL de 60 segundos limita **só o alerta**; nenhuma mensagem aceita expira ou recebe ACK por causa de push.
+One marker per device coalesces events. The event/deadline-driven consumer reads
+bounded keyset pages of 16 with exact timestamp and account/device ordering.
+Independent sends may cross page boundaries while earlier sends wait; shared
+memory admission replaces serial dispatch. New markers and completions wake
+reconciliation while unrelated sends remain active, and next-attempt queries
+exclude active devices instead of spinning on their pending markers.
+Pressure leaves durable markers and
+attempt counts untouched, with a 250 ms capacity recheck. Existing external
+five-second send/eight-second connection deadlines, three attempts separated by
+60 seconds and subscription retirement on 404/410 remain. Generation guards
+prevent an old completion from erasing new work. The 60-second TTL limits only
+the alert; an accepted message neither expires nor receives an ACK because of
+push. Call invitations instead retain two attempts, three-second retry spacing
+and their own deadline, with resource admission for queued/active work. These
+source changes await the single integrated activation described in
+[capacity and concurrency](CAPACITY_AND_CONCURRENCY.md).
 
 Endpoints permitidos: hosts de Google, Mozilla, Apple e subdomínios `notify.windows.com`, somente HTTPS/porta padrão. DNS é conferido na conexão, IPs privados rejeitados e redirects não seguidos. Outros provedores recebem erro explícito, sem relay alternativo. A compatibilidade de cada navegador exige aceite físico.
 

@@ -1,5 +1,17 @@
 # Capacity audit follow-up — 16 October 2026
 
+The ninth source block removes serial notification dispatch and the call-push
+three-send/512-entry counts. Durable markers use stable bounded keyset pages;
+independent sends from later pages can proceed while earlier sends wait, subject
+to shared memory admission. New markers and completion events wake the consumer
+without waiting for unrelated sends; deadline queries exclude active devices
+and shutdown awaits their owner. Volatile call invitations retain memory for their
+entire queued/active lifecycle and use owned deadline/retry timers instead of
+rescanning the whole queue for every completion. Coalesce by device without
+overlapping replacement sends. Preserve current authorization, generic payloads,
+provider restrictions, generation guards, retry limits and deadlines. No schema,
+dependency, service or network activation is part of this source block.
+
 The eighth source block replaces fixed call/channel visitor counts with shared
 memory reservations retained for each volatile object's lifecycle. Keep one
 call per account, authenticated device limits, consent, first-answer ownership,
