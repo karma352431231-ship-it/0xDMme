@@ -1,5 +1,44 @@
 # Perfil público individual e feeds — 10/10/2026
 
+## Discovery module extraction — owner approval on 15/10/2026
+
+The owner approved extracting the existing discovery screen after saving a
+verified source checkpoint, including the original checkout's uncommitted work.
+The checkpoint and recovery evidence stay private in `.local/`. This work uses
+an isolated branch based on current main; it does not edit another session's tree.
+
+First record the existing ranking and refresh-pill behavior in tests, then extract
+ranking presentation into `ranking-view.ts`, followed by feed cards into
+`feed-card.ts`. Keep filters, loading, cursors, snapshot comparison, session
+generations, cancellation, deduplication and media disposal in `discovery.ts`.
+Cards reuse the existing voting, reply, sharing, following, preference and
+management modules. Pass explicit action/lifetime contracts; do not distribute
+the coordinator's mutable state among renderers.
+
+This supersedes the earlier proposal in this document to extract feed
+loading/pagination into `discovery-feed.ts` for this task. No rules, copy, routes,
+styles, dependencies, backend or schema change. Preserve English and Simplified
+Chinese presentation, ranking positions across pages, identical-page node reuse,
+late-result rejection, feed return and resource cleanup. Each extraction is a
+separate commit after the preceding checks and CI pass; compare full-page and
+split-layout previews at desktop and phone widths before any publication.
+
+The remaining coordinator still encloses filters, mounting and page lifecycle in
+one large closure. Do not add new screen responsibilities there. A separate
+future task can extract `discovery-filters.ts` first and the screen frame into
+`discovery-shell.ts` second, leaving request/pagination/session ownership in the
+coordinator. Preserve topic/order/period callbacks, search cancellation, guest
+gates and mount/leave ordering; verify those contracts and responsive layouts
+after each extraction. These further moves are outside the approved two extractions.
+
+**Ponto importante:** a source checkpoint allows code recovery; it is not a
+database or VPS backup. After all three task commits passed CI, the owner
+explicitly authorized integrating into main and activating on the test VPS.
+Use the existing deployment executor, the integrated commit's full CI,
+preservation/readiness checks and code rollback. This release does not change
+backend, schema, dependencies or installed infrastructure. Confirm a `published`
+receipt and the served build before reporting activation complete.
+
 Direção aprovada pelo proprietário. A página pública por `@` reúne somente identidade e atividade públicas. Publicações continuam dentro de comunidades; o perfil apresenta as mesmas publicações e respostas, sem copiar conteúdo ou criar um mural pessoal independente.
 
 ## Interações nas publicações — ajuste de 10/10/2026

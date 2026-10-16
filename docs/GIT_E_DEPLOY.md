@@ -1,5 +1,31 @@
 # 0xDMme — Git e envio à VPS
 
+## Discovery module extraction — activation authorized on 15/10/2026
+
+After the source checkpoint was restored and verified and the three task commits
+passed CI, the owner explicitly requested main integration and VPS activation.
+The reviewed task ends at `59bbed9`: ranking presentation moves to
+`ranking-view.ts`, feed cards to `feed-card.ts`, and loading/pagination stays in
+`discovery.ts`. The 13 new UI tests, 57 targeted local tests and synthetic browser
+comparisons at 1280/390 pixels preserve the existing behavior and presentation
+in both languages. Further coordinator extraction is outside this release.
+
+Merge only this task into current main and require the integrated commit's full
+CI before activation. Use a clean isolated checkout of that exact pushed main
+commit and only the existing `npm run deploy:staging`, with the build on the Mac.
+Keep the entire backend, all 71 migrations and their checksums, dependencies,
+Node, models, service units and shared infrastructure identical to the main
+predecessor. Do not add a database transition or operational flag for this task.
+
+Keep access, configuration baselines, build artifacts and operational evidence
+private in `.local/`. Reuse the executor's before/after preservation checks,
+public asset verification, worker readiness and retained previous release.
+
+**Ponto importante:** code recovery and the verified source checkpoint remain
+available. Activation is complete only after the `published` receipt, matching
+served build, healthy own services and passing preservation checks; a merge,
+push or source synchronization alone does not activate the app.
+
 ## Chat attachments up to 10 MB — activation authorized on 16/10/2026
 
 The owner asked to raise the private and group chat attachment limit from 3 MB
