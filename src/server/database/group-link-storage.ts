@@ -30,13 +30,3 @@ export async function deleteGroupLink(
     groupId,
   ]);
 }
-export async function groupLinkUsage(
-  client: Pick<pg.PoolClient, 'query'>,
-  groupId: string,
-): Promise<number> {
-  const result = await client.query<{ charge: number }>(
-    'SELECT charge FROM hash_talk.group_links WHERE group_id=$1',
-    [groupId],
-  );
-  return result.rows[0]?.charge ?? 0;
-}

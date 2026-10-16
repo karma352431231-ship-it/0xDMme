@@ -356,6 +356,21 @@ and bounded cleanup on creation; the physical-volume admission review remains
 separate. Validate transient memory peaks, admission fairness and expired-row
 cleanup throughput under representative synthetic load before activation.
 
+## Eleventh block: exact group quota counters
+
+Group quota checks and accepted-media occupancy read exact per-group counters
+instead of historical sums. Statement triggers aggregate charged changes in
+UUID order, preserve rollback and avoid writes for unchanged totals. Reserved
+or deleting media remains charged until collection; retention counts accepted
+media separately. Authorization, existing coordination and the group quota
+split are unchanged. The versioned migration backfills existing history under
+write-conflicting locks and provides a reference view for reconciliation.
+
+**Ponto importante:** the migration is prepared locally, not applied to the VPS.
+Personal quota sums, the singleton global byte counter and remaining group/general
+admission locks are still pending. Schema/catalog rollback and backfill duration
+need review before the final activation. See [exact quota accounting](QUOTA_ACCOUNTING.md).
+
 ## Remaining audit work
 
 - Size global content admission from the own data volume and operational space;
@@ -363,8 +378,8 @@ cleanup throughput under representative synthetic load before activation.
   quotas or admitting writes that endanger accepted data.
 - Extend scoped coordination to the remaining general authority/group/retention
   operations, with explicit lock orders and revocation/deletion regressions.
-- Replace repeated historical quota sums and the singleton byte-counter
-  contention with exact transactional accounting that preserves admission.
+- Replace repeated personal historical quota sums and singleton byte-counter
+  contention; validate the prepared group counters and reconciliation under load.
 - Measure reservation/transfer/execution memory and queued deadlines under
   representative load; validate abandoned-upload cleanup throughput.
 - Activate the prepared TURN/push changes with effective inherited limits and

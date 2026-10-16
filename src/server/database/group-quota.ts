@@ -1,5 +1,4 @@
 import type pg from 'pg';
-import { groupLinkUsage } from './group-link-storage.ts';
 import { AccountError } from '../../shared/account/index.ts';
 import {
   groupContentQuota,
@@ -7,30 +6,44 @@ import {
   groupMediaQuota,
 } from '../../shared/group-quota/index.ts';
 
+async function groupUsage(
+  client: Pick<pg.PoolClient, 'query'>,
+  groupId: string,
+): Promise<{ text: number; media: number; acceptedMedia: number }> {
+  const result = await client.query<{
+    text: string | null;
+    media: string | null;
+    accepted: string | null;
+  }>(
+    `SELECT q.text_bytes::text AS text,q.media_bytes::text AS media,
+     q.accepted_media_bytes::text AS accepted FROM hash_talk.groups g
+     LEFT JOIN hash_talk.group_quota_usage q ON q.group_id=g.id WHERE g.id=$1`,
+    [groupId],
+  );
+  const row = result.rows[0];
+  if (!row) return { text: 0, media: 0, acceptedMedia: 0 };
+  const amounts = [row.text, row.media, row.accepted];
+  if (
+    amounts.some(
+      (value) =>
+        value === null ||
+        !Number.isSafeInteger(Number(value)) ||
+        Number(value) < 0,
+    )
+  )
+    throw new Error('Cota de grupo indisponível.');
+  return {
+    text: Number(row.text),
+    media: Number(row.media),
+    acceptedMedia: Number(row.accepted),
+  };
+}
 /** Shared group metadata/ciphertext, independent of every member's personal vault. */
 export async function groupTextUsage(
   client: Pick<pg.PoolClient, 'query'>,
   groupId: string,
 ): Promise<number> {
-  const rows = await client.query<{ bytes: string }>(
-    `SELECT (
-    coalesce((SELECT sum(charge) FROM hash_talk.group_events WHERE group_id=$1),0)
-    + coalesce((SELECT sum(charge) FROM hash_talk.group_members WHERE group_id=$1),0)
-    + coalesce((SELECT sum(charge) FROM hash_talk.group_consents WHERE group_id=$1),0)
-    + coalesce((SELECT charge FROM hash_talk.groups WHERE id=$1),0)
-    + coalesce((SELECT sum(charge) FROM hash_talk.group_key_sets WHERE group_id=$1),0)
-    + coalesce((SELECT sum(charge) FROM hash_talk.group_packets WHERE group_id=$1),0)
-    + coalesce((SELECT sum(charge) FROM hash_talk.group_message_changes WHERE group_id=$1),0)
-    + coalesce((SELECT sum(charge) FROM hash_talk.group_matrix_envelopes WHERE group_id=$1),0)
-    + coalesce((SELECT sum(text_charge) FROM hash_talk.group_media WHERE group_id=$1),0)
-    + coalesce((SELECT charge FROM hash_talk.group_cleanups WHERE group_id=$1),0)
-    )::text AS bytes`,
-    [groupId],
-  );
-  const bytes = Number(rows.rows[0]?.bytes);
-  if (!Number.isSafeInteger(bytes) || bytes < 0)
-    throw new Error('Cota de grupo indisponível.');
-  return bytes + (await groupLinkUsage(client, groupId));
+  return (await groupUsage(client, groupId)).text;
 }
 export async function assertGroupTextQuota(
   client: Pick<pg.PoolClient, 'query'>,
@@ -53,14 +66,14 @@ export async function groupMediaUsage(
   client: Pick<pg.PoolClient, 'query'>,
   groupId: string,
 ): Promise<number> {
-  const result = await client.query<{ bytes: string }>(
-    'SELECT coalesce(sum(bytes),0)::text AS bytes FROM hash_talk.group_media WHERE group_id=$1',
-    [groupId],
-  );
-  const bytes = Number(result.rows[0]?.bytes);
-  if (!Number.isSafeInteger(bytes) || bytes < 0)
-    throw new Error('Cota de mídia indisponível.');
-  return bytes;
+  return (await groupUsage(client, groupId)).media;
+}
+/** Retention considers accepted media only; reservations remain charged above. */
+export async function groupAcceptedMediaUsage(
+  client: Pick<pg.PoolClient, 'query'>,
+  groupId: string,
+): Promise<number> {
+  return (await groupUsage(client, groupId)).acceptedMedia;
 }
 export async function assertGroupMediaQuota(
   client: Pick<pg.PoolClient, 'query'>,

@@ -1,5 +1,14 @@
 # Capacity audit follow-up — 16 October 2026
 
+The eleventh source block prepares exact per-group quota counters. Preserve all
+existing charged-byte rules and the approved media/text split; maintain the
+derived totals transactionally and fail closed when accounting is unavailable.
+Use indexed counter reads for quota and accepted-media occupancy. Prepare a
+versioned populated-history backfill with write coordination, reconciliation
+and separate activation/rollback review. Personal sums, the singleton global
+counter and remaining admission locks stay pending. See
+[exact quota accounting](docs/QUOTA_ACCOUNTING.md).
+
 The tenth source block replaces fixed global login/handoff/device-link and
 volatile opening/recovery/enrollment counts with shared memory admission.
 Retained opaque state owns its original expiry and memory reservation; indexed

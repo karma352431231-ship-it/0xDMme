@@ -13,14 +13,17 @@ import type { GroupEvent } from '../../shared/groups/index.ts';
 import type { ContactAuthority, ContactStore } from './contacts.ts';
 import type { GroupStore } from './groups.ts';
 import type { GroupScope } from './group-media.ts';
-import { assertGroupTextQuota } from './group-quota.ts';
+import {
+  assertGroupTextQuota,
+  groupAcceptedMediaUsage,
+} from './group-quota.ts';
 import { assertContentCapacity } from './vault-quota.ts';
 import { admitGroupNotification } from './daily.ts';
 const clearableGroup = `(EXISTS(SELECT 1 FROM hash_talk.group_packets p WHERE p.group_id=g.id AND p.body IS NOT NULL) OR EXISTS(SELECT 1 FROM hash_talk.group_media m WHERE m.group_id=g.id AND m.status NOT IN ('writing','deleting')) OR EXISTS(SELECT 1 FROM hash_talk.group_key_sets k WHERE k.group_id=g.id) OR EXISTS(SELECT 1 FROM hash_talk.group_matrix_envelopes e WHERE e.group_id=g.id AND e.body IS NOT NULL) OR NOT EXISTS(SELECT 1 FROM hash_talk.group_media m WHERE m.group_id=g.id))`;
 const dueGroups = `((g.clearing AND ${clearableGroup}) OR
  (g.deleted AND (EXISTS(SELECT 1 FROM hash_talk.group_packets p WHERE p.group_id=g.id AND p.body IS NOT NULL) OR EXISTS(SELECT 1 FROM hash_talk.group_media m WHERE m.group_id=g.id AND m.status NOT IN ('writing','deleting')) OR EXISTS(SELECT 1 FROM hash_talk.group_matrix_envelopes e WHERE e.group_id=g.id AND e.body IS NOT NULL))) OR
  EXISTS(SELECT 1 FROM hash_talk.group_cleanups c WHERE c.group_id=g.id AND (c.due_at IS NULL OR c.due_at<=clock_timestamp())) OR
- (NOT g.deleted AND NOT EXISTS(SELECT 1 FROM hash_talk.group_cleanups c WHERE c.group_id=g.id) AND (SELECT coalesce(sum(m.bytes),0) FROM hash_talk.group_media m WHERE m.group_id=g.id AND m.status='accepted')>=$1))`;
+ (NOT g.deleted AND NOT EXISTS(SELECT 1 FROM hash_talk.group_cleanups c WHERE c.group_id=g.id) AND (SELECT accepted_media_bytes FROM hash_talk.group_quota_usage q WHERE q.group_id=g.id)>=$1))`;
 interface CleanupRow {
   id: string;
   remaining: number;
@@ -181,11 +184,7 @@ export class GroupRetentionStore {
       [groupId],
     );
     if (result.rows[0]) return result.rows[0];
-    const usage = await client.query<{ bytes: number }>(
-      "SELECT coalesce(sum(bytes),0)::integer AS bytes FROM hash_talk.group_media WHERE group_id=$1 AND status='accepted'",
-      [groupId],
-    );
-    const bytes = usage.rows[0]?.bytes ?? 0;
+    const bytes = await groupAcceptedMediaUsage(client, groupId);
     if (bytes < groupMediaWarning) return null;
     result = await client.query<CleanupRow>(
       'INSERT INTO hash_talk.group_cleanups(group_id,id,remaining) VALUES($1,$2,$3) RETURNING *',
