@@ -59,17 +59,6 @@ export function observePage(record: RecordEvent): () => void {
     },
     { signal, capture: true },
   );
-  document.addEventListener(
-    'submit',
-    (event) => {
-      if (
-        event.target instanceof Element &&
-        event.target.matches('[data-message-compose], [data-group-compose]')
-      )
-        record('user-action', { category: 'message-submit' });
-    },
-    { signal, capture: true },
-  );
   let previous = '',
     pending: ReturnType<typeof setTimeout> | null = null;
   const changed = () => {

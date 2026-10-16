@@ -22,6 +22,9 @@ const operations = new Set([
   'matrix-claim',
   'matrix-send',
   'recovery-key',
+  'recovery-current',
+  'recovery-register',
+  'recovery-peer',
   'daily-states',
   'daily-configure',
   'daily-heartbeat',
@@ -36,6 +39,23 @@ const operations = new Set([
   'group-daily-read',
   'group-daily-receipts',
 ]);
+const dmOperations = new Set([
+  ...[...operations].map((operation) => `dm-${operation}`),
+  ...[
+    'accepted',
+    'list',
+    'state',
+    'open',
+    'secret-get',
+    'secret-save',
+    'personal-page',
+    'personal-snapshot',
+    'message-history',
+    'message-status',
+    'preview-status',
+    'received',
+  ].map((operation) => `dm-${operation}`),
+]);
 const calls = new Set([
   'sync',
   'start',
@@ -47,7 +67,7 @@ const calls = new Set([
   'configure',
 ]);
 const areas = new Map([
-  ['messages', operations],
+  ['messages', new Set([...operations, ...dmOperations])],
   ['calls', calls],
   ['devices', new Set(['read'])],
 ]);

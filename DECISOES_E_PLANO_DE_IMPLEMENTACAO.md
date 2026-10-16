@@ -1,5 +1,17 @@
 # 0xDMme — decisões e plano de implementação
 
+**Consecutive message-send diagnosis — 16/10/2026:** the owner asked to remove
+the pause between Enter submissions, accepting a desktop console capture if the
+actual bottleneck cannot be established from source alone. The private send path
+holds its busy gate through submission and follow-up work; source inspection does
+not assign physical timings to those phases. Extend the opt-in local collector to
+record Enter intent, actual click/submit events and fixed composer-control states
+without input values or message content. Keep request/lock/response timing, bounded
+memory and explicit cleanup. **Ponto importante:** the collector does not change
+sending, authorization, SDK exclusion or durability; use the capture to distinguish
+rejected Enter attempts from transmission and follow-up cost before changing them.
+See [send capture instructions](docs/DIAGNOSTICO_LAG_CHAT.md#consecutive-text-send-capture--16102026).
+
 **Public DM continuity repair — 16/10/2026:** while checking the pause between
 consecutive sends, the owner reported `DM session changed.` on the Android handle
 messages page. Reproduce the cancellation boundary with the actual signed client

@@ -3,6 +3,7 @@ import { observeAuthorityLocks } from './locks.ts';
 import { observeNetwork } from './network.ts';
 import { observeControlFrames } from './stream.ts';
 import { observePage, observeLag } from './page.ts';
+import { observeSubmissions } from './submissions.ts';
 
 interface DiagnosticWindow extends Window {
   __0xdmmeLag?: ReturnType<typeof start>;
@@ -58,6 +59,7 @@ function start() {
     stopHooks.push(observeNetwork(recording.record, locks.active));
     stopHooks.push(observeControlFrames(recording.record));
     stopHooks.push(observePage(recording.record));
+    stopHooks.push(observeSubmissions(recording.record));
     stopHooks.push(observeLag(recording.record));
     const lifecycle = new AbortController();
     window.addEventListener('pagehide', stop, { signal: lifecycle.signal });
