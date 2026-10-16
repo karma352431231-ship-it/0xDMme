@@ -1,5 +1,18 @@
 # 0xDMme — Git e envio à VPS
 
+## Feed vote position repair — activation authorized on 15/10/2026
+
+During discovery acceptance, the owner reported the upvote scroll reset and
+authorized completing main integration and VPS publication of its repair.
+Update only confirmed vote presentation in the existing feed card; preserve
+the page, reading position and drafts. Keep the existing refresh path for a
+non-visible post. See the [repair contract](PERFIL_PUBLICO_E_FEEDS.md#feed-votes-preserve-reading-position--15102026).
+
+Require full CI for the exact integrated and pushed commit, a clean checkout
+and the existing `npm run deploy:staging` with its Mac build, preservation checks,
+public asset verification and retained previous release. No backend, migration,
+dependency, Node, service unit or shared infrastructure change is included.
+
 ## Discovery module extraction — activation authorized on 15/10/2026
 
 After the source checkpoint was restored and verified and the three task commits

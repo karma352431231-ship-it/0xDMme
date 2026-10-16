@@ -1,7 +1,10 @@
 import { t } from '../../shared/i18n/index.ts';
 import type { FeedEntry } from '../../shared/community-discovery/index.ts';
 import { postState } from '../../shared/community-posts/index.ts';
-import type { CommunityPost } from '../../shared/community-posts/index.ts';
+import type {
+  CommunityPost,
+  PostState,
+} from '../../shared/community-posts/index.ts';
 import type { ExternalMediaConsent } from '../external-media/index.ts';
 import { gifUrls } from '../gif-search/index.ts';
 import { showIdentityPhoto } from '../public-identity/index.ts';
@@ -59,7 +62,19 @@ export function renderFeedCard(
   postVoting(
     toolbar,
     post,
-    signedIn ? { ...actions, position: entry.viewerVote } : null,
+    signedIn
+      ? {
+          ...actions,
+          position: entry.viewerVote,
+          changed: async (state) => {
+            if (!state || state.post.status !== 'visible') {
+              await changed();
+              return;
+            }
+            paintVote(toolbar, entry, state);
+          },
+        }
+      : null,
   );
   options.addCleanup(
     feedReply(
@@ -95,6 +110,28 @@ export function renderFeedCard(
     });
   }
   return row;
+}
+
+/** A confirmed vote must not reload the page or discard its media/reply draft. */
+function paintVote(
+  toolbar: HTMLElement,
+  entry: FeedEntry,
+  state: PostState,
+): void {
+  entry.post.score = state.post.score;
+  entry.viewerVote = state.vote.position;
+  const controls = toolbar.querySelector('.post-votes');
+  for (const node of controls?.querySelectorAll<HTMLButtonElement>('button') ??
+    []) {
+    const position = node.dataset['vote'];
+    if (position !== undefined)
+      node.setAttribute(
+        'aria-pressed',
+        String(Number(position) === state.vote.position),
+      );
+  }
+  const score = controls?.querySelector('.post-score');
+  if (score) score.textContent = String(state.post.score);
 }
 
 function followControl(
