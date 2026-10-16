@@ -32,9 +32,12 @@ gates and mount/leave ordering; verify those contracts and responsive layouts
 after each extraction. These further moves are outside the approved two extractions.
 
 **Ponto importante:** a source checkpoint allows code recovery; it is not a
-database or VPS backup. This refactor does not change live data or activate a
-release. Publication, if requested, uses the existing deployment executor and
-the integrated commit's CI and code rollback.
+database or VPS backup. After all three task commits passed CI, the owner
+explicitly authorized integrating into main and activating on the test VPS.
+Use the existing deployment executor, the integrated commit's full CI,
+preservation/readiness checks and code rollback. This release does not change
+backend, schema, dependencies or installed infrastructure. Confirm a `published`
+receipt and the served build before reporting activation complete.
 
 Direção aprovada pelo proprietário. A página pública por `@` reúne somente identidade e atividade públicas. Publicações continuam dentro de comunidades; o perfil apresenta as mesmas publicações e respostas, sem copiar conteúdo ou criar um mural pessoal independente.
 

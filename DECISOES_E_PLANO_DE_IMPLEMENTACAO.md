@@ -8,8 +8,11 @@ interaction modules remain authoritative. This supersedes the earlier proposal
 to extract feed loading during this task. Record existing UI behavior in tests
 before moving code, use separate validated commits and inspect responsive previews.
 The checkpoint includes uncommitted source and Git history, with private recovery
-evidence in `.local/`; it excludes live databases and VPS state. No activation,
-dependency, backend or schema change is included. See the
+evidence in `.local/`; it excludes live databases and VPS state. The owner then
+explicitly authorized main integration and VPS activation after the three task
+commits passed CI. Use the existing deployment command, the integrated commit's
+full CI, preservation/readiness checks and code rollback. No dependency, backend
+or schema change is included. See the
 [module contract](docs/PERFIL_PUBLICO_E_FEEDS.md#discovery-module-extraction--owner-approval-on-15102026).
 
 **Anexos de até 10 MB nos chats privados e de grupo — decisão do proprietário em 16/10/2026:** o teto de anexo do chat privado e dos grupos passa de 3 MB para 10 MB, com a migração 071 e ativação autorizadas. DMs pelo `@`, status, fotos de perfil/grupo/comunidade e mídia pública mantêm seus tetos. A cota de 1 GB por conta, a cota dos grupos, E2EE, retenção e recuperação não mudam; cada arquivo maior consome proporcionalmente mais cota. Cada registro do backup independente passa a admitir 14 MB para conter uma mídia de 10 MB em base64. **Ponto importante:** versões antigas do app abertas em outro aparelho não abrem anexos acima de 3 MB até atualizar. [Contrato](docs/BLOCO_08_FOTOS_E_ARQUIVOS.md).
