@@ -189,6 +189,10 @@ CHAT_PARITY_REVIEWED = '2fc2ed033851c69b8b54dbf962d2676b7b0f75a4'
 # Only these six database modules change; all 69 SQL files/executor stay exact.
 PUBLIC_DM_OPENING_BEFORE = '08dff889caa2fe04911b2bc8f720c71465013e5a'
 PUBLIC_DM_OPENING_REVIEWED = '3bfc25dd20fb202d1a4ea834e18bd66b316bc3b0'
+# Owner requested X-style alerts for followed profiles on 16/10/2026. Only the
+# preview read, its store and the store wiring change; all 71 SQL files stay exact.
+FOLLOWED_ALERTS_BEFORE = '762bd805aa6af374d98688eca5e7c1a571eb8b66'
+FOLLOWED_ALERTS_REVIEWED = '49f1c1984de1364b251d6b8225ae8b74de242010'
 # Exact two-reader repair approved after explanation on 14/10/2026.
 # Pin both full database trees; all 66 migrations/executor stay exact.
 # Owner-requested mandatory topics: only new admission changes, without SQL or backfill.
@@ -407,6 +411,8 @@ def database_code_reviewed(candidate, live):
         ({'social-conversations.ts', 'social-crypto.ts', 'social-dm.ts',
           'social-matrix.ts', 'social-media.ts', 'social-read-receipts.ts'},
          PUBLIC_DM_OPENING_BEFORE, PUBLIC_DM_OPENING_REVIEWED),
+        ({'daily.ts', 'index.ts', 'public-notification-preview.ts'},
+         FOLLOWED_ALERTS_BEFORE, FOLLOWED_ALERTS_REVIEWED),
     ]
     selected = next((review for review in reviews if changed == review[0]), None)
     if selected is None:

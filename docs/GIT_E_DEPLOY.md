@@ -1,5 +1,22 @@
 # 0xDMme — Git e envio à VPS
 
+## Followed-profile alerts — activation authorized on 16/10/2026
+
+The owner asked for X-style system alerts for posts and replies by profiles
+followed with notifications on, leaving every other alert unchanged. The
+existing `npm run deploy:staging` registers only the code transition of
+`daily.ts`, `index.ts` and `public-notification-preview.ts` from
+`762bd805aa6af374d98688eca5e7c1a571eb8b66` to reviewed
+`49f1c1984de1364b251d6b8225ae8b74de242010`, comparing the full database trees.
+No migration runs: keep the 71 SQL files and their executor, dependencies, Node,
+models, units and services exact. Build on the Mac from a clean, pushed main with
+full exact-commit CI. Keep preservation, readiness, public files/sources and
+rollback; access, artifacts and receipts stay exclusively in `.local/`.
+
+**Ponto importante:** the push payload stays generic; the Worker reads the preview
+and the approved public photo from our origin. Open apps pick up the new Worker on
+their next load. Real delivery on physical devices remains to be accepted.
+
 ## Feed vote position repair — activation authorized on 15/10/2026
 
 During discovery acceptance, the owner reported the upvote scroll reset and

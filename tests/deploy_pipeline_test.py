@@ -1261,6 +1261,38 @@ class PublicDmOpeningCodeTests(CommunityFeedCodeTests):
             remote.compatibility(self.candidate, self.live)
 
 
+class FollowedAlertsCodeTests(CommunityFeedCodeTests):
+    def setUp(self):
+        super().setUp()
+        for relative in ['communities.ts', 'community-discovery.ts']:
+            (self.candidate / 'src/server/database' / relative).write_bytes(
+                (self.live / 'src/server/database' / relative).read_bytes())
+        self.changed_modules = ['daily.ts', 'index.ts', 'public-notification-preview.ts']
+        for relative in self.changed_modules:
+            (self.live / 'src/server/database' / relative).write_text('existing preview')
+            (self.candidate / 'src/server/database' / relative).write_text('reviewed followed alert')
+        self.exports = {
+            remote.FOLLOWED_ALERTS_BEFORE: self.export(self.live),
+            remote.FOLLOWED_ALERTS_REVIEWED: self.export(self.candidate),
+        }
+
+    def test_reviewed_followed_alert_modules_pass(self):
+        with patch.object(backups, 'git_export', side_effect=lambda sha: self.exports[sha]):
+            self.assertTrue(remote.database_code_reviewed(self.candidate, self.live))
+
+    def test_followed_alert_modules_require_exact_reviewed_bytes(self):
+        for relative in self.changed_modules:
+            with self.subTest(path=relative):
+                path = self.candidate / 'src/server/database' / relative
+                original = path.read_bytes(); path.write_text('unreviewed preview')
+                try:
+                    with (patch.object(backups, 'git_export', side_effect=lambda sha: self.exports[sha]),
+                          self.assertRaises(RuntimeError)):
+                        remote.compatibility(self.candidate, self.live)
+                finally:
+                    path.write_bytes(original)
+
+
 class OwnerReviewMediaCodeTests(CommunityFeedCodeTests):
     def setUp(self):
         super().setUp()
