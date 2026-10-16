@@ -1,5 +1,20 @@
 # 0xDMme — decisões e plano de implementação
 
+**Measured private text-send repair — authorized on 16/10/2026:** after the
+complete desktop capture demonstrated rejected Enter attempts and foreground
+blocking beyond publication, the owner approved applying the fix. Separate
+bounded local text/reply admission, durable FIFO persistence and exclusive
+transmission. Preserve stable IDs, strict ciphertext-before-transmission, fresh
+remote authorization, recipient trust/recovery and existing send quotas. Keep
+unsaved local input visibly distinct from durable pending work and server
+acceptance; guard ordinary page closing/PWA activation until it is saved, and
+discard unsaved plaintext on session replacement. Defer normal account-wide
+rechecks during a typing burst without delaying immediate invalidation. Existing
+editing/media/group/handle flows remain unchanged. **Ponto importante:** physical
+send cadence and activation still require separate acceptance; no server, SQL,
+dependency or crypto-format transition is approved or included. See the
+[implementation contract](docs/DIAGNOSTICO_LAG_CHAT.md#applying-the-measured-private-text-send-repair--16102026).
+
 **Consecutive message-send diagnosis — 16/10/2026:** the owner asked to remove
 the pause between Enter submissions, accepting a desktop console capture if the
 actual bottleneck cannot be established from source alone. The private send path

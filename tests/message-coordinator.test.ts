@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { coordinatorFixture } from './fixtures/message-coordinator.ts';
+import { decodeDailyText } from '../src/shared/daily/index.ts';
 import type { Peer } from '../src/shared/contacts/index.ts';
 const turn = () => new Promise<void>((resolve) => setImmediate(resolve));
 async function finishStartupMaintenance(
@@ -16,6 +17,76 @@ const peer = (accountId: string): Peer => ({
   ecosystem: 'evm',
   address: '0x' + '1'.repeat(40),
   name: 'Synthetic',
+});
+
+await test('consecutive Enter submissions remain enabled while a previous transmission is held', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const f = coordinatorFixture(t);
+  f.state.probeChanged = true;
+  await f.messages.openContact(peer('captured'));
+  f.state.holdSend = true;
+  for (const text of ['AAAAA', 'AAAAABBB', 'DADASEQWE']) {
+    f.input.value = text;
+    f.submit();
+    await turn();
+    assert.equal(
+      f.send.disabled,
+      false,
+      'A saved text must not block the next Enter behind network IO.',
+    );
+    assert.equal(f.input.value, '');
+  }
+  assert.deepEqual(
+    f.drafts.map((item) => decodeDailyText(item.text).text),
+    ['AAAAA', 'AAAAABBB', 'DADASEQWE'],
+  );
+  assert.ok(!f.calls.includes('heartbeat'));
+  f.state.holdSend = false;
+  f.sending.resolve();
+  await turn();
+});
+
+await test('typing after Enter is never cleared by the preceding delayed local save', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const f = coordinatorFixture(t);
+  f.state.probeChanged = true;
+  await f.messages.openContact(peer('captured'));
+  f.state.holdSave = true;
+  f.input.value = 'First';
+  f.submit();
+  f.input.value = 'Next draft';
+  f.saving.resolve();
+  await turn();
+  assert.equal(f.input.value, 'Next draft');
+});
+
+await test('an automatic history recheck admits text while holding the network, but removal still disables sending immediately', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const f = coordinatorFixture(t);
+  f.state.probeChanged = true;
+  await f.messages.openContact(peer('captured'));
+  f.state.holdHistory = true;
+  f.emit('changed');
+  t.mock.timers.tick(150);
+  await turn();
+  assert.equal(f.calls.filter((call) => call === 'synchronize').length, 2);
+  assert.equal(f.send.disabled, false);
+  f.input.value = 'During automatic recheck';
+  f.submit();
+  await turn();
+  assert.equal(
+    decodeDailyText(f.drafts[0]!.text).text,
+    'During automatic recheck',
+  );
+  assert.equal(f.input.value, '');
+  f.emit('removed');
+  assert.equal(
+    f.send.disabled,
+    true,
+    'Immediate invalidation must retain its send gate.',
+  );
+  f.history.resolve();
+  await turn();
 });
 
 await test('a row clicked after publication opens before unrelated startup work', async (t) => {

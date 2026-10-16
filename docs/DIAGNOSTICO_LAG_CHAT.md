@@ -1,5 +1,55 @@
 # Medidor local de sincronização — 15/10/2026
 
+## Applying the measured private text-send repair — 16/10/2026
+
+The owner supplied a complete desktop capture and authorized the repair. It
+records Enter attempts rejected by the disabled send button, publication responses
+followed by continued UI blocking, and automatic rechecks between sends. Exact
+timings, bundle attribution and captures remain private in `.local/`.
+
+Private ordinary text/reply admission now belongs to `messages/text-send.ts`.
+Each submission captures its recipient, encoded content and stable random ID,
+then clears only that captured input. Up to 32 unsaved drafts (at most 128 KiB
+each, with the existing 16,000-byte text validation unchanged) remain in the
+session's memory while serial encrypted saves complete. Storage failures retain
+the original ID and text for explicit retry. The UI distinguishes local saving,
+failed saving, durable sending and server acceptance awaiting verified history.
+Unsaved drafts block PWA activation and request the existing browser close guard;
+logout/session replacement discards unsaved plaintext. Browser/process termination
+before a save finishes can still lose an unsaved draft. Never label it delivered
+or persisted before those respective contracts complete.
+
+Local admission uses existing authority acquisition with interactive priority,
+the same local encryption/AAD and strict IndexedDB durability. It does not mutate
+the SDK or selected recipient and introduces no authority cache. The new private
+FIFO index/counter and ciphertext/quota debit commit atomically in the existing
+version-1 record store. Removing the outbox record removes its index/debit in the
+same transaction. An ID retry never replaces a previously stored packet. Legacy
+drafts retain their format and supported reader; normal text FIFO order survives
+reopening the database. Reads/transport batches remain limited to 16 entries.
+If an older tab consumes a new draft, the current reader removes its orphaned
+ordering metadata in bounded pages, preserving the remaining drafts and quota.
+The sender freezes the exact identities checked/pinned before publication so
+newly admitted drafts cannot enter an unverified in-flight batch.
+
+Transport retains the SDK exclusion and every existing fresh online authority,
+consent, removal, recipient-history, recovery, quota and idempotency check.
+Publication no longer awaits a visible-history/vault/presence round before the
+next text can be admitted. A single one-second quiet window coalesces normal
+background reads/profile work during typing and bursts; immediate invalidation
+remains immediate. One already-running owner is allowed to settle. Offline saves
+remain encrypted; transfer failures stop the eager drain and retain the existing
+bounded automatic retry policy. Editing, attachments, voice, groups and handle
+chat keep their existing submission flow.
+
+**Ponto importante:** fast local input is distinct from network acceptance and
+delivery. Physical acceptance must test rapid Enter, storage/transport failures,
+offline return and session/navigation changes. No backend, SQL migration,
+dependency, cryptographic format or VPS activation is part of this source repair.
+The existing coordinators remain hotspots; the new queue and FIFO persistence
+have their own modules. Keep broader session/identity, outbox/media and history
+extraction as a separate task with cancellation, recovery and authorization tests.
+
 ## Consecutive text-send capture — 16/10/2026
 
 The owner reported that consecutive Enter submissions require waiting between

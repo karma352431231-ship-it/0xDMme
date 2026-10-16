@@ -1,5 +1,18 @@
 /** Authored app text. Tuple order: English, Simplified Chinese. */
 export const catalog: Record<string, readonly [string, string]> = {
+  'chat.saving-local': [
+    'Saving message on this device…',
+    '正在将消息保存到此设备…',
+  ],
+  'chat.save-failed': [
+    'Message not saved. Retry before closing this page.',
+    '消息尚未保存。请在关闭此页面前重试。',
+  ],
+  'chat.retry-save': ['Retry saving message', '重试保存消息'],
+  'chat.sent-awaiting-history': [
+    'Message sent. Updating history…',
+    '消息已发送。正在更新历史记录…',
+  ],
   'preview.audio': ['Voice message', '语音消息'],
   'preview.unavailable': ['Message preview unavailable.', '无法显示消息预览。'],
   'Message action target is unavailable.': [

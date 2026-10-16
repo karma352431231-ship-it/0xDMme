@@ -84,7 +84,12 @@ export function composerState(input: {
 
 export function updateChatComposer(
   form: HTMLElement | null,
-  input: { blocked: boolean; recording: boolean; attachment: boolean },
+  input: {
+    blocked: boolean;
+    recording: boolean;
+    attachment: boolean;
+    textSendBlocked?: boolean | undefined;
+  },
 ): void {
   if (!form) return;
   const text = form.querySelector<HTMLTextAreaElement>('textarea');
@@ -92,7 +97,7 @@ export function updateChatComposer(
   const send = form.querySelector<HTMLButtonElement>('[data-compose-send]');
   if (send) {
     send.hidden = !state.send;
-    send.disabled = state.disabled;
+    send.disabled = input.textSendBlocked ?? state.disabled;
   }
   const record = form.querySelector<HTMLElement>('[data-voice-record]');
   if (record) record.hidden = !state.record;

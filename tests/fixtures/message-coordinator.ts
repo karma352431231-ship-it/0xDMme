@@ -10,6 +10,7 @@ import type { VaultAccess } from '../../src/client/vault-authority/index.ts';
 import type { VaultSync } from '../../src/client/vault-sync/index.ts';
 import { deferred } from './deferred.ts';
 import { updateChatComposer } from '../../src/client/chat-ui/index.ts';
+import { encodeDailyText } from '../../src/shared/daily/index.ts';
 
 // Real screen coordinator, scheduling, startup and wakeups. IO, media and DOM
 // projection are adapters; crypto and durable reuse have controller regressions.
@@ -32,6 +33,7 @@ const real = new Set([
   './startup.ts',
   './continuity.ts',
   './warmup.ts',
+  './text-send.ts',
 ]);
 const bundle = await build({
   entryPoints: [entry],
@@ -75,12 +77,17 @@ export function coordinatorFixture(t: TestContext) {
   const initialization = deferred<void>();
   const groupLoad = deferred<void>();
   const history = deferred<void>();
+  const saving = deferred<void>();
+  const sending = deferred<void>();
+  const drafts: { id: string; peer: string; text: string }[] = [];
   const state = {
     visibilityState: 'visible',
     holdPage: false,
     holdInitialization: false,
     holdGroups: false,
     holdHistory: false,
+    holdSave: false,
+    holdSend: false,
     liveCurrent: true,
     liveConnected: true,
     groupVisible: false,
@@ -130,7 +137,6 @@ export function coordinatorFixture(t: TestContext) {
     'ConversationSearch',
     'AttachmentUi',
     'VoiceRecording',
-    'MessageHistoryUi',
     'MessageDirectoryUi',
     'NotificationSound',
     'ExternalTextHistory',
@@ -167,6 +173,19 @@ export function coordinatorFixture(t: TestContext) {
       };
     };
   }
+  fixture.MessageHistoryUi = function (options: {
+    composerChanged: () => void;
+  }) {
+    return {
+      ...base,
+      render: () => options.composerChanged(),
+      clearMedia: noop,
+      markRead: () => {
+        calls.push('read');
+        return Promise.resolve();
+      },
+    };
+  };
   fixture.MessageDirectory = function (options: {
     changed: (peers: unknown[]) => void;
   }) {
@@ -196,10 +215,12 @@ export function coordinatorFixture(t: TestContext) {
     };
   };
   fixture.updateChatComposer = updateChatComposer;
+  fixture.encodeDailyText = encodeDailyText;
   fixture.Messages = function (
     _access: unknown,
     _sync: unknown,
     callback: typeof publish,
+    published: (value: { id: string; peer: string }) => void,
   ) {
     publish = callback;
     return {
@@ -236,14 +257,23 @@ export function coordinatorFixture(t: TestContext) {
       synchronize: () => {
         calls.push('synchronize');
         if (state.holdHistory) return history.promise.then(() => publish([]));
-        return Promise.resolve();
+        return Promise.resolve().then(() => publish([]));
       },
       compose: (peer: string) => {
         calls.push('compose:' + peer);
         return Promise.resolve();
       },
       pending: () => Promise.resolve([]),
-      sendPending: asyncNoop,
+      queueText: async (draft: { id: string; peer: string; text: string }) => {
+        if (state.holdSave) await saving.promise;
+        drafts.push(draft);
+        calls.push('compose:' + draft.peer);
+      },
+      sendPending: async () => {
+        calls.push('send-pending');
+        if (state.holdSend) await sending.promise;
+        for (const draft of drafts.splice(0, 16)) published(draft);
+      },
       synchronizeAll: (signal: AbortSignal) => {
         calls.push('preload');
         state.signals.push(signal);
@@ -382,6 +412,8 @@ export function coordinatorFixture(t: TestContext) {
     AbortController,
     AbortSignal,
     Event,
+    crypto,
+    TextEncoder,
     setTimeout,
     clearTimeout,
   };
@@ -421,6 +453,9 @@ export function coordinatorFixture(t: TestContext) {
     initialization,
     groupLoad,
     history,
+    saving,
+    sending,
+    drafts,
     input,
     send,
     submit: () => form.dispatchEvent(new Event('submit', { cancelable: true })),
