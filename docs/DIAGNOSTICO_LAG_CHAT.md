@@ -50,6 +50,12 @@ The existing coordinators remain hotspots; the new queue and FIFO persistence
 have their own modules. Keep broader session/identity, outbox/media and history
 extraction as a separate task with cancellation, recovery and authorization tests.
 
+The owner subsequently authorized main integration and VPS activation on
+16/10/2026, after the source and final test-adapter repair passed full CI. Notify
+the owner when the integrated main commit is published, then require its own
+full CI before activation. See the
+[release contract](GIT_E_DEPLOY.md#consecutive-private-texts--activation-authorized-on-16102026).
+
 ## Consecutive text-send capture — 16/10/2026
 
 The owner reported that consecutive Enter submissions require waiting between

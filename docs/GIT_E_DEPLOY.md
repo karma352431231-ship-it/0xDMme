@@ -1,5 +1,27 @@
 # 0xDMme — Git e envio à VPS
 
+## Consecutive private texts — activation authorized on 16/10/2026
+
+The owner authorized integrating the reviewed branch ending at `d55990d` into
+current main, requested an immediate notification when that merge is published,
+and authorized VPS activation. The branch includes the measured private text-send
+repair, the public DM continuity repair and the opt-in console diagnostic. Preserve
+bounded input admission, atomic encrypted FIFO persistence, fresh authorization,
+SDK exclusion and immediate invalidation. Physical send cadence remains to be
+accepted on the owner's devices.
+
+Require full CI for the exact pushed integration commit and use only
+`npm run deploy:staging` from its clean checkout, building on the Mac. Preserve the
+backend, all 71 SQL migrations and their executor, dependencies, Node, models,
+installed units, traffic bounds and shared infrastructure. No database transition
+or operational flag is part of this release. Keep preservation/readiness checks,
+public asset and corresponding-source verification, and the actual previous
+release for rollback. Access, artifacts, baselines and receipts stay in `.local/`.
+
+**Ponto importante:** report activation only after the matching published receipt
+and served build are verified. Admission, encrypted persistence, server acceptance
+and delivery remain distinct states; never promise instantaneous network delivery.
+
 ## Usable mobile conversations — activation authorized on 16/10/2026
 
 After the source repair passed 85 targeted scenarios and full exact-commit CI,
