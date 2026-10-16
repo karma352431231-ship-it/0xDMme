@@ -107,6 +107,8 @@ export const catalog: Record<string, readonly [string, string]> = {
     '社区主题 · 已选 {0}/2（必选）',
   ],
   'community.topics.filter': ['Filter by topic', '按主题筛选'],
+  'community.topics.toggle': ['Topics', '主题'],
+  'community.topics.toggle-count {0}': ['Topics · {0}', '主题 · {0}'],
   'Invalid publication mode.': ['Invalid publication mode.', '发布模式无效。'],
   'community.content-policy': [
     'Mark your community NSFW if it will contain sexually explicit content, including AI-generated images or drawings. Keep explicit content out of unmarked communities.',
@@ -638,6 +640,17 @@ export const catalog: Record<string, readonly [string, string]> = {
   'ranking.active-new {0}': ['▲ +{0} active', '▲ +{0} 位活跃'],
   'ranking.growth-up {0}': ['▲ {0}% active', '▲ 活跃 {0}%'],
   'ranking.growth-down {0}': ['▼ {0}% active', '▼ 活跃 {0}%'],
+  'ranking.active-label': ['active', '活跃'],
+  'feed.refresh': ['Refresh', '刷新'],
+  'feed.refresh-label': [
+    'Back to the top and load new posts',
+    '回到顶部并加载新帖子',
+  ],
+  'feed.posted': ['posted', '发布了'],
+  'feed.posted-label': [
+    'New posts: back to the top and load them',
+    '有新帖子：回到顶部并加载',
+  ],
   'ranking.empty': ['No communities here yet.', '这里还没有社区。'],
   'ranking.sign-in': [
     'Sign in to see the communities you follow.',
@@ -5315,7 +5328,6 @@ export const catalog: Record<string, readonly [string, string]> = {
   'Reativar microfone': ['Re-enable microphone', '重新启用麦克风'],
   'Recarregar comunidade': ['Reload community', '重新加载社区'],
   'Recarregar conversa': ['Reload conversation', '重新加载对话'],
-  'Recarregar do início': ['Reload from the beginning', '从头重新加载'],
   'Recarregar lista': ['Reload list', '重新加载列表'],
   'Recarregar notificações': ['Reload notifications', '重新加载通知'],
   'Recarregar postagens': ['Reload posts', '重新加载帖子'],

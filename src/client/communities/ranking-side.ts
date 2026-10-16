@@ -167,14 +167,14 @@ class RankingView {
     this.paintStrip(rows);
   }
   private createRow(row: Row): HTMLElement {
-    const link = el('a', '', 'ranking-row');
+    const link = el('a', '', 'ranking-side-row');
     link.href = `#communities?id=${encodeURIComponent(row.community.id)}`;
     const avatar = communityAvatar(row.community.name);
     link.append(
-      el('span', '', 'ranking-rank'),
+      el('span', '', 'ranking-side-rank'),
       avatar,
-      el('span', '', 'ranking-copy'),
-      el('span', '', 'ranking-numbers'),
+      el('span', '', 'ranking-side-copy'),
+      el('span', '', 'ranking-side-numbers'),
     );
     if (row.community.avatar)
       showPublicAvatar(avatar, {
@@ -297,7 +297,7 @@ function fillRow(node: HTMLElement, row: Row, rank: number, tab: RankingTab) {
   const growth = el(
     'small',
     tab === 'following' ? '' : activeGrowth(row.participants, row.previous),
-    'ranking-growth',
+    'ranking-side-growth',
   );
   growth.dataset['trend'] =
     row.participants > row.previous

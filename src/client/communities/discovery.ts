@@ -43,6 +43,8 @@ import { postViews } from './post-views.ts';
 import { DiscoverySnapshot } from './discovery-page.ts';
 import { appendReplyContext, entryCard } from './activity-entry.ts';
 import { feedPosition, restoreFeedPosition } from './feed-return.ts';
+import { FeedRefresh } from './feed-refresh.ts';
+import type { PublicProfile } from '../../shared/public-profile/index.ts';
 import type { FeedBookmark } from './feed-return.ts';
 import {
   communityAvatar,
@@ -87,6 +89,9 @@ export function startCommunityDiscovery(
   const snapshot = new DiscoverySnapshot();
   let displayedAfter: string | null = null;
   let displayedRank = 0;
+  // Newest post time on the first feed page shown; the refresh pill looks for later posts.
+  let newest = 0;
+  let feedRefresh: FeedRefresh | null = null;
   const mediaCleanup = new Set<() => void>();
   function clearMedia(): void {
     for (const cleanup of mediaCleanup) cleanup();
@@ -213,14 +218,14 @@ export function startCommunityDiscovery(
     if (!signedIn || (view !== 'feed' && view !== 'following')) return;
     appendOwnProfileShortcut(toolbar);
   }
-  function query(): string {
+  function query(cursor = after): string {
     const data = new URLSearchParams({
       order: view === 'explore' ? exploreOrder : order,
       period,
     });
     if (view === 'explore' && selectedTopics.length)
       data.set('topics', selectedTopics.join(','));
-    if (after) data.set('after', after);
+    if (cursor) data.set('after', cursor);
     return data.toString();
   }
   function scope(): FeedScope {
@@ -232,10 +237,10 @@ export function startCommunityDiscovery(
           ? 'hidden'
           : 'all';
   }
-  async function read(): Promise<unknown> {
+  async function read(cursor = after): Promise<unknown> {
     const signal = AbortSignal.any([abort.signal, AbortSignal.timeout(8000)]);
     if (view === 'explore')
-      return communityRead(`/api/communities/explore?${query()}`, signal);
+      return communityRead(`/api/communities/explore?${query(cursor)}`, signal);
     if (signedIn)
       return controller.request('discovery-feed', {
         filter: {
@@ -245,9 +250,26 @@ export function startCommunityDiscovery(
           community: null,
           tag: null,
         },
-        after,
+        after: cursor,
       });
-    return communityRead(`/api/communities/feed?${query()}`, signal);
+    return communityRead(`/api/communities/feed?${query(cursor)}`, signal);
+  }
+  /** Authors of first-page posts newer than the newest one already shown. */
+  async function peekNewAuthors(signal: AbortSignal): Promise<PublicProfile[]> {
+    if (!newest) return [];
+    const page = feedPage(await read(null));
+    if (signal.aborted) return [];
+    const authors = new Map<string, PublicProfile>();
+    for (const { post } of page.items)
+      if (post.author && Date.parse(post.createdAt) > newest)
+        authors.set(post.author.id, post.author);
+    return [...authors.values()];
+  }
+  function rememberNewest(page: ReturnType<typeof feedPage>): void {
+    newest = Math.max(
+      0,
+      ...page.items.map(({ post }) => Date.parse(post.createdAt) || 0),
+    );
   }
   async function load(): Promise<void> {
     const old = generation,
@@ -269,8 +291,7 @@ export function startCommunityDiscovery(
     list.replaceChildren();
     paging.replaceChildren();
     seen.clear();
-    if (page.kind === 'explore') renderExplore(page.value);
-    else renderFeed(page.value, old);
+    renderPage(page, old, requestedAfter === null);
     if (!list.children.length)
       list.append(
         el(
@@ -280,7 +301,18 @@ export function startCommunityDiscovery(
         ),
       );
     if (after) button(paging, t('Próxima página'), () => run(load));
-    button(paging, t('Recarregar do início'), () => run(reload));
+  }
+  function renderPage(
+    page: ReturnType<DiscoverySnapshot['read']>['page'],
+    old: number,
+    first: boolean,
+  ): void {
+    if (page.kind === 'explore') {
+      renderExplore(page.value);
+      return;
+    }
+    renderFeed(page.value, old);
+    if (first) rememberNewest(page.value);
   }
   function renderExplore(page: ReturnType<typeof explorePage>): void {
     if (!list) return;
@@ -338,7 +370,11 @@ export function startCommunityDiscovery(
       growth.title = t(
         'Histórico em formação; crescimento ainda não comparável.',
       );
-    return [followers, stat(number(item.participants), 'ativos'), growth];
+    return [
+      followers,
+      stat(number(item.participants), t('ranking.active-label')),
+      growth,
+    ];
   }
   function renderFeed(page: ReturnType<typeof feedPage>, old: number): void {
     for (const entry of page.items) {
@@ -506,6 +542,8 @@ export function startCommunityDiscovery(
     snapshot.clear();
     displayedAfter = null;
     displayedRank = 0;
+    newest = 0;
+    feedRefresh = null;
   }
   function startPage(bookmark?: FeedBookmark | null): void {
     if (!bookmark) {
@@ -590,6 +628,12 @@ export function startCommunityDiscovery(
       );
       paging = el('div', '', 'post-toolbar');
       mounted.append(feedback, list, paging);
+      feedRefresh = new FeedRefresh({
+        container: mounted,
+        signal: abort.signal,
+        refresh: () => run(reload),
+        peek: view === 'explore' ? null : peekNewAuthors,
+      });
       startPage(options.bookmark);
     },
     leave,
@@ -604,7 +648,8 @@ export function startCommunityDiscovery(
       };
     },
     refresh,
-    reset: () => run(reload),
+    /** The active Feed/Discover tab again: the pill when deep in the feed, else a reload. */
+    tabAgain: () => (feedRefresh?.tabAgain() ? Promise.resolve() : run(reload)),
     canActivate: () => !busy && !hasOpenFeedReply(mounted),
   };
 }

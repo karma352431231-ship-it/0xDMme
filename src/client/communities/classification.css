@@ -95,10 +95,41 @@
 .community-ranking-topics {
   padding: 0.5rem 1rem;
 }
+/* Ranking topic filter: a pill that opens the topic list (16/10/2026). */
+#app-shell .community-ranking-topics > summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  cursor: pointer;
+  padding: 0.45rem 0.9rem;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  color: var(--text);
+  font-size: var(--fs-small);
+  font-weight: 600;
+  list-style: none;
+}
+#app-shell .community-ranking-topics > summary::-webkit-details-marker {
+  display: none;
+}
+#app-shell .community-ranking-topics > summary::after {
+  content: '▾';
+  color: var(--text-muted);
+}
+#app-shell .community-ranking-topics[open] > summary::after {
+  content: '▴';
+}
+#app-shell .community-ranking-topics > summary:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 3px;
+}
+#app-shell .community-ranking-topics[open] > .community-topic-picker {
+  margin-top: 0.75rem;
+}
 .hover-card .community-classification-badges {
   margin-block: 0.6rem;
 }
-.ranking-copy .community-classification-badges {
+.ranking-link .ranking-copy .community-classification-badges {
   margin-top: 0.45rem;
 }
 @media (max-width: 600px) {

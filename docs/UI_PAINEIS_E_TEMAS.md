@@ -462,3 +462,9 @@ Owner decision after reviewing the sidebar (https://claude.ai/artifact/RNiWCXQr7
 ## Public videos in the feed — 16/10/2026
 
 At the owner's request, public post videos use one X-like height on every layout: up to `min(560px, 75vh)` on desktop, `min(560px, 68vh)` on phones, and `min(392px, 55vh)` in replies. The frame matches the video's proportion, so vertical "shorts" no longer sit inside side bars. Touch screens show an explicit **Full screen** button over the player's corner, because phone controls drop or hide that choice; desktops keep the native control. Loading and playback rules are unchanged.
+
+## Ranking fixes, topic button and new-posts pill — 16/10/2026
+
+- **Ranking table.** The sidebar's styles reused the table's class names and squeezed the community names out of the isolated Ranking page; the sidebar now uses its own `ranking-side-*` classes, guarded by a test. The "active" column label is translated.
+- **Topics.** The ranking topic filter sits behind a **Topics** button on every screen size; it shows how many topics are selected while closed.
+- **New-posts pill.** "Reload from the beginning" is replaced by an X-style pill at the top of the feed. It appears after the reader has gone deep into the feed (more than one and a half screens) and then returns to the top, or presses the active Feed/Discover tab again. While the reader is away from the top, the app checks the first feed page at most once every 45 seconds; when posts newer than the ones shown exist, the pill shows up to three author photos and "posted". Pressing it scrolls up and reloads only the feed, not the page. Near the top, pressing the active tab still reloads directly. Next-page navigation is unchanged.

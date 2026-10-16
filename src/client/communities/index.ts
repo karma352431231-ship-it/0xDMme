@@ -101,7 +101,7 @@ export function startCommunities(
   feedReturn.bind({
     container: () => mounted,
     bookmark: () => discovery.bookmark(),
-    reset: () => discovery.reset(),
+    reset: () => discovery.tabAgain(),
   });
   composer.bind(() => session !== null);
   let mounted: HTMLElement | null = null,

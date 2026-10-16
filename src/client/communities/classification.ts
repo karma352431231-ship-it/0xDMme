@@ -149,12 +149,24 @@ export function rankingTopicFilter(
   },
 ): void {
   if (!options.active) return;
-  const topics = el('div', '', 'community-ranking-topics');
+  // Collapsed behind a button on every screen size (16/10/2026); the count
+  // keeps an active filter visible while closed.
+  const topics = el('details', '', 'community-ranking-topics');
+  const toggle = el('summary', topicToggleLabel(options.selected.length));
+  topics.append(toggle);
   host.append(topics);
   topicPicker(topics, {
     selected: options.selected,
     maximum: communityTopics.length,
     label: t('community.topics.filter'),
-    change: options.change,
+    change: (value) => {
+      toggle.textContent = topicToggleLabel(value.length);
+      options.change(value);
+    },
   });
+}
+function topicToggleLabel(count: number): string {
+  return count
+    ? t('community.topics.toggle-count {0}', [String(count)])
+    : t('community.topics.toggle');
 }
