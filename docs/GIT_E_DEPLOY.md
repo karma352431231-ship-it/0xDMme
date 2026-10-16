@@ -1,5 +1,30 @@
 # 0xDMme — Git e envio à VPS
 
+## Usable mobile conversations — activation authorized on 16/10/2026
+
+After the source repair passed 85 targeted scenarios and full exact-commit CI,
+the owner explicitly authorized main integration and VPS activation, then resumed
+the release after context compaction. The reviewed task ends at `f9d0f73`.
+Accept the latest visible conversation choice during startup and run it at the
+next exclusive boundary; keep selected-history verification and send gates.
+Move unrelated startup maintenance into bounded turns that yield to foreground
+work. See the
+[functional startup contract](BOOT_CONTATOS_CONVERSAS.md#usable-conversations-during-mobile-startup--16102026).
+
+Merge this task into current main and require full CI for the exact pushed
+integration commit. Use only `npm run deploy:staging` from its clean checkout,
+with the build prepared on the Mac. Preserve the entire backend, all 71 SQL
+migrations and their executor, dependencies, Node, models, installed units and
+shared infrastructure. Do not add a database transition or operational flag.
+Keep preservation checks, own-service readiness, public asset/source verification
+and the actual previous release for rollback. Access, baselines, artifacts and
+operational receipts stay exclusively in `.local/`.
+
+**Ponto importante:** activation requires a matching `published` receipt and
+served build. A new physical Android capture must measure accepted tap, verified
+history and usable composer; passing CI or a visible list alone does not
+establish the actual mobile improvement.
+
 ## Private-directory boot repair — activation authorized on 16/10/2026
 
 After the complete Chrome Android capture and the scoped startup repair, the

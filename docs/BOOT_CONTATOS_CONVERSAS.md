@@ -51,8 +51,12 @@ remain required. The coordinators remain hotspots; keep the previously proposed
 separate extraction order rather than mixing a broad refactor into this repair.
 
 **Ponto importante:** completion means an accepted tap, verified selected history
-and usable composer. List publication alone is not functional readiness. Physical
-gains and release activation require their own evidence after the source checks.
+and usable composer. List publication alone is not functional readiness. The owner
+authorized main integration and VPS activation through the
+[existing release process](GIT_E_DEPLOY.md#usable-mobile-conversations--activation-authorized-on-16102026)
+after 85 targeted scenarios and full exact-commit CI passed. Activation requires
+the integrated commit's passing CI and matching published receipt. Physical gains
+still require a new Android capture after release.
 
 ## Foreground directory startup — 16/10/2026
 
@@ -74,9 +78,10 @@ pending warmup. After startup, normal readiness rechecks keep their behavior.
 Other foreground pages, including Communities and Contacts, keep their normal
 startup path. Navigating away releases deferred work immediately. A valid
 directory failure also releases it while the existing error remains an error;
-runtime failure never becomes directory success. Do not wait for message SDK
-initialization to release work after a directory already appeared. Deep-link or
-offline directory publication can settle the same current-session gate.
+runtime failure never becomes directory success. The functional-startup contract
+above now waits for essential message initialization and bounded maintenance
+before releasing optional app work. Directory publication, including deep-link
+or offline publication, alone no longer settles that current-session gate.
 
 Account, device or CSRF changes, logout and authorization loss invalidate the
 pending warmup. A stale completion cannot start another session's deferred work.
