@@ -3,9 +3,11 @@
 ## Optimistic own-text presentation — 16/10/2026
 
 The owner requested normal own-message bubbles immediately after Enter, a retry
-cross on failure, and Git-only delivery of this follow-up. This supersedes only
-the verbose presentation in the earlier send repair; main and VPS stay at their
-previous published release until separately authorized.
+cross on failure, and initially requested Git-only delivery of this follow-up.
+This supersedes only the verbose presentation in the earlier send repair. The
+owner subsequently authorized main integration and VPS activation, then resumed
+the release after context compaction. See the
+[activation scope](GIT_E_DEPLOY.md#optimistic-private-texts--activation-authorized-on-16102026).
 
 `messages/outgoing-text.ts` owns a bounded session-only display cache and draft
 rendering. Stable IDs join optimistic and verified rows in the same keyed history;
@@ -33,8 +35,9 @@ media, remote previews and read receipts wait for the verified history path.
 **Ponto importante:** this is client presentation around the existing E2EE queue,
 not moving plaintext or cryptography to the backend. A browser/process terminated
 before an encrypted save completes can still lose an unsaved draft; the existing
-close/PWA guards remain. No dependency, server, SQL, wire-format, main integration
-or VPS activation belongs to this follow-up. The coordinator remains a hotspot;
+close/PWA guards remain. This follow-up changes no dependency, server, SQL or
+wire format. Its authorized release preserves the current main's existing
+backend and migrations. The coordinator remains a hotspot;
 keep broader session/identity, outbox/media and history extraction separate,
 with cancellation, recovery and authorization tests.
 

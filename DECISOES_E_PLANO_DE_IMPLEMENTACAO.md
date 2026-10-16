@@ -9,9 +9,14 @@ their existing verified meaning. Keep ciphertext-before-transmission, authority,
 retention, quotas and exclusive SDK operation. Restore ordinary encrypted drafts
 under current authority after the history gate opens. Bound the own-text display
 cache to 64 entries of at most 128 KiB, hide it on invalidation and clear session
-plaintext on replacement. The owner explicitly requested saving this change in
-Git without main integration or VPS activation. **Ponto importante:** presentation
-is optimistic; actual persistence, acceptance and delivery remain distinct.
+plaintext on replacement. The owner initially requested Git-only delivery, then
+explicitly authorized main integration and VPS activation and resumed the release
+after context compaction. Preserve the latest integrated main, require full CI for
+the exact pushed release, and reuse the existing deployment executor with its
+preservation, readiness, public-source verification and retained rollback checks.
+**Ponto importante:** presentation is optimistic; actual persistence, acceptance
+and delivery remain distinct. See the
+[activation scope](docs/GIT_E_DEPLOY.md#optimistic-private-texts--activation-authorized-on-16102026).
 See the [presentation contract](docs/DIAGNOSTICO_LAG_CHAT.md#optimistic-own-text-presentation--16102026).
 
 **Measured private text-send repair — authorized on 16/10/2026:** after the
