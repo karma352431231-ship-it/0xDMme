@@ -155,6 +155,9 @@
   --ping-blue: #3b82f6;
   --ping-violet: #8b5cf6;
   --ping-alert: #f5b544;
+  /* Controls drawn over video frames, the same in every theme. */
+  --media-control-bg: rgb(0 0 0 / 55%);
+  --media-control-ink: #ffffff;
   accent-color: var(--accent);
   /* Type scale shared by every theme; inputs stay at 16px so iOS does not zoom on focus. */
   --fs-caption: 12px;

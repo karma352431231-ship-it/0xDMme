@@ -650,6 +650,7 @@ export const catalog: Record<string, readonly [string, string]> = {
   'right-column.label': ['Conversation or communities', '对话或社区'],
   'right-column.chat': ['Chat', '聊天'],
   'right-column.communities': ['Communities', '社区'],
+  'video.fullscreen': ['Full screen', '全屏'],
   'conversation.mute-1h': ['Mute for 1 hour', '静音 1 小时'],
   'conversation.mute-8h': ['Mute for 8 hours', '静音 8 小时'],
   'conversation.mute-24h': ['Mute for 24 hours', '静音 24 小时'],

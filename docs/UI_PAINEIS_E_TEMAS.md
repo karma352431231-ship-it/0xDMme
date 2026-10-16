@@ -458,3 +458,7 @@ Owner decision after reviewing the sidebar (https://claude.ai/artifact/RNiWCXQr7
 - **Split screen.** A **Chat | Communities** switch sits above the right column, which shows the conversation or the ranking. It starts on **Chat**. Opening a conversation, private or public, returns to Chat. The switch shares the column's divider and background so both read as one column, with compact buttons. New messages never switch the view; they add to the badge on Chat, which sums the unread counters the conversation list shows.
 - **Realtime.** See [active members and growth](RANKING_COMUNIDADES_TRENDING.md#active-members-and-growth-display--owner-decision-on-16102026).
 - Phones and screens below 1280 px are unchanged. Follower faces from the mockup are not drawn yet: they would need one extra request per row on every refresh.
+
+## Public videos in the feed — 16/10/2026
+
+At the owner's request, public post videos use one X-like height on every layout: up to `min(560px, 75vh)` on desktop, `min(560px, 68vh)` on phones, and `min(392px, 55vh)` in replies. The frame matches the video's proportion, so vertical "shorts" no longer sit inside side bars. Touch screens show an explicit **Full screen** button over the player's corner, because phone controls drop or hide that choice; desktops keep the native control. Loading and playback rules are unchanged.
