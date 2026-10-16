@@ -71,6 +71,7 @@ export function startMessages(
     openConversation: () => void;
     openContact: (contact: AddressBookEntry) => void;
     directoryChanged: (available: boolean) => void;
+    directorySettled?: (session: AccountSession | null) => void;
     representatives?: ReturnType<typeof startRepresentatives>;
     liveEvent?: (event: LiveEvent) => void;
     liveState?: (connected: boolean) => void;
@@ -207,6 +208,7 @@ export function startMessages(
           peers.find((peer) => peer.accountId === selected?.accountId) ??
           selected;
       renderContacts();
+      options.directorySettled?.(session);
     },
   });
   const peerPhotos = new PeerPhotos({
@@ -869,6 +871,7 @@ export function startMessages(
         loadPins: () => controller.loadPins(),
         loadContacts: refreshContacts,
         initialize: () => controller.initialize(),
+        settled: () => options.directorySettled?.(session),
         guard: () => {
           if (current !== generation) throw new Error('Sessão alterada.');
         },

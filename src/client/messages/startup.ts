@@ -5,6 +5,7 @@ interface DirectoryStartup {
   loadContacts: () => Promise<void>;
   initialize: () => Promise<void>;
   guard: () => void;
+  settled?: () => void;
 }
 /** Publish the authenticated directory while the public SDK downloads.
  * Message histories stay behind their existing verification gate. */
@@ -27,8 +28,13 @@ export async function initializeMessageDirectory(
   operations.guard();
 }
 async function loadDirectory(operations: DirectoryStartup): Promise<void> {
-  await operations.loadPins();
-  operations.guard();
-  await operations.loadContacts();
-  operations.guard();
+  try {
+    await operations.loadPins();
+    operations.guard();
+    await operations.loadContacts();
+    operations.guard();
+  } finally {
+    operations.guard();
+    operations.settled?.();
+  }
 }

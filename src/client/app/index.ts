@@ -46,6 +46,7 @@ import { ExternalMediaConsent } from '../external-media/index.ts';
 import { startAccountSettings } from './account-settings.ts';
 import type { PageKey } from './pages.ts';
 import { mountLanguageSettings, startLanguage } from '../language/index.ts';
+import { SessionBoot } from './session-boot.ts';
 
 function element<T extends HTMLElement>(id: string): T {
   const result = document.getElementById(id);
@@ -184,6 +185,7 @@ const messages = startMessages(devices, vault.sync, {
     const shell = document.getElementById('app-shell');
     if (shell) shell.dataset['history'] = available ? 'available' : 'empty';
   },
+  directorySettled: (session) => sessionBoot.settled(session),
   representatives,
   liveEvent: (event) => {
     statuses.event(event);
@@ -249,6 +251,17 @@ const accountSettings = startAccountSettings({
   },
   contacts,
 });
+// Optional session warmups follow the foreground private directory's first load.
+const sessionBoot = new SessionBoot((session) => {
+  publicProfiles.ready();
+  communities.ready();
+  contacts.ready();
+  activity.ready();
+  statuses.ready();
+  void vault.ready();
+  loadSessionExtras(session.accountId);
+  if (!account.approvalPage) accountSettings.ready();
+});
 // Status rings load once per authorized session; activity has its own wakeups.
 let sessionExtrasFor = '';
 const account = startAccount({
@@ -263,6 +276,7 @@ const account = startAccount({
     devices.saveProfile(session, profile, key),
   changed: (session) => {
     connectedAccount = session;
+    sessionBoot.setSession(session);
     const shell = document.getElementById('app-shell');
     if (shell) {
       shell.dataset['account'] = session ? 'connected' : 'guest';
@@ -393,6 +407,7 @@ function route(): void {
   canonicalizeRoute();
   const key = pageKey(location.hash);
   if (key === null) return;
+  if (key !== 'conversas') sessionBoot.release();
   if (updateMountedPage(key)) {
     // Account handles wallet-return fragments; keep profile drafts/camera mounted.
     currentHash = location.hash;
@@ -608,18 +623,16 @@ function connection(): void {
     devices.authorized(),
   );
   if (connectedAccount && devices.authorized()) {
-    publicProfiles.ready();
-    communities.ready();
+    sessionBoot.update(connectedAccount, {
+      directoryStarting: messagesReady,
+      prioritizeDirectory:
+        pageKey(location.hash) === 'conversas' &&
+        appShell?.dataset['contactScope'] !== 'public',
+    });
     if (messagesReady) messages.ready();
     calls.ready();
-    contacts.ready();
-    activity.ready();
     groupEntrypoints.ready();
-    statuses.ready();
-    void vault.ready();
-    loadSessionExtras(connectedAccount.accountId);
-    if (!account.approvalPage) accountSettings.ready();
-  }
+  } else sessionBoot.reset();
   renderConnection();
 }
 function renderConnection(): void {
