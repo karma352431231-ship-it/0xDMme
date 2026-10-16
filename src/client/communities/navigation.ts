@@ -1,3 +1,5 @@
+import { communitySlug } from '../../shared/community-address/index.ts';
+import { uuid } from '../../shared/account/index.ts';
 import { t } from '../../shared/i18n/index.ts';
 import { communityElement as el, communityLink as link } from './elements.ts';
 import { iconLabel } from './presentation.ts';
@@ -163,4 +165,20 @@ const communityViews = new Set([
 export function communityView(view: string, selected: string | null): string {
   if (!communityViews.has(view)) return 'feed';
   return ['manage', 'followers'].includes(view) && !selected ? 'feed' : view;
+}
+
+/** Keep public address names distinct from IDs before their first lookup. */
+export function communitySelection(params: URLSearchParams): {
+  selected: string | null;
+  slug: string | null;
+} {
+  const slug = params.get('slug');
+  if (slug !== null) {
+    const value = communitySlug(slug);
+    return { selected: value, slug: value };
+  }
+  return {
+    selected: params.has('id') ? uuid(params.get('id')) : null,
+    slug: null,
+  };
 }

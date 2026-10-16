@@ -14,13 +14,17 @@ interface CommunityDetail {
  * signed-out screen. The caller must discard its view on a current failure. */
 export async function readCommunityDetail(options: {
   id: string;
+  slug?: string | null;
   signedIn: boolean;
   signal: AbortSignal;
   valid: () => boolean;
   state: (id: string) => Promise<CommunityState>;
   previous: CommunityDetail;
 }) {
-  const value = await readCommunity(options.id, options.signal);
+  const value = await readCommunity(
+    options.slug ? { slug: options.slug } : options.id,
+    options.signal,
+  );
   if (!options.valid()) return null;
   const state = options.signedIn ? await options.state(value.id) : null;
   if (!options.valid()) return null;

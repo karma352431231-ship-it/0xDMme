@@ -1,4 +1,3 @@
-import { communitySlug } from '../../shared/community-address/index.ts';
 import { communityHref } from '../../shared/app-routes/index.ts';
 import { navigateApp } from '../app-navigation/index.ts';
 import { upvoteNoticePage } from '../../shared/public-upvotes/index.ts';
@@ -73,6 +72,7 @@ import {
   communityDirectoryNavigation,
   communityNavigation,
   communityView,
+  communitySelection,
   postReturnTarget,
 } from './navigation.ts';
 
@@ -122,6 +122,7 @@ export function startCommunities(
     selectedDm: string | null = null,
     localDm = false,
     selected: string | null = null,
+    selectedSlug: string | null = null,
     selectedPost: string | null = null,
     selectedTag: string | null = null,
     cursor: string | null = null;
@@ -713,6 +714,7 @@ export function startCommunities(
     try {
       const next = await readCommunityDetail({
         id: selected,
+        slug: selectedSlug,
         signedIn: session !== null,
         signal: signal(),
         valid: () => old === generation,
@@ -722,6 +724,7 @@ export function startCommunities(
       if (!next) return;
       current = next.community;
       selected = current.id;
+      selectedSlug = null;
       state = next.state;
       if (view === 'manage' && presentation?.retainDraft(next.state)) return;
       if (next.changed || view === 'followers') details();
@@ -782,11 +785,7 @@ export function startCommunities(
       try {
         selectedDm = params.has('dm') ? uuid(params.get('dm')) : null;
         localDm = params.get('history') === 'local';
-        selected = params.has('slug')
-          ? communitySlug(params.get('slug'))
-          : params.has('id')
-            ? uuid(params.get('id'))
-            : null;
+        ({ selected, slug: selectedSlug } = communitySelection(params));
         selectedPost = params.has('post') ? uuid(params.get('post')) : null;
         selectedTag = params.has('tag') ? uuid(params.get('tag')) : null;
         // A post opened from a list returns to that list, not to its community.

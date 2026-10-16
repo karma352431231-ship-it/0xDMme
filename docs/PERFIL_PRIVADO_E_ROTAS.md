@@ -129,3 +129,10 @@ endereço lembrado pelos painéis e pelo roteador, sem remontar a comunidade.
 Abrir uma conversa privada ou alternar colunas conserva o nome na URL e os
 rascunhos montados. A regressão reproduziu o retorno indevido ao UUID antes da
 correção e verifica o endereço final e a montagem única.
+
+A leitura distingue explicitamente endereços e UUIDs, inclusive quando o nome
+escolhido tem formato de UUID. Página e miniperfil consultam o endereço pelo
+endpoint próprio; depois da resolução, operações e atualizações usam o UUID
+real retornado. Um teste de regressão reproduziu a consulta indevida ao ID e
+confere a identidade resolvida. O cache do miniperfil separa as duas referências
+e invalida ambas ao atualizar o follow.
