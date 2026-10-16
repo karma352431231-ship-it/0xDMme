@@ -8,6 +8,7 @@ import {
   settled,
 } from './fixtures/discovery-ui.ts';
 import type { AppLanguage } from '../src/shared/i18n/index.ts';
+import { CommunityNode } from './fixtures/community-dom.ts';
 
 for (const language of [
   'en',
@@ -199,6 +200,71 @@ await test('hiding a feed card uses the existing preference operation and reload
     'discovery-feed',
   ]);
   assert.equal(fixture.host.querySelector('.community-post'), null);
+});
+
+await test('confirmed feed votes preserve the displayed page, scroll, card and draft', async (t) => {
+  const fixture = discoveryFixture({ signedIn: true });
+  t.after(() => fixture.ui.leave());
+  const cursor = JSON.stringify({
+    filter: 'all/mixed/all',
+    anchor: '2026-10-15T12:00:00.000Z',
+    rank: 1,
+    time: '2026-10-15T12:00:00.000Z',
+    id: crypto.randomUUID(),
+  });
+  fixture.state.feed.next = cursor;
+  await settled(fixture);
+  fixture.state.feed.next = null;
+  fixture.state.feed.items[0]!.viewerVote = 0;
+  button(fixture.host, fixture.t('Próxima página')).click();
+  await settled(fixture);
+  assert.equal(fixture.ui.bookmark()?.after, cursor);
+  const card = fixture.host.querySelector('.community-post')!,
+    votes = card.querySelector('.post-votes')!,
+    draft = new CommunityNode('textarea');
+  draft.value = 'Keep this draft';
+  card.append(draft);
+  fixture.host.scrollTop = 900;
+  const reads = fixture.requests.length;
+  let current = { position: 0, score: 5 };
+  let confirmed = current;
+  fixture.state.request = (operation) => {
+    if (operation === 'post-vote') current = confirmed;
+    else assert.equal(operation, 'post-state');
+    return Promise.resolve({
+      post: { ...fixture.state.feed.items[0]!.post, score: current.score },
+      own: false,
+      manager: false,
+      canEdit: false,
+      canDelete: false,
+      content: null,
+      removal: null,
+      vote: { position: current.position, revision: 1 },
+    });
+  };
+  for (const [clicked, position, score] of [
+    [1, 1, 6],
+    [-1, -1, 4],
+    [-1, 0, 5],
+  ] as const) {
+    confirmed = { position, score };
+    const target = votes
+      .querySelectorAll('button')
+      .find((node) => node.dataset['vote'] === String(clicked))!;
+    target.click();
+    await settled(fixture);
+    assert.equal(fixture.host.scrollTop, 900);
+    assert.equal(fixture.ui.bookmark()?.after, cursor);
+    assert.equal(fixture.requests.length, reads);
+    assert.equal(fixture.host.querySelector('.community-post'), card);
+    assert.equal(draft.parent, card);
+    assert.equal(draft.value, 'Keep this draft');
+    assert.equal(card.querySelector('.post-score')?.textContent, String(score));
+    assert.equal(
+      target.getAttribute('aria-pressed'),
+      String(clicked === position),
+    );
+  }
 });
 
 await test('deleted and moderated feed cards preserve their notices and omit content and votes', async (t) => {

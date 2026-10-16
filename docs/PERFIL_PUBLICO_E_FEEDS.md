@@ -1,5 +1,31 @@
 # Perfil público individual e feeds — 10/10/2026
 
+## Feed votes preserve reading position — 15/10/2026
+
+The owner reported an upvote scrolling the feed to the top during acceptance of
+the discovery release. The existing confirmed-vote callback called `reload`,
+resetting the displayed cursor and scroll before loading the first page. The
+module extraction preserved that earlier behavior; the repair belongs to the
+card's existing vote presentation in `feed-card.ts`.
+
+After a successful vote, paint only the server-confirmed score and pressed vote
+state. Do not reload, reorder, replace cards or dispose media/reply drafts for a
+visible post. Preserve the current page and reading position for upvotes,
+downvotes and vote removal. A non-visible confirmed post still takes the existing
+refresh path so removed content does not remain displayed. Hide/block/management
+refreshes and the explicit new-posts control keep their existing behavior.
+
+The regression test reproduces a jump from scroll position 900 to zero before
+the repair on a later feed page, then checks cursor, card/draft identity, confirmed
+score, pressed controls and absence of a feed reload for all three vote outcomes.
+Continue to fetch current private vote state, use its revision and reject late
+results after navigation/session changes; no optimistic success or new API is added.
+
+**Ponto importante:** this is a frontend acceptance repair for the approved
+discovery release. Keep backend, migrations, dependencies and infrastructure
+unchanged; integrate and activate only after exact-commit CI through the existing
+deployment executor with preservation/readiness and retained code rollback.
+
 ## Discovery module extraction — owner approval on 15/10/2026
 
 The owner approved extracting the existing discovery screen after saving a

@@ -1,5 +1,17 @@
 # 0xDMme — decisões e plano de implementação
 
+**Feed vote position repair — 15/10/2026:** during acceptance of the authorized
+discovery release, the owner reported that upvoting jumps to the top of the feed.
+The confirmed-vote callback still used the existing reload-from-start path,
+which resets both cursor and scroll; this path predates the module extraction.
+Update the confirmed score and pressed vote controls in the existing card instead,
+preserving its page, nodes, media and reply draft. If the returned post is no
+longer visible, retain the existing refresh/removal path. Signed reads/writes,
+revision checks, authorization and explicit feed refresh behavior remain unchanged.
+This is a frontend acceptance repair under the approved discovery release flow,
+with exact integrated-commit CI and the existing deployment executor. See the
+[repair contract](docs/PERFIL_PUBLICO_E_FEEDS.md#feed-votes-preserve-reading-position--15102026).
+
 **Discovery refactor approved on 15/10/2026:** the owner required a verified source
 checkpoint before proceeding with the separate hotspot task. Extract ranking
 presentation first, then feed cards; preserve behavior and keep loading/pagination,
