@@ -337,9 +337,7 @@ export function createWebServer(options: {
   server.requestTimeout = 5_000;
   server.headersTimeout = 5_000;
   server.keepAliveTimeout = 1_000;
-  server.maxConnections = 32;
   server.maxHeadersCount = 32;
-  server.maxRequestsPerSocket = 32;
   return {
     server,
     async close(): Promise<void> {

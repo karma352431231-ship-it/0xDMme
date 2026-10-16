@@ -81,7 +81,6 @@ export function createCommunityHandler(read: {
   tags?: (community: string, after: string | null) => Promise<TagPage>;
 }) {
   const budget = new RequestBudget();
-  let active = 0;
   function send(
     response: ServerResponse,
     status: number,
@@ -147,11 +146,6 @@ export function createCommunityHandler(read: {
     response: ServerResponse,
   ): Promise<void> {
     const head = request.method === 'HEAD';
-    if (active >= 4) {
-      send(response, 503, { error: 'Comunidades ocupadas. Aguarde.' }, head);
-      return;
-    }
-    active++;
     try {
       send(response, 200, await lookup(request), head);
     } catch (error: unknown) {
@@ -173,8 +167,6 @@ export function createCommunityHandler(read: {
         },
         head,
       );
-    } finally {
-      active--;
     }
   }
   function params(address: URL, allowed: string[]): void {

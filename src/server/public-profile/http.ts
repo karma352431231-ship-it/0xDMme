@@ -15,7 +15,6 @@ export function createPublicProfileHandler(
     Partial<Pick<PublicProfileService, 'readById' | 'suggestions'>>,
 ) {
   const budget = new RequestBudget();
-  let active = 0;
   function send(
     response: ServerResponse,
     status: number,
@@ -90,16 +89,6 @@ export function createPublicProfileHandler(
   ): Promise<void> {
     const head = request.method === 'HEAD';
     response.setHeader('Cache-Control', 'no-store');
-    if (active >= 4) {
-      send(
-        response,
-        503,
-        { error: 'Perfis públicos ocupados. Aguarde.' },
-        head,
-      );
-      return;
-    }
-    active++;
     try {
       await lookup(request, response);
     } catch (error: unknown) {
@@ -114,8 +103,6 @@ export function createPublicProfileHandler(
         },
         head,
       );
-    } finally {
-      active--;
     }
   }
   return { handle, close: () => budget.close() };

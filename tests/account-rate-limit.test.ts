@@ -40,3 +40,49 @@ await test('leituras e escritas normais não têm teto por minuto nem esgotam de
     limit.close();
   }
 });
+
+await test('protected clients do not share a fixed 256-client admission ceiling', () => {
+  const limit = new AccountRateLimit({ requests: null });
+  try {
+    for (let i = 0; i < 300; i++) limit.admit(`synthetic-client-${i}`, true);
+    for (let i = 1; i < 6; i++) limit.admit('synthetic-client-0', true);
+    assert.throws(() => limit.admit('synthetic-client-0', true), {
+      status: 429,
+    });
+    assert.doesNotThrow(() => limit.admit('synthetic-client-299', true));
+  } finally {
+    limit.close();
+  }
+});
+
+await test('protected windows expire independently on a monotonic clock', (t) => {
+  let now = 0;
+  t.mock.method(performance, 'now', () => now);
+  const limit = new AccountRateLimit({ requests: null });
+  try {
+    for (let i = 0; i < 6; i++) limit.admit('first', true);
+    now = 1000;
+    for (let i = 0; i < 6; i++) limit.admit('second', true);
+    now = 60_000;
+    assert.doesNotThrow(() => limit.admit('first', true));
+    assert.throws(() => limit.admit('second', true), { status: 429 });
+    now = 61_000;
+    assert.doesNotThrow(() => limit.admit('second', true));
+  } finally {
+    limit.close();
+  }
+});
+
+await test('a client window expires even when a burst leaves an expired cleanup backlog', (t) => {
+  let now = 0;
+  t.mock.method(performance, 'now', () => now);
+  const limit = new AccountRateLimit({ requests: null });
+  try {
+    for (let i = 0; i < 1024; i++) limit.admit(`synthetic-client-${i}`, true);
+    for (let i = 1; i < 6; i++) limit.admit('synthetic-client-1023', true);
+    now = 60_001;
+    assert.doesNotThrow(() => limit.admit('synthetic-client-1023', true));
+  } finally {
+    limit.close();
+  }
+});

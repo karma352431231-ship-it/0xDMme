@@ -53,9 +53,8 @@ function requireCanonicalRoute(input: {
     throw new AccountError(404, 'Mídia pública indisponível.');
 }
 
-/** Anonymous public media has bounded concurrent readers and no per-minute rate cap. */
+/** Each public request independently verifies current release and bounded content. */
 export function createPublicMediaHandler(service: PublicMediaService) {
-  let active = 0;
   async function read(
     request: IncomingMessage,
     response: ServerResponse,
@@ -82,11 +81,6 @@ export function createPublicMediaHandler(service: PublicMediaService) {
     response.setHeader('Cache-Control', 'no-store');
     response.setHeader('X-Content-Type-Options', 'nosniff');
     response.setHeader('Cross-Origin-Resource-Policy', 'same-origin');
-    if (active >= 4) {
-      response.writeHead(503).end();
-      return;
-    }
-    active++;
     try {
       await read(request, response);
     } catch (error: unknown) {
@@ -108,8 +102,6 @@ export function createPublicMediaHandler(service: PublicMediaService) {
                     : 'Mídia pública indisponível.',
               }),
         );
-    } finally {
-      active--;
     }
   }
   return {

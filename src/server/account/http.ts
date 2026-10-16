@@ -7,6 +7,7 @@ import {
 } from '../../shared/account/index.ts';
 import { AccountService, challengeSeconds, sessionSeconds } from './service.ts';
 import { AccountRateLimit } from './rate-limit.ts';
+import { clientAddress } from '../request-identity/index.ts';
 import type { DeviceService } from '../devices/index.ts';
 import type { VaultService } from '../vault/index.ts';
 import type { MessageService } from '../messages/index.ts';
@@ -145,6 +146,7 @@ function send(response: ServerResponse, status: number, data: unknown): void {
 export function createAccountHandler(options: {
   service: AccountService;
   origin: string;
+  trustUnixProxy?: boolean;
   walletConnectProjectId?: string;
   /** Public by nature: the browser uses it to call KLIPY directly. */
   gifSearchKey?: string;
@@ -168,9 +170,8 @@ export function createAccountHandler(options: {
   // Normal API reads/writes and upload parts have no per-minute transport quota.
   // Login challenges retain their independent protection.
   const limit = new AccountRateLimit({ requests: null });
-  // Call control keeps separate pre-auth transport and authenticated command
-  // budgets; synchronization/end have no separate per-minute read quota.
-  const callAdmission = new AccountRateLimit({ requests: 900 });
+  // The edge protects unauthenticated traffic per client. Commands retain
+  // their authenticated budget; synchronization/end have no transport quota.
   const callSessions = new AccountRateLimit();
   const recovery = new RecoveryReturn(options.origin);
   const enrollments = options.devices
@@ -182,7 +183,6 @@ export function createAccountHandler(options: {
     options.origin,
     options.approvalDocument,
   );
-  let active = 0;
 
   async function enrollmentJoin(
     request: IncomingMessage,
@@ -668,24 +668,21 @@ export function createAccountHandler(options: {
   }
 
   function admit(request: IncomingMessage): void {
-    if (request.url?.startsWith('/api/account/calls/')) {
-      callAdmission.admit(request.socket.remoteAddress ?? 'unknown', false);
-      return;
-    }
-    limit.admit(
-      request.socket.remoteAddress ?? 'unknown',
-      challengeRoutes.has(request.url ?? '') || approvalEntryUrl(request.url),
-    );
+    const challenge =
+      challengeRoutes.has(request.url ?? '') || approvalEntryUrl(request.url);
+    if (challenge)
+      limit.admit(
+        clientAddress({
+          request,
+          trustUnixProxy: options.trustUnixProxy === true,
+        }),
+        true,
+      );
   }
   async function handle(
     request: IncomingMessage,
     response: ServerResponse,
   ): Promise<void> {
-    if (active >= 4) {
-      send(response, 503, { error: 'Conta ocupada. Aguarde.' });
-      return;
-    }
-    active++;
     try {
       admit(request);
       if (request.method === 'POST') {
@@ -699,8 +696,6 @@ export function createAccountHandler(options: {
         return;
       }
       send(response, 503, { error: 'Conta indisponível. Tente novamente.' });
-    } finally {
-      active--;
     }
   }
   /** Public, unauthenticated client settings. */
@@ -825,7 +820,6 @@ export function createAccountHandler(options: {
       options.live?.close();
       options.calls?.close();
       limit.close();
-      callAdmission.close();
       callSessions.close();
       recovery.close();
       options.service.opening.close();

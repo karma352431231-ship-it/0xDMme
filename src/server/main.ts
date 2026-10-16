@@ -161,6 +161,7 @@ try {
       tags: (id, after) => communities.tags(id, after),
     }),
     account: createAccountHandler({
+      trustUnixProxy: config.socketPath !== undefined,
       communities,
       publicProfiles,
       calls,

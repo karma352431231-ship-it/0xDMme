@@ -1,3 +1,17 @@
+# Capacity audit follow-up — 16 October 2026
+
+The owner authorized starting removal of the artificial limits found in the
+capacity audit. Keep individual storage quotas, encryption, authorization,
+retention and abuse protection. Replace small test-environment visitor counts
+with capacity tied to the application's available resources. The first block
+removes HTTP admission/socket/transfer barriers and fixes trusted proxy client
+identity; database coordination, quota accounting, media queues and remaining
+service limits are separate implementation blocks. See
+[capacity and concurrency](docs/CAPACITY_AND_CONCURRENCY.md) for behavior,
+regressions, activation ordering and remaining work. This decision supersedes
+older fixed HTTP connection/operation and per-response speed caps; it does not
+approve changing the other project's infrastructure or weakening data safety.
+
 # 0xDMme — decisões e plano de implementação
 
 Decisão de 11/10/2026: retirar os tetos operacionais de backup de objetos (256 MiB), banco/dump/SQL (64 MiB), inclusive a recusa por tamanho físico do PostgreSQL. Usar medição de espaço real, arquivos temporários privados e hashes por blocos; preservar integridade, isolamento, rollback e CI. Substitui a aprovação anterior de ampliar só o backup de objetos. [Contrato do deploy](docs/GIT_E_DEPLOY.md).

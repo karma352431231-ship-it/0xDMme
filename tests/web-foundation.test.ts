@@ -598,3 +598,74 @@ await test('servidor recusa origem, mutação, traversal e dados privados; saúd
   assert.equal(worker.headers['service-worker-allowed'], '/');
   assert.doesNotMatch(worker.body, /\{\{ASSETS\}\}|\{\{VERSION\}\}/u);
 });
+
+await test('web accepts more than 32 simultaneous sockets without a fixed visitor ceiling', async (t) => {
+  let release = () => {};
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  let admitted = 0;
+  let ready = () => {};
+  const allAdmitted = new Promise<void>((resolve) => {
+    ready = resolve;
+  });
+  const host = createWebServer({
+    origin: 'http://127.0.0.1:45100',
+    assets: new Map(),
+    database: { healthy: () => Promise.resolve(true) },
+    objects: { healthy: () => Promise.resolve(true) },
+    publicProfiles: {
+      handle: async (_request, response) => {
+        if (++admitted === 40) ready();
+        await gate;
+        response.end('synthetic');
+      },
+      close: () => {},
+    },
+  });
+  t.after(() => host.close());
+  await new Promise<void>((resolve) =>
+    host.server.listen(0, '127.0.0.1', resolve),
+  );
+  const address = host.server.address();
+  assert.ok(address && typeof address !== 'string');
+  const clients = Array.from(
+    { length: 40 },
+    () =>
+      new Promise<number>((resolve) => {
+        const client = request(
+          {
+            hostname: '127.0.0.1',
+            port: address.port,
+            path: '/api/public-profiles/synthetic',
+            agent: false,
+            headers: { Host: '127.0.0.1:45100' },
+          },
+          (response) => {
+            response.resume();
+            response.once('end', () => resolve(response.statusCode ?? 0));
+          },
+        );
+        client.once('error', () => resolve(0));
+        client.end();
+      }),
+  );
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  try {
+    await Promise.race([
+      allAdmitted,
+      new Promise<never>((_resolve, reject) => {
+        timeout = setTimeout(
+          () => reject(new Error('Not all sockets were admitted.')),
+          5000,
+        );
+      }),
+    ]);
+    assert.equal(admitted, 40);
+  } finally {
+    clearTimeout(timeout);
+    release();
+    const statuses = await Promise.all(clients);
+    assert.ok(statuses.every((status) => status === 200));
+  }
+});
