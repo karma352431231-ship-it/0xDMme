@@ -34,7 +34,7 @@
   object-fit: cover;
 }
 .community-image-banner {
-  height: 12rem;
+  height: 100%;
 }
 .community-image-photo {
   width: 6rem;
@@ -80,7 +80,7 @@
 .community-image-slot-banner {
   overflow: hidden;
   border-radius: 14px;
-  height: clamp(110px, 16vw, 180px);
+  aspect-ratio: 3 / 1;
 }
 .community-image-slot-photo {
   z-index: 1;

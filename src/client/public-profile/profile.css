@@ -15,8 +15,10 @@
 .public-profile-header:has(.post-more[open]) {
   overflow: visible;
 }
+/* Banners keep the 3:1 frame chosen in the editor on every screen (16/10/2026). */
 .public-profile-banner {
-  height: clamp(120px, 19vw, 230px);
+  height: auto;
+  aspect-ratio: 3 / 1;
   background: var(--surface-3);
   overflow: hidden;
   position: relative;
@@ -331,7 +333,7 @@
   border-radius: 16px;
 }
 #feed-panel .public-profile-banner {
-  height: 96px;
+  height: auto;
 }
 #feed-panel .public-profile-identity {
   flex-wrap: wrap;
@@ -450,7 +452,9 @@
 }
 .profile-editor-banner {
   position: relative;
-  height: clamp(110px, 16vw, 180px);
+  aspect-ratio: 3 / 1;
+  /* Without clipping, a tall picture would stretch the 3:1 frame. */
+  overflow: hidden;
   background: var(--surface-3);
 }
 #app-shell .public-profile-card .profile-editor .profile-editor-pick {
@@ -937,5 +941,72 @@
   #app-shell .public-profile-actions svg {
     width: 18px;
     height: 18px;
+  }
+}
+
+/*
+ * Public profile editor layout (16/10/2026): nothing added or removed, only
+ * breathing room. Contents keep an even inner margin, the confirm button sits
+ * inside the card instead of on its edge, and on phones the handle gets its
+ * own line under the photo instead of breaking mid-word.
+ */
+#app-shell .public-profile-card .profile-editor {
+  display: flex;
+  flex-direction: column;
+}
+#app-shell .public-profile-card .profile-editor .profile-editor-remove {
+  top: 12px;
+  right: 12px;
+}
+.public-profile-card .profile-editor .profile-editor-identity {
+  gap: 16px;
+  padding: 0 24px;
+}
+.public-profile-card .profile-editor .profile-editor-title {
+  display: grid;
+  gap: 4px;
+  padding-bottom: 8px;
+}
+#app-shell .public-profile-card .profile-editor .profile-editor-title a {
+  width: fit-content;
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+}
+#app-shell .public-profile-card .profile-editor .profile-editor-title a:hover {
+  text-decoration: underline;
+}
+#app-shell .public-profile-card .profile-editor .profile-editor-description {
+  padding: 20px 24px 4px;
+}
+#app-shell .public-profile-card .profile-editor > [data-confirm-profile] {
+  align-self: flex-end;
+  margin: 12px 24px 24px;
+  padding: 10px 22px;
+  border-radius: 999px;
+}
+@media (max-width: 520px) {
+  .public-profile-card .profile-editor .profile-editor-identity {
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 0 16px;
+  }
+  .public-profile-card .profile-editor .profile-editor-title {
+    flex-basis: 100%;
+    padding-bottom: 0;
+  }
+  .public-profile-card .profile-editor .profile-editor-title h3 {
+    font-size: 20px;
+  }
+  #app-shell .public-profile-card .profile-editor .profile-editor-description {
+    padding: 16px 16px 4px;
+  }
+  #app-shell .public-profile-card .profile-editor > [data-confirm-profile] {
+    align-self: stretch;
+    margin: 12px 16px 18px;
+  }
+  #app-shell .public-profile-card .profile-editor .profile-editor-remove {
+    top: 10px;
+    right: 10px;
   }
 }

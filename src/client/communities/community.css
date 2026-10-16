@@ -1658,9 +1658,10 @@
   border-radius: 18px;
   background: var(--surface);
 }
+/* Same 3:1 frame as the banner editor on every screen (16/10/2026). */
 .community-banner {
   position: relative;
-  height: 150px;
+  aspect-ratio: 3 / 1;
   overflow: hidden;
 }
 .community-banner > .public-avatar-preview {
@@ -1766,9 +1767,6 @@
   #app-shell [data-communities] .community-hero {
     border-radius: 20px;
   }
-  #app-shell [data-communities] .community-banner {
-    height: clamp(140px, 19vw, 230px);
-  }
   #app-shell [data-communities] .community-hero-head {
     gap: 12px 20px;
     padding: 0 28px;
@@ -1826,9 +1824,6 @@
 }
 /* Reply box opened from the comment button. */
 @media (max-width: 700px) {
-  .community-banner {
-    height: 110px;
-  }
   #app-shell .community-hero-head .community-avatar {
     flex-basis: 72px;
     width: 72px;

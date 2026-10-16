@@ -487,3 +487,8 @@ Owner-approved batch after testing on phone and desktop:
 - **Public profile:** on phones Message, Following, the bell and "…" fit one row (36 px). The numbers read Posts, Replies, Followed communities, then the date. In one column (up to 900 px and beside the chat) the header and the numbers form one card.
 - **Sending a message:** a message on its way shows as an outgoing bubble with pulsing dots and a small × to discard it, only in its own conversation, instead of the raw "pending send to <id>" line.
 - **Profile tab on phones** opens the category list; a direct link to a category still opens it, and wide screens keep reopening the last category.
+
+## Banner frame and profile editor layout — 16/10/2026
+
+- **Banners** of profiles and communities always show the 3:1 frame chosen in the editor, on phones, desktops, beside the chat and in the editors themselves. Desktop banners grow taller to keep the same crop instead of cutting top and bottom.
+- **Public profile editor:** same contents, more even spacing. Inner margins are uniform (24 px, 16 px on phones), the remove buttons sit away from the corners, the "View my public profile" link is a quieter label, and "Confirm changes" sits inside the card (right-aligned on desktop, full width on phones). On phones the handle has its own line under the photo instead of breaking mid-word.
