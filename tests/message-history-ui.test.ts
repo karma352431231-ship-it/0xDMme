@@ -237,6 +237,7 @@ await test('an optimistic reply quotes the current verified edit rather than the
     }),
   };
   f.outgoing.update(draft, 'admitted');
+  f.ui.render([original]);
   f.ui.render([original, edit]);
   const bubble = f.history.children.find(
     (node) => node.dataset['message'] === draft.id,

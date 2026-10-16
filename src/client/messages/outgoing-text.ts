@@ -163,19 +163,26 @@ export function outgoingTextRows(input: {
   verified: readonly MessageView[];
   retry: () => void;
 }): { id: string; key: string; render: () => HTMLElement }[] {
+  if (!input.drafts.length) return [];
   const ids = new Set(input.verified.map((view) => view.id));
+  const quotes = new Map(
+    dailyViews(input.verified).map((view) => [view.id, view.content.text]),
+  );
   return input.drafts
     .filter((draft) => !ids.has(draft.id))
-    .map((draft) => ({
-      id: draft.id,
-      key: JSON.stringify(['outgoing', draft]),
-      render: () =>
-        outgoingBubble({ draft, verified: input.verified, retry: input.retry }),
-    }));
+    .map((draft) => {
+      const reply = decodeDailyText(draft.text).reply;
+      const quote = reply === null ? undefined : quotes.get(reply);
+      return {
+        id: draft.id,
+        key: JSON.stringify(['outgoing', draft, quote]),
+        render: () => outgoingBubble({ draft, quote, retry: input.retry }),
+      };
+    });
 }
 function outgoingBubble(input: {
   draft: OutgoingText;
-  verified: readonly MessageView[];
+  quote: string | undefined;
   retry: () => void;
 }): HTMLElement {
   const { draft } = input,
@@ -187,13 +194,11 @@ function outgoingBubble(input: {
   article.dataset['outgoingText'] = 'true';
   article.setAttribute('aria-label', t('chat.outgoing-message'));
   if (content.reply) {
-    const quote = document.createElement('small'),
-      original = dailyViews(input.verified).find(
-        (view) => view.id === content.reply,
-      );
-    quote.textContent = original
-      ? t('Em resposta: {0}', [original.content.text.slice(0, 120)])
-      : t('Resposta: mensagem original fora desta página ou indisponível.');
+    const quote = document.createElement('small');
+    quote.textContent =
+      input.quote === undefined
+        ? t('Resposta: mensagem original fora desta página ou indisponível.')
+        : t('Em resposta: {0}', [input.quote.slice(0, 120)]);
     article.append(quote);
   }
   emojiText(text, content.text);
