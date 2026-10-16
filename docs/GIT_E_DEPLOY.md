@@ -2228,7 +2228,7 @@ Exigir checkout limpo/enviado e CI integral do commit exato. Reusar `npm run dep
 
 O proprietário pediu integrar à main e ativar este lote. Após explicação da
 necessidade de guardar endereços únicos, aprovou expressamente a nova migração.
-Fontes revisadas: `cf957aab8304dc5503300aeadffb631dfc97e40c`; predecessor ativo
+Fontes revisadas: `a39aaa4815b68749d8a2f75863bd19a524822b1b`; predecessor ativo
 conferido por hashes de todas as fontes públicas, package/lockfile e Node:
 `21fc70c0d508230fa26146be32ad8faa67890812`.
 
@@ -2278,3 +2278,9 @@ linhas, ledger, backup ou manutenção. A regressão falhou com o limite anterio
 e cobre o conjunto completo e ambas as divergências. Preservar backup/recibo da
 tentativa e exigir CI do commit corrigido antes de nova ativação pelo mesmo
 executor. Fontes da aplicação, SQL e aprovação continuam iguais às revisadas.
+
+A revisão final reproduziu o retorno indevido do endereço da comunidade ao UUID
+ao abrir uma conversa. A fonte revisada acima incorpora a sincronização do
+endereço canônico com o roteador e os painéis, sem remontar conteúdo/rascunhos.
+Os 21 testes de navegação pertinentes, tipos, lint, fronteiras, build e formato
+passaram; o SQL 072 e todas as migrações anteriores permanecem idênticos.
