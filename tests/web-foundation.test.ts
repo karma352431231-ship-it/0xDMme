@@ -399,6 +399,28 @@ await test('servidor recusa origem, mutação, traversal e dados privados; saúd
     '/?atualizar=1&atualizar=1',
   ])
     assert.equal((await get(path)).status, 404);
+  for (const path of [
+    '/split/feed',
+    '/split/profile/karma',
+    '/users/handle/karma',
+    '/communities/new-community',
+    '/communities/new-community/posts/' + crypto.randomUUID(),
+    '/settings/privacy',
+  ]) {
+    const direct = await get(path);
+    assert.equal(direct.status, 200, path);
+    assert.match(
+      String(direct.headers['content-security-policy']),
+      /'wasm-unsafe-eval'/u,
+    );
+    assert.equal(direct.headers['cache-control'], 'no-store');
+  }
+  for (const path of [
+    '/api/unknown',
+    '/split/unknown',
+    '/users/handle/karma/extra',
+  ])
+    assert.equal((await get(path)).status, 404, path);
   const loaded = assets.get('/');
   assert.ok(loaded);
   const publicHash = createHash('sha256').update(loaded.content).digest('hex');

@@ -5,6 +5,7 @@ import type { PublicProfile } from '../../shared/public-profile/index.ts';
 import type { PublicProfileStore } from './public-profile.ts';
 export interface CommunityRecord {
   id: string;
+  slug?: string | null;
   owner: string | null;
   name: string;
   description: string;

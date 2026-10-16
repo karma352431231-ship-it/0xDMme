@@ -386,7 +386,8 @@ export function startCommunityDiscovery(
       hidden: 'recent',
     };
     order = bookmark?.order ?? defaults[view]!;
-    period = bookmark?.period ?? (view === 'explore' ? 'day' : 'all');
+    period =
+      bookmark?.period ?? (['explore', 'feed'].includes(view) ? 'day' : 'all');
     exploreOrder = 'trending';
   }
   return {

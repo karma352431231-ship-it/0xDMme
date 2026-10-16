@@ -24,18 +24,12 @@ await test('English destinations and legacy links resolve the same pages without
     ['cofre', 'vault', 'cofre'],
     ['analise', 'review', 'analise'],
   ]) {
-    assert.equal(canonicalAppHash('#' + legacy), '#' + current);
-    assert.equal(pageKey('#' + current), page);
+    assert.equal(canonicalAppHash('#' + legacy), '/' + current);
+    assert.equal(pageKey('/' + current), page);
     assert.equal(pageKey('#' + legacy), page);
   }
-  assert.equal(
-    canonicalAppHash('#perfil?secao=privacy'),
-    '#settings?section=privacy',
-  );
-  assert.equal(
-    requestedSettingsSection('#settings?section=privacy'),
-    'privacy',
-  );
+  assert.equal(canonicalAppHash('#perfil?secao=privacy'), '/settings/privacy');
+  assert.equal(requestedSettingsSection('/settings/privacy'), 'privacy');
   for (const hash of [
     '#configuracoes?ticket=private',
     '#contatos?convite=private',
@@ -72,11 +66,11 @@ await test('public profiles, community posts and split layout retain their own U
   });
   assert.equal(
     standalonePanelHref(profile, false, false),
-    '#users?handle=chosen_name',
+    '/users/handle/chosen_name',
   );
   assert.equal(
     standalonePanelHref(href, false, false),
-    `#communities?view=dms&dm=${dm}`,
+    `/communities/dms?dm=${dm}`,
   );
   assert.equal(standalonePanelHref(profile, true, true), null);
   const solo = splitTarget(
@@ -93,7 +87,7 @@ await test('public profiles, community posts and split layout retain their own U
   assert.deepEqual(splitTarget(directory)?.dm, { id: null, local: false });
   assert.equal(
     standalonePanelHref(directory, false, false),
-    '#communities?view=dms',
+    '/communities/dms',
   );
   assert.equal(standalonePanelHref(directory, false, true), null);
 });
@@ -101,7 +95,7 @@ await test('public profiles, community posts and split layout retain their own U
 await test('push navigation remains restricted to public post UUIDs and accepts older workers', () => {
   const id = crypto.randomUUID(),
     post = crypto.randomUUID();
-  const expected = `#communities?id=${id}&post=${post}`;
+  const expected = `/communities/id/${id}/posts/${post}`;
   assert.equal(publicPostHash(expected), expected);
   assert.equal(publicPostHash(`#comunidades?id=${id}&post=${post}`), expected);
   for (const hash of [

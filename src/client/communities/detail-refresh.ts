@@ -1,3 +1,4 @@
+import { replaceCommunityAddress } from '../app-navigation/index.ts';
 import type {
   Community,
   CommunityState,
@@ -21,9 +22,10 @@ export async function readCommunityDetail(options: {
 }) {
   const value = await readCommunity(options.id, options.signal);
   if (!options.valid()) return null;
-  const state = options.signedIn ? await options.state(options.id) : null;
+  const state = options.signedIn ? await options.state(value.id) : null;
   if (!options.valid()) return null;
   const community = state?.community ?? value;
+  replaceCommunityAddress(community);
   const changed =
     JSON.stringify([community, state]) !==
     JSON.stringify([options.previous.community, options.previous.state]);

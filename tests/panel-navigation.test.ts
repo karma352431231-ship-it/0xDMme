@@ -7,7 +7,15 @@ await test('private conversations keep mobile/tablet chat URLs; public empty DMs
 });
 
 function checkNavigation(width: number): void {
-  const location = { hash: '#chats' };
+  const location = { hash: '', pathname: '/chats', search: '' };
+  const setAddress = (_state: unknown, _title: string, href: string): void => {
+    const url = new URL(href, 'http://local.invalid');
+    Object.assign(location, {
+      hash: url.hash,
+      pathname: url.pathname,
+      search: url.search,
+    });
+  };
   const shell = {
     dataset: {} as Record<string, string>,
     querySelectorAll: () => [],
@@ -18,12 +26,9 @@ function checkNavigation(width: number): void {
   let chatShown = 0;
   const globals = {
     document: { addEventListener: () => {} },
+    window: new EventTarget(),
     location,
-    history: {
-      replaceState: (_state: unknown, _title: string, href: string) => {
-        location.hash = href;
-      },
-    },
+    history: { replaceState: setAddress, pushState: setAddress },
     localStorage: { getItem: () => null, setItem: () => {} },
     matchMedia: (query: string) => ({
       matches: query.includes('1280') ? width >= 1280 : width >= 701,
@@ -58,10 +63,10 @@ function checkNavigation(width: number): void {
       },
     });
     panels.routed('conversas');
-    if (width < 1280) assert.equal(location.hash, '#chats');
+    if (width < 1280) assert.equal(location.pathname, '/chats');
     panels.privateChatOpened();
-    if (width < 1280) assert.equal(location.hash, '#chats');
-    else assert.match(location.hash, /^#split\?/u);
+    if (width < 1280) assert.equal(location.pathname, '/chats');
+    else assert.equal(location.pathname, '/split/feed');
     if (width < 701) return;
     location.hash = '#split?layout=split&dm=';
     panels.routed('conversas');

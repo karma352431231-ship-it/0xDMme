@@ -206,6 +206,7 @@ function fixtureServer(
       origin: testOrigin,
       views: (input) => database.communityViews.observe(input),
       read: (id) => communities.read(id),
+      readAddress: (slug) => communities.readAddress(slug),
       followers: (id, after) => communities.followerPage(id, after),
       list: (after) => communities.list(after),
       feed: (filter, after) => communities.feed(filter, after),

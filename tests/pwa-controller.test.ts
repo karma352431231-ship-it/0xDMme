@@ -73,6 +73,7 @@ function browser(locationValues: { search?: string; hash?: string } = {}) {
   const location = {
     search: '',
     hash: '',
+    pathname: '/',
     ...locationValues,
     reload() {
       reloads++;
@@ -87,6 +88,19 @@ function browser(locationValues: { search?: string; hash?: string } = {}) {
     navigator: { serviceWorker },
     location,
     URLSearchParams,
+    URL,
+    Event,
+    queueMicrotask,
+    history: {
+      pushState: (_state: unknown, _title: string, href: string) => {
+        const url = new URL(href, 'http://local.invalid');
+        Object.assign(location, {
+          hash: url.hash,
+          pathname: url.pathname,
+          search: url.search,
+        });
+      },
+    },
   }) as { startPwa: typeof startPwa };
   const status = () => elements.get('pwa-state')?.textContent ?? '';
   const expire = () => {
@@ -283,23 +297,19 @@ await test('Atualizar agora aguarda uma sincronização transitória e revalida 
 await test('abrir push público muda só a rota da aba, sem recarga, e recusa destinos externos', () => {
   const scope = browser();
   scope.start();
-  const hash = `#comunidades?id=${crypto.randomUUID()}&post=${crypto.randomUUID()}`;
+  const id = crypto.randomUUID(),
+    post = crypto.randomUUID();
+  const hash = `#comunidades?id=${id}&post=${post}`;
   scope.serviceWorker.dispatchEvent(
     new MessageEvent('message', { data: { type: 'OPEN_PUBLIC_POST', hash } }),
   );
-  assert.equal(
-    scope.location.hash,
-    hash.replace('#comunidades', '#communities'),
-  );
+  assert.equal(scope.location.pathname, `/communities/id/${id}/posts/${post}`);
   scope.serviceWorker.dispatchEvent(
     new MessageEvent('message', {
       data: { type: 'OPEN_PUBLIC_POST', hash: 'https://other.example' },
     }),
   );
-  assert.equal(
-    scope.location.hash,
-    hash.replace('#comunidades', '#communities'),
-  );
+  assert.equal(scope.location.pathname, `/communities/id/${id}/posts/${post}`);
   assert.equal(scope.reloads(), 0);
   scope.window.dispatchEvent(new Event('pagehide'));
 });

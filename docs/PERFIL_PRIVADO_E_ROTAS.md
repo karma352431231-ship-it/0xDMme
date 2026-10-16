@@ -25,29 +25,62 @@ perfil conecta a interface e conserva seus rascunhos de nome e preferências.
 
 ## Endereços
 
-A navegação conserva o fragmento `#`, sem exigir mudanças no servidor:
+A atualização de 16/10/2026 usa caminhos reais, sem `#`, para a navegação pública:
 
-| Destino                     | Exemplo de fragmento                                       |
-| --------------------------- | ---------------------------------------------------------- |
-| Conversas                   | `#chats`                                                   |
-| Só conversa no desktop      | `#chats?layout=chat`                                       |
-| Feed com conversa ao lado   | `#split?layout=split&view=feed`                            |
-| Feed com conversa recolhida | `#split?layout=feed&view=feed`                             |
-| Configurações da conta      | `#settings?section=account`                                |
-| Privacidade                 | `#settings?section=privacy`                                |
-| Perfil público do usuário   | `#users?handle=nome_publico` ou `#users?id=<UUID público>` |
-| Comunidade                  | `#communities?id=<UUID público>`                           |
-| Perfil no painel dividido   | `#split?layout=split&profile=<UUID público ou @>`          |
-| Outras páginas              | `#contacts`, `#activity`, `#vault`, `#review`, `#status`   |
+| Destino                     | Exemplo                                                  |
+| --------------------------- | -------------------------------------------------------- |
+| Conversas                   | `/chats`                                                 |
+| Só conversa no desktop      | `/chats?layout=chat`                                     |
+| Feed com conversa ao lado   | `/split/feed`                                            |
+| Feed com conversa recolhida | `/split/feed?layout=feed`                                |
+| Categoria de configurações  | `/settings/privacy`                                      |
+| Perfil público do usuário   | `/users/handle/karma` ou `/users/id/<UUID público>`      |
+| Perfil no painel dividido   | `/split/profile/karma`                                   |
+| Comunidade nova             | `/communities/nome-da-comunidade`                        |
+| Comunidade existente        | `/communities/id/<UUID público>`                         |
+| Post                        | `/communities/id/<UUID público>/posts/<UUID público>`    |
+| Comunidade no painel        | `/split/communities/nome-da-comunidade`                  |
+| Outras páginas              | `/contacts`, `/activity`, `/vault`, `/review`, `/status` |
+
+Os fragmentos ingleses/portugueses anteriores continuam aceitos e são
+normalizados sem acrescentar uma entrada ao histórico. Os filtros adicionais
+mantêm seu contrato de query. Nome e conteúdo privado não entram nesses caminhos.
+Convites de contato/grupo, vínculo de aparelho e retornos da wallet mantêm seus
+fragmentos e leitores originais; suas capacidades não migram para caminhos HTTP.
+O servidor entrega somente o shell público nas rotas reconhecidas, com a mesma
+CSP e `no-store`. A PWA busca o documento publicado online e, sem rede, reutiliza
+apenas o shell completo guardado em `/`; não guarda documentos por perfil,
+comunidade, post ou filtros, nem respostas de API.
+
+### Endereços das comunidades — decisão de 16/10/2026
+
+O proprietário escolheu endereços únicos e depois limitou a aplicação às novas
+comunidades. A migração 072 cria `community_addresses`, com uma linha por nova
+comunidade, slug único, FK com exclusão em cascata, cobrança global e autovacuum.
+Não há backfill nem alteração de comunidades existentes. A criação assinada
+atribui o endereço na mesma transação e retries conservam a mesma linha. O nome
+é normalizado para minúsculas, sem acentos e com hífens, preservando letras de
+outros alfabetos; nomes sem letras/números usam `community`. Destinos reservados
+recebem `-community`. Colisões recebem `-2`, `-3` etc., com até 100 candidatos e
+trava transacional curta; o índice único é a guarda final. A edição do nome,
+transferência e arquivamento não trocam o endereço. UUIDs públicos continuam
+válidos, inclusive nos permalinks de posts.
+
+O proprietário também pediu Discover inicialmente em 24 horas. Uma seleção
+explícita de período continua disponível e o retorno de um post restaura o
+período escolhido. Seguindo, salvos e ocultos conservam seus padrões anteriores.
+Miniperfis de pessoas e comunidades conservam o quadro 3:1 usado pelo editor;
+a imagem preenche o quadro com recorte central. A logo da navegação usa um SVG
+sem a borda externa e aponta para `/split/feed`; os ícones da PWA são preservados.
 
 Posts, abas e DMs pelo @ conservam os parâmetros públicos já existentes. A URL
 dividida restaura o arranjo e o contexto público, inclusive a DM pelo @; não
 inclui a seleção de contato/conversa privada, wallet, texto ou chaves. Em telas
 estreitas o link dividido abre o destino público na página apropriada. Abrir
-uma conversa privada no celular continua em `#chats`, inclusive após recarregar.
+uma conversa privada no celular continua em `/chats`, inclusive após recarregar.
 
 Links portugueses anteriores continuam aceitos. A navegação os normaliza para
-inglês sem acrescentar uma entrada ao histórico. Convites de contatos novos
+os caminhos atuais sem acrescentar uma entrada ao histórico. Convites de contatos novos
 usam `#contacts?invite=...`; links antigos continuam válidos e a capacidade fica
 no fragmento, sendo retirada pelo mesmo leitor antes das consultas. Fragmentos
 do retorno/consentimento da wallet e convites de grupo mantêm seu protocolo.
@@ -72,7 +105,7 @@ Em 390 px, o link de perfil dividido abriu a página de usuário. Os adaptadores
 de transporte e conteúdo público foram simulados: isso não substitui o aceite
 com conta real em celular físico.
 
-**Ponto importante:** este lote não altera backend, migrações, dependências,
+**Ponto importante:** a entrega original de 15/10/2026 não alterou backend, migrações, dependências,
 política de privacidade ou retenção. Após a entrega de `0455607` e sua CI integral
 aprovada, o proprietário autorizou integração à main e ativação na VPS em
 15/10/2026. Exigir CI do commit integrado, executor existente, preservação e
@@ -84,3 +117,9 @@ e conexões; depois separar o ciclo de vida de feed/perfil/DM da apresentação
 do arranjo. Preservar contratos de entrada/saída, cancelamento e montagem única
 com testes de inicialização, navegação e histórico e conferência no navegador.
 Este lote extrai somente as novas regras de URL e gravação da foto.
+
+A autorização posterior de 16/10/2026 inclui integração à main e ativação e,
+após explicação da necessidade, o proprietário aprovou expressamente a migração
+nova. Usar o executor existente, CI exata, backup/restauração e comparação de
+todas as linhas anteriores e do ledger. Esse aceite não altera dependências,
+Node, detector, retenção, isolamento, tráfego ou infraestrutura compartilhada.

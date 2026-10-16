@@ -8,6 +8,8 @@ const execute = promisify(execFile);
 const authored = [
   'src/shared/i18n',
   'src/shared/app-routes',
+  'src/shared/community-address',
+  'src/client/app-navigation',
   'src/client/language',
   'src/client/language-record',
   'src/client/vault-labels',

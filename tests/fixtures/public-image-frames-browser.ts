@@ -25,6 +25,10 @@ function verifyBanner(frame: HTMLElement): void {
     box = frame.getBoundingClientRect();
   verifyCoverage(frame, image);
   check(
+    Math.abs(box.width / box.height - 3) < 0.02,
+    'Banner must preserve its 3:1 editor frame.',
+  );
+  check(
     document.elementFromPoint(box.left + 12, box.top + 12) === image,
     'Banner corner is cut out by an avatar mask.',
   );
@@ -86,6 +90,7 @@ export function publicImageFramesFixture(
       </section>
     </aside>
     <aside class="hover-card"><div class="community-banner hover-card-banner" data-tone="1" data-kind="community-banner"></div></aside>
+    <aside class="hover-card"><div class="public-profile-banner hover-card-banner" data-kind="profile-banner"></div></aside>
     <div class="community-banner" data-tone="1" data-fallback></div>
   </div>`;
   const lifetime = new AbortController(),

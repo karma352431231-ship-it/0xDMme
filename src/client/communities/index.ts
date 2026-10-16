@@ -1,3 +1,6 @@
+import { communitySlug } from '../../shared/community-address/index.ts';
+import { communityHref } from '../../shared/app-routes/index.ts';
+import { navigateApp } from '../app-navigation/index.ts';
 import { upvoteNoticePage } from '../../shared/public-upvotes/index.ts';
 import { InteractionQueue } from '../interaction-queue/index.ts';
 import {
@@ -216,7 +219,7 @@ export function startCommunities(
       const a = communityElement('a', '', 'community-row-link'),
         avatar = communityAvatar(item.name),
         copy = communityElement('span', '', 'community-row-copy');
-      a.href = `#communities?id=${item.id}`;
+      a.href = communityHref(item);
       if (item.id === selected) a.setAttribute('aria-current', 'page');
       copy.append(
         communityElement('strong', item.name),
@@ -381,7 +384,7 @@ export function startCommunities(
       request: (operation, data) => controller.request(operation, data),
       current: () => old === generation,
       open: (id) => {
-        location.hash = `#communities?id=${id}`;
+        navigateApp(`#communities?id=${id}`);
       },
     });
   }
@@ -503,7 +506,7 @@ export function startCommunities(
     arrow.href = href;
     arrow.title = t('Voltar');
     arrow.setAttribute('aria-label', t('Voltar'));
-    identity.href = `#communities?id=${value.id}`;
+    identity.href = communityHref(value);
     identity.append(avatar, communityElement('span', value.name));
     header.append(arrow, identity);
     publicPhoto(avatar, value);
@@ -583,7 +586,7 @@ export function startCommunities(
   function manageScreen(value: Community, own: CommunityState): void {
     if (!mounted) return;
     mounted.dataset['communityLayout'] = 'manage';
-    const back = backHeader(value, `#communities?id=${value.id}`);
+    const back = backHeader(value, communityHref(value));
     const management = communityElement('section', '', 'community-manage');
     management.append(communityElement('h1', t('Gerenciar comunidade')));
     mounted.append(back, management);
@@ -642,10 +645,7 @@ export function startCommunities(
       if (header) {
         clearPublicPhotos(header);
         header.replaceWith(
-          backHeader(
-            result.community,
-            `#communities?id=${result.community.id}`,
-          ),
+          backHeader(result.community, communityHref(result.community)),
         );
       }
     } else {
@@ -721,6 +721,7 @@ export function startCommunities(
       });
       if (!next) return;
       current = next.community;
+      selected = current.id;
       state = next.state;
       if (view === 'manage' && presentation?.retainDraft(next.state)) return;
       if (next.changed || view === 'followers') details();
@@ -781,7 +782,11 @@ export function startCommunities(
       try {
         selectedDm = params.has('dm') ? uuid(params.get('dm')) : null;
         localDm = params.get('history') === 'local';
-        selected = params.has('id') ? uuid(params.get('id')) : null;
+        selected = params.has('slug')
+          ? communitySlug(params.get('slug'))
+          : params.has('id')
+            ? uuid(params.get('id'))
+            : null;
         selectedPost = params.has('post') ? uuid(params.get('post')) : null;
         selectedTag = params.has('tag') ? uuid(params.get('tag')) : null;
         // A post opened from a list returns to that list, not to its community.

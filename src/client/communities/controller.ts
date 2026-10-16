@@ -33,7 +33,7 @@ export async function readCommunity(id: string, signal: AbortSignal) {
     await readApiJson(
       await fetchApi(
         'communities/read',
-        `/api/communities/${encodeURIComponent(id)}`,
+        `/api/communities/${/^[a-f0-9-]{36}$/u.test(id) ? '' : 'address/'}${encodeURIComponent(id)}`,
         {
           credentials: 'omit',
           cache: 'no-store',

@@ -47,11 +47,26 @@ await test('category toggles update their own URL without redirecting split page
     querySelectorAll: () => [],
     querySelector: () => null,
   } as unknown as HTMLElement;
-  const location = { hash: '#settings?section=account&layout=feed' };
+  const location = {
+    hash: '',
+    pathname: '/settings/account',
+    search: '?layout=feed',
+  };
   const storage = new Map<string, string>();
   const globals = {
     document: { createElement: () => ({ setAttribute: () => {} }) },
     location,
+    window: new EventTarget(),
+    history: {
+      pushState: (_state: unknown, _title: string, href: string) => {
+        const url = new URL(href, 'http://local.invalid');
+        Object.assign(location, {
+          hash: url.hash,
+          pathname: url.pathname,
+          search: url.search,
+        });
+      },
+    },
     localStorage: {
       getItem: (key: string) => storage.get(key) ?? null,
       setItem: (key: string, value: string) => storage.set(key, value),
@@ -67,7 +82,7 @@ await test('category toggles update their own URL without redirecting split page
     startSettingsCategories(host, [section as unknown as HTMLDetailsElement]);
     section.open = true;
     section.dispatchEvent(new Event('toggle'));
-    assert.equal(location.hash, '#settings?section=privacy');
+    assert.equal(location.pathname, '/settings/privacy');
     location.hash = '#split?layout=feed&profile=synthetic_user';
     section.dispatchEvent(new Event('toggle'));
     assert.equal(location.hash, '#split?layout=feed&profile=synthetic_user');

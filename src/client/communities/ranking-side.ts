@@ -1,3 +1,4 @@
+import { communityHref } from '../../shared/app-routes/index.ts';
 import { currentLanguage, t } from '../../shared/i18n/index.ts';
 import { explorePage } from '../../shared/community-discovery/index.ts';
 import type { Community } from '../../shared/communities/index.ts';
@@ -169,7 +170,7 @@ class RankingView {
   }
   private createRow(row: Row): HTMLElement {
     const link = el('a', '', 'ranking-side-row');
-    link.href = `#communities?id=${encodeURIComponent(row.community.id)}`;
+    link.href = communityHref(row.community);
     const avatar = communityAvatar(row.community.name);
     link.append(
       el('span', '', 'ranking-side-rank'),
@@ -254,7 +255,7 @@ class RankingView {
     faces.replaceChildren(
       ...rows.slice(0, 8).map((row) => {
         const link = el('a', '', 'ranking-side-face');
-        link.href = `#communities?id=${encodeURIComponent(row.community.id)}`;
+        link.href = communityHref(row.community);
         link.title = row.community.name;
         link.append(communityAvatar(row.community.name));
         return link;

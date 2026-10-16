@@ -1,3 +1,4 @@
+import { navigateApp } from '../app-navigation/index.ts';
 import { t, translatedError } from '../../shared/i18n/index.ts';
 /** A read receipt must succeed before the current notification opens its target. */
 export function noticeLink(input: {
@@ -23,7 +24,7 @@ export function noticeLink(input: {
       await input.acknowledge();
       if (!input.current()) return;
       input.acknowledged();
-      location.hash = input.href;
+      navigateApp(input.href);
     } catch (error: unknown) {
       if (input.current()) {
         link.textContent = t('Tentar abrir novamente');

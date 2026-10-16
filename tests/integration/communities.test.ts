@@ -5,6 +5,7 @@ import { readFile } from 'node:fs/promises';
 import pg from 'pg';
 import { AccountError, encode } from '../../src/shared/account/index.ts';
 import {
+  community,
   communityPage,
   communityState,
 } from '../../src/shared/communities/index.ts';
@@ -64,6 +65,7 @@ await test('comunidades: criação aberta, privacidade, gestão, sanções, den�
     objects: { healthy: () => Promise.resolve(true) },
     communities: createCommunityHandler({
       read: (id) => communities.read(id),
+      readAddress: (slug) => communities.readAddress(slug),
       followers: (id, after) => communities.followerPage(id, after),
       list: (after) => communities.list(after),
     }),
@@ -176,6 +178,11 @@ await test('comunidades: criação aberta, privacidade, gestão, sanções, den�
       assert.equal(result.role, 'owner');
       assert.equal(result.following, true);
       assert.equal(result.canPost, true);
+      assert.equal(result.community.slug, 'comunidade-sintetica');
+      assert.deepEqual(
+        await communities.readAddress(result.community.slug),
+        result.community,
+      );
       assert.equal(result.community.owner?.id, ownerProfile.id);
       assert.deepEqual(
         communityState(
@@ -209,6 +216,48 @@ await test('comunidades: criação aberta, privacidade, gestão, sanções, den�
     },
   );
   await t.test(
+    'new community addresses handle concurrent normalized-name collisions while old communities keep UUIDs',
+    async () => {
+      const first = crypto.randomUUID(),
+        second = crypto.randomUUID(),
+        legacy = crypto.randomUUID();
+      ids.push(first, second, legacy);
+      const results = await Promise.all([
+        owner.operate('create', {
+          id: first,
+          meta: { ...meta, name: `Endereço ${suffix}` },
+          classification: { nsfw: false, topics: ['meme'] },
+        }),
+        participant.operate('create', {
+          id: second,
+          meta: { ...meta, name: `Endereco ${suffix}` },
+          classification: { nsfw: false, topics: ['meme'] },
+        }),
+      ]);
+      const slugs = results
+        .map((value) => communityState(value).community.slug)
+        .sort();
+      assert.deepEqual(slugs, [`endereco-${suffix}`, `endereco-${suffix}-2`]);
+      const response = await fetch(
+        `${origin}/api/communities/address/${slugs[0]}`,
+        { redirect: 'error' },
+      );
+      assert.equal(response.status, 200);
+      assert.equal(community(await response.json()).slug, slugs[0]);
+      await inspector.query(
+        'INSERT INTO hash_talk.communities(id,owner,name,description,rules) VALUES($1,$2,$3,$4,$5)',
+        [legacy, ownerProfile.id, `Legacy ${suffix}`, '', ''],
+      );
+      assert.equal((await communities.read(legacy)).slug, null);
+      assert.equal(
+        (await fetch(`${origin}/api/communities/address/missing-${suffix}`))
+          .status,
+        404,
+      );
+    },
+  );
+
+  await t.test(
     'leitura pública não exige conta; seguidores mostram apenas a identidade pública',
     async () => {
       const result = await fetch(`${origin}/api/communities/${id}`);
@@ -229,6 +278,7 @@ await test('comunidades: criação aberta, privacidade, gestão, sanções, den�
           'owner',
           'followers',
           'createdAt',
+          'slug',
           'classification',
         ].sort(),
       );
@@ -315,10 +365,13 @@ await test('comunidades: criação aberta, privacidade, gestão, sanções, den�
         change(mod, 'role', { target: participantProfile.id, moderator: true }),
         bad(403),
       );
+      const originalAddress = (await state()).community.slug;
       const changed = await change(mod, 'edit', {
         meta: { ...meta, name: 'Nome alterado' },
       });
       assert.equal(changed.community.name, 'Nome alterado');
+      assert.equal(changed.community.slug, originalAddress);
+      assert.equal((await communities.readAddress(originalAddress!)).id, id);
       await assert.rejects(
         owner.operate('edit', {
           id,

@@ -95,7 +95,7 @@ async function worker(
     }
     const path = new URL(input.url).pathname;
     assert.equal(input.mode, 'navigate');
-    assert.equal(path, '/');
+    assert.ok(path.startsWith('/') && !path.startsWith('/api/'));
     assert.equal(request.cache, 'no-store');
     assert.equal(request.redirect, 'error');
     return path;
@@ -130,6 +130,7 @@ async function worker(
       },
     },
     URL,
+    URLSearchParams,
     JSON,
     crypto,
     registration: {
@@ -268,12 +269,40 @@ await test('URL padrão abre o HTML atual online e conserva a versão completa p
     await scope.cache.get(request.url)?.clone().text(),
     'public-shell',
   );
+  for (const path of [
+    '/split/feed',
+    '/users/handle/karma',
+    '/communities/new-community?view=manage',
+  ]) {
+    assert.equal(
+      await scope.dispatch('fetch', {
+        request: navigation(scope.origin + path),
+      }),
+      true,
+    );
+    assert.equal(await scope.response()?.text(), 'current-online-shell');
+    assert.equal(scope.cache.has(scope.origin + path), false);
+  }
   scope.offline();
   await scope.dispatch('fetch', { request });
   assert.equal(await scope.response()?.text(), 'public-shell');
   assert.equal(scope.activations(), 0);
   assert.equal(scope.deleted.length, 0);
 
+  for (const path of [
+    '/split/feed',
+    '/users/handle/karma',
+    '/communities/new-community?view=manage',
+  ]) {
+    assert.equal(
+      await scope.dispatch('fetch', {
+        request: navigation(scope.origin + path),
+      }),
+      true,
+    );
+    assert.equal(await scope.response()?.text(), 'public-shell');
+    assert.equal(scope.cache.has(scope.origin + path), false);
+  }
   for (const path of [
     '/?atualizar=1',
     '/?token=synthetic',
@@ -407,7 +436,7 @@ await test('push revalida mute/sessão, ignora conteúdo recebido e abre somente
     },
   });
   assert.equal(closed, true);
-  assert.deepEqual(scope.opened, [scope.origin + '/#chats']);
+  assert.deepEqual(scope.opened, [scope.origin + '/chats']);
   for (const options of [
     { pushAllowed: false },
     { pushAllowed: true, pushCheckFails: true },
@@ -531,7 +560,7 @@ await test('push público mostra autor e prévia validada, com símbolo monocrom
     notification: { close() {}, data: notification.options.data as unknown },
   });
   assert.deepEqual(scope.opened, [
-    `${scope.origin}/#communities?id=${publicPreview.community}&post=${publicPreview.post}`,
+    `${scope.origin}/communities/id/${publicPreview.community}/posts/${publicPreview.post}`,
   ]);
   await scope.dispatch('notificationclick', {
     notification: {

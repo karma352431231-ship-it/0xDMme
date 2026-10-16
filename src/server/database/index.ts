@@ -169,6 +169,7 @@ const migrations = [
   '069-social-reaction-index.sql',
   '070-ranking-activity.sql',
   '071-chat-attachments-10mb.sql',
+  '072-community-addresses.sql',
 ];
 
 export interface MaintenanceSnapshot {

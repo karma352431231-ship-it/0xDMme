@@ -147,6 +147,7 @@ try {
       origin: config.origin,
       views: (input) => database!.communityViews.observe(input),
       read: (id) => communities.read(id),
+      readAddress: (slug) => communities.readAddress(slug),
       followers: (id, after, tab) => communities.followerPage(id, after, tab),
       list: (after) => communities.list(after),
       suggestions: (query) => communities.suggestions(query),

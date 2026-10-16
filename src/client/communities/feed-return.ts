@@ -1,3 +1,5 @@
+import { appRoute } from '../../shared/app-routes/index.ts';
+import { appAddress } from '../app-navigation/index.ts';
 import type {
   DiscoveryPeriod,
   FeedOrder,
@@ -27,7 +29,17 @@ function navigationLink(event: MouseEvent): HTMLAnchorElement | null {
   )
     return null;
   return event.target.closest<HTMLAnchorElement>(
-    'a[href^="#communities"], a[href^="#comunidades"]',
+    'a[href^="/communities"], a[href^="/split/communities"], a[href^="#communities"], a[href^="#comunidades"]',
+  );
+}
+function linkRouteParams(link: HTMLAnchorElement): URLSearchParams {
+  return (
+    appRoute(link.getAttribute('href') ?? '')?.params ?? new URLSearchParams()
+  );
+}
+function isCommunityDestination(params: URLSearchParams): boolean {
+  return (
+    params.has('id') || params.has('slug') || params.get('return') === 'feed'
   );
 }
 export function feedScroller(container: HTMLElement): HTMLElement {
@@ -115,15 +127,19 @@ export class FeedReturn {
     );
   }
   private followLink(link: HTMLAnchorElement, options: ReturnNavigation): void {
-    const params = new URLSearchParams(link.hash.split('?')[1] ?? '');
+    const params = linkRouteParams(link);
     if (params.has('post') && options.container()?.contains(link)) {
       const bookmark = options.bookmark();
       if (bookmark) this.capture(bookmark);
       return;
     }
-    if (params.has('id') || params.get('return') === 'feed') return;
+    if (isCommunityDestination(params)) return;
     this.clear();
-    if (link.hash === location.hash && options.bookmark()) void options.reset();
+    if (
+      (link.getAttribute('href') ?? '') === appAddress() &&
+      options.bookmark()
+    )
+      void options.reset();
   }
   capture(value: FeedBookmark): void {
     this.saved = value;
@@ -137,7 +153,8 @@ export class FeedReturn {
       : null;
   }
   take(params: URLSearchParams): FeedBookmark | null {
-    if (params.has('id') || params.has('post')) return null;
+    if (params.has('id') || params.has('slug') || params.has('post'))
+      return null;
     const saved = this.saved;
     this.saved = null;
     return saved?.view === (params.get('view') ?? 'feed') ? saved : null;
