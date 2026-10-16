@@ -183,13 +183,36 @@ update the isolated worker bundle: final activation must include the reviewed
 bundle through the existing `--media-worker` deployment option and private hash
 review, without changing FFmpeg/ffprobe or the worker namespace.
 
+## Sixth block: scoped private-message participant admission
+
+Consent-coordinated operations acquire both participant account locks in UUID
+order before invoking their persistence callback. They share the global consent
+gate, so unrelated pairs and unrelated reads can enter together. Opposite
+directions of the same conversation wait on the same ordered locks, preserving
+sender/recipient quota checks and device-directory coordination without an
+account-order deadlock. The session and directory are checked after acquiring
+the locks, and current consent is checked before the callback.
+
+Contact/consent mutations, general authority operations and retention work keep
+exclusive coordination. They cannot change consent while a pair admission is
+running. The remaining aggregate upload-count check acquires the content ledger
+before counting, preserving its atomicity across simultaneous pairs. The global
+byte counter still serializes accounting writes and historical quota sums remain
+unchanged; this block does not claim to remove those separate bottlenecks.
+
+The lock-order policy lives in its own database module. Integration regressions
+hold one pair admission open while a separate pair and its reads proceed, then
+verify that opposite directions of one pair wait safely. Existing message,
+contact, device, quota, group and vault regressions protect the surrounding
+contracts. No migration is needed for this coordination change.
+
 ## Remaining audit work
 
 - Size global content admission from the own data volume and operational space;
   remove the stale 900 MB environment budget without weakening individual
   quotas or admitting writes that endanger accepted data.
-- Replace the global contact-admission lock with scoped coordination and
-  concurrency regressions for revocation, consent, deletion and delivery.
+- Extend scoped coordination to the remaining general authority/group/retention
+  operations, with explicit lock orders and revocation/deletion regressions.
 - Replace repeated historical quota sums and the singleton byte-counter
   contention with exact transactional accounting that preserves admission.
 - Replace small global reservation counts with resource admission; measure

@@ -157,7 +157,7 @@ async function verifyRevocation(c: Context): Promise<void> {
   }
 }
 
-async function waitForBlocked(
+export async function waitForBlocked(
   inspector: pg.Client,
   holder: number,
 ): Promise<void> {

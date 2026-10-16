@@ -5,7 +5,11 @@ import { canonical } from '../../shared/devices/index.ts';
 import type { AttachmentRef } from '../../shared/attachments/index.ts';
 import type { MessagePacket } from '../../shared/messages/index.ts';
 import type { ContactAuthority, ContactStore } from './contacts.ts';
-import { assertContentCapacity, assertVaultQuota } from './vault-quota.ts';
+import {
+  assertContentCapacity,
+  assertVaultQuota,
+  lockContentUsage,
+} from './vault-quota.ts';
 import { pendingMedia } from './media-quota.ts';
 interface AttachmentRow {
   id: string;
@@ -37,6 +41,8 @@ export class AttachmentStore {
       );
       if (message.rowCount)
         throw new AccountError(409, 'Mensagem já aceita ou apagada.');
+      // Keep the remaining shared reservation count atomic under pair admission.
+      await lockContentUsage(c);
       const counts = await pendingMedia(c, a.session.accountId);
       for (const ref of input.refs) {
         const existing = await this.row(c, ref.id);

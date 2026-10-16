@@ -1,5 +1,11 @@
 # Capacity audit follow-up — 16 October 2026
 
+The sixth source block scopes private-message consent admission to ordered
+participant locks. Independent pairs share the consent gate; consent mutations
+and remaining general/maintenance operations stay exclusive. Preserve aggregate
+reservation-count atomicity with the existing content ledger. Singleton byte
+accounting and historical quota sums remain separate pending capacity work.
+
 The fifth source block queues independent media preparations instead of refusing
 the second one. CPU/memory-derived decoder slots, per-media command ordering,
 memory-bounded pending metadata, existing deadlines and owned cancellation

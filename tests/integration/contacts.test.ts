@@ -28,6 +28,7 @@ import type { ContactList } from '../../src/shared/contacts/index.ts';
 import { digest, eventHash, sign } from '../../src/shared/devices/index.ts';
 import { object } from '../../src/shared/account/index.ts';
 import { verifyContactConcurrency } from './contact-concurrency-fixture.ts';
+import { verifyContactPairConcurrency } from './contact-pair-concurrency-fixture.ts';
 await test('contatos persistentes: descoberta, consentimento, bloqueio, ausência de tetos e HTTP', async (t) => {
   const config = readWebConfiguration(process.env);
   if (!new URL(config.databaseUrl).pathname.startsWith('/hash_talk_test'))
@@ -363,6 +364,17 @@ await test('contatos persistentes: descoberta, consentimento, bloqueio, ausênci
       assert.equal(await allowed(a, b), true);
     },
   );
+  const d = await create();
+  const authority = async (user: User) => ({
+    session: user.session,
+    directory: await eventHash(user.event),
+  });
+  await verifyContactPairConcurrency(t, {
+    database,
+    inspector,
+    pair: [await authority(a), await authority(b)],
+    other: [await authority(c), await authority(d)],
+  });
   await t.test(
     'bloqueio vale no servidor, cancela aprovação bilateral e não é revertido por estado antigo/desbloqueio',
     async () => {

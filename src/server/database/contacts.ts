@@ -7,6 +7,8 @@ import {
   directoryEvent,
 } from '../../shared/devices/index.ts';
 import { contactPageSize } from '../../shared/contacts/index.ts';
+import { lockContactAdmission } from './contact-admission.ts';
+import type { ContactAccess } from './contact-admission.ts';
 import type {
   ContactList,
   DiscoveryMode,
@@ -79,7 +81,8 @@ export class ContactStore {
   private async transaction<T>(
     authority: ContactAuthority | null,
     work: (client: pg.PoolClient) => Promise<T>,
-    access: 'read' | 'write' = 'write',
+    access: ContactAccess = 'write',
+    peer?: string,
   ): Promise<T> {
     const client = await this.pool.connect();
     const pending = {
@@ -90,23 +93,7 @@ export class ContactStore {
     this.pendingChanges.set(client, pending);
     try {
       await client.query('BEGIN');
-      // Readers coexist while mutations retain exclusive admission. The account
-      // lock still coordinates device commits and revocation with authorization.
-      await client.query(
-        access === 'read'
-          ? "SELECT pg_advisory_xact_lock_shared(hashtext('hash-talk:contact-admission'))"
-          : "SELECT pg_advisory_xact_lock(hashtext('hash-talk:contact-admission'))",
-      );
-      if (authority) {
-        await client.query(
-          access === 'read'
-            ? 'SELECT id FROM hash_talk.accounts WHERE id=$1 FOR SHARE'
-            : 'SELECT id FROM hash_talk.accounts WHERE id=$1 FOR UPDATE',
-          [authority.session.accountId],
-        );
-        await this.authorize(client, authority);
-      }
-      if (access === 'read') await client.query('SET TRANSACTION READ ONLY');
+      await this.admit(client, authority, { access, peer });
       const result = await work(client);
       if (this.relayChanges) {
         const accounts = Array.from(pending.accounts);
@@ -136,6 +123,20 @@ export class ContactStore {
       this.pendingChanges.delete(client);
       client.release();
     }
+  }
+  private async admit(
+    client: pg.PoolClient,
+    authority: ContactAuthority | null,
+    input: { access: ContactAccess; peer: string | undefined },
+  ): Promise<void> {
+    await lockContactAdmission(client, {
+      actor: authority?.session.accountId ?? null,
+      access: input.access,
+      ...(input.peer ? { peer: input.peer } : {}),
+    });
+    if (authority) await this.authorize(client, authority);
+    if (input.access === 'read')
+      await client.query('SET TRANSACTION READ ONLY');
   }
   private async authorize(
     client: pg.PoolClient,
@@ -277,15 +278,18 @@ export class ContactStore {
     targetId: string,
     work: (client: pg.PoolClient) => Promise<T>,
   ): Promise<T> {
-    return this.transaction(authority, async (client) => {
-      await client.query(
-        'SELECT id FROM hash_talk.accounts WHERE id=$1 FOR UPDATE',
-        [targetId],
-      );
-      if (!(await this.allowed(client, authority.session.accountId, targetId)))
-        unavailable();
-      return work(client);
-    });
+    return this.transaction(
+      authority,
+      async (client) => {
+        if (
+          !(await this.allowed(client, authority.session.accountId, targetId))
+        )
+          unavailable();
+        return work(client);
+      },
+      'pair',
+      targetId,
+    );
   }
   /** Called only inside a coordinated message transaction, before releasing payloads. */
   async messageDeliveryAllowed(
