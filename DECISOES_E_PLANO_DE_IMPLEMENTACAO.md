@@ -1,5 +1,15 @@
 # Capacity audit follow-up — 16 October 2026
 
+The twelfth source block prepares exact counters for directly owned personal
+charges, separately keyed by account and public profile. Preserve the former
+formula, 1 GB quota, owner mapping, retained-byte subtraction and transactional
+rollback. Keep the attachment sum and its personal-removal exclusion unchanged
+until their cross-table accounting is designed. Prepare migration/backfill and
+reference reconciliation with a separate activation/rollback review; no VPS or
+global-capacity changes are included. Migration 072 preserves ledger-before-owner
+lock order for personal/group deltas without changing earlier checksums or
+weakening global admission. See [exact quota accounting](docs/QUOTA_ACCOUNTING.md).
+
 The eleventh source block prepares exact per-group quota counters. Preserve all
 existing charged-byte rules and the approved media/text split; maintain the
 derived totals transactionally and fail closed when accounting is unavailable.

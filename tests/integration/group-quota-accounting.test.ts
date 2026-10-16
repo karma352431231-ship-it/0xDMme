@@ -84,6 +84,37 @@ await test('group accounting upgrades populated history and preserves transactio
     },
   );
 
+  await t.test(
+    'ledger ordering precedes accepted occupancy even without a packet-change trigger',
+    async () => {
+      const media = crypto.randomUUID();
+      await inspector.query(
+        "INSERT INTO hash_talk.group_media(id,group_id,epoch,message_id,sender,descriptor,bytes,text_charge,charge) VALUES($1,$2,1,gen_random_uuid(),$3,'{}',2048,1024,3072)",
+        [media, fixture.first, fixture.account],
+      );
+      await inspector.query('BEGIN');
+      try {
+        await inspector.query(
+          "UPDATE hash_talk.group_media SET status='accepted',accepted_at=now() WHERE id=$1",
+          [media],
+        );
+        await assert.rejects(
+          reader.query(
+            'SELECT used_bytes FROM hash_talk.content_usage WHERE singleton FOR UPDATE NOWAIT',
+          ),
+          (error: unknown) =>
+            error instanceof Error && 'code' in error && error.code === '55P03',
+        );
+      } finally {
+        await inspector.query('ROLLBACK');
+        await inspector.query('DELETE FROM hash_talk.group_media WHERE id=$1', [
+          media,
+        ]);
+      }
+      await assertGroupReconciled(inspector);
+    },
+  );
+
   await t.test('quota reads do not touch locked history tables', async () => {
     await inspector.query('BEGIN');
     try {
@@ -139,10 +170,18 @@ await test('group accounting upgrades populated history and preserves transactio
         'SELECT xmin::text FROM hash_talk.group_quota_usage WHERE group_id=$1',
         [fixture.first],
       );
-      await inspector.query(
-        'UPDATE hash_talk.group_links SET proof=proof WHERE group_id=$1',
-        [fixture.first],
-      );
+      await inspector.query('BEGIN');
+      try {
+        await inspector.query(
+          'UPDATE hash_talk.group_links SET proof=proof WHERE group_id=$1',
+          [fixture.first],
+        );
+        await reader.query(
+          'SELECT used_bytes FROM hash_talk.content_usage WHERE singleton FOR UPDATE NOWAIT',
+        );
+      } finally {
+        await inspector.query('ROLLBACK');
+      }
       assert.deepEqual(
         (
           await inspector.query(

@@ -371,6 +371,22 @@ Personal quota sums, the singleton global byte counter and remaining group/gener
 admission locks are still pending. Schema/catalog rollback and backfill duration
 need review before the final activation. See [exact quota accounting](QUOTA_ACCOUNTING.md).
 
+## Twelfth block: direct personal quota counters
+
+Personal usage reads exact account/profile counters instead of repeating the
+directly owned historical sums. Statement deltas preserve sender/recipient
+charges, retained-byte subtraction, owner mapping, no-op behavior and rollback.
+New owners start with zero counters; missing accounting fails closed. All
+existing individual quotas, authorization and global coordination remain.
+
+**Ponto importante:** private-attachment usage still applies the previous sum
+and personal-removal exclusion. That cross-table dependency and the singleton
+global byte counter remain pending. Migration 071 is prepared locally and needs
+schema/preservation/backfill/rollback review before the integrated activation.
+Migration 072 preserves global-ledger-before-counter order for deltas that
+change no global bytes; unchanged totals do not acquire the added guard.
+See [exact quota accounting](QUOTA_ACCOUNTING.md).
+
 ## Remaining audit work
 
 - Size global content admission from the own data volume and operational space;
@@ -378,8 +394,8 @@ need review before the final activation. See [exact quota accounting](QUOTA_ACCO
   quotas or admitting writes that endanger accepted data.
 - Extend scoped coordination to the remaining general authority/group/retention
   operations, with explicit lock orders and revocation/deletion regressions.
-- Replace repeated personal historical quota sums and singleton byte-counter
-  contention; validate the prepared group counters and reconciliation under load.
+- Replace the remaining attachment historical sum and singleton byte-counter
+  contention; validate the prepared group/personal counters and reconciliation under load.
 - Measure reservation/transfer/execution memory and queued deadlines under
   representative load; validate abandoned-upload cleanup throughput.
 - Activate the prepared TURN/push changes with effective inherited limits and

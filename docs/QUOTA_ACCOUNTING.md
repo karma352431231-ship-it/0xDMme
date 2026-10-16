@@ -1,12 +1,63 @@
 # Exact quota accounting
 
+## Prepared personal accounting — 16 October 2026
+
+Migration `071-personal-quota-accounting.sql` maintains the directly owned
+portions of personal usage in `account_quota_usage` and `profile_quota_usage`.
+Keep profile-owned charges keyed by profile; the existing unique account/profile
+mapping joins them at read time. No historical rewrite is needed for that join.
+The approved 1 GB personal quota and all existing charge amounts stay unchanged.
+
+The sources are the encrypted account profile; vault operations; organizations,
+credentials and domains; daily, read, conversation, presence, push and call
+controls; personal-removal metadata net of retained bytes; recovery keys;
+private message sender/recipient charges; private Matrix state; group controls
+and reads; status data; and social directory, recovery, Matrix, secrets, message
+and media charges. Update both participants' counters in UUID order when a
+statement changes their charges. Initialize zero counters for new accounts and
+public profiles, preserve cascades and fail closed for missing accounting.
+
+**Ponto importante:** the private-attachment sum and its personal-removal
+exclusion remain in the online formula. Their cross-table visibility contract
+still needs its own incremental design. This block removes the other historical
+sums; it does not complete all personal-accounting scalability work or replace
+the singleton global byte counter.
+
+The `account_quota_totals` and `profile_quota_totals` views are backfill and
+reconciliation references, not admission paths. Install the counters and
+statement triggers in a single migration transaction under write-conflicting
+locks on their sources. PostgreSQL transition rows can spill to temporary
+storage; measure realistic statement sizes, backfill duration and memory/I/O
+before activation. Existing authorization/account/global coordination remains.
+
+Migration `072-quota-lock-order.sql` keeps the global ledger ahead of both
+personal and group counters, including changes to personal ownership charges
+or accepted-media occupancy that leave global bytes unchanged. Only nonzero
+deltas acquire that lock. This closes the inverse order with global-triggered
+writes while preserving published migration checksums. Removing this gate is
+part of the pending global-capacity redesign.
+
+Local migration regressions populate every direct charge source and compare
+the complete personal formula with its pre-counter SQL oracle after mutations,
+deletions, cascades, owner mapping, concurrent updates and rollback. Retained-byte
+and attachment-exclusion rules, quota refusal and missing counters are explicit
+contracts. Source tests do not establish sustainable load capacity.
+Lock-order regressions fail before migration 072 and verify that its global
+guard precedes the derived counter lock without requiring a real deadlock.
+
+Activation requires the same separate schema/preservation review as group
+accounting. Roll back in reverse migration order, removing only this block's
+derived triggers/functions/views/tables and matching catalog entry with our
+writers stopped, before restoring compatible earlier source. Keep authoritative
+records and the global content ledger. No migration is activated by a push.
+
 ## Prepared group accounting — 16 October 2026
 
 Migration `070-group-quota-accounting.sql` maintains exact derived totals for
 each group. Online quota checks read one indexed counter row rather than
 repeating historical sums. The approved 2 GB group quota, its 75% media / 25%
-text split and administrative margin stay unchanged. Personal accounting and
-the singleton global content counter remain separate pending work.
+text split and administrative margin stay unchanged. Personal attachment
+accounting and the singleton global content counter remain separate pending work.
 
 `group_quota_usage` stores text/control bytes, all reserved or retained media
 bytes, and accepted media bytes used by retention scheduling. Its sources are

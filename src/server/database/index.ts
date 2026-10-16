@@ -174,6 +174,8 @@ const migrations = [
   '068-public-upvotes.sql',
   '069-social-reaction-index.sql',
   '070-group-quota-accounting.sql',
+  '071-personal-quota-accounting.sql',
+  '072-quota-lock-order.sql',
 ];
 
 export interface MaintenanceSnapshot {
