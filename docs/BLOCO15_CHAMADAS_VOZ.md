@@ -30,11 +30,28 @@ Referências técnicas: [WebRTC/TURN](https://webrtc.org/getting-started/turn-se
 
 Módulos `shared/calls`, `server/calls` e `client/calls` separam formatos/SDP, estado transitório e UI/WebRTC. Migração 026 guarda apenas “Receber chamadas” e sua revisão (256 bytes contabilizados). As novas fontes autorais do frontend entram no pacote GPL correspondente. Não há dependência npm nova.
 
-Consulta assinada a cada 5 s, inclusive durante a preparação de áudio. Lease de 20 s; contadores antirreplay permanecem até 10 s adicionais, sem conservar IDs/sinais de chamadas encerradas. Máximo 1.024 canais, 64 por conta, 32 aparelhos por contato e 16 chamadas por padrão. Sinais têm no máximo 8 KiB cifrados por aparelho e limite HTTP de 365 KB na oferta. Um aparelho atendido fecha a oferta nos demais; fechar mídia ativa termina a chamada também pelo heartbeat, caso o pedido de encerramento se perca. Reinício ICE parte somente de quem ligou: até duas tentativas espaçadas por 8 s dentro da janela de 20 s, com nova credencial TURN quando necessário.
+Signed synchronization runs every five seconds, including during microphone
+preparation. Leases last 20 seconds; anti-replay metadata remains for ten extra
+seconds without retaining ended-call IDs/signals. The capacity follow-up of
+16 October replaces the fixed call/channel counts with shared memory admission:
+128 KiB per channel and one MiB per call, released by expiry/end/shutdown.
+`HASH_TALK_CALL_CAPACITY` is retired. One call per account, up to 32 authenticated
+devices per contact, 8 KiB encrypted signaling per device and the 365 KB HTTP
+offer envelope remain. The first answer retires other offers; closing active
+media also ends the call through its heartbeat if the explicit end request is
+lost. ICE restart remains caller-owned, with at most two attempts eight seconds
+apart within the 20-second authorization window and fresh TURN credentials when
+needed. Prepared source does not establish media capacity or activate the relay.
 
 Cada consulta informa o prazo restante das duas pontas. Cliente conta conservadoramente desde o início do pedido, incluindo tempo de assinatura/rede, e encerra no prazo mais curto; perda da autorização do parceiro não soma outro intervalo de consulta. Watchdog verifica a cada segundo, enquanto o navegador executa timers. Aba aberta pode tocar também em segundo plano enquanto continua conectada; suspensão interrompe o heartbeat e expira a autorização. Não anunciar suporte a áudio em segundo plano nos celulares antes dos testes físicos.
 
-Orçamento específico de chamadas: 900 pedidos/min por endereço de transporte antes da autenticação (socket Unix compartilha esse endereço); depois de validar sessão/CSRF, 60 comandos/min por sessão. Buckets HMAC apenas em RAM, até 256 entradas por orçamento, expiração de 1 minuto. Por decisão do proprietário em 06/10/2026, os tetos gerais de 60 escritas e 240 leituras/min foram removidos das operações normais do chat/uploads/consultas. Sincronização e Encerrar também não têm mais o contador específico de 240 leituras/min por sessão; continuam sujeitos à admissão global de chamadas. Quatro pedidos concorrentes no handler; banda/CPU dependem da medição da infraestrutura antes da ativação.
+Authenticated call commands retain their 60-command/session/minute abuse budget;
+synchronization and end remain exempt. HMAC bucket keys stay only in RAM, expire
+after one minute and use memory-derived admission. The capacity follow-up removes
+the transport-wide 900-request window, the shared handler operation ceiling and
+fixed bucket-entry count. Normal chat/upload/read operations retain the owner's
+previous removal of aggregate per-minute limits. Bandwidth, CPU, state scans and
+lease recovery still require realistic measurements before final activation.
 
 A leitura assinada `peer-directory`, necessária à autenticação das chamadas, mantém a mesma autorização de aparelho e contato, sem teto de consultas por minuto. A integração cobre leitura de identidade e encerramento após uma sequência de mais de 60 escritas normais, além de mais de 240 sincronizações assinadas; entradas inválidas continuam recusadas. Preparação ou falha da mídia não suspende o heartbeat. Encerramento sem resposta do servidor informa que o áudio local parou e que o prazo de autorização encerra o outro lado em até 20 s.
 

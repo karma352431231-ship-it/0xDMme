@@ -1,5 +1,13 @@
 # Capacity audit follow-up — 16 October 2026
 
+The eighth source block replaces fixed call/channel visitor counts with shared
+memory reservations retained for each volatile object's lifecycle. Keep one
+call per account, authenticated device limits, consent, first-answer ownership,
+replay protection and expiry. The former `HASH_TALK_CALL_CAPACITY` setting is
+retired. These signaling changes do not enlarge the active relay-port range or
+establish a supported simultaneous-call count; final relay resource/port/network
+validation and notification dispatch changes remain pending.
+
 The seventh source block replaces the four-per-account and 256-global pending
 upload counts with resource admission. Each reservation operation owns a shared
 memory reservation before entering the database; durable payload and metadata

@@ -4,8 +4,10 @@ import { leaseMs, ringMs } from '../../shared/calls/index.ts';
 import type { CallView, MediaState } from '../../shared/calls/index.ts';
 import type { SealedSecret } from '../../shared/devices/index.ts';
 import type { ContactAuthority, CallGate } from '../database/index.ts';
+import { reserveCallState } from './admission.ts';
 
 interface Endpoint {
+  release: () => void;
   key: string;
   authority: {
     directory: string;
@@ -21,6 +23,7 @@ interface Endpoint {
   media: MediaState;
 }
 interface Connection {
+  release: () => void;
   id: string;
   caller: Endpoint;
   recipient: string;
@@ -44,10 +47,8 @@ export class CallState {
   private readonly endpoints = new Map<string, Endpoint>();
   private readonly calls = new Map<string, Connection>();
   private readonly accounts = new Map<string, string>();
-  private readonly capacity: number;
   private readonly clock: () => number;
-  constructor(capacity: number, clock = Date.now) {
-    this.capacity = capacity;
+  constructor(clock = Date.now) {
     this.clock = clock;
   }
   endpoint(
@@ -65,15 +66,8 @@ export class CallState {
     let endpoint = this.endpoints.get(key);
     if (!endpoint) {
       if (!register) return unavailable();
-      const siblings = [...this.endpoints.values()].filter(
-        (e) => e.authority.session.accountId === a.session.accountId,
-      );
-      if (this.endpoints.size >= 1024 || siblings.length >= 64)
-        throw new AccountError(
-          429,
-          'Limite temporário de aparelhos conectados.',
-        );
       endpoint = {
+        release: reserveCallState('endpoint'),
         key,
         authority: {
           directory: a.directory,
@@ -206,6 +200,7 @@ export class CallState {
     const waiting = new Set(gate.wakeDevices ?? []);
     if (!ringing.size && !waiting.size) return unavailable();
     const call: Connection = {
+      release: reserveCallState('call'),
       id: randomUUID(),
       caller: endpoint,
       recipient: peer,
@@ -227,11 +222,7 @@ export class CallState {
     return this.view(endpoint, call) ?? unavailable();
   }
   private occupied(own: string, peer: string): boolean {
-    return (
-      this.accounts.has(own) ||
-      this.accounts.has(peer) ||
-      this.calls.size >= this.capacity
-    );
+    return this.accounts.has(own) || this.accounts.has(peer);
   }
   accept(endpoint: Endpoint, id: string): CallView {
     const call = this.require(endpoint, id);
@@ -447,6 +438,7 @@ export class CallState {
       c.deadline = this.clock() + leaseMs;
   }
   private remove(c: Connection): void {
+    c.release();
     this.calls.delete(c.id);
     this.accounts.delete(c.caller.authority.session.accountId);
     this.accounts.delete(c.recipient);
@@ -475,18 +467,23 @@ export class CallState {
       this.cleanRinging(c, now);
     }
     for (const [key, e] of this.endpoints)
-      if (e.expires + 10_000 <= now) this.endpoints.delete(key);
+      if (e.expires + 10_000 <= now) {
+        this.endpoints.delete(key);
+        e.release();
+      }
   }
   nextExpiry(): number | null {
-    const dates = [...this.endpoints.values()].map((e) => e.expires + 10_000);
+    let at = Infinity;
+    for (const endpoint of this.endpoints.values())
+      at = Math.min(at, endpoint.expires + 10_000);
     for (const call of this.calls.values()) {
-      dates.push(call.caller.expires);
-      if (call.callee) dates.push(call.callee.expires);
-      if (call.deadline !== null) dates.push(call.deadline);
+      at = Math.min(at, call.caller.expires);
+      if (call.callee) at = Math.min(at, call.callee.expires);
+      if (call.deadline !== null) at = Math.min(at, call.deadline);
       for (const endpoint of call.ringing.values())
-        dates.push(endpoint.expires);
+        at = Math.min(at, endpoint.expires);
     }
-    return dates.length ? Math.min(...dates) : null;
+    return Number.isFinite(at) ? at : null;
   }
   private cleanRinging(c: Connection, now: number): void {
     if (c.callee) return;
@@ -498,6 +495,8 @@ export class CallState {
     if (!c.ringing.size && !c.waiting.size) this.remove(c);
   }
   close(): void {
+    for (const call of this.calls.values()) this.remove(call);
+    for (const endpoint of this.endpoints.values()) endpoint.release();
     this.endpoints.clear();
     this.calls.clear();
     this.accounts.clear();

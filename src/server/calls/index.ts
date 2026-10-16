@@ -47,7 +47,7 @@ export class CallService {
   private readonly unsubscribe: () => void;
   constructor(options: Options) {
     this.options = options;
-    this.state = new CallState(options.config?.maxCalls ?? 16);
+    this.state = new CallState();
     this.unsubscribe = options.changes.subscribe({
       notify: (change) => {
         if (

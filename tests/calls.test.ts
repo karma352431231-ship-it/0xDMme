@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
-import { test } from 'node:test';
+import { test, type TestContext } from 'node:test';
+import { reserveOperationMemory } from '../src/server/memory-admission/index.ts';
 import { createHmac } from 'node:crypto';
 import {
   CallState,
@@ -48,9 +49,10 @@ const body: SealedSecret = {
   wrappedKey: Buffer.alloc(384).toString('base64'),
   ciphertext: Buffer.alloc(32).toString('base64'),
 };
-function fixture(capacity = 16) {
+function fixture(t: TestContext) {
   let now = 100_000;
-  const state = new CallState(capacity, () => now);
+  const state = new CallState(() => now);
+  t.after(() => state.close());
   const caller = authority(),
     callee = authority(),
     otherDevice = authority(callee.session.accountId);
@@ -108,8 +110,8 @@ function fixture(capacity = 16) {
     now: () => now,
   };
 }
-await test('primeiro atendimento vence; outras abas/aparelhos perdem autoridade; recusa encerra em todos', () => {
-  const f = fixture(),
+await test('primeiro atendimento vence; outras abas/aparelhos perdem autoridade; recusa encerra em todos', (t) => {
+  const f = fixture(t),
     call = f.start();
   f.offer(call.id);
   assert.ok(f.sync(f.callee)?.signal);
@@ -170,8 +172,8 @@ await test('primeiro atendimento vence; outras abas/aparelhos perdem autoridade;
   assert.equal(f.sync(f.callee), null);
   assert.equal(f.state.usage.calls, 0);
 });
-await test('ocupado/offline/bloqueio/silêncio/preferência desligada não revelam estados diferentes', () => {
-  const f = fixture();
+await test('ocupado/offline/bloqueio/silêncio/preferência desligada não revelam estados diferentes', (t) => {
+  const f = fixture(t);
   for (const patch of [
     { allowed: false },
     { peerReceiving: false },
@@ -202,8 +204,8 @@ await test('ocupado/offline/bloqueio/silêncio/preferência desligada não revel
   f.state.endAccounts([f.callee.session.accountId]);
   assert.equal(f.state.usage.calls, 0);
 });
-await test('toque expira em 60s, conexão em 20s e duração conectada não tem limite artificial', () => {
-  const f = fixture();
+await test('toque expira em 60s, conexão em 20s e duração conectada não tem limite artificial', (t) => {
+  const f = fixture(t);
   f.start();
   for (let i = 0; i < 11; i++) {
     f.advance(5000);
@@ -239,8 +241,8 @@ await test('toque expira em 60s, conexão em 20s e duração conectada não tem 
   f.state.clean();
   assert.deepEqual(f.state.usage, { calls: 0, endpoints: 0, packets: 0 });
 });
-await test('aparelhos inscritos podem acordar durante o convite, recebem oferta apenas uma vez e primeiro atendimento vence', () => {
-  const f = fixture(),
+await test('aparelhos inscritos podem acordar durante o convite, recebem oferta apenas uma vez e primeiro atendimento vence', (t) => {
+  const f = fixture(t),
     recipient = authority(),
     sibling = authority(recipient.session.accountId);
   const call = f.state.start(
@@ -298,8 +300,8 @@ await test('aparelhos inscritos podem acordar durante o convite, recebem oferta 
     /indisponível/u,
   );
 });
-await test('convite para aparelho fechado não sobrevive a cancelamento, perda da lease ou 60 segundos', () => {
-  const f = fixture(),
+await test('convite para aparelho fechado não sobrevive a cancelamento, perda da lease ou 60 segundos', (t) => {
+  const f = fixture(t),
     recipient = authority();
   const start = () =>
     f.state.start(
@@ -335,8 +337,8 @@ await test('convite para aparelho fechado não sobrevive a cancelamento, perda d
   assert.equal(f.sync(recipient), null);
   assert.equal(f.state.usage.packets, 0);
 });
-await test('replay, novos participantes, negociação fora de ordem e orçamento são rejeitados', () => {
-  const f = fixture(1),
+await test('replay, novos participantes, negociação fora de ordem e orçamento são rejeitados', (t) => {
+  const f = fixture(t),
     call = f.start();
   const outsider = authority();
   f.sync(outsider);
@@ -374,8 +376,8 @@ await test('replay, novos participantes, negociação fora de ordem e orçamento
   f.state.close();
   assert.deepEqual(f.state.usage, { calls: 0, endpoints: 0, packets: 0 });
 });
-await test('fechar mídia é terminal no heartbeat; contador transitório impede replay após a lease expirar', () => {
-  const f = fixture(),
+await test('fechar mídia é terminal no heartbeat; contador transitório impede replay após a lease expirar', (t) => {
+  const f = fixture(t),
     call = f.start();
   f.offer(call.id);
   f.state.accept(f.endpoint(f.callee, false), call.id);
@@ -391,42 +393,68 @@ await test('fechar mídia é terminal no heartbeat; contador transitório impede
   f.state.clean();
   assert.throws(() => f.state.endpoint(a, request, true), /repetido/u);
 });
-await test('capacidade global, canais por conta e retenção em RAM têm teto e são recuperados após expiração', () => {
-  const f = fixture(1),
-    call = f.start(),
-    secondCaller = authority(),
-    secondCallee = authority();
-  f.sync(secondCaller);
-  f.sync(secondCallee);
-  const startSecond = () =>
-    f.state.start(
-      f.endpoint(secondCaller, false),
-      secondCallee.session.accountId,
-      gate.peerDirectory!,
-      gate,
-    );
-  assert.throws(startSecond, /indisponível/u);
-  f.state.end(f.endpoint(f.caller, false), call.id);
-  assert.ok(startSecond().id);
+await test('endpoint admission exceeds 1024 global and 64 account channels while retaining expiry', (t) => {
+  t.mock.method(process, 'availableMemory', () => 1_073_741_824);
   let now = 100_000;
-  const bounded = new CallState(16, () => now);
+  const bounded = new CallState(() => now);
+  t.after(() => bounded.close());
   const register = (a: ContactAuthority) =>
     bounded.endpoint(
       a,
       { channel: crypto.randomUUID(), sequence: 1, at: now },
       true,
     );
-  for (let account = 0; account < 16; account++) {
-    const a = authority();
-    for (let channel = 0; channel < 64; channel++) register(a);
-    assert.throws(() => register(a), /Limite temporário/u);
-  }
-  assert.equal(bounded.usage.endpoints, 1024);
-  assert.throws(() => register(authority()), /Limite temporário/u);
+  const a = authority();
+  for (let channel = 0; channel < 1100; channel++) register(a);
+  assert.equal(bounded.usage.endpoints, 1100);
+  assert.equal(bounded.nextExpiry(), now + leaseMs + 10_000);
   now += leaseMs + 10_000;
   bounded.clean();
   assert.deepEqual(bounded.usage, { calls: 0, endpoints: 0, packets: 0 });
   assert.ok(register(authority()));
+});
+await test('independent calls exceed both the old default and configurable ceiling', (t) => {
+  t.mock.method(process, 'availableMemory', () => 1_073_741_824);
+  const f = fixture(t);
+  for (let i = 0; i < 132; i++) {
+    const caller = authority(),
+      recipient = authority();
+    f.sync(caller);
+    f.sync(recipient);
+    assert.ok(
+      f.state.start(
+        f.endpoint(caller, false),
+        recipient.session.accountId,
+        gate.peerDirectory!,
+        gate,
+      ).id,
+    );
+  }
+  assert.equal(f.state.usage.calls, 132);
+  f.advance(leaseMs + 10_000);
+  f.state.clean();
+  assert.deepEqual(f.state.usage, { calls: 0, endpoints: 0, packets: 0 });
+});
+await test('memory pressure preserves existing calls and releases their budget on end and shutdown', (t) => {
+  let available = 16_777_216;
+  t.mock.method(process, 'availableMemory', () => available);
+  const f = fixture(t),
+    call = f.start();
+  available = 0;
+  assert.throws(() => f.sync(authority()), { status: 429 });
+  assert.equal(f.sync(f.caller)?.id, call.id);
+  f.state.end(f.endpoint(f.caller, false), call.id);
+  assert.throws(() => f.start(), { status: 409 });
+  available = 16_777_216;
+  assert.ok(f.start().id);
+  f.state.close();
+  f.state.close();
+  const release = reserveOperationMemory(available);
+  assert.ok(
+    release,
+    'shutdown must release every endpoint and call reservation',
+  );
+  release();
 });
 const fingerprintLine =
   'a=fingerprint:sha-256 ' + Array(32).fill('AB').join(':');
@@ -469,6 +497,15 @@ await test('TURN usa credenciais temporárias sem identidade; configuração par
     HASH_TALK_TURN_SECRET: 'x'.repeat(43),
   });
   assert.ok(config);
+  assert.deepEqual(
+    readTurnConfiguration({
+      HASH_TALK_TURN_URLS: config.urls.join(','),
+      HASH_TALK_TURN_SECRET: config.secret,
+      HASH_TALK_CALL_CAPACITY: '1',
+    }),
+    config,
+    'the retired visitor-count setting must not restore a call ceiling',
+  );
   const credentials = turnCredentials(config, 100_000),
     server = credentials.iceServers[0];
   assert.ok(server);

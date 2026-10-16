@@ -243,6 +243,35 @@ activation. This block preserves that guard rather than treating its removal as
 unlimited storage. Peak metadata memory, sustained load and cleanup throughput
 remain acceptance work.
 
+## Eighth block: resource admission for call signaling
+
+Signaling no longer stops at 16 simultaneous calls, a configurable maximum of
+128, 1,024 endpoint channels globally or 64 channels per account. The retired
+`HASH_TALK_CALL_CAPACITY` variable no longer affects admission. Each new channel
+reserves 128 KiB and each call reserves one MiB from the shared memory ledger.
+These estimates account for metadata, fanout references and existing bounded
+encrypted signaling envelopes; representative peak measurements remain required.
+The one-call-per-account rule and authenticated device/envelope limits remain.
+
+Ending a call, losing consent, expiry and shutdown release its memory. Endpoint
+anti-replay metadata keeps the existing extra ten seconds after its lease and
+releases memory when collected. Pressure refuses new state with existing generic
+errors while current channels can synchronize/end without a new reservation.
+The next-expiry calculation uses constant temporary space instead of allocating
+an array and spreading every endpoint into a single function call.
+
+Regressions create 1,100 channels in one account and 132 independent calls,
+exercise pressure and recovery, and verify budget release on expiry, end and
+repeated shutdown. Existing first-answer, replay, consent/revocation, no-duration
+cap and HTTP/database tests remain required. Signaling still belongs to one web
+process; adding processes requires an explicit ownership design.
+
+**Ponto importante:** these are signaling-source changes. They do not increase
+the active relay's ports, remove the remaining web notification queue limits or
+prove that the host can carry 132 media calls. Relay configuration, effective
+descriptor limits, port ownership/firewall checks and synthetic network/load
+acceptance remain part of the deferred integrated activation.
+
 ## Remaining audit work
 
 - Size global content admission from the own data volume and operational space;
@@ -255,7 +284,7 @@ remain acceptance work.
 - Measure reservation/transfer/execution memory and queued deadlines under
   representative load; validate abandoned-upload cleanup throughput.
 - Activate the prepared TURN/push changes with effective inherited limits and
-  rollback; coordinate call admission, relay ports, web dispatch queues and
+  rollback; coordinate relay ports, web dispatch queues and
   representative resource validation.
 - Validate feed query growth, recurring polling, SSE recovery, database pools,
   event-loop latency, WAL/checkpoints and overload recovery.

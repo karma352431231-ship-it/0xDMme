@@ -6,7 +6,15 @@ Os arquivos `.example` não são configuração ativa nem um instalador. A autor
 
 Coturn **4.18.0** foi selecionado: implementação TURN mantida, licença BSD-3-Clause examinada na tag, sem conta/taxa comercial. Processo separado, sem dependência nova no npm/frontend. Libevent 2.1.12-stable (BSD-3-Clause) e OpenSSL 3 (Apache-2.0) foram usados somente na prova local; fixar/revisar versões e avisos da distribuição Linux antes da instalação. Não distribuir binários locais como artefato do app. [Release](https://github.com/coturn/coturn/releases/tag/4.18.0), [licença](https://github.com/coturn/coturn/blob/4.18.0/LICENSE), [opções](https://github.com/coturn/coturn/blob/4.18.0/README.turnserver).
 
-Backend: `HASH_TALK_TURN_URLS` recebe URLs TURN próprias separadas por vírgula, com porta/transporte explícitos; `HASH_TALK_TURN_SECRET` contém o mesmo segredo REST do Coturn (pelo menos 32 bytes aleatórios, codificados); `HASH_TALK_CALL_CAPACITY` limita chamadas simultâneas, padrão 16, máximo configurável 128 sujeito a revisão de RAM/banda. Ausência de ambos desabilita chamadas; configuração parcial/inválida impede iniciar o servidor. Segredos e endereços da VPS exclusivamente em `.local/` e arquivos privados da máquina, nunca Git, comandos/logs ou documentação pública.
+Backend: `HASH_TALK_TURN_URLS` contains comma-separated own TURN URLs with explicit
+ports/transports; `HASH_TALK_TURN_SECRET` contains the matching Coturn REST secret
+(at least 32 random encoded bytes). Absence of both disables calls; partial or
+invalid configuration prevents startup. `HASH_TALK_CALL_CAPACITY` is retired:
+signaling owns shared memory reservations for each channel/call rather than a
+fixed visitor-count ceiling. Remove the obsolete variable during final private
+environment review. Relay ports, effective descriptors and bandwidth still need
+coordinated validation. Keep secrets and host addresses exclusively in `.local/`
+and private host files, never Git, command output or public documentation.
 
 Credencial por participante: expira em 10 minutos, nome aleatório sem conta/aparelho; renovada antes de um ICE restart. Alocações existentes renováveis não equivalem a revogação instantânea. Cliente encerra por perda de autorização em até 20 s, e revalida a sessão durante a chamada. Sem limite artificial de duração.
 

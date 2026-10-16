@@ -2,7 +2,6 @@ import { createHmac, randomBytes } from 'node:crypto';
 export interface TurnConfig {
   urls: string[];
   secret: string;
-  maxCalls: number;
 }
 export function readTurnConfiguration(
   env: NodeJS.ProcessEnv,
@@ -14,7 +13,7 @@ export function readTurnConfiguration(
   if (!/^[A-Za-z0-9+/=_-]{43,128}$/u.test(secret))
     throw new Error('Segredo TURN inválido.');
   const urls = parseUrls(raw);
-  return { urls, secret, maxCalls: capacity(env['HASH_TALK_CALL_CAPACITY']) };
+  return { urls, secret };
 }
 function parseUrls(raw: string): string[] {
   const urls = raw.split(',');
@@ -22,12 +21,6 @@ function parseUrls(raw: string): string[] {
     throw new Error('URLs TURN inválidas.');
   for (const url of urls) validateUrl(url);
   return urls;
-}
-function capacity(value: string | undefined): number {
-  const maxCalls = Number(value ?? 16);
-  if (!Number.isInteger(maxCalls) || maxCalls < 1 || maxCalls > 128)
-    throw new Error('Capacidade de chamadas inválida.');
-  return maxCalls;
 }
 function validateUrl(url: string): void {
   if (

@@ -66,7 +66,6 @@ await test('chamadas: HTTP assinado, consentimento, preferência global, silênc
     config: {
       urls: ['turn:127.0.0.1:3478?transport=udp'],
       secret: 'x'.repeat(43),
-      maxCalls: 16,
     },
   });
   notifications.bindCalls((session, directory) =>
