@@ -1,5 +1,19 @@
 # 0xDMme — decisões e plano de implementação
 
+**Measured private-directory boot repair — 16/10/2026:** after the complete
+physical console capture located repeated authenticated work before initial
+directory publication, the owner approved applying the fixes. Defer optional
+session warmups while the foreground private chat directory starts, coalescing
+readiness rechecks during that interval. Keep calls immediate, keep other
+foreground screens on their normal startup path and release deferred work on
+navigation, directory publication or a current-session directory failure.
+Logout, device/CSRF changes and authorization loss discard the pending warmup.
+Every operation retains its own existing online authorization, revocation and
+history gates. No stale authority cache, new protocol, backend, migration,
+dependency or persistent plaintext is introduced. Exact physical timings and
+captures remain private in `.local/`; a new physical comparison is required
+before claiming a mobile speedup. See [boot scheduling contract](docs/BOOT_CONTATOS_CONVERSAS.md#foreground-directory-startup--16102026).
+
 **Feed vote position repair — 15/10/2026:** during acceptance of the authorized
 discovery release, the owner reported that upvoting jumps to the top of the feed.
 The confirmed-vote callback still used the existing reload-from-start path,

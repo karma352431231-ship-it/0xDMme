@@ -1,5 +1,53 @@
 # Carregamento de contatos e conversas — 15/10/2026
 
+## Foreground directory startup — 16/10/2026
+
+The owner supplied a complete physical Chrome Android boot capture and approved
+fixing the measured startup contention. The observed initial private directory
+waited through repeated online authority reads and signed startup work. Native
+lock wait alone did not show the application's preceding serialized queue.
+The debugger setup pause and later individual-chat navigation are excluded from
+that analysis. Captures, exact timings and operational evidence stay in `.local/`.
+
+`app/session-boot.ts` now owns a bounded startup gate for one current session.
+When opening the foreground private chat directory, start its existing loader
+and calls normally. Defer optional profile/community readiness, contacts-screen
+warmup, activity, status, vault, settings and session decoration until the first
+directory publication. Repeated readiness callbacks coalesce into that single
+pending warmup. After startup, normal readiness rechecks keep their behavior.
+
+Other foreground pages, including Communities and Contacts, keep their normal
+startup path. Navigating away releases deferred work immediately. A valid
+directory failure also releases it while the existing error remains an error;
+runtime failure never becomes directory success. Do not wait for message SDK
+initialization to release work after a directory already appeared. Deep-link or
+offline directory publication can settle the same current-session gate.
+
+Account, device or CSRF changes, logout and authorization loss invalidate the
+pending warmup. A stale completion cannot start another session's deferred work.
+There is one pending session and no added timer, retry, queue, storage or network
+operation. Calls and explicit screen/controller actions keep their own lifecycle.
+Every online operation still reacquires its existing verified authority and
+checks revocation/removals; history remains behind the existing runtime and
+verification gates. No backend, schema, dependency, cache or crypto change is made.
+
+Regression coverage exercises the assembled authorized app entry point, one-time
+directory startup, immediate calls, deferred warmups, normal post-start rechecks,
+foreground navigation, account/device/CSRF replacement, logout and directory/
+runtime failures. A passing synthetic test establishes scheduling behavior,
+not a physical mobile speedup. Reuse the console capture for acceptance.
+
+The app and message coordinators remain hotspots. This repair adds small wiring
+calls and puts the scheduling rule in its own module. A separate reviewed task
+should extract app session composition/readiness, then route mounting; for the
+message coordinator, extract session/identity first, outbox/composition next and
+history/view lifecycle last. Preserve generation cancellation, disposal and
+verification gates; run app startup/navigation, message session/revocation,
+recovery and layout tests after each extraction. No broad split is included here.
+
+**Ponto importante:** this changes startup scheduling while preserving security
+checks. It does not establish the final mobile speedup or activate a release.
+
 O proprietário relata demora no mobile ao reabrir, recarregar e retornar ao app,
 até os contatos e as conversas aparecerem. A investigação encontrou um custo
 reproduzível no caminho compartilhado de carga das listas, depois da abertura
