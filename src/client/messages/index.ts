@@ -1,7 +1,8 @@
-import { t } from '../../shared/i18n/index.ts';
+import { t, translatedError } from '../../shared/i18n/index.ts';
 import { MessageContinuity } from './continuity.ts';
 import { initializeMessageDirectory } from './startup.ts';
 import { MessageSynchronization } from './synchronization.ts';
+import { MessageWarmup } from './warmup.ts';
 import { MessageHistoryUi } from './history-ui.ts';
 import { bindMessageLifecycle } from './lifecycle.ts';
 import {
@@ -212,7 +213,6 @@ export function startMessages(
           peers.find((peer) => peer.accountId === selected?.accountId) ??
           selected;
       renderContacts();
-      options.directorySettled?.(session);
     },
   });
   const peerPhotos = new PeerPhotos({
@@ -246,11 +246,11 @@ export function startMessages(
     contactActions,
     perform: performDirectoryAction,
     openPeer: (peer) => {
-      if (!reopenSelectedPeer(peer)) void run(() => openPeer(peer));
+      void requestPeer(peer);
     },
     openContact: options.openContact,
     openGroup: (group) => {
-      void run(() => groups.open(group));
+      void synchronization.open(() => groups.open(group));
     },
     changed: options.directoryChanged,
     presence: renderPresence,
@@ -298,9 +298,14 @@ export function startMessages(
         .filter((peer) => !peer.localOnly)
         .map((peer) => peer.accountId),
     share: (peer, card) => controller.shareProfile(peer, card),
-    ready: () => !!session && navigator.onLine && !synchronization.busy,
+    ready: () =>
+      startupWarmup.ready &&
+      !startupWarmup.pending &&
+      !!session &&
+      navigator.onLine &&
+      !synchronization.busy,
   });
-  const synchronization = new MessageSynchronization({
+  const synchronization: MessageSynchronization = new MessageSynchronization({
     state: () => ({
       generation,
       connected: connected(),
@@ -309,17 +314,19 @@ export function startMessages(
       visible: document.visibilityState === 'visible',
       suspended: continuity.suspended,
       liveConnecting: live.connecting,
+      startupPending: startupWarmup.pending,
     }),
     status,
     notice: (value) => {
       message = value;
     },
     complete: () => {
-      void previews.refresh(
-        directoryData.peers
-          .filter((peer) => !peer.localOnly)
-          .map((peer) => peer.accountId),
-      );
+      if (!startupWarmup.pending)
+        void previews.refresh(
+          directoryData.peers
+            .filter((peer) => !peer.localOnly)
+            .map((peer) => peer.accountId),
+        );
       message = controller.transportPending
         ? t('Alguns envios ainda estão pendentes. A retomada é automática.')
         : t('Conversas atualizadas.');
@@ -338,6 +345,42 @@ export function startMessages(
     periodicWork: periodicMessageWork,
     pending: () => controller.pending(),
     sendPending: () => controller.sendPending(),
+  });
+  const startupWarmup: MessageWarmup = new MessageWarmup({
+    available: () => synchronization.backgroundReady,
+    run: (step) => synchronization.background(step),
+    changed: () => {
+      synchronization.resume();
+      broadcastProfile();
+    },
+    failed: (error) => {
+      message =
+        error instanceof Error
+          ? translatedError(error.message)
+          : t('Não foi possível concluir a operação.');
+      status();
+    },
+    steps: [
+      async () => {
+        await groups.refresh();
+        contactsMore();
+      },
+      async () => {
+        const current = generation;
+        await controller.sendPending();
+        if (current === generation) await controller.savePins();
+      },
+      dailyTick,
+      async () => {
+        const current = generation;
+        await previews.refresh(
+          directoryData.peers
+            .filter((peer) => !peer.localOnly)
+            .map((peer) => peer.accountId),
+        );
+        if (current === generation) options.directorySettled?.(session);
+      },
+    ],
   });
   const continuity = new MessageContinuity({
     current: () => live.current,
@@ -499,6 +542,7 @@ export function startMessages(
     if (strip) strip.dataset['state'] = upToDate ? 'ok' : 'notice';
   }
   function status(): void {
+    startupWarmup.resume();
     renderStatusMessage();
     menu.setBusy(synchronization.busy);
     const dailyStatus = settingsHost?.querySelector('[data-daily-status]');
@@ -512,7 +556,7 @@ export function startMessages(
           | HTMLSelectElement
           | HTMLTextAreaElement
         >(
-          'button:not([data-chat-back]),input,select,textarea:not([data-message-text]):not([data-group-text])',
+          'button:not([data-chat-back]):not([data-conversation]),input,select,textarea:not([data-message-text]):not([data-group-text])',
         )
         .forEach((control) => {
           control.disabled = synchronization.busy;
@@ -787,6 +831,18 @@ export function startMessages(
     enterConversation();
     return true;
   }
+  function requestPeer(peer: ConversationPeer): Promise<void> {
+    if (reopenSelectedPeer(peer)) return Promise.resolve();
+    const current = generation;
+    const clear = directoryUi.openingPeer(peer.accountId);
+    return synchronization
+      .open(async () => {
+        clear();
+        if (current === generation && !continuity.suspended)
+          await openPeer(peer);
+      })
+      .finally(clear);
+  }
   async function openPeer(peer: ConversationPeer): Promise<void> {
     if (
       (voice.active || attachments.selected?.voice) &&
@@ -886,19 +942,13 @@ export function startMessages(
         loadPins: () => controller.loadPins(),
         loadContacts: refreshContacts,
         initialize: () => controller.initialize(),
-        settled: () => options.directorySettled?.(session),
         guard: () => {
           if (current !== generation) throw new Error('Sessão alterada.');
         },
       });
-      await groups.refresh();
-      contactsMore();
-      await controller.sendPending();
-      if (selected && conversationMounted('[data-direct-conversation]')) {
-        await refreshSelected();
-      }
+      if (!synchronization.openingRequested) await refreshSelected();
       await controller.savePins();
-      await dailyTick();
+      startupWarmup.request();
       if (
         session &&
         navigator.onLine &&
@@ -906,7 +956,10 @@ export function startMessages(
       )
         live.start();
     } catch (error: unknown) {
-      if (current === generation) controller.hide();
+      if (current === generation) {
+        controller.hide();
+        options.directorySettled?.(session);
+      }
       throw error;
     }
   }
@@ -931,7 +984,7 @@ export function startMessages(
     await controller.savePins();
   }
   async function refreshSelected(): Promise<void> {
-    if (!selected) return;
+    if (!selected || !conversationMounted('[data-direct-conversation]')) return;
     if (selected.localOnly) {
       await controller.openArchive(selected.accountId);
       return;
@@ -973,7 +1026,8 @@ export function startMessages(
       await synchronizeVisible();
       await controller.savePins();
     }
-    await dailyTick();
+    if (startupWarmup.pending) await historyUi.markRead(daily);
+    else await dailyTick();
   }
   /** GIF tab of the composer's emoji panel; a chosen GIF is sent at once. */
   function gifPane(host: HTMLElement, close: () => void): void {
@@ -1224,6 +1278,7 @@ export function startMessages(
     return synchronization.pendingWork();
   }
   function preferencesChanged(): void {
+    if (!startupWarmup.ready || startupWarmup.pending) return;
     if (!synchronization.busy && session && navigator.onLine)
       void synchronization.maintainPresence();
     broadcastProfile();
@@ -1235,6 +1290,7 @@ export function startMessages(
   function pageHide(event: PageTransitionEvent): void {
     continuity.freeze();
     synchronization.reset();
+    startupWarmup.pause();
     if (voice.active)
       void voice.stop(
         t(
@@ -1242,6 +1298,7 @@ export function startMessages(
         ),
       );
     if (!event.persisted) {
+      startupWarmup.reset();
       voice.cancel();
       groups.suspend(true);
       playback.close();
@@ -1391,12 +1448,7 @@ export function startMessages(
       renderContacts();
     },
     async openContact(peer: Peer): Promise<void> {
-      if (synchronization.busy)
-        throw new Error(
-          'Aguarde a atualização das conversas e tente novamente.',
-        );
-      if (reopenSelectedPeer(peer)) return;
-      await run(() => openPeer(peer));
+      await requestPeer(peer);
     },
     async contactSaved(contact: AddressBookEntry): Promise<void> {
       await agenda.saved(contact);
@@ -1438,6 +1490,7 @@ export function startMessages(
       live.stop();
       emojiPicker.reset();
       synchronization.reset();
+      startupWarmup.reset();
       session = value;
       contacts.setSession(value);
       daily.setSession(value);

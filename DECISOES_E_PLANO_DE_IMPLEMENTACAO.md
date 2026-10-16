@@ -1,5 +1,21 @@
 # 0xDMme — decisões e plano de implementação
 
+**Usable mobile conversations — 16/10/2026:** after the next physical capture,
+the owner clarified that a published contact could not be opened while startup
+was still busy and requested fixing both startup waits. Accept a visible private
+conversation choice during startup, retaining only the latest pending recipient.
+Run it at the next exclusive foreground boundary before unrelated maintenance;
+never change the crypto engine's recipient during another operation. Keep draft
+typing local and enable sending only after the selected history is verified.
+Coalesce initial profile-triggered presence work into post-initialization
+maintenance. Load groups, resume durable outbox work, update presence and release
+optional app warmups in separate bounded turns, preserving live invalidation,
+online authority/removal checks, consent, recovery and session cancellation.
+No dependency, protocol, backend, migration or retention change is included.
+The source repair requires local behavioral verification and a new physical
+comparison before claiming a speedup; activation remains a separate release step.
+See [functional startup contract](docs/BOOT_CONTATOS_CONVERSAS.md#usable-conversations-during-mobile-startup--16102026).
+
 **Measured private-directory boot repair — 16/10/2026:** after the complete
 physical console capture located repeated authenticated work before initial
 directory publication, the owner approved applying the fixes. Defer optional

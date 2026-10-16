@@ -1,5 +1,59 @@
 # Carregamento de contatos e conversas — 15/10/2026
 
+## Usable conversations during mobile startup — 16/10/2026
+
+The owner clarified that both manual markers in the latest capture referred to
+Conversations; the separate Contacts screen was not opened. Automatic directory
+publication and synchronization state identify two different waits. A visible
+row was routed through a global busy gate that discarded the opening request.
+Its startup operation also awaited group refresh, outbox work and presence before
+releasing all conversation controls. Exact captures and timings remain private.
+
+Conversation rows stay enabled during synchronization. A tap is acknowledged by
+selection presentation and retained by `messages/opening.ts`: one latest choice,
+with replacement/logout cancellation, no unbounded interaction queue. Engine
+selection and history opening run only when the current exclusive operation has
+settled, before the next maintenance turn. A startup failure discards queued
+openings. A tap never makes unverified history available or permits early send.
+The existing local draft remains editable while selected-history verification
+runs; sending and media retain their existing verification and busy gates.
+An initial text send updates that selected conversation's read receipts without
+waiting for account-wide presence/push work already scheduled by startup.
+
+The essential startup path loads pins and the authenticated directory, prepares
+the existing runtime/controller, refreshes a currently selected conversation when
+needed and saves pins. Initial profile-preference events do not start presence
+or profile broadcast ahead of that path. The latest preferences are read later.
+
+`messages/warmup.ts` owns four fixed maintenance turns: group directory/settings;
+durable outbox resumption and pin persistence; presence/push preferences; directory
+previews and optional app warmup release. Each turn starts after an idle interval
+and uses the existing maintenance exclusion. Foreground work waits for at most
+the maintenance turn already running, not all remaining startup turns. Pending
+startup work suppresses bulk history preloading, while live checks and immediate
+invalidation remain available. After maintenance, normal background preparation
+resumes. Session replacement and page departure cancel deferred work; an in-flight
+owner retains its generation checks. Maintenance failures remain visible and the
+existing explicit refresh can retry them; they never synthesize group success.
+
+This supersedes the earlier app-warmup release at first directory publication:
+the callback now follows essential initialization and bounded message maintenance,
+or a current-session startup failure. Navigating to another foreground page still
+releases optional app work immediately. Calls and incoming group links retain
+their existing immediate startup. Every signed operation reacquires its verified
+authority; no authorization/removal cache or cryptographic shortcut is introduced.
+
+Behavioral acceptance covers a row tapped before runtime initialization settles,
+latest-recipient replacement, logout/failure cancellation, local draft retention,
+send gating and submission before unrelated startup work, and foreground priority
+between maintenance turns. Existing live/suspension, recovery and session tests
+remain required. The coordinators remain hotspots; keep the previously proposed
+separate extraction order rather than mixing a broad refactor into this repair.
+
+**Ponto importante:** completion means an accepted tap, verified selected history
+and usable composer. List publication alone is not functional readiness. Physical
+gains and release activation require their own evidence after the source checks.
+
 ## Foreground directory startup — 16/10/2026
 
 The owner supplied a complete physical Chrome Android boot capture and approved
@@ -12,8 +66,9 @@ that analysis. Captures, exact timings and operational evidence stay in `.local/
 `app/session-boot.ts` now owns a bounded startup gate for one current session.
 When opening the foreground private chat directory, start its existing loader
 and calls normally; incoming group links remain immediate as well. Defer optional profile/community readiness, contacts-screen
-warmup, activity, status, vault, settings and session decoration until the first
-directory publication. Repeated readiness callbacks coalesce into that single
+warmup, activity, status, vault, settings and session decoration during startup.
+The newer functional-startup contract above supersedes the original release at
+first directory publication. Repeated readiness callbacks coalesce into that single
 pending warmup. After startup, normal readiness rechecks keep their behavior.
 
 Other foreground pages, including Communities and Contacts, keep their normal
