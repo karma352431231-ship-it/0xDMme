@@ -19,6 +19,7 @@ import type {
 import { CommunityMediaFiles } from './files.ts';
 import { CommunityMediaNormalizer } from './normalize.ts';
 import { readMediaRuntime } from './process.ts';
+import { reserveOperationMemory } from '../memory-admission/index.ts';
 export { CommunityMediaFiles } from './files.ts';
 export { CommunityMediaCollector } from './collector.ts';
 export {
@@ -47,7 +48,6 @@ export class CommunityMediaService {
   private readonly jobs = new Map<string, Promise<void>>();
   private readonly stop = new AbortController();
   private cleaning: Promise<void> | null = null;
-  private transfers = 0;
   private preparing = false;
   constructor(options: {
     store: CommunityMediaStore;
@@ -108,13 +108,13 @@ export class CommunityMediaService {
   ): Promise<unknown> {
     if (this.stop.signal.aborted)
       throw new AccountError(503, 'Serviço em encerramento.');
-    if (this.transfers >= 4)
+    const release = reserveOperationMemory(communityMediaPartBytes * 8);
+    if (!release)
       throw new AccountError(429, 'Transferências ocupadas. Retome depois.');
-    this.transfers++;
     try {
       return await this.execute(operation, a, d);
     } finally {
-      this.transfers--;
+      release();
     }
   }
   private async execute(

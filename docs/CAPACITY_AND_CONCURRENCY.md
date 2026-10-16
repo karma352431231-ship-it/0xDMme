@@ -120,6 +120,36 @@ admission estimate, not an established peak TLS-memory measurement. Actual
 resource use, latency, descriptor pressure and relay packet loss still need
 representative operational validation before activation.
 
+## Fourth block: storage and transfer memory admission
+
+The private, group, status and community transfer services no longer share a
+four-operation counter. They reserve memory from one process-wide ledger also
+used by object writes and the push sender. The ledger checks both available
+process memory and remaining V8 heap; callers release their reservation in
+`finally`, and release is idempotent. There is no detached or unbounded queue.
+Exhausted headroom returns the existing overload error before starting work.
+
+Bounded transfer chunks reserve eight times their 256 KiB part envelope for
+decoded bytes, base64/JSON copies and bookkeeping. Status publication/body reads
+reserve 24 MB for their larger bounded packet. Object writes reserve two copies
+of their actual ciphertext length plus 64 KiB before taking an immutable
+snapshot, replacing the eight-writer ceiling. These reservations are admission
+estimates, not measured upper bounds for the assembled process; representative
+load and peak-memory validation remain required before activation.
+
+Interrupted-object cleanup and attachment deletion stream directory entries,
+yielding every 32 entries instead of refusing the 33rd entry. Existing filename,
+file-size, symlink and ownership checks remain. Startup retains recent temporary
+files and accepted objects; an exclusive attachment lease can still clean that
+reservation's interrupted temporary files before resuming.
+
+Regressions exercise 40 simultaneous durable object writes, more than 64
+interrupted files, preservation of recent/final files and other namespaces,
+memory exhaustion and recovery after filesystem/store failures. Each transfer
+service admits 16 pending operations and returns to service after failure.
+Quota, byte accounting, writer leases, integrity verification, consent and
+retention rules remain in their existing responsible modules.
+
 ## Remaining audit work
 
 - Size global content admission from the own data volume and operational space;
@@ -129,9 +159,9 @@ representative operational validation before activation.
   concurrency regressions for revocation, consent, deletion and delivery.
 - Replace repeated historical quota sums and the singleton byte-counter
   contention with exact transactional accounting that preserves admission.
-- Replace single-job media preparation, the remaining four-operation gates in
-  private/group/status transfer services and small global reservation counts
-  with fair recoverable resource-based queues.
+- Replace single-job media preparation and small global reservation counts
+  with fair recoverable resource-based queues; measure the prepared transfer
+  reservations against representative memory pressure.
 - Activate the prepared TURN/push changes with effective inherited limits and
   rollback; coordinate call admission, relay ports, web dispatch queues and
   representative resource validation.

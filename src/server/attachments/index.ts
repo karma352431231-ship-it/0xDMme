@@ -22,6 +22,7 @@ import type { ObjectStore } from '../object-store/index.ts';
 import { socialMedia } from '../../shared/social-media/index.ts';
 import type { SocialMedia } from '../../shared/social-media/index.ts';
 import type { AttachmentRef } from '../../shared/attachments/index.ts';
+import { reserveOperationMemory } from '../memory-admission/index.ts';
 export interface AttachmentStorage extends Pick<
   AttachmentStore,
   | 'begin'
@@ -61,7 +62,6 @@ export class AttachmentService {
     ObjectStore,
     'attachment' | 'readAttachment' | 'discardAttachment'
   >;
-  private active = 0;
   private cleaning: Promise<void> | null = null;
   constructor(
     store: AttachmentStorage,
@@ -96,13 +96,14 @@ export class AttachmentService {
     d: Record<string, unknown>,
     snapshot?: MessageSnapshot,
   ): Promise<unknown> {
-    if (this.active >= 4)
+    // Bounded chunks can coexist while memory headroom remains available.
+    const release = reserveOperationMemory(partLimit * 8);
+    if (!release)
       throw new AccountError(429, 'Transferências ocupadas. Retome depois.');
-    this.active++;
     try {
       return await this.execute(a, operation, d, snapshot);
     } finally {
-      this.active--;
+      release();
     }
   }
   private async execute(

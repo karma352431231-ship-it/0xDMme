@@ -21,6 +21,7 @@ import type {
   GroupScope,
 } from '../database/index.ts';
 import type { ObjectStore } from '../object-store/index.ts';
+import { reserveOperationMemory } from '../memory-admission/index.ts';
 const operations = [
   'group-attachment-reserve',
   'group-attachment-part',
@@ -61,7 +62,6 @@ export class GroupMediaService {
   private readonly store: GroupMediaStore;
   private readonly retention: GroupRetentionStore;
   private readonly objects: ObjectStore;
-  private active = 0;
   private cleaning: Promise<void> | null = null;
   private readonly actions: Record<
     string,
@@ -118,17 +118,17 @@ export class GroupMediaService {
     operation: string,
     d: Record<string, unknown>,
   ): Promise<unknown> {
-    if (this.active >= 4)
-      throw new AccountError(429, 'Transferências ocupadas. Retome depois.');
     const action = Object.hasOwn(this.actions, operation)
       ? this.actions[operation]
       : undefined;
     if (!action) throw new AccountError(404, 'Operação de mídia indisponível.');
-    this.active++;
+    const release = reserveOperationMemory(partLimit * 8);
+    if (!release)
+      throw new AccountError(429, 'Transferências ocupadas. Retome depois.');
     try {
       return await action(a, d);
     } finally {
-      this.active--;
+      release();
     }
   }
   async clean(): Promise<void> {

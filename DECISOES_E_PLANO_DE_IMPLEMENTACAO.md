@@ -1,5 +1,11 @@
 # Capacity audit follow-up — 16 October 2026
 
+The fourth source block replaces fixed transfer/object-writer counts with
+process-wide memory reservations and bounded, yielding temporary-file cleanup.
+Individual quotas, consent, leases, integrity checks and accepted-data retention
+remain unchanged. No storage budget or schema migration is changed by this
+block; the stale global environment budget remains separate pending work.
+
 The owner explicitly approved preparing removal of the remaining TURN/push CPU,
 memory, task, connection and bandwidth ceilings, accepting increased resource
 use on the shared VPS. Preserve overload control, validate the resource budgets

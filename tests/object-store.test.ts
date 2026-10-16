@@ -23,7 +23,7 @@ await test('objetos sobrevivem a nova instância; concorrência é idempotente e
   await store.initialize();
   const bytes = new Uint8Array([91, 17, 255, 33]);
   const identities = await Promise.all(
-    Array.from({ length: 8 }, () => store.put(bytes)),
+    Array.from({ length: 40 }, () => store.put(bytes)),
   );
   assert.equal(new Set(identities).size, 1);
   const identity = identities[0];
@@ -52,18 +52,42 @@ await test('limpeza expira somente temporários não aceitos, preservando objeto
   const store = new ObjectStore(directory);
   await store.initialize();
   const id = await store.put(new Uint8Array([33, 45]));
-  const pending = join(
-    directory,
-    '.staging',
-    'pending-00000000-0000-0000-0000-000000000000',
-  );
-  await writeFile(pending, 'synthetic-interrupted-upload');
   const old = new Date(Date.now() - 2 * 60 * 60 * 1000);
-  await utimes(pending, old, old);
+  for (let index = 0; index < 65; index++) {
+    const pending = join(
+      directory,
+      '.staging',
+      `pending-${crypto.randomUUID()}`,
+    );
+    await writeFile(pending, 'synthetic-interrupted-upload');
+    await utimes(pending, old, old);
+  }
+  const fresh = `pending-${crypto.randomUUID()}`;
+  await writeFile(join(directory, '.staging', fresh), 'recent');
   await utimes(join(directory, id), old, old);
   await new ObjectStore(directory).initialize();
-  assert.deepEqual(await readdir(join(directory, '.staging')), []);
+  assert.deepEqual(await readdir(join(directory, '.staging')), [fresh]);
   assert.deepEqual(Array.from(await store.read(id)), [33, 45]);
+});
+
+await test('object writes reject memory pressure and release the budget after a filesystem failure', async (t) => {
+  const directory = await realpath(
+    await mkdtemp(join(tmpdir(), 'hash-talk-object-pressure-')),
+  );
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  let available = 0;
+  t.mock.method(process, 'availableMemory', () => available);
+  const store = new ObjectStore(directory);
+  await store.initialize();
+  const bytes = new Uint8Array([1, 2, 3]);
+  await assert.rejects(store.put(bytes), /Armazenamento ocupado/u);
+  available = 65_536 + bytes.length * 2;
+  const id = await store.put(bytes);
+  await writeFile(join(directory, id), 'corrupt');
+  await assert.rejects(store.put(bytes));
+  const recovered = await store.put(new Uint8Array([4, 5, 6]));
+  assert.deepEqual([...(await store.read(recovered))], [4, 5, 6]);
+  assert.deepEqual(await readdir(join(directory, '.staging')), []);
 });
 
 await test('objeto e diretório com symlink não atravessam fronteira de armazenamento', async (t) => {
@@ -106,6 +130,16 @@ await test('retomada sob lease remove temporário recente de anexo sem apagar pa
     ),
     'synthetic-recent-interrupted-write',
   );
+  for (let index = 0; index < 40; index++)
+    await writeFile(
+      join(
+        directory,
+        `attachment-${id}`,
+        '.staging',
+        `pending-${crypto.randomUUID()}`,
+      ),
+      'recent',
+    );
   const resumed = await store.attachment(id);
   assert.deepEqual(
     await readdir(join(directory, `attachment-${id}`, '.staging')),

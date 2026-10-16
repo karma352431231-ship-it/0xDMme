@@ -5,7 +5,7 @@ import { validatePushToken } from './client.ts';
 import { pushDispatch } from './protocol.ts';
 import { sendPush } from './network.ts';
 import type { PushConfiguration } from './network.ts';
-import { PushSendBudget } from './admission.ts';
+import { reserveOperationMemory } from '../memory-admission/index.ts';
 
 async function body(request: IncomingMessage): Promise<unknown> {
   const chunks: Buffer[] = [];
@@ -38,7 +38,6 @@ export function createPushSender(options: {
   send?: typeof sendPush;
 }) {
   validatePushToken(options.token);
-  const budget = new PushSendBudget();
   const send = options.send ?? sendPush;
   function admission(request: IncomingMessage): number {
     if (!authorized(request, options.token)) return 401;
@@ -52,7 +51,7 @@ export function createPushSender(options: {
   ): Promise<void> {
     const status = admission(request);
     if (status) return reply(response, status);
-    const release = budget.take();
+    const release = reserveOperationMemory(1_048_576);
     if (!release) return reply(response, 429);
     try {
       const d = pushDispatch(await body(request));

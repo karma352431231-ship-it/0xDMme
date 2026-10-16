@@ -12,6 +12,8 @@ import {
   rmdir,
 } from 'node:fs/promises';
 import { resolve } from 'node:path';
+import { setImmediate } from 'node:timers/promises';
+import { reserveOperationMemory } from '../memory-admission/index.ts';
 
 const maximumBytes = 3 * 1024 * 1024 + 64 * 1024;
 const validIdentifier = /^[a-f0-9]{64}$/u;
@@ -26,7 +28,6 @@ function isExisting(error: unknown): boolean {
 export class ObjectStore {
   private readonly directory: string;
   private readonly staging: string;
-  private writers = 0;
 
   constructor(directory: string) {
     this.directory = resolve(directory);
@@ -53,7 +54,7 @@ export class ObjectStore {
     let count = 0;
     for await (const entry of entries) {
       count++;
-      if (count > 32 || !/^pending-[a-f0-9-]{36}$/u.test(entry.name))
+      if (!/^pending-[a-f0-9-]{36}$/u.test(entry.name))
         throw new Error('Staging exige revisão local.');
       const path = resolve(this.staging, entry.name);
       const stat = await lstat(path);
@@ -61,6 +62,7 @@ export class ObjectStore {
         throw new Error('Temporário inválido.');
       // Only unaccepted temporary uploads. Never age/delete final objects.
       if (stat.mtimeMs < olderThan) await unlink(path);
+      if (count % 32 === 0) await setImmediate();
     }
   }
 
@@ -224,7 +226,7 @@ export class ObjectStore {
     const entries = await opendir(path);
     let count = 0;
     for await (const entry of entries) {
-      if (++count > 32) throw new Error('Limpeza de anexo excedida.');
+      count++;
       const file = resolve(path, entry.name);
       if (!staging && entry.name === '.staging' && entry.isDirectory()) {
         await this.removeAttachmentFiles(file, true);
@@ -237,6 +239,7 @@ export class ObjectStore {
           throw new Error('Objeto de anexo irregular.');
         await unlink(file);
       }
+      if (count % 32 === 0) await setImmediate();
     }
   }
 
@@ -285,12 +288,14 @@ export class ObjectStore {
   async put(ciphertext: Uint8Array): Promise<string> {
     if (ciphertext.byteLength === 0 || ciphertext.byteLength > maximumBytes)
       throw new Error('Tamanho de objeto inválido.');
-    if (this.writers >= 8) throw new Error('Armazenamento ocupado.');
-    this.writers++;
+    // The caller already holds its input. Reserve the immutable snapshot,
+    // collision-verification read and filesystem bookkeeping before copying.
+    const release = reserveOperationMemory(ciphertext.byteLength * 2 + 65_536);
+    if (!release) throw new Error('Armazenamento ocupado.');
     try {
       return await this.writeObject(Uint8Array.from(ciphertext));
     } finally {
-      this.writers--;
+      release();
     }
   }
 

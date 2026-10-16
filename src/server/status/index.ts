@@ -23,6 +23,7 @@ import type {
 } from '../database/index.ts';
 import type { ObjectStore } from '../object-store/index.ts';
 import { StatusSignals } from './signals.ts';
+import { reserveOperationMemory } from '../memory-admission/index.ts';
 export const statusOperations = [
   'status-begin',
   'status-contacts',
@@ -83,7 +84,6 @@ export class StatusService {
   private readonly media: StatusMediaStore;
   private readonly objects: ObjectStore;
   private readonly signals: StatusSignals;
-  private active = 0;
   private cleaning: Promise<void> | null = null;
   private readonly actions: Record<
     string,
@@ -176,13 +176,17 @@ export class StatusService {
       : undefined;
     if (!action)
       throw new AccountError(404, 'Operação de status indisponível.');
-    if (this.active >= 4)
+    // Publication/read may hold a full bounded packet; other operations use chunks.
+    const bytes = ['status-publish', 'status-read'].includes(operation)
+      ? 24_000_000
+      : partLimit * 8;
+    const release = reserveOperationMemory(bytes);
+    if (!release)
       throw new AccountError(429, 'Transferências ocupadas. Retome depois.');
-    this.active++;
     try {
       return await action(a, d);
     } finally {
-      this.active--;
+      release();
     }
   }
   private async publish(
