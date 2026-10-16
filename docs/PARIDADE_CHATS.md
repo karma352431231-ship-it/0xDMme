@@ -1,5 +1,37 @@
 # Experiência dos chats privado e pelo @ — 15/10/2026
 
+## Public DM connection continuity — 16/10/2026
+
+The owner reported `DM session changed.` while opening handle messages on
+Chrome Android, blocking the comparison of text-send responsiveness. A controlled
+test reproduces that exact message with the real `SocialDms` session guards and
+signed list transport: a stream-state callback cancels the request while the UI
+generation remains current, so the coordinator presents the obsolete operation's
+cancellation as a session failure. A screenshot alone does not identify which
+stream or browser event occurred on the physical device.
+
+Initial connection notifications no longer invalidate an operation solely because
+the stream is not connected yet. Losing an established stream still immediately
+invalidates the directory/history, cancels the controller operation and schedules
+one coalesced recheck. Deferred rechecks wait for an active stream handshake to
+settle; polling remains available if it fails. A verification token prevents an
+obsolete operation or preview from replacing the current view with its result or
+error. Suspension, logout and actual authorization changes keep their existing
+invalidation and signed verification requirements. Genuine request failures remain
+visible; there is no synthetic success, new retry loop or authorization cache.
+
+Regression coverage includes initial connection, established-stream loss during
+a signed list request, handshake recovery, suspension/return, logout and a genuine
+HTTP failure. The existing navigation and immediate-removal tests remain required.
+The coordinator remains the existing hotspot; this repair changes its current
+continuity/error boundaries and does not add another feature responsibility.
+Keep the separate extraction order below.
+
+**Ponto importante:** these tests establish a reproducible cancellation defect,
+not a physical performance measurement. VPS activation and Android acceptance
+remain separate. The interval between consecutive message submissions is a
+distinct investigation and is not fixed by this continuity repair.
+
 O proprietário pediu alinhar a experiência dos chats, preservando as diferenças
 já aprovadas, e depois autorizou explicitamente edição também nas DMs pelo `@`.
 Essa autorização substitui somente a proibição histórica de edição.

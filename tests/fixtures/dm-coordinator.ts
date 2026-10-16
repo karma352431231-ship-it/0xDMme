@@ -5,6 +5,13 @@ import type { startSocialDmUi } from '../../src/client/communities/dms.ts';
 import type { LiveEvent } from '../../src/client/message-live/index.ts';
 import { CommunityNode } from './community-dom.ts';
 import { deferred } from './deferred.ts';
+import { SocialDms } from '../../src/client/social-dm/index.ts';
+import { VaultSync } from '../../src/client/vault-sync/index.ts';
+import type {
+  VaultAccess,
+  VaultAuthority,
+} from '../../src/client/vault-authority/index.ts';
+import type { AccountSession } from '../../src/shared/account/index.ts';
 
 const entry = 'src/client/communities/dms.ts';
 // Real coordinator, queue, lifecycle and wakeup coalescing; IO and DOM are adapters.
@@ -84,6 +91,48 @@ export function dmCoordinatorFixture(t: TestContext) {
     held = deferred<unknown>();
   let hold = false;
   let emit: (event: LiveEvent) => void = () => {};
+  let liveChanged: () => void = () => {};
+  let liveCurrent = true,
+    connecting = false,
+    holdList = false;
+  const listing = deferred<Response>();
+  const session: AccountSession = {
+    accountId: crypto.randomUUID(),
+    deviceId: crypto.randomUUID(),
+    csrf: 'a'.repeat(64),
+    name: 'Synthetic',
+    address: `0x${'1'.repeat(40)}`,
+    ecosystem: 'evm',
+    deviceState: 'pending',
+    historyAuthorized: false,
+    expiresAt: new Date(Date.now() + 60000).toISOString(),
+    profileRevision: 0,
+  };
+  const authority: VaultAuthority = {
+    session,
+    offline: false,
+    directory: 'b'.repeat(64),
+    epoch: 1,
+    events: [],
+    sign: () => Promise.resolve('a'.repeat(88)),
+    key: () =>
+      Promise.reject(new Error('No crypto key in the transport fixture.')),
+  };
+  const access: VaultAccess = {
+    withVault: (_offline, work) => work(authority),
+    withLocalVault: (_locator, work) => work(authority),
+  };
+  t.mock.method(globalThis, 'fetch', (url: string | URL | Request) => {
+    if (
+      (url instanceof Request ? url.url : String(url)) !==
+      '/api/account/messages/dm-list'
+    )
+      throw new Error('Unexpected DM fixture request.');
+    calls.push('list');
+    return holdList
+      ? listing.promise
+      : Promise.resolve(Response.json({ items: [], next: null }));
+  });
   const views: {
     history: DmNode;
     gate: DmNode;
@@ -104,9 +153,8 @@ export function dmCoordinatorFixture(t: TestContext) {
   const window = new EventTarget();
   const fixture = {
     SocialDms: function () {
-      return {
-        setSession: noop,
-        cancel: noop,
+      // Keep the actual session/cancellation guards and signed list transport.
+      return Object.assign(new SocialDms(access, new VaultSync(access)), {
         initialize: () => {
           calls.push('initialize');
           return Promise.resolve('self');
@@ -128,7 +176,9 @@ export function dmCoordinatorFixture(t: TestContext) {
         cached: () => Promise.resolve(page()),
         pending: () => Promise.resolve(null),
         mediaDraft: () => Promise.resolve(false),
-      };
+        directoryPreviews: () => Promise.resolve(new Map()),
+        copies: () => Promise.resolve({ items: [], next: null }),
+      });
     },
     VoicePlayback: function () {
       return { close: noop };
@@ -148,10 +198,19 @@ export function dmCoordinatorFixture(t: TestContext) {
       leave: noop,
       cancelEdit: noop,
     }),
-    LiveMessages: function (options: { event: typeof emit }) {
+    LiveMessages: function (options: {
+      event: typeof emit;
+      changed: () => void;
+    }) {
       emit = options.event;
+      liveChanged = options.changed;
       return {
-        current: true,
+        get current() {
+          return liveCurrent;
+        },
+        get connecting() {
+          return connecting;
+        },
         connected: true,
         start: noop,
         stop: noop,
@@ -194,7 +253,11 @@ export function dmCoordinatorFixture(t: TestContext) {
     historyPosition: () => noop,
     resetHistoryPosition: noop,
     dmBubble: noop,
-    dmListView: noop,
+    dmListView: (host: DmNode) => {
+      const list = new DmNode();
+      host.replaceChildren(list);
+      return list;
+    },
     dmMessageMenu: noop,
     dmReactionChips: noop,
   };
@@ -207,6 +270,7 @@ export function dmCoordinatorFixture(t: TestContext) {
     AbortController,
     AbortSignal,
     DOMException,
+    Error,
     setTimeout,
     clearTimeout,
     setInterval,
@@ -221,11 +285,7 @@ export function dmCoordinatorFixture(t: TestContext) {
     {} as Parameters<typeof startSocialDmUi>[1],
     {} as Parameters<typeof startSocialDmUi>[2],
   );
-  ui.setSession({
-    accountId: 'account',
-    deviceId: 'device',
-    csrf: 'csrf',
-  } as Parameters<typeof ui.setSession>[0]);
+  ui.setSession(session);
   const host = new DmNode();
   t.after(() => ui.leave());
   return {
@@ -234,6 +294,18 @@ export function dmCoordinatorFixture(t: TestContext) {
     calls,
     views,
     emit: (event: LiveEvent) => emit(event),
+    changeLive: (current: boolean, handshake = false) => {
+      liveCurrent = current;
+      connecting = handshake;
+      liveChanged();
+    },
+    holdList: () => {
+      holdList = true;
+    },
+    releaseList: (response = Response.json({ items: [], next: null })) => {
+      holdList = false;
+      listing.resolve(response);
+    },
     hold: () => {
       hold = true;
     },

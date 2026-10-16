@@ -1,5 +1,17 @@
 # 0xDMme — decisões e plano de implementação
 
+**Public DM continuity repair — 16/10/2026:** while checking the pause between
+consecutive sends, the owner reported `DM session changed.` on the Android handle
+messages page. Reproduce the cancellation boundary with the actual signed client
+and retain the existing immediate invalidation of verified history. Distinguish
+initial stream connection from loss of an established stream, wait for an active
+handshake before a coalesced recheck, and prevent obsolete operation results/errors
+from replacing the current view. Preserve real HTTP errors, session replacement,
+authorization, E2EE, storage and polling budgets. No backend, dependency, migration
+or activation is included. **Ponto importante:** the text-send interval remains a
+separate investigation; this repair does not claim a measured mobile speedup.
+See [continuity contract](docs/PARIDADE_CHATS.md#public-dm-connection-continuity--16102026).
+
 **Usable mobile conversations — 16/10/2026:** after the next physical capture,
 the owner clarified that a published contact could not be opened while startup
 was still busy and requested fixing both startup waits. Accept a visible private
