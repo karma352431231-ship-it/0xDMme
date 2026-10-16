@@ -107,6 +107,7 @@ export function coordinatorFixture(t: TestContext) {
   const asyncNoop = () => Promise.resolve();
   const base = {
     close: noop,
+    leave: noop,
     reset: noop,
     clear: noop,
     render: noop,

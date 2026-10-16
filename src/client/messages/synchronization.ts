@@ -81,7 +81,7 @@ export class MessageSynchronization {
     this.lastTransferAttempt = Date.now();
   }
   reset(): void {
-    this.opening.clear();
+    this.cancelOpening();
     this.updates.clear();
     this.stopPreload();
     this.automaticAttempts = 0;
@@ -103,6 +103,9 @@ export class MessageSynchronization {
     const result = this.opening.request(work);
     if (!this.busy) void this.openNext();
     return result;
+  }
+  cancelOpening(): void {
+    this.opening.clear();
   }
   private async openNext(): Promise<void> {
     const pending = this.opening.take();

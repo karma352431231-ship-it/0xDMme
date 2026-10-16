@@ -11,7 +11,7 @@ releasing all conversation controls. Exact captures and timings remain private.
 
 Conversation rows stay enabled during synchronization. A tap is acknowledged by
 selection presentation and retained by `messages/opening.ts`: one latest choice,
-with replacement/logout cancellation, no unbounded interaction queue. Engine
+with replacement/logout/navigation cancellation, no unbounded interaction queue. Engine
 selection and history opening run only when the current exclusive operation has
 settled, before the next maintenance turn. A startup failure discards queued
 openings. A tap never makes unverified history available or permits early send.

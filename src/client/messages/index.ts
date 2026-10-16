@@ -1159,6 +1159,7 @@ export function startMessages(
     return result;
   }
   function suspend(reason: 'pause' | 'invalidate' = 'pause'): void {
+    synchronization.cancelOpening();
     previews.clear();
     renderContacts();
     stopPreload();

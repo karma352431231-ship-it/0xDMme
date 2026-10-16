@@ -94,7 +94,7 @@ await test('the chosen conversation permits drafting while verification runs and
   assert.ok(!f.calls.includes('heartbeat'));
 });
 
-for (const outcome of ['logout', 'failure'] as const)
+for (const outcome of ['logout', 'failure', 'navigation'] as const)
   await test(`a queued startup tap cannot open a conversation after ${outcome}`, async (t) => {
     t.mock.timers.enable({ apis: ['setTimeout'] });
     const f = coordinatorFixture(t);
@@ -103,8 +103,9 @@ for (const outcome of ['logout', 'failure'] as const)
     t.mock.timers.tick(150);
     await turn();
     f.clickPeer(peer('stale'));
-    if (outcome === 'logout') {
-      f.messages.setSession(null);
+    if (outcome !== 'failure') {
+      if (outcome === 'logout') f.messages.setSession(null);
+      else f.messages.leave();
       f.initialization.resolve();
     } else
       f.initialization.reject(new Error('Synthetic initialization failure'));
@@ -151,6 +152,23 @@ await test('returning from page cache resumes startup maintenance and preference
   f.preferences();
   await turn();
   assert.ok(f.calls.slice(before).includes('heartbeat'));
+});
+
+await test('leaving cancels an opening already waiting for the current maintenance step', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const f = coordinatorFixture(t);
+  f.state.holdGroups = true;
+  f.messages.ready();
+  t.mock.timers.tick(150);
+  await turn();
+  t.mock.timers.tick(1000);
+  await turn();
+  f.clickPeer(peer('cancelled'));
+  f.messages.leave();
+  f.groupLoad.resolve();
+  await turn();
+  assert.ok(!f.calls.includes('select:cancelled'));
+  assert.ok(!f.calls.includes('open-panel'));
 });
 
 await test('tela prepara mensagens sem clique; ready e retorno de aba não reinicializam a sessão', async (t) => {
