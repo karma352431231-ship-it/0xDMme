@@ -1,5 +1,17 @@
 # 0xDMme — decisões e plano de implementação
 
+**Discovery refactor approved on 15/10/2026:** the owner required a verified source
+checkpoint before proceeding with the separate hotspot task. Extract ranking
+presentation first, then feed cards; preserve behavior and keep loading/pagination,
+session generations and resource lifecycle in the discovery coordinator. Existing
+interaction modules remain authoritative. This supersedes the earlier proposal
+to extract feed loading during this task. Record existing UI behavior in tests
+before moving code, use separate validated commits and inspect responsive previews.
+The checkpoint includes uncommitted source and Git history, with private recovery
+evidence in `.local/`; it excludes live databases and VPS state. No activation,
+dependency, backend or schema change is included. See the
+[module contract](docs/PERFIL_PUBLICO_E_FEEDS.md#discovery-module-extraction--owner-approval-on-15102026).
+
 **Anexos de até 10 MB nos chats privados e de grupo — decisão do proprietário em 16/10/2026:** o teto de anexo do chat privado e dos grupos passa de 3 MB para 10 MB, com a migração 071 e ativação autorizadas. DMs pelo `@`, status, fotos de perfil/grupo/comunidade e mídia pública mantêm seus tetos. A cota de 1 GB por conta, a cota dos grupos, E2EE, retenção e recuperação não mudam; cada arquivo maior consome proporcionalmente mais cota. Cada registro do backup independente passa a admitir 14 MB para conter uma mídia de 10 MB em base64. **Ponto importante:** versões antigas do app abertas em outro aparelho não abrem anexos acima de 3 MB até atualizar. [Contrato](docs/BLOCO_08_FOTOS_E_ARQUIVOS.md).
 
 **Última mensagem na lista, AM/PM e ativação — pedido do proprietário em 15/10/2026:** após concluir a paridade e edição, mostrar a última mensagem enviada ou recebida diretamente na lista dos dois chats, com checks somente nos envios e leitura conforme privacidade, sem marcar recebidas como lidas ao olhar a lista. O proprietário esclareceu que se refere à lista, sem notificações com app fechado. Usar AM/PM nos dois chats e integrar/ativar o conjunto com CI integral do commit exato, build local, executor existente, preservação e rollback. **Ponto importante:** preservar E2EE e separação de contextos; sem nova migração, dependência ou infraestrutura. [Contrato atual](docs/PARIDADE_CHATS.md).
