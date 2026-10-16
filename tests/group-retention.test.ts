@@ -74,7 +74,7 @@ await test('seleção não aceita sequências repetidas, bytes inválidos nem lo
     [one, one],
     [one, { ...one, id: crypto.randomUUID(), sequence: 0 }],
     [{ ...one, bytes: 0 }],
-    [{ ...one, bytes: 3_096_001 }],
+    [{ ...one, bytes: 10_096_001 }],
     Array.from({ length: 65 }, (_, i) => ({
       ...one,
       id: crypto.randomUUID(),

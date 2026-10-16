@@ -45,7 +45,10 @@ import {
 } from '../notification-sound/index.ts';
 import { encodeDailyText, decodeDailyText } from '../../shared/daily/index.ts';
 import type { DailyPreferences } from '../../shared/daily/index.ts';
-import { attachmentContent } from '../../shared/attachments/index.ts';
+import {
+  attachmentContent,
+  chatFileLimit,
+} from '../../shared/attachments/index.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
 import type { Peer, AddressBookEntry } from '../../shared/contacts/index.ts';
 import type { VaultAccess } from '../vault-authority/index.ts';
@@ -78,7 +81,7 @@ export function startMessages(
 ) {
   const { playback, sharedProfile, preferences } = options;
   const contacts = new Contacts(access),
-    attachments = new AttachmentUi(playback, voiceStatus),
+    attachments = new AttachmentUi(playback, voiceStatus, chatFileLimit),
     daily = new Daily(access, sync);
   const sound = new NotificationSound();
   const agenda = new ContactDirectory(sync),

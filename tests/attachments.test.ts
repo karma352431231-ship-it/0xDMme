@@ -7,6 +7,7 @@ import {
   attachmentContent,
   attachmentRef,
   attachmentRefs,
+  chatFileLimit,
   fileLimit,
   safeFilename,
 } from '../src/shared/attachments/index.ts';
@@ -125,6 +126,37 @@ await test('imagem original conserva bytes e metadados, dispensa miniatura e rec
   );
   assert.equal(generic.image, false);
   assert.equal(new TextDecoder().decode(generic.bytes), 'original');
+});
+await test('private and group chats accept 10 MB; other contexts keep the 3 MB limit', async () => {
+  const bytes = new Uint8Array(chatFileLimit).fill(9),
+    sealed = await sealFile(bytes, chatFileLimit);
+  assert.equal(sealed.file.ref.parts.length, 39);
+  assert.deepEqual(await openFile(sealed.file, sealed.bytes), bytes);
+  const refs = [sealed.file.ref];
+  assert.equal(attachmentRefs(refs, chatFileLimit)[0]?.bytes, chatFileLimit);
+  assert.throws(() => attachmentRefs(refs));
+  await assert.rejects(sealFile(bytes), /até 3 MB/u);
+  await assert.rejects(
+    sealFile(new Uint8Array(chatFileLimit + 1), chatFileLimit),
+    /até 10 MB/u,
+  );
+  const oversized = {
+    size: chatFileLimit + 1,
+    arrayBuffer: () => Promise.reject(new Error('read before the size check')),
+  };
+  await assert.rejects(
+    prepareOriginal(oversized as unknown as File, chatFileLimit),
+    /limite de 10 MB/u,
+  );
+  const exact = await prepareOriginal(
+    new File([bytes], 'ten.bin'),
+    chatFileLimit,
+  );
+  assert.equal(exact.bytes.length, chatFileLimit);
+  await assert.rejects(
+    prepareOriginal(new File([bytes], 'ten.bin')),
+    /limite de 3 MB/u,
+  );
 });
 await test('original acima de 3 MB é recusado antes da leitura; teto exato e formatos sem prévia conservam os bytes', async () => {
   let reads = 0;

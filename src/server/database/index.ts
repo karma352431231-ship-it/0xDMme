@@ -168,6 +168,7 @@ const migrations = [
   '068-public-upvotes.sql',
   '069-social-reaction-index.sql',
   '070-ranking-activity.sql',
+  '071-chat-attachments-10mb.sql',
 ];
 
 export interface MaintenanceSnapshot {

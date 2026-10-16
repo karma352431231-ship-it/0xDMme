@@ -1,5 +1,7 @@
 import {
   fileLimit,
+  fileLimitMessage,
+  oversizedFileMessage,
   safeFilename,
   thumbnailLimit,
 } from '../../shared/attachments/index.ts';
@@ -101,9 +103,10 @@ export function assertFileAllowed(
   name: string,
   type: string,
   bytes: Uint8Array,
+  maximum = fileLimit,
 ): void {
-  if (!bytes.length || bytes.length > fileLimit)
-    throw new Error('Arquivo deve ter até 3 MB.');
+  if (!bytes.length || bytes.length > maximum)
+    throw new Error(fileLimitMessage(maximum));
   if (
     type.startsWith('video/') ||
     /\.(?:mp4|mov|m4v|webm|mkv|avi|mpeg|mpg|ogv|flv)$/iu.test(name) ||
@@ -125,14 +128,12 @@ export function originalImageType(bytes: Uint8Array): string | null {
     return null;
   }
 }
-export async function prepareOriginal(file: File) {
-  if (!file.size || file.size > fileLimit)
-    throw new Error(
-      'Arquivo vazio ou acima do limite de 3 MB. Escolha outro arquivo.',
-    );
+export async function prepareOriginal(file: File, maximum = fileLimit) {
+  if (!file.size || file.size > maximum)
+    throw new Error(oversizedFileMessage(maximum));
   const bytes = new Uint8Array(await file.arrayBuffer());
   try {
-    assertFileAllowed(file.name, file.type, bytes);
+    assertFileAllowed(file.name, file.type, bytes, maximum);
     const imageType = originalImageType(bytes);
     return {
       bytes,

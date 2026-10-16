@@ -16,7 +16,7 @@ import type { VaultChange } from '../../shared/vault/index.ts';
 import {
   attachmentContent,
   contentRefs,
-  fileLimit,
+  chatFileLimit,
 } from '../../shared/attachments/index.ts';
 import { profileCard } from '../message-profile/index.ts';
 import { decodePrivateProfile } from '../account-profile/index.ts';
@@ -29,7 +29,7 @@ import {
   relationKeys,
 } from '../../shared/daily/index.ts';
 import type { MessageRelation } from '../../shared/daily/index.ts';
-import { backupRecordLimit } from '../../shared/backups/index.ts';
+import { backupTextLimit } from '../../shared/backups/index.ts';
 import type { BackupTarget } from '../../shared/backups/index.ts';
 import {
   socialAttachment,
@@ -178,7 +178,7 @@ export function backupRecord(input: unknown): BackupRecord {
     keys(d, ['type', 'id', 'hash', 'message', 'thumbnail', 'bytes']);
     if (typeof d['thumbnail'] !== 'boolean')
       throw new Error('Mídia histórica inválida.');
-    const bytes = base64(d['bytes'], fileLimit);
+    const bytes = base64(d['bytes'], chatFileLimit);
     if (!bytes.length) throw new Error('Mídia vazia.');
     return {
       type,
@@ -213,7 +213,7 @@ function dmRecord(
     keys(d, ['type', 'id', 'hash', 'self', 'message', 'thumbnail', 'bytes']);
     if (typeof d['thumbnail'] !== 'boolean')
       throw new Error('Mídia de DM histórica inválida.');
-    const bytes = base64(d['bytes'], fileLimit);
+    const bytes = base64(d['bytes'], chatFileLimit);
     if (!bytes.length) throw new Error('Mídia de DM vazia.');
     return {
       type,
@@ -320,7 +320,7 @@ function groupBackupRecord(
     keys(d, ['type', 'id', 'hash', 'groupId', 'message', 'thumbnail', 'bytes']);
     if (typeof d['thumbnail'] !== 'boolean')
       throw new Error('Mídia de grupo inválida.');
-    const bytes = base64(d['bytes'], fileLimit);
+    const bytes = base64(d['bytes'], chatFileLimit);
     if (!bytes.length) throw new Error('Mídia vazia.');
     return {
       type,
@@ -353,7 +353,7 @@ function groupMessageRecord(
     ...relationKeys(d),
   ]);
   const kind = d['kind'],
-    text = boundedText(d['text'], backupRecordLimit);
+    text = boundedText(d['text'], backupTextLimit);
   if (
     typeof d['own'] !== 'boolean' ||
     (kind !== 'text' && kind !== 'profile' && kind !== 'attachment')
@@ -399,7 +399,7 @@ function messageRecord(
     !['text', 'profile', 'attachment'].includes(String(kind))
   )
     throw new Error('Mensagem histórica inválida.');
-  const text = boundedText(d['text'], backupRecordLimit);
+  const text = boundedText(d['text'], backupTextLimit);
   validateContent(String(kind), text);
   return {
     type: 'message',

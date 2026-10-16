@@ -21,6 +21,7 @@ import {
   verify,
 } from '../../shared/devices/index.ts';
 import { integer } from '../../shared/vault/index.ts';
+import { chatFileLimit } from '../../shared/attachments/index.ts';
 import {
   messageBody,
   messagePacket,
@@ -130,7 +131,12 @@ export class MessageService {
     this.objects = objects ?? null;
     this.devices = devices;
     this.attachments = objects
-      ? new AttachmentService(db.attachments, db.messages, objects)
+      ? new AttachmentService(
+          db.attachments,
+          db.messages,
+          objects,
+          chatFileLimit,
+        )
       : null;
     this.groupMedia = this.mediaService(objects);
     this.statuses = this.statusService(objects);

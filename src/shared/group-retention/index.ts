@@ -1,5 +1,5 @@
 import { AccountError, uuid } from '../account/index.ts';
-import { fileLimit, thumbnailLimit } from '../attachments/index.ts';
+import { chatFileLimit, thumbnailLimit } from '../attachments/index.ts';
 import { integer } from '../vault/index.ts';
 import {
   groupMediaQuota,
@@ -20,7 +20,7 @@ function cleanupMedia(input: CleanupMedia): CleanupMedia {
   const item = {
     id: uuid(input.id),
     sequence: integer(input.sequence, Number.MAX_SAFE_INTEGER),
-    bytes: integer(input.bytes, fileLimit + thumbnailLimit),
+    bytes: integer(input.bytes, chatFileLimit + thumbnailLimit),
   };
   if (!item.sequence || !item.bytes)
     throw new AccountError(400, 'Objeto de limpeza inválido.');

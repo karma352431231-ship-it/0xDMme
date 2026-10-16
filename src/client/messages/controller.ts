@@ -23,7 +23,10 @@ import { indexSearch, searchMessages } from '../message-search/index.ts';
 import type { DeliveryState } from '../message-status/index.ts';
 import type { MessageRelation } from '../../shared/daily/index.ts';
 import { personalRemoval, verifyRemoval } from '../../shared/backups/index.ts';
-import { attachmentContent } from '../../shared/attachments/index.ts';
+import {
+  attachmentContent,
+  chatFileLimit,
+} from '../../shared/attachments/index.ts';
 import {
   stageAttachment,
   uploadAttachments,
@@ -477,6 +480,7 @@ export class Messages {
           id,
           selection,
           caption,
+          maximum: chatFileLimit,
         });
         this.guard(generation);
         const draft = [await sealLocal(a, id, JSON.stringify(content))];
@@ -605,7 +609,7 @@ export class Messages {
         throw new Error('Mídia não está disponível no histórico importado.');
       return openStoredAttachment(
         file,
-        base64(row.bytes, 3_000_000),
+        base64(row.bytes, chatFileLimit),
         thumbnail,
         thumbnail || content.image,
       );

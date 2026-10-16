@@ -8,6 +8,7 @@ import {
 } from '../../shared/account/index.ts';
 import {
   attachmentRefs,
+  chatFileLimit,
   partLimit,
   verifyAttachmentPart,
 } from '../../shared/attachments/index.ts';
@@ -82,7 +83,7 @@ export class GroupMediaService {
         return store.reserve(a, {
           ...scope(d),
           message: uuid(d['message']),
-          refs: attachmentRefs(d['refs']),
+          refs: attachmentRefs(d['refs'], chatFileLimit),
         });
       },
       'group-attachment-cancel': async (a, d) => {

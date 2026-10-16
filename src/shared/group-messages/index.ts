@@ -1,7 +1,7 @@
 import { AccountError, base64, keys, object, uuid } from '../account/index.ts';
 import { messageRelation } from '../daily/index.ts';
 import type { MessageRelation } from '../daily/index.ts';
-import { attachmentRefs } from '../attachments/index.ts';
+import { attachmentRefs, chatFileLimit } from '../attachments/index.ts';
 import type { AttachmentRef } from '../attachments/index.ts';
 import { revision } from '../contacts/index.ts';
 import {
@@ -133,7 +133,7 @@ export function groupPacket(value: unknown): GroupPacket {
     signature: checkedSignature(data['signature']),
     ...groupRelationFields(data),
     ...(data['kind'] === 'attachment'
-      ? { attachments: attachmentRefs(data['attachments']) }
+      ? { attachments: attachmentRefs(data['attachments'], chatFileLimit) }
       : {}),
   };
   if (packet.deviceId !== packet.content.device_id)

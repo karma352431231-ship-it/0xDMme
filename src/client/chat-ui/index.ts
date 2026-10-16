@@ -63,6 +63,8 @@ export function chatComposer(scope: 'message' | 'group' | 'public'): string {
     chatIcon('clip'),
     chatIcon('mic'),
     chatIcon('send'),
+    // Private and group chats accept 10 MB files; `@` DMs keep 3 MB (16/10/2026).
+    t(scope === 'public' ? 'chat.attach-up-to-3mb' : 'chat.attach-up-to-10mb'),
   ]);
 }
 

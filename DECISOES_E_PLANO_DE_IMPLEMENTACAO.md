@@ -1,5 +1,7 @@
 # 0xDMme — decisões e plano de implementação
 
+**Anexos de até 10 MB nos chats privados e de grupo — decisão do proprietário em 16/10/2026:** o teto de anexo do chat privado e dos grupos passa de 3 MB para 10 MB, com a migração 071 e ativação autorizadas. DMs pelo `@`, status, fotos de perfil/grupo/comunidade e mídia pública mantêm seus tetos. A cota de 1 GB por conta, a cota dos grupos, E2EE, retenção e recuperação não mudam; cada arquivo maior consome proporcionalmente mais cota. Cada registro do backup independente passa a admitir 14 MB para conter uma mídia de 10 MB em base64. **Ponto importante:** versões antigas do app abertas em outro aparelho não abrem anexos acima de 3 MB até atualizar. [Contrato](docs/BLOCO_08_FOTOS_E_ARQUIVOS.md).
+
 **Última mensagem na lista, AM/PM e ativação — pedido do proprietário em 15/10/2026:** após concluir a paridade e edição, mostrar a última mensagem enviada ou recebida diretamente na lista dos dois chats, com checks somente nos envios e leitura conforme privacidade, sem marcar recebidas como lidas ao olhar a lista. O proprietário esclareceu que se refere à lista, sem notificações com app fechado. Usar AM/PM nos dois chats e integrar/ativar o conjunto com CI integral do commit exato, build local, executor existente, preservação e rollback. **Ponto importante:** preservar E2EE e separação de contextos; sem nova migração, dependência ou infraestrutura. [Contrato atual](docs/PARIDADE_CHATS.md).
 
 **Paridade dos chats e edição pelo `@` — pedido do proprietário em 15/10/2026:** alinhar a experiência do chat pelo perfil público à do chat privado, preservando identidade, consentimento e recursos exclusivos de cada contexto. O pedido posterior autoriza edição de texto próprio também pelo `@`, substituindo a proibição histórica de edição sem liberar encaminhamento privado, chamadas, grupos, vídeos enviados, cartões privados, transações ou contratos. Preservar E2EE, histórico, cotas, bloqueio, recuperação e remoções. **Ponto importante:** entrega em branch, sem ativação automática ou migração. [Matriz e contrato](docs/PARIDADE_CHATS.md).
@@ -118,7 +120,7 @@ abaixo a 9–10 pendentes ou execução somente local descrevem a autorização 
 | Diferenciais blockchain da V1 | Representantes/permissões verificáveis e acordos assinados dentro da conversa, inicialmente com assinaturas fora da blockchain. Demais propostas ficam no roadmap.                                                                                     |
 | ZK                            | Manter a base de privacidade/autorização de grupos já planejada. Votações privadas, elegibilidade por ativos e credenciais/cotas avançadas ficam após a V1. Assinatura digital comum não deve ser anunciada como prova ZK.                             |
 
-As bibliotecas criptográficas foram selecionadas no bloco 01; integração do protocolo e compatibilidade de wallets/redes ainda precisam dos aceites dos blocos responsáveis. Cota vigente de 1 GB, teto de 3 MB e política de cofre completo estão decididos; não alterá-los silenciosamente por conveniência técnica. As regras de contabilização e admissão precisam ser implementadas de modo consistente; ver seção 12.
+As bibliotecas criptográficas foram selecionadas no bloco 01; integração do protocolo e compatibilidade de wallets/redes ainda precisam dos aceites dos blocos responsáveis. Cota vigente de 1 GB, teto de anexos (10 MB em chats privados e grupos desde 16/10/2026, 3 MB nos demais contextos) e política de cofre completo estão decididos; não alterá-los silenciosamente por conveniência técnica. As regras de contabilização e admissão precisam ser implementadas de modo consistente; ver seção 12.
 
 ## 3. Restrições de custo e operação
 
@@ -269,7 +271,7 @@ Apagar a fila não apaga o histórico do cofre. A interface e a política de dad
 - Recuperação com a wallet original e sua assinatura exclusiva deve funcionar sem aparelho anterior, se reproduzir a assinatura da configuração. Contas legadas usam o código até migrar explicitamente.
 - Sem aparelho autorizado e sem conseguir reproduzir a assinatura exclusiva (ou sem código em conta legada), perde-se acesso ao conteúdo. Não introduzir chave mestra administrativa para contornar isso.
 - Exportar, por si só, não apaga conteúdo nem libera cota. A limpeza do cofre é uma ação explícita separada, limitada ao conteúdo preservado em uma exportação completa validada. Novidades posteriores ao corte permanecem no servidor.
-- O teto de 3 MB vale para anexos de conversa, não para o arquivo agregado de backup. Importar backup é leitura local; republicar conteúdo no cofre continua sujeito à cota pessoal de 1 GB.
+- O teto de anexos de conversa (10 MB em chats privados e grupos desde 16/10/2026) não vale para o arquivo agregado de backup. Importar backup é leitura local; republicar conteúdo no cofre continua sujeito à cota pessoal de 1 GB.
 
 ### 5.6 Simplificação aprovada em 04/10/2026
 

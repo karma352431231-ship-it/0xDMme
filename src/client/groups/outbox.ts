@@ -1,7 +1,10 @@
 import { groupQuota } from '../../shared/group-quota/index.ts';
 import { object, uuid } from '../../shared/account/index.ts';
 import { canonical, digest } from '../../shared/devices/index.ts';
-import { attachmentContent } from '../../shared/attachments/index.ts';
+import {
+  attachmentContent,
+  chatFileLimit,
+} from '../../shared/attachments/index.ts';
 import {
   groupKeys,
   groupPacket,
@@ -69,6 +72,7 @@ export async function composeGroup(input: {
       selection: input.selection,
       caption: text,
       budget: groupQuota,
+      maximum: chatFileLimit,
     });
     text = JSON.stringify(content);
     kind = 'attachment';

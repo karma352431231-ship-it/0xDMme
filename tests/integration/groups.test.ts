@@ -17,6 +17,7 @@ import {
 } from '../../src/client/attachment-crypto/index.ts';
 import {
   attachmentRef,
+  chatFileLimit,
   partLimit,
 } from '../../src/shared/attachments/index.ts';
 import { Wallet } from 'ethers';
@@ -1241,6 +1242,28 @@ await test('governança persistente: criação atômica, convites, transferênci
     message: mediaMessage.packet.id,
     refs: [sealed.file.ref],
   };
+  // Group chats admit 10 MB files (16/10/2026); larger references are refused.
+  const largeRef = (bytes: number) => ({
+    id: crypto.randomUUID(),
+    hash: 'd'.repeat(64),
+    bytes,
+    parts: Array.from({ length: Math.ceil(bytes / partLimit) }, (_, i) => ({
+      hash: 'e'.repeat(64),
+      bytes: Math.min(partLimit, bytes - i * partLimit),
+    })),
+  });
+  const largeMessage = { ...mediaScope, message: crypto.randomUUID() };
+  await assert.rejects(
+    message(messages, owner, 'group-attachment-reserve', {
+      ...largeMessage,
+      refs: [largeRef(chatFileLimit + 1)],
+    }),
+  );
+  await message(messages, owner, 'group-attachment-reserve', {
+    ...largeMessage,
+    refs: [largeRef(chatFileLimit)],
+  });
+  await message(messages, owner, 'group-attachment-cancel', largeMessage);
   await assert.rejects(
     message(messages, outsider, 'group-attachment-reserve', mediaReserve),
   );

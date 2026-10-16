@@ -8,6 +8,7 @@ import {
 } from '../../shared/account/index.ts';
 import {
   attachmentRefs,
+  fileLimit,
   partLimit,
   verifyAttachmentPart,
 } from '../../shared/attachments/index.ts';
@@ -61,6 +62,8 @@ export class AttachmentService {
     ObjectStore,
     'attachment' | 'readAttachment' | 'discardAttachment'
   >;
+  /** Product limit of this conversation type: private chats accept 10 MB, `@` DMs 3 MB. */
+  private readonly maximum: number;
   private active = 0;
   private cleaning: Promise<void> | null = null;
   constructor(
@@ -70,10 +73,12 @@ export class AttachmentService {
       ObjectStore,
       'attachment' | 'readAttachment' | 'discardAttachment'
     >,
+    maximum = fileLimit,
   ) {
     this.store = store;
     this.messages = messages;
     this.objects = objects;
+    this.maximum = maximum;
   }
   async clean(): Promise<void> {
     if (this.cleaning) return this.cleaning;
@@ -122,7 +127,7 @@ export class AttachmentService {
       return this.store.reserve(a, {
         message: uuid(d['message']),
         peer: uuid(d['peer']),
-        refs: attachmentRefs(d['refs']),
+        refs: attachmentRefs(d['refs'], this.maximum),
         ...(this.messages ? {} : { media: socialMedia(d['media']) }),
       });
     }

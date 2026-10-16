@@ -650,6 +650,14 @@ export const catalog: Record<string, readonly [string, string]> = {
   'right-column.label': ['Conversation or communities', '对话或社区'],
   'right-column.chat': ['Chat', '聊天'],
   'right-column.communities': ['Communities', '社区'],
+  'chat.attach-up-to-3mb': [
+    'Attach photo or file · up to 3 MB',
+    '附加图片或文件 · 最大 3 MB',
+  ],
+  'chat.attach-up-to-10mb': [
+    'Attach photo or file · up to 10 MB',
+    '附加图片或文件 · 最大 10 MB',
+  ],
   'video.fullscreen': ['Full screen', '全屏'],
   'conversation.mute-1h': ['Mute for 1 hour', '静音 1 小时'],
   'conversation.mute-8h': ['Mute for 8 hours', '静音 8 小时'],
@@ -971,6 +979,10 @@ export const catalog: Record<string, readonly [string, string]> = {
     'The file must be no larger than 3 MB.',
     '文件大小不得超过 3 MB。',
   ],
+  'Arquivo deve ter até 10 MB.': [
+    'The file must be no larger than 10 MB.',
+    '文件大小不得超过 10 MB。',
+  ],
   'Arquivo do perfil ou da comunidade identificado pelo registro abaixo.': [
     'Profile or community file identified by the record below.',
     '下方记录所标识的个人资料或社区文件。',
@@ -1005,6 +1017,10 @@ export const catalog: Record<string, readonly [string, string]> = {
   'Arquivo vazio ou acima do limite de 3 MB. Escolha outro arquivo.': [
     'File empty or larger than 3 MB. Choose another file.',
     '文件为空或超过 3 MB。请选择其他文件。',
+  ],
+  'Arquivo vazio ou acima do limite de 10 MB. Escolha outro arquivo.': [
+    'File empty or larger than 10 MB. Choose another file.',
+    '文件为空或超过 10 MB。请选择其他文件。',
   ],
   'Arquivo: {0}': ['File: {0}', '文件：{0}'],
   'Arquivos divergem para o mesmo registro histórico.': [
@@ -6574,8 +6590,8 @@ export const catalog: Record<string, readonly [string, string]> = {
     '<article class="card call-settings"><h2>语音通话</h2><p>应用打开并联网时，可以接听已批准联系人的来电。静音或归档对话不会响铃。不会保留通话历史。</p><button data-call-toggle type="button" aria-pressed="true">关闭来电</button><p data-call-status role="status"></p></article>',
   ],
   'html.46729037ae98': [
-    '<form data-{0} class="chat-composer">\n    {1}\n    <div class="compose-preview"><div data-attachment-preview></div><button data-attachment-clear class="chat-icon" type="button" aria-label="Remove attachment" title="Remove attachment" hidden>{2}</button></div>\n    <p data-voice-status class="compose-notice" role="status"></p>\n    <div class="voice-recorder"><button data-voice-cancel class="chat-icon" type="button" aria-label="Cancel recording" title="Cancel recording" hidden>{3}</button><span class="voice-rec-dot" aria-hidden="true"></span><span data-voice-clock class="voice-rec-clock">0:00</span><span class="voice-rec-limit">/ 1:30</span><span class="voice-rec-hint">Release to review</span><button data-voice-stop class="chat-icon compose-primary" type="button" aria-label="Stop and review" title="Stop and review" hidden>{4}</button></div>\n    <div class="compose-row">\n      <div class="compose-input">\n        <button data-{5}-emoji class="chat-icon" type="button" aria-label="Choose emoji" title="Choose emoji">{6}</button>\n        <textarea data-{7}-text rows="1" aria-label="Message" placeholder="Message…"></textarea>\n        <button data-chat-attachment type="button" class="chat-icon" aria-label="Attach photo or file" title="Attach photo or file · up to 3 MB">{8}</button>\n      </div>\n      <button data-voice-record class="chat-icon compose-primary" type="button" aria-label="Record voice message" title="Record voice">{9}</button>\n      <button data-compose-send class="chat-icon compose-primary" type="submit" aria-label="Send message" title="Send" hidden>{10}</button>\n    </div>\n    <input data-attachment-file type="file" aria-label="Photo or file" hidden>\n  </form>',
-    '<form data-{0} class="chat-composer">\n    {1}\n    <div class="compose-preview"><div data-attachment-preview></div><button data-attachment-clear class="chat-icon" type="button" aria-label="移除附件" title="移除附件" hidden>{2}</button></div>\n    <p data-voice-status class="compose-notice" role="status"></p>\n    <div class="voice-recorder"><button data-voice-cancel class="chat-icon" type="button" aria-label="取消录音" title="取消录音" hidden>{3}</button><span class="voice-rec-dot" aria-hidden="true"></span><span data-voice-clock class="voice-rec-clock">0:00</span><span class="voice-rec-limit">/ 1:30</span><span class="voice-rec-hint">松开以检查</span><button data-voice-stop class="chat-icon compose-primary" type="button" aria-label="停止并检查" title="停止并检查" hidden>{4}</button></div>\n    <div class="compose-row">\n      <div class="compose-input">\n        <button data-{5}-emoji class="chat-icon" type="button" aria-label="选择表情" title="选择表情">{6}</button>\n        <textarea data-{7}-text rows="1" aria-label="消息" placeholder="消息…"></textarea>\n        <button data-chat-attachment type="button" class="chat-icon" aria-label="附加图片或文件" title="附加图片或文件 · 最大 3 MB">{8}</button>\n      </div>\n      <button data-voice-record class="chat-icon compose-primary" type="button" aria-label="录制语音消息" title="录制语音">{9}</button>\n      <button data-compose-send class="chat-icon compose-primary" type="submit" aria-label="发送消息" title="发送" hidden>{10}</button>\n    </div>\n    <input data-attachment-file type="file" aria-label="图片或文件" hidden>\n  </form>',
+    '<form data-{0} class="chat-composer">\n    {1}\n    <div class="compose-preview"><div data-attachment-preview></div><button data-attachment-clear class="chat-icon" type="button" aria-label="Remove attachment" title="Remove attachment" hidden>{2}</button></div>\n    <p data-voice-status class="compose-notice" role="status"></p>\n    <div class="voice-recorder"><button data-voice-cancel class="chat-icon" type="button" aria-label="Cancel recording" title="Cancel recording" hidden>{3}</button><span class="voice-rec-dot" aria-hidden="true"></span><span data-voice-clock class="voice-rec-clock">0:00</span><span class="voice-rec-limit">/ 1:30</span><span class="voice-rec-hint">Release to review</span><button data-voice-stop class="chat-icon compose-primary" type="button" aria-label="Stop and review" title="Stop and review" hidden>{4}</button></div>\n    <div class="compose-row">\n      <div class="compose-input">\n        <button data-{5}-emoji class="chat-icon" type="button" aria-label="Choose emoji" title="Choose emoji">{6}</button>\n        <textarea data-{7}-text rows="1" aria-label="Message" placeholder="Message…"></textarea>\n        <button data-chat-attachment type="button" class="chat-icon" aria-label="Attach photo or file" title="{11}">{8}</button>\n      </div>\n      <button data-voice-record class="chat-icon compose-primary" type="button" aria-label="Record voice message" title="Record voice">{9}</button>\n      <button data-compose-send class="chat-icon compose-primary" type="submit" aria-label="Send message" title="Send" hidden>{10}</button>\n    </div>\n    <input data-attachment-file type="file" aria-label="Photo or file" hidden>\n  </form>',
+    '<form data-{0} class="chat-composer">\n    {1}\n    <div class="compose-preview"><div data-attachment-preview></div><button data-attachment-clear class="chat-icon" type="button" aria-label="移除附件" title="移除附件" hidden>{2}</button></div>\n    <p data-voice-status class="compose-notice" role="status"></p>\n    <div class="voice-recorder"><button data-voice-cancel class="chat-icon" type="button" aria-label="取消录音" title="取消录音" hidden>{3}</button><span class="voice-rec-dot" aria-hidden="true"></span><span data-voice-clock class="voice-rec-clock">0:00</span><span class="voice-rec-limit">/ 1:30</span><span class="voice-rec-hint">松开以检查</span><button data-voice-stop class="chat-icon compose-primary" type="button" aria-label="停止并检查" title="停止并检查" hidden>{4}</button></div>\n    <div class="compose-row">\n      <div class="compose-input">\n        <button data-{5}-emoji class="chat-icon" type="button" aria-label="选择表情" title="选择表情">{6}</button>\n        <textarea data-{7}-text rows="1" aria-label="消息" placeholder="消息…"></textarea>\n        <button data-chat-attachment type="button" class="chat-icon" aria-label="附加图片或文件" title="{11}">{8}</button>\n      </div>\n      <button data-voice-record class="chat-icon compose-primary" type="button" aria-label="录制语音消息" title="录制语音">{9}</button>\n      <button data-compose-send class="chat-icon compose-primary" type="submit" aria-label="发送消息" title="发送" hidden>{10}</button>\n    </div>\n    <input data-attachment-file type="file" aria-label="图片或文件" hidden>\n  </form>',
   ],
   'html.2e7c749dbe8a': [
     '<div data-compose-bar class="compose-context" hidden><p data-compose-context></p><button data-compose-cancel class="chat-icon" type="button" aria-label="Cancel reply or edit">{0}</button></div>',

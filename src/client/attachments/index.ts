@@ -2,8 +2,10 @@ import { base64, encode, object } from '../../shared/account/index.ts';
 import {
   attachmentContent,
   animatedAttachmentContent,
+  chatFileLimit,
   contentRefs,
   fileLimit,
+  oversizedFileMessage,
   partLimit,
   thumbnailLimit,
 } from '../../shared/attachments/index.ts';
@@ -36,9 +38,11 @@ export type AttachmentApi = (
   operation: string,
   data: Record<string, unknown>,
 ) => Promise<unknown>;
+/** `maximum` is the conversation's product limit: 10 MB in private and group chats, 3 MB elsewhere. */
 export async function prepareAttachment(
   file: File,
   photo: boolean,
+  maximum = fileLimit,
 ): Promise<AttachmentSelection> {
   if (photo) {
     const prepared = await attachmentWork<PreparedPhoto>({
@@ -47,13 +51,12 @@ export async function prepareAttachment(
     });
     return { ...prepared, image: true };
   }
-  if (!file.size || file.size > fileLimit)
-    throw new Error(
-      'Arquivo vazio ou acima do limite de 3 MB. Escolha outro arquivo.',
-    );
+  if (!file.size || file.size > maximum)
+    throw new Error(oversizedFileMessage(maximum));
   return attachmentWork<AttachmentSelection>({
     operation: 'original',
     file,
+    maximum,
   });
 }
 function name(message: string, id: string, index: number): string {
@@ -65,13 +68,15 @@ export async function stageAttachment(input: {
   selection: AttachmentSelection;
   caption: string;
   budget?: number;
+  /** Product limit of the conversation; defaults to 3 MB. */
+  maximum?: number;
 }): Promise<AttachmentContent> {
   if (input.selection.voice)
     validateVoice(input.selection.bytes, input.selection.voice);
   const main = await attachmentWork<SealedFile>({
     operation: 'seal',
     bytes: input.selection.bytes,
-    maximum: fileLimit,
+    maximum: input.maximum ?? fileLimit,
   });
   await saveParts(input.account, input.id, main, input.budget);
   let thumbnail: SealedFile | null = null;
@@ -291,7 +296,7 @@ export async function openStoredAttachment(
     operation: 'open',
     file,
     bytes,
-    maximum: thumbnail ? thumbnailLimit : fileLimit,
+    maximum: thumbnail ? thumbnailLimit : chatFileLimit,
     image,
   });
   return result.bytes;

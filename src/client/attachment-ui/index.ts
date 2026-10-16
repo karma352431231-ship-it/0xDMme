@@ -1,6 +1,7 @@
 import { t, translatedError } from '../../shared/i18n/index.ts';
 import { dropFilesInto } from '../file-drop/index.ts';
 import { showToast } from '../toast/index.ts';
+import { fileLimit } from '../../shared/attachments/index.ts';
 import type { AttachmentContent } from '../../shared/attachments/index.ts';
 import { VoicePlayback } from '../voice-playback/index.ts';
 import { prepareAttachment } from '../attachments/index.ts';
@@ -10,9 +11,16 @@ import type { MediaView } from './media.ts';
 export class AttachmentUi {
   private readonly playback: VoicePlayback;
   private readonly changed: () => void;
-  constructor(playback: VoicePlayback, changed: () => void) {
+  /** Product limit of the conversation: 10 MB in private and group chats. */
+  private readonly maximum: number;
+  constructor(
+    playback: VoicePlayback,
+    changed: () => void,
+    maximum = fileLimit,
+  ) {
     this.playback = playback;
     this.changed = changed;
+    this.maximum = maximum;
   }
   private selection: AttachmentSelection | null = null;
   private previewUrl: string | null = null;
@@ -82,7 +90,7 @@ export class AttachmentUi {
       void run(async () => {
         this.clearSelection();
         const generation = this.selectionGeneration,
-          value = await prepareAttachment(file, false).catch(
+          value = await prepareAttachment(file, false, this.maximum).catch(
             (error: unknown) => {
               input.value = '';
               showToast(

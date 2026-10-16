@@ -48,6 +48,7 @@ import type { Daily, PeerState } from '../daily/index.ts';
 import { GroupController } from './controller.ts';
 import type { GroupSummary } from './controller.ts';
 import type { GroupView } from './reader.ts';
+import { chatFileLimit } from '../../shared/attachments/index.ts';
 export type { GroupSummary, GroupView };
 export { showGroupDirectoryPhoto } from './directory-photo.ts';
 export { GroupBackups } from './backup.ts';
@@ -77,7 +78,11 @@ export function startGroups(
         !!host?.getClientRects().length,
     ),
     emoji = new EmojiPicker(),
-    attachments = new AttachmentUi(options.playback, voiceStatus);
+    attachments = new AttachmentUi(
+      options.playback,
+      voiceStatus,
+      chatFileLimit,
+    );
   let session: AccountSession | null = null,
     host: HTMLElement | null = null,
     aside: HTMLElement | null = null,

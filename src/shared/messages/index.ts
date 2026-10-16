@@ -1,4 +1,4 @@
-import { attachmentRefs } from '../attachments/index.ts';
+import { attachmentRefs, chatFileLimit } from '../attachments/index.ts';
 import { optionalRelation, relationKeys } from '../daily/index.ts';
 import type { MessageRelation } from '../daily/index.ts';
 import type { AttachmentRef } from '../attachments/index.ts';
@@ -125,7 +125,7 @@ export function messagePacket(input: unknown): MessagePacket {
   ]);
   const refs =
     data['kind'] === 'attachment'
-      ? attachmentRefs(data['attachments'])
+      ? attachmentRefs(data['attachments'], chatFileLimit)
       : undefined;
   const declaredMedia = socialMediaKind(data);
   if (data['kind'] !== 'attachment' && Object.hasOwn(data, 'attachments'))
