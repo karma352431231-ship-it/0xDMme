@@ -13,15 +13,47 @@ HASH_TALK_MEDIA_FFPROBE=/caminho/absoluto/ffprobe
 
 Sem os dois executáveis, texto continua disponível e novas reservas de mídia retornam indisponibilidade explícita. Caminhos relativos/configuração parcial impedem a inicialização. Não há instalação automática nem processador simulado. Revisar a versão, configuração, encoders e obrigações de distribuição antes de instalar/ativar outro runtime; ver [licenças](../LICENSES.md).
 
-Há uma preparação por vez, quatro operações de transferência simultâneas e nenhuma fila ilimitada. Cada decodificador/filtro/encoder usa até quatro threads; isso não é um teto agregado de quatro tarefas do sistema. A preparação tem prazo de 360 s e encerramento aborta os processos. No Linux, `prlimit` limita espaço de endereçamento a 8 GiB, processos a 128 e escrita ao máximo do resultado. Alocações individuais do FFmpeg têm limite de 256 MiB; isso não limita a memória total a 256 MiB. A inicialização examina os limites de memória herdados do cgroup v2 e recusa orçamento inferior a 8 GiB. O orçamento inclui folga para o servidor; não habilitar o processador no serviço web atualmente limitado sem revisão operacional própria. Em outros sistemas, esse isolamento deve ser fornecido pelo ambiente; o ensaio local no Mac não comprova uma sandbox de produção.
+The capacity follow-up on 16/10/2026 replaces the one-preparation and
+four-transfer counters with resource admission and an owned execution queue.
+Each decoder/filter/encoder still uses up to four threads. Available CPU count
+and the smaller host/constrained-memory ceiling determine concurrent child
+slots, conservatively allowing one slot per four CPUs and 8 GiB, with at least
+one slot for smaller development environments. A media scope runs only one
+command at a time; other scopes may progress independently. Pending command
+metadata and worker connections reserve memory and fail closed under pressure.
+The 360-second preparation deadline covers queue time; cancellation and shutdown
+abort queued work and kill active children. A slot is released only after the
+child and its streams close, including spawn/abort failures.
+
+Linux retains the 8 GiB address-space limit and output-size bound for each child,
+but removes the per-UID 128-process ceiling that would couple independent jobs.
+FFmpeg's individual allocation limit remains 256 MiB, which is not a total-RAM
+limit. Startup still verifies cgroup memory limits and rejects an inherited
+ceiling below 8 GiB. These reservations and virtual-memory limits require
+representative peak-RSS/latency validation; local Mac tests do not establish a
+production sandbox or a supported user count.
 
 **Ponto importante:** em 07/10/2026, depois da explicação sobre a ausência do runtime e a necessidade de isolamento, o proprietário autorizou habilitar envio/preparação na VPS. O detector ainda não foi aceito; publicação permanece aguardando moderação. Essa autorização adicional cobre o runtime e unidades próprios descritos abaixo, preservando as restrições do outro projeto.
 
 ## Worker isolado autorizado
 
-O web envia somente comandos canônicos e caminhos por socket Unix privado, sem buffers completos de mídia. O worker aceita inspeção, validação de foto, normalização e miniatura gerados pelo mesmo módulo de comandos do preparador. Campos extras, comandos divergentes, protocolos/argumentos arbitrários, symlinks, hardlinks e arquivos fora de uma única reserva são recusados. Há uma execução por vez, até quatro conexões e nenhum backlog de tarefas sem limite; cancelamento e encerramento matam o processo filho. Limites de bytes, retenção e regras dos formatos continuam os mesmos.
+The web sends only canonical commands and paths over the private Unix socket,
+without full media buffers. The worker accepts inspection, photo validation,
+normalization and thumbnail commands from the same canonical command module.
+Extra fields, arbitrary options/protocols, symlinks, hardlinks and paths spanning
+different reservations are rejected. The four-connection ceiling is replaced
+with memory admission; command execution uses the resource queue above. Byte,
+format and retention rules remain unchanged.
 
-`0xdmme-media.service` usa usuário dinâmico e slice separado com CPUQuota=400%, MemoryMax=8G, swap desligada e até 128 tarefas. O namespace expõe apenas o runtime imutável e `objects/community-media`; não monta o release, banco, ambiente web ou objetos privados. Rede privada e AF_UNIX apenas. Diretórios públicos usam grupo primário do web e modo 0770, sem bits SUID/SGID; partes continuam 0600, original montado e resultados 0640. Um drop-in do web monta apenas o socket e configura o runtime remoto. A inicialização verifica o handshake; falhas não caem silenciosamente para execução no web.
+`0xdmme-media.service` retains its dynamic user, dedicated slice and disabled
+swap. The owner removed own CPU/RAM/task caps on 09/10/2026; inspect effective
+inherited limits before activation. The namespace exposes only the immutable
+runtime and `objects/community-media`, without the release, database, web
+environment or private objects. Networking remains private and AF_UNIX-only.
+Public media directories use the web's primary group and mode 0770, without
+SUID/SGID; parts remain 0600, assembled sources/results 0640. A web drop-in mounts
+only the socket and configures remote execution. Startup verifies the handshake;
+failures never fall back silently to decoding inside the web service.
 
 O usuário dinâmico é `xdmme-media`, com nome aceito pelo systemd. O volume de dados conserva `noexec`; `ExecPaths=/opt/0xdmme-media` permite executar somente o alias imutável do runtime dentro do namespace próprio, sem remontar o volume do host. Um ensaio isolado confirmou recusa sem essa configuração e execução do ffprobe com ela. Validar o worker e seus executáveis antes de acrescentar a dependência do web; em retorno, remover o drop-in e recarregar as unidades antes de parar o socket, evitando parada em cascata do web.
 

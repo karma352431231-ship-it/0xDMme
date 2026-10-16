@@ -2,6 +2,7 @@ import { createServer } from 'node:net';
 import type { Server, Socket } from 'node:net';
 import { mediaProcess } from '../community-media/index.ts';
 import type { MediaRuntime } from '../community-media/index.ts';
+import { reserveOperationMemory } from '../memory-admission/index.ts';
 import {
   mediaWorkerRequest,
   verifyWorkerPaths,
@@ -10,7 +11,6 @@ import {
 
 export class MediaWorkerServer {
   readonly server: Server;
-  private busy = false;
   private readonly stop = new AbortController();
   private readonly jobs = new Set<Promise<void>>();
   private readonly connections = new Set<Socket>();
@@ -23,7 +23,6 @@ export class MediaWorkerServer {
     this.server = createServer({ allowHalfOpen: true }, (socket) =>
       this.accept(socket),
     );
-    this.server.maxConnections = 4;
   }
   close(): Promise<void> {
     this.closing ??= this.shutdown();
@@ -39,6 +38,11 @@ export class MediaWorkerServer {
     await Promise.all(this.jobs);
   }
   private accept(socket: Socket): void {
+    const release = reserveOperationMemory(262_144);
+    if (!release) {
+      socket.destroy();
+      return;
+    }
     let payload = '';
     const disconnected = new AbortController();
     this.connections.add(socket);
@@ -48,6 +52,7 @@ export class MediaWorkerServer {
     socket.once('close', () => {
       disconnected.abort();
       this.connections.delete(socket);
+      release();
     });
     socket.on('data', (chunk: string) => {
       payload += chunk;
@@ -70,7 +75,6 @@ export class MediaWorkerServer {
     payload: string,
     disconnected: AbortSignal,
   ): Promise<void> {
-    let owned = false;
     try {
       const request = mediaWorkerRequest(JSON.parse(payload) as unknown);
       this.stop.signal.throwIfAborted();
@@ -80,9 +84,6 @@ export class MediaWorkerServer {
         );
         return;
       }
-      if (this.busy || this.stop.signal.aborted)
-        throw new Error('Processador ocupado.');
-      this.busy = owned = true;
       const signal = AbortSignal.any([
         this.stop.signal,
         disconnected,
@@ -95,8 +96,6 @@ export class MediaWorkerServer {
       socket.end(JSON.stringify({ ok: true, output }));
     } catch {
       if (!socket.destroyed) socket.end(JSON.stringify({ ok: false }));
-    } finally {
-      if (owned) this.busy = false;
     }
   }
 }

@@ -33,6 +33,7 @@ export {
   mediaProcess,
 } from './process.ts';
 export type { MediaRuntime } from './process.ts';
+export { MediaExecutionQueue } from './execution.ts';
 export { isolatedMediaProcess } from './isolated.ts';
 export type { MediaProcessRequest } from './isolated.ts';
 export {
@@ -48,7 +49,6 @@ export class CommunityMediaService {
   private readonly jobs = new Map<string, Promise<void>>();
   private readonly stop = new AbortController();
   private cleaning: Promise<void> | null = null;
-  private preparing = false;
   constructor(options: {
     store: CommunityMediaStore;
     directory: string;
@@ -188,14 +188,14 @@ export class CommunityMediaService {
   ): Promise<unknown> {
     const current = await this.store.status(a, community, id);
     if (current.status !== 'uploading') return current;
-    if (this.preparing)
-      throw new AccountError(429, 'Preparação ocupada. Retome depois.');
     if (
       current.received !==
       Math.ceil(current.source.bytes / communityMediaPartBytes)
     )
       throw new AccountError(409, 'Upload incompleto.');
-    this.preparing = true;
+    const release = reserveOperationMemory(1_048_576);
+    if (!release)
+      throw new AccountError(429, 'Preparação ocupada. Retome depois.');
     let lease;
     try {
       lease = await this.store.begin(a, {
@@ -205,18 +205,18 @@ export class CommunityMediaService {
         hash: null,
       });
     } catch (error: unknown) {
-      this.preparing = false;
+      release();
       throw error;
     }
     if (!lease.writer) {
-      this.preparing = false;
+      release();
       return lease.state;
     }
     const writer = lease.writer;
     try {
       await this.store.processing(id, writer);
     } catch (error: unknown) {
-      this.preparing = false;
+      release();
       await this.store.release(id, writer);
       throw error;
     }
@@ -251,7 +251,7 @@ export class CommunityMediaService {
       })
       .finally(() => {
         this.jobs.delete(id);
-        this.preparing = false;
+        release();
       });
     this.jobs.set(id, job);
     // A database outage in the release path is logged without payloads and does not leave an unhandled rejection.

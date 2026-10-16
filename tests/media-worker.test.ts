@@ -136,6 +136,14 @@ await test('socket público: handshake, falhas, encerramento e cancelamento sem 
       await isolatedMediaProcess(path, null, AbortSignal.timeout(2000)),
       '0xdmme-media-worker-v1',
     );
+    assert.deepEqual(
+      await Promise.all(
+        Array.from({ length: 16 }, () =>
+          isolatedMediaProcess(path, null, AbortSignal.timeout(2000)),
+        ),
+      ),
+      Array.from({ length: 16 }, () => '0xdmme-media-worker-v1'),
+    );
     const directory = resolve(root, crypto.randomUUID());
     await mkdir(directory);
     const source = resolve(directory, 'source');

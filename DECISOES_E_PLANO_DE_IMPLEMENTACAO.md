@@ -1,5 +1,13 @@
 # Capacity audit follow-up — 16 October 2026
 
+The fifth source block queues independent media preparations instead of refusing
+the second one. CPU/memory-derived decoder slots, per-media command ordering,
+memory-bounded pending metadata, existing deadlines and owned cancellation
+preserve the writer-lease lifecycle. Remove the worker's four-connection and
+single-command gates and its per-UID process bound; keep canonical command/path
+validation, byte/virtual-memory limits and isolation. Final activation must
+include the reviewed isolated worker bundle through the existing executor.
+
 The fourth source block replaces fixed transfer/object-writer counts with
 process-wide memory reservations and bounded, yielding temporary-file cleanup.
 Individual quotas, consent, leases, integrity checks and accepted-data retention

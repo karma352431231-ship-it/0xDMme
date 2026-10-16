@@ -150,6 +150,39 @@ service admits 16 pending operations and returns to service after failure.
 Quota, byte accounting, writer leases, integrity verification, consent and
 retention rules remain in their existing responsible modules.
 
+## Fifth block: owned media execution queue
+
+Independent media preparations no longer fail because another reservation is
+being prepared. Web jobs retain their writer lease, reserve pending-job memory
+and own their promise until settlement. Shutdown aborts preparation and releases
+leases; media parsing/encoding never holds a database transaction open.
+
+Local decoding, including the isolated worker bundle, runs through one FIFO
+queue with at most one active command per media directory. Independent scopes
+share slots derived from available CPU count and the smaller host/cgroup memory
+ceiling: one slot per four CPUs and 8 GiB, with at least one for smaller
+development environments. The four-thread command envelope and Linux 8 GiB
+address-space/output-file bounds remain. The per-UID 128-process bound is removed
+because it coupled independent jobs. Pending commands and worker sockets reserve
+memory; overload is rejected rather than allocating an unbounded backlog.
+
+Queued work retains the existing preparation deadline and abort signal. Failure,
+queued cancellation, disconnect and shutdown release reservations. Active work
+releases its slot only after the child process and its streams close, following
+the [Node child-process lifecycle](https://github.com/nodejs/node/blob/v24.14.0/doc/api/child_process.md#event-close).
+The worker's fixed four-socket and single-command gates are removed; canonical
+command, path, link, byte and network isolation checks remain.
+
+Regression tests verify independent parallel slots, same-scope serialization,
+effective cgroup sizing, queued cancellation, overload/recovery, 16 worker
+handshakes and simultaneous preparations whose leases are released on shutdown.
+The real FFmpeg/database integration exercises the complete media chain.
+Representative peak memory, CPU fairness and deadline behavior under sustained
+load remain operational acceptance work. Updating web source alone does not
+update the isolated worker bundle: final activation must include the reviewed
+bundle through the existing `--media-worker` deployment option and private hash
+review, without changing FFmpeg/ffprobe or the worker namespace.
+
 ## Remaining audit work
 
 - Size global content admission from the own data volume and operational space;
@@ -159,9 +192,8 @@ retention rules remain in their existing responsible modules.
   concurrency regressions for revocation, consent, deletion and delivery.
 - Replace repeated historical quota sums and the singleton byte-counter
   contention with exact transactional accounting that preserves admission.
-- Replace single-job media preparation and small global reservation counts
-  with fair recoverable resource-based queues; measure the prepared transfer
-  reservations against representative memory pressure.
+- Replace small global reservation counts with resource admission; measure
+  transfer/execution reservations and queued deadlines under representative load.
 - Activate the prepared TURN/push changes with effective inherited limits and
   rollback; coordinate call admission, relay ports, web dispatch queues and
   representative resource validation.

@@ -3,6 +3,10 @@ import { isAbsolute, resolve, dirname } from 'node:path';
 import { readFile } from 'node:fs/promises';
 import { AccountError } from '../../shared/account/index.ts';
 import { isolatedMediaProcess } from './isolated.ts';
+import { mediaCommandPaths } from './commands.ts';
+import { MediaExecutionQueue } from './execution.ts';
+
+const execution = new MediaExecutionQueue();
 
 export interface MediaRuntime {
   ffmpeg: string;
@@ -97,12 +101,28 @@ export function mediaProcess(
 ): Promise<string> {
   if (runtime.socket)
     return isolatedMediaProcess(runtime.socket, request, request.signal);
+  const key = dirname(mediaCommandPaths(request)[0]!);
+  return execution.run({
+    key,
+    signal: request.signal,
+    work: () => runLocalMediaProcess(runtime, request),
+  });
+}
+
+function runLocalMediaProcess(
+  runtime: MediaRuntime,
+  request: {
+    binary: 'ffmpeg' | 'ffprobe';
+    args: string[];
+    signal: AbortSignal;
+    maximumBytes: number;
+  },
+): Promise<string> {
   return new Promise((resolve, reject) => {
     const binary = runtime[request.binary];
     const args = runtime.limit
       ? [
           '--as=8589934592',
-          '--nproc=128',
           `--fsize=${request.maximumBytes}`,
           '--',
           binary,
@@ -117,7 +137,8 @@ export function mediaProcess(
     });
     let output = '',
       size = 0,
-      overflow = false;
+      overflow = false,
+      failed = false;
     child.stdout.on('data', (chunk: Buffer) => {
       size += chunk.length;
       if (size > 65_536) {
@@ -129,16 +150,19 @@ export function mediaProcess(
     });
     // Diagnostic data can contain filenames/metadata: discard rather than logging it.
     child.stderr.resume();
-    child.once('error', () =>
-      reject(
-        new AccountError(
-          503,
-          'Processador indisponível ou interrompido. Retome o envio.',
-        ),
-      ),
-    );
+    child.once('error', () => {
+      failed = true;
+    });
+    // Keep the execution slot until the child and its streams have closed.
     child.once('close', (code) => {
-      if (code !== 0 || overflow)
+      if (failed)
+        reject(
+          new AccountError(
+            503,
+            'Processador indisponível ou interrompido. Retome o envio.',
+          ),
+        );
+      else if (code !== 0 || overflow)
         reject(
           new AccountError(
             422,
