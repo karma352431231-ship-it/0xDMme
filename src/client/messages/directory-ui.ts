@@ -63,13 +63,28 @@ interface DirectoryView {
 /** Projection and interaction only; no authority or persistence owned here. */
 export class MessageDirectoryUi {
   private filter: ConversationFilter = 'all';
+  private opening: string | null = null;
+  private openingGeneration = 0;
   private readonly options: DirectoryView;
   constructor(options: DirectoryView) {
     this.options = options;
   }
   reset(): void {
+    this.opening = null;
+    this.openingGeneration++;
     this.filter = 'all';
     this.pause();
+  }
+  /** Acknowledge a queued tap without changing the crypto engine's recipient. */
+  openingPeer(peer: string): () => void {
+    const current = ++this.openingGeneration;
+    this.opening = peer;
+    this.renderContacts();
+    return () => {
+      if (current !== this.openingGeneration || this.opening === null) return;
+      this.opening = null;
+      this.renderContacts();
+    };
   }
   pause(): void {
     const list = this.options.node('[data-message-contacts]');
@@ -125,9 +140,7 @@ export class MessageDirectoryUi {
           }),
       status: this.options.snapshot().statusAuthors.has(peer.accountId),
       searchText: t('{0} {1} {2}', [contact.alias, peer.name, peer.address]),
-      selected:
-        !this.options.groups.selected &&
-        this.options.snapshot().selected?.accountId === peer.accountId,
+      selected: this.selectedPeer(peer.accountId),
       hidden: contact.removed,
       ...settings,
       favorite: this.options.daily.favorite(favoriteId),
@@ -141,6 +154,13 @@ export class MessageDirectoryUi {
         this.options.openPeer(peer);
       },
     };
+  }
+  private selectedPeer(peer: string): boolean {
+    if (this.opening) return this.opening === peer;
+    return (
+      !this.options.groups.selected &&
+      this.options.snapshot().selected?.accountId === peer
+    );
   }
   private contactActions(
     contact: AddressBookEntry,

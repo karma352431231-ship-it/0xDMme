@@ -9,6 +9,7 @@ import type { LiveEvent } from '../../src/client/message-live/index.ts';
 import type { VaultAccess } from '../../src/client/vault-authority/index.ts';
 import type { VaultSync } from '../../src/client/vault-sync/index.ts';
 import { deferred } from './deferred.ts';
+import { updateChatComposer } from '../../src/client/chat-ui/index.ts';
 
 // Real screen coordinator, scheduling, startup and wakeups. IO, media and DOM
 // projection are adapters; crypto and durable reuse have controller regressions.
@@ -30,6 +31,7 @@ const real = new Set([
   './synchronization.ts',
   './startup.ts',
   './continuity.ts',
+  './warmup.ts',
 ]);
 const bundle = await build({
   entryPoints: [entry],
@@ -70,9 +72,15 @@ const bundle = await build({
 export function coordinatorFixture(t: TestContext) {
   const calls: string[] = [];
   const page = deferred<boolean>();
+  const initialization = deferred<void>();
+  const groupLoad = deferred<void>();
+  const history = deferred<void>();
   const state = {
     visibilityState: 'visible',
     holdPage: false,
+    holdInitialization: false,
+    holdGroups: false,
+    holdHistory: false,
     liveCurrent: true,
     liveConnected: true,
     groupVisible: false,
@@ -86,14 +94,20 @@ export function coordinatorFixture(t: TestContext) {
     visibility: () => void;
     freeze: () => void;
     resume: () => void;
+    preferences: () => void;
     tick: () => Promise<void>;
     pageHide: (event: { persisted: boolean }) => void;
+    pageShow: (event: { persisted: boolean }) => void;
   };
   let publish: (rows: MessageView[] | null) => void = () => {};
+  let clickPeer: (
+    peer: Parameters<ReturnType<typeof startMessages>['openContact']>[0],
+  ) => void = () => {};
   const noop = () => {};
   const asyncNoop = () => Promise.resolve();
   const base = {
     close: noop,
+    leave: noop,
     reset: noop,
     clear: noop,
     render: noop,
@@ -167,6 +181,21 @@ export function coordinatorFixture(t: TestContext) {
       },
     };
   };
+  fixture.MessageDirectoryUi = function (options: {
+    openPeer: typeof clickPeer;
+  }) {
+    clickPeer = options.openPeer;
+    return {
+      ...base,
+      renderContacts: noop,
+      pause: noop,
+      openingPeer: (peer: string) => {
+        calls.push('opening:' + peer);
+        return noop;
+      },
+    };
+  };
+  fixture.updateChatComposer = updateChatComposer;
   fixture.Messages = function (
     _access: unknown,
     _sync: unknown,
@@ -191,7 +220,9 @@ export function coordinatorFixture(t: TestContext) {
       pauseSynchronization: () => calls.push('abort-direct'),
       initialize: () => {
         calls.push('initialize');
-        return Promise.resolve();
+        return state.holdInitialization
+          ? initialization.promise
+          : Promise.resolve();
       },
       loadPins: () => {
         calls.push('pins');
@@ -204,6 +235,11 @@ export function coordinatorFixture(t: TestContext) {
       },
       synchronize: () => {
         calls.push('synchronize');
+        if (state.holdHistory) return history.promise.then(() => publish([]));
+        return Promise.resolve();
+      },
+      compose: (peer: string) => {
+        calls.push('compose:' + peer);
         return Promise.resolve();
       },
       pending: () => Promise.resolve([]),
@@ -213,7 +249,10 @@ export function coordinatorFixture(t: TestContext) {
         state.signals.push(signal);
         return state.holdPage ? page.promise : Promise.resolve(false);
       },
-      select: noop,
+      select: (peer: string | null) => {
+        calls.push('select:' + String(peer));
+        publish(null);
+      },
       knownProfile: () => Promise.resolve(null),
     };
   };
@@ -226,7 +265,10 @@ export function coordinatorFixture(t: TestContext) {
     suspend: () => calls.push('suspend-groups'),
     deselect: noop,
     pauseSynchronization: noop,
-    refresh: asyncNoop,
+    refresh: () => {
+      calls.push('groups');
+      return state.holdGroups ? groupLoad.promise : Promise.resolve();
+    },
     pendingWork: () => Promise.resolve(state.groupPending),
     resumePending: () => {
       calls.push('group-retry');
@@ -295,6 +337,22 @@ export function coordinatorFixture(t: TestContext) {
     lifecycle = value;
     return noop;
   };
+  const input = Object.assign(new EventTarget(), {
+    value: 'Synthetic draft',
+    disabled: false,
+    focus: noop,
+  });
+  const send = { disabled: true, hidden: false };
+  const form = Object.assign(new EventTarget(), {
+    dataset: {},
+    querySelector: (selector: string) =>
+      selector === 'textarea'
+        ? input
+        : selector === '[data-compose-send]'
+          ? send
+          : null,
+    querySelectorAll: () => [],
+  });
   const panel = {
     isConnected: true,
     hidden: false,
@@ -304,10 +362,14 @@ export function coordinatorFixture(t: TestContext) {
     addEventListener: noop,
     querySelectorAll: () => [],
     querySelector: (selector: string) =>
-      ['.chat-panel', '[data-direct-conversation]'].includes(selector) ||
-      (selector === '[data-group-conversation]' && state.groupVisible)
-        ? panel
-        : null,
+      selector === '[data-message-form]'
+        ? form
+        : selector === '[data-message-text]'
+          ? input
+          : ['.chat-panel', '[data-direct-conversation]'].includes(selector) ||
+              (selector === '[data-group-conversation]' && state.groupVisible)
+            ? panel
+            : null,
   };
   const context = {
     fixture,
@@ -319,6 +381,7 @@ export function coordinatorFixture(t: TestContext) {
     Date,
     AbortController,
     AbortSignal,
+    Event,
     setTimeout,
     clearTimeout,
   };
@@ -333,7 +396,7 @@ export function coordinatorFixture(t: TestContext) {
         close: noop,
         check: asyncNoop,
       } as unknown as Parameters<typeof startMessages>[2]['playback'],
-      openConversation: noop,
+      openConversation: () => calls.push('open-panel'),
       openContact: noop,
       directoryChanged: noop,
       sharedProfile: () => null,
@@ -355,6 +418,16 @@ export function coordinatorFixture(t: TestContext) {
     state,
     calls,
     page,
+    initialization,
+    groupLoad,
+    history,
+    input,
+    send,
+    submit: () => form.dispatchEvent(new Event('submit', { cancelable: true })),
+    clickPeer: (peer: Parameters<typeof clickPeer>[0]) => clickPeer(peer),
+    preferences: () => lifecycle.preferences(),
+    pageHide: (persisted: boolean) => lifecycle.pageHide({ persisted }),
+    pageShow: () => lifecycle.pageShow({ persisted: true }),
     emit: (event: LiveEvent) => emit(event),
     lose: () => lose(),
     tick: () => lifecycle.tick(),

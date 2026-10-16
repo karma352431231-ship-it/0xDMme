@@ -1,12 +1,34 @@
 # 0xDMme — decisões e plano de implementação
 
+**Usable mobile conversations — 16/10/2026:** after the next physical capture,
+the owner clarified that a published contact could not be opened while startup
+was still busy and requested fixing both startup waits. Accept a visible private
+conversation choice during startup, retaining only the latest pending recipient.
+Run it at the next exclusive foreground boundary before unrelated maintenance;
+never change the crypto engine's recipient during another operation. Keep draft
+typing local and enable sending only after the selected history is verified.
+Coalesce initial profile-triggered presence work into post-initialization
+maintenance. Load groups, resume durable outbox work, update presence and release
+optional app warmups in separate bounded turns, preserving live invalidation,
+online authority/removal checks, consent, recovery and session cancellation.
+No dependency, protocol, backend, migration or retention change is included.
+The source repair passed 85 targeted scenarios and full exact-commit CI. The
+owner subsequently authorized main integration and VPS activation on 16/10/2026,
+then explicitly resumed the release after context compaction. Require the exact
+integrated commit's full CI and the existing deployment executor with preservation,
+readiness, verified public files and retained rollback. A new physical comparison
+is still required before claiming a speedup. See the
+[activation scope](docs/GIT_E_DEPLOY.md#usable-mobile-conversations--activation-authorized-on-16102026).
+See [functional startup contract](docs/BOOT_CONTATOS_CONVERSAS.md#usable-conversations-during-mobile-startup--16102026).
+
 **Measured private-directory boot repair — 16/10/2026:** after the complete
 physical console capture located repeated authenticated work before initial
 directory publication, the owner approved applying the fixes. Defer optional
 session warmups while the foreground private chat directory starts, coalescing
 readiness rechecks during that interval. Keep calls and incoming group links immediate, keep other
-foreground screens on their normal startup path and release deferred work on
-navigation, directory publication or a current-session directory failure.
+foreground screens on their normal startup path. The newer functional-startup
+contract above supersedes release at first directory publication; navigation and
+a current-session startup failure still release deferred work.
 Logout, device/CSRF changes and authorization loss discard the pending warmup.
 Every operation retains its own existing online authorization, revocation and
 history gates. No stale authority cache, new protocol, backend, migration,
