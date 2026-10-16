@@ -25,6 +25,7 @@ import {
   communityField as field,
 } from './elements.ts';
 import { iconLabel } from './presentation.ts';
+import { markMissing } from './form-errors.ts';
 import type { CommunityIcon } from './presentation.ts';
 /** A row of the post's “...” menu that opens its own form. */
 function menuSummary(text: string, icon: CommunityIcon): HTMLElement {
@@ -100,7 +101,7 @@ function postTagChips(
   container: HTMLElement,
   value: readonly string[],
   source: PostTags,
-): { chosen: () => string[]; offered: () => boolean } {
+): { chosen: () => string[]; offered: () => boolean; group: HTMLElement } {
   const group = el('fieldset', '', 'post-tag-chips'),
     chips = el('div', '', 'post-tag-chip-list'),
     more = el('div', '', 'post-toolbar');
@@ -142,7 +143,11 @@ function postTagChips(
       );
   };
   paint();
-  return { chosen: () => [...chosen], offered: () => page.items.length > 0 };
+  return {
+    chosen: () => [...chosen],
+    offered: () => page.items.length > 0,
+    group,
+  };
 }
 export function postForm(
   container: HTMLElement,
@@ -170,12 +175,14 @@ export function postForm(
   });
   return async () => {
     if (!title.value.trim()) {
-      title.focus();
+      markMissing(title, t('Dê um título à postagem.'));
       throw new Error('Dê um título à postagem.');
     }
     const chosen = chips.chosen();
-    if (!chosen.length && chips.offered())
+    if (!chosen.length && chips.offered()) {
+      markMissing(chips.group, t('Escolha pelo menos uma tag.'));
       throw new Error('Escolha pelo menos uma tag.');
+    }
     return {
       title: mentionValue(title),
       text: mentionValue(text),

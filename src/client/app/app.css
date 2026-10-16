@@ -30,6 +30,8 @@
 @import '../contacts/directory-actions.css';
 @import '../communities/directory-notice.css';
 @import '../ping/ping.css';
+@import '../upload-progress/upload-progress.css';
+@import '../attachment-ui/attachment-ui.css';
 @import '../language/line-breaks.css';
 @import '../communities/community-actions.css';
 @import '../communities/community-create.css';
@@ -155,6 +157,18 @@
   --ping-blue: #3b82f6;
   --ping-violet: #8b5cf6;
   --ping-alert: #f5b544;
+  /* Community topic dots (16/10/2026), the same in every theme. */
+  --topic-ai: #22d3ee;
+  --topic-cat: #fb923c;
+  --topic-dog: #d97706;
+  --topic-meme: #facc15;
+  --topic-tech: #60a5fa;
+  --topic-stock: #34d399;
+  --topic-chinese: #f87171;
+  --topic-brainrot: #f472b6;
+  --topic-celebrity: #fbbf24;
+  --topic-nft: #a78bfa;
+  --topic-tiktok: #e879f9;
   /* Controls drawn over video frames, the same in every theme. */
   --media-control-bg: rgb(0 0 0 / 55%);
   --media-control-ink: #ffffff;

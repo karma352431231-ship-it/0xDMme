@@ -1,0 +1,43 @@
+/* Chosen attachment in the chat composer (16/10/2026): a compact file card. */
+.attachment-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+#app-shell .attachment-card > img {
+  flex: none;
+  width: 48px;
+  height: 48px;
+  max-height: none;
+  border-radius: 10px;
+  object-fit: cover;
+}
+.attachment-card-file {
+  flex: none;
+  width: 48px;
+  height: 48px;
+  padding: 11px;
+  box-sizing: border-box;
+  border-radius: 10px;
+  background: var(--surface-2);
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.attachment-card-copy {
+  display: grid;
+  min-width: 0;
+}
+.attachment-card-copy strong {
+  overflow: hidden;
+  font-size: var(--fs-small);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.attachment-card-copy small {
+  color: var(--text-muted);
+  font-size: var(--fs-caption);
+}

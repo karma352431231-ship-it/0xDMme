@@ -25,6 +25,7 @@ import { profileCommunities } from './communities-panel.ts';
 import { renderActivityEntry } from '../communities/index.ts';
 import type { PublicProfiles } from './controller.ts';
 import { editPublicProfileHash } from '../profile-shortcut/index.ts';
+import { communityIcon } from '../communities/index.ts';
 
 function element<K extends keyof HTMLElementTagNameMap>(
   tag: K,
@@ -232,12 +233,14 @@ export function showProfilePage(
         signal: lifetime.signal,
       });
     status.textContent = '';
-    if (!block.blocked)
+    // Your own profile has no "Message"; editing sits in the round pencil.
+    const own = options.controller?.profile?.profile.id === summary.profile.id;
+    if (!block.blocked && !own)
       link(
         actions,
         t('Mensagem'),
         `#communities?view=dms&dm=${summary.profile.id}`,
-      );
+      ).className = 'profile-message';
     void follow(actions, summary, block).catch(error);
     profileCommunities(communities, {
       total: summary.communities,
@@ -331,7 +334,11 @@ export function showProfilePage(
       return;
     }
     if (controller.profile.profile.id === summary.profile.id) {
-      link(host, t('Editar perfil público'), editPublicProfileHash);
+      const edit = link(host, '', editPublicProfileHash);
+      edit.className = 'profile-edit';
+      edit.setAttribute('aria-label', t('Editar perfil público'));
+      edit.title = t('Editar perfil público');
+      edit.append(communityIcon('pencil'));
       return;
     }
     await profileSocialControls(host, summary, {

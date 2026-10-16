@@ -22,15 +22,61 @@
   color: var(--text);
   white-space: nowrap;
 }
+.community-topic-dot {
+  flex: none;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 999px;
+  background: var(--text-muted);
+}
+.community-topic-dot[data-topic='ai'] {
+  background: var(--topic-ai);
+}
+.community-topic-dot[data-topic='cat'] {
+  background: var(--topic-cat);
+}
+.community-topic-dot[data-topic='dog'] {
+  background: var(--topic-dog);
+}
+.community-topic-dot[data-topic='meme'] {
+  background: var(--topic-meme);
+}
+.community-topic-dot[data-topic='tech'] {
+  background: var(--topic-tech);
+}
+.community-topic-dot[data-topic='stock'] {
+  background: var(--topic-stock);
+}
+.community-topic-dot[data-topic='chinese'] {
+  background: var(--topic-chinese);
+}
+.community-topic-dot[data-topic='brainrot'] {
+  background: var(--topic-brainrot);
+}
+.community-topic-dot[data-topic='celebrity'] {
+  background: var(--topic-celebrity);
+}
+.community-topic-dot[data-topic='nft'] {
+  background: var(--topic-nft);
+}
+.community-topic-dot[data-topic='tiktok'] {
+  background: var(--topic-tiktok);
+}
 .community-nsfw-badge {
   font-weight: 750;
   color: var(--warn);
   border-color: var(--warn);
 }
-.community-hero-head > .community-classification-badges {
-  margin-inline-start: auto;
-  justify-content: flex-end;
-  max-width: 100%;
+/* Community page: topics sit quietly under the name, beside the creation date. */
+.community-hero-title > .community-classification-badges {
+  margin-top: 0.35rem;
+}
+.community-hero-title .community-topic-badge {
+  padding: 0.15rem 0.55rem;
+  border-color: var(--line);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 0.75rem;
 }
 .community-topic-picker {
   display: flex;
@@ -131,13 +177,6 @@
 }
 .ranking-link .ranking-copy .community-classification-badges {
   margin-top: 0.45rem;
-}
-@media (max-width: 600px) {
-  .community-hero-head > .community-classification-badges {
-    flex-basis: 100%;
-    justify-content: flex-start;
-    margin-inline-start: 0;
-  }
 }
 
 /* The creation form's field-label grid must not stack topic chips. */

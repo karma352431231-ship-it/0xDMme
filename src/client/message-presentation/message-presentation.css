@@ -1,17 +1,18 @@
+/*
+ * Reactions hang from the bubble's bottom edge (16/10/2026), overlapping it
+ * like WhatsApp so they read as part of the message. They sit at the start
+ * of every bubble, away from the time at its end.
+ */
 .chat-message:has(> .message-reactions:not(:empty)) {
-  margin-bottom: 26px;
+  margin-bottom: 18px;
 }
 .chat-message > .message-reactions {
   position: absolute;
-  top: calc(100% - 2px);
+  top: calc(100% - 12px);
   left: 10px;
   display: flex;
   gap: 4px;
   z-index: 1;
-}
-.chat-message.own > .message-reactions {
-  left: auto;
-  right: 10px;
 }
 #app-shell .chat-message .message-reaction {
   display: inline-flex;
@@ -20,9 +21,9 @@
   min-width: 32px;
   min-height: 28px;
   padding: 2px 6px;
-  border: 1px solid var(--line);
+  border: 2px solid var(--bg);
   border-radius: 18px;
-  background: var(--surface);
+  background: var(--surface-2);
   color: var(--text);
   opacity: 1;
   font-size: var(--fs-caption);

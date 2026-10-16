@@ -7,6 +7,7 @@ import { showPublicAvatar } from '../public-media/index.ts';
 import { Communities, communityRead } from './controller.ts';
 import { communityElement as el } from './elements.ts';
 import { communityAvatar } from './presentation.ts';
+import { topicDot } from './classification.ts';
 
 /**
  * FOMO-style ranking beside the feed (docs/UI_PAINEIS_E_TEMAS.md, 16/10/2026).
@@ -284,13 +285,12 @@ function fillRow(node: HTMLElement, row: Row, rank: number, tab: RankingTab) {
   const topic = communityTopics.find(
     (entry) => entry.id === row.community.classification?.topics[0],
   );
-  copy!.replaceChildren(
-    el('strong', row.community.name),
-    el(
-      'small',
-      topic ? `${topic.symbol} ${t(topic.label)}` : row.community.description,
-    ),
+  const detail = el(
+    'small',
+    topic ? t(topic.label) : row.community.description,
   );
+  if (topic) detail.prepend(topicDot(topic.id));
+  copy!.replaceChildren(el('strong', row.community.name), detail);
   const followers = new Intl.NumberFormat(currentLanguage(), {
     notation: 'compact',
   }).format(row.community.followers);

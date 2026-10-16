@@ -1,17 +1,18 @@
 import { AccountError, keys, object } from '../account/index.ts';
 
+/** Each topic shows as a colored dot and its name (16/10/2026); colors are theme tokens `--topic-<id>`. */
 export const communityTopics = [
-  { id: 'ai', label: 'community.topic.ai', symbol: '🤖' },
-  { id: 'cat', label: 'community.topic.cat', symbol: '🐈' },
-  { id: 'dog', label: 'community.topic.dog', symbol: '🐶' },
-  { id: 'meme', label: 'community.topic.meme', symbol: '🏆' },
-  { id: 'tech', label: 'community.topic.tech', symbol: '💻' },
-  { id: 'stock', label: 'community.topic.stock', symbol: '📈' },
-  { id: 'chinese', label: 'community.topic.chinese', symbol: '🇨🇳' },
-  { id: 'brainrot', label: 'community.topic.brainrot', symbol: '🧠' },
-  { id: 'celebrity', label: 'community.topic.celebrity', symbol: '⭐' },
-  { id: 'nft', label: 'community.topic.nft', symbol: '🖼️' },
-  { id: 'tiktok', label: 'community.topic.tiktok', symbol: '🎵' },
+  { id: 'ai', label: 'community.topic.ai' },
+  { id: 'cat', label: 'community.topic.cat' },
+  { id: 'dog', label: 'community.topic.dog' },
+  { id: 'meme', label: 'community.topic.meme' },
+  { id: 'tech', label: 'community.topic.tech' },
+  { id: 'stock', label: 'community.topic.stock' },
+  { id: 'chinese', label: 'community.topic.chinese' },
+  { id: 'brainrot', label: 'community.topic.brainrot' },
+  { id: 'celebrity', label: 'community.topic.celebrity' },
+  { id: 'nft', label: 'community.topic.nft' },
+  { id: 'tiktok', label: 'community.topic.tiktok' },
 ] as const;
 export type CommunityTopic = (typeof communityTopics)[number]['id'];
 export interface CommunityClassification {

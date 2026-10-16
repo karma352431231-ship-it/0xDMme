@@ -57,6 +57,7 @@ const authored = [
   'src/shared/community-views',
   'src/client/communities',
   'src/client/ping',
+  'src/client/upload-progress',
   'src/shared/communities',
   'src/client/public-profile',
   'src/client/profile-shortcut',

@@ -61,6 +61,7 @@ import { MessageDirectoryUi } from './directory-ui.ts';
 import { PeerPhotos } from './peer-photos.ts';
 import { ProfileBroadcast } from './profile-broadcast.ts';
 import { ConversationPreviewLoader } from '../conversation-preview/index.ts';
+import { uploadStatus } from '../upload-progress/index.ts';
 export function startMessages(
   access: VaultAccess,
   sync: VaultSync,
@@ -115,6 +116,9 @@ export function startMessages(
   let settingsHost: HTMLElement | null = null;
   let pushSettings: ReturnType<typeof mountPushSettings> | null = null;
   let message = t('Entre e autorize este aparelho para conversar.');
+  // Sent fraction of the attachment being uploaded, shown as a ring (16/10/2026).
+  const uploadIndicator = uploadStatus();
+  let uploading: number | null = null;
   let recordingPeer: string | null = null;
   const voice = new VoiceRecording({
     changed: () => voiceStatus(),
@@ -467,9 +471,20 @@ export function startMessages(
     if (directoryStatus)
       directoryStatus.textContent = synchronization.failed ? message : '';
   }
+  /** While an attachment is sent, the strip shows its ring instead of text. */
+  function renderUploadStatus(text: HTMLElement): boolean {
+    if (!synchronization.busy) uploading = null;
+    if (uploading === null) return false;
+    uploadIndicator.set(uploading);
+    text.replaceChildren(uploadIndicator.element);
+    const strip = text.closest<HTMLElement>('.chat-feedback');
+    if (strip) strip.dataset['state'] = 'notice';
+    return true;
+  }
   function renderChatStatus(): void {
     const text = node('[data-message-status]');
     if (!text) return;
+    if (renderUploadStatus(text)) return;
     const upToDate =
       !synchronization.busy &&
       !synchronization.failed &&
@@ -1104,6 +1119,7 @@ export function startMessages(
   }
   function attachmentProgress(progress: { done: number; total: number }): void {
     if (!synchronization.busy || !mounted?.isConnected) return;
+    uploading = progress.total ? progress.done / progress.total : 0;
     message = t(
       'Enviando anexo: parte {0} de {1}. Fechar o app pausa a transferência; o rascunho cifrado permanece.',
       [progress.done, progress.total],

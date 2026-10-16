@@ -94,15 +94,19 @@ export function chooseFeedFollow(
           signal,
           choose: () => finish({ target: 'community', state }),
         });
-        const author = authorChoice({
-          author: options.author,
-          state: state.author,
-          signal,
-          choose: () => finish({ target: 'author', state }),
-        });
         status.textContent = '';
         dialog.insertBefore(community, status);
-        dialog.insertBefore(author, status);
+        // Your own post: there is no profile to follow, only the community.
+        if (!options.author || state.author)
+          dialog.insertBefore(
+            authorChoice({
+              author: options.author,
+              state: state.author,
+              signal,
+              choose: () => finish({ target: 'author', state }),
+            }),
+            status,
+          );
         community.querySelector('button')?.focus();
       })
       .catch((error: unknown) => {

@@ -415,7 +415,7 @@ export function startCommunities(
         ? [communityElement('p', t('Arquivada'), 'community-hero-meta')]
         : []),
     );
-    head.append(avatar, title, classificationBadges(value.classification));
+    head.append(avatar, title);
     hero.append(banner, head);
     publicPhoto(avatar, value);
     // The follower line sits under the name, aligned with it.
@@ -426,7 +426,10 @@ export function startCommunities(
       controller,
       signal: abort.signal,
     });
-    title.append(communityCreationDate(value));
+    title.append(
+      communityCreationDate(value),
+      classificationBadges(value.classification),
+    );
     if (value.description) {
       const description = communityElement(
         'p',

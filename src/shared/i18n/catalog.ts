@@ -202,11 +202,6 @@ export const catalog: Record<string, readonly [string, string]> = {
   '{0} — {1}': ['{0} — {1}', '{0} — {1}'],
   '{0} · {1}': ['{0} · {1}', '{0} · {1}'],
   '{0} · {1} · {2}': ['{0} · {1} · {2}', '{0} · {1} · {2}'],
-  '{0} · {1} MB. Original preservado; pode conter GPS/EXIF ou outros metadados. Clique em Enviar para compartilhar.':
-    [
-      '{0} · {1} MB. Original preserved; it may contain GPS/EXIF or other metadata. Click Send to share.',
-      '{0} · {1} MB。原始文件已保留，可能含有 GPS/EXIF 或其他元数据。点击“发送”以分享。',
-    ],
   '{0} · {1} na fila': ['{0} · {1} queued', '{0} · 队列中有 {1} 项'],
   '{0} · {1}. Confirme somente o pedido que você iniciou. A wallet pedirá assinaturas para entrar e abrir seus dados cifrados no navegador original. Não há transação ou autorização de tokens.':
     [
@@ -650,6 +645,20 @@ export const catalog: Record<string, readonly [string, string]> = {
   'feed.posted-label': [
     'New posts: back to the top and load them',
     '有新帖子：回到顶部并加载',
+  ],
+  'profile.bell-on {0}': ['Notifications on for @{0}', '已开启 @{0} 的通知'],
+  'profile.bell-off {0}': ['Notifications off for @{0}', '已关闭 @{0} 的通知'],
+  'upload.sending {0}': ['Sending: {0}%', '正在发送：{0}%'],
+  'upload.percent {0}': ['{0}%', '{0}%'],
+  'upload.processing': ['Processing…', '处理中…'],
+  'upload.sending-file': ['Sending file…', '正在发送文件…'],
+  'attachment.card-detail {0}': [
+    '{0} MB · original, may keep GPS/EXIF',
+    '{0} MB · 原始文件，可能保留 GPS/EXIF',
+  ],
+  'attachment.card-metadata': [
+    'The original is sent as is and may keep photo metadata such as GPS/EXIF.',
+    '原始文件按原样发送，可能保留 GPS/EXIF 等照片元数据。',
   ],
   'ranking.empty': ['No communities here yet.', '这里还没有社区。'],
   'ranking.sign-in': [
@@ -2690,7 +2699,6 @@ export const catalog: Record<string, readonly [string, string]> = {
       'Uploading attachment: part {0} of {1}. Closing the app pauses the transfer; the encrypted draft is preserved.',
       '正在上传附件：第 {0} 部分，共 {1} 部分。关闭应用会暂停传输；加密草稿会保留。',
     ],
-  'Enviando arquivo: {0}%.': ['Uploading file: {0}%.', '正在上传文件：{0}%。'],
   Enviar: ['Send', '发送'],
   'Enviar autorização para aceite': [
     'Send authorization for acceptance',
@@ -5120,10 +5128,6 @@ export const catalog: Record<string, readonly [string, string]> = {
     '准备仍在进行。请重试以恢复。',
   ],
   'preparação da sessão': ['session preparation', '会话准备'],
-  'Preparando arquivo e miniatura. Isso pode reduzir a qualidade.': [
-    'Preparing file and thumbnail. This may reduce quality.',
-    '正在处理文件和缩略图。这可能降低画质。',
-  ],
   'Preparando backup: {0} itens.': [
     'Preparing backup: {0} items.',
     '正在准备备份：{0} 项。',

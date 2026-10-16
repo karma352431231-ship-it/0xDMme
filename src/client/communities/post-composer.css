@@ -269,3 +269,25 @@ dialog.post-composer-dialog.community-scope
   [role='status'] {
   display: none;
 }
+
+/* Missing required parts (16/10/2026): red summary on top and a red mark on the part itself. */
+.post-composer-dialog .community-feedback.is-error {
+  color: var(--danger);
+  font-weight: 600;
+}
+.form-missing {
+  margin: 4px 0 8px;
+  color: var(--danger);
+  font-size: var(--fs-small);
+  font-weight: 600;
+}
+#app-shell [aria-invalid='true']:is(input, textarea),
+.community-scope [aria-invalid='true']:is(input, textarea) {
+  border-color: var(--danger);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--danger) 30%, transparent);
+}
+fieldset[aria-invalid='true'].post-tag-chips {
+  border-radius: 12px;
+  outline: 2px solid var(--danger);
+  outline-offset: 4px;
+}

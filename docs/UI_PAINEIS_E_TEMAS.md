@@ -468,3 +468,15 @@ At the owner's request, public post videos use one X-like height on every layout
 - **Ranking table.** The sidebar's styles reused the table's class names and squeezed the community names out of the isolated Ranking page; the sidebar now uses its own `ranking-side-*` classes, guarded by a test. The "active" column label is translated.
 - **Topics.** The ranking topic filter sits behind a **Topics** button on every screen size; it shows how many topics are selected while closed.
 - **New-posts pill.** "Reload from the beginning" is replaced by an X-style pill at the top of the feed. It appears after the reader has gone deep into the feed (more than one and a half screens) and then returns to the top, or presses the active Feed/Discover tab again. While the reader is away from the top, the app checks the first feed page at most once every 45 seconds; when posts newer than the ones shown exist, the pill shows up to three author photos and "posted". Pressing it scrolls up and reloads only the feed, not the page. Near the top, pressing the active tab still reloads directly. Next-page navigation is unchanged.
+
+## Profile, feed and chat polish — 16/10/2026
+
+Owner-approved batch after testing on phone and desktop:
+
+- **Topics** show as a pill with a colored dot and the name instead of emoji, everywhere topics appear (creation form, ranking filter, cards, ranking sidebar). Colors are theme tokens `--topic-<id>`. On a community page the topics sit quietly under the name, beside the creation date.
+- **Feed "+ Follow" on phones** never offers your own profile; your own posts only offer the community.
+- **Public profile on phones** is one compact card: header, bio, the four numbers in a row and the communities. Your own profile has no "Message"; editing is a round pencil button. Message, Following, the bell, the pencil and "…" share one height (40 px, 34 px beside the chat).
+- **Bell:** off is an outline bell; on is a filled accent bell with a small green check. Turning it on or off confirms with a toast.
+- **Post composer:** a missing title or tag shows a red summary on top and a red mark with a short message on the part itself, which receives focus.
+- **Chat reactions** hang from the bubble's bottom edge, at its start, in private and public chats.
+- **Uploads:** a ring fills while a file is sent and spins while it is processed. Posts show it over each chosen thumbnail; the private chat shows it in its status strip. The chat composer shows the chosen file as a card (thumbnail or file icon, name, size, "may keep GPS/EXIF"). Group and `@` chats have no upload progress events yet, so they keep their busy state.

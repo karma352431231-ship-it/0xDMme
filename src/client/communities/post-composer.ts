@@ -92,14 +92,17 @@ export class PostComposer {
     const current = this.dialog;
     this.busy = true;
     this.disable(true);
+    this.feedback?.classList.remove('is-error');
     try {
       await work();
     } catch (error: unknown) {
-      if (current === this.dialog && this.feedback)
+      if (current === this.dialog && this.feedback) {
+        this.feedback.classList.add('is-error');
         this.feedback.textContent =
           error instanceof Error
             ? translatedError(error.message)
             : t('Postagem indisponível.');
+      }
     } finally {
       this.busy = false;
       if (current === this.dialog) this.disable(false);

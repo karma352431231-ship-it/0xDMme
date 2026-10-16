@@ -40,10 +40,16 @@ function topicLabel(
   className: string,
 ) {
   const node = el('span', '', className),
-    icon = el('span', topic.symbol);
-  icon.setAttribute('aria-hidden', 'true');
-  node.append(icon, el('span', t(topic.label)));
+    dot = topicDot(topic.id);
+  node.append(dot, el('span', t(topic.label)));
   return node;
+}
+/** The topic's colored dot; decorative, the name beside it carries the meaning. */
+export function topicDot(id: CommunityTopic): HTMLElement {
+  const dot = el('span', '', 'community-topic-dot');
+  dot.dataset['topic'] = id;
+  dot.setAttribute('aria-hidden', 'true');
+  return dot;
 }
 export function topicPicker(
   host: HTMLElement,
