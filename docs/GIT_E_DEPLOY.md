@@ -2256,3 +2256,12 @@ Links/capacidades privadas continuam no fragmento; somente rotas reconhecidas
 recebem o shell e somente `/` armazena o documento offline. Conferir os hashes
 públicos, saúde e fingerprints existentes antes/depois. Acesso e evidências
 operacionais ficam exclusivamente em `.local/`.
+
+Na preparação de 16/10/2026, o build e a verificação de CI passaram, mas a
+sincronização de fontes ainda procurava o acesso na árvore isolada e parou com
+`FileNotFoundError` antes de conectar à VPS. O leitor de `sync-git.py` agora
+resolve também o Git comum e valida o ignore na árvore original. A regressão
+confere o caminho de leitura; o acesso não é copiado. Fontes da aplicação,
+migração, predecessor e autorização permanecem idênticos. Reutilizar os
+resultados válidos, exigir CI do commit corrigido e repetir a preparação uma
+vez depois desse diagnóstico; nenhuma ativação ocorreu nessa tentativa.

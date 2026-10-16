@@ -2,8 +2,9 @@
 from pathlib import Path
 import sys
 import tempfile
+import runpy
 import unittest
-from unittest.mock import patch
+from unittest.mock import patch, Mock
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'infra/staging'))
 import deploy_community_addresses as addresses
 import deploy_remote as base
@@ -18,6 +19,16 @@ class CommunityAddressMigrationTests(unittest.TestCase):
             deploy.shared_private_workspace()
             self.assertEqual(deploy.PRIVATE_ROOT, Path('/original/checkout'))
             self.assertEqual(deploy.LOCAL, Path('/original/checkout/.local/deployment'))
+
+    def test_source_sync_reads_private_target_from_original_checkout(self):
+        source = runpy.run_path(str(Path(__file__).resolve().parents[1] / 'infra/staging/sync-git.py'))
+        function = source['private_target_file']
+        command = Mock(side_effect=['/original/checkout/.git', 'ignored'])
+        with patch.dict(function.__globals__, {'run': command}):
+            self.assertEqual(function(), Path('/original/checkout/.local/VPS_SSH_TARGET'))
+        self.assertEqual(command.call_args.args[0], [
+            'git', '-C', '/original/checkout', 'check-ignore', '--', '.local/VPS_SSH_TARGET',
+        ])
 
     def test_unreviewed_sources_stop_before_database_access(self):
         with (patch.object(addresses, 'REVIEWED', 'UNREVIEWED'),
