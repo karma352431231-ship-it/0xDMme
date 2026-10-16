@@ -1,5 +1,30 @@
 # 0xDMme — Git e envio à VPS
 
+## Chat attachments up to 10 MB — activation authorized on 16/10/2026
+
+The owner asked to raise the private and group chat attachment limit from 3 MB
+to 10 MB, then explicitly approved doing it with a migration and activating it on
+the VPS once CI passes. `@` DMs, status and other media keep their limits.
+
+Use only the existing `npm run deploy:staging`. Its transition module
+`deploy_chat_attachments.py` pins published `78138f4df621807596cb88ca795a36c32a9598a9`
+to reviewed `49befd3e791e704bec116223459a40c0be2a288b`. The 70 prior SQL files,
+dependencies, Node, model configuration and installed service units remain exact.
+Migration 071 only replaces `message_attachments_bytes_check` and
+`group_media_bytes_check` with validated 10 MB bounds; it refuses to run unless both
+are the original validated 3 MB checks, and it adds no columns or rows.
+
+Keep the private backup, all-row/ledger/checksum comparisons with no omitted
+columns, the community-table check, other-project fingerprints/health and scoped
+rollback. Pause only our web and three workers. Require a clean, integrated, pushed
+main commit with full exact-commit CI and the Mac build. Access, evidence,
+artifacts, backups and receipts stay exclusively in `.local/`.
+
+**Ponto importante:** activation requires a `published` receipt, 71 verified
+migrations and ready workers. Larger files consume the unchanged 1 GB account and
+group quotas faster. App versions loaded before the release cannot open attachments
+above 3 MB until they update. See [attachments contract](BLOCO_08_FOTOS_E_ARQUIVOS.md).
+
 ## Ranking activity — activation authorized on 16/10/2026
 
 The owner approved the ranking sidebar, the Chat | Communities switch and the
