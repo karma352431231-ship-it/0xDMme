@@ -46,7 +46,10 @@ verification gates; run app startup/navigation, message session/revocation,
 recovery and layout tests after each extraction. No broad split is included here.
 
 **Ponto importante:** this changes startup scheduling while preserving security
-checks. It does not establish the final mobile speedup or activate a release.
+checks. The owner subsequently authorized main integration and VPS activation
+through the [existing release process](GIT_E_DEPLOY.md#private-directory-boot-repair--activation-authorized-on-16102026).
+Activation requires its passing checks and published receipt; a new physical
+capture remains necessary to establish the final mobile speedup.
 
 O proprietário relata demora no mobile ao reabrir, recarregar e retornar ao app,
 até os contatos e as conversas aparecerem. A investigação encontrou um custo

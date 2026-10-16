@@ -1,5 +1,26 @@
 # 0xDMme — Git e envio à VPS
 
+## Private-directory boot repair — activation authorized on 16/10/2026
+
+After the complete Chrome Android capture and the scoped startup repair, the
+owner explicitly authorized main integration and VPS activation. The reviewed
+code ends at `d5527c1`; 100 targeted scenarios and its full exact-commit CI passed.
+Prioritize the foreground private directory before optional session warmups,
+preserving online authority checks, calls and incoming group links. See the
+[startup contract](BOOT_CONTATOS_CONVERSAS.md#foreground-directory-startup--16102026).
+
+Integrate with current main and require full CI for the exact pushed integration
+commit. Deploy from its clean checkout using only `npm run deploy:staging`, with
+the build on the Mac. This repair preserves the entire backend, all 71 SQL
+migrations and their executor, dependencies, Node, models, units and shared
+infrastructure. Keep existing preservation checks, worker readiness, public
+asset/source verification and the previous release for rollback. Access,
+baselines, artifacts and receipts stay exclusively in `.local/`.
+
+**Ponto importante:** activation requires a matching `published` receipt and
+served build. A new physical Android capture is still required to establish
+the actual mobile improvement; passing CI alone does not measure that gain.
+
 ## Followed-profile alerts — activation authorized on 16/10/2026
 
 The owner asked for X-style system alerts for posts and replies by profiles
