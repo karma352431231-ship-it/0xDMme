@@ -498,6 +498,9 @@ def backup_review(candidate, live):
 
 def database_review(candidate, live):
     count = len(list((candidate / 'src/server/database/migrations').glob('*.sql')))
+    if count == 72:
+        import deploy_community_addresses
+        return deploy_community_addresses.review(candidate, live)
     if count == 71:
         import deploy_chat_attachments
         return deploy_chat_attachments.review(candidate, live)
@@ -1111,6 +1114,9 @@ def activate(config, work):
     if (database_files(candidate) != database_files(DATA / 'release')
             and not database_code_reviewed(candidate, DATA / 'release')):
         # Any unreviewed database change was rejected by prepare()/compatibility().
+        if len(list((candidate / 'src/server/database/migrations').glob('*.sql'))) == 72:
+            import deploy_community_addresses
+            return deploy_community_addresses.activate(config, work, candidate, before)
         if len(list((candidate / 'src/server/database/migrations').glob('*.sql'))) == 71:
             import deploy_chat_attachments
             return deploy_chat_attachments.activate(config, work, candidate, before)

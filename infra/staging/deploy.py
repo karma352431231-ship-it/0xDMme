@@ -28,6 +28,7 @@ from deploy_python import ensure_python314
 ROOT = Path(__file__).resolve().parents[2]
 OWNER = 'karma352431231-ship-it'
 ORIGIN = f'https://github.com/{OWNER}/0xDMme.git'
+PRIVATE_ROOT = ROOT
 LOCAL = ROOT / '.local/deployment'
 
 
@@ -176,10 +177,10 @@ def prepare(revision, branch):
 def private_inputs():
     values = []
     for name in ['VPS_SSH_TARGET', 'VPS_DEPLOY_BASELINE.json']:
-        path = ROOT / '.local' / name
+        path = PRIVATE_ROOT / '.local' / name
         if path.is_symlink() or not path.is_file() or path.stat().st_mode & 0o077:
             raise RuntimeError('Private deployment input missing or permissions too broad.')
-        run(['git', 'check-ignore', '--', str(path.relative_to(ROOT))])
+        run(['git', 'check-ignore', '--', str(path.relative_to(PRIVATE_ROOT))], cwd=PRIVATE_ROOT)
         values.append(path.read_text())
     target = values[0].strip()
     if not re.fullmatch(r'[A-Za-z0-9_][A-Za-z0-9_.-]*@[A-Za-z0-9][A-Za-z0-9.-]*', target):
@@ -192,7 +193,7 @@ def private_inputs():
 
 def executor_code(config):
     modules = []
-    for name in ['deploy_sources', 'deploy_runtime', 'deploy_remote', 'deploy_backup_io', 'deploy_blocks45', 'deploy_request_limit', 'deploy_background', 'deploy_profile_social', 'deploy_profile_description', 'deploy_group_links', 'deploy_post_tags', 'deploy_media_worker', 'deploy_social_controls', 'deploy_social_experience', 'deploy_discussion', 'deploy_mentions', 'deploy_message_changes', 'deploy_community_classification', 'deploy_public_upvotes', 'deploy_social_reactions', 'deploy_ranking_activity', 'deploy_chat_attachments']:
+    for name in ['deploy_sources', 'deploy_runtime', 'deploy_remote', 'deploy_backup_io', 'deploy_blocks45', 'deploy_request_limit', 'deploy_background', 'deploy_profile_social', 'deploy_profile_description', 'deploy_group_links', 'deploy_post_tags', 'deploy_media_worker', 'deploy_social_controls', 'deploy_social_experience', 'deploy_discussion', 'deploy_mentions', 'deploy_message_changes', 'deploy_community_classification', 'deploy_public_upvotes', 'deploy_social_reactions', 'deploy_ranking_activity', 'deploy_chat_attachments', 'deploy_community_addresses']:
         path = ROOT / 'infra/staging' / (name + '.py')
         if digest(path) != config['files'].get('infra/staging/' + name + '.py'):
             raise RuntimeError('Deployment executor changed after the reviewed commit.')
@@ -250,7 +251,16 @@ def remote(action, config, target):
     return json.loads(result.stdout.decode().strip().splitlines()[-1])
 
 
+def shared_private_workspace():
+    # Worktrees retain access and evidence only in the original checkout.
+    global PRIVATE_ROOT, LOCAL
+    common = run(['git', 'rev-parse', '--path-format=absolute', '--git-common-dir']).decode().strip()
+    PRIVATE_ROOT = Path(common).resolve().parent
+    LOCAL = PRIVATE_ROOT / '.local/deployment'
+
+
 def main():
+    shared_private_workspace()
     parser = argparse.ArgumentParser(description=__doc__)
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument('--prepare', action='store_true', help='Prepare the exact-commit build locally only.')
@@ -272,17 +282,17 @@ def main():
     target, baseline = private_inputs()
     config = dict(manifest, baseline=baseline)
     if args.media_worker:
-        path = ROOT / '.local/VPS_MEDIA_WORKER_REVIEW.json'
+        path = PRIVATE_ROOT / '.local/VPS_MEDIA_WORKER_REVIEW.json'
         if path.is_symlink() or not path.is_file() or path.stat().st_mode & 0o077 or path.stat().st_size > 4096:
             raise RuntimeError('Private media worker review missing or unsafe.')
-        run(['git', 'check-ignore', '--', str(path.relative_to(ROOT))])
+        run(['git', 'check-ignore', '--', str(path.relative_to(PRIVATE_ROOT))], cwd=PRIVATE_ROOT)
         config['media_worker'] = json.loads(path.read_text())
         media_worker.review(config)
     if args.request_limit:
-        review = ROOT / '.local/VPS_REQUEST_LIMIT_REVIEW.json'
+        review = PRIVATE_ROOT / '.local/VPS_REQUEST_LIMIT_REVIEW.json'
         if review.is_symlink() or not review.is_file() or review.stat().st_mode & 0o077:
             raise RuntimeError('Private request-limit review missing or permissions too broad.')
-        run(['git', 'check-ignore', '--', str(review.relative_to(ROOT))])
+        run(['git', 'check-ignore', '--', str(review.relative_to(PRIVATE_ROOT))], cwd=PRIVATE_ROOT)
         if review.stat().st_size > 2 * request_limits.MAX_CONFIG + 2048:
             raise RuntimeError('Private request-limit review exceeded budget.')
         config['request_limit'] = json.loads(review.read_text())
