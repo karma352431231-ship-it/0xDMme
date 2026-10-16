@@ -35,6 +35,9 @@ const adapters: Record<string, string[]> = {
     'localPage',
     'sealLocal',
     'openLocal',
+    'enqueueOutbox',
+    'outboxPage',
+    'removeOutbox',
   ],
   'message-search': ['indexSearch', 'searchMessages'],
 };
@@ -138,6 +141,9 @@ export function resumeFixture() {
     localDelete: unused,
     localPage: unused,
     sealLocal: unused,
+    enqueueOutbox: unused,
+    outboxPage: unused,
+    removeOutbox: unused,
     openLocal: (_a: unknown, cipher: { text: string }) =>
       Promise.resolve(cipher.text),
     indexSearch: () => Promise.resolve(),

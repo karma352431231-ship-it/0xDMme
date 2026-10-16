@@ -73,6 +73,9 @@ import {
   localPage,
   sealLocal,
   openLocal,
+  enqueueOutbox,
+  outboxPage,
+  removeOutbox,
 } from '../message-storage/index.ts';
 import type { LocalCipher } from '../message-storage/index.ts';
 import { encodeProfileCard, profileCard } from '../message-profile/index.ts';
@@ -122,6 +125,7 @@ export interface MessageView {
   hash: string;
 }
 interface Outbox {
+  outboxOrder?: string;
   relation?: MessageRelation;
   id: string;
   peer: string;
@@ -172,6 +176,7 @@ export class Messages {
   private prefetchAbort: AbortController | null = null;
   private readonly verified = new VerifiedWindow<MessageView>();
   private readonly offlineIndex = new OfflineIndex();
+  private readonly published: (value: { id: string; peer: string }) => void;
   constructor(
     access: VaultAccess,
     sync: VaultSync,
@@ -179,11 +184,13 @@ export class Messages {
       rows: readonly MessageView[] | null,
       update: HistoryUpdate,
     ) => void,
+    published: (value: { id: string; peer: string }) => void = () => {},
   ) {
     this.access = access;
     this.sync = sync;
     this.identities = new PeerIdentity(sync);
     this.visibility = new MessageVisibility(publish);
+    this.published = published;
   }
   async knownProfile(peer: string): Promise<ProfileCard | null> {
     const session = this.session,
@@ -465,6 +472,36 @@ export class Messages {
       );
     });
   }
+  /** Local ciphertext admission only; SDK selection/publication stay exclusive. */
+  async queueText(input: {
+    id: string;
+    peer: string;
+    text: string;
+  }): Promise<void> {
+    const generation = this.generation;
+    await this.access.withVault(
+      !navigator.onLine,
+      async (a) => {
+        this.guard(generation);
+        const draft = [await sealLocal(a, input.id, input.text)];
+        this.guard(generation);
+        await enqueueOutbox({
+          scope: a.session.accountId,
+          id: input.id,
+          value: {
+            id: input.id,
+            peer: input.peer,
+            draft,
+            kind: 'text',
+            packet: null,
+          },
+          size: draft[0]!.bytes.length + 512,
+          current: () => generation === this.generation,
+        });
+      },
+      { priority: 'interactive' },
+    );
+  }
   async composeAttachment(
     peer: string,
     selection: AttachmentSelection,
@@ -683,6 +720,7 @@ export class Messages {
   async sendPending(): Promise<void> {
     if (!(await this.pending()).length) return;
     const generation = this.generation;
+    let targets: string[] = [];
     // Opening a retained window defers the vault read, not identity validation
     // before distributing keys or publishing new ciphertext.
     if (this.pinsGeneration !== generation) await this.loadPins();
@@ -690,14 +728,12 @@ export class Messages {
     // Persist the first trusted identity before distributing a room key or
     // accepting ciphertext. VaultSync owns a separate lock, so save outside it.
     await this.access.withVault(false, async (a) => {
-      const page = await localPage<Outbox>(
-        a.session.accountId,
-        'outbox:',
-        null,
-      );
-      for (const peer of new Set(page.items.map((row) => row.value.peer)))
+      const page = await outboxPage<Outbox>(a.session.accountId);
+      targets = page.map((item) => item.name);
+      for (const peer of new Set(page.map((row) => row.value.peer)))
         await this.history({ a, generation }, peer, null);
     });
+    if (!targets.length) return;
     await this.savePins();
     this.guard(generation);
     await this.access.withVault(false, async (a) => {
@@ -707,12 +743,8 @@ export class Messages {
       const own = await this.recoverable(a, generation),
         machine = await this.machine(a, generation);
       try {
-        const page = await localPage<Outbox>(
-          a.session.accountId,
-          'outbox:',
-          null,
-        );
-        for (const { name, value } of page.items)
+        const page = await outboxPage<Outbox>(a.session.accountId, targets);
+        for (const { name, value } of page)
           await this.sendOne({ a, api, own, machine, generation, name, value });
       } finally {
         machine.close();
@@ -730,8 +762,9 @@ export class Messages {
   }): Promise<void> {
     const { a, api, own, machine, generation, name, value } = context;
     if (await this.alreadyAccepted(api, value)) {
-      await localDelete(a.session.accountId, name);
+      await removeOutbox(a.session.accountId, name);
       await this.retainOutbox(a, value);
+      this.notifyPublished(value, generation);
       return;
     }
     const history = await this.history({ a, generation }, value.peer, null),
@@ -775,7 +808,12 @@ export class Messages {
     await this.transferOutbox(a, api, value);
     await this.publishOutbox(api, value);
     await this.retainOutbox(a, value);
-    await localDelete(a.session.accountId, name);
+    await removeOutbox(a.session.accountId, name);
+    this.notifyPublished(value, generation);
+  }
+  private notifyPublished(value: Outbox, generation: number): void {
+    if (generation === this.generation && value.outboxOrder)
+      this.published({ id: value.id, peer: value.peer });
   }
   private async retainOutbox(a: VaultAuthority, value: Outbox): Promise<void> {
     if (value.kind === 'attachment')
@@ -1076,7 +1114,7 @@ export class Messages {
       await localDelete(c.a.session.accountId, `cache:${item.id}`);
       await localDelete(c.a.session.accountId, `search:${item.id}`);
       await localDelete(c.a.session.accountId, `profile:${item.id}`);
-      await localDelete(c.a.session.accountId, `outbox:${item.id}`);
+      await removeOutbox(c.a.session.accountId, `outbox:${item.id}`);
       await forgetAttachment(c.a.session.accountId, item.id);
       return;
     }
@@ -1868,7 +1906,7 @@ export class Messages {
           );
         await forgetAttachment(a.session.accountId, id);
       }
-      await localDelete(a.session.accountId, `outbox:${id}`);
+      await removeOutbox(a.session.accountId, `outbox:${id}`);
     });
     notifyMessageControls();
   }
@@ -1904,6 +1942,9 @@ export class Messages {
     if (!session) return [];
     return (
       await localPage<Outbox>(session.accountId, 'outbox:', null)
-    ).items.map((x) => ({ id: x.value.id, peer: x.value.peer }));
+    ).items.map((x) => ({
+      id: x.value.id,
+      peer: x.value.peer,
+    }));
   }
 }

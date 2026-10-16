@@ -31,6 +31,14 @@ await test('capture is bounded, stops recording and excludes identifiers from re
     'other-account-api',
   );
   assert.equal(
+    requestCategory('/api/account/messages/dm-publish?recipient=private'),
+    'messages/dm-publish',
+  );
+  assert.equal(
+    requestCategory('/api/account/messages/dm-personal-snapshot'),
+    'messages/dm-personal-snapshot',
+  );
+  assert.equal(
     requestCategory('/api/account/messages/object/private-contact-id'),
     null,
   );

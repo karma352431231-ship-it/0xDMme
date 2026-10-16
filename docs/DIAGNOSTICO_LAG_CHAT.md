@@ -1,5 +1,110 @@
 # Medidor local de sincronização — 15/10/2026
 
+## Applying the measured private text-send repair — 16/10/2026
+
+The owner supplied a complete desktop capture and authorized the repair. It
+records Enter attempts rejected by the disabled send button, publication responses
+followed by continued UI blocking, and automatic rechecks between sends. Exact
+timings, bundle attribution and captures remain private in `.local/`.
+
+Private ordinary text/reply admission now belongs to `messages/text-send.ts`.
+Each submission captures its recipient, encoded content and stable random ID,
+then clears only that captured input. Up to 32 unsaved drafts (at most 128 KiB
+each, with the existing 16,000-byte text validation unchanged) remain in the
+session's memory while serial encrypted saves complete. Storage failures retain
+the original ID and text for explicit retry. The UI distinguishes local saving,
+failed saving, durable sending and server acceptance awaiting verified history.
+Unsaved drafts block PWA activation and request the existing browser close guard;
+logout/session replacement discards unsaved plaintext. Browser/process termination
+before a save finishes can still lose an unsaved draft. Never label it delivered
+or persisted before those respective contracts complete.
+
+Local admission uses existing authority acquisition with interactive priority,
+the same local encryption/AAD and strict IndexedDB durability. It does not mutate
+the SDK or selected recipient and introduces no authority cache. The new private
+FIFO index/counter and ciphertext/quota debit commit atomically in the existing
+version-1 record store. Removing the outbox record removes its index/debit in the
+same transaction. An ID retry never replaces a previously stored packet. Legacy
+drafts retain their format and supported reader; normal text FIFO order survives
+reopening the database. Reads/transport batches remain limited to 16 entries.
+If an older tab consumes a new draft, the current reader removes its orphaned
+ordering metadata in bounded pages, preserving the remaining drafts and quota.
+The sender freezes the exact identities checked/pinned before publication so
+newly admitted drafts cannot enter an unverified in-flight batch.
+
+Transport retains the SDK exclusion and every existing fresh online authority,
+consent, removal, recipient-history, recovery, quota and idempotency check.
+Publication no longer awaits a visible-history/vault/presence round before the
+next text can be admitted. A single one-second quiet window coalesces normal
+background reads/profile work during typing and bursts; immediate invalidation
+remains immediate. One already-running owner is allowed to settle. Offline saves
+remain encrypted; transfer failures stop the eager drain and retain the existing
+bounded automatic retry policy. Editing, attachments, voice, groups and handle
+chat keep their existing submission flow.
+
+**Ponto importante:** fast local input is distinct from network acceptance and
+delivery. Physical acceptance must test rapid Enter, storage/transport failures,
+offline return and session/navigation changes. No backend, SQL migration,
+dependency, cryptographic format or VPS activation is part of this source repair.
+The existing coordinators remain hotspots; the new queue and FIFO persistence
+have their own modules. Keep broader session/identity, outbox/media and history
+extraction as a separate task with cancellation, recovery and authorization tests.
+
+The owner subsequently authorized main integration and VPS activation on
+16/10/2026, after the source and final test-adapter repair passed full CI. Notify
+the owner when the integrated main commit is published, then require its own
+full CI before activation. See the
+[release contract](GIT_E_DEPLOY.md#consecutive-private-texts--activation-authorized-on-16102026).
+
+## Consecutive text-send capture — 16/10/2026
+
+The owner reported that consecutive Enter submissions require waiting between
+messages and requested evidence before changing the send pipeline. The private
+coordinator holds its existing exclusive/busy gate through local composition,
+pending transmission, visible-history verification, pin persistence and normal
+presence/read-receipt work. The shared composer refuses Enter while its send
+button is disabled. This establishes a blocking path in the source, not how much
+each stage costs on the owner's device. Do not infer that every delay is network
+latency or bypass those authorization/SDK gates to make a synthetic test faster.
+
+`npm run diagnostic:chat` now includes a separate control observer for private,
+handle and group forms. `send-action` records only Enter intent, a send-button
+click or an actual form submission, together with the fixed enabled/hidden
+control states. `send-state` records changes to those states. An Enter while
+disabled followed by no click/submit distinguishes rejected input from accepted
+work awaiting transmission. Request categories include the fixed handle-message
+operations and recovery steps; lock, response and long-task timing retain their
+existing instrumentation. A submit event is not proof of local persistence,
+server acceptance, delivery or reading. Operation intervals may overlap.
+
+For a desktop Chrome capture:
+
+1. Open an authorized conversation and wait until history and the composer are
+   usable. This is a send capture, so no boot breakpoint or Android USB is needed.
+2. Paste the full generated `build/chat-lag-console.js` into that tab's Console.
+   Use one collector at a time and do not reload during the capture.
+3. Return focus to the message field. Use harmless test text and reproduce three
+   to five consecutive Enter attempts, including an attempt while the pause is
+   visible. Wait until the last message settles. Keep the run around 20–30 seconds.
+4. Return to Console and run
+   `copy(JSON.stringify(__0xdmmeLag.stop(), null, 2))`, or use the existing local
+   download button. Share that JSON only if desired; keep repository copies in
+   `.local/`. A report with dropped events is incomplete and needs a shorter run.
+
+No input value, message DOM text, recipient, arbitrary keystroke, signing data,
+storage or HTTP payload is retained. The observer never prevents a key event,
+enables a disabled button, submits a form, sends a request or retries a message.
+It has only three remembered scope states, removes its listeners/observer on stop,
+and uses the existing 1,500-event/ten-minute capture budget. Network timing covers
+only calls started after installation in this tab; other tabs and Wasm/worker CPU
+are not attributed. Native lock wait does not measure the application's preceding
+authority queue. Do not run a second recorder alongside it.
+
+**Ponto importante:** the mobile handle-list cancellation repair is a separate
+[continuity change](PARIDADE_CHATS.md#public-dm-connection-continuity--16102026).
+This collector can measure private sends in the currently served desktop app
+without deploying code. It prepares evidence; it does not remove the send delay.
+
 O proprietário relatou demora com o navegador visível, tanto no desktop quanto no mobile, especialmente ao trocar de conversa. Pediu medir o navegador antes de atribuir a causa ou alterar novamente a sincronização. A branch `codex/chat-estabilidade` parte da `main` em `6680163`, em worktree isolado. O script prepara a captura e não identifica automaticamente a causa; a investigação posterior orientou a [correção da abertura](BLOCO_07_MENSAGENS.md#redução-do-atraso-na-abertura--15102026).
 
 ## Executar no navegador que apresenta a demora

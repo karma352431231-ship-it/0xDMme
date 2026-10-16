@@ -1,5 +1,49 @@
 # 0xDMme — decisões e plano de implementação
 
+**Measured private text-send repair — authorized on 16/10/2026:** after the
+complete desktop capture demonstrated rejected Enter attempts and foreground
+blocking beyond publication, the owner approved applying the fix. Separate
+bounded local text/reply admission, durable FIFO persistence and exclusive
+transmission. Preserve stable IDs, strict ciphertext-before-transmission, fresh
+remote authorization, recipient trust/recovery and existing send quotas. Keep
+unsaved local input visibly distinct from durable pending work and server
+acceptance; guard ordinary page closing/PWA activation until it is saved, and
+discard unsaved plaintext on session replacement. Defer normal account-wide
+rechecks during a typing burst without delaying immediate invalidation. Existing
+editing/media/group/handle flows remain unchanged. The owner subsequently
+authorized main integration and VPS activation, with a notification immediately
+after the integrated main commit is published. Require that commit's full CI
+and the existing deployment executor with preservation, readiness, public-file
+verification and retained rollback. **Ponto importante:** physical send cadence
+still requires acceptance; no server, SQL, dependency or crypto-format transition
+is approved or included. See the
+[implementation contract](docs/DIAGNOSTICO_LAG_CHAT.md#applying-the-measured-private-text-send-repair--16102026).
+See the [activation scope](docs/GIT_E_DEPLOY.md#consecutive-private-texts--activation-authorized-on-16102026).
+
+**Consecutive message-send diagnosis — 16/10/2026:** the owner asked to remove
+the pause between Enter submissions, accepting a desktop console capture if the
+actual bottleneck cannot be established from source alone. The private send path
+holds its busy gate through submission and follow-up work; source inspection does
+not assign physical timings to those phases. Extend the opt-in local collector to
+record Enter intent, actual click/submit events and fixed composer-control states
+without input values or message content. Keep request/lock/response timing, bounded
+memory and explicit cleanup. **Ponto importante:** the collector does not change
+sending, authorization, SDK exclusion or durability; use the capture to distinguish
+rejected Enter attempts from transmission and follow-up cost before changing them.
+See [send capture instructions](docs/DIAGNOSTICO_LAG_CHAT.md#consecutive-text-send-capture--16102026).
+
+**Public DM continuity repair — 16/10/2026:** while checking the pause between
+consecutive sends, the owner reported `DM session changed.` on the Android handle
+messages page. Reproduce the cancellation boundary with the actual signed client
+and retain the existing immediate invalidation of verified history. Distinguish
+initial stream connection from loss of an established stream, wait for an active
+handshake before a coalesced recheck, and prevent obsolete operation results/errors
+from replacing the current view. Preserve real HTTP errors, session replacement,
+authorization, E2EE, storage and polling budgets. No backend, dependency, migration
+or activation is included. **Ponto importante:** the text-send interval remains a
+separate investigation; this repair does not claim a measured mobile speedup.
+See [continuity contract](docs/PARIDADE_CHATS.md#public-dm-connection-continuity--16102026).
+
 **Usable mobile conversations — 16/10/2026:** after the next physical capture,
 the owner clarified that a published contact could not be opened while startup
 was still busy and requested fixing both startup waits. Accept a visible private

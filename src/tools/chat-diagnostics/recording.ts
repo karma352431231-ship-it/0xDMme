@@ -40,6 +40,8 @@ export class Recording {
       coverage: {
         requestsAndLocks: 'started-after-installation-in-this-tab',
         stream: 'complete-empty-control-frames-only; route-unverified',
+        submissions:
+          'enter-click-submit-and-controls; not-delivery-or-read-proof',
         causality: 'timeline-and-caller-positions; not-an-automatic-diagnosis',
       },
       events: this.events.map((event) => ({ ...event })),

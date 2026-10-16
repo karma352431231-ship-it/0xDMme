@@ -3,6 +3,7 @@ import { MessageContinuity } from './continuity.ts';
 import { initializeMessageDirectory } from './startup.ts';
 import { MessageSynchronization } from './synchronization.ts';
 import { MessageWarmup } from './warmup.ts';
+import { TextSendQueue } from './text-send.ts';
 import { MessageHistoryUi } from './history-ui.ts';
 import { bindMessageLifecycle } from './lifecycle.ts';
 import {
@@ -141,6 +142,7 @@ export function startMessages(
   function composerStatus(): void {
     updateChatComposer(node('[data-message-form]'), {
       blocked: synchronization.busy || rows === null || !selected,
+      textSendBlocked: canQueueText() ? textQueue.full : undefined,
       recording: voice.active,
       attachment: attachments.selected !== null,
     });
@@ -179,10 +181,21 @@ export function startMessages(
         voice.active ||
         !!attachments.selected?.voice;
   }
-  const controller = new Messages(access, sync, (value, update) => {
-    rows = value;
-    renderHistory(update);
-  });
+  const controller = new Messages(
+    access,
+    sync,
+    (value, update) => {
+      rows = value;
+      if (value)
+        textQueue.observed(
+          value.map((row) => row.id),
+          selected?.accountId,
+        );
+      else textQueue.clearPublished();
+      renderHistory(update);
+    },
+    (value) => textQueue.acknowledge(value),
+  );
   const previews = new ConversationPreviewLoader({
     load: (peers) => controller.directoryPreviews(peers),
     changed: renderContacts,
@@ -301,6 +314,7 @@ export function startMessages(
     ready: () =>
       startupWarmup.ready &&
       !startupWarmup.pending &&
+      !textQueue.pending &&
       !!session &&
       navigator.onLine &&
       !synchronization.busy,
@@ -315,13 +329,14 @@ export function startMessages(
       suspended: continuity.suspended,
       liveConnecting: live.connecting,
       startupPending: startupWarmup.pending,
+      textPending: textQueue.pending,
     }),
     status,
     notice: (value) => {
       message = value;
     },
     complete: () => {
-      if (!startupWarmup.pending)
+      if (!startupWarmup.pending && !textQueue.pending)
         void previews.refresh(
           directoryData.peers
             .filter((peer) => !peer.localOnly)
@@ -345,6 +360,21 @@ export function startMessages(
     periodicWork: periodicMessageWork,
     pending: () => controller.pending(),
     sendPending: () => controller.sendPending(),
+  });
+  const textQueue: TextSendQueue = new TextSendQueue({
+    save: (draft) => controller.queueText(draft),
+    available: () => synchronization.foregroundReady,
+    transmit: async () => {
+      const ok = await synchronization.run(() => controller.sendPending());
+      return { ok, more: (await controller.pending()).length > 0 };
+    },
+    changed: () => {
+      renderPending().catch(reportTextSaveError);
+      status();
+      synchronization.resume();
+      if (!textQueue.pending) broadcastProfile();
+    },
+    failed: reportTextSaveError,
   });
   const startupWarmup: MessageWarmup = new MessageWarmup({
     available: () => synchronization.backgroundReady,
@@ -542,6 +572,7 @@ export function startMessages(
     if (strip) strip.dataset['state'] = upToDate ? 'ok' : 'notice';
   }
   function status(): void {
+    textQueue.resume();
     startupWarmup.resume();
     renderStatusMessage();
     menu.setBusy(synchronization.busy);
@@ -610,8 +641,8 @@ export function startMessages(
     });
     return button;
   }
-  function run(work: () => Promise<void>): Promise<void> {
-    return synchronization.run(work);
+  async function run(work: () => Promise<void>): Promise<void> {
+    await synchronization.run(work);
   }
   function stopPreload(): void {
     synchronization.stopPreload();
@@ -746,7 +777,72 @@ export function startMessages(
             }),
           ),
         ),
+      ...textQueue.waiting
+        .filter(
+          (draft) =>
+            draft.peer === selected?.accountId &&
+            !pending.some((item) => item.id === draft.id),
+        )
+        .map((draft) =>
+          pendingBubble(
+            draft.failed
+              ? action(t('chat.retry-save'), () => {
+                  textQueue.retry();
+                  return Promise.resolve();
+                })
+              : null,
+            t(draft.failed ? 'chat.save-failed' : 'chat.saving-local'),
+            '↻',
+          ),
+        ),
+      ...textQueue.published
+        .filter(
+          (draft) =>
+            draft.peer === selected?.accountId &&
+            !rows?.some((row) => row.id === draft.id),
+        )
+        .map(() => pendingBubble(null, t('chat.sent-awaiting-history'))),
     );
+  }
+  function reportTextSaveError(error: unknown): void {
+    message =
+      error instanceof Error
+        ? translatedError(error.message)
+        : t('Não foi possível concluir a operação.');
+    status();
+  }
+  function canQueueText(): boolean {
+    return (
+      !!selected &&
+      !selected.localOnly &&
+      rows !== null &&
+      !continuity.suspended &&
+      !voice.active &&
+      !attachments.selected &&
+      composing?.mode !== 'edit'
+    );
+  }
+  function queueText(): boolean {
+    const field = node<HTMLTextAreaElement>('[data-message-text]');
+    if (!canQueueText() || !selected || !field?.value.trim()) return false;
+    try {
+      textQueue.enqueue({
+        id: crypto.randomUUID(),
+        peer: selected.accountId,
+        text: encodeDailyText({
+          text: field.value,
+          reply: composing?.view.id ?? null,
+          forwarded: false,
+        }),
+      });
+      field.value = '';
+      clearContext();
+      field.dispatchEvent(new Event('input'));
+      return true;
+    } catch (error: unknown) {
+      reportTextSaveError(error);
+      return true;
+    }
   }
   function organizationIds(): string[] {
     return [
@@ -1185,7 +1281,8 @@ export function startMessages(
     status();
   }
   function beforeUnload(event: BeforeUnloadEvent): void {
-    if (!voice.active && !attachments.selected?.voice) return;
+    if (!voice.active && !attachments.selected?.voice && !textQueue.unsaved)
+      return;
     event.preventDefault();
     event.returnValue = '';
   }
@@ -1302,6 +1399,7 @@ export function startMessages(
         ),
       );
     if (!event.persisted) {
+      textQueue.reset();
       startupWarmup.reset();
       voice.cancel();
       groups.suspend(true);
@@ -1428,7 +1526,7 @@ export function startMessages(
       'submit',
       (event) => {
         event.preventDefault();
-        void run(submit);
+        if (!queueText()) void run(submit);
       },
     );
   }
@@ -1479,6 +1577,7 @@ export function startMessages(
         return;
       }
       generation++;
+      textQueue.reset();
       continuity.reset();
       previews.clear();
       historyUi.clear();
@@ -1523,6 +1622,7 @@ export function startMessages(
     },
     canActivate: () =>
       !synchronization.busy &&
+      !textQueue.unsaved &&
       !voice.active &&
       !attachments.selected?.voice &&
       groups.canActivate(),
@@ -1578,7 +1678,15 @@ export function startMessages(
       if (selected) container.dataset['voicePeer'] = selected.accountId;
       attachments.mount(container, run);
       const form = node('[data-message-form]');
-      if (form) bindChatComposer(form, composerStatus);
+      if (form)
+        bindChatComposer(form, () => {
+          if (
+            canQueueText() &&
+            node<HTMLTextAreaElement>('[data-message-text]')?.value
+          )
+            textQueue.deferBackground();
+          composerStatus();
+        });
       bindChatOptions(container);
       mountGroups(container);
       bindVoiceControls();
@@ -1604,7 +1712,11 @@ export type { MessageView } from './controller.ts';
  * dots in this conversation, replacing the raw "pending send to <id>" line.
  * The sealed draft is not opened here; the discard action stays available.
  */
-function pendingBubble(discard: HTMLButtonElement): HTMLLIElement {
+function pendingBubble(
+  discard: HTMLButtonElement | null,
+  text = t('message.sending'),
+  actionText = '×',
+): HTMLLIElement {
   const li = document.createElement('li'),
     dots = document.createElement('span'),
     label = document.createElement('span');
@@ -1613,11 +1725,14 @@ function pendingBubble(discard: HTMLButtonElement): HTMLLIElement {
   dots.setAttribute('aria-hidden', 'true');
   dots.append(...[0, 1, 2].map(() => document.createElement('i')));
   label.className = 'chat-pending-label';
-  label.textContent = t('message.sending');
-  discard.className = 'chat-pending-discard';
-  discard.setAttribute('aria-label', discard.textContent ?? '');
-  discard.title = discard.textContent ?? '';
-  discard.textContent = '×';
-  li.append(dots, label, discard);
+  label.textContent = text;
+  li.append(dots, label);
+  if (discard) {
+    discard.className = 'chat-pending-discard';
+    discard.setAttribute('aria-label', discard.textContent ?? '');
+    discard.title = discard.textContent ?? '';
+    discard.textContent = actionText;
+    li.append(discard);
+  }
   return li;
 }

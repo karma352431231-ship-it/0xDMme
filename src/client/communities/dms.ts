@@ -81,6 +81,7 @@ export function startSocialDmUi(
       if (peer) await controller.cancelMedia(peer);
     },
   });
+  let streamCurrent = false;
   const live = new LiveMessages({
     access,
     event: (event) => {
@@ -100,16 +101,23 @@ export function startSocialDmUi(
       refreshes.request();
     },
     changed: () => {
-      if (!live.current) {
+      const current = live.current;
+      if (streamCurrent && !current) {
         publicDirectory.invalidate();
-        if (container) closeGate();
+        closeGate();
+        refreshes.request();
       }
+      streamCurrent = current;
+      refreshes.resume();
     },
   });
   const workQueue = new DmWork();
   const refreshes = new LiveUpdates({
     available: () =>
-      (!!container || publicDirectory.available) && !busy && !composer.active,
+      (!!container || publicDirectory.available) &&
+      !busy &&
+      !composer.active &&
+      !live.connecting,
     run: () => {
       void run(reload);
     },
@@ -187,6 +195,7 @@ export function startSocialDmUi(
     const old = generation;
     await workQueue.run(async () => {
       if (old !== generation) return;
+      const expected = verification;
       busy = true;
       composer.update(composerState());
       try {
@@ -194,6 +203,7 @@ export function startSocialDmUi(
       } catch (error: unknown) {
         if (
           old === generation &&
+          expected === verification &&
           !(error instanceof DOMException && error.name === 'AbortError')
         ) {
           closeGate();
@@ -229,6 +239,9 @@ export function startSocialDmUi(
   function composerState() {
     return { writable, pending: pendingMedia, busy };
   }
+  function currentVerification(old: number, expected: number): boolean {
+    return old === generation && expected === verification;
+  }
   async function reload(): Promise<void> {
     if (!container) {
       await publicDirectory.refresh();
@@ -248,9 +261,10 @@ export function startSocialDmUi(
   async function list(): Promise<void> {
     if (!container) return;
     const old = generation,
+      expected = verification,
       offline = localOnly || !navigator.onLine,
       page = offline ? null : await controller.list(cursor);
-    if (old !== generation || !container) return;
+    if (!currentVerification(old, expected) || !container) return;
     view = null;
     viewKey = '';
     const host = dmListView(container);
@@ -262,8 +276,9 @@ export function startSocialDmUi(
         old,
       );
     }
+    if (!currentVerification(old, expected)) return;
     await copiesList(host);
-    cursor = page?.next ?? null;
+    cursor = page ? page.next : null;
     if (cursor) moreButton(host, t('Mais conversas'), list);
   }
   function listRows(
@@ -287,12 +302,13 @@ export function startSocialDmUi(
     peers: readonly string[],
     old: number,
   ): Promise<void> {
+    const expected = verification;
     try {
       const previews = await controller.directoryPreviews(peers);
-      if (old !== generation) return;
+      if (!currentVerification(old, expected)) return;
       paintDmDirectoryPreviews(host, previews);
     } catch (error: unknown) {
-      if (old === generation)
+      if (currentVerification(old, expected))
         status(
           error instanceof Error
             ? translatedError(error.message)
@@ -305,8 +321,9 @@ export function startSocialDmUi(
     after: string | null = null,
   ): Promise<void> {
     const old = generation,
+      expected = verification,
       page = await controller.copies(after);
-    if (old !== generation) return;
+    if (!currentVerification(old, expected)) return;
     if (page.items.length && !after)
       host.append(communityElement('h4', t('Neste aparelho'), 'dm-list-title'));
     for (const row of page.items)
@@ -622,6 +639,7 @@ export function startSocialDmUi(
     clearRows();
     composer.leave();
     if (!publicDirectory.available) {
+      streamCurrent = false;
       live.stop();
       if (fallback) clearInterval(fallback);
       fallback = null;

@@ -14,6 +14,7 @@ interface SynchronizationState {
   suspended: boolean;
   liveConnecting: boolean;
   startupPending?: boolean;
+  textPending?: boolean;
 }
 interface SynchronizationOperations {
   state: () => SynchronizationState;
@@ -127,8 +128,8 @@ export class MessageSynchronization {
       this.report(error, t('Não foi possível concluir a operação.'));
     });
   }
-  async run(work: () => Promise<void>): Promise<void> {
-    if (this.closed || this.busy) return;
+  async run(work: () => Promise<void>): Promise<boolean> {
+    if (this.closed || this.busy) return false;
     this.stopPreload();
     this.busy = true;
     this.failed = false;
@@ -137,17 +138,19 @@ export class MessageSynchronization {
     try {
       // A user action waits for automatic maintenance instead of being dropped.
       await this.maintenance;
-      if (!this.current(current)) return;
+      if (!this.current(current)) return false;
       this.failed = false;
       await work();
-      if (!this.current(current)) return;
+      if (!this.current(current)) return false;
       if (this.options.state().online && !this.opening.waiting)
         this.options.complete();
+      return true;
     } catch (error: unknown) {
       if (this.current(current)) {
         this.failed = true;
         this.report(error, t('Não foi possível concluir a operação.'));
       }
+      return false;
     } finally {
       await this.finishRun(current);
     }
@@ -181,6 +184,9 @@ export class MessageSynchronization {
     this.options.pause();
   }
   private canSynchronize(): boolean {
+    return this.foregroundReady && !this.options.state().textPending;
+  }
+  get foregroundReady(): boolean {
     const state = this.options.state();
     return (
       !this.closed &&
