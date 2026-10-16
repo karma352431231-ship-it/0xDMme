@@ -32,6 +32,7 @@
 @import '../ping/ping.css';
 @import '../upload-progress/upload-progress.css';
 @import '../attachment-ui/attachment-ui.css';
+@import '../image-crop/image-crop.css';
 @import '../language/line-breaks.css';
 @import '../communities/community-actions.css';
 @import '../communities/community-create.css';

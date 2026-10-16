@@ -480,3 +480,10 @@ Owner-approved batch after testing on phone and desktop:
 - **Post composer:** a missing title or tag shows a red summary on top and a red mark with a short message on the part itself, which receives focus.
 - **Chat reactions** hang from the bubble's bottom edge, at its start, in private and public chats.
 - **Uploads:** a ring fills while a file is sent and spins while it is processed. Posts show it over each chosen thumbnail; the private chat shows it in its status strip. The chat composer shows the chosen file as a card (thumbnail or file icon, name, size, "may keep GPS/EXIF"). Group and `@` chats have no upload progress events yet, so they keep their busy state.
+
+## Framing, profile card and sending — 16/10/2026
+
+- **Framing editor** (`src/client/image-crop`): choosing a community photo or banner, a public profile photo or banner, or the private profile photo first opens an X-style editor. Drag to move, slider/wheel/pinch to zoom, arrows and +/- on the keyboard; the picture always covers the frame. Photos use a 1:1 frame (round for profiles, rounded square for communities) saved at 800 × 800; banners use 3:1 at 1500 × 500. PNG keeps transparency, the rest becomes JPEG. Cancel keeps the current picture. The framed copy then goes through the same local preparation (size, pixels, metadata removal) as before; nothing leaves the device earlier.
+- **Public profile:** on phones Message, Following, the bell and "…" fit one row (36 px). The numbers read Posts, Replies, Followed communities, then the date. In one column (up to 900 px and beside the chat) the header and the numbers form one card.
+- **Sending a message:** a message on its way shows as an outgoing bubble with pulsing dots and a small × to discard it, only in its own conversation, instead of the raw "pending send to <id>" line.
+- **Profile tab on phones** opens the category list; a direct link to a category still opens it, and wide screens keep reopening the last category.

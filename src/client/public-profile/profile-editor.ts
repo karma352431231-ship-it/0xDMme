@@ -17,6 +17,7 @@ import type {
   ProfileDescription,
 } from '../../shared/profile-social/index.ts';
 import { preparePhoto } from '../attachment-images/index.ts';
+import { avatarCrop, bannerCrop, cropImage } from '../image-crop/index.ts';
 import { EditorImagePreview } from '../image-editor-preview/index.ts';
 import type { PublicProfiles } from './controller.ts';
 
@@ -152,7 +153,13 @@ export function startProfileEditor(
   }
   async function choose(file: File, kind: Target): Promise<void> {
     const old = generation;
-    const photo = await preparePhoto(file);
+    // Frame first (16/10/2026); cancel keeps the current picture.
+    const framed = await cropImage(
+      file,
+      kind === 'banner' ? bannerCrop : avatarCrop,
+    );
+    if (!framed) return;
+    const photo = await preparePhoto(framed);
     if (old !== generation)
       throw new Error('Sessão ou página alterada durante a preparação.');
     const image: Image = {

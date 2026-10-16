@@ -131,9 +131,12 @@ export function startSettingsCategories(
         if (target) target.open = true;
       });
     });
+  // A link to a category opens it. Beside the list (wide screens) the last
+  // category returns; on phones the plain Profile tab shows the list instead
+  // (16/10/2026), and a reload keeps its category through the URL.
   const saved =
     requestedSettingsSection(location.hash) ??
-    savedSettingsSection(localStorage);
+    (wide() ? savedSettingsSection(localStorage) : null);
   const last = sections.find(
     (section) => section.dataset['settingsSection'] === saved,
   );

@@ -82,6 +82,41 @@ await test('category toggles update their own URL without redirecting split page
   }
 });
 
+await test('on phones the plain Profile tab shows the category list instead of the last category', () => {
+  const section = Object.assign(new EventTarget(), {
+    open: false,
+    isConnected: true,
+    dataset: { settingsSection: 'vault' },
+    querySelector: () => null,
+  });
+  const host = {
+    querySelectorAll: () => [],
+    querySelector: () => null,
+  } as unknown as HTMLElement;
+  const globals = {
+    document: { createElement: () => ({ setAttribute: () => {} }) },
+    location: { hash: '#settings' },
+    localStorage: { getItem: () => 'vault', setItem: () => {} },
+    matchMedia: () => ({ matches: false }),
+  };
+  const previous = new Map<string, PropertyDescriptor | undefined>();
+  for (const [key, value] of Object.entries(globals)) {
+    previous.set(key, Object.getOwnPropertyDescriptor(globalThis, key));
+    Object.defineProperty(globalThis, key, { configurable: true, value });
+  }
+  try {
+    startSettingsCategories(host, [section as unknown as HTMLDetailsElement]);
+    assert.equal(section.open, false);
+    globals.location.hash = '#settings?section=vault';
+    startSettingsCategories(host, [section as unknown as HTMLDetailsElement]);
+    assert.equal(section.open, true);
+  } finally {
+    for (const [key, descriptor] of previous)
+      if (descriptor) Object.defineProperty(globalThis, key, descriptor);
+      else Reflect.deleteProperty(globalThis, key);
+  }
+});
+
 await test('última categoria aberta volta após recarregar; sem armazenamento nada quebra', () => {
   const values = new Map<string, string>();
   const storage = {

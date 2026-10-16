@@ -736,17 +736,17 @@ export function startMessages(
     const pending = await controller.pending();
     if (current !== generation || list !== node('[data-message-pending]'))
       return;
-    list.replaceChildren();
-    for (const item of pending) {
-      const li = document.createElement('li');
-      li.textContent = t('Envio pendente para {0} ', [item.peer.slice(0, 8)]);
-      li.append(
-        action(t('Apagar envio'), async () => {
-          await controller.discard(item.id);
-        }),
-      );
-      list.append(li);
-    }
+    list.replaceChildren(
+      ...pending
+        .filter((item) => item.peer === selected?.accountId)
+        .map((item) =>
+          pendingBubble(
+            action(t('Apagar envio'), async () => {
+              await controller.discard(item.id);
+            }),
+          ),
+        ),
+    );
   }
   function organizationIds(): string[] {
     return [
@@ -880,6 +880,9 @@ export function startMessages(
     if (mounted) mounted.dataset['voicePeer'] = peer.accountId;
     controller.select(peer.accountId);
     renderHistory();
+    // Pending bubbles belong to the open conversation only; a failed local
+    // read keeps the previous list until the next send or synchronization.
+    renderPending().catch(() => undefined);
   }
   function mountRepresentativeChat(peer: ConversationPeer): void {
     const representativePanel = node('[data-representative-chat]');
@@ -1595,3 +1598,26 @@ export type { MessageItem } from './history.ts';
 export { Messages } from './controller.ts';
 
 export type { MessageView } from './controller.ts';
+
+/**
+ * A message still on its way (16/10/2026): an outgoing bubble with animated
+ * dots in this conversation, replacing the raw "pending send to <id>" line.
+ * The sealed draft is not opened here; the discard action stays available.
+ */
+function pendingBubble(discard: HTMLButtonElement): HTMLLIElement {
+  const li = document.createElement('li'),
+    dots = document.createElement('span'),
+    label = document.createElement('span');
+  li.className = 'chat-pending-bubble';
+  dots.className = 'chat-pending-dots';
+  dots.setAttribute('aria-hidden', 'true');
+  dots.append(...[0, 1, 2].map(() => document.createElement('i')));
+  label.className = 'chat-pending-label';
+  label.textContent = t('message.sending');
+  discard.className = 'chat-pending-discard';
+  discard.setAttribute('aria-label', discard.textContent ?? '');
+  discard.title = discard.textContent ?? '';
+  discard.textContent = '×';
+  li.append(dots, label, discard);
+  return li;
+}

@@ -848,10 +848,11 @@
 }
 
 /*
- * Phones (16/10/2026): the header, the numbers and the communities read as
- * one compact card instead of three separate blocks.
+ * One column (phones, narrow desktop windows and beside the chat), 16/10/2026:
+ * the header, the numbers and the communities read as one card instead of
+ * separate blocks.
  */
-@media (max-width: 700px) {
+@media (max-width: 900px) {
   .public-profile-page > .public-profile-header {
     margin-bottom: 0;
     border-bottom: 0;
@@ -893,5 +894,48 @@
   }
   .public-profile-page .public-profile-description {
     padding-bottom: 14px;
+  }
+}
+
+/* Beside the chat the profile is one column too: the same single card. */
+#feed-panel .public-profile-page > .public-profile-header {
+  margin-bottom: 0;
+  border-bottom: 0;
+  border-end-start-radius: 0;
+  border-end-end-radius: 0;
+}
+#feed-panel .public-profile-page .public-profile-about {
+  padding-top: 0;
+  border-top: 0;
+  border-start-start-radius: 0;
+  border-start-end-radius: 0;
+}
+#feed-panel .public-profile-page .public-profile-about > h2 {
+  display: none;
+}
+#feed-panel .public-profile-page .public-profile-metrics {
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+/* Phones: Message, Following, the bell and "..." stay on one row. */
+@media (max-width: 520px) {
+  #app-shell .public-profile-actions {
+    flex-wrap: nowrap;
+    gap: 8px;
+  }
+  #app-shell .public-profile-actions > :is(a, button),
+  #app-shell .public-profile-actions > .post-more > summary {
+    height: 36px;
+    padding: 0 14px;
+    font-size: 13px;
+  }
+  #app-shell .public-profile-actions > :is(.profile-bell, .profile-edit),
+  #app-shell .public-profile-actions > .post-more > summary {
+    width: 36px;
+    padding: 0;
+  }
+  #app-shell .public-profile-actions svg {
+    width: 18px;
+    height: 18px;
   }
 }

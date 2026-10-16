@@ -660,6 +660,21 @@ export const catalog: Record<string, readonly [string, string]> = {
     'The original is sent as is and may keep photo metadata such as GPS/EXIF.',
     '原始文件按原样发送，可能保留 GPS/EXIF 等照片元数据。',
   ],
+  'message.sending': ['Sending…', '正在发送…'],
+  'crop.title': ['Edit media', '编辑图片'],
+  'crop.stage': [
+    'Drag to move the picture; use + and - to zoom',
+    '拖动以移动图片；使用 + 和 - 缩放',
+  ],
+  'crop.zoom': ['Zoom', '缩放'],
+  'crop.zoom-in': ['Zoom in', '放大'],
+  'crop.zoom-out': ['Zoom out', '缩小'],
+  'crop.apply': ['Apply', '应用'],
+  'crop.cancel': ['Cancel', '取消'],
+  'crop.failed': [
+    'Could not frame the picture. Try another one.',
+    '无法裁剪图片。请换一张试试。',
+  ],
   'ranking.empty': ['No communities here yet.', '这里还没有社区。'],
   'ranking.sign-in': [
     'Sign in to see the communities you follow.',
@@ -6725,7 +6740,6 @@ export const catalog: Record<string, readonly [string, string]> = {
     ' · 组织存在冲突',
   ],
   'Editada · ': ['Edited · ', '已编辑 · '],
-  'Envio pendente para {0} ': ['Pending send to {0} ', '待发送给 {0} '],
   'html.bc850aca5a52': [
     '<div class="search-heading"><h2 id="conversation-search-title">Search</h2><button type="button" data-search-close aria-label="Close search">×</button></div><form><label for="conversation-query">Chats, contacts or words in messages</label><div class="search-input-row"><input id="conversation-query" type="search" maxlength="128" autocomplete="off" spellcheck="false"><button type="submit">Search messages</button></div></form><p class="search-scope">Local search in loaded chats and messages synced or imported on this device.</p><h3>Chats and contacts</h3><div data-search-chats class="chat-contacts"></div><h3>Messages</h3><p data-search-notice role="status">Type to find a conversation or search for words in messages.</p><ul data-search-messages></ul><button type="button" data-search-next hidden>Continue search</button>',
     '<div class="search-heading"><h2 id="conversation-search-title">搜索</h2><button type="button" data-search-close aria-label="关闭搜索">×</button></div><form><label for="conversation-query">聊天、联系人或消息中的文字</label><div class="search-input-row"><input id="conversation-query" type="search" maxlength="128" autocomplete="off" spellcheck="false"><button type="submit">搜索消息</button></div></form><p class="search-scope">在此设备已加载的聊天以及已同步或导入的消息中进行本地搜索。</p><h3>聊天与联系人</h3><div data-search-chats class="chat-contacts"></div><h3>消息</h3><p data-search-notice role="status">输入以查找对话，或搜索消息中的文字。</p><ul data-search-messages></ul><button type="button" data-search-next hidden>继续搜索</button>',

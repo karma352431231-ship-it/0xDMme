@@ -21,6 +21,7 @@ import { api, node } from './core.ts';
 import type { AccountCore } from './core.ts';
 import { writePrivateProfile } from './private-profile-write.ts';
 import { savePrivatePhoto } from './private-photo-save.ts';
+import { avatarCrop, cropImage } from '../image-crop/index.ts';
 
 export interface ProfileOptions {
   privacyChanged?: (preferences: ProfilePreferences) => Promise<void>;
@@ -230,7 +231,10 @@ export class AccountPrivateProfile {
   }
   async selectPhoto(): Promise<void> {
     const input = document.querySelector<HTMLInputElement>('#account-photo');
-    const file = input?.files?.[0];
+    const chosen = input?.files?.[0];
+    // Frame first (16/10/2026), on this device; cancel keeps the current photo.
+    const file = chosen ? await this.framed(chosen, input) : null;
+    if (chosen && !file) return;
     if (!file || !this.profile || file.size > 3_000_000) {
       this.core.status = t('Selecione uma foto de até 3 MB.');
       this.host.render();
@@ -240,6 +244,20 @@ export class AccountPrivateProfile {
       await this.changePhoto(() => this.photoDraft.choose(file));
     } finally {
       if (input) input.value = '';
+    }
+  }
+  private async framed(
+    file: File,
+    input: HTMLInputElement | null,
+  ): Promise<File | null> {
+    try {
+      const framed = await cropImage(file, avatarCrop);
+      if (!framed && input) input.value = '';
+      return framed;
+    } catch {
+      // A picture the browser cannot open still reaches the photo
+      // validation below, which explains the refusal.
+      return file;
     }
   }
   private async changePhoto(stage: () => Promise<void>): Promise<void> {

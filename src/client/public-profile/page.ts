@@ -49,6 +49,7 @@ function about(host: HTMLElement, summary: ProfileSummary): void {
   for (const [value, label] of [
     [number(summary.posts), t('Posts')],
     [number(summary.replies), t('Respostas')],
+    [number(summary.communities), t('Comunidades seguidas')],
     [
       summary.createdAt
         ? new Date(summary.createdAt).toLocaleDateString(currentLanguage(), {
@@ -58,7 +59,6 @@ function about(host: HTMLElement, summary: ProfileSummary): void {
         : t('Data não registrada'),
       t('Perfil público desde'),
     ],
-    [number(summary.communities), t('Comunidades seguidas')],
   ] as const) {
     const item = element('div');
     item.append(element('dd', value), element('dt', label));

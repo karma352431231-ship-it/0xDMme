@@ -2,6 +2,7 @@ import { EditorImagePreview } from '../image-editor-preview/index.ts';
 import { t } from '../../shared/i18n/index.ts';
 import type { PendingPublicAvatar } from '../../shared/public-avatar/index.ts';
 import { preparePhoto } from '../attachment-images/index.ts';
+import { bannerCrop, cropImage, squareCrop } from '../image-crop/index.ts';
 import { communityElement as el } from './elements.ts';
 
 export type CommunityImageSlot = 'photo' | 'banner';
@@ -73,7 +74,13 @@ export function mountImageSlot(
     input.value = '';
     if (!file) return;
     void access.run(async () => {
-      const prepared = await preparePhoto(file);
+      // The owner frames the picture first; cancel keeps the current one.
+      const framed = await cropImage(
+        file,
+        slot === 'photo' ? squareCrop : bannerCrop,
+      );
+      if (!framed || access.signal.aborted || disposed) return;
+      const prepared = await preparePhoto(framed);
       if (access.signal.aborted || disposed) return;
       set({
         type: prepared.type === 'image/png' ? 'image/png' : 'image/jpeg',
