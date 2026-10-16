@@ -20,7 +20,8 @@ export function navigateApp(href: string): void {
   queueMicrotask(() => targetWindow.dispatchEvent(new Event('hashchange')));
 }
 /** Normalize authored/legacy anchors as they mount, including copy and new-tab use. */
-export function startAppNavigation(): void {
+export function startAppNavigation(canonicalized: () => void = () => {}): void {
+  window.addEventListener('0xdmme-route-canonicalized', canonicalized);
   const update = (link: HTMLAnchorElement): void => {
     const href = link.getAttribute('href') ?? '';
     if (!href.startsWith('#')) return;
@@ -94,4 +95,5 @@ export function replaceCommunityAddress(value: {
   route.params.delete('id');
   route.params.set('slug', value.slug);
   history.replaceState(history.state, '', appHref(route.page, route.params));
+  window.dispatchEvent(new Event('0xdmme-route-canonicalized'));
 }

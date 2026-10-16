@@ -123,3 +123,9 @@ após explicação da necessidade, o proprietário aprovou expressamente a migra
 nova. Usar o executor existente, CI exata, backup/restauração e comparação de
 todas as linhas anteriores e do ledger. Esse aceite não altera dependências,
 Node, detector, retenção, isolamento, tráfego ou infraestrutura compartilhada.
+
+Resolver uma comunidade por UUID para seu endereço estável atualiza também o
+endereço lembrado pelos painéis e pelo roteador, sem remontar a comunidade.
+Abrir uma conversa privada ou alternar colunas conserva o nome na URL e os
+rascunhos montados. A regressão reproduziu o retorno indevido ao UUID antes da
+correção e verifica o endereço final e a montagem única.

@@ -730,7 +730,11 @@ document
     element('app-shell').dataset['chatOpen'] = 'false';
     messages.viewChanged();
   });
-if (!account.approvalPage) startAppNavigation();
+if (!account.approvalPage)
+  startAppNavigation(() => {
+    currentHash = appAddress();
+    panels?.canonicalized(currentHash);
+  });
 window.addEventListener('hashchange', route);
 window.addEventListener('online', connection);
 window.addEventListener('offline', connection);

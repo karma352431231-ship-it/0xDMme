@@ -1,3 +1,7 @@
+import {
+  appAddress,
+  replaceCommunityAddress,
+} from '../src/client/app-navigation/index.ts';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { startPanels } from '../src/client/app/panels.ts';
@@ -89,3 +93,76 @@ function checkNavigation(width: number): void {
       else Reflect.deleteProperty(globalThis, key);
   }
 }
+
+await test('a resolved community address stays readable when opening a private conversation', () => {
+  const id = crypto.randomUUID();
+  const location = {
+    hash: '',
+    pathname: `/split/communities/id/${id}`,
+    search: '',
+  };
+  const window = new EventTarget();
+  const setAddress = (_state: unknown, _title: string, href: string): void => {
+    const url = new URL(href, 'http://local.invalid');
+    Object.assign(location, {
+      hash: url.hash,
+      pathname: url.pathname,
+      search: url.search,
+    });
+  };
+  const shell = {
+    dataset: {} as Record<string, string>,
+    querySelectorAll: () => [],
+  };
+  const container = { replaceChildren: () => {} } as unknown as HTMLElement;
+  const globals = {
+    document: { addEventListener: () => {} },
+    window,
+    location,
+    history: { replaceState: setAddress, pushState: setAddress },
+    localStorage: { getItem: () => null, setItem: () => {} },
+    matchMedia: () => ({ matches: true, addEventListener: () => {} }),
+  };
+  const previous = new Map<string, PropertyDescriptor | undefined>();
+  for (const [key, value] of Object.entries(globals)) {
+    previous.set(key, Object.getOwnPropertyDescriptor(globalThis, key));
+    Object.defineProperty(globalThis, key, { configurable: true, value });
+  }
+  let mounts = 0;
+  try {
+    const panels = startPanels({
+      shell: shell as unknown as HTMLElement,
+      feedBody: container,
+      publicChat: container,
+      publicDirectory: container,
+      communities: {
+        mountFeed: () => {
+          mounts++;
+          replaceCommunityAddress({ id, slug: 'named-community' });
+        },
+        leaveFeed: () => {},
+        openDm: () => {},
+        closeDm: () => {},
+        dmDirectory: () => Promise.resolve(),
+        showProfile: () => () => {},
+      },
+      publicChatOpened: () => {},
+    });
+    window.addEventListener('0xdmme-route-canonicalized', () =>
+      panels.canonicalized(appAddress()),
+    );
+    panels.routed('conversas');
+    assert.equal(location.pathname, '/split/communities/named-community');
+    panels.privateChatOpened();
+    assert.equal(location.pathname, '/split/communities/named-community');
+    assert.equal(
+      mounts,
+      1,
+      'Canonicalizing must preserve the mounted public content',
+    );
+  } finally {
+    for (const [key, descriptor] of previous)
+      if (descriptor) Object.defineProperty(globalThis, key, descriptor);
+      else Reflect.deleteProperty(globalThis, key);
+  }
+});

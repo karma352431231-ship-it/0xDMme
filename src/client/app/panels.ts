@@ -282,7 +282,9 @@ export function startPanels(input: {
   /** `null` marks no tab: the panel shows a profile, not a feed section. */
   function markFeedTab(params: URLSearchParams | null = feedParams): void {
     const view =
-      !params || params.has('id') ? '' : (params.get('view') ?? 'feed');
+      !params || params.has('id') || params.has('slug')
+        ? ''
+        : (params.get('view') ?? 'feed');
     const tab = view === 'following' ? 'feed' : view;
     shell
       .querySelectorAll<HTMLAnchorElement>('[data-feed-tab]')
@@ -342,6 +344,13 @@ export function startPanels(input: {
     );
   }
   return {
+    /** A resolved public name updates the remembered route without remounting drafts. */
+    canonicalized(address: string): void {
+      const route = splitTarget(address);
+      if (!route) return;
+      panelTarget = route.target;
+      if (route.target.kind === 'feed') feedParams = route.target.params;
+    },
     /** Called after each route; the route already left any feed it had mounted. */
     routed(next: string): void {
       const previous = panelTarget,
