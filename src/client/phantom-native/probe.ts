@@ -8,8 +8,10 @@ import {
   probeLifetime,
 } from './index.ts';
 import type { NativeProbe } from './index.ts';
+import { startScrollbarFade } from '../scrollbars/index.ts';
 
 startLanguage();
+startScrollbarFade();
 const storageKey = '0xdmme:phantom-native-probe:v1';
 const start = document.querySelector<HTMLButtonElement>('[data-probe-start]');
 const cancel = document.querySelector<HTMLButtonElement>('[data-probe-cancel]');

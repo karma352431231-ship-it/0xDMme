@@ -1,0 +1,25 @@
+/*
+ * Timeline dividers (17/10/2026): posts in a list are separated by a hairline,
+ * like X, instead of boxed cards with gaps between them. Covers the split
+ * feed, the full Communities feed, a community's posts and profile activity.
+ * The opened post keeps its own layout (post-thread.css).
+ */
+#app-shell
+  :is(.community-feed, .community-post-list, .public-profile-activity) {
+  gap: 0;
+}
+#app-shell
+  :is(.community-feed, .community-post-list, .public-profile-activity):has(
+    > .community-card:not(.community-post-focus)
+  ) {
+  border-top: 1px solid var(--line);
+}
+#app-shell
+  :is(.community-feed, .community-post-list, .public-profile-activity)
+  > .community-card:not(.community-post-focus) {
+  margin: 0;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  background: transparent;
+}

@@ -15,6 +15,7 @@ import { startPwa } from '../pwa/index.ts';
 import { updateBlockReason } from './update-readiness.ts';
 import { keepPageOnStrayDrop } from '../file-drop/index.ts';
 import { startTransientMenus } from '../transient-menu/index.ts';
+import { startScrollbarFade } from '../scrollbars/index.ts';
 import { startAccount } from '../account/index.ts';
 import {
   startDevices,
@@ -63,6 +64,7 @@ function element<T extends HTMLElement>(id: string): T {
 startLanguage();
 keepPageOnStrayDrop();
 startTransientMenus();
+startScrollbarFade();
 // Theme first, so the first render already uses the saved device choice.
 const appearance = startAppearance();
 let connectedAccount: AccountSession | null = null;

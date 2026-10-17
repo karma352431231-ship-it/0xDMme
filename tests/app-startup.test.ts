@@ -30,6 +30,7 @@ const featureExports: Record<string, string[]> = {
   'external-media': ['ExternalMediaConsent'],
   'file-drop': ['keepPageOnStrayDrop'],
   'transient-menu': ['startTransientMenus'],
+  scrollbars: ['startScrollbarFade'],
   'account-settings': ['AccountSettingsController'],
   daily: ['Daily'],
   'notification-sound': ['applySoundPreference', 'storedSoundPreference'],

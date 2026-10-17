@@ -16,7 +16,7 @@
   grid-template-columns: 260px minmax(0, 1fr);
 }
 .app[data-page='comunidades'] .sidebar {
-  background: var(--surface);
+  background: var(--panel);
   border-color: var(--line);
 }
 .app[data-page='comunidades'] .brand-bar {
@@ -1121,9 +1121,6 @@
     font-size: 13.5px;
   }
   /* Post cards */
-  #app-shell[data-page='comunidades'] .community-feed {
-    gap: 14px;
-  }
   #app-shell[data-page='comunidades'] .community-feed > .community-card {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
@@ -1348,9 +1345,6 @@
     background: var(--surface-3);
     box-shadow: none;
     color: var(--text);
-  }
-  #app-shell[data-page='comunidades'] .community-feed {
-    gap: 10px;
   }
   #app-shell[data-page='comunidades'] .community-feed > .community-card {
     padding: 12px;

@@ -29,6 +29,7 @@ const authored = [
   'src/client/message-presentation',
   'src/shared/message-presentation',
   'src/client/transient-menu',
+  'src/client/scrollbars',
   'src/shared/community-followers',
   'src/client/moderation-evaluation',
   'src/shared/moderation-evaluation',

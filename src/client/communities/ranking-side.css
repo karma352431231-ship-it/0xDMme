@@ -13,7 +13,7 @@
   min-height: 0;
   overflow: hidden;
   border-left: 1px solid var(--line);
-  background: var(--surface);
+  background: var(--panel);
   color: var(--text);
 }
 .ranking-side-head {
@@ -187,7 +187,7 @@
   border-left: 1px solid var(--line);
 }
 #app-shell[data-right='communities'] > .right-switch {
-  background: var(--surface);
+  background: var(--panel);
 }
 .right-switch-track {
   display: grid;

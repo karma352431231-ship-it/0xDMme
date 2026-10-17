@@ -492,3 +492,12 @@ Owner-approved batch after testing on phone and desktop:
 
 - **Banners** of profiles and communities always show the 3:1 frame chosen in the editor, on phones, desktops, beside the chat and in the editors themselves. Desktop banners grow taller to keep the same crop instead of cutting top and bottom.
 - **Public profile editor:** same contents, more even spacing. Inner margins are uniform (24 px, 16 px on phones), the remove buttons sit away from the corners, the "View my public profile" link is a quieter label, and "Confirm changes" sits inside the card (right-aligned on desktop, full width on phones). On phones the handle has its own line under the photo instead of breaking mid-word.
+
+## All black, dividers and scrollbars — 17/10/2026
+
+- **Preto theme is all black.** The rail, Contacts, feed, chat and ranking columns use the `--panel` token: black in Preto, the previous panel color in Azul and Branco. Columns are separated by their existing hairlines. Buttons, chips and inputs keep their dark gray so they still read as controls.
+- **Post dividers.** Posts in the split feed, the full Communities feed, a community's posts and profile activity are separated by a hairline, like X, with no box, gap or rounded corners (`communities/post-dividers.css`). The opened post keeps its own layout.
+- **Less empty space on large monitors.** From about 1700 px the side columns grow with the window: Contacts 272→320 px, chat 400→460 px, the Communities list 260→300 px and the ranking 380→440 px. The feed keeps its reading width (944 px split, 900 px full page), so the empty space beside it shrinks without disappearing.
+- **"+" inside the feed.** The floating button is placed from the right edge of the centered feed instead of the window, on the split screen (with or without the chat) and on the full Communities page (with the ranking open or collapsed).
+- **Scrollbars.** On mouse devices, every scrollable area of every page (app, wallet, recovery, Phantom probe and source listings) has a thin thumb with no track. It shows while the area scrolls and fades 2 s after scrolling stops (`src/client/scrollbars`). Touch devices keep their system overlay scrollbars.
+- **Public contact photos.** In Contacts → Public, the approved photo covers the whole avatar; the initials only show while it loads or when there is no photo.
