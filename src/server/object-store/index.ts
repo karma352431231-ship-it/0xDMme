@@ -211,8 +211,16 @@ export class ObjectStore {
       if (!stat.isDirectory() || (await realpath(path)) !== path)
         throw new Error('Diretório de anexo inválido.');
     } catch (error: unknown) {
-      if (error instanceof Error && 'code' in error && error.code === 'ENOENT')
+      if (
+        error instanceof Error &&
+        'code' in error &&
+        error.code === 'ENOENT'
+      ) {
+        // A previous unlink may have completed before directory sync failed.
+        // Reconfirm durable absence before SQL can release retained bytes.
+        await this.synchronizeDirectory();
         return;
+      }
       throw error;
     }
     await this.removeAttachmentFiles(path, false);

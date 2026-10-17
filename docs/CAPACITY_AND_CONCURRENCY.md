@@ -610,3 +610,16 @@ large cleanup refuses genuine pressure without partial effects. Plan metadata
 remains bounded separately from cumulative deletion work. No payload permission,
 client batch reduction, history conversion, reset or activation is included.
 See the [storage contract](STORAGE_CAPACITY.md#cleanup-history-envelope-correction--17-october-2026).
+
+## Twenty-eighth block: confirmation after durable file reclamation
+
+Vault retained receipts and private/social deleting media now confirm through one
+scoped maintenance credit with ordered account locks and fresh byte-owner state.
+Actual filesystem removal precedes the SQL transaction. Failures retain charges
+or permit idempotent confirmation after already completed unlink. The absence
+retry synchronizes the attachment parent before releasing bytes. BEFORE guards
+and final completeness preserve exact per-owner/global/pending accounting and
+refuse unrelated effects. Missing/live targets use no credit. Volume-mode worker
+SQL and coordinator connections share the existing four-connection budget (3+1).
+Upload/expiry transitions and other writer families remain legacy; no release
+activation or accepted-data expiry is added. See [storage contract](STORAGE_CAPACITY.md#file-reclamation-confirmation--block-28).

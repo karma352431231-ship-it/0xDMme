@@ -10,7 +10,7 @@ interface Owner {
   verify?: (client: pg.PoolClient) => Promise<void>;
 }
 
-/** Owns a coordinator connection within the existing web connection budget. */
+/** Owns a coordinator connection within the existing process connection budget. */
 export class ContentWriteAllocations {
   private readonly pool: pg.Pool;
   private readonly allocator: ContentAllocator;

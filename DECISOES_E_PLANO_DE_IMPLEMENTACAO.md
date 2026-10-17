@@ -38,6 +38,21 @@ changes into the reset. Review initialization, stale-session handling, exact
 integrated CI, resource/load acceptance and operational recovery for the selected
 final transition. Hardware/free-space measurement and privacy boundaries remain.
 
+The twenty-eighth source block adopts SQL confirmation of actual vault/private/
+social file reclamation on the existing coordinator. Migration 086 binds one
+eligible retained-vault receipt or deleting media row, resolves all accounts under
+shared admission, locks accounts before byte-owner rows and rechecks after waits.
+Only exact retained-byte release or deletion is permitted; verify source absence/
+receipt state and accounting before COMMIT. Filesystem removal remains outside
+SQL transactions and must complete durably before confirmation. Missing/previously
+confirmed rows are no-ops without grants, and failed SQL confirmation can retry
+an already removed object. Recheck directory durability even when an attachment
+namespace is absent. Volume-mode workers split their existing four connections
+into three SQL owners and one coordinator; web retains 15+1. No new process pool
+budget, new payload permission, history conversion, reset or activation is added.
+Upload/expiry transitions and other general/group/retention writers remain separate.
+See [file reclamation](docs/STORAGE_CAPACITY.md#file-reclamation-confirmation--block-28).
+
 Cleanup regression correction — 17 October 2026: the owner requested repair of
 valid eight-item personal cleanup refusals caused by historical device references.
 Migration 085 preserves 077–084 and the existing 64 MiB per-connection SQL reserve.

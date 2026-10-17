@@ -1,3 +1,4 @@
+import { FileReclamation } from './file-reclamation.ts';
 import { PersonalCleanupAllocations } from './personal-cleanup-allocations.ts';
 import { MessageOpeningAllocations } from './message-opening-allocations.ts';
 import { MessageRemovalAllocations } from './message-removal-allocations.ts';
@@ -21,8 +22,9 @@ export function createContentWriters(input: {
   removals: MessageRemovalAllocations | undefined;
   openings: MessageOpeningAllocations | undefined;
   cleanup: PersonalCleanupAllocations | undefined;
+  reclamation: FileReclamation | undefined;
 } {
-  if (typeof input.capacity === 'number' || input.role !== 'web')
+  if (typeof input.capacity === 'number')
     return {
       allocations: undefined,
       vault: undefined,
@@ -31,13 +33,27 @@ export function createContentWriters(input: {
       removals: undefined,
       openings: undefined,
       cleanup: undefined,
+      reclamation: undefined,
     };
   const allocations = new ContentWriteAllocations({
     ...input,
     capacity: input.capacity,
   });
+  const reclamation = new FileReclamation(allocations, input.capacity);
+  if (input.role === 'worker')
+    return {
+      allocations,
+      reclamation,
+      vault: undefined,
+      messages: undefined,
+      reads: undefined,
+      removals: undefined,
+      openings: undefined,
+      cleanup: undefined,
+    };
   return {
     allocations,
+    reclamation,
     vault: new VaultAllocations(allocations, input.capacity),
     messages: new MessageAllocations(allocations),
     reads: new MessageReadAllocations(allocations),

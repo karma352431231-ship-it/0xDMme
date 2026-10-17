@@ -884,9 +884,10 @@ still needs acceptance. Savepoints restore plan/effect/cost state. A failed
 post-COMMIT finalization retains the durable credit, fails health and permits
 bounded recovery without reporting an acknowledged cleanup lost.
 
-Files remain charged until actual removal. `BackupStore.collected`, private/
-social attachment collection and other filesystem-facing writers retain their
-legacy coordination and need their own adoption. Other general/group/retention
+Files remain charged until actual removal. Migration 084 originally left
+`BackupStore.collected` and private/social attachment confirmation on legacy
+coordination; migration 086 below adopts those finalizers. Other filesystem-facing
+writer transitions still need their separate adoption. Other general/group/retention
 writers and final integrated SQL/TOAST/WAL/memory/physical/load acceptance remain
 pending. No accepted-content expiry or durability reduction is introduced.
 
@@ -931,3 +932,48 @@ competing cleanup/growth grants in both orders, exact spare-byte boundaries,
 savepoints/coordinator replacement and legacy physical-policy coexistence. These
 are source contracts; actual mount, WAL/spill/SQL estimates and representative
 integrated load still require acceptance. No source backfill/reset or VPS change.
+
+## File reclamation confirmation — block 28
+
+Source prepared only. Migration 086 adopts `BackupStore.collected`,
+`AttachmentStore.collected` and `SocialMediaStore.collected` under `file-reclaim`.
+The existing services durably remove the selected file/namespace before opening
+this short SQL transaction. Marking media deleting or acknowledging personal
+cleanup still retains its physical charge. No SQL transaction spans filesystem
+I/O. A failed unlink leaves charges intact; failed SQL after unlink retries through
+durable absence and confirms once. Absent attachment namespaces now synchronize
+the parent directory too: an earlier unlink may have preceded a sync failure.
+
+Resolve metadata under shared contact admission, lock all affected account rows
+in UUID order, then lock/re-read the retained receipt or deleting media row.
+Social profile-to-account routing remains internal. Snapshot after waits so a
+competing collector can finish first; no remaining eligible source means no
+credit or write. Accepted/live files, foreign vault receipts and repeated
+confirmations cannot release bytes. This internal maintenance contract relies
+on the caller's already committed removal/garbage authority and completed durable
+file removal; it does not grant a new user deletion endpoint.
+
+One concrete metadata envelope covers preparation and the exact permitted SQL
+operation. BEFORE guards enforce source/owner/operation binding, immutable row
+metadata and actual consumed costs. Vault confirmation changes only charge minus
+retained bytes and retained bytes to zero; private/social confirmation deletes
+only the frozen deleting row. Pre-COMMIT verification requires the exact final
+receipt/absence, consumed effect marker and available global ledger/partition.
+Both owners' quota and pending/global counters continue through their existing
+statement triggers. Unsupported or skipped effects roll back completely.
+Savepoints restore the effect/cost markers; post-COMMIT finalization failure keeps
+the durable credit and fails health until snapshot-safe recovery.
+
+The new scope uses the shared maintenance formula from 085: the existing basic
+SQL allowance covers ordinary confirmation, and any concrete excess must reserve
+physical headroom. No file bytes become a new payload grant. Web continues with
+15 owner connections and one coordinator. Volume-mode workers reuse their total
+four-connection owner/coordinator budget as 3+1; fixed-budget workers remain legacy.
+Coordinator lifecycle/errors/metrics/shutdown retain their existing ownership.
+
+This is SQL confirmation adoption, not all filesystem-writer coordination.
+Upload begin/finish/release, abandoned-reservation transitions, other media and
+general/group/retention sources retain their current gates until separately
+adopted. No accepted-data expiry, source/backfill, reset or VPS activation is
+included. Real mount durability, SQL/WAL/resource margins and representative
+integrated load remain acceptance work.

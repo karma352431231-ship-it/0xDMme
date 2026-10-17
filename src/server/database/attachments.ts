@@ -1,3 +1,4 @@
+import type { FileReclamation } from './file-reclamation.ts';
 import type { ContentCapacity } from './content-capacity.ts';
 import type pg from 'pg';
 import { randomUUID } from 'node:crypto';
@@ -24,14 +25,17 @@ interface AttachmentRow {
 }
 export class AttachmentStore {
   private readonly pool: pg.Pool;
+  private readonly reclamation: FileReclamation | undefined;
   private readonly contacts: ContactStore;
   private readonly capacity: ContentCapacity;
   constructor(
     pool: pg.Pool,
     contacts: ContactStore,
     capacity: ContentCapacity,
+    reclamation?: FileReclamation,
   ) {
     this.pool = pool;
+    this.reclamation = reclamation;
     this.contacts = contacts;
     this.capacity = capacity;
   }
@@ -290,9 +294,17 @@ export class AttachmentStore {
     return result.rows[0]?.at?.getTime() ?? null;
   }
   async collected(id: string): Promise<void> {
-    await this.pool.query(
-      "DELETE FROM hash_talk.message_attachments WHERE id=$1 AND status='deleting'",
-      [id],
-    );
+    const effect = (client: Pick<pg.PoolClient, 'query'>) =>
+      client.query(
+        "DELETE FROM hash_talk.message_attachments WHERE id=$1 AND status='deleting'",
+        [id],
+      );
+    if (this.reclamation)
+      return this.reclamation.run(
+        this.pool,
+        { source: 'message_attachments', id },
+        effect,
+      );
+    await effect(this.pool);
   }
 }

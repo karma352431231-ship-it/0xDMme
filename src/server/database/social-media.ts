@@ -1,3 +1,4 @@
+import type { FileReclamation } from './file-reclamation.ts';
 import type pg from 'pg';
 import { randomUUID } from 'node:crypto';
 import { AccountError } from '../../shared/account/index.ts';
@@ -25,14 +26,17 @@ interface Row {
 /** Social consent is evaluated atomically; no private contact IDs or grants enter this table. */
 export class SocialMediaStore {
   private readonly pool: pg.Pool;
+  private readonly reclamation: FileReclamation | undefined;
   private readonly social: SocialDmStore;
   private readonly history: SocialHistoryStore;
   constructor(
     pool: pg.Pool,
     social: SocialDmStore,
     history: SocialHistoryStore,
+    reclamation?: FileReclamation,
   ) {
     this.pool = pool;
+    this.reclamation = reclamation;
     this.social = social;
     this.history = history;
   }
@@ -280,10 +284,18 @@ export class SocialMediaStore {
     ).rows;
   }
   async collected(id: string): Promise<void> {
-    await this.pool.query(
-      "DELETE FROM hash_talk.social_media WHERE id=$1 AND status='deleting'",
-      [id],
-    );
+    const effect = (client: Pick<pg.PoolClient, 'query'>) =>
+      client.query(
+        "DELETE FROM hash_talk.social_media WHERE id=$1 AND status='deleting'",
+        [id],
+      );
+    if (this.reclamation)
+      return this.reclamation.run(
+        this.pool,
+        { source: 'social_media', id },
+        effect,
+      );
+    await effect(this.pool);
   }
   async nextCollection(): Promise<number | null> {
     const result = await this.pool.query<{ at: Date | null }>(

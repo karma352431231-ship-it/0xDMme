@@ -209,6 +209,7 @@ const migrations = [
   '083-message-opening-allocations.sql',
   '084-personal-cleanup-allocations.sql',
   '085-cleanup-physical-credits.sql',
+  '086-file-reclamation-allocations.sql',
 ];
 
 export interface MaintenanceSnapshot {
@@ -295,7 +296,7 @@ export class Database {
         ? {}
         : { options: '-c hash_talk.storage_capacity_mode=volume' }),
       // Sized with max_connections (64): web 16 including coordinator; workers 4.
-      max: role === 'worker' ? 4 : this.contentAllocations ? 15 : 16,
+      max: (role === 'worker' ? 4 : 16) - (this.contentAllocations ? 1 : 0),
       connectionTimeoutMillis: 3_000,
       idleTimeoutMillis: 10_000,
       query_timeout: 5_000,
@@ -358,6 +359,7 @@ export class Database {
       this.pool,
       this.socialDm,
       this.socialHistory,
+      writers.reclamation,
     );
     this.socialCrypto.setMedia(this.socialMedia);
     this.socialMatrix = new SocialMatrixStore(this.socialDm, this.socialCrypto);
@@ -433,6 +435,7 @@ export class Database {
       this.pool,
       this.contacts,
       contentCapacity,
+      writers.reclamation,
     );
     this.messages = new MessageStore(
       this.contacts,
@@ -455,6 +458,7 @@ export class Database {
       },
       removals: writers.removals,
       cleanup: writers.cleanup,
+      reclamation: writers.reclamation,
     });
     this.groups = new GroupStore(
       this.contacts,

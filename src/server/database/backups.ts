@@ -1,3 +1,4 @@
+import type { FileReclamation } from './file-reclamation.ts';
 import type { PersonalCleanupAllocations } from './personal-cleanup-allocations.ts';
 import type { MessageRemovalAllocations } from './message-removal-allocations.ts';
 import {
@@ -36,6 +37,7 @@ interface SocialCleanup {
 /** Owns personal removal receipts and coordinates bounded schema-owner transactions. */
 export class BackupStore {
   private readonly pool: pg.Pool;
+  private readonly reclamation: FileReclamation | undefined;
   private readonly contacts: ContactStore;
   private readonly capacity: ContentCapacity;
   private readonly social: SocialCleanup;
@@ -49,6 +51,7 @@ export class BackupStore {
       social: SocialCleanup;
       removals: MessageRemovalAllocations | undefined;
       cleanup: PersonalCleanupAllocations | undefined;
+      reclamation: FileReclamation | undefined;
     },
   ) {
     this.pool = pool;
@@ -57,6 +60,7 @@ export class BackupStore {
     this.social = writers.social;
     this.removals = writers.removals;
     this.cleanup = writers.cleanup;
+    this.reclamation = writers.reclamation;
   }
   async page(a: ContactAuthority, after: number) {
     return this.contacts.withMessageRead(a, async (c) => {
@@ -270,9 +274,17 @@ export class BackupStore {
     return result.rowCount ? Date.now() : null;
   }
   async collected(account: string, id: string): Promise<void> {
-    await this.pool.query(
-      "UPDATE hash_talk.personal_removals SET charge=charge-retained_bytes,retained_bytes=0 WHERE account_id=$1 AND kind='vault' AND id=$2 AND retained_bytes>0",
-      [account, id],
-    );
+    const effect = (client: Pick<pg.PoolClient, 'query'>) =>
+      client.query(
+        "UPDATE hash_talk.personal_removals SET charge=charge-retained_bytes,retained_bytes=0 WHERE account_id=$1 AND kind='vault' AND id=$2 AND retained_bytes>0",
+        [account, id],
+      );
+    if (this.reclamation)
+      return this.reclamation.run(
+        this.pool,
+        { source: 'personal_removals', accountId: account, id },
+        effect,
+      );
+    await effect(this.pool);
   }
 }

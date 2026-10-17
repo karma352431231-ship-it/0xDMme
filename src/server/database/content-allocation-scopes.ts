@@ -8,13 +8,15 @@ export type ContentAllocationScope =
   | 'message-read'
   | 'message-remove'
   | 'message-open'
-  | 'personal-clean';
+  | 'personal-clean'
+  | 'file-reclaim';
 
 /** Maintenance uses the existing SQL allowance; excess needs physical credits. */
 const maintenanceScopes = [
   'vault-maintain',
   'message-remove',
   'personal-clean',
+  'file-reclaim',
 ] as const;
 export function maintenanceAllocation(scope: ContentAllocationScope): boolean {
   return maintenanceScopes.some((value) => value === scope);

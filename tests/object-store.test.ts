@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
   mkdtemp,
+  open,
   rm,
   symlink,
   writeFile,
@@ -151,4 +152,26 @@ await test('retomada sob lease remove temporário recente de anexo sem apagar pa
     [...(await (await store.readAttachment(otherId)).read(otherHash))],
     [4, 5, 6],
   );
+});
+
+await test('an absent attachment still requires durable directory sync before collection can release bytes', async (t) => {
+  const directory = await realpath(
+    await mkdtemp(join(tmpdir(), 'hash-talk-attachment-sync-')),
+  );
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  const store = new ObjectStore(directory);
+  await store.initialize();
+  const handle = await open(directory, 'r'),
+    prototype = Object.getPrototypeOf(handle) as { sync(): Promise<void> };
+  await handle.close();
+  const sync = t.mock.method(prototype, 'sync', () =>
+    Promise.reject(new Error('synthetic directory sync failure')),
+  );
+  await assert.rejects(
+    store.discardAttachment(crypto.randomUUID()),
+    /synthetic directory sync failure/u,
+  );
+  assert.equal(sync.mock.callCount(), 1);
+  sync.mock.restore();
+  await store.discardAttachment(crypto.randomUUID());
 });
