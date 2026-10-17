@@ -1,5 +1,37 @@
 # Physical storage admission preparation
 
+## Group and social snapshot read coordination — 17 October 2026
+
+The P-DB-C follow-up restricts this correction to current-group reads and social
+personal snapshots. They use the existing shared contact-admission and account
+read locks, current session/device checks and SQL read-only transaction contract.
+Current-group lookup no longer requests a row update lock. Existing group changes
+and other social operations retain their write coordination; no gate is removed
+from a charged writer or partially adopted upload operation.
+
+Social snapshot resolves its optional public identity and current anchor/removal
+state in one authorized read transaction. A missing public identity still returns
+null. A waiting read rechecks committed revocation before returning. Private
+routing, membership isolation, signing/wire bytes, quotas, retained bytes and
+accounting remain unchanged. No SQL migration, dependency or pool change belongs
+to this correction. PostgreSQL regression tests hold shared admission/account
+locks, verify concurrent reads and queued revocation, reject invalid sessions and
+outsiders, and verify group mutations remain exclusive.
+
+Actual VPS diagnostics confirmed contact-admission waiting during mixed read
+bursts. They also found a separate pre-application transport problem: anonymous
+live-health requests over the external path showed slow connection/TLS and
+timeouts before TCP connection. The same TLS/Unix route inside the VPS completed
+ninety-six requests at width thirty-two without errors. Do not attribute those
+multi-second external delays to the measured short SQL lock waits, claim this
+source correction resolves them, or change shared networking from that evidence.
+
+**Ponto importante:** this is a scoped P-DB-C read correction, not a new numbered
+capacity block or completion claim. Integrated CI, exact code-only database
+source review and authorized deployment precede any VPS activation. Keep the
+remaining write/upload contracts, transport diagnosis, worker boot, physical
+pressure/recovery, media/TURN and representative acceptance visible.
+
 ## Reviewed capacity activation procedure — 17 October 2026
 
 The owner explicitly approved preparing and executing the 072→090 operational

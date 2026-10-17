@@ -40,10 +40,18 @@ export class SocialDmStore {
       return work({ client, actor, authority });
     });
   }
-  async optionalProfile(authority: ContactAuthority) {
-    return this.contacts.withMessageAuthority(authority, (c) =>
-      this.profiles.identityOrNull(c, authority.session.accountId),
-    );
+  /** Read one optional public identity under current session/device authority. */
+  async withOptionalActorRead<T>(
+    authority: ContactAuthority,
+    work: (context: SocialContext | null) => Promise<T>,
+  ): Promise<T> {
+    return this.contacts.withMessageRead(authority, async (client) => {
+      const actor = await this.profiles.identityOrNull(
+        client,
+        authority.session.accountId,
+      );
+      return work(actor ? { client, actor, authority } : null);
+    });
   }
   maintenance<T>(work: (client: pg.PoolClient) => Promise<T>): Promise<T> {
     return this.contacts.withMaintenance(work);

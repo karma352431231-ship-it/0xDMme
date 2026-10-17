@@ -67,8 +67,8 @@ export class SocialHistoryStore {
     });
   }
   async snapshot(a: ContactAuthority): Promise<SocialSnapshot | null> {
-    if (!(await this.social.optionalProfile(a))) return null;
-    return this.social.withActor(a, async (context) => {
+    return this.social.withOptionalActorRead(a, async (context) => {
+      if (!context) return null;
       const rows = await context.client.query<{
         anchor: string;
         removals: string;
