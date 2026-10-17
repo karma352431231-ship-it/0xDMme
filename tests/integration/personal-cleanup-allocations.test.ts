@@ -660,6 +660,7 @@ async function coexistenceCases(
         c.room.bytes = 1_000_000_000_000n;
         await c.allocator.finish(grant);
       }
+      c.room.bytes = 0n;
       await c.writer.query('BEGIN');
       try {
         await assert.rejects(
@@ -668,6 +669,7 @@ async function coexistenceCases(
         );
       } finally {
         await c.writer.query('ROLLBACK');
+        c.room.bytes = 1_000_000_000_000n;
       }
     },
   );

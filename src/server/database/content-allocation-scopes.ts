@@ -1,3 +1,5 @@
+import { contentSqlTransactionBytes } from './content-capacity.ts';
+
 export type ContentAllocationScope =
   | 'prepared'
   | 'vault-reserve'
@@ -8,7 +10,7 @@ export type ContentAllocationScope =
   | 'message-open'
   | 'personal-clean';
 
-/** Maintenance spends the existing per-owner SQL reserve, never payload room. */
+/** Maintenance uses the existing SQL allowance; excess needs physical credits. */
 const maintenanceScopes = [
   'vault-maintain',
   'message-remove',
@@ -18,6 +20,17 @@ export function maintenanceAllocation(scope: ContentAllocationScope): boolean {
   return maintenanceScopes.some((value) => value === scope);
 }
 // Static authored identifiers only; used by both grant and physical-policy reads.
-export const growthAllocationPredicate = `scope NOT IN (${maintenanceScopes
+export const physicalAllocationBytesSql = `CASE WHEN scope IN (${maintenanceScopes
   .map((scope) => `'${scope}'`)
-  .join(',')})`;
+  .join(
+    ',',
+  )}) THEN greatest(bytes-${contentSqlTransactionBytes},0) ELSE bytes END`;
+
+export function physicalAllocationBytes(
+  bytes: bigint,
+  scope: ContentAllocationScope,
+): bigint {
+  if (!maintenanceAllocation(scope)) return bytes;
+  const excess = bytes - BigInt(contentSqlTransactionBytes);
+  return excess > 0n ? excess : 0n;
+}

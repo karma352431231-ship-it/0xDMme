@@ -597,3 +597,16 @@ within the existing per-owner SQL reserve without copying ciphertext into plans.
 Independent real growth can coexist with a maximum maintenance credit. No new
 pool, payload grant, old-data conversion, reset or VPS activation. Actual file
 reclamation, other writer families and final physical/load acceptance remain open.
+
+## Cleanup history regression correction — 17 October 2026
+
+Valid private and mixed eight-item cleanup can exceed the basic SQL allowance as
+historical device references grow. Migration 085 keeps the same atomic selection,
+source guards, exact accounting and 64 MiB per-connection reserve, while requiring
+larger cleanup to own its excess as durable physical credits. The coordinator and
+legacy physical admission use the same credit formula, so cleanup and growth
+cannot reserve the same spare room. Ordinary maintenance needs no extra room;
+large cleanup refuses genuine pressure without partial effects. Plan metadata
+remains bounded separately from cumulative deletion work. No payload permission,
+client batch reduction, history conversion, reset or activation is included.
+See the [storage contract](STORAGE_CAPACITY.md#cleanup-history-envelope-correction--17-october-2026).

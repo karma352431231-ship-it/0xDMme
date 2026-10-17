@@ -1,4 +1,4 @@
-export { growthAllocationPredicate } from './content-allocation-scopes.ts';
+export { physicalAllocationBytesSql } from './content-allocation-scopes.ts';
 import type { ContentCapacity } from './content-capacity.ts';
 import type { ContentWriteAllocations } from './content-write-allocations.ts';
 import { createContentWriters } from './content-writers.ts';
@@ -208,6 +208,7 @@ const migrations = [
   '082-message-removal-allocations.sql',
   '083-message-opening-allocations.sql',
   '084-personal-cleanup-allocations.sql',
+  '085-cleanup-physical-credits.sql',
 ];
 
 export interface MaintenanceSnapshot {

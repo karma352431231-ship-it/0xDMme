@@ -452,9 +452,10 @@ async function guardCases(
     },
   );
   await t.test(
-    'maintenance grants cannot exceed the existing per-owner operating reserve',
+    'maintenance above the per-owner allowance requires actual spare physical room',
     async () => {
       const before = await snapshots(c);
+      c.room.bytes = 0n;
       await c.writer.query('BEGIN');
       try {
         await assert.rejects(
@@ -463,6 +464,7 @@ async function guardCases(
         );
       } finally {
         await c.writer.query('ROLLBACK');
+        c.room.bytes = 1_000_000_000_000n;
       }
       await expectNoAllocations(c.inspector);
       assert.deepEqual(await snapshots(c), before);

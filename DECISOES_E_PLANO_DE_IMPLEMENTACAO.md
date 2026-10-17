@@ -38,6 +38,21 @@ changes into the reset. Review initialization, stale-session handling, exact
 integrated CI, resource/load acceptance and operational recovery for the selected
 final transition. Hardware/free-space measurement and privacy boundaries remain.
 
+Cleanup regression correction — 17 October 2026: the owner requested repair of
+valid eight-item personal cleanup refusals caused by historical device references.
+Migration 085 preserves 077–084 and the existing 64 MiB per-connection SQL reserve.
+For `message-remove` and `personal-clean`, a larger concrete work envelope must
+reserve its positive excess from actual physical headroom on the same coordinator.
+All grant and legacy physical-policy reads include that excess until snapshot-safe
+completion/recovery; growth credits retain their full charge. Ordinary maintenance
+within the basic allowance remains available under pressure. The vault lifecycle's
+specific bound and all source/owner/actual-cost/completeness guards remain.
+Distinguish bounded temporary plan metadata from cumulative reference/read deletion
+work. Keep the full signed selection and one COMMIT, with no smaller batch, new
+payload grant, source conversion, reset or activation. Representative SQL/WAL/
+physical/load acceptance remains pending. This corrects blocks 23/27 rather than
+adding another capacity feature. See [cleanup correction](docs/STORAGE_CAPACITY.md#cleanup-history-envelope-correction--17-october-2026).
+
 The twenty-seventh source block adopts complete mixed/vault-only/social-only
 personal cleanup on the existing coordinator's per-owner 64 MiB SQL reserve.
 Migration 084 adds `personal-clean` as maintenance, not a new payload grant or

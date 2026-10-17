@@ -668,10 +668,11 @@ worker paths remain legacy; mixed vault/private/social cleanup still uses its
 single exclusive-authority transaction. No schema/data conversion or historical
 backfill is added. Activation/reset remain reserved for the final reviewed batch.
 
-`message-remove` is maintenance, limited to the existing 64 MiB SQL allowance per
-live owner connection. It grants no new ciphertext or upload promise. Both the
-coordinator and physical-policy credit sums use one shared maintenance-scope rule,
-avoiding a second charge for this already reserved SQL space. The envelope covers
+`message-remove` is maintenance. The initial 082 contract limited it to the
+existing 64 MiB SQL allowance per live owner connection; migration 085 below
+corrects that work limit by physically reserving larger operations' excess. It grants no new ciphertext or upload promise. The coordinator
+and physical policy share one credit formula: the basic allowance is already
+reserved, while migration 085 requires physical headroom for cleanup excess. The envelope covers
 planning, temporary tuples/index, permitted source metadata work, reference/read
 deletes, proof receipts, both deletion journals or the personal full-scan journal,
 head UPSERT and actual old-journal pruning. Actual costs are consumed before each
@@ -855,9 +856,10 @@ receipt/journal metadata; retained file bytes already exist and are not granted
 again. Indexed metadata aggregates refuse oversized media/receipt preparation
 before bulk copying into temporary plans. Admitted media/receipt rows are locked
 and snapshotted after waits so out-of-band file-worker release/collection cannot
-invalidate their frozen state. Both declared and actual consumption
-must fit the existing reserve; an oversized operation fails without partial
-cleanup or acknowledged data loss.
+invalidate their frozen state. Temporary plan work must fit the basic allowance. Migration 085 below separates
+that bounded plan from cumulative deletion work and reserves larger cleanup's
+physical excess. Declared and actual consumption must fit the resulting credit;
+resource refusal leaves no partial cleanup or acknowledged data loss.
 
 BEFORE guards permit only the selected vault charge transfer, exact signed
 receipts, private packet/reference/read/attachment effects, social personal
@@ -887,3 +889,45 @@ social attachment collection and other filesystem-facing writers retain their
 legacy coordination and need their own adoption. Other general/group/retention
 writers and final integrated SQL/TOAST/WAL/memory/physical/load acceptance remain
 pending. No accepted-content expiry or durability reduction is introduced.
+
+## Cleanup history envelope correction — 17 October 2026
+
+The owner requested correction of the audit's valid-batch refusal. Eight private
+roots with 64 actions each and 64 historical device references per participant
+need more than the basic 64 MiB work allowance on the second personal cleanup.
+Mixed selections reproduce the same issue. The active 32-device directory limit
+does not bound historical references: revoked/previous devices retain rows.
+
+Migration 085 is additive and preserves every published migration checksum. It
+removes only the `message-remove`/`personal-clean` hard work-envelope constraints
+and the matching cost/preparation cutoff. The coordinator now charges physical
+credits as follows: growth retains its whole envelope; maintenance consumes
+`max(envelope - 64 MiB, 0)` beyond the unchanged per-connection operating reserve.
+The same authored rule drives both grant arbitration and physical-policy reads.
+There is no replacement fixed history limit or new payload permission. The
+`vault-maintain` bound is unchanged. Numeric-capacity and other unadopted writers
+retain their existing source rules and coordination.
+
+The coordinator grants positive cleanup excess only from measured headroom after
+outstanding growth/cleanup credits and existing pending/operating promises. Two
+cleanup owners or cleanup and growth cannot claim the same spare bytes. Existing
+finish/disconnect/COMMIT-uncertainty handling retains a durable excess until its
+owner is visible as finished; savepoints do not refund a live credit. Legacy
+physical preflight and final growth admission also count the excess. Ordinary
+maintenance within 64 MiB still uses the already reserved allowance at zero
+headroom. Large cleanup under real pressure refuses before source mutations.
+
+Mixed preparation continues to bound temporary metadata within the existing SQL
+allowance before copying media/receipt rows. Its probe counts actual private-plan
+metadata rather than the cumulative cost of historical reference deletions; those
+references never enter the temporary plan. Whole-operation work gets its physical
+credit before charged source effects. Actual consumption, immutable fields,
+selection/owner bindings and pre-COMMIT completeness remain enforced. One signed
+eight-item selection still commits atomically; no client split or re-sign is added.
+
+Regressions cover growing private/mixed histories, real-pressure refusal and retry,
+exact per-owner/global reconciliation, retained file charges, late-effect rollback,
+competing cleanup/growth grants in both orders, exact spare-byte boundaries,
+savepoints/coordinator replacement and legacy physical-policy coexistence. These
+are source contracts; actual mount, WAL/spill/SQL estimates and representative
+integrated load still require acceptance. No source backfill/reset or VPS change.
