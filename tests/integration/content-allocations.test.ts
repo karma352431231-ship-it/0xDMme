@@ -452,12 +452,11 @@ async function verifyPermissions(t: TestContext, c: Context) {
     async () => {
       const role =
         'synthetic_allocator_' + crypto.randomUUID().replaceAll('-', '');
-      await c.inspector.query(`CREATE ROLE "${role}" LOGIN`);
-      const url = new URL(c.url);
-      url.username = role;
-      url.password = '';
-      const pool = allocationPool(url.href),
-        writer = allocationWriter(url.href);
+      // Keep the environment's authenticated connection, then assume an
+      // unprivileged role. This also works with CI's password authentication.
+      await c.inspector.query(`CREATE ROLE "${role}" NOLOGIN`);
+      const pool = allocationPool(c.url, role),
+        writer = allocationWriter(c.url, role);
       try {
         await c.inspector.query(`GRANT USAGE ON SCHEMA hash_talk TO "${role}";
         GRANT SELECT ON hash_talk.service_metadata,hash_talk.schema_migrations,
@@ -465,6 +464,16 @@ async function verifyPermissions(t: TestContext, c: Context) {
         GRANT SELECT,UPDATE ON hash_talk.content_allocation_guard TO "${role}";
         GRANT SELECT,INSERT,DELETE ON hash_talk.content_allocations TO "${role}"`);
         await writer.connect();
+        assert.equal(
+          (await writer.query<{ name: string }>('SELECT current_user AS name'))
+            .rows[0]?.name,
+          role,
+        );
+        assert.equal(
+          (await pool.query<{ name: string }>('SELECT current_user AS name'))
+            .rows[0]?.name,
+          role,
+        );
         await writer.query('BEGIN');
         const capacity = new VolumeContentCapacity({
             read: () => Promise.resolve(1000000000000n),

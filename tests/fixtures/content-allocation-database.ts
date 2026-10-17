@@ -5,7 +5,14 @@ import pg from 'pg';
 import { globalUsagePredecessor } from './global-usage-database.ts';
 
 export const allocationPoolErrors: Error[] = [];
-export function allocationPool(url: string) {
+function allocationOptions(role?: string) {
+  if (role) assert.match(role, /^synthetic_allocator_[a-f0-9]{32}$/u);
+  return (
+    '-c hash_talk.storage_capacity_mode=volume' +
+    (role ? ' -c role=' + role : '')
+  );
+}
+export function allocationPool(url: string, role?: string) {
   const pool = new pg.Pool({
     connectionString: url,
     max: 2,
@@ -14,17 +21,17 @@ export function allocationPool(url: string) {
     statement_timeout: 1500,
     lock_timeout: 200,
     idle_in_transaction_session_timeout: 3000,
-    options: '-c hash_talk.storage_capacity_mode=volume',
+    options: allocationOptions(role),
   });
   // Assert these at fixture teardown. Idle errors are owned, never ignored.
   pool.on('error', (error: Error) => allocationPoolErrors.push(error));
   return pool;
 }
-export function allocationWriter(url: string) {
+export function allocationWriter(url: string, role?: string) {
   return new pg.Client({
     connectionString: url,
     statement_timeout: 2000,
-    options: '-c hash_talk.storage_capacity_mode=volume',
+    options: allocationOptions(role),
   });
 }
 export async function allocationPredecessor(client: pg.Client) {
