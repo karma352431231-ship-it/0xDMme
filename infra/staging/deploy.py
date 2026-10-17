@@ -23,6 +23,7 @@ import deploy_sources as public_sources
 import deploy_runtime as runtime
 import deploy_request_limit as request_limits
 import deploy_media_worker as media_worker
+import deploy_capacity_proxy as capacity_proxy
 from deploy_python import ensure_python314
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -193,7 +194,7 @@ def private_inputs():
 
 def executor_code(config):
     modules = []
-    for name in ['deploy_sources', 'deploy_runtime', 'deploy_remote', 'deploy_backup_io', 'deploy_blocks45', 'deploy_request_limit', 'deploy_background', 'deploy_profile_social', 'deploy_profile_description', 'deploy_group_links', 'deploy_post_tags', 'deploy_media_worker', 'deploy_social_controls', 'deploy_social_experience', 'deploy_discussion', 'deploy_mentions', 'deploy_message_changes', 'deploy_community_classification', 'deploy_public_upvotes', 'deploy_social_reactions', 'deploy_ranking_activity', 'deploy_chat_attachments', 'deploy_community_addresses']:
+    for name in ['deploy_sources', 'deploy_runtime', 'deploy_remote', 'deploy_backup_io', 'deploy_blocks45', 'deploy_request_limit', 'deploy_background', 'deploy_profile_social', 'deploy_profile_description', 'deploy_group_links', 'deploy_post_tags', 'deploy_media_worker', 'deploy_social_controls', 'deploy_social_experience', 'deploy_discussion', 'deploy_mentions', 'deploy_message_changes', 'deploy_community_classification', 'deploy_public_upvotes', 'deploy_social_reactions', 'deploy_ranking_activity', 'deploy_chat_attachments', 'deploy_community_addresses', 'deploy_capacity_proxy', 'deploy_capacity_database']:
         path = ROOT / 'infra/staging' / (name + '.py')
         if digest(path) != config['files'].get('infra/staging/' + name + '.py'):
             raise RuntimeError('Deployment executor changed after the reviewed commit.')
@@ -216,7 +217,7 @@ def remote(action, config, target):
         worker_paths = ['-p', 'TemporaryFileSystem=/tmp:rw,nosuid,nodev,noexec,size=16M',
                         '-p', 'Environment=TMPDIR=/tmp']
     proxy_properties = []
-    if action == 'requests':
+    if action == 'requests' or (action == 'activate' and 'capacity' in config):
         proxy_properties = ['-p', 'TemporaryFileSystem=/var/log/nginx:rw',
                             '-p', 'BindPaths=/dev/null:/run/nginx.pid']
     writable = '/var/lib/0xdmme/data'
@@ -224,7 +225,7 @@ def remote(action, config, target):
         writable += ' /etc/systemd/system/0xdmme-test.service.d'
     if action == 'activate' and 'media_worker' in config:
         writable += ' ' + str(media_worker.DROPIN.parent)
-    if action == 'requests':
+    if action == 'requests' or (action == 'activate' and 'capacity' in config):
         writable += ' ' + str(request_limits.PROXY)
     command = shlex.join([
         'systemd-run', '--quiet', '--wait', '--pipe', '--collect',
@@ -270,9 +271,12 @@ def main():
                         help='Apply the separately approved 30 r/s site limit after code activation.')
     parser.add_argument('--media-worker', action='store_true',
                         help='Activate the separately reviewed own media bundle with this release.')
+    parser.add_argument('--capacity', action='store_true', help='Activate the reviewed capacity schema and own proxy transition.')
     args = parser.parse_args()
-    if (args.request_limit or args.media_worker) and args.prepare:
+    if (args.request_limit or args.media_worker or args.capacity) and args.prepare:
         parser.error('Operational adjustments require --check or --activate.')
+    if args.capacity and (args.request_limit or args.media_worker):
+        parser.error('Verify the capacity transition before a separate media/request-limit release.')
     revision, branch = repository()
     proof = ci(revision, branch)
     manifest, archive = prepare(revision, branch)
@@ -288,6 +292,13 @@ def main():
         run(['git', 'check-ignore', '--', str(path.relative_to(PRIVATE_ROOT))], cwd=PRIVATE_ROOT)
         config['media_worker'] = json.loads(path.read_text())
         media_worker.review(config)
+    if args.capacity:
+        path = PRIVATE_ROOT / '.local/VPS_CAPACITY_REVIEW.json'
+        if path.is_symlink() or not path.is_file() or path.stat().st_mode & 0o077 or path.stat().st_size > 2 * capacity_proxy.MAX_CONFIG + 2048:
+            raise RuntimeError('Private capacity review missing or unsafe.')
+        run(['git', 'check-ignore', '--', str(path.relative_to(PRIVATE_ROOT))], cwd=PRIVATE_ROOT)
+        config['capacity'] = json.loads(path.read_text())
+        capacity_proxy.validate(config)
     if args.request_limit:
         review = PRIVATE_ROOT / '.local/VPS_REQUEST_LIMIT_REVIEW.json'
         if review.is_symlink() or not review.is_file() or review.stat().st_mode & 0o077:

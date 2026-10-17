@@ -1,5 +1,39 @@
 # Physical storage admission preparation
 
+## Reviewed capacity activation procedure — 17 October 2026
+
+The owner explicitly approved preparing and executing the 072→090 operational
+transition after reviewing its complete private procedure. The existing executor
+adds `--capacity`; its two internal modules own SQL verification and the exact
+own-site proxy delta. No SQL file or runtime dependency changes in this executor
+packet. Pin the deployed 072 predecessor and integrated application sources
+`afa885c`; preserve every applied checksum and all source-row/global digests.
+
+Stop only the own web and three independent workers, reuse private backup and
+transactional restore rehearsal, apply 073–090 through the existing runner and
+reconcile all derived counters, pending partitions, credits and global sources.
+Install the already prepared HTTPS template with its overwritten trusted client
+header and removed global connection/response throttle, retaining per-client
+abuse protection and the current body envelope. Validate Nginx and reload it
+gracefully. Restart only the same own web/workers; verify public build/source,
+worker leases and the approved preservation reference. Keep the exact old proxy
+bytes and bind their retained backup to the release receipt.
+
+Before reopening, failure restores/verifies the previous SQL, objects, code and
+proxy. After reopening, stop own writers and preserve current SQL/objects/code/
+proxy for review, never automatically restore an older dump over accepted data.
+The transition requires a clean pushed main commit and its exact passing CI,
+then `npm run deploy:staging -- --capacity`; use `deploy:check -- --capacity` for
+preflight without activation. Read access, proposal and artifacts only from the
+original checkout's private `.local/`, including `VPS_CAPACITY_REVIEW.json`.
+
+**Ponto importante:** this is the web/SQL/proxy VPS test release. TURN/network,
+push/TURN resource templates and the independent media bundle remain outside
+this activation. Preserve the other project's existing state; the owner's
+private preservation-reference decision is not approval to repair it. Record
+actual activation components and bounded VPS results separately from the
+unfinished capacity-audit acceptance.
+
 ## Capacity integration — owner approval on 17 October 2026
 
 The owner requested integrating the prepared capacity work into main, updating

@@ -234,7 +234,7 @@ def validate_manifest_budget(config):
     # These operational fields are not part of the persisted release manifest.
     # The complete transport, including these fields, retains its 24 MiB bound.
     manifest = {name: value for name, value in config.items()
-                if name not in ('baseline', 'archive', 'request_limit', 'media_worker')}
+                if name not in ('baseline', 'archive', 'request_limit', 'media_worker', 'capacity')}
     if len((json.dumps(manifest, indent=2) + '\n').encode()) > MAX_MANIFEST_BYTES:
         raise RuntimeError('Release manifest byte budget exceeded.')
 
@@ -510,6 +510,9 @@ def backup_review(candidate, live):
 
 def database_review(candidate, live):
     count = len(list((candidate / 'src/server/database/migrations').glob('*.sql')))
+    if count == 90:
+        import deploy_capacity_database
+        return deploy_capacity_database.review(candidate, live)
     if count == 72:
         import deploy_community_addresses
         return deploy_community_addresses.review(candidate, live)
@@ -1129,6 +1132,9 @@ def activate(config, work):
     if (database_files(candidate) != database_files(DATA / 'release')
             and not database_code_reviewed(candidate, DATA / 'release')):
         # Any unreviewed database change was rejected by prepare()/compatibility().
+        if len(list((candidate / 'src/server/database/migrations').glob('*.sql'))) == 90:
+            import deploy_capacity_database
+            return deploy_capacity_database.activate(config, work, candidate, before)
         if len(list((candidate / 'src/server/database/migrations').glob('*.sql'))) == 72:
             import deploy_community_addresses
             return deploy_community_addresses.activate(config, work, candidate, before)
@@ -1237,6 +1243,13 @@ def retain_migration_backup(work, old):
     """Keep historical data backups; discard only reviewed completed code."""
     import deploy_blocks45 as backups
     required = {'build.tar.gz', 'previous', 'result.json', 'database.dump', 'objects-backup'}
+    if old.get('capacity_schema_versions') == 90:
+        required.add('capacity-proxy-before.conf')
+        proxy_backup = work / 'capacity-proxy-before.conf'
+        if (proxy_backup.is_symlink() or not proxy_backup.is_file()
+                or not 0 < proxy_backup.stat().st_size <= 16384
+                or digest(proxy_backup) != old.get('capacity_proxy_before_sha256')):
+            raise RuntimeError('Historical capacity proxy backup differs from its receipt.')
     entries = set(p.name for p in work.iterdir())
     if not required.issubset(entries) or not entries.issubset(required | {'qr.tar.gz'}):
         raise RuntimeError('Completed transition contents require manual review.')

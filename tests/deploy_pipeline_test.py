@@ -54,7 +54,7 @@ class DeploymentTests(unittest.TestCase):
         names = ['deploy_sources', 'deploy_runtime', 'deploy_remote', 'deploy_backup_io', 'deploy_blocks45',
                  'deploy_request_limit', 'deploy_background', 'deploy_profile_social',
                  'deploy_profile_description', 'deploy_group_links',
-                 'deploy_post_tags', 'deploy_media_worker', 'deploy_social_controls', 'deploy_social_experience', 'deploy_discussion', 'deploy_mentions', 'deploy_message_changes', 'deploy_community_classification', 'deploy_public_upvotes', 'deploy_social_reactions', 'deploy_ranking_activity', 'deploy_chat_attachments', 'deploy_community_addresses']
+                 'deploy_post_tags', 'deploy_media_worker', 'deploy_social_controls', 'deploy_social_experience', 'deploy_discussion', 'deploy_mentions', 'deploy_message_changes', 'deploy_community_classification', 'deploy_public_upvotes', 'deploy_social_reactions', 'deploy_ranking_activity', 'deploy_chat_attachments', 'deploy_community_addresses', 'deploy_capacity_proxy', 'deploy_capacity_database']
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory); (root / 'infra/staging').mkdir(parents=True)
             config = {'files': {}}
@@ -1655,6 +1655,26 @@ class HistoricalBackupRetentionTests(unittest.TestCase):
             self.assertFalse((kept/'previous').exists()); self.assertFalse((kept/'build.tar.gz').exists())
             self.assertTrue((latest/'previous/package.json').is_file())
             self.assertTrue(interrupted.is_dir())
+
+    def test_capacity_proxy_backup_is_retained_only_with_its_exact_receipt(self):
+        for tampered in [False, True]:
+            with self.subTest(tampered=tampered), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory); old = self.completed(root, 'a'*40, 1)
+                latest = self.completed(root, 'b'*40, 2)
+                backup = old/'capacity-proxy-before.conf'; backup.write_bytes(b'reviewed own proxy')
+                marker = old/'result.json'; state = json.loads(marker.read_text())
+                state.update(capacity_schema_versions=90, capacity_proxy_before_sha256=remote.digest(backup))
+                marker.write_text(json.dumps(state)); os.utime(marker,(1,1))
+                if tampered: backup.write_bytes(b'unreviewed proxy')
+                with patch.object(remote,'DATA',root):
+                    if tampered:
+                        with self.assertRaisesRegex(RuntimeError, 'capacity proxy backup'):
+                            remote.prune_completed(root/('deployment-'+'c'*40))
+                        self.assertTrue((old/'database.dump').exists())
+                    else:
+                        remote.prune_completed(root/('deployment-'+'c'*40))
+                        self.assertEqual((root/'migration-backups'/('a'*40)/backup.name).read_bytes(), b'reviewed own proxy')
+                self.assertTrue((latest/'previous/package.json').exists())
 
     def test_unexpected_contents_links_or_collisions_stop_before_modifying_backups(self):
         for invalid in ['unexpected','link','collision']:
