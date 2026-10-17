@@ -1,3 +1,4 @@
+import type { FileHandle } from 'node:fs/promises';
 import { constants } from 'node:fs';
 import {
   mkdir,
@@ -159,6 +160,32 @@ export class CommunityMediaFiles {
     }
     await this.sync(await this.directory(id));
     return stat.size;
+  }
+  /** Pin an existing prepared file without creating a namespace or loading its body. */
+  async openRead(
+    id: string,
+    name: 'result' | 'thumbnail',
+    expectedBytes: number,
+  ): Promise<FileHandle> {
+    if (
+      !Number.isSafeInteger(expectedBytes) ||
+      expectedBytes < 1 ||
+      expectedBytes > communityMediaLimits.video.result
+    )
+      throw new Error('Objeto de mídia irregular.');
+    const file = await open(
+      resolve(await this.existingDirectory(id), name),
+      constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK,
+    );
+    try {
+      const stat = await file.stat();
+      if (!stat.isFile() || stat.size !== expectedBytes)
+        throw new Error('Objeto de mídia irregular.');
+      return file;
+    } catch (error: unknown) {
+      await file.close();
+      throw error;
+    }
   }
   /** Hash immutable prepared output with a bounded buffer, outside SQL transactions. */
   async digest(

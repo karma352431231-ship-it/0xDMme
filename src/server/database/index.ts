@@ -214,6 +214,7 @@ const migrations = [
   '088-cleanup-physical-credits.sql',
   '089-file-reclamation-allocations.sql',
   '090-attachment-reservation-allocations.sql',
+  '091-group-media-parts.sql',
 ];
 
 export interface MaintenanceSnapshot {

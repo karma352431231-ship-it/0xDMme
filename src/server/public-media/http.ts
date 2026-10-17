@@ -2,6 +2,9 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { AccountError, uuid } from '../../shared/account/index.ts';
 import { publicMediaPath } from '../../shared/public-media/index.ts';
 import type { PublicMediaService } from './service.ts';
+import { reserveOperationMemory } from '../memory-admission/index.ts';
+import { sendPublicMedia } from './body.ts';
+import type { PublicMediaBody } from './body.ts';
 
 function publicRoute(url: string): {
   kind:
@@ -53,11 +56,13 @@ function requireCanonicalRoute(input: {
     throw new AccountError(404, 'Mídia pública indisponível.');
 }
 
-/** Each public request independently verifies current release and bounded content. */
+/** Request-owned memory, deadline and file descriptor; no reader outlives cancellation. */
 export function createPublicMediaHandler(service: PublicMediaService) {
+  const stopped = new AbortController();
   async function read(
     request: IncomingMessage,
     response: ServerResponse,
+    signal: AbortSignal,
   ): Promise<void> {
     const head = request.method === 'HEAD';
     if (request.method !== 'GET' && !head) {
@@ -65,14 +70,27 @@ export function createPublicMediaHandler(service: PublicMediaService) {
       throw new AccountError(405, 'Método inválido.');
     }
     const { kind, target, review, thumbnail } = publicRoute(request.url ?? '');
-    const content =
-      kind === 'post-media'
-        ? await service.media(target, review, thumbnail)
-        : await service.avatar(kind, target, review);
-    if (response.destroyed) return;
-    response.setHeader('Content-Type', content.type);
-    response.setHeader('Content-Length', content.bytes.length);
-    response.writeHead(200).end(head ? undefined : content.bytes);
+    // Prepared files use bounded hash/stream buffers; avatars still come from SQL.
+    const release = reserveOperationMemory(
+      kind === 'post-media' ? 524_288 : 6_524_288,
+    );
+    if (!release) throw new AccountError(503, 'Mídia pública indisponível.');
+    let content: PublicMediaBody | undefined;
+    try {
+      signal.throwIfAborted();
+      content =
+        kind === 'post-media'
+          ? await service.media(target, review, thumbnail, signal)
+          : await service.avatar(kind, target, review);
+      if (response.destroyed) return;
+      await sendPublicMedia(request, response, content, signal);
+    } finally {
+      try {
+        if (content && 'file' in content) await content.file.close();
+      } finally {
+        release();
+      }
+    }
   }
   async function handle(
     request: IncomingMessage,
@@ -81,10 +99,22 @@ export function createPublicMediaHandler(service: PublicMediaService) {
     response.setHeader('Cache-Control', 'no-store');
     response.setHeader('X-Content-Type-Options', 'nosniff');
     response.setHeader('Cross-Origin-Resource-Policy', 'same-origin');
+    const cancelled = new AbortController();
+    const abort = () => {
+      if (!response.writableFinished) cancelled.abort();
+    };
+    const deadline = setTimeout(() => cancelled.abort(), 60_000);
+    deadline.unref();
+    request.once('aborted', abort);
+    response.once('close', abort);
     try {
-      await read(request, response);
+      await read(
+        request,
+        response,
+        AbortSignal.any([cancelled.signal, stopped.signal]),
+      );
     } catch (error: unknown) {
-      if (response.headersSent) {
+      if (response.headersSent || response.destroyed) {
         response.destroy();
         return;
       }
@@ -102,12 +132,11 @@ export function createPublicMediaHandler(service: PublicMediaService) {
                     : 'Mídia pública indisponível.',
               }),
         );
+    } finally {
+      clearTimeout(deadline);
+      request.removeListener('aborted', abort);
+      response.removeListener('close', abort);
     }
   }
-  return {
-    handle,
-    close: () => {
-      /* No timer or reader detached from its request. */
-    },
-  };
+  return { handle, close: () => stopped.abort() };
 }

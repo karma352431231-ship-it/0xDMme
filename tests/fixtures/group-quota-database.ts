@@ -4,17 +4,21 @@ import { readFile, readdir } from 'node:fs/promises';
 import pg from 'pg';
 
 /** Recreate the pre-counter schema in an exclusive database for upgrade coverage. */
-export async function groupQuotaPredecessor(client: pg.Client) {
+export async function groupQuotaPredecessor(
+  client: pg.Client,
+  through: 72 | 90 = 72,
+) {
   const directory = new URL(
     '../../src/server/database/migrations/',
     import.meta.url,
   );
   const files = (await readdir(directory))
     .filter(
-      (name) => /^\d{3}.*\.sql$/u.test(name) && Number(name.slice(0, 3)) <= 72,
+      (name) =>
+        /^\d{3}.*\.sql$/u.test(name) && Number(name.slice(0, 3)) <= through,
     )
     .sort();
-  assert.equal(files.length, 72);
+  assert.equal(files.length, through);
   await client.query('BEGIN');
   try {
     await client.query('CREATE SCHEMA hash_talk');

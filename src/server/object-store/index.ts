@@ -24,6 +24,12 @@ function isExisting(error: unknown): boolean {
   return error instanceof Error && 'code' in error && error.code === 'EEXIST';
 }
 
+/** Independent collectors may already have removed a validated entry. */
+function requireMissing(error: unknown): void {
+  if (!(error instanceof Error && 'code' in error && error.code === 'ENOENT'))
+    throw error;
+}
+
 /** Opaque bytes only. No public upload endpoint before authorization/quotas. */
 export class ObjectStore {
   private readonly directory: string;
@@ -224,28 +230,29 @@ export class ObjectStore {
       throw error;
     }
     await this.removeAttachmentFiles(path, false);
-    await rmdir(path);
+    await rmdir(path).catch(requireMissing);
     await this.synchronizeDirectory();
   }
   private async removeAttachmentFiles(
     path: string,
     staging: boolean,
   ): Promise<void> {
-    const entries = await opendir(path);
+    const entries = await opendir(path).catch(requireMissing);
+    if (!entries) return;
     let count = 0;
     for await (const entry of entries) {
       count++;
       const file = resolve(path, entry.name);
       if (!staging && entry.name === '.staging' && entry.isDirectory()) {
         await this.removeAttachmentFiles(file, true);
-        await rmdir(file);
+        await rmdir(file).catch(requireMissing);
       } else {
         const valid = staging
           ? /^pending-[a-f0-9-]{36}$/u.test(entry.name)
           : validIdentifier.test(entry.name);
         if (!valid || !entry.isFile())
           throw new Error('Objeto de anexo irregular.');
-        await unlink(file);
+        await unlink(file).catch(requireMissing);
       }
       if (count % 32 === 0) await setImmediate();
     }
