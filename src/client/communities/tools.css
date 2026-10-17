@@ -1,0 +1,97 @@
+/*
+ * Community tools, tabs, the "⋯" menu, heading and icon sizes.
+ */
+.community-tools {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 12px;
+}
+.community-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 16px;
+}
+.community-tabs a {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: var(--surface);
+  color: var(--accent);
+}
+.community-tools > a,
+.community-more > summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px;
+  min-height: 40px;
+  color: var(--text-muted);
+  cursor: pointer;
+  border-radius: 8px;
+  font-size: var(--fs-caption);
+}
+.community-more {
+  position: relative;
+}
+.community-more > summary {
+  list-style: none;
+}
+.community-more > summary::-webkit-details-marker,
+.post-more > summary::-webkit-details-marker {
+  display: none;
+}
+.community-more > nav {
+  position: absolute;
+  right: 0;
+  top: 100%;
+  z-index: 5;
+  display: grid;
+  width: min(280px, calc(100vw - 32px));
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: 0 12px 32px var(--shadow);
+}
+.community-more > nav a {
+  padding: 12px;
+  border-radius: 6px;
+}
+.community-heading {
+  margin-bottom: 22px;
+}
+.community-heading h1 {
+  margin: 0 0 6px;
+  font-weight: 700;
+  font-size: var(--fs-title);
+  line-height: 1.2;
+  letter-spacing: -0.7px;
+}
+.community-public-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 8px 0 0;
+  font-size: var(--fs-caption);
+  color: var(--accent);
+}
+:is(.app[data-page='comunidades'], .community-scope)
+  svg:where(:not(.chat-panel *)) {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+:is(.app[data-page='comunidades'], .community-scope) .icon-button svg {
+  width: 23px;
+  height: 23px;
+}

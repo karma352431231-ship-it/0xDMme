@@ -1,0 +1,28 @@
+/*
+ * Community hero on phones.
+ */
+@media (max-width: 700px) {
+  #app-shell .community-hero-head .community-avatar {
+    flex-basis: 72px;
+    width: 72px;
+    height: 72px;
+    border-radius: 22px;
+    font-size: 24px;
+  }
+  .community-hero-head {
+    padding: 10px 14px 0;
+  }
+  #app-shell .community-hero-head .community-avatar {
+    margin-top: -46px;
+  }
+  .community-hero-title h1 {
+    font-size: 20px;
+  }
+  #app-shell .community-hero-description {
+    padding: 12px 14px 0;
+    font-size: 15px;
+  }
+  #app-shell .community-hero .community-info {
+    padding: 8px 14px 14px;
+  }
+}

@@ -1,0 +1,170 @@
+/*
+ * Post lists and cards: text, header, byline, tags and toolbar.
+ */
+.community-feed,
+.community-post-list {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+:is(.app[data-page='comunidades'], .community-scope) .community-card {
+  min-width: 0;
+  margin: 0 0 16px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  padding: 16px;
+}
+:is(.app[data-page='comunidades'], .community-scope)
+  .community-feed
+  .community-card,
+:is(.app[data-page='comunidades'], .community-scope)
+  .community-post-list
+  .community-card {
+  margin: 0;
+}
+:is(.app[data-page='comunidades'], .community-scope) .community-card h2 {
+  font-size: var(--fs-input);
+  font-weight: 600;
+  line-height: 1.4;
+  margin: 0 0 8px;
+  color: var(--text);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+:is(.app[data-page='comunidades'], .community-scope) .community-card p {
+  font-size: var(--fs-body);
+  line-height: 1.6;
+  margin: 0 0 12px;
+  color: var(--text);
+}
+:is(.app[data-page='comunidades'], .community-scope) .community-card strong {
+  color: inherit;
+}
+:is(.app[data-page='comunidades'], .community-scope) .community-card a {
+  color: var(--accent);
+}
+.community-card label {
+  display: grid;
+  gap: 8px;
+  margin: 14px 0;
+}
+.community-card label:has(input[type='checkbox']) {
+  display: flex;
+  align-items: center;
+}
+.community-card :is(input:not([type='checkbox']), textarea, select) {
+  width: 100%;
+  min-width: 0;
+  padding: 12px;
+}
+.community-card textarea {
+  min-height: 90px;
+  resize: vertical;
+}
+.community-card button {
+  margin: 4px 4px 4px 0;
+}
+.community-text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+/* One body tone across split feed, isolated feed and opened posts. */
+#app-shell .community-card p.community-text,
+#app-shell .feed-panel .community-card p.community-text,
+#app-shell[data-page='comunidades']
+  .community-feed
+  .community-card
+  p.community-text,
+#app-shell
+  .community-card:is(.community-post-focus, .community-reply)
+  p.community-text,
+.community-scope .community-card p.community-text {
+  color: var(--post-text);
+}
+.community-feedback {
+  overflow-wrap: anywhere;
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+.community-feedback:empty {
+  display: none;
+}
+.community-empty {
+  padding: 28px 16px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  color: var(--text-muted);
+  text-align: center;
+  line-height: 1.6;
+}
+.community-post {
+  overflow-wrap: anywhere;
+}
+.community-post-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.community-post-identity {
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+}
+:is(.app[data-page='comunidades'], .community-scope) .community-post-follow {
+  margin: 0 0 0 auto;
+  flex-shrink: 0;
+  padding: 4px 6px;
+  border: 0;
+  background: transparent;
+  color: var(--accent);
+  font-size: var(--fs-caption);
+  min-height: 32px;
+}
+/* Who posted leads; the community name and time follow, quieter. */
+:is(.app[data-page='comunidades'], .community-scope)
+  .community-post-header
+  .community-post-author {
+  color: var(--text);
+  font-weight: 700;
+}
+:is(.app[data-page='comunidades'], .community-scope)
+  .community-post-header
+  .community-post-community {
+  color: var(--text-muted);
+  font-weight: 500;
+}
+.community-post-byline {
+  color: var(--text-muted);
+  font-size: var(--fs-caption);
+}
+:is(.app[data-page='comunidades'], .community-scope) .community-post-byline a {
+  color: inherit;
+}
+.post-tag {
+  display: inline-block;
+  padding: 3px 8px;
+  border-radius: 4px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  margin: 0 0 12px;
+  font-size: var(--fs-caption);
+}
+.post-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  margin: 16px 0;
+}
+.post-toolbar label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-size: var(--fs-caption);
+  color: var(--text-muted);
+}

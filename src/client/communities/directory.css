@@ -1,0 +1,106 @@
+/*
+ * Community list in the sidebar: navigation, rows and avatars.
+ */
+.community-directory {
+  display: none;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  flex: 1;
+  padding: 22px 18px;
+}
+.app[data-page='comunidades'] .community-directory {
+  display: block;
+}
+.community-directory-nav {
+  display: grid;
+  gap: 6px;
+}
+.community-directory-nav a {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 10px;
+  border-radius: 8px;
+  color: var(--text-muted);
+  min-height: 44px;
+}
+.community-directory-nav a[aria-current='page'],
+.community-row-link[aria-current='page'] {
+  background: var(--accent-soft);
+  color: var(--text);
+}
+.community-directory h2 {
+  font-size: var(--fs-caption);
+  font-weight: 500;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin: 30px 8px 12px;
+}
+.community-directory p {
+  padding: 0 8px;
+  line-height: 1.6;
+  color: var(--text-muted);
+  font-size: var(--fs-caption);
+}
+.community-row {
+  min-width: 0;
+  padding: 6px 0;
+  overflow-wrap: anywhere;
+}
+.community-row-link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-radius: 8px;
+  padding: 10px 8px;
+  min-height: 54px;
+}
+.community-row-copy {
+  min-width: 0;
+}
+.community-row-copy strong,
+.community-row-copy small {
+  display: block;
+}
+.community-row-copy strong {
+  font-weight: 500;
+}
+.community-directory .community-row-copy small {
+  display: none;
+}
+.community-avatar {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 34px;
+  width: 34px;
+  height: 34px;
+  border-radius: 28%;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+  overflow: hidden;
+}
+/* The frame clips once; its outer radius must not round the photo again. */
+.community-avatar .public-avatar-preview {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  border-radius: 0;
+  object-fit: cover;
+}
+.community-avatar:has(> .public-avatar-preview:not([hidden])),
+.community-banner:has(> .public-avatar-preview:not([hidden])) {
+  background: var(--surface);
+}
+.community-avatar [role='status'] {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}

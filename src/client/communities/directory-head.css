@@ -1,0 +1,35 @@
+/* Directory head: title and Comunidades | Mensagens @; creating uses the floating button. */
+.community-directory-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 0 0 10px;
+}
+.community-directory .community-directory-head h2 {
+  margin: 0;
+  color: var(--text);
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: none;
+}
+.community-directory-tabs {
+  display: flex;
+  gap: 18px;
+  margin: 0 -18px 12px;
+  padding: 0 18px;
+  border-bottom: 1px solid var(--line);
+}
+.community-directory-tabs a {
+  margin-bottom: -1px;
+  padding: 8px 0 10px;
+  border-bottom: 2px solid transparent;
+  color: var(--text-muted);
+  font-size: var(--fs-small);
+  font-weight: 600;
+}
+.community-directory-tabs a[aria-current='page'] {
+  border-bottom-color: var(--accent);
+  color: var(--text);
+}

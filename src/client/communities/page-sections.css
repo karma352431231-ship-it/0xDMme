@@ -1,0 +1,33 @@
+/*
+ * Community page sections: posts, composer and management summaries.
+ */
+.community-posts {
+  margin: 24px 0;
+  min-width: 0;
+}
+.post-composer > summary,
+.community-management > summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--accent);
+  padding: 8px 0;
+}
+.community-management {
+  margin-bottom: 20px;
+}
+.community-info > summary {
+  padding: 8px 0;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.community-summary h2 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.social-dm-history {
+  display: grid;
+  gap: 10px;
+  margin: 18px 0;
+}

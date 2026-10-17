@@ -1,0 +1,48 @@
+/* A community without posts invites the first one. */
+.community-empty {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  padding: 32px 20px;
+  border: 1px dashed var(--line-strong);
+  border-radius: 16px;
+  text-align: center;
+}
+.community-empty h3 {
+  margin: 0;
+  font: 700 18px/1.3 var(--font-display);
+}
+#app-shell .community-empty p {
+  margin: 0;
+  color: var(--text-muted);
+}
+#app-shell .community-empty button.primary {
+  margin: 6px 0 0;
+  padding: 10px 20px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 700;
+}
+.community-empty h4 {
+  justify-self: stretch;
+  margin: 18px 0 4px;
+  color: var(--text-muted);
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-align: left;
+  text-transform: uppercase;
+}
+.community-empty-suggestions {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  justify-self: stretch;
+  gap: 8px;
+  text-align: left;
+}
+#app-shell .community-empty-suggestions .community-row-link {
+  padding: 10px;
+  border-radius: 12px;
+  background: var(--surface-2);
+}

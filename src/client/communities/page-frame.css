@@ -1,0 +1,46 @@
+/*
+ * Comunidades page frame: sidebar, area navigation, account and main.
+ */
+.community-mobile-tabs {
+  display: none;
+}
+.app[data-page='comunidades'] {
+  color: var(--text);
+  background: var(--bg);
+  font-size: var(--fs-body);
+  grid-template-columns: 260px minmax(0, 1fr);
+}
+.app[data-page='comunidades'] .sidebar {
+  background: var(--panel);
+  border-color: var(--line);
+}
+.app[data-page='comunidades'] .brand-bar {
+  padding: 22px 18px 28px;
+}
+.app[data-page='comunidades'] .area-nav {
+  margin: 0 18px;
+  padding: 0;
+  gap: 2px;
+  border-bottom: 1px solid var(--line);
+}
+.app[data-page='comunidades'] .area-nav a {
+  border: 0;
+  padding: 13px 8px;
+  border-radius: 8px;
+  color: var(--text-muted);
+}
+.app[data-page='comunidades'] .area-nav a[aria-current='page'] {
+  background: var(--accent-soft);
+  color: var(--text);
+}
+.app[data-page='comunidades'] .account {
+  background: var(--surface);
+  border-color: var(--line);
+}
+.app[data-page='comunidades'] main {
+  background: var(--bg);
+  padding: 28px;
+}
+.app[data-page='comunidades'] .page-heading {
+  display: none;
+}

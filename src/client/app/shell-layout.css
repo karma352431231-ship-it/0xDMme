@@ -127,7 +127,8 @@
 }
 
 @media (min-width: 1280px) {
-  /* The id outranks community.css and the feature files listed later in app.css.
+  /* The id outranks the communities stylesheets and the feature files listed
+     later in app.css.
      Side columns grow a little on large monitors (17/10/2026) so the centered
      feed leaves less empty space; at 1280–1700px they keep their base widths. */
   #app-shell {
