@@ -1,3 +1,5 @@
+import { deleteMessageCopies } from './message-deletion.ts';
+import type { MessageRemovalAllocations } from './message-removal-allocations.ts';
 import type { MessageAllocations } from './message-allocations.ts';
 import type { ContentCapacity } from './content-capacity.ts';
 import { recordMessageChanges, readMessageChanges } from './message-changes.ts';
@@ -43,16 +45,21 @@ export class MessageStore {
   private readonly capacity: ContentCapacity;
   private readonly attachments: AttachmentStore;
   private readonly allocations: MessageAllocations | undefined;
+  private readonly removals: MessageRemovalAllocations | undefined;
   constructor(
     contacts: ContactStore,
     capacity: ContentCapacity,
     attachments: AttachmentStore,
-    allocations?: MessageAllocations,
+    writers?: {
+      admission: MessageAllocations | undefined;
+      removals: MessageRemovalAllocations | undefined;
+    },
   ) {
     this.contacts = contacts;
     this.capacity = capacity;
     this.attachments = attachments;
-    this.allocations = allocations;
+    this.allocations = writers?.admission;
+    this.removals = writers?.removals;
   }
   async profileKnown(
     authority: ContactAuthority,
@@ -296,34 +303,19 @@ export class MessageStore {
         if (row.hash !== hash)
           throw new AccountError(409, 'Conteúdo da exclusão divergente.');
         if (!row.available) return;
-        // One original and at most 64 related actions; all automatic copies leave together.
-        const changed = await client.query<{ id: string }>(
-          "UPDATE hash_talk.message_packets SET body=NULL,deletion=$2::jsonb,queue_active=false,sender_charge=$3,recipient_charge=$3,charge=$3,deletion_revision=$4,deletion_account=$5 WHERE (id=$1 OR relation->>'id'=$1::text) AND body IS NOT NULL RETURNING id",
-          [
-            id,
-            JSON.stringify(proof),
-            Buffer.byteLength(JSON.stringify(proof)) + 512,
-            proof.payload['revision'],
-            row.sender,
-          ],
-        );
-        await client.query(
-          "DELETE FROM hash_talk.message_references WHERE message_id IN (SELECT id FROM hash_talk.message_packets WHERE id=$1 OR relation->>'id'=$1::text)",
-          [id],
-        );
-        await client.query(
-          "DELETE FROM hash_talk.message_reads WHERE message_id IN (SELECT id FROM hash_talk.message_packets WHERE id=$1 OR relation->>'id'=$1::text)",
-          [id],
-        );
-        await client.query(
-          "UPDATE hash_talk.message_attachments SET status='deleting' WHERE message_id=$1 AND status='accepted'",
-          [id],
-        );
-        await this.bump(
-          client,
-          [row.sender, row.recipient],
-          changed.rows.map((item) => item.id),
-        );
+        await this.removals?.remove(client, {
+          accountId: authority.session.accountId,
+          participants,
+          id,
+          hash,
+          proof,
+        });
+        await deleteMessageCopies(client, {
+          id,
+          proof,
+          sender: row.sender,
+          recipient: row.recipient,
+        });
         this.contacts.removed(client, [row.sender, row.recipient]);
       },
     );

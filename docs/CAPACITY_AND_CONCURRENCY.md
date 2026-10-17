@@ -502,6 +502,25 @@ the contact gate. Both owners' accounting, attachment states, reference/read
 removal, collection and journals remain atomic. No pool, migration, reset or VPS
 change is included. See [removal contracts](STORAGE_CAPACITY.md#private-removal-coordination--block-22).
 
+## Twenty-third block: actual private removal allocator adoption
+
+Volume-mode sender deletion and private-only personal cleanup now declare a
+concrete `message-remove` envelope on the existing coordinator before source
+effects. The bounded metadata plan, BEFORE guards and pre-COMMIT completeness
+check cover all selected packets, both owners' counters, scoped references/reads,
+personal receipts, collection, accepted attachment garbage marking and journals.
+The complete participant locks from block 22 still protect revocation and
+cross-table reconciliation. Maintenance uses the existing 64 MiB SQL allowance;
+it is excluded from new-payload growth credits by one shared scope rule.
+
+A session-local plan stores no bodies, truncates on COMMIT, rolls back with the
+operation and disappears on disconnect. Tests exercise the approved maximum
+batch with both owners' historical device references and exact pruning/accounting,
+without reducing the batch or allocating an unbounded credit. Mixed-kind cleanup
+and remaining writers keep their legacy contracts; no pool, reset or activation
+is added. Migration 082 and representative physical/load acceptance remain
+pending. See [removal adoption](STORAGE_CAPACITY.md#private-removal-allocator-adoption--block-23).
+
 ## Remaining audit work
 
 - Validate prepared physical admission, operating margins and the service mount

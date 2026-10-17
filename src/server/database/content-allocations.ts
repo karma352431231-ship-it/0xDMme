@@ -1,3 +1,8 @@
+import {
+  maintenanceAllocation,
+  growthAllocationPredicate,
+} from './content-allocation-scopes.ts';
+import type { ContentAllocationScope } from './content-allocation-scopes.ts';
 import type pg from 'pg';
 import type { CapacityClient } from './content-capacity.ts';
 import {
@@ -10,12 +15,7 @@ export interface ContentAllocation {
   readonly transactionId: string;
   readonly installationId: string;
   readonly bytes: number;
-  readonly scope:
-    | 'prepared'
-    | 'vault-reserve'
-    | 'vault-maintain'
-    | 'message-admit'
-    | 'message-read';
+  readonly scope: ContentAllocationScope;
 }
 export type AllocationHeadroom = (client: CapacityClient) => Promise<bigint>;
 interface AllocationOwner {
@@ -49,7 +49,7 @@ function allocationBytes(
   if (
     !Number.isSafeInteger(bytes) ||
     bytes <= 0 ||
-    (scope === 'vault-maintain' && bytes > contentSqlTransactionBytes)
+    (maintenanceAllocation(scope) && bytes > contentSqlTransactionBytes)
   )
     throw contentCapacityUnavailable();
   return BigInt(bytes);
@@ -175,12 +175,12 @@ export class ContentAllocator {
   ) {
     // One maintenance owner connection and its bounded SQL envelope are already
     // covered by the per-connection operating reserve. No new payload is allowed.
-    if (input.scope === 'vault-maintain') return;
+    if (maintenanceAllocation(input.scope)) return;
     // Collection precedes this fresh read: each finished promise is represented
     // either by a retained growth credit or by visible pending source data.
     const available = await this.headroom(client),
       claimed = await client.query<{ bytes: string }>(
-        "SELECT coalesce(sum(bytes),0)::text AS bytes FROM hash_talk.content_allocations WHERE scope<>'vault-maintain'",
+        `SELECT coalesce(sum(bytes),0)::text AS bytes FROM hash_talk.content_allocations WHERE ${growthAllocationPredicate}`,
       );
     if (
       typeof available !== 'bigint' ||

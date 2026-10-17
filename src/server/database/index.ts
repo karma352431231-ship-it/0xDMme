@@ -1,3 +1,4 @@
+export { growthAllocationPredicate } from './content-allocation-scopes.ts';
 import type { ContentCapacity } from './content-capacity.ts';
 import type { ContentWriteAllocations } from './content-write-allocations.ts';
 import { createContentWriters } from './content-writers.ts';
@@ -204,6 +205,7 @@ const migrations = [
   '079-vault-lifecycle-allocations.sql',
   '080-message-admission-allocations.sql',
   '081-message-read-allocations.sql',
+  '082-message-removal-allocations.sql',
 ];
 
 export interface MaintenanceSnapshot {
@@ -433,11 +435,14 @@ export class Database {
       this.contacts,
       contentCapacity,
       this.attachments,
-      writers.messages,
+      { admission: writers.messages, removals: writers.removals },
     );
     this.backups = new BackupStore(this.pool, this.contacts, contentCapacity, {
-      clean: (c, account, item) => this.socialHistory.clean(c, account, item),
-      collect: (c, id) => this.socialHistory.collect(c, id),
+      social: {
+        clean: (c, account, item) => this.socialHistory.clean(c, account, item),
+        collect: (c, id) => this.socialHistory.collect(c, id),
+      },
+      removals: writers.removals,
     });
     this.groups = new GroupStore(
       this.contacts,

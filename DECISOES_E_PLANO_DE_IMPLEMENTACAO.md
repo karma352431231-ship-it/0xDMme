@@ -38,6 +38,21 @@ changes into the reset. Review initialization, stale-session handling, exact
 integrated CI, resource/load acceptance and operational recovery for the selected
 final transition. Hardware/free-space measurement and privacy boundaries remain.
 
+The twenty-third source block adopts actual private sender deletion and
+private-only personal cleanup on the existing transaction-owned allocator.
+Migration 082 introduces a bounded `message-remove` maintenance scope, using the
+existing 64 MiB per-owner SQL operating reserve without a new payload promise or
+connection pool. Keep the complete participant locks from block 22, validate all
+selected metadata before source effects, enforce the exact supported row changes
+and verify packets, references/reads, receipts, accepted-attachment transitions
+and journals before COMMIT. A bounded session-local metadata plan is truncated
+on COMMIT and discarded on rollback/disconnect; it stores no ciphertext bodies
+and cannot grow with history. Both personal/global counters and deletion charges
+retain their existing formulas. Mixed vault/social selections and remaining
+writer families retain their legacy coordination. No old-data conversion, reset
+or VPS activation is included. Physical SQL/TOAST/WAL and representative mixed-load
+acceptance remain separate. See [actual removal adoption](docs/STORAGE_CAPACITY.md#private-removal-allocator-adoption--block-23).
+
 The twenty-second source block prepares the participant-lock prerequisite for
 private sender deletion and private-only personal cleanup. A personal batch can
 span multiple peers: resolve immutable routing under shared contact admission,

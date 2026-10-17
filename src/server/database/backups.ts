@@ -1,4 +1,9 @@
-import { withPersonalCleanupAuthority } from './personal-cleanup-authority.ts';
+import type { MessageRemovalAllocations } from './message-removal-allocations.ts';
+import {
+  withPersonalCleanupAuthority,
+  assertPersonalCleanupTarget,
+} from './personal-cleanup-authority.ts';
+import type { PersonalCleanupTarget } from './personal-cleanup-authority.ts';
 import type { ContentCapacity } from './content-capacity.ts';
 import { recordMessageChanges } from './message-changes.ts';
 import type pg from 'pg';
@@ -23,16 +28,21 @@ export class BackupStore {
   private readonly contacts: ContactStore;
   private readonly capacity: ContentCapacity;
   private readonly social: SocialCleanup;
+  private readonly removals: MessageRemovalAllocations | undefined;
   constructor(
     pool: pg.Pool,
     contacts: ContactStore,
     capacity: ContentCapacity,
-    social: SocialCleanup,
+    writers: {
+      social: SocialCleanup;
+      removals: MessageRemovalAllocations | undefined;
+    },
   ) {
     this.pool = pool;
     this.contacts = contacts;
     this.capacity = capacity;
-    this.social = social;
+    this.social = writers.social;
+    this.removals = writers.removals;
   }
   async page(a: ContactAuthority, after: number) {
     return this.contacts.withMessageRead(a, async (c) => {
@@ -63,7 +73,7 @@ export class BackupStore {
         authority: a,
         items: selection.items,
       },
-      async (c) => {
+      async (c, participants) => {
         const confirmed = await c.query(
           'SELECT token_hash FROM hash_talk.login_sessions WHERE account_id=$1 AND device_id=$2 AND csrf=$3 AND expires_at>now() AND wallet_confirmed',
           [a.session.accountId, a.session.deviceId, a.session.csrf],
@@ -79,6 +89,13 @@ export class BackupStore {
         );
         if (current.rows[0]?.revision !== selection.revision)
           throw new AccountError(409, 'Autoridade da limpeza mudou.');
+        if (participants.length)
+          await this.removals?.clean(c, {
+            accountId: a.session.accountId,
+            participants,
+            items: selection.items,
+            proof,
+          });
         const before = await vaultUsage(c, a.session.accountId);
         let changed = false;
         for (const item of selection.items)
@@ -173,23 +190,11 @@ export class BackupStore {
     account: string,
     item: BackupTarget,
   ): Promise<number> {
-    const row = await c.query<{
-      hash: string;
-      sender: string;
-      recipient: string;
-      available: boolean;
-    }>(
+    const row = await c.query<PersonalCleanupTarget>(
       'SELECT hash,sender,recipient,body IS NOT NULL AS available FROM hash_talk.message_packets WHERE id=$1 FOR UPDATE',
       [item.id],
     );
-    const m = row.rows[0];
-    if (
-      !m ||
-      !m.available ||
-      m.hash !== item.hash ||
-      ![m.sender, m.recipient].includes(account)
-    )
-      throw new AccountError(409, 'Mensagem ausente ou divergente.');
+    assertPersonalCleanupTarget(row.rows[0], { account, hash: item.hash });
     await c.query(
       `UPDATE hash_talk.message_packets SET sender_charge=CASE WHEN sender=$2 THEN 0 ELSE sender_charge END,recipient_charge=CASE WHEN recipient=$2 THEN 0 ELSE recipient_charge END WHERE id=$1 OR relation->>'id'=$1::text`,
       [item.id, account],

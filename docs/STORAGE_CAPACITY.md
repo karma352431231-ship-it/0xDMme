@@ -648,7 +648,7 @@ content, journal or promise. Sender-deletion retries likewise do not acquire the
 ledger. This permits those no-ops under an unrelated held ledger and physical
 pressure; it does **not** exempt actual cleanup writes from physical admission.
 
-**Ponto importante:** P-DB-B remains open for actual removal writes. Before
+**Ponto importante:** block 22 retained P-DB-B contention for actual removal writes. Before
 retiring their global guard, adopt every supported packet/receipt/reference/read/
 attachment/journal effect with a pre-write envelope, independent source guards
 and pre-COMMIT completeness checks. Preserve mixed-kind atomicity and the
@@ -657,3 +657,72 @@ than treating retained ciphertext as newly written payload; validate TOAST/WAL,
 operating margins and representative cleanup histories. No reduced batch,
 unbounded grant or physical-capacity exemption is approved by this preparation.
 No migration, data reset or activation is performed in block 22.
+
+## Private removal allocator adoption — block 23
+
+Migration 082 and the volume-mode web adapter adopt actual sender deletion and
+private-only personal cleanup. Use the same coordinator connection, owner XID,
+ordered complete participant locks, snapshot-based credit release and failure/
+recovery lifecycle already prepared for vault/message writers. Fixed-budget and
+worker paths remain legacy; mixed vault/private/social cleanup still uses its
+single exclusive-authority transaction. No schema/data conversion or historical
+backfill is added. Activation/reset remain reserved for the final reviewed batch.
+
+`message-remove` is maintenance, limited to the existing 64 MiB SQL allowance per
+live owner connection. It grants no new ciphertext or upload promise. Both the
+coordinator and physical-policy credit sums use one shared maintenance-scope rule,
+avoiding a second charge for this already reserved SQL space. The envelope covers
+planning, temporary tuples/index, permitted source metadata work, reference/read
+deletes, proof receipts, both deletion journals or the personal full-scan journal,
+head UPSERT and actual old-journal pruning. Actual costs are consumed before each
+source effect. New payloads, ready-attachment acceptance, arbitrary charges and
+unsupported tables/owners fail closed. Physical exhaustion can still fail SQL;
+these estimates do not establish hardware acceptance.
+
+The planner reads at most eight selected roots and their at-most-64 related
+actions through the existing root/relation indexes. It captures identities,
+charges, availability, exact reference counts, collection eligibility, accepted
+attachments and journal baselines. Clearing the composite's body pointer before
+JSON conversion avoids detoasting/copying ciphertext merely to prepare metadata.
+Retained bodies must stay byte-equivalent; clearing a body is allowed only for
+the exact sender deletion or eligible two-receipt collection. Existing table
+constraints continue validating the stored format.
+
+One `pg_temp.hash_talk_removal_plan` relation per backend holds the bounded plan;
+it is reused rather than creating per-message names or repeatedly parsing the
+whole plan for each reference. Temporary relation/index/catalog and mutation
+work are included in the SQL envelope. `ON COMMIT DELETE ROWS` truncates records;
+rollback undoes the plan and its progress/cost markers, and disconnect drops the
+relation. It contains no message bodies or E2EE secrets. Ordinary app-role tests
+verify creation, consumption, truncation and reuse without privileged functions.
+Before activation, verify the actual app role's existing TEMP privilege and the
+effective mount/SQL/WAL/memory policy; no live privilege change is included here.
+
+The BEFORE guard permits only the selected packet transitions, scoped reference/
+read deletion, exact new personal receipts, accepted-to-deleting attachments
+without charge/descriptor changes, bound heads/journals and permitted pruning.
+The pre-COMMIT check compares final packet metadata to the plan, requires the
+expected reference/read removal, exact receipts and attachment states, and checks
+every journal/head/pruning result. Missing global accounting or a skipped/failed
+effect rolls back the entire operation, its counters and its hints. A failed
+post-COMMIT credit finalization keeps the durable token and fails health without
+reporting the acknowledged removal as lost; bounded recovery remains available.
+
+Sender deletion preserves the same proof-byte-plus-512 charges for both owners,
+the original/related set, both journals and blocked-contact deletion semantics.
+Personal cleanup preserves wallet confirmation, directory revision, each receipt/
+hash, actor-only removal and exact attachment exclusion. Only both personal
+receipts permit ciphertext retirement to the existing 4096-byte record and
+accepted attachment garbage marking. Attachments keep their charge until actual
+physical deletion, and ready/pending promises are unchanged. Overlapping original/
+action selections retain their sequential atomic behavior, including rollback
+when earlier collection makes a later new selection unavailable. No-op retries
+allocate/write nothing, even under a held coordinator or physical pressure.
+
+**Ponto importante:** source adoption removes the singleton ledger wait for these
+private mutations; it does not finish P-DB-B/P-DB-C, retire other writer guards or
+activate a release. Remaining mixed-kind cleanup, reference-creating opens/export,
+attachment file lifecycle, general/group/retention writers and representative
+SQL/TOAST/WAL/mixed-load acceptance remain open. Preserve both owners' counters
+and cross-table contracts when adopting them; never grant an unbounded operating
+budget or reduce the approved selection solely to fit an estimate.

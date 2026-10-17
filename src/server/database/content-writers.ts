@@ -1,3 +1,4 @@
+import { MessageRemovalAllocations } from './message-removal-allocations.ts';
 import type { ContentCapacity } from './content-capacity.ts';
 import { ContentWriteAllocations } from './content-write-allocations.ts';
 import { VaultAllocations } from './vault-allocations.ts';
@@ -15,6 +16,7 @@ export function createContentWriters(input: {
   vault: VaultAllocations | undefined;
   messages: MessageAllocations | undefined;
   reads: MessageReadAllocations | undefined;
+  removals: MessageRemovalAllocations | undefined;
 } {
   if (typeof input.capacity === 'number' || input.role !== 'web')
     return {
@@ -22,6 +24,7 @@ export function createContentWriters(input: {
       vault: undefined,
       messages: undefined,
       reads: undefined,
+      removals: undefined,
     };
   const allocations = new ContentWriteAllocations({
     ...input,
@@ -32,5 +35,6 @@ export function createContentWriters(input: {
     vault: new VaultAllocations(allocations, input.capacity),
     messages: new MessageAllocations(allocations),
     reads: new MessageReadAllocations(allocations),
+    removals: new MessageRemovalAllocations(allocations, input.capacity),
   };
 }

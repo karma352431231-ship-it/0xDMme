@@ -6,6 +6,7 @@ import {
   contentCapacityUnavailable,
   readStorageReservations,
   contentSqlTransactionBytes,
+  growthAllocationPredicate,
 } from '../database/index.ts';
 import type { VolumeReader } from './volume.ts';
 
@@ -55,7 +56,7 @@ async function admissionState(
     current_setting('transaction_isolation') AS isolation,
     current_setting('hash_talk.storage_logical_delta',true) AS logical_delta,
     current_setting('hash_talk.storage_pending_delta',true) AS pending_delta,
-    (SELECT coalesce(sum(bytes),0)::text FROM hash_talk.content_allocations WHERE scope<>'vault-maintain') AS credits,
+    (SELECT coalesce(sum(bytes),0)::text FROM hash_talk.content_allocations WHERE ${growthAllocationPredicate}) AS credits,
     pg_database_size(current_database())::text AS database_bytes,
     pg_size_bytes(current_setting('max_wal_size'))::text AS wal_bytes,
     (greatest(pg_size_bytes(current_setting('maintenance_work_mem')),

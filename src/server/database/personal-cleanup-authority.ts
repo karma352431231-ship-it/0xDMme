@@ -3,6 +3,25 @@ import { AccountError } from '../../shared/account/index.ts';
 import type { BackupTarget } from '../../shared/backups/index.ts';
 import type { ContactAuthority, ContactStore } from './contacts.ts';
 
+export interface PersonalCleanupTarget {
+  hash: string | null;
+  sender: string | null;
+  recipient: string | null;
+  available: boolean;
+}
+/** One target rule for preflight and the sequential mutation-time recheck. */
+export function assertPersonalCleanupTarget(
+  target: PersonalCleanupTarget | undefined,
+  input: { account: string; hash: string },
+): asserts target is PersonalCleanupTarget {
+  if (
+    !target?.available ||
+    target.hash !== input.hash ||
+    ![target.sender, target.recipient].includes(input.account)
+  )
+    throw new AccountError(409, 'Mensagem ausente ou divergente.');
+}
+
 interface CleanupAuthority {
   contacts: ContactStore;
   authority: ContactAuthority;
@@ -18,11 +37,13 @@ interface Participants {
  * transaction; splitting a selection would lose its atomic cleanup contract. */
 export function withPersonalCleanupAuthority<T>(
   input: CleanupAuthority,
-  work: (client: pg.PoolClient) => Promise<T>,
+  work: (client: pg.PoolClient, participants: readonly string[]) => Promise<T>,
 ): Promise<T> {
   const { contacts, authority, items } = input;
   if (!items.every((item) => item.kind === 'message'))
-    return contacts.withMessageAuthority(authority, work);
+    return contacts.withMessageAuthority(authority, (client) =>
+      work(client, []),
+    );
   const account = authority.session.accountId;
   const rows = async (client: pg.PoolClient) =>
     (
@@ -46,7 +67,7 @@ export function withPersonalCleanupAuthority<T>(
         )
       )
         throw new AccountError(409, 'Mensagem ausente ou divergente.');
-      return work(client);
+      return work(client, participants);
     },
   );
 }

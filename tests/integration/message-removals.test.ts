@@ -1,8 +1,13 @@
+import {
+  proof,
+  target,
+  accept,
+  message,
+  snapshots,
+} from '../fixtures/message-removal-database.ts';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { TestContext } from 'node:test';
-import type { MessageProof } from '../../src/shared/messages/index.ts';
-import type { BackupTarget } from '../../src/shared/backups/index.ts';
 import { messageReceiptFixture } from '../fixtures/message-receipt-database.ts';
 import type { MessageReceiptFixture } from '../fixtures/message-receipt-database.ts';
 import {
@@ -10,32 +15,12 @@ import {
   messageUser,
   admissionPacket,
 } from '../fixtures/message-allocation-database.ts';
-import type { MessageUser } from '../fixtures/message-allocation-database.ts';
 import { assertStorageReconciled } from '../fixtures/storage-reservation-database.ts';
-import {
-  globalBytes,
-  globalSourceSnapshot,
-} from '../fixtures/global-usage-database.ts';
+import { globalBytes } from '../fixtures/global-usage-database.ts';
 import { waitForBlocked } from './contact-concurrency-fixture.ts';
 
 type Pair = Awaited<ReturnType<typeof messagePair>>;
 const hash = 'a'.repeat(64);
-function proof(user: MessageUser, items?: BackupTarget[]): MessageProof {
-  return {
-    deviceId: user.session.deviceId,
-    directory: user.directory,
-    signature: 'synthetic',
-    payload: items ? { backup: hash, revision: 1, items } : { revision: 1 },
-  };
-}
-async function accept(c: MessageReceiptFixture, pair: Pair) {
-  const packet = admissionPacket(pair);
-  await c.db.messages.admit(pair.sender, packet, hash);
-  return packet;
-}
-function target(id: string): BackupTarget {
-  return { kind: 'message', id, hash };
-}
 async function sharedGate(c: MessageReceiptFixture, work: () => Promise<void>) {
   await c.writer.query('BEGIN');
   try {
@@ -46,32 +31,6 @@ async function sharedGate(c: MessageReceiptFixture, work: () => Promise<void>) {
   } finally {
     await c.writer.query('ROLLBACK');
   }
-}
-async function message(c: MessageReceiptFixture, id: string) {
-  return (
-    await c.inspector.query<{
-      available: boolean;
-      personal_collected: boolean;
-      charge: number;
-      sender_charge: number;
-      recipient_charge: number;
-      queue_active: boolean;
-    }>(
-      'SELECT body IS NOT NULL AS available,personal_collected,charge,sender_charge,recipient_charge,queue_active FROM hash_talk.message_packets WHERE id=$1',
-      [id],
-    )
-  ).rows[0]!;
-}
-async function snapshots(c: MessageReceiptFixture) {
-  const sources = (
-    await c.inspector.query<{ name: string }>(
-      `SELECT DISTINCT c.relname AS name FROM pg_trigger t JOIN pg_class c ON c.oid=t.tgrelid WHERE t.tgfoid='hash_talk.track_statement_content_usage()'::regprocedure ORDER BY name`,
-    )
-  ).rows;
-  return {
-    sources: await globalSourceSnapshot(c.inspector, sources),
-    bytes: await globalBytes(c.inspector),
-  };
 }
 async function deletionCases(
   t: TestContext,
