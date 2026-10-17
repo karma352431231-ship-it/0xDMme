@@ -1,3 +1,4 @@
+import type { ContentCapacity } from './content-capacity.ts';
 import { readModerationDetails } from './public-moderation-details.ts';
 import { randomUUID } from 'node:crypto';
 import type pg from 'pg';
@@ -172,11 +173,11 @@ export class PublicModerationStore {
     this.publicationPaused = true;
   }
   private readonly pool: pg.Pool;
-  private readonly capacity: number;
+  private readonly capacity: ContentCapacity;
   private readonly acceptedModels: readonly PublicModerationAcceptedModel[];
   constructor(
     pool: pg.Pool,
-    capacity: number,
+    capacity: ContentCapacity,
     acceptedModels: readonly PublicModerationAcceptedModel[] = [],
   ) {
     this.pool = pool;

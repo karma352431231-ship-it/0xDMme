@@ -1,3 +1,4 @@
+import type { ContentCapacity } from './content-capacity.ts';
 import type pg from 'pg';
 import { AccountError, keys, uuid } from '../../shared/account/index.ts';
 import {
@@ -64,7 +65,7 @@ export async function operateCommunityBadge(
   context: CommunityContext,
   operation: string,
   data: Record<string, unknown>,
-  capacity: number,
+  capacity: ContentCapacity,
 ) {
   await requireCommunityManager(context);
   if (operation === 'badge-list') {
@@ -82,7 +83,7 @@ async function saveBadge(
   context: CommunityContext,
   operation: string,
   data: Record<string, unknown>,
-  capacity: number,
+  capacity: ContentCapacity,
 ) {
   if (!['badge-create', 'badge-edit', 'badge-delete'].includes(operation))
     throw new AccountError(404, 'Operação de badge inválida.');
@@ -179,7 +180,7 @@ async function deleteUnusedBadge(
 async function assignBadge(
   context: CommunityContext,
   data: Record<string, unknown>,
-  capacity: number,
+  capacity: ContentCapacity,
 ) {
   keys(data, ['id', 'badge', 'target', 'enabled']);
   const badge = uuid(data['badge']),

@@ -1,3 +1,4 @@
+import type { ContentCapacity } from './content-capacity.ts';
 import type pg from 'pg';
 import { randomUUID } from 'node:crypto';
 import { AccountError } from '../../shared/account/index.ts';
@@ -24,8 +25,12 @@ interface AttachmentRow {
 export class AttachmentStore {
   private readonly pool: pg.Pool;
   private readonly contacts: ContactStore;
-  private readonly capacity: number;
-  constructor(pool: pg.Pool, contacts: ContactStore, capacity: number) {
+  private readonly capacity: ContentCapacity;
+  constructor(
+    pool: pg.Pool,
+    contacts: ContactStore,
+    capacity: ContentCapacity,
+  ) {
     this.pool = pool;
     this.contacts = contacts;
     this.capacity = capacity;

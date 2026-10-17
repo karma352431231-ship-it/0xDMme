@@ -8,7 +8,8 @@ export interface WebConfiguration {
   origin: string;
   databaseUrl: string;
   objectDirectory: string;
-  accountCapacityBytes: number;
+  contentCapacity:
+    { mode: 'fixed'; bytes: number } | { mode: 'volume'; directory: string };
   walletConnectProjectId?: string;
   /** KLIPY key for the GIF tab (owner decision 09/10/2026); absent disables it. */
   gifSearchKey?: string;
@@ -89,7 +90,7 @@ export function readWebConfiguration(
     ...webEndpoint(environment, staging),
     databaseUrl,
     objectDirectory: objectDirectory(environment, staging),
-    ...accountConfiguration(environment),
+    ...accountConfiguration(environment, staging),
     ...gifConfiguration(environment),
   };
 }
@@ -104,9 +105,11 @@ function gifConfiguration(
 }
 function accountConfiguration(
   environment: Readonly<Record<string, string | undefined>>,
-): Pick<WebConfiguration, 'accountCapacityBytes' | 'walletConnectProjectId'> {
-  const capacityText =
-    environment['HASH_TALK_ACCOUNT_CAPACITY_BYTES'] ?? '3000000000';
+  staging: boolean,
+): Pick<WebConfiguration, 'contentCapacity' | 'walletConnectProjectId'> {
+  const capacityText = staging
+    ? '3000000000'
+    : (environment['HASH_TALK_ACCOUNT_CAPACITY_BYTES'] ?? '3000000000');
   if (!/^[1-9]\d{8,14}$/u.test(capacityText))
     throw new Error('Orçamento de contas inválido.');
   const accountCapacityBytes = Number(capacityText);
@@ -123,7 +126,9 @@ function accountConfiguration(
   )
     throw new Error('Project ID WalletConnect inválido.');
   return {
-    accountCapacityBytes,
+    contentCapacity: staging
+      ? { mode: 'volume', directory: '/opt/0xdmme/release' }
+      : { mode: 'fixed', bytes: accountCapacityBytes },
     ...(walletConnectProjectId ? { walletConnectProjectId } : {}),
   };
 }

@@ -1,3 +1,4 @@
+import type { ContentCapacity } from './content-capacity.ts';
 import { CommunityUpvotes } from './community-upvotes.ts';
 import { reconcileMentionNotifications } from './mention-admission.ts';
 import {
@@ -276,13 +277,13 @@ export class CommunityPostStore {
   private readonly pool: pg.Pool;
   private readonly communities: CommunityStore;
   private readonly profiles: PublicProfileStore;
-  private readonly capacity: number;
+  private readonly capacity: ContentCapacity;
   private readonly media: CommunityMediaStore;
   constructor(options: {
     pool: pg.Pool;
     communities: CommunityStore;
     profiles: PublicProfileStore;
-    capacity: number;
+    capacity: ContentCapacity;
     media: CommunityMediaStore;
   }) {
     this.pool = options.pool;

@@ -1,3 +1,4 @@
+import type { ContentCapacity } from './content-capacity.ts';
 import type pg from 'pg';
 import { randomUUID } from 'node:crypto';
 import { AccountError } from '../../shared/account/index.ts';
@@ -37,12 +38,12 @@ export class GroupMediaStore {
   private readonly pool: pg.Pool;
   private readonly contacts: ContactStore;
   private readonly groups: GroupStore;
-  private readonly capacity: number;
+  private readonly capacity: ContentCapacity;
   constructor(
     pool: pg.Pool,
     contacts: ContactStore,
     groups: GroupStore,
-    capacity: number,
+    capacity: ContentCapacity,
   ) {
     this.pool = pool;
     this.contacts = contacts;

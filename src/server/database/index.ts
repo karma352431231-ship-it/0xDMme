@@ -1,3 +1,11 @@
+import type { ContentCapacity } from './content-capacity.ts';
+export type {
+  ContentCapacity,
+  AdaptiveContentCapacity,
+  CapacityClient,
+} from './content-capacity.ts';
+export { contentCapacityUnavailable } from './content-capacity.ts';
+export { readStorageReservations } from './storage-reservations.ts';
 import { MentionNotificationStore } from './mention-notifications.ts';
 import { readMentionContexts } from './mention-contexts.ts';
 import { GroupDailyStore } from './group-daily.ts';
@@ -179,6 +187,7 @@ const migrations = [
   '072-quota-lock-order.sql',
   '073-attachment-quota-accounting.sql',
   '074-storage-reservation-accounting.sql',
+  '075-storage-admission-baselines.sql',
 ];
 
 export interface MaintenanceSnapshot {
@@ -244,13 +253,16 @@ export class Database {
 
   constructor(
     connectionString: string,
-    contentCapacity = 3_000_000_000,
+    contentCapacity: ContentCapacity = 3_000_000_000,
     acceptedModels: readonly PublicModerationAcceptedModel[] = [],
     role: 'web' | 'worker' = 'web',
   ) {
     this.workSignals = new WorkSignals(connectionString, this.changes);
     this.pool = new pg.Pool({
       connectionString,
+      ...(typeof contentCapacity === 'number'
+        ? {}
+        : { options: '-c hash_talk.storage_capacity_mode=volume' }),
       // Sized with postgresql.conf max_connections (64): web 16, each worker 4.
       max: role === 'worker' ? 4 : 16,
       connectionTimeoutMillis: 3_000,

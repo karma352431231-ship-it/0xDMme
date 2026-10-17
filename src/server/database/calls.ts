@@ -1,3 +1,4 @@
+import type { ContentCapacity } from './content-capacity.ts';
 import { AccountError } from '../../shared/account/index.ts';
 import type { ContactAuthority, ContactStore } from './contacts.ts';
 import type pg from 'pg';
@@ -15,9 +16,13 @@ export interface CallGate {
 /** Persists only the account preference. There is no call/session/history table. */
 export class CallStore {
   private readonly contacts: ContactStore;
-  private readonly capacity: number;
+  private readonly capacity: ContentCapacity;
   private readonly daily: DailyStore;
-  constructor(contacts: ContactStore, capacity: number, daily: DailyStore) {
+  constructor(
+    contacts: ContactStore,
+    capacity: ContentCapacity,
+    daily: DailyStore,
+  ) {
     this.contacts = contacts;
     this.capacity = capacity;
     this.daily = daily;

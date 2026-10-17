@@ -1,3 +1,4 @@
+import type { ContentCapacity } from './content-capacity.ts';
 import { readProfileMutuals } from './profile-mutuals.ts';
 import { profileActivityFilter } from '../../shared/profile-social/index.ts';
 import { visiblePost } from './community-post-visibility.ts';
@@ -27,7 +28,7 @@ interface ProfileSocialOptions {
   profiles: PublicProfileStore;
   communities: CommunityStore;
   discovery: CommunityDiscoveryStore;
-  capacity: number;
+  capacity: ContentCapacity;
 }
 export class ProfileSocialStore {
   private readonly options: ProfileSocialOptions;

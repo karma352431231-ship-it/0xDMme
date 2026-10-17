@@ -1,3 +1,4 @@
+import type { ContentCapacity } from './content-capacity.ts';
 import { reconcileMentionNotifications } from './mention-admission.ts';
 import type pg from 'pg';
 import { AccountError } from '../../shared/account/index.ts';
@@ -9,7 +10,7 @@ import { assertContentCapacity } from './vault-quota.ts';
 interface DescriptionOptions {
   authority: ContactStore;
   identity: (client: pg.PoolClient, account: string) => Promise<PublicProfile>;
-  capacity: number;
+  capacity: ContentCapacity;
 }
 type Reader = Pick<pg.PoolClient, 'query'>;
 

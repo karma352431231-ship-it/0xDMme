@@ -1,3 +1,4 @@
+import type { ContentCapacity } from './content-capacity.ts';
 import type pg from 'pg';
 import { AccountError } from '../../shared/account/index.ts';
 import { canonical, digest, eventHash } from '../../shared/devices/index.ts';
@@ -23,7 +24,7 @@ interface AdmissionContext {
   groups: GroupAdmissionHost;
   contacts: ContactStore;
   devices: DeviceStore;
-  capacity: number;
+  capacity: ContentCapacity;
 }
 
 import {

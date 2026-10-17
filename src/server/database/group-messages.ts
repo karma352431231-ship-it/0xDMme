@@ -1,3 +1,4 @@
+import type { ContentCapacity } from './content-capacity.ts';
 import {
   GroupMessageUpdates,
   assertGroupEdit,
@@ -50,14 +51,14 @@ export class GroupMessageStore {
   private readonly contacts: ContactStore;
   private readonly groups: GroupStore;
   private readonly devices: DeviceStore;
-  private readonly capacity: number;
+  private readonly capacity: ContentCapacity;
   private readonly media: GroupMediaStore;
   constructor(
     contacts: ContactStore,
     groups: GroupStore,
     services: {
       devices: DeviceStore;
-      capacity: number;
+      capacity: ContentCapacity;
       media: GroupMediaStore;
     },
   ) {

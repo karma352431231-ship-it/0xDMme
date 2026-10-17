@@ -1,3 +1,4 @@
+import type { ContentCapacity } from './content-capacity.ts';
 import {
   createCommunityClassification,
   readCommunityClassifications,
@@ -121,14 +122,14 @@ export class CommunityStore {
   private readonly pool: pg.Pool;
   private readonly authority: ContactStore;
   private readonly profiles: PublicProfileStore;
-  private readonly capacity: number;
+  private readonly capacity: ContentCapacity;
   private readonly photos: CommunityPhotoStore;
   private readonly banners: CommunityPhotoStore;
   constructor(options: {
     pool: pg.Pool;
     authority: ContactStore;
     profiles: PublicProfileStore;
-    capacity: number;
+    capacity: ContentCapacity;
     moderation: PublicModerationStore;
   }) {
     this.pool = options.pool;

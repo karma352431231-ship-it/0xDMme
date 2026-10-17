@@ -1,5 +1,16 @@
 # Capacity audit follow-up — 16 October 2026
 
+The fifteenth source block replaces the staging fixed global content budget with
+fresh own-volume availability, conservative pending-write envelopes and an
+explicit PostgreSQL/release operating reserve. Keep the existing global guard
+for atomic claims, per-user quotas and charge amounts. Scoped cleanup can use
+operating space without granting payload promises. Pin the existing service
+bind mount, fail closed on measurement errors, and preserve all deployment
+backup checks/retention. Numeric budgets remain for local fixtures. Migration
+075 supplies transaction-local baselines only; no VPS activation is included.
+The global allocator/remaining lock redesign and resource/load acceptance stay
+pending. See [physical storage admission](docs/STORAGE_CAPACITY.md).
+
 The fourteenth source block prepares incremental pending-write envelopes for
 vault, private/group/status/social media and public community preparation.
 Aggregate fixed UUID-prefix partitions without reading reservation history;

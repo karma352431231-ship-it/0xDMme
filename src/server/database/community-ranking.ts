@@ -1,3 +1,4 @@
+import type { ContentCapacity } from './content-capacity.ts';
 import { communityTopicPredicate } from './community-classification.ts';
 import { randomUUID } from 'node:crypto';
 import type pg from 'pg';
@@ -12,6 +13,7 @@ import {
 import type { ExploreFilter } from '../../shared/community-discovery/index.ts';
 import { measureRanking } from './community-ranking-metrics.ts';
 import { assertContentCapacity } from './vault-quota.ts';
+import { contentCapacityFits } from './content-capacity.ts';
 
 function rankingPageSelection(filter: ExploreFilter) {
   const rank = filter.order === 'size' ? 'e.followers' : 'e.score';
@@ -25,9 +27,13 @@ function rankingPageSelection(filter: ExploreFilter) {
 const producerLock = "hashtext('hash-talk:community-ranking-producer')";
 export class CommunityRankingStore {
   private readonly pool: pg.Pool;
-  private readonly capacity: number;
+  private readonly capacity: ContentCapacity;
   private readonly cacheBudget: number;
-  constructor(pool: pg.Pool, capacity: number, cacheBudget = 64 * 1024 * 1024) {
+  constructor(
+    pool: pg.Pool,
+    capacity: ContentCapacity,
+    cacheBudget = 64 * 1024 * 1024,
+  ) {
     this.pool = pool;
     this.capacity = capacity;
     this.cacheBudget = cacheBudget;
@@ -196,7 +202,11 @@ export class CommunityRankingStore {
       );
     if (
       Number(used) + Number(needed) <= this.cacheBudget &&
-      Number(global) + Number(needed) <= this.capacity
+      (await contentCapacityFits(client, {
+        capacity: this.capacity,
+        logicalBytes: Number(global),
+        additionalBytes: Number(needed),
+      }))
     )
       return true;
     const old = await client.query<{ exists: boolean }>(

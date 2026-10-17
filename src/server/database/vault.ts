@@ -1,3 +1,4 @@
+import type { ContentCapacity } from './content-capacity.ts';
 import type pg from 'pg';
 import { pendingVaultCommits } from './vault-pending.ts';
 import { withUploadAdmission } from './upload-admission.ts';
@@ -23,8 +24,8 @@ interface Head {
 }
 export class VaultStore {
   private readonly pool: pg.Pool;
-  private readonly contentCapacity: number;
-  constructor(pool: pg.Pool, contentCapacity: number) {
+  private readonly contentCapacity: ContentCapacity;
+  constructor(pool: pg.Pool, contentCapacity: ContentCapacity) {
     this.pool = pool;
     this.contentCapacity = contentCapacity;
   }

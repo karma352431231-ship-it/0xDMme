@@ -1,3 +1,4 @@
+import type { ContentCapacity } from './content-capacity.ts';
 import type pg from 'pg';
 import {
   publicNotificationCandidates,
@@ -34,8 +35,12 @@ const authorizedDevice = `EXISTS(SELECT 1 FROM hash_talk.device_directories d,js
 export class DailyStore {
   private readonly pool: pg.Pool;
   private readonly contacts: ContactStore;
-  private readonly capacity: number;
-  constructor(pool: pg.Pool, contacts: ContactStore, capacity: number) {
+  private readonly capacity: ContentCapacity;
+  constructor(
+    pool: pg.Pool,
+    contacts: ContactStore,
+    capacity: ContentCapacity,
+  ) {
     this.pool = pool;
     this.contacts = contacts;
     this.capacity = capacity;

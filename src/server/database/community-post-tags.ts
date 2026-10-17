@@ -1,3 +1,4 @@
+import type { ContentCapacity } from './content-capacity.ts';
 import { randomUUID } from 'node:crypto';
 import type pg from 'pg';
 import { AccountError, keys, uuid } from '../../shared/account/index.ts';
@@ -121,7 +122,7 @@ export async function operatePostTag(
   context: CommunityContext,
   operation: string,
   data: Record<string, unknown>,
-  capacity: number,
+  capacity: ContentCapacity,
 ): Promise<TagPage | null> {
   await requireCommunityManager(context);
   if (operation === 'tag-list') {

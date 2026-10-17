@@ -1,3 +1,4 @@
+import type { ContentCapacity } from './content-capacity.ts';
 import type pg from 'pg';
 import { AccountError, keys, uuid } from '../../shared/account/index.ts';
 import {
@@ -64,7 +65,7 @@ async function record(
 async function hide(
   context: CommunityContext,
   data: Record<string, unknown>,
-  capacity: number,
+  capacity: ContentCapacity,
 ): Promise<void> {
   keys(data, ['id', 'post', 'revision', 'record', 'reason']);
   await requireCommunityManager(context);
@@ -98,7 +99,7 @@ async function hide(
 async function appeal(
   context: CommunityContext,
   data: Record<string, unknown>,
-  capacity: number,
+  capacity: ContentCapacity,
 ): Promise<void> {
   keys(data, ['id', 'post', 'record', 'text']);
   const row = await loadPost(context, uuid(data['post'])),
@@ -118,7 +119,7 @@ async function appeal(
 async function decide(
   context: CommunityContext,
   data: Record<string, unknown>,
-  capacity: number,
+  capacity: ContentCapacity,
 ): Promise<void> {
   keys(data, ['id', 'post', 'revision', 'record', 'decision', 'restore']);
   await requireCommunityManager(context);
@@ -177,7 +178,7 @@ export async function postModeration(
   context: CommunityContext,
   operation: string,
   data: Record<string, unknown>,
-  capacity: number,
+  capacity: ContentCapacity,
 ): Promise<unknown> {
   switch (operation) {
     case 'post-hide':

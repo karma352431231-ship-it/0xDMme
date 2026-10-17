@@ -1,3 +1,4 @@
+import type { ContentCapacity } from './content-capacity.ts';
 import { recordMessageChanges, readMessageChanges } from './message-changes.ts';
 import { messageIndexPage } from './message-index.ts';
 import type { AttachmentStore } from './attachments.ts';
@@ -30,11 +31,11 @@ export interface MessageSnapshot {
 /** All SQL stays in the schema owner, coordinated with consent and device locks. */
 export class MessageStore {
   private readonly contacts: ContactStore;
-  private readonly capacity: number;
+  private readonly capacity: ContentCapacity;
   private readonly attachments: AttachmentStore;
   constructor(
     contacts: ContactStore,
-    capacity: number,
+    capacity: ContentCapacity,
     attachments: AttachmentStore,
   ) {
     this.contacts = contacts;

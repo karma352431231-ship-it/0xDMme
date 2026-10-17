@@ -1,3 +1,4 @@
+import type { ContentCapacity } from './content-capacity.ts';
 import { AccountError, keys, uuid } from '../../shared/account/index.ts';
 import {
   communityBoolean,
@@ -78,7 +79,7 @@ function sanctionDays(value: unknown): number | null {
 async function applySanction(
   context: CommunityContext,
   data: Record<string, unknown>,
-  capacity: number,
+  capacity: ContentCapacity,
 ): Promise<void> {
   keys(data, ['id', 'revision', 'record', 'target', 'reason', 'days']);
   await requireCommunityManager(context);
@@ -128,7 +129,7 @@ async function applySanction(
 async function appeal(
   context: CommunityContext,
   data: Record<string, unknown>,
-  capacity: number,
+  capacity: ContentCapacity,
 ): Promise<void> {
   keys(data, ['id', 'record', 'text']);
   const record = await sanctionRow(context, uuid(data['record'])),
@@ -147,7 +148,7 @@ async function appeal(
 async function decide(
   context: CommunityContext,
   data: Record<string, unknown>,
-  capacity: number,
+  capacity: ContentCapacity,
 ): Promise<void> {
   keys(data, ['id', 'revision', 'record', 'decision', 'lift']);
   await requireCommunityManager(context);
@@ -194,7 +195,7 @@ async function reports(
 async function report(
   context: CommunityContext,
   data: Record<string, unknown>,
-  capacity: number,
+  capacity: ContentCapacity,
 ): Promise<void> {
   keys(data, ['id', 'record', 'reason']);
   const id = uuid(data['record']),
@@ -231,7 +232,7 @@ async function report(
 async function resolve(
   context: CommunityContext,
   data: Record<string, unknown>,
-  capacity: number,
+  capacity: ContentCapacity,
 ): Promise<void> {
   keys(data, ['id', 'revision', 'record', 'decision']);
   await requireCommunityManager(context);
@@ -290,7 +291,7 @@ export async function communityModeration(
   context: CommunityContext,
   operation: string,
   data: Record<string, unknown>,
-  capacity: number,
+  capacity: ContentCapacity,
 ): Promise<unknown> {
   switch (operation) {
     case 'staff':

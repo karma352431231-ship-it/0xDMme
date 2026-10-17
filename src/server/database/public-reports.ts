@@ -1,3 +1,4 @@
+import type { ContentCapacity } from './content-capacity.ts';
 import type pg from 'pg';
 import { AccountError, keys, uuid } from '../../shared/account/index.ts';
 import { communityText } from '../../shared/communities/index.ts';
@@ -6,7 +7,7 @@ import { assertContentCapacity } from './vault-quota.ts';
 export async function storePublicReport(
   context: { client: pg.PoolClient; actor: { id: string } },
   data: Record<string, unknown>,
-  capacity: number,
+  capacity: ContentCapacity,
 ) {
   keys(data, ['record', 'kind', 'target', 'reason']);
   const id = uuid(data['record']),

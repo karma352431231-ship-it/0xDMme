@@ -1,3 +1,4 @@
+import type { ContentCapacity } from './content-capacity.ts';
 import type pg from 'pg';
 import { AccountError } from '../../shared/account/index.ts';
 import { canonical } from '../../shared/devices/index.ts';
@@ -29,8 +30,12 @@ export interface CredentialReceipt {
 export class RepresentativeStore {
   private readonly contacts: ContactStore;
   private readonly pool: pg.Pool;
-  private readonly capacity: number;
-  constructor(pool: pg.Pool, contacts: ContactStore, capacity: number) {
+  private readonly capacity: ContentCapacity;
+  constructor(
+    pool: pg.Pool,
+    contacts: ContactStore,
+    capacity: ContentCapacity,
+  ) {
     this.pool = pool;
     this.contacts = contacts;
     this.capacity = capacity;

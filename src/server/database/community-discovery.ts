@@ -1,3 +1,4 @@
+import type { ContentCapacity } from './content-capacity.ts';
 import { savedPostIds } from './community-preferences.ts';
 import { visiblePost } from './community-post-visibility.ts';
 import type pg from 'pg';
@@ -103,14 +104,14 @@ export class CommunityDiscoveryStore {
     client: Reader,
     ids: string[],
   ) => Promise<CommunityPost[]>;
-  private readonly capacity: number;
+  private readonly capacity: ContentCapacity;
   private readonly ranking: CommunityRankingStore;
   constructor(options: {
     pool: pg.Pool;
     ranking: CommunityRankingStore;
     communities: CommunityStore;
     posts: (client: Reader, ids: string[]) => Promise<CommunityPost[]>;
-    capacity: number;
+    capacity: ContentCapacity;
   }) {
     this.pool = options.pool;
     this.ranking = options.ranking;

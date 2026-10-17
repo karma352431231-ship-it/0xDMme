@@ -1,3 +1,4 @@
+import type { ContentCapacity } from './content-capacity.ts';
 import type pg from 'pg';
 import { AccountError, keys, uuid } from '../../shared/account/index.ts';
 import { postPreference } from '../../shared/community-discovery/index.ts';
@@ -17,7 +18,7 @@ export async function operatePostPreference(
   context: { client: pg.PoolClient; actor: { id: string } },
   operation: string,
   data: Record<string, unknown>,
-  capacity: number,
+  capacity: ContentCapacity,
 ): Promise<PostPreference> {
   const writing = operation === 'discovery-preference-set';
   if (!writing && operation !== 'discovery-preference')

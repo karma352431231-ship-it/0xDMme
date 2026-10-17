@@ -1,3 +1,4 @@
+import type { ContentCapacity } from './content-capacity.ts';
 import type { MentionNotificationPage } from '../../shared/mention-notifications/index.ts';
 import type { MentionNotificationStore } from './mention-notifications.ts';
 import { mentionQuery } from '../../shared/public-mentions/index.ts';
@@ -70,12 +71,12 @@ export class PublicProfileStore {
   readonly descriptions: ProfileDescriptions;
   private readonly pool: pg.Pool;
   private readonly authority: ContactStore;
-  private readonly capacity: number;
+  private readonly capacity: ContentCapacity;
   private readonly moderation: PublicModerationStore;
   constructor(
     pool: pg.Pool,
     authority: ContactStore,
-    capacity: number,
+    capacity: ContentCapacity,
     moderation: PublicModerationStore,
   ) {
     this.pool = pool;

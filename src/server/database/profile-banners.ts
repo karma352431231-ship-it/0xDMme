@@ -1,3 +1,4 @@
+import type { ContentCapacity } from './content-capacity.ts';
 import { createHash } from 'node:crypto';
 import type pg from 'pg';
 import { AccountError } from '../../shared/account/index.ts';
@@ -25,7 +26,7 @@ interface BannerOptions {
   moderation: PublicModerationStore;
   authority: ContactStore;
   identity: (client: pg.PoolClient, account: string) => Promise<PublicProfile>;
-  capacity: number;
+  capacity: ContentCapacity;
 }
 function sameBanner(
   row: BannerRow | undefined,

@@ -419,11 +419,27 @@ their derived rows, including acceptance that leaves logical bytes unchanged.
 Unchanged charge/visibility/envelopes take no added guard. Review activation with
 the remaining atomic global-capacity replacement; this packet is its prerequisite.
 
+## Fifteenth block: staging physical volume admission
+
+Staging admission uses fresh free space on the pinned own-volume service bind,
+pending-write envelopes and a PostgreSQL/release operating reserve. It ignores
+the retired fixed global environment budget while preserving individual quotas,
+source charges and atomic claims under the existing global row guard. Local
+fixtures retain numeric budgets. Transaction baselines allow scoped reclamation
+to use operating space without granting new payload promises. Mount/measurement
+failures use the existing bilingual capacity refusal. Ranking preflight remains
+advisory; final publication asserts inside its write transaction.
+
+**Ponto importante:** this is prepared source, not a VPS activation or a removal
+of global ledger contention. Operating margins, service-namespace validation and
+representative load remain acceptance work. Existing full-copy deployment
+backups can require additional space when the volume grows; their checks and
+retention are unchanged. See [physical storage admission](STORAGE_CAPACITY.md).
+
 ## Remaining audit work
 
-- Size global content admission from the own data volume and operational space;
-  remove the stale 900 MB environment budget without weakening individual
-  quotas or admitting writes that endanger accepted data.
+- Validate prepared physical admission, operating margins and the service mount
+  before replacing the audited live environment ceiling in the final activation.
 - Extend scoped coordination to the remaining general authority/group/retention
   operations, with explicit lock orders and revocation/deletion regressions.
 - Replace singleton byte-counter contention; validate the prepared group,

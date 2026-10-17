@@ -1,3 +1,4 @@
+import type { ContentCapacity } from './content-capacity.ts';
 import type pg from 'pg';
 import { AccountError, keys, uuid } from '../../shared/account/index.ts';
 import { postShareState } from '../../shared/post-sharing/index.ts';
@@ -9,7 +10,7 @@ export async function operatePostShare(
   context: { client: pg.PoolClient; actor: { id: string } },
   operation: string,
   data: Record<string, unknown>,
-  capacity: number,
+  capacity: ContentCapacity,
 ): Promise<PostShareState> {
   const writing = operation === 'discovery-share-set';
   if (!writing && operation !== 'discovery-share')

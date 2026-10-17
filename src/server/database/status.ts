@@ -1,3 +1,4 @@
+import type { ContentCapacity } from './content-capacity.ts';
 import type pg from 'pg';
 import { AccountError } from '../../shared/account/index.ts';
 import { canonical, digest } from '../../shared/devices/index.ts';
@@ -38,7 +39,7 @@ export interface StatusRow {
 interface StatusServices {
   devices: DeviceStore;
   recovery: MessageRecoveryStore;
-  capacity: number;
+  capacity: ContentCapacity;
 }
 function unavailable(): never {
   throw new AccountError(404, 'Status indisponível ou expirado.');

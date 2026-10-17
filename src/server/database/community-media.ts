@@ -1,3 +1,4 @@
+import type { ContentCapacity } from './content-capacity.ts';
 import type pg from 'pg';
 import { visiblePost } from './community-post-visibility.ts';
 import { createHash, randomUUID } from 'node:crypto';
@@ -146,12 +147,12 @@ function requireMediaAttachment(
 export class CommunityMediaStore {
   private readonly pool: pg.Pool;
   private readonly communities: CommunityStore;
-  private readonly capacity: number;
+  private readonly capacity: ContentCapacity;
   private readonly moderation: PublicModerationStore;
   constructor(
     pool: pg.Pool,
     communities: CommunityStore,
-    capacity: number,
+    capacity: ContentCapacity,
     moderation: PublicModerationStore,
   ) {
     this.pool = pool;

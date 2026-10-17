@@ -1,3 +1,4 @@
+import { createRuntimeContentCapacity } from '../src/server/storage-capacity/index.ts';
 import {
   PublicMediaService,
   createPublicMediaHandler,
@@ -64,9 +65,11 @@ if (!/^0x[a-f0-9]{64}$/u.test(fixtureSeed))
     'Seed sintética de fixture inválida. Nunca forneça uma chave real.',
   );
 // Synthetic moderation inventory is confined to this loopback-only browser fixture.
-const database = new Database(config.databaseUrl, config.accountCapacityBytes, [
-  { hash: 'f'.repeat(64), runtime: 'browser-fixture-synthetic' },
-]);
+const database = new Database(
+  config.databaseUrl,
+  await createRuntimeContentCapacity(config.contentCapacity),
+  [{ hash: 'f'.repeat(64), runtime: 'browser-fixture-synthetic' }],
+);
 await database.migrate();
 const objects = new ObjectStore(config.objectDirectory);
 await objects.initialize();

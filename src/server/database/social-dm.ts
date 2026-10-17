@@ -1,3 +1,4 @@
+import type { ContentCapacity } from './content-capacity.ts';
 import type pg from 'pg';
 import { AccountError } from '../../shared/account/index.ts';
 import type { SocialRelation } from '../../shared/social-dm/index.ts';
@@ -21,11 +22,11 @@ interface RelationRow {
 export class SocialDmStore {
   private readonly contacts: ContactStore;
   private readonly profiles: PublicProfileStore;
-  private readonly capacity: number;
+  private readonly capacity: ContentCapacity;
   constructor(input: {
     contacts: ContactStore;
     profiles: PublicProfileStore;
-    capacity: number;
+    capacity: ContentCapacity;
   }) {
     this.contacts = input.contacts;
     this.profiles = input.profiles;

@@ -194,6 +194,13 @@ function verifyMatrixSources(
 }
 
 await test('configuração isola banco e objetos locais e recusa perfis públicos', () => {
+  assert.deepEqual(
+    readWebConfiguration({
+      HASH_TALK_DATABASE_URL: databaseUrl,
+      HASH_TALK_ACCOUNT_CAPACITY_BYTES: '900000000',
+    }).contentCapacity,
+    { mode: 'fixed', bytes: 900000000 },
+  );
   assert.equal(
     readWebConfiguration({ HASH_TALK_DATABASE_URL: databaseUrl }).port,
     45100,
@@ -232,6 +239,18 @@ await test('staging exige origem canônica HTTPS, cluster/role exclusivos e obje
   };
   const config = readWebConfiguration(environment);
   assert.equal(config.profile, 'staging');
+  assert.deepEqual(config.contentCapacity, {
+    mode: 'volume',
+    directory: '/opt/0xdmme/release',
+  });
+  for (const retired of ['900000000', '0', 'invalid'])
+    assert.deepEqual(
+      readWebConfiguration({
+        ...environment,
+        HASH_TALK_ACCOUNT_CAPACITY_BYTES: retired,
+      }).contentCapacity,
+      config.contentCapacity,
+    );
   assert.equal(config.origin, 'https://0xdmme.app');
   assert.equal(config.port, 45113);
   assert.equal(config.socketPath, '/run/0xdmme-web/web.sock');

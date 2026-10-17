@@ -1,3 +1,4 @@
+import type { ContentCapacity } from './content-capacity.ts';
 import { updateCommunityNsfw } from './community-classification.ts';
 import { randomUUID } from 'node:crypto';
 import { AccountError, keys, uuid } from '../../shared/account/index.ts';
@@ -20,7 +21,7 @@ import { assertContentCapacity } from './vault-quota.ts';
 async function role(
   context: CommunityContext,
   data: Record<string, unknown>,
-  capacity: number,
+  capacity: ContentCapacity,
 ): Promise<void> {
   keys(data, ['id', 'revision', 'target', 'moderator']);
   await requireCommunityManager(context, true);
@@ -138,7 +139,7 @@ export async function communityGovernance(
   context: CommunityContext,
   operation: string,
   data: Record<string, unknown>,
-  capacity: number,
+  capacity: ContentCapacity,
 ): Promise<boolean> {
   switch (operation) {
     case 'nsfw':

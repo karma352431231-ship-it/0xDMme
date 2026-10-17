@@ -1,3 +1,4 @@
+import type { ContentCapacity } from './content-capacity.ts';
 import type pg from 'pg';
 import { AccountError } from '../../shared/account/index.ts';
 import { directoryEvent } from '../../shared/devices/index.ts';
@@ -9,8 +10,8 @@ import { assertContentCapacity, assertVaultQuota } from './vault-quota.ts';
 /** Backup keys are opaque vault capsules; this module never receives their private half. */
 export class MessageRecoveryStore {
   private readonly contacts: ContactStore;
-  private readonly capacity: number;
-  constructor(contacts: ContactStore, capacity: number) {
+  private readonly capacity: ContentCapacity;
+  constructor(contacts: ContactStore, capacity: ContentCapacity) {
     this.contacts = contacts;
     this.capacity = capacity;
   }

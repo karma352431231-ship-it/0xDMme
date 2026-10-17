@@ -1,3 +1,4 @@
+import type { ContentCapacity } from './content-capacity.ts';
 import { keys } from '../../shared/account/index.ts';
 import {
   communityMeta,
@@ -20,7 +21,7 @@ export async function confirmCommunityPresentation(
     edit: (data: Record<string, unknown>) => Promise<void>;
     photos: CommunityPhotoStore;
     banners: CommunityPhotoStore;
-    capacity: number;
+    capacity: ContentCapacity;
   },
 ): Promise<void> {
   keys(data, ['id', 'revision', 'meta', 'photo', 'banner']);

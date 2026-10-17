@@ -1,3 +1,4 @@
+import type { ContentCapacity } from './content-capacity.ts';
 import { visiblePost } from './community-post-visibility.ts';
 import { createHash } from 'node:crypto';
 import type pg from 'pg';
@@ -10,8 +11,12 @@ import type { PostViews } from '../../shared/community-views/index.ts';
 export class CommunityViewsStore {
   private readonly pool: pg.Pool;
   private readonly contacts: ContactStore;
-  private readonly capacity: number;
-  constructor(pool: pg.Pool, contacts: ContactStore, capacity: number) {
+  private readonly capacity: ContentCapacity;
+  constructor(
+    pool: pg.Pool,
+    contacts: ContactStore,
+    capacity: ContentCapacity,
+  ) {
     this.pool = pool;
     this.contacts = contacts;
     this.capacity = capacity;

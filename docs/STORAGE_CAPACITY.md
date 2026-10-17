@@ -1,5 +1,86 @@
 # Physical storage admission preparation
 
+## Physical volume admission — source block 15
+
+Staging web and all three worker roles now use an adaptive capacity contract.
+The retired `HASH_TALK_ACCOUNT_CAPACITY_BYTES` value no longer controls staging
+admission. Local development/browser fixtures retain explicit numeric budgets.
+No account quota, charge formula, retention policy or authorization changes.
+New account creation also checks physical availability before issuing its session;
+existing-account login keeps its existing bounded session lifecycle.
+
+The runtime factory validates `/opt/0xdmme/release`, the existing own-volume
+read-only bind visible inside every service's private mount namespace. Require
+its canonical directory to be on a different device from its private parent,
+pin that device and check it before/after every filesystem sample. Existing
+service dependencies require the dedicated data mount. A missing/replaced path,
+ordinary directory, changed device, invalid sample or measurement failure fails
+closed; never fall back to host/system free space. This needs a service-namespace
+rehearsal before activation; local positive mount tests use synthetic filesystems.
+
+Each admission requires a READ COMMITTED write transaction, keeps the existing
+global ledger row lock, reads committed plus
+its own pending-write partitions, and obtains fresh unprivileged filesystem
+availability. Accepted reservations are checked before their acknowledgement and
+filesystem upload. The guard makes independent web/worker claims atomic; it is
+not removed by this packet. SQL source writes still precede the final assertion
+in the existing transaction and can consume temporary physical space before
+rolling back. The operating budget includes concurrent SQL room for that reason.
+
+New growth requires available bytes to cover the full conservative pending-write
+envelope plus this operating reserve, calculated from current PostgreSQL state:
+
+- Two existing 128 MiB release workspaces, matching the deployment executor.
+- Three current database sizes, including existing heap/index/TOAST allocation,
+  matching its database/dump/file-backed SQL allowance and maintenance room.
+- Two configured WAL checkpoint targets as growth cushion. PostgreSQL documents
+  that [max_wal_size is a soft limit](https://www.postgresql.org/docs/16/runtime-config-wal.html#GUC-MAX-WAL-SIZE),
+  so this is neither a WAL quota nor a guarantee against all WAL spikes.
+- Autovacuum workers times the larger maintenance/autovacuum work-memory setting.
+- 64 MiB per configured PostgreSQL connection for SQL already in progress,
+  covering the current largest bounded cache publication and smaller API writes.
+  A future larger write batch must review this bound. It is operating space,
+  not a connection/user/admission-count limit.
+
+Current filesystem availability already accounts for resident objects, physical
+SQL, existing backups, temporary files and occupied WAL. Pending envelopes can
+double-count partially materialized files until acceptance; this intentionally
+preserves a conservative promise. These formulas require representative peak,
+WAL, spill and query-overhead acceptance, rather than a claimed supported load.
+No fixed global GB total or unexplained disk percentage replaces the retired cap.
+
+Full object-copy backups remain separately measured and checked by the existing
+deployment executor, which requires two object-copy sizes in addition to its
+SQL/release allowance before a schema transition. Normal chat admission does
+not reserve two copies of all future objects indefinitely or promise that a
+future full-copy transition will fit. At high physical occupancy such a
+transition can require additional own-volume space or a separately reviewed
+backup strategy. No backup deletion/retention or executor change is included.
+
+Migration 075 captures the first logical and pending-byte totals in
+transaction-local settings, only for volume-mode connections. Baselines expire
+on commit/rollback and preserve the source/global/derived data. They distinguish
+new write promises from completion or cleanup that releases them. Scoped
+personal cleanup, group deletion and retention jobs may use operating space for
+their metadata, but cannot increase pending payload promises through that path.
+The same normal source operation can still fail if actual hardware space cannot
+preserve its SQL. Numeric local budgets keep their prior assertions.
+
+The volume sampler owns at most one unfinished read per process. A one-second
+measurement deadline fails admission; a late/unsettled read retains ownership
+and blocks another sampler read rather than accumulating filesystem work.
+Failures use the existing bilingual capacity reason without leaking paths.
+Ranking preflight is advisory and includes future SQL growth; publication still
+asserts capacity in its write transaction. No new dependency or shared service
+change is needed.
+
+**Ponto importante:** the old global GB ceiling is replaced in prepared staging
+source, not on the VPS. Global ledger serialization and the separate allocator/
+lock redesign remain pending. Migrations 070–075 and final activation require
+schema/preservation/backfill/rollback review. Reverse migration 075 by removing
+only its two baseline triggers/function and matching catalog entry with our
+writers stopped, after later dependent migrations, before compatible rollback.
+
 ## Reservation accounting — source block 14
 
 The global logical content budget currently counts every charged record and
@@ -80,7 +161,8 @@ work. No supported volume/user count follows from these source tests.
   constant, `Infinity`, disabling maintenance or an approximate unprotected
   aggregate is not a completion of this contract.
 
-The replacement physical policy/global allocator remains unselected. Existing
+Block 15 above selects physical admission while retaining the existing guard;
+the replacement global allocator remains unselected. Existing
 callers pass numeric logical capacities to `assertContentCapacity` after their
 SQL changes, while triggers maintain the singleton during those changes.
 Therefore an atomic replacement must establish transaction capacity before the

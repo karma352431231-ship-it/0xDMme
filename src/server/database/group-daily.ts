@@ -1,3 +1,4 @@
+import type { ContentCapacity } from './content-capacity.ts';
 import type pg from 'pg';
 import { AccountError } from '../../shared/account/index.ts';
 import type { ContactAuthority, ContactStore } from './contacts.ts';
@@ -8,12 +9,12 @@ export class GroupDailyStore {
   private readonly pool: pg.Pool;
   private readonly groups: GroupStore;
   private readonly contacts: ContactStore;
-  private readonly capacity: number;
+  private readonly capacity: ContentCapacity;
   constructor(
     pool: pg.Pool,
     groups: GroupStore,
     contacts: ContactStore,
-    capacity: number,
+    capacity: ContentCapacity,
   ) {
     this.pool = pool;
     this.groups = groups;

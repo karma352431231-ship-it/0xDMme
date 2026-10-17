@@ -1,3 +1,4 @@
+import type { ContentCapacity } from './content-capacity.ts';
 import type pg from 'pg';
 import { reconcileUpvoteNotice } from './community-upvotes.ts';
 import { queueReplyNotice } from './public-notice-wake.ts';
@@ -65,7 +66,7 @@ export async function requireReplyTarget(
 export async function setPostVote(
   context: CommunityContext,
   data: Record<string, unknown>,
-  capacity: number,
+  capacity: ContentCapacity,
 ): Promise<void> {
   keys(data, ['id', 'post', 'position', 'voteRevision']);
   await requireCommunityParticipation(context);

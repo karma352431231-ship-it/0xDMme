@@ -1,3 +1,4 @@
+import type { ContentCapacity } from './content-capacity.ts';
 import type pg from 'pg';
 import { AccountError } from '../../shared/account/index.ts';
 import { canonical, eventHash } from '../../shared/devices/index.ts';
@@ -15,7 +16,10 @@ import type { GroupConsent, GroupEvent } from '../../shared/groups/index.ts';
 import type { ContactAuthority, ContactStore } from './contacts.ts';
 import type { DeviceStore } from './devices.ts';
 import type { MessageRecoveryStore } from './message-recovery.ts';
-import { assertContentCapacity } from './vault-quota.ts';
+import {
+  assertContentCapacity,
+  assertContentReclamationCapacity,
+} from './vault-quota.ts';
 import { assertGroupTextQuota } from './group-quota.ts';
 
 import type { GroupLink } from '../../shared/groups/links.ts';
@@ -35,12 +39,12 @@ export class GroupStore {
   readonly admission: GroupAdmission;
   private readonly contacts: ContactStore;
   private readonly devices: DeviceStore;
-  private readonly capacity: number;
+  private readonly capacity: ContentCapacity;
   private readonly recovery: MessageRecoveryStore;
   constructor(
     contacts: ContactStore,
     devices: DeviceStore,
-    capacity: number,
+    capacity: ContentCapacity,
     recovery: MessageRecoveryStore,
   ) {
     this.contacts = contacts;
@@ -180,7 +184,9 @@ export class GroupStore {
       if (event.kind === 'create') await this.recordCreation(client, event);
       await this.saveEvent(client, event, hash);
       await assertGroupTextQuota(client, event.groupId);
-      await assertContentCapacity(client, this.capacity);
+      if (event.kind === 'delete')
+        await assertContentReclamationCapacity(client, this.capacity);
+      else await assertContentCapacity(client, this.capacity);
       this.contacts.changed(client, changedMembers(previous, event), true);
       return { head: hash, status: 'saved' };
     });

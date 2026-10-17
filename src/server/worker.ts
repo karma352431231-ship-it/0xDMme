@@ -1,3 +1,4 @@
+import { createRuntimeContentCapacity } from './storage-capacity/index.ts';
 import { automaticPublicModeration } from '../shared/public-moderation/index.ts';
 import { Database } from './database/index.ts';
 import { readWebConfiguration } from './web-configuration/index.ts';
@@ -28,7 +29,7 @@ try {
   const moderation = await readPoseModerationConfiguration(process.env);
   database = new Database(
     config.databaseUrl,
-    config.accountCapacityBytes,
+    await createRuntimeContentCapacity(config.contentCapacity),
     moderation?.acceptedModels ?? [],
     'worker',
   );

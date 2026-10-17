@@ -1,3 +1,4 @@
+import type { ContentCapacity } from './content-capacity.ts';
 import { recordMessageChanges } from './message-changes.ts';
 import type pg from 'pg';
 import { AccountError } from '../../shared/account/index.ts';
@@ -5,7 +6,7 @@ import { cleanupSelection } from '../../shared/backups/index.ts';
 import type { BackupTarget } from '../../shared/backups/index.ts';
 import type { MessageProof } from '../../shared/messages/index.ts';
 import type { ContactAuthority, ContactStore } from './contacts.ts';
-import { vaultUsage, assertContentCapacity } from './vault-quota.ts';
+import { vaultUsage, assertContentReclamationCapacity } from './vault-quota.ts';
 interface SocialCleanup {
   clean: (
     c: pg.PoolClient,
@@ -19,12 +20,12 @@ interface SocialCleanup {
 export class BackupStore {
   private readonly pool: pg.Pool;
   private readonly contacts: ContactStore;
-  private readonly capacity: number;
+  private readonly capacity: ContentCapacity;
   private readonly social: SocialCleanup;
   constructor(
     pool: pg.Pool,
     contacts: ContactStore,
-    capacity: number,
+    capacity: ContentCapacity,
     social: SocialCleanup,
   ) {
     this.pool = pool;
@@ -76,7 +77,7 @@ export class BackupStore {
       for (const item of selection.items)
         changed = (await this.removeOne(c, a, item, proof)) || changed;
       if (changed) await recordMessageChanges(c, [a.session.accountId], null);
-      await assertContentCapacity(c, this.capacity);
+      await assertContentReclamationCapacity(c, this.capacity);
       const used = await vaultUsage(c, a.session.accountId);
       const receipts = await c.query<{
         kind: string;

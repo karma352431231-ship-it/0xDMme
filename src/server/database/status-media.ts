@@ -1,3 +1,4 @@
+import type { ContentCapacity } from './content-capacity.ts';
 import type pg from 'pg';
 import { randomUUID } from 'node:crypto';
 import { AccountError } from '../../shared/account/index.ts';
@@ -20,8 +21,8 @@ interface MediaRow {
 export class StatusMediaStore {
   private readonly pool: pg.Pool;
   private readonly posts: StatusStore;
-  private readonly capacity: number;
-  constructor(pool: pg.Pool, posts: StatusStore, capacity: number) {
+  private readonly capacity: ContentCapacity;
+  constructor(pool: pg.Pool, posts: StatusStore, capacity: ContentCapacity) {
     this.pool = pool;
     this.posts = posts;
     this.capacity = capacity;

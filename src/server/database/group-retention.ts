@@ -1,3 +1,4 @@
+import type { ContentCapacity } from './content-capacity.ts';
 import type pg from 'pg';
 import { randomUUID } from 'node:crypto';
 import { AccountError } from '../../shared/account/index.ts';
@@ -17,7 +18,7 @@ import {
   assertGroupTextQuota,
   groupAcceptedMediaUsage,
 } from './group-quota.ts';
-import { assertContentCapacity } from './vault-quota.ts';
+import { assertContentReclamationCapacity } from './vault-quota.ts';
 import { admitGroupNotification } from './daily.ts';
 const clearableGroup = `(EXISTS(SELECT 1 FROM hash_talk.group_packets p WHERE p.group_id=g.id AND p.body IS NOT NULL) OR EXISTS(SELECT 1 FROM hash_talk.group_media m WHERE m.group_id=g.id AND m.status NOT IN ('writing','deleting')) OR EXISTS(SELECT 1 FROM hash_talk.group_key_sets k WHERE k.group_id=g.id) OR EXISTS(SELECT 1 FROM hash_talk.group_matrix_envelopes e WHERE e.group_id=g.id AND e.body IS NOT NULL) OR NOT EXISTS(SELECT 1 FROM hash_talk.group_media m WHERE m.group_id=g.id))`;
 const dueGroups = `((g.clearing AND ${clearableGroup}) OR
@@ -34,14 +35,14 @@ export class GroupRetentionStore {
   private readonly pool: pg.Pool;
   private readonly contacts: ContactStore;
   private readonly groups: GroupStore;
-  private readonly capacity: number;
+  private readonly capacity: ContentCapacity;
   private after: string | null = null;
   private retiredAfter: string | null = null;
   constructor(
     pool: pg.Pool,
     contacts: ContactStore,
     groups: GroupStore,
-    capacity: number,
+    capacity: ContentCapacity,
   ) {
     this.pool = pool;
     this.contacts = contacts;
@@ -191,7 +192,7 @@ export class GroupRetentionStore {
       [groupId, randomUUID(), bytes - groupMediaTarget],
     );
     await assertGroupTextQuota(client, groupId);
-    await assertContentCapacity(client, this.capacity);
+    await assertContentReclamationCapacity(client, this.capacity);
     return result.rows[0] ?? null;
   }
   private async selectBatch(

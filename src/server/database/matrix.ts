@@ -1,3 +1,4 @@
+import type { ContentCapacity } from './content-capacity.ts';
 import type pg from 'pg';
 import { AccountError } from '../../shared/account/index.ts';
 import {
@@ -26,9 +27,13 @@ export interface MatrixUpload {
 /** Matrix-shaped transport only; account consent replaces a homeserver's room ACLs. */
 export class MatrixStore {
   private readonly contacts: ContactStore;
-  private readonly capacity: number;
+  private readonly capacity: ContentCapacity;
   private readonly groups: GroupStore;
-  constructor(contacts: ContactStore, capacity: number, groups: GroupStore) {
+  constructor(
+    contacts: ContactStore,
+    capacity: ContentCapacity,
+    groups: GroupStore,
+  ) {
     this.contacts = contacts;
     this.capacity = capacity;
     this.groups = groups;

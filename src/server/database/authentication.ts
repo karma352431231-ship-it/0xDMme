@@ -1,3 +1,4 @@
+import type { ContentCapacity } from './content-capacity.ts';
 import type { Ecosystem } from '../../shared/wallet-identity/index.ts';
 import type pg from 'pg';
 import { randomUUID } from 'node:crypto';
@@ -62,11 +63,11 @@ async function transaction<T>(
 /** Owns authentication tables; signatures/RPC/HTTP never run in these transactions. */
 export class AuthenticationStore {
   private readonly pool: pg.Pool;
-  private readonly contentCapacity: number;
+  private readonly contentCapacity: ContentCapacity;
   private readonly changes: import('./changes.ts').DatabaseChanges | undefined;
   constructor(
     pool: pg.Pool,
-    contentCapacity: number,
+    contentCapacity: ContentCapacity,
     changes?: import('./changes.ts').DatabaseChanges,
   ) {
     this.pool = pool;
@@ -141,6 +142,8 @@ export class AuthenticationStore {
     );
     const id = created.rows[0]?.id;
     if (!id) throw new Error('Conta não persistida.');
+    if (typeof this.contentCapacity !== 'number')
+      await assertContentCapacity(client, this.contentCapacity);
     return id;
   }
 

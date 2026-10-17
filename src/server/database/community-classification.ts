@@ -1,3 +1,4 @@
+import type { ContentCapacity } from './content-capacity.ts';
 import type pg from 'pg';
 import { AccountError, keys } from '../../shared/account/index.ts';
 import {
@@ -78,7 +79,7 @@ export function communityTopicPredicate(): string {
 export async function updateCommunityNsfw(
   context: CommunityContext,
   data: Record<string, unknown>,
-  capacity: number,
+  capacity: ContentCapacity,
 ) {
   keys(data, ['id', 'revision', 'nsfw']);
   await requireCommunityManager(context, true);

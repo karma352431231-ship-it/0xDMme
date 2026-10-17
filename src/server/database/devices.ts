@@ -1,3 +1,4 @@
+import type { ContentCapacity } from './content-capacity.ts';
 import type pg from 'pg';
 import { assertVaultQuota, assertContentCapacity } from './vault-quota.ts';
 import { AccountError, base64 } from '../../shared/account/index.ts';
@@ -25,11 +26,11 @@ export interface DeviceLink {
 }
 export class DeviceStore {
   private readonly pool: pg.Pool;
-  private readonly contentCapacity: number;
+  private readonly contentCapacity: ContentCapacity;
   private readonly changes: import('./changes.ts').DatabaseChanges | undefined;
   constructor(
     pool: pg.Pool,
-    contentCapacity: number,
+    contentCapacity: ContentCapacity,
     changes?: import('./changes.ts').DatabaseChanges,
   ) {
     this.pool = pool;
