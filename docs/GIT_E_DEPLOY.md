@@ -1,5 +1,11 @@
 # 0xDMme — Git e envio à VPS
 
+## CI only on main, branches on demand — owner decision on 17/10/2026
+
+The `Verificações` workflow ran on every push to any branch and on pull requests, so a commit pushed to its task branch and then to `main` was checked twice. Of the last 300 runs, 194 came from task branches and 77 repeated a commit already checked. The owner chose to run it automatically only on pushes to `main` and on pull requests, and on task branches only on demand (`workflow_dispatch`: GitHub → Actions → Verificações → Run workflow, choosing the branch). A newer run on the same branch or pull request cancels an unfinished one; runs on `main` are never cancelled.
+
+The deploy gate is unchanged: `npm run deploy:staging` still requires the latest `push` run on `main` for the exact commit to have passed. Before integrating, run `npm run check` locally; start the on-demand run when a branch needs the integration tests (PostgreSQL and ffmpeg) before it reaches `main`. While the repository is public, the minutes are free; the change mainly removes waiting and duplicate noise.
+
 ## Release file growth — owner-authorized fix on 17/10/2026
 
 The owner requested correcting the release file-count restriction and integrating
