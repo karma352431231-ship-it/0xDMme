@@ -1336,6 +1336,34 @@ class FollowedAlertsCodeTests(CommunityFeedCodeTests):
                     path.write_bytes(original)
 
 
+class ScopedSnapshotCodeTests(CommunityFeedCodeTests):
+    def setUp(self):
+        super().setUp()
+        for relative in ['communities.ts', 'community-discovery.ts']:
+            (self.candidate / 'src/server/database' / relative).write_bytes(
+                (self.live / 'src/server/database' / relative).read_bytes())
+        self.changed_modules = ['groups.ts', 'social-dm.ts', 'social-history.ts']
+        for relative in self.changed_modules:
+            (self.live / 'src/server/database' / relative).write_text('existing exclusive read')
+            (self.candidate / 'src/server/database' / relative).write_text('reviewed shared read')
+        self.exports = {
+            remote.SCOPED_SNAPSHOT_BEFORE: self.export(self.live),
+            remote.SCOPED_SNAPSHOT_REVIEWED: self.export(self.candidate),
+        }
+
+    def test_each_snapshot_module_requires_exact_reviewed_bytes(self):
+        for relative in self.changed_modules:
+            with self.subTest(path=relative):
+                path = self.candidate / 'src/server/database' / relative
+                original = path.read_bytes(); path.write_text('unreviewed read or write')
+                try:
+                    with (patch.object(backups, 'git_export', side_effect=lambda sha: self.exports[sha]),
+                          self.assertRaises(RuntimeError)):
+                        remote.compatibility(self.candidate, self.live)
+                finally:
+                    path.write_bytes(original)
+
+
 class OwnerReviewMediaCodeTests(CommunityFeedCodeTests):
     def setUp(self):
         super().setUp()

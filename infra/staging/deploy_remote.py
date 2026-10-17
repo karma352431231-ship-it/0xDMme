@@ -193,6 +193,10 @@ PUBLIC_DM_OPENING_REVIEWED = '3bfc25dd20fb202d1a4ea834e18bd66b316bc3b0'
 # preview read, its store and the store wiring change; all 71 SQL files stay exact.
 FOLLOWED_ALERTS_BEFORE = '762bd805aa6af374d98688eca5e7c1a571eb8b66'
 FOLLOWED_ALERTS_REVIEWED = '49f1c1984de1364b251d6b8225ae8b74de242010'
+# Owner approved the measured snapshot read repair for deployment on 17/10/2026.
+# Pin both complete database trees; all 91 migrations and write paths stay exact.
+SCOPED_SNAPSHOT_BEFORE = '2d4fabaa37d0d1fc7b40059595a500c0f8651d01'
+SCOPED_SNAPSHOT_REVIEWED = '90126582d128ed5e0a0e1a1138950c06b9a53488'
 # Exact two-reader repair approved after explanation on 14/10/2026.
 # Pin both full database trees; all 66 migrations/executor stay exact.
 # Owner-requested mandatory topics: only new admission changes, without SQL or backfill.
@@ -425,6 +429,8 @@ def database_code_reviewed(candidate, live):
          PUBLIC_DM_OPENING_BEFORE, PUBLIC_DM_OPENING_REVIEWED),
         ({'daily.ts', 'index.ts', 'public-notification-preview.ts'},
          FOLLOWED_ALERTS_BEFORE, FOLLOWED_ALERTS_REVIEWED),
+        ({'groups.ts', 'social-dm.ts', 'social-history.ts'},
+         SCOPED_SNAPSHOT_BEFORE, SCOPED_SNAPSHOT_REVIEWED),
     ]
     selected = next((review for review in reviews if changed == review[0]), None)
     if selected is None:
