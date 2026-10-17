@@ -1,5 +1,28 @@
 # 0xDMme — Git e envio à VPS
 
+## Reviewed snapshot read deployment — 17 October 2026
+
+The owner requested integration, main verification and VPS deployment of the
+measured P-DB-C read correction. The existing executor pins the complete database
+source transition from `2d4fabaa37d0d1fc7b40059595a500c0f8651d01` to
+`90126582d128ed5e0a0e1a1138950c06b9a53488`, permitting changes only to
+`groups.ts`, `social-dm.ts` and `social-history.ts`. Keep all 91 migrations,
+write paths, dependencies, Node, own units, proxy and TURN unchanged. This is a
+code-only release; no schema transition, reset or operational flag is required.
+
+Run the full local verification, integrate into main deliberately, push and
+require passing exact-commit main CI. Use only `npm run deploy:check` followed by
+`npm run deploy:staging` from the clean integrated checkout. The existing code
+exchange restarts our web and three workers, verifies public sources/build,
+readiness, worker leases and the preservation baseline, and retains the previous
+code for rollback. Do not restore an older SQL dump over accepted data.
+
+**Ponto importante:** successful activation does not close P-DB-C or the capacity
+audit. Repeat bounded read checks and accounting reconciliation, distinguishing
+SQL contention from the independently observed failures before TCP connection.
+Do not change shared networking or declare representative load acceptance from
+short diagnostic windows. Keep operational evidence exclusively in `.local/`.
+
 ## Reviewed group-part correction deployment — 17 October 2026
 
 After the four acceptance corrections were prepared and tested, the owner

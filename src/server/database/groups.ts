@@ -70,8 +70,12 @@ export class GroupStore {
     return result.rows[0] ?? null;
   }
   async current(authority: ContactAuthority, id: string): Promise<GroupEvent> {
-    return this.contacts.withMessageAuthority(authority, async (client) => {
-      const row = await this.row(client, id);
+    return this.contacts.withMessageRead(authority, async (client) => {
+      const result = await client.query<GroupRow>(
+        'SELECT id,head,event FROM hash_talk.groups WHERE id=$1',
+        [id],
+      );
+      const row = result.rows[0];
       if (!row) unavailable();
       const state = groupEvent(row.event);
       if (
