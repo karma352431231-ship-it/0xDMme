@@ -291,8 +291,10 @@ async function verifyHybridAdmission(
             id,
           });
           await assertContentCapacity(c.reader, c.capacity);
-          c.room.bytes -=
-            (await c.capacity.allocationHeadroom(c.reader)) - 10000n;
+          // The committed database can shrink during background maintenance.
+          // Zero measured room keeps pressure deterministic across that commit;
+          // the contender must still wait for the legacy guard before refusing.
+          c.room.bytes = 0n;
           await assert.rejects(
             c.allocator.reserve(c.writer, 50000, 'vault-reserve'),
             { code: '55P03' },
