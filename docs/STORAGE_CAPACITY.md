@@ -161,8 +161,9 @@ work. No supported volume/user count follows from these source tests.
   constant, `Infinity`, disabling maintenance or an approximate unprotected
   aggregate is not a completion of this contract.
 
-Block 15 above selects physical admission while retaining the existing guard;
-the replacement global allocator remains unselected. Callers assert their
+Block 15 above selects physical admission while retaining the existing guard.
+Block 17 below selects/prepares the short-coordinator credit primitive; runtime
+adoption and the replacement source/owner coordination remain pending. Callers assert their
 numeric fixture budget or adaptive physical policy after SQL changes, while
 triggers maintain the singleton during those changes.
 Therefore an atomic replacement must establish transaction capacity before the
@@ -224,6 +225,81 @@ function/trigger from 047, and remove catalog entry 076. Do not rerun old schema
 migrations wholesale or reset/backfill counters. Preserve all source rows, ledger
 values, owner/pending counters and transaction-baseline triggers. Reconcile before
 resuming code compatible with the restored catalog.
+
+## Transaction-owned allocations — block 17
+
+Migration 077 adds an empty allocation ledger and its own coordination row.
+It does not change source triggers, old global accounting, individual quotas,
+retention or runtime admission. The prepared `ContentAllocator` is exported for
+coordinated adoption; no current store calls it and no extra runtime connection
+pool is created. This block cannot by itself eliminate singleton contention.
+
+The selected primitive works as follows:
+
+1. The owner begins a writable READ COMMITTED transaction in volume mode. Its
+   top-level `xid8` identifies this concrete operation. Autocommit, incompatible
+   isolation/mode, another installation or a completed owner cannot obtain a
+   credit. No account/group maximum or hypothetical future data is reserved.
+2. A separate coordinator transaction acquires the allocation guard, collects at
+   most 128 completed owners, then measures fresh headroom. The physical adapter
+   subtracts current pending envelopes and its existing operating reserve from
+   current own-volume availability. It does not read an unprotected shard sum.
+3. Under that same guard, subtract all durable outstanding credits and grant the
+   declared positive byte envelope only if enough room remains. Commit before
+   returning the immutable grant. The owner must await it before charged writes.
+   Same-owner/same-size retries are idempotent; resizing is refused. The amount
+   must cover the actual payload and SQL envelope, not a full personal quota.
+4. Release the coordinator guard at its commit, retaining the credit while the
+   owner works. A live owner cannot refund it, including after savepoint rollback.
+   Existing transaction deadlines still bound the future caller's lifecycle.
+5. After owner COMMIT/ROLLBACK, the finalizer removes the credit idempotently.
+   Coordinator replacement or lost finalization leaves a durable credit for
+   bounded opportunistic recovery. No wall-clock expiry can free a live promise.
+
+Recovery uses `pg_visible_in_snapshot(xid8,pg_current_snapshot())` in the
+coordinator's READ COMMITTED transaction. The top-level owner must be completed
+in that snapshot before its credit is deleted. Its committed pending promises
+are therefore visible to the subsequent fresh headroom query, or its still-live
+credit remains conservatively charged. Using an early commit-status bit alone
+would not establish that ordering. PostgreSQL documents the
+[snapshot and transaction visibility contracts](https://www.postgresql.org/docs/16/functions-info.html#FUNCTIONS-PG-SNAPSHOT).
+Remaining completed credits beyond the 128-row batch also stay charged safely;
+the batch size bounds deletion work and is not a user/concurrency ceiling.
+
+The caller owns a separate pool with explicit positive capacity and connection,
+query, statement, lock and idle-transaction deadlines. Do not borrow the owner's
+occupied connection or grow the established combined connection budget. The
+production physical reader already owns its one-second bounded sample lifecycle;
+other injected headroom providers must also be bounded and must not acquire
+owner/global write locks. Failed coordinator work rolls back and discards its
+connection when its outcome is ambiguous; a normal refusal with confirmed rollback
+can reuse the healthy connection. If COMMIT acknowledgement is lost, any persisted grant stays charged
+until recovery proves owner completion; do not assume failure released space.
+Rollback failure preserves both errors rather than claiming successful cleanup.
+Raw internal errors are not a new public API response.
+
+Verification covers populated predecessor hashes/catalog/quotas, competing
+coordinators, coexisting granted owners, retry/resize refusal, fresh committed
+pending promises, rollback/savepoints, coordinator replacement, owner disconnect,
+bounded recovery, measurement/lock/COMMIT failures and ordinary application-role
+permissions. A local protocol proxy drops the acknowledgement only after the real
+server emits successful COMMIT; the persisted credit remains charged until owner
+completion. A refused deferred COMMIT is tested separately.
+No supported throughput or user count follows from these source checks.
+
+**Ponto importante:** connecting the allocator requires enforceable per-operation
+SQL/payload envelopes before the first charged write; transaction-owned partition
+accounting; updated physical baselines; and scoped owner, attachment cross-table
+and pending-reservation guards with an explicit lock order. No unchecked use of
+this primitive authorizes removing the old global guard. Full runtime integration,
+backfill/reconciliation, pool sizing, crash/restart and representative load remain
+open. Source push does not activate migration 077 or any VPS configuration.
+
+For reviewed rollback, drain own writers and reverse later dependent protocols
+first. Prove every allocation owner finished and the ledger is empty, then remove
+only these two tables and catalog entry 077 in one transaction. Keep all source
+data, existing counters, old schema checksums and payload files unchanged. Restore
+code compatible with the retained catalog; do not expire live credits to roll back.
 
 ## Activation and rollback review
 

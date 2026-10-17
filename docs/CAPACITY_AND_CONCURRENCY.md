@@ -453,6 +453,29 @@ or relation batches. Transition-table memory/spills, resource/load acceptance
 and schema activation remain pending. See
 [statement accounting](STORAGE_CAPACITY.md#global-statement-accounting--block-16).
 
+## Seventeenth block: transaction-owned capacity credits
+
+The prepared allocator commits one concrete operation's byte envelope in a
+separate short transaction. Its coordinator releases the guard before the owner
+writes its source data, allowing granted independent transactions to coexist.
+Competing coordinators subtract the same durable outstanding credits from fresh
+headroom. Same-owner retries preserve the exact grant; live credits cannot be
+resized or refunded. Completion and bounded recovery use PostgreSQL snapshot
+visibility, preserving credits across savepoint rollback or coordinator restart.
+
+The physical policy exposes fresh headroom using its existing pending-write and
+operating reserves. Measurement errors refuse new grants, and recovery itself
+does not need filesystem space. Callers must supply a separate bounded pool with
+connection/query/lock/idle deadlines and own its shutdown/error lifecycle; this
+block does not instantiate a runtime pool or increase connection budgets.
+
+**Ponto importante:** this is a prerequisite, not removal of the application's
+global guard. The component is not yet used by existing writers. Before adoption,
+declare/enforce their envelopes before charged SQL, replace global source
+accounting and scope owner/attachment/reservation guards together. Migration 077
+is unactivated and source-only validation is not a throughput claim. See
+[allocation protocol](STORAGE_CAPACITY.md#transaction-owned-allocations--block-17).
+
 ## Remaining audit work
 
 - Validate prepared physical admission, operating margins and the service mount

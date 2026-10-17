@@ -6,6 +6,11 @@ export type {
 } from './content-capacity.ts';
 export { contentCapacityUnavailable } from './content-capacity.ts';
 export { readStorageReservations } from './storage-reservations.ts';
+export { ContentAllocator } from './content-allocations.ts';
+export type {
+  ContentAllocation,
+  AllocationHeadroom,
+} from './content-allocations.ts';
 import { MentionNotificationStore } from './mention-notifications.ts';
 import { readMentionContexts } from './mention-contexts.ts';
 import { GroupDailyStore } from './group-daily.ts';
@@ -189,6 +194,7 @@ const migrations = [
   '074-storage-reservation-accounting.sql',
   '075-storage-admission-baselines.sql',
   '076-global-statement-accounting.sql',
+  '077-content-allocations.sql',
 ];
 
 export interface MaintenanceSnapshot {

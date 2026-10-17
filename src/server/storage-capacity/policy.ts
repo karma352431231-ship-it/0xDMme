@@ -122,6 +122,17 @@ export class VolumeContentCapacity implements AdaptiveContentCapacity {
   constructor(volume: VolumeReader) {
     this.volume = volume;
   }
+  /** Raw current room for the prepared allocator, before its durable credits. */
+  async allocationHeadroom(client: CapacityClient): Promise<bigint> {
+    try {
+      const state = await admissionState(client, true);
+      return (
+        (await this.volume.read()) - state.pendingBytes - state.operationalBytes
+      );
+    } catch {
+      throw contentCapacityUnavailable();
+    }
+  }
   async assert(
     client: CapacityClient,
     input: { logicalBytes: number; intent: 'growth' | 'reclaim' },

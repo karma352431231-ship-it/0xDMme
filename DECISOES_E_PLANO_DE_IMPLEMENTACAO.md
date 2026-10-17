@@ -1,5 +1,17 @@
 # Capacity audit follow-up — 16 October 2026
 
+The seventeenth source block prepares durable, transaction-owned credits as the
+first part of the global allocator protocol. A separate bounded coordinator
+transaction holds its guard only while collecting completed owners, measuring
+fresh physical headroom and committing an exact operation envelope. Keep credits
+until a fresh PostgreSQL snapshot proves the top-level owner completed; never
+expire a live grant by clock. Preserve promises across coordinator replacement,
+rollback and disconnected writers. Migration 077 adds empty accounting tables
+only. This component is not connected to application writers: all old runtime
+guards remain until pre-write envelopes, source accounting and owner/cross-table
+coordination adopt the protocol together. No new runtime pool or VPS activation
+is included. See [transaction-owned allocations](docs/STORAGE_CAPACITY.md#transaction-owned-allocations--block-17).
+
 The sixteenth source block consolidates global charged-byte changes from 80
 source tables into exact statement transition deltas. Preserve their original
 events, profile overhead, global-before-owner/cache ordering, physical admission
