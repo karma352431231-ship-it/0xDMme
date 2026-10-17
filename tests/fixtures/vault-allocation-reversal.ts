@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import type pg from 'pg';
 import { globalBytes, globalSourceSnapshot } from './global-usage-database.ts';
+import { reverseVaultLifecycle } from './vault-lifecycle-reversal.ts';
 
 export async function allocationPredecessorDefinitions(client: pg.Client) {
   const functions = (
@@ -25,6 +26,7 @@ export async function rehearseAllocationReversal(input: {
   client: pg.Client;
   sources: { name: string }[];
   predecessor: Awaited<ReturnType<typeof allocationPredecessorDefinitions>>;
+  lifecycle: Parameters<typeof reverseVaultLifecycle>[1];
 }) {
   const { client, sources, predecessor } = input,
     before = await globalSourceSnapshot(client, sources),
@@ -38,6 +40,7 @@ export async function rehearseAllocationReversal(input: {
         names.map((n) => 'hash_talk.' + n).join(',') +
         ' IN ACCESS EXCLUSIVE MODE',
     );
+    await reverseVaultLifecycle(client, input.lifecycle);
     assert.equal(
       (
         await client.query<{ n: number }>(

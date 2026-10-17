@@ -5,6 +5,7 @@ import type {
 import {
   contentCapacityUnavailable,
   readStorageReservations,
+  contentSqlTransactionBytes,
 } from '../database/index.ts';
 import type { VolumeReader } from './volume.ts';
 
@@ -54,14 +55,14 @@ async function admissionState(
     current_setting('transaction_isolation') AS isolation,
     current_setting('hash_talk.storage_logical_delta',true) AS logical_delta,
     current_setting('hash_talk.storage_pending_delta',true) AS pending_delta,
-    (SELECT coalesce(sum(bytes),0)::text FROM hash_talk.content_allocations) AS credits,
+    (SELECT coalesce(sum(bytes),0)::text FROM hash_talk.content_allocations WHERE scope<>'vault-maintain') AS credits,
     pg_database_size(current_database())::text AS database_bytes,
     pg_size_bytes(current_setting('max_wal_size'))::text AS wal_bytes,
     (greatest(pg_size_bytes(current_setting('maintenance_work_mem')),
       CASE WHEN current_setting('autovacuum_work_mem')='-1' THEN 0 ELSE pg_size_bytes(current_setting('autovacuum_work_mem')) END)
       *current_setting('autovacuum_max_workers')::bigint)::text AS maintenance_bytes,
-    (current_setting('max_connections')::bigint*67108864)::text AS inflight_sql_bytes,
-    EXISTS(SELECT 1 FROM hash_talk.schema_migrations WHERE version=78) AS schema_ready`);
+    (current_setting('max_connections')::bigint*${contentSqlTransactionBytes})::text AS inflight_sql_bytes,
+    EXISTS(SELECT 1 FROM hash_talk.schema_migrations WHERE version=79) AS schema_ready`);
   const row = result.rows[0];
   if (
     !row ||

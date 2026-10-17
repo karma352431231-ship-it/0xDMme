@@ -1,13 +1,16 @@
 import type pg from 'pg';
 import type { CapacityClient } from './content-capacity.ts';
-import { contentCapacityUnavailable } from './content-capacity.ts';
+import {
+  contentCapacityUnavailable,
+  contentSqlTransactionBytes,
+} from './content-capacity.ts';
 import { withAllocationTransaction } from './allocation-transaction.ts';
 
 export interface ContentAllocation {
   readonly transactionId: string;
   readonly installationId: string;
   readonly bytes: number;
-  readonly scope: 'prepared' | 'vault-reserve';
+  readonly scope: 'prepared' | 'vault-reserve' | 'vault-maintain';
 }
 export type AllocationHeadroom = (client: CapacityClient) => Promise<bigint>;
 interface AllocationOwner {
@@ -34,8 +37,15 @@ function assertCoordinatorBounds(pool: pg.Pool) {
     throw new Error('Content allocation pool bounds and deadlines required.');
 }
 
-function allocationBytes(bytes: number): bigint {
-  if (!Number.isSafeInteger(bytes) || bytes <= 0)
+function allocationBytes(
+  bytes: number,
+  scope: ContentAllocation['scope'],
+): bigint {
+  if (
+    !Number.isSafeInteger(bytes) ||
+    bytes <= 0 ||
+    (scope === 'vault-maintain' && bytes > contentSqlTransactionBytes)
+  )
     throw contentCapacityUnavailable();
   return BigInt(bytes);
 }
@@ -117,7 +127,7 @@ export class ContentAllocator {
     bytes: number,
     scope: ContentAllocation['scope'] = 'prepared',
   ): Promise<ContentAllocation> {
-    const needed = allocationBytes(bytes);
+    const needed = allocationBytes(bytes, scope);
     const owner = await allocationOwner(ownerClient);
     return withAllocationTransaction(this.pool, async (client) => {
       await lockAllocationGuard(client);
@@ -140,17 +150,7 @@ export class ContentAllocator {
           scope,
         });
       }
-      // Collection precedes this fresh pending-space read. A recently committed
-      // operation is either still represented by its credit or by visible data.
-      const available = await this.headroom(client);
-      const claimed = await client.query<{ bytes: string }>(
-        'SELECT coalesce(sum(bytes),0)::text AS bytes FROM hash_talk.content_allocations',
-      );
-      if (
-        typeof available !== 'bigint' ||
-        available < BigInt(claimed.rows[0]!.bytes) + needed
-      )
-        throw contentCapacityUnavailable();
+      await this.assertRoom(client, { scope, needed });
       await client.query(
         'INSERT INTO hash_talk.content_allocations(transaction_id,bytes,scope) VALUES($1::xid8,$2,$3)',
         [owner.transactionId, bytes, scope],
@@ -162,6 +162,26 @@ export class ContentAllocator {
         scope,
       });
     });
+  }
+
+  private async assertRoom(
+    client: CapacityClient,
+    input: { scope: ContentAllocation['scope']; needed: bigint },
+  ) {
+    // One maintenance owner connection and its bounded SQL envelope are already
+    // covered by the per-connection operating reserve. No new payload is allowed.
+    if (input.scope === 'vault-maintain') return;
+    // Collection precedes this fresh read: each finished promise is represented
+    // either by a retained growth credit or by visible pending source data.
+    const available = await this.headroom(client),
+      claimed = await client.query<{ bytes: string }>(
+        "SELECT coalesce(sum(bytes),0)::text AS bytes FROM hash_talk.content_allocations WHERE scope<>'vault-maintain'",
+      );
+    if (
+      typeof available !== 'bigint' ||
+      available < BigInt(claimed.rows[0]!.bytes) + input.needed
+    )
+      throw contentCapacityUnavailable();
   }
 
   /** Idempotent after COMMIT/ROLLBACK; a still-active owner retains its credit. */

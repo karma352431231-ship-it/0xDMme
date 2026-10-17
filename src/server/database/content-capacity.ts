@@ -2,6 +2,8 @@ import type pg from 'pg';
 import { AccountError } from '../../shared/account/index.ts';
 
 export type CapacityClient = Pick<pg.PoolClient, 'query'>;
+/** Existing per-connection physical SQL allowance; never additional payload room. */
+export const contentSqlTransactionBytes = 64 * 1024 * 1024;
 export interface AdaptiveContentCapacity {
   readonly mode: 'volume';
   allocationHeadroom(client: CapacityClient): Promise<bigint>;

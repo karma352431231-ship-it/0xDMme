@@ -102,6 +102,18 @@ export class VaultStore {
         'Cofre mudou em outro aparelho. Sincronize mantendo o rascunho.',
       );
   }
+  private async lockOperation(
+    client: pg.PoolClient,
+    accountId: string,
+    id: string,
+  ): Promise<Operation | undefined> {
+    return (
+      await client.query<Operation>(
+        'SELECT hash,object_hash,state,commit,writer FROM hash_talk.vault_operations WHERE account_id=$1 AND id=$2 FOR UPDATE',
+        [accountId, id],
+      )
+    ).rows[0];
+  }
   async reserve(
     session: AccountSession,
     commit: VaultCommit,
@@ -181,6 +193,25 @@ export class VaultStore {
     await this.transaction(async (client) => {
       await this.lock(client, session, commit.directory);
       await this.assertHead(client, commit);
+      const operation = await this.lockOperation(
+        client,
+        session.accountId,
+        commit.id,
+      );
+      if (
+        !operation ||
+        operation.state !== 'writing' ||
+        operation.writer !== writer ||
+        operation.hash !== hash
+      )
+        throw new AccountError(409, 'Upload não confirmado.');
+      await this.allocations?.maintain(client, {
+        accountId: session.accountId,
+        id: commit.id,
+        writer,
+        kind: 'complete',
+        commit: operation.commit,
+      });
       const saved = await client.query(
         "UPDATE hash_talk.vault_operations SET state='accepted',sequence=$4,writer=NULL WHERE account_id=$1 AND id=$2 AND state='writing' AND writer=$3 AND hash=$5 RETURNING id",
         [session.accountId, commit.id, writer, commit.sequence, hash],
@@ -205,9 +236,9 @@ export class VaultStore {
   }
   /** Only at service startup after the previous single writer has stopped. */
   async resumeInterrupted(): Promise<void> {
-    for (let batch = 0; batch < 8; batch++) {
+    while (true) {
       const rows = await this.pool.query(
-        "UPDATE hash_talk.vault_operations SET state='reserved',writer=NULL WHERE (account_id,id) IN (SELECT account_id,id FROM hash_talk.vault_operations WHERE state IN ('writing','discarding') LIMIT 32)",
+        "UPDATE hash_talk.vault_operations SET state='reserved',writer=NULL WHERE (account_id,id) IN (SELECT account_id,id FROM hash_talk.vault_operations WHERE state IN ('writing','discarding') ORDER BY account_id,id LIMIT 32)",
       );
       if (!rows.rowCount) return;
     }
@@ -319,10 +350,30 @@ export class VaultStore {
     id: string,
     writer: string,
   ): Promise<void> {
-    await this.pool.query(
-      "DELETE FROM hash_talk.vault_operations WHERE account_id=$1 AND id=$2 AND state='discarding' AND writer=$3",
-      [accountId, id, writer],
-    );
+    await this.transaction(async (client) => {
+      await client.query(
+        'SELECT id FROM hash_talk.accounts WHERE id=$1 FOR UPDATE',
+        [accountId],
+      );
+      const operation = await this.lockOperation(client, accountId, id);
+      if (
+        !operation ||
+        operation.state !== 'discarding' ||
+        operation.writer !== writer
+      )
+        return;
+      await this.allocations?.maintain(client, {
+        accountId,
+        id,
+        writer,
+        kind: 'discard',
+        commit: operation.commit,
+      });
+      await client.query(
+        "DELETE FROM hash_talk.vault_operations WHERE account_id=$1 AND id=$2 AND state='discarding' AND writer=$3",
+        [accountId, id, writer],
+      );
+    });
   }
   async releaseDiscard(
     accountId: string,

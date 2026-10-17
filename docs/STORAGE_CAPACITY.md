@@ -384,6 +384,75 @@ reversal. The assembled vault suite runs through the volume-mode web path with
 real cryptographic commits, HTTP, quotas, revocation and recovery. This is protocol
 and preservation evidence; it does not replace physical-volume/load acceptance.
 
+## Complete vault lifecycle adoption — block 19
+
+The owner explicitly approved local migration 079 preparation after reviewing
+its source guards, counter reconciliation and reversal risk. Only volume-mode
+web vault operations adopt its maintenance scope; no VPS activation is included.
+
+Vault completion and final discard now bind a transaction-owned maintenance
+envelope before their source effects. The allowance is the existing 64 MiB per
+database connection reserved for in-flight SQL in the physical policy. One live
+top-level owner occupies one backend connection and gets at most one grant; its
+bounded SQL fits that pre-existing operating allowance. Maintenance credits are
+not new payload promises and are excluded from growth-credit subtraction. They
+still retain transaction ownership, bounded collection, snapshot-based release
+and uncertain-outcome recovery. Real hardware exhaustion can still fail SQL;
+durability, maintenance and physical-volume validation remain required.
+
+The maintenance envelope is eight serialized commit sizes plus 32 KiB. BEFORE
+source guards verify account, operation, writer and one supported mutation:
+writing-to-accepted with unchanged ciphertext/charge/identity, or deletion of an
+already discarding operation. Actual old/new row costs are charged before effects.
+New payloads, other sources, immutable-field changes and excess budgets fail
+atomically. A checkpoint guard charges the matching head INSERT/UPDATE, including
+the two BEFORE events possible for UPSERT. Before COMMIT, verify the accepted
+operation matches its durable checkpoint or the discarded row is actually gone;
+then assert the exact logical aggregate. Preserve account/operation lock order,
+authorization, idempotent discard and stale-writer refusal. No transaction spans
+object upload or deletion. A failed post-commit finalization retains its token
+and fails service health without misreporting the accepted checkpoint as lost.
+
+An operation in `discarding` can return to `reserved` if physical removal fails.
+Its prior physical promise must therefore remain charged until removal succeeds
+and the source row is deleted. Migration 079 adds that state to the vault pending
+reference/triggers and reconciles only its 256 derived partitions. It does not
+change logical charges, individual quotas, encrypted rows, old checksums or the
+other five reservation sources. Completion releases its promise after acceptance;
+discard restoration and startup reset do not create an unadmitted promise.
+
+Startup recovery no longer stops after eight 32-row batches. With the previous
+single writer stopped, process ordered 32-row batches until no interrupted
+writing/discarding rows remain. A matching partial index avoids scanning accepted
+history repeatedly. Accepted versions, timestamps, retention and quota charges
+are preserved. Normal expiry admission remains bounded and is not a background
+throughput or representative-load claim.
+
+Reverse 079 before 078 under maintenance with our writers/coordinators stopped,
+no live credits, a verified backup and source/counter fingerprints. Restore the
+078 allocation/source functions and predecessor pending view/triggers, reconcile
+the vault partitions to those predecessor states, remove only the new checkpoint
+guard/functions/recovery index and maintenance constraints/scope, and remove the
+matching catalog entry. Source rows, accepted checkpoints and subsequent writes
+must survive. The synthetic rehearsal also reverses 079 before the existing 078
+rehearsal. Live schema timing, preservation, backup/restore and resource acceptance
+remain separately reviewed; no stale-data restore is an acceptable rollback.
+
+**Ponto importante:** this packet closes legacy-lock dependence for the prepared
+vault lifecycle, including confirmation, discard and interrupted recovery. Other
+database writer families, general/group/retention coordination, representative
+load acceptance and final activation remain pending. The existing central database
+hotspot still has its separate migration-runner then connection/health split plan;
+this packet only registers its migration and exports the existing SQL allowance.
+
+Local validation covers populated predecessor preservation and exact pending
+reconciliation, independent completion/discard/expiry/recovery under the old
+ledger lock, ordinary-role execution, source/envelope/checkpoint refusal,
+savepoints, missing-ledger rollback, retained post-commit tokens and recovery of
+more than 256 interrupted records. The full cryptographic vault/HTTP and related
+quota/accounting suites also pass. Synthetic pressure and SQL maintenance reversal
+establish protocol behavior; they do not establish real-volume/load acceptance.
+
 ## Activation and rollback review
 
 Re-read the live catalog/configuration before the final activation. Drain our

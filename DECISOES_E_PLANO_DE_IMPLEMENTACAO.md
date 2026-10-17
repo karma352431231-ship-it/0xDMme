@@ -1,5 +1,15 @@
 # Capacity audit follow-up — 16 October 2026
 
+The nineteenth source block completes prepared vault lifecycle adoption after
+the owner's explicit review/approval of migration 079. Completion and final
+discard use scoped operating-SQL envelopes; discarding retains its prior physical
+promise until actual removal, and startup recovery processes all interrupted
+records in bounded batches beyond the former 256-record pass. Local preservation,
+quota, concurrency, pressure, recovery and reversal checks passed, including
+checkpoint rollback when global accounting is unavailable. Other writer families
+and representative load acceptance remain pending. VPS migration and activation
+remain reserved for the final reviewed release. See [vault lifecycle adoption](docs/STORAGE_CAPACITY.md#complete-vault-lifecycle-adoption--block-19).
+
 The eighteenth source block connects vault reservation to durable pre-write
 credits after the owner's explicit scope approval. Migration 078 partitions exact
 global accounting behind a compatibility view, coordinates legacy final admission

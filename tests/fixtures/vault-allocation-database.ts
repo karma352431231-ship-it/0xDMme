@@ -17,8 +17,33 @@ import {
 import { seedStorageReservations } from './storage-reservation-database.ts';
 import { globalSourceSnapshot } from './global-usage-database.ts';
 import { allocationPredecessorDefinitions } from './vault-allocation-reversal.ts';
+import { vaultLifecyclePredecessor } from './vault-lifecycle-reversal.ts';
 
-export async function vaultAllocationFixture(t: TestContext) {
+async function applyVaultMigration(client: pg.Client, file: string) {
+  const sql = await readFile(
+    new URL('../../src/server/database/migrations/' + file, import.meta.url),
+    'utf8',
+  );
+  await client.query('BEGIN');
+  try {
+    await client.query(sql);
+    await client.query(
+      'INSERT INTO hash_talk.schema_migrations(version,checksum) VALUES($1,$2)',
+      [
+        Number(file.slice(0, 3)),
+        createHash('sha256').update(sql).digest('hex'),
+      ],
+    );
+    await client.query('COMMIT');
+  } catch (error: unknown) {
+    await client.query('ROLLBACK');
+    throw error;
+  }
+}
+export async function vaultAllocationFixture(
+  t: TestContext,
+  beforeUpgrade?: (client: pg.Client) => Promise<void>,
+) {
   const config = readWebConfiguration(process.env),
     url = new URL(config.databaseUrl),
     name =
@@ -61,18 +86,7 @@ export async function vaultAllocationFixture(t: TestContext) {
   });
   await Promise.all([writer.connect(), reader.connect(), inspector.connect()]);
   await allocationPredecessor(inspector);
-  const sql = await readFile(
-    new URL(
-      '../../src/server/database/migrations/077-content-allocations.sql',
-      import.meta.url,
-    ),
-    'utf8',
-  );
-  await inspector.query(sql);
-  await inspector.query(
-    'INSERT INTO hash_talk.schema_migrations(version,checksum) VALUES(77,$1)',
-    [createHash('sha256').update(sql).digest('hex')],
-  );
+  await applyVaultMigration(inspector, '077-content-allocations.sql');
   const fixture = await seedStorageReservations(inspector),
     sources = (
       await inspector.query<{
@@ -91,6 +105,9 @@ export async function vaultAllocationFixture(t: TestContext) {
         )
       ).rows,
     };
+  await applyVaultMigration(inspector, '078-vault-allocation-accounting.sql');
+  const lifecycle = await vaultLifecyclePredecessor(inspector);
+  await beforeUpgrade?.(inspector);
   await db.migrate();
   return {
     url: url.href,
@@ -106,6 +123,7 @@ export async function vaultAllocationFixture(t: TestContext) {
     sources,
     before,
     predecessor,
+    lifecycle,
   };
 }
 export type VaultAllocationFixture = Awaited<

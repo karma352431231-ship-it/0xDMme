@@ -5,7 +5,10 @@ export type {
   AdaptiveContentCapacity,
   CapacityClient,
 } from './content-capacity.ts';
-export { contentCapacityUnavailable } from './content-capacity.ts';
+export {
+  contentCapacityUnavailable,
+  contentSqlTransactionBytes,
+} from './content-capacity.ts';
 export { readStorageReservations } from './storage-reservations.ts';
 export { ContentAllocator } from './content-allocations.ts';
 export type {
@@ -197,6 +200,7 @@ const migrations = [
   '076-global-statement-accounting.sql',
   '077-content-allocations.sql',
   '078-vault-allocation-accounting.sql',
+  '079-vault-lifecycle-allocations.sql',
 ];
 
 export interface MaintenanceSnapshot {

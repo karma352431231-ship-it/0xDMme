@@ -174,23 +174,24 @@ async function verifyStates(t: TestContext, context: StorageContext) {
               writer,
               fixture.accounts,
             );
-            const writeCapable =
+            const promised =
               [
                 'reserved',
                 'writing',
                 'ready',
                 'uploading',
                 'processing',
+                'discarding',
               ].includes(state) &&
               !(source === 'community_media' && state === 'ready');
             assert.equal(
               current.reservations,
-              initial.reservations - (writeCapable ? 0 : 1),
+              initial.reservations - (promised ? 0 : 1),
             );
             assert.equal(
               current.sources.find((row) => row.source === source)
                 ?.reservedBytes,
-              writeCapable
+              promised
                 ? initial.sources.find((row) => row.source === source)
                     ?.reservedBytes
                 : 0,
