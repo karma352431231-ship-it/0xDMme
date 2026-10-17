@@ -259,17 +259,15 @@ export class SocialHistoryStore {
   ): Promise<string[]> {
     return this.cleanupAuthority.participants(c, account, ids);
   }
+  validateCleanup(c: pg.PoolClient, account: string, item: BackupTarget) {
+    return this.cleanupAuthority.validate(c, account, item);
+  }
   async clean(
     c: pg.PoolClient,
     account: string,
     item: BackupTarget,
   ): Promise<number> {
-    const row = await this.cleanupAuthority.target(c, account, item.id);
-    if (row.hash !== item.hash)
-      throw new AccountError(
-        409,
-        'Mensagem de DM divergente da seleção de limpeza.',
-      );
+    const row = await this.validateCleanup(c, account, item);
     await c.query(
       'UPDATE hash_talk.social_messages SET sender_charge=CASE WHEN sender=$2 THEN 0 ELSE sender_charge END,recipient_charge=CASE WHEN recipient=$2 THEN 0 ELSE recipient_charge END WHERE id=$1',
       [item.id, row.actor],

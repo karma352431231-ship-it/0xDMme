@@ -207,6 +207,7 @@ const migrations = [
   '081-message-read-allocations.sql',
   '082-message-removal-allocations.sql',
   '083-message-opening-allocations.sql',
+  '084-personal-cleanup-allocations.sql',
 ];
 
 export interface MaintenanceSnapshot {
@@ -444,12 +445,15 @@ export class Database {
     );
     this.backups = new BackupStore(this.pool, this.contacts, contentCapacity, {
       social: {
+        validate: (c, account, item) =>
+          this.socialHistory.validateCleanup(c, account, item),
         participants: (c, account, ids) =>
           this.socialHistory.cleanupParticipants(c, account, ids),
         clean: (c, account, item) => this.socialHistory.clean(c, account, item),
         collect: (c, id) => this.socialHistory.collect(c, id),
       },
       removals: writers.removals,
+      cleanup: writers.cleanup,
     });
     this.groups = new GroupStore(
       this.contacts,

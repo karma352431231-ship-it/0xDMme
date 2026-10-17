@@ -1,4 +1,5 @@
 import type pg from 'pg';
+import type { BackupTarget } from '../../shared/backups/index.ts';
 import { AccountError } from '../../shared/account/index.ts';
 import type { PublicProfileStore } from './public-profile.ts';
 
@@ -29,6 +30,15 @@ export class SocialCleanupAuthority {
         ? [sender, recipient]
         : [];
     });
+  }
+  async validate(c: pg.PoolClient, account: string, item: BackupTarget) {
+    const row = await this.target(c, account, item.id);
+    if (row.hash !== item.hash)
+      throw new AccountError(
+        409,
+        'Mensagem de DM divergente da seleção de limpeza.',
+      );
+    return row;
   }
   async target(c: pg.PoolClient, account: string, id: string) {
     const actor = await this.profiles.identity(c, account);

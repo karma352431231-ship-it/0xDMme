@@ -38,6 +38,26 @@ changes into the reset. Review initialization, stale-session handling, exact
 integrated CI, resource/load acceptance and operational recovery for the selected
 final transition. Hardware/free-space measurement and privacy boundaries remain.
 
+The twenty-seventh source block adopts complete mixed/vault-only/social-only
+personal cleanup on the existing coordinator's per-owner 64 MiB SQL reserve.
+Migration 084 adds `personal-clean` as maintenance, not a new payload grant or
+pool. Compose the published private-removal plan/guards with a bounded metadata
+plan for vault charge transfers, exact receipts/retained bytes, social message/
+media charges, device receipt deletion and both-owner collection. Preserve all
+ordered participant locks and current authority/wallet/revision/selection checks.
+Unchanged retries create no plan or credit. One signed selection still commits
+once; source guards enforce supported fields and budget before writes, and final
+completeness checks every selected effect and journal/global partition before
+COMMIT. Social collection requires both current personal receipts before clearing
+ciphertext; media status changes follow collection and retain file charges.
+Ready/writing promises survive. Metadata size is checked before bulk temporary
+plan copying; accepted ciphertext is never a plan body or new payload promise.
+Original/action selections retain their serial behavior and whole-lot rollback.
+No old-data conversion, reset or activation. Actual filesystem reclamation and
+other writer families keep their existing gates; physical/SQL/TOAST/WAL and
+representative integrated-load acceptance remain open. See
+[mixed cleanup adoption](docs/STORAGE_CAPACITY.md#mixed-personal-cleanup-allocator-adoption--block-27).
+
 The twenty-sixth source block prepares participant-scoped mixed personal
 cleanup. Resolve private routing and social profile-to-account ownership through
 explicit schema-owner contracts under shared admission, lock the complete account

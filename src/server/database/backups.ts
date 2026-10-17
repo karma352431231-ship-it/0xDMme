@@ -1,3 +1,4 @@
+import type { PersonalCleanupAllocations } from './personal-cleanup-allocations.ts';
 import type { MessageRemovalAllocations } from './message-removal-allocations.ts';
 import {
   withPersonalCleanupAuthority,
@@ -14,6 +15,11 @@ import type { MessageProof } from '../../shared/messages/index.ts';
 import type { ContactAuthority, ContactStore } from './contacts.ts';
 import { vaultUsage, assertContentReclamationCapacity } from './vault-quota.ts';
 interface SocialCleanup {
+  validate: (
+    c: pg.PoolClient,
+    account: string,
+    item: BackupTarget,
+  ) => Promise<unknown>;
   participants: (
     c: pg.PoolClient,
     account: string,
@@ -34,6 +40,7 @@ export class BackupStore {
   private readonly capacity: ContentCapacity;
   private readonly social: SocialCleanup;
   private readonly removals: MessageRemovalAllocations | undefined;
+  private readonly cleanup: PersonalCleanupAllocations | undefined;
   constructor(
     pool: pg.Pool,
     contacts: ContactStore,
@@ -41,6 +48,7 @@ export class BackupStore {
     writers: {
       social: SocialCleanup;
       removals: MessageRemovalAllocations | undefined;
+      cleanup: PersonalCleanupAllocations | undefined;
     },
   ) {
     this.pool = pool;
@@ -48,6 +56,7 @@ export class BackupStore {
     this.capacity = capacity;
     this.social = writers.social;
     this.removals = writers.removals;
+    this.cleanup = writers.cleanup;
   }
   async page(a: ContactAuthority, after: number) {
     return this.contacts.withMessageRead(a, async (c) => {
@@ -101,6 +110,14 @@ export class BackupStore {
             participants,
             items: selection.items,
             proof,
+          });
+        else
+          await this.cleanup?.prepare(c, {
+            accountId: a.session.accountId,
+            participants,
+            items: selection.items,
+            proof,
+            validateSocial: this.social.validate,
           });
         const before = await vaultUsage(c, a.session.accountId);
         let changed = false;

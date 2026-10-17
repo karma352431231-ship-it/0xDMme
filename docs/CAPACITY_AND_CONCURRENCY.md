@@ -582,3 +582,18 @@ until physical deletion. Actual mixed writes retain legacy accounting gates;
 only private-only cleanup uses its private allocator. No new pool, schema, reset
 or activation. Complete mixed source/envelope/completeness adoption and final
 resource/load acceptance remain pending.
+
+## Complete mixed personal cleanup adoption — block 27
+
+Volume-mode mixed/vault/social personal cleanup now uses one existing-coordinator
+maintenance credit and exact global partitions. Private removal guards are
+composed with concrete vault/social metadata effects; both-owner quotas, signed
+receipts, retained file bytes, references, media states and one journal remain
+atomic. Every source effect is checked before writes and all planned effects
+before COMMIT. Collection requires both current receipts; marking media deleting
+never releases its physical charge. Ready/writing promises remain. Existing
+receipts create no plan/credit under pressure. Preparation and consumption stay
+within the existing per-owner SQL reserve without copying ciphertext into plans.
+Independent real growth can coexist with a maximum maintenance credit. No new
+pool, payload grant, old-data conversion, reset or VPS activation. Actual file
+reclamation, other writer families and final physical/load acceptance remain open.

@@ -832,3 +832,58 @@ removal remain unchanged. Marking accepted private/social media deleting retains
 its existing file charge. No schema migration, source conversion/backfill, reset,
 new pool or VPS change. Representative SQL/TOAST/WAL/physical/load acceptance and
 mixed allocator adoption remain pending.
+
+## Mixed personal cleanup allocator adoption — block 27
+
+Source prepared only. Migration 084 adopts mixed, vault-only and social-only
+personal selections on one `personal-clean` maintenance credit, sharing the
+existing coordinator and per-owner 64 MiB SQL allowance. No connection pool,
+new payload grant, source conversion/backfill, reset or VPS activation is added.
+Block 26's complete ordered account locks and authority/wallet/revision checks
+remain. Existing matching receipts are no-ops without a plan or credit; divergent
+hashes, foreign content and stale authority retain their existing public errors.
+Removal does not require renewed delivery consent. All kinds still commit once.
+
+The private source plan and guards from 082 are composed explicitly, preserving
+its metadata layout and temporary lifetime. One additional session-local relation,
+`pg_temp.hash_talk_personal_plan`, stores concrete vault/social metadata and exact
+receipt effects, never ciphertext. Both relations truncate on COMMIT and are
+reused per backend. The mixed scope is excluded from growth credit sums by the
+same shared maintenance predicate used by coordinator and physical admission.
+The existing SQL reserve covers temporary plan work, tuple/index/WAL effects and
+receipt/journal metadata; retained file bytes already exist and are not granted
+again. Indexed metadata aggregates refuse oversized media/receipt preparation
+before bulk copying into temporary plans. Admitted media/receipt rows are locked
+and snapshotted after waits so out-of-band file-worker release/collection cannot
+invalidate their frozen state. Both declared and actual consumption
+must fit the existing reserve; an oversized operation fails without partial
+cleanup or acknowledged data loss.
+
+BEFORE guards permit only the selected vault charge transfer, exact signed
+receipts, private packet/reference/read/attachment effects, social personal
+charge reductions/receipt deletion and one actor journal with bounded pruning.
+Vault identity, state, writer, object/commit and unrelated fields remain immutable.
+Social ciphertext cannot change except collection after both current personal
+receipts exist. Accepted social media can become deleting only after its message
+was collected; its bytes/charge remain. Ready/writing promises and their writer
+state survive. Unsupported sources, owners, receipt statuses, field changes,
+bindings or costs fail before persistence. Pre-COMMIT completeness verifies every
+planned final state, exact receipts, all removed references, the shared journal
+and global accounting availability. Missing or skipped effects roll everything
+back. Original/action overlaps preserve the existing sequential behavior.
+
+The eight-item synthetic batch combines six private roots with 64 actions each,
+32 historical devices per private owner, one large social ciphertext with 32
+historical receipt devices per owner and one vault item. Its two cleanup phases
+fit the existing SQL reserve. This is a contract/resource-envelope rehearsal,
+not representative throughput or physical-storage acceptance. Ordinary application
+permissions can create/reuse both temporary plans; effective live TEMP privilege
+still needs acceptance. Savepoints restore plan/effect/cost state. A failed
+post-COMMIT finalization retains the durable credit, fails health and permits
+bounded recovery without reporting an acknowledged cleanup lost.
+
+Files remain charged until actual removal. `BackupStore.collected`, private/
+social attachment collection and other filesystem-facing writers retain their
+legacy coordination and need their own adoption. Other general/group/retention
+writers and final integrated SQL/TOAST/WAL/memory/physical/load acceptance remain
+pending. No accepted-content expiry or durability reduction is introduced.

@@ -5,10 +5,15 @@ export type ContentAllocationScope =
   | 'message-admit'
   | 'message-read'
   | 'message-remove'
-  | 'message-open';
+  | 'message-open'
+  | 'personal-clean';
 
 /** Maintenance spends the existing per-owner SQL reserve, never payload room. */
-const maintenanceScopes = ['vault-maintain', 'message-remove'] as const;
+const maintenanceScopes = [
+  'vault-maintain',
+  'message-remove',
+  'personal-clean',
+] as const;
 export function maintenanceAllocation(scope: ContentAllocationScope): boolean {
   return maintenanceScopes.some((value) => value === scope);
 }

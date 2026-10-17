@@ -1,3 +1,4 @@
+import { PersonalCleanupAllocations } from './personal-cleanup-allocations.ts';
 import { MessageOpeningAllocations } from './message-opening-allocations.ts';
 import { MessageRemovalAllocations } from './message-removal-allocations.ts';
 import type { ContentCapacity } from './content-capacity.ts';
@@ -19,6 +20,7 @@ export function createContentWriters(input: {
   reads: MessageReadAllocations | undefined;
   removals: MessageRemovalAllocations | undefined;
   openings: MessageOpeningAllocations | undefined;
+  cleanup: PersonalCleanupAllocations | undefined;
 } {
   if (typeof input.capacity === 'number' || input.role !== 'web')
     return {
@@ -28,6 +30,7 @@ export function createContentWriters(input: {
       reads: undefined,
       removals: undefined,
       openings: undefined,
+      cleanup: undefined,
     };
   const allocations = new ContentWriteAllocations({
     ...input,
@@ -40,5 +43,6 @@ export function createContentWriters(input: {
     reads: new MessageReadAllocations(allocations),
     removals: new MessageRemovalAllocations(allocations, input.capacity),
     openings: new MessageOpeningAllocations(allocations),
+    cleanup: new PersonalCleanupAllocations(allocations, input.capacity),
   };
 }
