@@ -609,3 +609,51 @@ function, reference view, counter table and exact catalog entry. Restore source
 compatible with that catalog. Preserve all source records, their payload files,
 individual counters and the global ledger. Do not roll schema back under active
 new workers.
+
+## Private removal coordination — block 22
+
+This packet establishes the owner/cross-table locking prerequisite for the
+remaining removal allocator adoption. Actual charged deletion/cleanup effects
+still use exact legacy global accounting; no new allocation scope or schema
+migration is introduced. Independent adopted growth writers and these remaining
+legacy cleanup writers retain their existing coexistence contract.
+
+Sender deletion resolves the stored peer under shared contact admission, locks
+both accounts in UUID order and rechecks authority, sender, stored participants,
+hash and availability after waiting. The original and up to 64 related actions,
+both owners' references/read marks, accepted attachment transition to `deleting`,
+personal/global deltas and both change journals remain one transaction. An
+already unavailable packet remains a no-op after ownership/hash checks. No full
+packet is selected merely to check availability or ownership.
+
+Private-only personal cleanup resolves the complete participant set for every
+selected packet, including different peers and sender/recipient directions.
+Acquire **all** accounts in UUID order before cleanup, then recheck routing and
+current session/device authority. The existing cleanup owner checks wallet
+confirmation, directory revision, prior receipt, hash, participation and body
+presence. It removes only the actor's references/read marks and personal charge;
+only both personal receipts permit ciphertext collection and attachment garbage
+marking. Collection and the actor's full-scan change checkpoint remain atomic.
+Global and both personal/attachment counters preserve their original formulas.
+
+A batch containing any vault or social-DM selection keeps the exclusive contact
+admission gate and its existing single transaction. Do not split mixed selections
+into independently committed per-kind requests. Receipt listing is a pure
+read-only operation. Payload object opening/export remains a write operation:
+inserting a missing device reference must still charge 256 bytes.
+
+Unchanged cleanup retries validate authority and prior hashes, return current
+usage/receipts and skip the global reclamation assertion because they wrote no
+content, journal or promise. Sender-deletion retries likewise do not acquire the
+ledger. This permits those no-ops under an unrelated held ledger and physical
+pressure; it does **not** exempt actual cleanup writes from physical admission.
+
+**Ponto importante:** P-DB-B remains open for actual removal writes. Before
+retiring their global guard, adopt every supported packet/receipt/reference/read/
+attachment/journal effect with a pre-write envelope, independent source guards
+and pre-COMMIT completeness checks. Preserve mixed-kind atomicity and the
+approved 65-packet/eight-selection contracts. Estimate actual SQL effects rather
+than treating retained ciphertext as newly written payload; validate TOAST/WAL,
+operating margins and representative cleanup histories. No reduced batch,
+unbounded grant or physical-capacity exemption is approved by this preparation.
+No migration, data reset or activation is performed in block 22.

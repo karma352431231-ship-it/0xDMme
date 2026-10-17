@@ -1,3 +1,4 @@
+import { withPersonalCleanupAuthority } from './personal-cleanup-authority.ts';
 import type { ContentCapacity } from './content-capacity.ts';
 import { recordMessageChanges } from './message-changes.ts';
 import type pg from 'pg';
@@ -34,7 +35,7 @@ export class BackupStore {
     this.social = social;
   }
   async page(a: ContactAuthority, after: number) {
-    return this.contacts.withMessageAuthority(a, async (c) => {
+    return this.contacts.withMessageRead(a, async (c) => {
       const rows = await c.query<{
         kind: string;
         id: string;
@@ -56,49 +57,58 @@ export class BackupStore {
   }
   async clean(a: ContactAuthority, proof: MessageProof) {
     const selection = cleanupSelection(proof);
-    return this.contacts.withMessageAuthority(a, async (c) => {
-      const confirmed = await c.query(
-        'SELECT token_hash FROM hash_talk.login_sessions WHERE account_id=$1 AND device_id=$2 AND csrf=$3 AND expires_at>now() AND wallet_confirmed',
-        [a.session.accountId, a.session.deviceId, a.session.csrf],
-      );
-      if (!confirmed.rowCount)
-        throw new AccountError(
-          403,
-          'Confirme a wallet nesta sessão antes de resetar o cofre.',
+    return withPersonalCleanupAuthority(
+      {
+        contacts: this.contacts,
+        authority: a,
+        items: selection.items,
+      },
+      async (c) => {
+        const confirmed = await c.query(
+          'SELECT token_hash FROM hash_talk.login_sessions WHERE account_id=$1 AND device_id=$2 AND csrf=$3 AND expires_at>now() AND wallet_confirmed',
+          [a.session.accountId, a.session.deviceId, a.session.csrf],
         );
-      const current = await c.query<{ revision: number }>(
-        'SELECT revision FROM hash_talk.device_directories WHERE account_id=$1',
-        [a.session.accountId],
-      );
-      if (current.rows[0]?.revision !== selection.revision)
-        throw new AccountError(409, 'Autoridade da limpeza mudou.');
-      const before = await vaultUsage(c, a.session.accountId);
-      let changed = false;
-      for (const item of selection.items)
-        changed = (await this.removeOne(c, a, item, proof)) || changed;
-      if (changed) await recordMessageChanges(c, [a.session.accountId], null);
-      await assertContentReclamationCapacity(c, this.capacity);
-      const used = await vaultUsage(c, a.session.accountId);
-      const receipts = await c.query<{
-        kind: string;
-        id: string;
-        hash: string;
-        sequence: string;
-        proof: unknown;
-      }>(
-        'SELECT r.kind,r.id,r.hash,r.sequence::text,r.proof FROM hash_talk.personal_removals r JOIN jsonb_to_recordset($2::jsonb) AS selected(kind text,id uuid) ON selected.kind=r.kind AND selected.id=r.id WHERE r.account_id=$1 ORDER BY r.sequence',
-        [a.session.accountId, JSON.stringify(selection.items)],
-      );
-      return {
-        status: 'cleaned',
-        used,
-        released: Math.max(0, before - used),
-        items: receipts.rows.map((r) => ({
-          ...r,
-          sequence: Number(r.sequence),
-        })),
-      };
-    });
+        if (!confirmed.rowCount)
+          throw new AccountError(
+            403,
+            'Confirme a wallet nesta sessão antes de resetar o cofre.',
+          );
+        const current = await c.query<{ revision: number }>(
+          'SELECT revision FROM hash_talk.device_directories WHERE account_id=$1',
+          [a.session.accountId],
+        );
+        if (current.rows[0]?.revision !== selection.revision)
+          throw new AccountError(409, 'Autoridade da limpeza mudou.');
+        const before = await vaultUsage(c, a.session.accountId);
+        let changed = false;
+        for (const item of selection.items)
+          changed = (await this.removeOne(c, a, item, proof)) || changed;
+        if (changed) {
+          await recordMessageChanges(c, [a.session.accountId], null);
+          await assertContentReclamationCapacity(c, this.capacity);
+        }
+        const used = await vaultUsage(c, a.session.accountId);
+        const receipts = await c.query<{
+          kind: string;
+          id: string;
+          hash: string;
+          sequence: string;
+          proof: unknown;
+        }>(
+          'SELECT r.kind,r.id,r.hash,r.sequence::text,r.proof FROM hash_talk.personal_removals r JOIN jsonb_to_recordset($2::jsonb) AS selected(kind text,id uuid) ON selected.kind=r.kind AND selected.id=r.id WHERE r.account_id=$1 ORDER BY r.sequence',
+          [a.session.accountId, JSON.stringify(selection.items)],
+        );
+        return {
+          status: 'cleaned',
+          used,
+          released: Math.max(0, before - used),
+          items: receipts.rows.map((r) => ({
+            ...r,
+            sequence: Number(r.sequence),
+          })),
+        };
+      },
+    );
   }
   private async removeOne(
     c: pg.PoolClient,
@@ -167,15 +177,15 @@ export class BackupStore {
       hash: string;
       sender: string;
       recipient: string;
-      body: unknown;
+      available: boolean;
     }>(
-      'SELECT hash,sender,recipient,body FROM hash_talk.message_packets WHERE id=$1 FOR UPDATE',
+      'SELECT hash,sender,recipient,body IS NOT NULL AS available FROM hash_talk.message_packets WHERE id=$1 FOR UPDATE',
       [item.id],
     );
     const m = row.rows[0];
     if (
       !m ||
-      !m.body ||
+      !m.available ||
       m.hash !== item.hash ||
       ![m.sender, m.recipient].includes(account)
     )

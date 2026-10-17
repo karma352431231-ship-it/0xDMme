@@ -284,10 +284,10 @@ export class ContactStore {
   ): Promise<T> {
     return this.transaction(null, work);
   }
-  /** Existing-message effects recheck routing under both participant locks; consent semantics belong to the caller. */
+  /** Existing-message effects recheck routing under every participant lock; consent semantics belong to the caller. */
   async withMessageParticipants<T>(
     authority: ContactAuthority,
-    peer: (client: pg.PoolClient) => Promise<string>,
+    peer: (client: pg.PoolClient) => Promise<string | readonly string[]>,
     work: (
       client: pg.PoolClient,
       participants: readonly string[],

@@ -485,6 +485,23 @@ accounting and scope owner/attachment/reservation guards together. Migration 077
 is unactivated and source-only validation is not a throughput claim. See
 [allocation protocol](STORAGE_CAPACITY.md#transaction-owned-allocations--block-17).
 
+## Twenty-second block: private removal participant coordination
+
+Sender deletion now shares contact admission and locks both participants in UUID
+order before rechecking stored routing and authority. Private-only personal
+cleanup locks the entire participant set across its bounded selection, including
+multiple peers, then rechecks routing before any effects. Mixed vault/private/
+social selections retain one exclusive-authority transaction. Presence/ownership
+checks no longer fetch full ciphertext bodies. Receipt pages are read-only;
+reference-creating payload opens/export retain write admission and their charges.
+
+Unchanged removal retries skip global accounting assertions and writes. Actual
+removal effects still retain global source/counter/cross-table guards: removing
+that contention requires the next complete allocator adoption, not just changing
+the contact gate. Both owners' accounting, attachment states, reference/read
+removal, collection and journals remain atomic. No pool, migration, reset or VPS
+change is included. See [removal contracts](STORAGE_CAPACITY.md#private-removal-coordination--block-22).
+
 ## Remaining audit work
 
 - Validate prepared physical admission, operating margins and the service mount

@@ -281,43 +281,52 @@ export class MessageStore {
     hash: string,
     proof: MessageProof,
   ): Promise<void> {
-    return this.contacts.withMessageAuthority(authority, async (client) => {
-      const row = await this.record(client, id);
-      if (!row || row.sender !== authority.session.accountId)
-        throw new AccountError(404, 'Mensagem própria indisponível.');
-      if (row.hash !== hash)
-        throw new AccountError(409, 'Conteúdo da exclusão divergente.');
-      if (!row.body) return;
-      // One original and at most 64 related actions; all automatic copies leave together.
-      const changed = await client.query<{ id: string }>(
-        "UPDATE hash_talk.message_packets SET body=NULL,deletion=$2::jsonb,queue_active=false,sender_charge=$3,recipient_charge=$3,charge=$3,deletion_revision=$4,deletion_account=$5 WHERE (id=$1 OR relation->>'id'=$1::text) AND body IS NOT NULL RETURNING id",
-        [
-          id,
-          JSON.stringify(proof),
-          Buffer.byteLength(JSON.stringify(proof)) + 512,
-          proof.payload['revision'],
-          row.sender,
-        ],
-      );
-      await client.query(
-        "DELETE FROM hash_talk.message_references WHERE message_id IN (SELECT id FROM hash_talk.message_packets WHERE id=$1 OR relation->>'id'=$1::text)",
-        [id],
-      );
-      await client.query(
-        "DELETE FROM hash_talk.message_reads WHERE message_id IN (SELECT id FROM hash_talk.message_packets WHERE id=$1 OR relation->>'id'=$1::text)",
-        [id],
-      );
-      await client.query(
-        "UPDATE hash_talk.message_attachments SET status='deleting' WHERE message_id=$1 AND status='accepted'",
-        [id],
-      );
-      await this.bump(
-        client,
-        [row.sender, row.recipient],
-        changed.rows.map((item) => item.id),
-      );
-      this.contacts.removed(client, [row.sender, row.recipient]);
-    });
+    return this.contacts.withMessageParticipants(
+      authority,
+      (client) => this.messagePeer(client, authority, id),
+      async (client, participants) => {
+        const row = await this.receiptRecord(client, id);
+        if (
+          !row ||
+          row.sender !== authority.session.accountId ||
+          !participants.includes(row.sender) ||
+          !participants.includes(row.recipient)
+        )
+          throw new AccountError(404, 'Mensagem própria indisponível.');
+        if (row.hash !== hash)
+          throw new AccountError(409, 'Conteúdo da exclusão divergente.');
+        if (!row.available) return;
+        // One original and at most 64 related actions; all automatic copies leave together.
+        const changed = await client.query<{ id: string }>(
+          "UPDATE hash_talk.message_packets SET body=NULL,deletion=$2::jsonb,queue_active=false,sender_charge=$3,recipient_charge=$3,charge=$3,deletion_revision=$4,deletion_account=$5 WHERE (id=$1 OR relation->>'id'=$1::text) AND body IS NOT NULL RETURNING id",
+          [
+            id,
+            JSON.stringify(proof),
+            Buffer.byteLength(JSON.stringify(proof)) + 512,
+            proof.payload['revision'],
+            row.sender,
+          ],
+        );
+        await client.query(
+          "DELETE FROM hash_talk.message_references WHERE message_id IN (SELECT id FROM hash_talk.message_packets WHERE id=$1 OR relation->>'id'=$1::text)",
+          [id],
+        );
+        await client.query(
+          "DELETE FROM hash_talk.message_reads WHERE message_id IN (SELECT id FROM hash_talk.message_packets WHERE id=$1 OR relation->>'id'=$1::text)",
+          [id],
+        );
+        await client.query(
+          "UPDATE hash_talk.message_attachments SET status='deleting' WHERE message_id=$1 AND status='accepted'",
+          [id],
+        );
+        await this.bump(
+          client,
+          [row.sender, row.recipient],
+          changed.rows.map((item) => item.id),
+        );
+        this.contacts.removed(client, [row.sender, row.recipient]);
+      },
+    );
   }
   async acknowledge(
     authority: ContactAuthority,

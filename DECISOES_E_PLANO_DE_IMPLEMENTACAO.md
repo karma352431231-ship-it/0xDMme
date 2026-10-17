@@ -38,6 +38,23 @@ changes into the reset. Review initialization, stale-session handling, exact
 integrated CI, resource/load acceptance and operational recovery for the selected
 final transition. Hardware/free-space measurement and privacy boundaries remain.
 
+The twenty-second source block prepares the participant-lock prerequisite for
+private sender deletion and private-only personal cleanup. A personal batch can
+span multiple peers: resolve immutable routing under shared contact admission,
+lock the complete participant set in UUID order, then recheck current authority
+and routing before any mutation. Mixed vault/private/social selections retain
+one exclusive-authority transaction. Keep both owners' counters, attachment
+states, references, read marks, collection and journals atomic. Validation of
+presence/hash/ownership projects metadata only. Receipt pages use read-only
+admission; object opening/export still uses write admission for charged device
+references. Unchanged removal retries perform no charged effects or global-ledger
+assertion. This block deliberately retains the global source/cross-table guards
+for actual cleanup mutations: it does not claim allocator adoption or completion
+of P-DB-B/P-DB-C. Prepare their complete source/envelope/completeness contract
+next, without imposing a smaller deletion/cleanup batch or changing retention.
+No schema change, legacy conversion, reset or VPS activation is included. See
+[removal coordination](docs/STORAGE_CAPACITY.md#private-removal-coordination--block-22).
+
 The twenty-first source block prepares participant-scoped private delivery ACKs
 and volume-mode read marks. Resolve only immutable message routing under the
 shared consent gate, acquire both accounts in UUID order, then recheck authority
