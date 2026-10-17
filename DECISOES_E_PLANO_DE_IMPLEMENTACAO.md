@@ -1,5 +1,34 @@
 # Capacity audit follow-up — 16 October 2026
 
+## Reviewed group-part correction deployment — 17 October 2026
+
+After the four acceptance corrections were prepared and tested, the owner
+requested integration into main and deployment to the VPS. This authorizes the
+exact 090→091 correction through the existing `npm run deploy:staging` command,
+from clean pushed main with passing exact-commit CI. Use `npm run deploy:check`
+for preflight. No capacity/proxy, media-worker or request-limit flag is needed.
+
+The internal `deploy_group_media_parts.py` pins live application `1b5c1e7` and
+reviewed application `d1258c0`, verifies all ninety applied migrations unchanged,
+the current validated twelve-part constraint, unchanged own units and dedicated
+volume. Before maintenance it requires loaded workers and their three leases.
+Stop only our web and three workers; retain/rehearse the existing private SQL
+and object backups, run the existing migration runner, preserve all row columns
+including pending reserved bytes, and reconcile derived/global accounting.
+Verify the validated thirty-nine-part constraint before reopening the same
+services. No proxy reload, TURN/configuration change, reset or shared-service
+restart belongs to this release. Existing deployment-budget/CSS fixes remain.
+
+Before reopening, existing phase-aware recovery restores and verifies the old
+SQL/objects/code. After reopening, stop our writers and retain the new state for
+review; never restore an older dump over newly accepted thirty-nine-part data.
+Retain the migration backup, previous release, exact-commit public build/source
+proof and operational receipt in the private evidence tree.
+
+**Ponto importante:** deployment activates the corrections; it does not close
+the capacity audit. Repeat the failed bounded VPS cases and keep physical
+pressure/recovery, worker boot and remaining integrated acceptance visible.
+
 ## Capacity acceptance corrections — owner request on 17 October 2026
 
 The owner requested correcting the four findings from integrated acceptance.

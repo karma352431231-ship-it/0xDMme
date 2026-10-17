@@ -194,7 +194,7 @@ def private_inputs():
 
 def executor_code(config):
     modules = []
-    for name in ['deploy_sources', 'deploy_runtime', 'deploy_remote', 'deploy_backup_io', 'deploy_blocks45', 'deploy_request_limit', 'deploy_background', 'deploy_profile_social', 'deploy_profile_description', 'deploy_group_links', 'deploy_post_tags', 'deploy_media_worker', 'deploy_social_controls', 'deploy_social_experience', 'deploy_discussion', 'deploy_mentions', 'deploy_message_changes', 'deploy_community_classification', 'deploy_public_upvotes', 'deploy_social_reactions', 'deploy_ranking_activity', 'deploy_chat_attachments', 'deploy_community_addresses', 'deploy_capacity_proxy', 'deploy_capacity_database']:
+    for name in ['deploy_sources', 'deploy_runtime', 'deploy_remote', 'deploy_backup_io', 'deploy_blocks45', 'deploy_request_limit', 'deploy_background', 'deploy_profile_social', 'deploy_profile_description', 'deploy_group_links', 'deploy_post_tags', 'deploy_media_worker', 'deploy_social_controls', 'deploy_social_experience', 'deploy_discussion', 'deploy_mentions', 'deploy_message_changes', 'deploy_community_classification', 'deploy_public_upvotes', 'deploy_social_reactions', 'deploy_ranking_activity', 'deploy_chat_attachments', 'deploy_community_addresses', 'deploy_capacity_proxy', 'deploy_capacity_database', 'deploy_group_media_parts']:
         path = ROOT / 'infra/staging' / (name + '.py')
         if digest(path) != config['files'].get('infra/staging/' + name + '.py'):
             raise RuntimeError('Deployment executor changed after the reviewed commit.')
