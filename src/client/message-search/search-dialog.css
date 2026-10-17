@@ -94,3 +94,6 @@
   font-size: var(--fs-small);
   margin: 8px 0;
 }
+[data-search-results] {
+  overflow-wrap: anywhere;
+}

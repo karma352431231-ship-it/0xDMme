@@ -100,3 +100,15 @@
 .directory-tools p {
   line-height: 1.6;
 }
+/* The same list is "Contatos" in the desktop panel and "Conversas" as the phone tab. */
+.directory-heading .label-narrow {
+  display: none;
+}
+@media (max-width: 700px) {
+  .directory-heading .label-wide {
+    display: none;
+  }
+  .directory-heading .label-narrow {
+    display: inline;
+  }
+}

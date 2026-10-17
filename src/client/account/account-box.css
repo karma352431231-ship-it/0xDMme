@@ -73,3 +73,6 @@
   color: var(--accent-text);
   font-size: var(--fs-caption);
 }
+.account #account-profile-feedback:empty {
+  display: none;
+}
