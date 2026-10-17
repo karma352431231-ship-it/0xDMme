@@ -501,3 +501,12 @@ Owner-approved batch after testing on phone and desktop:
 - **"+" inside the feed.** The floating button is placed from the right edge of the centered feed instead of the window, on the split screen (with or without the chat) and on the full Communities page (with the ranking open or collapsed).
 - **Scrollbars.** On mouse devices, every scrollable area of every page (app, wallet, recovery, Phantom probe and source listings) has a thin thumb with no track. It shows while the area scrolls and fades 2 s after scrolling stops (`src/client/scrollbars`). Touch devices keep their system overlay scrollbars.
 - **Public contact photos.** In Contacts → Public, the approved photo covers the whole avatar; the initials only show while it loads or when there is no photo.
+
+## app.css split into feature stylesheets — 17/10/2026
+
+The owner approved splitting `src/client/app/app.css` (3,840 lines, changed by most UI tasks) after the release file ceiling was replaced by byte budgets (`6c23c4c`). This supersedes the 09/10 consolidation above that moved the theme tokens into `app.css` to fit the old 540-file manifest.
+
+- `app.css` is only the ordered `@import` list. The import order is the cascade order; a rule in a later file wins ties.
+- Theme tokens are in `app/theme.css` (still one marked block; the literal-color test skips only that block). Shell layout, rail, base elements, page frame, narrow and phone layouts are in `app/`. Feature parts moved next to their modules: Contacts (`contacts/directory*.css`, `conversation-list.css`), chat (`chat-ui/chat-desktop.css`, `chat-phone.css`, `message-content.css`), the split-screen feed (`communities/feed-panel.css`), Activity, account and settings, wallet, devices, search, emoji, GIF, voice, calls, toast and attachments.
+- Verification: the bundled stylesheet keeps the same 2,322 rules in the same order and media conditions; only adjacent `@media` groups were split. Four tiny pieces were folded into their owner files after auditing every swapped pair of rules. In the browser, the computed style of every element matched the previous stylesheet across pages, layouts, account states and phone, laptop and 1920 px widths.
+- Some small files keep their original position on purpose (for example `activity/activity-filters.css`, `app/narrow-tweaks.css`, `account-settings/profile-identity.css`): moving them would change the order against rules that can match the same elements.
