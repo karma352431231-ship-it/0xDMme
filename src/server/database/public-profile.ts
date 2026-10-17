@@ -192,6 +192,17 @@ export class PublicProfileStore {
     if (!account) throw new AccountError(404, 'Perfil público indisponível.');
     return account;
   }
+  /** Bounded internal routing only; never expose wallet-account mappings in social responses. */
+  async accountsFor(
+    client: pg.PoolClient,
+    profiles: string[],
+  ): Promise<Map<string, string>> {
+    const result = await client.query<{ id: string; account_id: string }>(
+      'SELECT id,account_id FROM hash_talk.public_profiles WHERE id=ANY($1::uuid[])',
+      [profiles],
+    );
+    return new Map(result.rows.map((row) => [row.id, row.account_id]));
+  }
   private async view(client: pg.PoolClient, row: ProfileRow | undefined) {
     if (!row) return null;
     const retained =

@@ -206,7 +206,7 @@ async function cleanupCases(
     },
   );
   await t.test(
-    'mixed kinds retain the exclusive authority path and never split a selection',
+    'mixed kinds share admission while keeping the entire selection atomic',
     async () => {
       const packet = await accept(c, pair),
         before = await snapshots(c);
@@ -219,7 +219,7 @@ async function cleanupCases(
               { kind: 'vault', id: crypto.randomUUID(), hash },
             ]),
           ),
-          { code: '55P03' },
+          { status: 409 },
         );
       });
       assert.deepEqual(await snapshots(c), before);

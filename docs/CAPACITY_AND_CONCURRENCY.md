@@ -567,3 +567,18 @@ numeric-capacity path and unrelated writers retain their old gates. No new pool,
 maintenance exemption, old-history conversion, reset or VPS activation. Mixed
 cleanup, remaining writer families and representative resource/load acceptance
 remain pending.
+
+## Mixed personal cleanup participant coordination — block 26
+
+Bounded vault/private/social personal selections now acquire the full account
+participant set under shared contact admission. Private metadata and internal
+social profile ownership resolve before ordered locks and are rechecked after
+waits; current authority/wallet/revision and target/receipt validation still follow.
+An independent participant set can proceed while cleanup waits for its social
+counterpart. Every selected kind remains atomic and exact; a later invalid target
+rolls back earlier effects. Social validation fetches no ciphertext. Existing
+receipts are no-ops under pressure, and both-owner cleanup retains file charges
+until physical deletion. Actual mixed writes retain legacy accounting gates;
+only private-only cleanup uses its private allocator. No new pool, schema, reset
+or activation. Complete mixed source/envelope/completeness adoption and final
+resource/load acceptance remain pending.

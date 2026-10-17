@@ -797,3 +797,38 @@ health and permits bounded recovery without reporting a committed opening lost.
 No migration activation, old-data import/backfill, reset, dependency or service
 change is included. Mixed cleanup, other writer families and final integrated
 physical/load acceptance remain pending.
+
+## Mixed personal cleanup coordination — block 26
+
+Source prepared only. One signed selection of one to eight `vault`, `message`
+and/or `dm-message` targets now shares contact admission and acquires every
+participating account lock in UUID order. Private routing and social
+profile-to-account routing are metadata-only and bounded by the selection.
+Social routing uses an explicit batch ownership contract; wallet-account mappings
+remain internal and never enter social responses. Recheck routing after account
+locks, then current session/directory, wallet confirmation and signed revision,
+followed by the existing sequential target/hash/receipt checks.
+
+All selected effects remain in one transaction. A later invalid target rolls back
+previous private/social changes, receipt inserts and vault charge transfers.
+Opposite mixed cleanups serialize on the same owners and collect ciphertext only
+when both personal receipts exist. No new consent is required for removing an
+existing personal copy; cleanup creates no right to read/deliver content. A prior
+matching receipt remains a no-op, including under ledger/coordinator contention
+and zero growth room. A divergent prior receipt is still refused.
+
+Only private-only selections enter the block 23 private removal plan. Mixed and
+vault/social-only selections retain legacy global/cross-table gates until one
+complete mixed plan can cover their metadata, receipts, retained payload bytes,
+private references/reads, journals/pruning, social receipts/media, collection and
+attachment states. Never declare a private-only grant for a mixed signed selection
+or split it into per-kind commits. This block does not claim mixed allocator
+adoption or completion of P-DB-B/P-DB-C.
+
+`SocialCleanupAuthority` owns the new routing/presence/hash authorization by
+metadata; the history reader still owns ciphertext reads. Global and individual
+quota formulas, retained vault bytes, pending promises and charge-until-actual-file
+removal remain unchanged. Marking accepted private/social media deleting retains
+its existing file charge. No schema migration, source conversion/backfill, reset,
+new pool or VPS change. Representative SQL/TOAST/WAL/physical/load acceptance and
+mixed allocator adoption remain pending.

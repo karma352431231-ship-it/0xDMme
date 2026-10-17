@@ -444,6 +444,8 @@ export class Database {
     );
     this.backups = new BackupStore(this.pool, this.contacts, contentCapacity, {
       social: {
+        participants: (c, account, ids) =>
+          this.socialHistory.cleanupParticipants(c, account, ids),
         clean: (c, account, item) => this.socialHistory.clean(c, account, item),
         collect: (c, id) => this.socialHistory.collect(c, id),
       },

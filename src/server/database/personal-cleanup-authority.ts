@@ -26,44 +26,57 @@ interface CleanupAuthority {
   contacts: ContactStore;
   authority: ContactAuthority;
   items: BackupTarget[];
+  socialParticipants: (
+    client: pg.PoolClient,
+    account: string,
+    ids: string[],
+  ) => Promise<string[]>;
 }
 interface Participants {
   sender: string;
   recipient: string;
 }
 
-/** Private-only batches lock every affected owner before quota/cross-table work.
- * Mixed vault/social batches keep their existing exclusive coordination and one
- * transaction; splitting a selection would lose its atomic cleanup contract. */
+/** One ordered owner set for a mixed signed selection; effects remain one transaction. */
 export function withPersonalCleanupAuthority<T>(
   input: CleanupAuthority,
   work: (client: pg.PoolClient, participants: readonly string[]) => Promise<T>,
 ): Promise<T> {
-  const { contacts, authority, items } = input;
-  if (!items.every((item) => item.kind === 'message'))
-    return contacts.withMessageAuthority(authority, (client) =>
-      work(client, []),
-    );
+  const { contacts, authority, items, socialParticipants } = input;
   const account = authority.session.accountId;
   const rows = async (client: pg.PoolClient) =>
     (
       await client.query<Participants>(
         'SELECT sender,recipient FROM hash_talk.message_packets WHERE id=ANY($1::uuid[]) AND (sender=$2 OR recipient=$2)',
-        [items.map((item) => item.id), account],
+        [
+          items
+            .filter((item) => item.kind === 'message')
+            .map((item) => item.id),
+          account,
+        ],
       )
     ).rows;
+  const participantsFor = async (client: pg.PoolClient) => {
+    const privateRows = await rows(client);
+    const socialOwners = await socialParticipants(
+      client,
+      account,
+      items.filter((item) => item.kind === 'dm-message').map((item) => item.id),
+    );
+    return [
+      ...privateRows.flatMap((row) => [row.sender, row.recipient]),
+      ...socialOwners,
+    ];
+  };
   return contacts.withMessageParticipants(
     authority,
-    async (client) =>
-      (await rows(client)).flatMap((row) => [row.sender, row.recipient]),
+    participantsFor,
     async (client, participants) => {
       // Routing was resolved before waiting. Recheck it after all ordered locks;
       // ownership, hash, presence and prior receipts remain the cleanup owner's job.
       if (
-        (await rows(client)).some(
-          (row) =>
-            !participants.includes(row.sender) ||
-            !participants.includes(row.recipient),
+        (await participantsFor(client)).some(
+          (owner) => !participants.includes(owner),
         )
       )
         throw new AccountError(409, 'Mensagem ausente ou divergente.');

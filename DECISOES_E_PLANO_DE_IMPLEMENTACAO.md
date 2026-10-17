@@ -38,6 +38,24 @@ changes into the reset. Review initialization, stale-session handling, exact
 integrated CI, resource/load acceptance and operational recovery for the selected
 final transition. Hardware/free-space measurement and privacy boundaries remain.
 
+The twenty-sixth source block prepares participant-scoped mixed personal
+cleanup. Resolve private routing and social profile-to-account ownership through
+explicit schema-owner contracts under shared admission, lock the complete account
+set in UUID order, then recheck routing/current authority and the signed selection.
+The selection still commits once across vault/private/social effects. Only
+private-only selections use the existing private removal allocator; mixed and
+vault/social-only effects retain their legacy global/cross-table accounting gates.
+No partial per-kind grant or commit is permitted. Social cleanup validates
+presence/hash/ownership from metadata through its own authority module, without
+fetching ciphertext merely for validation. Cleanup remains available without new
+consent, as before; it grants no delivery permission. Prior receipts, wallet
+confirmation, directory revision, error priority, retained vault payload charges,
+both owners' quotas and file charges until actual deletion remain unchanged.
+This is the mixed coordination prerequisite, not complete mixed allocator adoption.
+Prepare one coherent bounded plan/source/completeness contract for all selected
+kinds and their actual lifecycle effects next. No schema, old-data conversion,
+reset or VPS activation. See [mixed cleanup coordination](docs/STORAGE_CAPACITY.md#mixed-personal-cleanup-coordination--block-26).
+
 The twenty-fifth source block adopts missing private-opening/export device
 references on the existing durable allocator. Migration 083 binds one bounded
 metadata-only temporary plan (at most 32 inspected IDs) to the account, current

@@ -14,6 +14,11 @@ import type { MessageProof } from '../../shared/messages/index.ts';
 import type { ContactAuthority, ContactStore } from './contacts.ts';
 import { vaultUsage, assertContentReclamationCapacity } from './vault-quota.ts';
 interface SocialCleanup {
+  participants: (
+    c: pg.PoolClient,
+    account: string,
+    ids: string[],
+  ) => Promise<string[]>;
   clean: (
     c: pg.PoolClient,
     account: string,
@@ -72,6 +77,7 @@ export class BackupStore {
         contacts: this.contacts,
         authority: a,
         items: selection.items,
+        socialParticipants: this.social.participants,
       },
       async (c, participants) => {
         const confirmed = await c.query(
@@ -89,7 +95,7 @@ export class BackupStore {
         );
         if (current.rows[0]?.revision !== selection.revision)
           throw new AccountError(409, 'Autoridade da limpeza mudou.');
-        if (participants.length)
+        if (selection.items.every((item) => item.kind === 'message'))
           await this.removals?.clean(c, {
             accountId: a.session.accountId,
             participants,

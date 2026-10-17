@@ -1,3 +1,4 @@
+import { SocialCleanupAuthority } from './social-cleanup-authority.ts';
 import { SocialReadReceipts } from './social-read-receipts.ts';
 import type pg from 'pg';
 import {
@@ -29,8 +30,10 @@ export class SocialHistoryStore {
   readonly reads: SocialReadReceipts;
   private readonly social: SocialDmStore;
   private readonly profiles: PublicProfileStore;
+  private readonly cleanupAuthority: SocialCleanupAuthority;
   constructor(social: SocialDmStore, profiles: PublicProfileStore) {
     this.social = social;
+    this.cleanupAuthority = new SocialCleanupAuthority(profiles);
     this.reads = new SocialReadReceipts(social);
     this.profiles = profiles;
   }
@@ -249,12 +252,19 @@ export class SocialHistoryStore {
       await this.social.limits(context);
     });
   }
+  cleanupParticipants(
+    c: pg.PoolClient,
+    account: string,
+    ids: string[],
+  ): Promise<string[]> {
+    return this.cleanupAuthority.participants(c, account, ids);
+  }
   async clean(
     c: pg.PoolClient,
     account: string,
     item: BackupTarget,
   ): Promise<number> {
-    const row = await this.participant(c, account, item.id);
+    const row = await this.cleanupAuthority.target(c, account, item.id);
     if (row.hash !== item.hash)
       throw new AccountError(
         409,
