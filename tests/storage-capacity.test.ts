@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { resolve, dirname } from 'node:path';
+import { resolve, dirname, join } from 'node:path';
+import { mkdtemp, realpath, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { setTimeout as delay, setImmediate } from 'node:timers/promises';
 import {
@@ -82,10 +83,15 @@ await test('an ordinary directory, symbolic path or invalid filesystem measureme
     createPinnedVolume({ directory: f.path, filesystem: f.filesystem }),
     /space unavailable/u,
   );
-  await assert.rejects(
-    createPinnedVolume({ directory: tmpdir() }),
-    /mount required|path unavailable/u,
-  );
+  const directory = await mkdtemp(join(tmpdir(), '0xdmme-volume-test-'));
+  try {
+    await assert.rejects(
+      createPinnedVolume({ directory: await realpath(directory) }),
+      /mount required/u,
+    );
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
 });
 await test('a device change during sampling is detected after the filesystem query', async () => {
   const f = volumeFixture(),
