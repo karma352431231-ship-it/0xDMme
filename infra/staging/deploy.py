@@ -18,7 +18,7 @@ import urllib.parse
 import urllib.request
 import zlib
 
-from deploy_remote import digest, validate, valid_release_branch
+from deploy_remote import MAX_MANIFEST_BYTES, digest, validate, valid_release_branch
 import deploy_sources as public_sources
 import deploy_runtime as runtime
 import deploy_request_limit as request_limits
@@ -92,7 +92,7 @@ def cached_build(output, revision, branch):
         return None
     if any(p.is_symlink() or not p.is_file() for p in [manifest_path, archive_path]):
         raise RuntimeError('Incomplete/unsafe cached build; review this local artifact.')
-    if manifest_path.stat().st_size > 128 * 1024 or archive_path.stat().st_size > 16 * 1024 * 1024:
+    if manifest_path.stat().st_size > MAX_MANIFEST_BYTES or archive_path.stat().st_size > 16 * 1024 * 1024:
         raise RuntimeError('Cached build budget exceeded.')
     manifest = json.loads(manifest_path.read_text())
     validate(manifest)

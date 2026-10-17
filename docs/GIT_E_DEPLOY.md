@@ -1,5 +1,35 @@
 # 0xDMme — Git e envio à VPS
 
+## Release file growth — owner-authorized fix on 17/10/2026
+
+The owner requested correcting the release file-count restriction and integrating
+it into main immediately, separately from the unactivated capacity work. The old
+1,024-entry manifest and 4,096-member authored/build extraction ceilings must not
+force unrelated source modules or stylesheets to be merged. Replace those counts
+with byte budgets: at most 1 MiB for the serialized release manifest, and the
+existing 128 MiB expanded archive allowance including member headers and padding.
+This supersedes earlier source-entry count allowances recorded below.
+Use the same manifest allowance for initial preparation, verified cached builds,
+remote validation and exact authored-source comparison. The 1 MiB metadata budget
+fits beside a base64-encoded 16 MiB archive within the existing 24 MiB deployment
+input envelope; private operational fields retain that input-envelope check.
+
+Preserve the 16 MiB compressed transfer, combined runtime release budget, path/
+symlink/type/duplicate guards, SHA-256 verification, corresponding-source contract,
+exact-commit CI, compatibility checks and rollback. Backup/object and QR tree
+limits and dependency-specific guards are outside this source-growth adjustment.
+Do not change application code, SQL migrations, dependencies, Node, service units,
+shared configuration or activate the pending capacity branch. Use only the existing
+`npm run deploy:staging` command when VPS code activation is needed, from a clean,
+integrated, pushed main commit with passing exact-commit CI. The executor is sent
+from that reviewed checkout on each invocation; it is not a persistent VPS daemon.
+Keep access, inventories and operational receipts only in `.local/`.
+
+**Ponto importante:** main integration makes the reviewed fix available to future
+deploy invocations. Report VPS activation separately and only after the matching
+published receipt and served release are verified. Byte limits remain deliberate
+resource budgets; this change removes the fixed authored/build file counts.
+
 ## Optimistic private texts — activation authorized on 16/10/2026
 
 After initially requesting Git-only delivery, the owner explicitly authorized
@@ -1208,7 +1238,11 @@ DMs E2EE não entram no scanner.
 
 ## Teto do manifesto ampliado — 09/10/2026
 
-O proprietário pediu ampliar o teto de arquivos por release, que impedia o app de crescer (a publicação do redesign precisou juntar arquivos para caber). O executor passa a aceitar até 1024 entradas (`MAX_MANIFEST_FILES` em `deploy_remote.py`), no lugar de 512 mais conjuntos revisados. O teto continua barrando pacotes descontrolados; orçamentos de arquivo, extração e runtime não mudaram.
+Historical decision of 09/10/2026: the owner raised the release-entry allowance
+from 512 plus reviewed extras to 1,024 because source growth had blocked the
+redesign. The byte budgets were unchanged. The 17/10/2026 source-growth decision
+above supersedes this entry-count allowance with serialized metadata and
+expanded-archive byte accounting.
 
 Na mesma data, o pool de conexões do app subiu de 4 para 16 (web) e de 1 para 4 (cada worker), acompanhando `max_connections` 64. Como o app executa migrações ao iniciar, o executor só aceita código de banco revisado: a primeira ativação foi recusada antes de trocar a release e o par exato `b1aa82c` → `68831a5` (somente `src/server/database/index.ts`) passou a constar das revisões fixadas, sem SQL ou migração.
 

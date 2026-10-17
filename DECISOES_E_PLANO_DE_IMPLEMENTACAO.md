@@ -1,5 +1,17 @@
 # 0xDMme — decisões e plano de implementação
 
+**Release source growth — authorized on 17/10/2026:** the owner requested fixing
+the deployment file-count restriction and integrating it into main immediately.
+Replace the 1,024-entry manifest ceiling and 4,096-member authored/build extraction
+ceiling with a consistent 1 MiB serialized-manifest budget and the existing
+128 MiB expanded archive budget, counting headers and padding. Preserve transfer,
+runtime, integrity, exact-source, CI, compatibility and rollback guards. This is
+an isolated deployment correction; it does not activate the pending capacity work
+or change application behavior, schema, dependencies or shared infrastructure.
+**Ponto importante:** use the existing deployment executor from reviewed main;
+source integration and actual VPS publication have separate evidence. See the
+[deployment contract](docs/GIT_E_DEPLOY.md#release-file-growth--owner-authorized-fix-on-17102026).
+
 **Optimistic private text presentation — authorized on 16/10/2026:** the owner
 requested displaying own text immediately and replacing verbose send/history
 placeholders with a retry cross when sending fails. Render session-local drafts

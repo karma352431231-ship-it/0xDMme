@@ -54,10 +54,12 @@ def git_export(revision):
 def matches_export(root, files, source_only=False):
     expected = {name: hashlib.sha256(value).hexdigest() for name, value in files.items()
                 if not source_only or name.startswith('src/')}
-    # Authored sources share the already-reviewed release manifest budget.
+    # Bound source enumeration by the exact reviewed export, not a fixed count.
     # Backup/object and QR trees keep their separate default of 512 files.
+    source_count = sum(name.startswith('src/') for name in expected)
     actual = {'src/' + name: value for name, value in
-              file_tree(root / 'src', maximum=base.MAX_MANIFEST_FILES).items()}
+              file_tree(root / 'src', maximum=source_count).items()}
+    base.validate_manifest_budget({'files': actual})
     if not source_only:
         actual.update({name: base.digest(root / name) for name in files if not name.startswith('src/')})
     return actual == expected

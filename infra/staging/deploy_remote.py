@@ -44,10 +44,10 @@ def measured(stage):
         value['cpu_seconds'] = round(value['cpu_seconds'] + cpu() - used, 3)
 
 
-# Manifest entries per release. Raised from 512 (plus reviewed extras) to 1024 on
-# 09/10/2026 by the owner: the app outgrew it. It still rejects runaway packages
-# such as node_modules; archive, extraction and runtime budgets are unchanged.
-MAX_MANIFEST_FILES = 1024
+# Bound serialized metadata instead of authored module count. One MiB fits beside
+# the maximum base64 archive within the existing 24 MiB deployment input budget.
+# Owner-approved on 17/10/2026; transfer/extraction/runtime byte budgets stay fixed.
+MAX_MANIFEST_BYTES = 1024 * 1024
 # Paths reviewed for earlier transitions; kept because other checks name them.
 REQUEST_DIAGNOSTIC_FILES = frozenset([
     'src/client/api-response/index.ts', 'infra/staging/deploy_request_limit.py',
@@ -230,14 +230,24 @@ def valid_release_branch(value):
     return isinstance(value, str) and re.fullmatch(r'(?:main|codex/[A-Za-z0-9][A-Za-z0-9._/-]*)', value) is not None
 
 
+def validate_manifest_budget(config):
+    # These operational fields are not part of the persisted release manifest.
+    # The complete transport, including these fields, retains its 24 MiB bound.
+    manifest = {name: value for name, value in config.items()
+                if name not in ('baseline', 'archive', 'request_limit', 'media_worker')}
+    if len((json.dumps(manifest, indent=2) + '\n').encode()) > MAX_MANIFEST_BYTES:
+        raise RuntimeError('Release manifest byte budget exceeded.')
+
+
 def validate(config):
     if not re.fullmatch(r'[a-f0-9]{40}', config['commit']):
         raise RuntimeError('Invalid commit.')
     if not valid_release_branch(config['branch']):
         raise RuntimeError('Invalid branch.')
     files = config['files']
-    if not 1 <= len(files) <= MAX_MANIFEST_FILES:
-        raise RuntimeError('Invalid release manifest size.')
+    if not isinstance(files, dict) or not files:
+        raise RuntimeError('Invalid release manifest files.')
+    validate_manifest_budget(config)
     for name, value in files.items():
         parts = PurePosixPath(name).parts
         if (not parts or name.startswith('/') or '..' in parts or
@@ -257,11 +267,13 @@ def validate(config):
 
 
 def extract(archive, destination, allowed):
-    members = archive.getmembers()
-    if len(members) > 4096 or sum(m.size for m in members) > MAX_RELEASE:
-        raise RuntimeError('Extraction budget exceeded.')
     names = set()
-    for member in members:
+    for member in archive:
+        # Include headers, extended headers and payload padding, so many empty
+        # files cannot bypass the expanded-byte budget. Validate before writing.
+        padded = ((member.size + tarfile.BLOCKSIZE - 1) // tarfile.BLOCKSIZE) * tarfile.BLOCKSIZE
+        if member.offset_data + padded > MAX_RELEASE:
+            raise RuntimeError('Extraction budget exceeded.')
         parts = PurePosixPath(member.name).parts
         if (not parts or member.name.startswith('/') or '..' in parts or
                 parts[0] not in allowed or member.name in names or

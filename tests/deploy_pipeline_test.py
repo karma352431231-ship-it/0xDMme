@@ -36,13 +36,16 @@ class DeploymentTests(unittest.TestCase):
             root=Path(directory)
             source=root/'src';source.mkdir()
             expected={}
-            for index in range(remote.MAX_MANIFEST_FILES):
+            for index in range(1100):
                 name='fixture-'+str(index)+'.ts'
                 (source/name).write_bytes(b'authored')
                 expected['src/'+name]=b'authored'
             self.assertTrue(backups.matches_export(root,expected,source_only=True))
             with self.assertRaisesRegex(RuntimeError,'Reviewed tree budget'):
                 backups.file_tree(source)
+            with patch.object(remote, 'MAX_MANIFEST_BYTES', 1024):
+                with self.assertRaisesRegex(RuntimeError, 'manifest byte budget'):
+                    backups.matches_export(root,expected,source_only=True)
             (source/'one-more.ts').write_bytes(b'authored')
             with self.assertRaisesRegex(RuntimeError,'Reviewed tree budget'):
                 backups.matches_export(root,expected,source_only=True)
@@ -86,14 +89,46 @@ class DeploymentTests(unittest.TestCase):
                 'timeout':False, 'exit_code':1, 'category':category})
             self.assertNotIn('private-', json.dumps(failure))
 
-    def test_manifest_size_is_bounded_at_the_reviewed_limit(self):
+    def test_manifest_accepts_modular_growth_and_bounds_serialized_bytes(self):
         value = manifest()
-        missing = remote.MAX_MANIFEST_FILES - len(value['files'])
-        value['files'].update({'src/fixture-' + str(i) + '.ts': 'a' * 64 for i in range(missing)})
+        value['files'].update({'src/fixture-' + str(i) + '.ts': 'a' * 64 for i in range(2048)})
         remote.validate(value)
-        value['files']['src/one-too-many.ts'] = 'a' * 64
-        with self.assertRaisesRegex(RuntimeError, 'manifest size'):
+        encoded = len((json.dumps(value, indent=2) + '\n').encode())
+        with patch.object(remote, 'MAX_MANIFEST_BYTES', encoded):
             remote.validate(value)
+        with patch.object(remote, 'MAX_MANIFEST_BYTES', encoded - 1):
+            with self.assertRaisesRegex(RuntimeError, 'manifest byte budget'):
+                remote.validate(value)
+        for invalid in [{}, [], None]:
+            with self.assertRaisesRegex(RuntimeError, 'manifest files'):
+                remote.validate(dict(value, files=invalid))
+
+    def test_archive_accepts_many_small_files_within_expanded_byte_budget(self):
+        buffer = io.BytesIO()
+        with tarfile.open(fileobj=buffer, mode='w:gz') as archive:
+            for index in range(4100):
+                archive.addfile(tarfile.TarInfo('dist/file-' + str(index)))
+        buffer.seek(0)
+        with tempfile.TemporaryDirectory() as directory:
+            with tarfile.open(fileobj=buffer) as archive:
+                remote.extract(archive, Path(directory), ['dist'])
+            self.assertEqual(len(list((Path(directory) / 'dist').iterdir())), 4100)
+
+    def test_archive_counts_headers_and_padding_before_any_extraction(self):
+        for sizes in [(0, 0, 0), (513,)]:
+            buffer = io.BytesIO()
+            with tarfile.open(fileobj=buffer, mode='w:gz') as archive:
+                for index, size in enumerate(sizes):
+                    member = tarfile.TarInfo('dist/file-' + str(index))
+                    member.size = size
+                    archive.addfile(member, io.BytesIO(b'x' * size))
+            buffer.seek(0)
+            with tempfile.TemporaryDirectory() as directory:
+                with tarfile.open(fileobj=buffer) as archive:
+                    with patch.object(remote, 'MAX_RELEASE', 1024):
+                        with self.assertRaisesRegex(RuntimeError, 'Extraction budget'):
+                            remote.extract(archive, Path(directory), ['dist'])
+                self.assertEqual(list(Path(directory).iterdir()), [])
 
     def test_manifest_rejects_escape_and_unbounded_input(self):
         for name in ['/etc/passwd', 'src/../../etc/passwd', '.local/access', 'data/history']:
@@ -476,6 +511,12 @@ class DeploymentTests(unittest.TestCase):
                 target = root / relative
                 target.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copyfile(deploy.ROOT / relative, target)
+            # Source-file splits must survive preparation and the verified cache,
+            # including manifests larger than the old 128 KiB cache allowance.
+            styles = root / 'src/client/fixture-styles'
+            styles.mkdir()
+            for index in range(300):
+                (styles / ('area-' + str(index) + '-modular-source-fixture.css')).write_text('/* synthetic */\n')
             subprocess.check_call(['git', 'init', '--quiet'], cwd=root)
             subprocess.check_call(['git', 'add', '.'], cwd=root)
             subprocess.check_call(['git', '-c', 'user.name=Test fixture', '-c',
@@ -487,6 +528,8 @@ class DeploymentTests(unittest.TestCase):
                   patch.object(deploy, 'ROOT', root),
                   patch.object(deploy, 'run', side_effect=lambda args, cwd=root, timeout=30: original_run(args, cwd=cwd, timeout=timeout))):
                 prepared, archive_path = deploy.prepare(revision, 'codex/test')
+                self.assertGreater(len(prepared['files']), 1024)
+                self.assertGreater((archive_path.parent / 'manifest.json').stat().st_size, 128 * 1024)
                 self.assertLessEqual(archive_path.stat().st_size, remote.MAX_ARCHIVE)
                 self.assertEqual(len(prepared['source_parts']), 18)
                 self.assertEqual(len([n for n in prepared['files'] if n in deploy.public_sources.PARTS]),18)
