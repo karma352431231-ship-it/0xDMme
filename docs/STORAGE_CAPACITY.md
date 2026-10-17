@@ -726,3 +726,35 @@ attachment file lifecycle, general/group/retention writers and representative
 SQL/TOAST/WAL/mixed-load acceptance remain open. Preserve both owners' counters
 and cross-table contracts when adopting them; never grant an unbounded operating
 budget or reduce the approved selection solely to fit an estimate.
+
+## Private opening coordination — block 24
+
+Source prepared only; final integration and activation remain pending. Private
+`object` and `backup-window` share `MessageOpening`, which owns the routing,
+authorization, bounded ciphertext response and charged reference lifecycle.
+Resolve only sender/recipient metadata under shared contact admission, acquire
+all participating accounts in UUID order, and then validate current authority,
+signed snapshot and each inspected packet. Missing/foreign selections do not
+supersede session, directory or snapshot errors. Mutable removal/consent state
+is evaluated after waits; an original's personal removal also excludes its action.
+Only a received reference preserves access across withdrawn consent. Pending,
+revoked and missing references require current delivery permission.
+
+Already existing references perform no speculative INSERT or capacity assertion.
+A concrete missing device reference still inserts once, adds exactly 256 bytes
+to the packet/global charge and uses the legacy global growth admission. Export
+remains one atomic transaction; a later invalid ID rolls back earlier new
+references. A 410/423 result remains an unavailable entry; other errors fail the
+window. The store independently enforces the existing unique 1–32-ID export
+bound. The 16,000,000-byte response cutoff and its last-inspected-object effect
+remain unchanged, including the first object's existing exception to the cutoff.
+Ciphertext is fetched only after authorization and never used in routing plans.
+
+The packet deliberately separates participant coordination from allocator
+adoption: a multi-peer export must declare one transaction-owned growth envelope
+for the concrete inspected missing references, preserve error/cutoff semantics,
+enforce source identity/immutable fields/exact 256-byte increments before writes,
+and check every planned reference and packet charge before COMMIT. Existing
+cross-table, personal quota and global guards remain until that adoption passes.
+No new pool, schema migration, old-history conversion, reset or live activation.
+Representative ciphertext memory/SQL/TOAST/WAL and mixed-load acceptance remain.

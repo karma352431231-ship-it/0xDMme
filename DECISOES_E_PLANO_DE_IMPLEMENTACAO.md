@@ -38,6 +38,22 @@ changes into the reset. Review initialization, stale-session handling, exact
 integrated CI, resource/load acceptance and operational recovery for the selected
 final transition. Hardware/free-space measurement and privacy boundaries remain.
 
+The twenty-fourth source block isolates private payload opening/export in
+`message-opening.ts` and coordinates each bounded window with every participant
+in UUID order. Routing discovery projects metadata under shared contact admission;
+current session/directory, signed snapshot, routing, personal removals and consent
+are checked after account locks. Existing references perform no INSERT or global
+capacity assertion, including under pressure; missing references still add exactly
+256 bytes atomically with packet accounting under the existing legacy growth gate.
+This is the opening coordination prerequisite, not allocator adoption. A window
+retains its 32-ID and 16,000,000-byte response contracts, unavailable statuses and
+last-inspected-object effects. The remaining adoption needs one concrete bounded
+plan for all missing references actually inspected, source guards and pre-COMMIT
+completeness on the existing coordinator. Do not reserve growth for unchanged
+references or treat reference creation as maintenance. No schema, protocol,
+old-data conversion, reset or VPS activation is included. See
+[opening coordination](docs/STORAGE_CAPACITY.md#private-opening-coordination--block-24).
+
 The twenty-third source block adopts actual private sender deletion and
 private-only personal cleanup on the existing transaction-owned allocator.
 Migration 082 introduces a bounded `message-remove` maintenance scope, using the

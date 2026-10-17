@@ -538,3 +538,17 @@ pending. See [removal adoption](STORAGE_CAPACITY.md#private-removal-allocator-ad
 
 Those changes are not reported as complete by the HTTP block. In particular,
 raising HTTP concurrency does not itself increase database or media capacity.
+
+## Private object/export coordination — block 24
+
+Object opening and bounded export windows now share one participant-scoped
+operation. Immutable routing discovery reads no ciphertext; ordered locks cover
+all peers in the window, and current authority/snapshot/removal/consent checks
+follow lock acquisition. Independent participant sets can open existing payloads
+concurrently. Existing device references create no write or growth admission,
+including with the old ledger/coordinator held or no physical growth room.
+Missing references remain legacy-coordinated growth, charged exactly 256 bytes
+and rolled back with the whole window on failure. The export batch, response
+cutoff, unavailable statuses and signed data are preserved. This is a prerequisite
+for complete opening allocator adoption, not completion of P-DB-B/P-DB-C. No schema
+or VPS activation is included; final resource/load acceptance remains pending.
