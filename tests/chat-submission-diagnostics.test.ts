@@ -165,7 +165,9 @@ await test('send tracing ignores unrelated keys, Shift/IME and non-chat submits 
   const stopped = f.capture.report();
   f.emit('submit', form);
   f.changed();
-  assert.deepEqual(f.capture.report(), stopped);
+  // Observation stopped, not the recording: its clock keeps running, so only
+  // the events must stay unchanged.
+  assert.deepEqual(f.capture.report().events, stopped.events);
   assert.doesNotMatch(
     JSON.stringify(stopped),
     /private-key|unrelated-private-form/u,
