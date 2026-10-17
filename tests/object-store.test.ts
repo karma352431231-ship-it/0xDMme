@@ -175,3 +175,56 @@ await test('an absent attachment still requires durable directory sync before co
   sync.mock.restore();
   await store.discardAttachment(crypto.randomUUID());
 });
+
+await test('independent attachment collectors tolerate durable concurrent removal without touching another namespace', async (t) => {
+  const directory = await realpath(
+    await mkdtemp(join(tmpdir(), '0xdmme-collect-race-')),
+  );
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  const first = new ObjectStore(directory),
+    second = new ObjectStore(directory);
+  await first.initialize();
+  const kept = crypto.randomUUID(),
+    other = await first.attachment(kept);
+  const keptHash = await other.put(new Uint8Array([9, 8, 7]));
+  for (let trial = 0; trial < 3; trial++) {
+    const id = crypto.randomUUID(),
+      files = await first.attachment(id);
+    for (let index = 0; index < 40; index++)
+      await files.put(new Uint8Array([trial, index, 4]));
+    const outcomes = await Promise.allSettled([
+      first.discardAttachment(id),
+      second.discardAttachment(id),
+    ]);
+    assert.deepEqual(
+      outcomes.map((result) => result.status),
+      ['fulfilled', 'fulfilled'],
+    );
+    assert.equal(
+      (await readdir(directory)).includes(`attachment-${id}`),
+      false,
+    );
+  }
+  assert.deepEqual([...(await other.read(keptHash))], [9, 8, 7]);
+});
+
+await test('attachment reclamation rejects irregular entries and never follows their symlinks', async (t) => {
+  const directory = await realpath(
+    await mkdtemp(join(tmpdir(), '0xdmme-collect-links-')),
+  );
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  const store = new ObjectStore(directory);
+  await store.initialize();
+  const id = crypto.randomUUID();
+  await store.attachment(id);
+  const outside = join(directory, 'retained');
+  await writeFile(outside, 'retained synthetic bytes');
+  await symlink(outside, join(directory, `attachment-${id}`, 'a'.repeat(64)));
+  await assert.rejects(store.discardAttachment(id), /irregular/u);
+  const file = await open(outside, 'r');
+  try {
+    assert.equal(await file.readFile('utf8'), 'retained synthetic bytes');
+  } finally {
+    await file.close();
+  }
+});

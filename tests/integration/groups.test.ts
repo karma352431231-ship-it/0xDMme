@@ -1,3 +1,4 @@
+import { completeLargeGroupUpload } from '../fixtures/group-media-boundary.ts';
 import { fixtureGroupPhoto } from '../fixtures/group-photo.ts';
 import {
   groupMediaQuota,
@@ -1259,11 +1260,9 @@ await test('governança persistente: criação atômica, convites, transferênci
       refs: [largeRef(chatFileLimit + 1)],
     }),
   );
-  await message(messages, owner, 'group-attachment-reserve', {
-    ...largeMessage,
-    refs: [largeRef(chatFileLimit)],
-  });
-  await message(messages, owner, 'group-attachment-cancel', largeMessage);
+  await completeLargeGroupUpload(largeMessage, (operation, data) =>
+    message(messages, owner, operation, data),
+  );
   await assert.rejects(
     message(messages, outsider, 'group-attachment-reserve', mediaReserve),
   );

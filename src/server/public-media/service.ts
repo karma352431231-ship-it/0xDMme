@@ -6,8 +6,29 @@ import type {
   PublicModerationMediaCandidate,
 } from '../database/index.ts';
 import { CommunityMediaFiles } from '../community-media/index.ts';
-import { createHash } from 'node:crypto';
+import { verifiedMediaFile } from './file.ts';
+import type { VerifiedMediaFile } from './file.ts';
 import type { PendingPublicAvatar } from '../../shared/public-avatar/index.ts';
+
+/** Select the released output and its exact integrity/size contract together. */
+function releasedFile(
+  candidate: PublicModerationMediaCandidate,
+  thumbnail: boolean,
+) {
+  if (thumbnail)
+    return {
+      name: 'thumbnail' as const,
+      type: 'image/png',
+      bytes: candidate.result.thumbnailBytes,
+      hash: candidate.thumbnailHash,
+    };
+  return {
+    name: 'result' as const,
+    type: candidate.result.type,
+    bytes: candidate.result.bytes,
+    hash: candidate.resultHash,
+  };
+}
 
 /** Read only the current released bytes; a public URI never bypasses the global gate. */
 export class PublicMediaService {
@@ -56,39 +77,38 @@ export class PublicMediaService {
     target: string,
     review: string,
     thumbnail: boolean,
-  ): Promise<{ type: string; bytes: Uint8Array }> {
+    signal: AbortSignal,
+  ): Promise<{ type: string; file: VerifiedMediaFile }> {
     if (!this.stores.media || !this.files)
       throw new AccountError(503, 'Mídia pública indisponível.');
+    signal.throwIfAborted();
     const candidate = await this.stores.media.releasedMedia(target, review);
     if (!candidate) throw new AccountError(404, 'Mídia pública indisponível.');
-    const bytes = await this.verifiedBytes(candidate, thumbnail);
-    const current = await this.stores.media.releasedMedia(target, review);
-    if (
-      !current ||
-      current.resultHash !== candidate.resultHash ||
-      current.thumbnailHash !== candidate.thumbnailHash
-    )
-      throw new AccountError(404, 'Mídia pública indisponível.');
-    return { type: thumbnail ? 'image/png' : candidate.result.type, bytes };
-  }
-  private async verifiedBytes(
-    candidate: PublicModerationMediaCandidate,
-    thumbnail: boolean,
-  ): Promise<Uint8Array> {
-    const expected = thumbnail
-      ? candidate.result.thumbnailBytes
-      : candidate.result.bytes;
-    const bytes = await this.files!.read(
+    const descriptor = releasedFile(candidate, thumbnail);
+    const handle = await this.files.openRead(
       candidate.id,
-      thumbnail ? 'thumbnail' : 'result',
-      expected,
+      descriptor.name,
+      descriptor.bytes,
     );
-    const hash = thumbnail ? candidate.thumbnailHash : candidate.resultHash;
-    if (
-      bytes.length !== expected ||
-      createHash('sha256').update(bytes).digest('hex') !== hash
-    )
-      throw new AccountError(503, 'Mídia pública indisponível.');
-    return bytes;
+    const file = await verifiedMediaFile(handle, {
+      bytes: descriptor.bytes,
+      hash: descriptor.hash,
+      signal,
+    });
+    try {
+      const current = await this.stores.media.releasedMedia(target, review);
+      if (
+        !current ||
+        current.resultHash !== candidate.resultHash ||
+        current.thumbnailHash !== candidate.thumbnailHash
+      )
+        throw new AccountError(404, 'Mídia pública indisponível.');
+      signal.throwIfAborted();
+      await file.check();
+      return { type: descriptor.type, file };
+    } catch (error: unknown) {
+      await file.close();
+      throw error;
+    }
   }
 }

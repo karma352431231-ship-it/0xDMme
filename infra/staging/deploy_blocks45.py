@@ -152,7 +152,7 @@ if(url.hostname!=='127.0.0.1'||url.port!=='45433'||url.pathname!=='/hash_talk_st
 """
 
 
-def database_snapshot(tables=OLD_TABLES, *, omit_columns=None, version_limit=64):
+def database_snapshot(tables=OLD_TABLES, *, omit_columns=None, version_limit=64, include_reserved=False):
     if not tables or any(not name.replace('_', '').isalnum() for name in tables):
         raise RuntimeError('Invalid snapshot table contract.')
     if type(version_limit) is not int or not 1 <= version_limit <= 128:
@@ -162,6 +162,9 @@ def database_snapshot(tables=OLD_TABLES, *, omit_columns=None, version_limit=64)
            any(not isinstance(column, str) or not re.fullmatch(r'[a-z][a-z0-9_]*', column)
                for column in columns) for name, columns in omit_columns.items()):
         raise RuntimeError('Invalid snapshot column contract.')
+    if type(include_reserved) is not bool:
+        raise RuntimeError('Invalid snapshot reserved-column contract.')
+    excluded = json.dumps([] if include_reserved else ['reserved_bytes'])
     omitted = json.dumps(omit_columns)
     tables = json.dumps(tables)
     result = node("""
@@ -180,7 +183,7 @@ try {
   const count=Number((await client.query('SELECT count(*)::integer AS count FROM hash_talk.'+name)).rows[0].count);
   if(count>10000) throw new Error('Snapshot row budget exceeded.');
   // Compare digests only; wallet addresses, tokens and opaque profile bytes never leave this process.
-  result.tables[name]=(await client.query("SELECT count(*)::integer AS count,md5(coalesce(string_agg(value::text,'' ORDER BY value::text),'')) AS hash FROM (SELECT to_jsonb(t)-$1::text[] AS value FROM hash_talk."+name+" t) snapshot_rows",[['reserved_bytes',...(omitted[name]??[])]] )).rows[0];
+  result.tables[name]=(await client.query("SELECT count(*)::integer AS count,md5(coalesce(string_agg(value::text,'' ORDER BY value::text),'')) AS hash FROM (SELECT to_jsonb(t)-$1::text[] AS value FROM hash_talk."+name+" t) snapshot_rows",[[...""" + excluded + """,...(omitted[name]??[])]] )).rows[0];
  }
  await client.query('ROLLBACK'); console.log(JSON.stringify(result));
 } finally {await client.end();}

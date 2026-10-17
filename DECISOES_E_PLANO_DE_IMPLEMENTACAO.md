@@ -1,5 +1,67 @@
 # Capacity audit follow-up — 16 October 2026
 
+## Reviewed group-part correction deployment — 17 October 2026
+
+After the four acceptance corrections were prepared and tested, the owner
+requested integration into main and deployment to the VPS. This authorizes the
+exact 090→091 correction through the existing `npm run deploy:staging` command,
+from clean pushed main with passing exact-commit CI. Use `npm run deploy:check`
+for preflight. No capacity/proxy, media-worker or request-limit flag is needed.
+
+The internal `deploy_group_media_parts.py` pins live application `1b5c1e7` and
+reviewed application `d1258c0`, verifies all ninety applied migrations unchanged,
+the current validated twelve-part constraint, unchanged own units and dedicated
+volume. Before maintenance it requires loaded workers and their three leases.
+Stop only our web and three workers; retain/rehearse the existing private SQL
+and object backups, run the existing migration runner, preserve all row columns
+including pending reserved bytes, and reconcile derived/global accounting.
+Verify the validated thirty-nine-part constraint before reopening the same
+services. No proxy reload, TURN/configuration change, reset or shared-service
+restart belongs to this release. Existing deployment-budget/CSS fixes remain.
+
+Before reopening, existing phase-aware recovery restores and verifies the old
+SQL/objects/code. After reopening, stop our writers and retain the new state for
+review; never restore an older dump over newly accepted thirty-nine-part data.
+Retain the migration backup, previous release, exact-commit public build/source
+proof and operational receipt in the private evidence tree.
+
+**Ponto importante:** deployment activates the corrections; it does not close
+the capacity audit. Repeat the failed bounded VPS cases and keep physical
+pressure/recovery, worker boot and remaining integrated acceptance visible.
+
+## Capacity acceptance corrections — owner request on 17 October 2026
+
+The owner requested correcting the four findings from integrated acceptance.
+Independent attachment collectors tolerate only already-removed entries; path/
+regular-file validation, other I/O errors and parent-directory synchronization
+before SQL collection remain mandatory. ICE gathering waits for a relay in the
+current local description even while the browser still reports the previous
+generation as complete. Keep relay-only SDP/stat verification and existing
+credential renewal, cancellation and negotiation deadlines.
+
+Public prepared-media GET supports a single byte range and strong If-Range;
+HEAD keeps the full representation length without a body. Every request still
+checks current release before/after full-file integrity verification. Hashing and
+delivery use bounded buffers with request-owned memory, a pinned descriptor,
+backpressure and cancellation. The server's sixty-second read deadline matches
+the existing anonymous public-media client deadline. Full-file verification still
+costs disk I/O; the client still waits for its anonymous complete Blob, so these
+corrections do not close every remaining P-MEDIA playback/resource requirement.
+No new origin, authenticated public-media download or dependency is introduced.
+Range semantics follow [RFC 9110 section 14](https://www.rfc-editor.org/rfc/rfc9110.html#section-14).
+
+The owner separately approved preparing and locally testing forward migration
+091 for the approved 10 MB group-file progress: permit thirty-nine 262,144-byte
+parts instead of twelve, preserve existing progress and all applied migrations
+001–090. This approval does not activate SQL on the VPS. No quota, E2EE, retention,
+signing format, relay configuration, shared service or existing test dataset is
+changed by this preparation. Integrated checks/CI and the separately reviewed
+existing-executor schema transition remain required before activation.
+
+**Ponto importante:** source correction and actual VPS activation/acceptance are
+separate states. Keep physical storage, worker boot/readiness, remaining P-DB/
+P-MEDIA/P-TURN and representative load acceptance visible.
+
 ## Capacity integration — owner approval on 17 October 2026
 
 The owner requested integrating the prepared capacity work into main, updating

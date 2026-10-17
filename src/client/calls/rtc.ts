@@ -40,6 +40,10 @@ export function iceConfiguration(input: unknown): RTCConfiguration {
     iceCandidatePoolSize: 0,
   };
 }
+function hasLocalRelay(pc: RTCPeerConnection): boolean {
+  return pc.localDescription?.sdp.includes(' typ relay') ?? false;
+}
+
 export class VoiceConnection {
   private pc: RTCPeerConnection | null = null;
   private microphone: MediaStream | null = null;
@@ -197,16 +201,14 @@ export class VoiceConnection {
     const g = this.generation;
     const until = Date.now() + Math.min(10_000, leaseMs);
     const started = Date.now();
-    while (pc.iceGatheringState !== 'complete') {
+    // Restart may briefly retain the previous generation's complete state.
+    // Wait for a relay in the new local description before accepting completion.
+    while (pc.iceGatheringState !== 'complete' || !hasLocalRelay(pc)) {
       if (g !== this.generation || Date.now() > until)
         throw new Error('TURN não respondeu a tempo.');
       // Some unreachable interfaces keep gathering alive after a working TURN
       // allocation exists. Share only the bounded relay snapshot, without trickle.
-      if (
-        Date.now() - started >= 2000 &&
-        pc.localDescription?.sdp.includes(' typ relay')
-      )
-        break;
+      if (Date.now() - started >= 2000 && hasLocalRelay(pc)) break;
       await new Promise<void>((resolve) => setTimeout(resolve, 100));
     }
     if (g !== this.generation) throw new Error('Chamada encerrada.');
