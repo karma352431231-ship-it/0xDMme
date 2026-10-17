@@ -436,6 +436,23 @@ representative load remain acceptance work. Existing full-copy deployment
 backups can require additional space when the volume grows; their checks and
 retention are unchanged. See [physical storage admission](STORAGE_CAPACITY.md).
 
+## Sixteenth block: consolidate global accounting work
+
+Migration 076 replaces row accounting on 80 sources with exact deltas from each
+statement's changed rows. Bulk journal insertion, charge updates and deletion no
+longer rewrite the global ledger once per record. Preserve old insert/delete/
+update event coverage, profile overhead, numeric and physical admission, quota
+guards and transaction rollback. Generation-cache accounting shares its global
+batch; existing ranking-entry batches are preserved. No source data or counter
+value is rewritten by the migration.
+
+**Ponto importante:** the singleton guard remains. A zero global delta skips its
+counter write; other owner, attachment or reservation guards can still require
+coordination. Mixed upserts and cascading operations can produce separate event
+or relation batches. Transition-table memory/spills, resource/load acceptance
+and schema activation remain pending. See
+[statement accounting](STORAGE_CAPACITY.md#global-statement-accounting--block-16).
+
 ## Remaining audit work
 
 - Validate prepared physical admission, operating margins and the service mount

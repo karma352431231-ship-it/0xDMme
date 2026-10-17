@@ -162,9 +162,9 @@ work. No supported volume/user count follows from these source tests.
   aggregate is not a completion of this contract.
 
 Block 15 above selects physical admission while retaining the existing guard;
-the replacement global allocator remains unselected. Existing
-callers pass numeric logical capacities to `assertContentCapacity` after their
-SQL changes, while triggers maintain the singleton during those changes.
+the replacement global allocator remains unselected. Callers assert their
+numeric fixture budget or adaptive physical policy after SQL changes, while
+triggers maintain the singleton during those changes.
 Therefore an atomic replacement must establish transaction capacity before the
 first charged write, not merely exchange the final comparison for a free-space
 read. Existing source synchronization does not authorize schema activation.
@@ -175,6 +175,55 @@ source tables are locked, 1600 additional reservations without new counter rows,
 concurrent commits, rollback, missing partitions and unsafe totals. Existing
 assembled upload/cleanup integration must still pass. These checks establish
 counter behavior and query independence, not physical-volume or load acceptance.
+
+## Global statement accounting — block 16
+
+Migration 076 consolidates the former global row triggers on 80 source tables.
+For each supported insert/delete/update event, aggregate only the corresponding
+transition rows and apply their exact net charge once. The account-profile rule
+remains `coalesce(octet_length(profile_ciphertext)+524,0)`; other sources keep
+their existing `charge`. Preserve the predecessor event set, including tables
+whose charges are only tracked on insertion/deletion. PostgreSQL transition
+tables cannot use column-specific UPDATE triggers, so existing update-enabled
+sources now collect all updated rows and discard unchanged net charges. See
+[PostgreSQL trigger behavior](https://www.postgresql.org/docs/16/sql-createtrigger.html).
+
+Statement trigger names precede quota and reservation statement triggers. A
+nonzero delta still holds the global ledger row through commit/rollback, and
+migration 075 still captures the first transaction baseline before its update.
+Generation cache changes now follow the same global batch and lock order;
+ranking entries retain their existing global-before-cache batches. Missing
+global/cache accounting refuses the mutation. Retired row functions are removed.
+
+The migration validates the predecessor catalog and locks those source tables
+against writes before replacing triggers. It does not scan/backfill source data,
+rewrite any charge/counter, alter old checksums or change quota/retention rules.
+Existing numeric and physical capacity checks remain authoritative. Reconciliation
+and predecessor fingerprints must agree before and after the schema transition.
+
+The regression reproduces 1,000 ledger writes on the predecessor for a 1,000-row
+journal insertion. Prepared accounting uses one write for each tested 1,000-row
+insert/update/delete batch with identical charged totals. Separate upsert events,
+foreign-key cascade commands and different relations can still emit additional
+batches. Zero global deltas do not write/lock this counter, but independent quota
+or reservation guards may still acquire it. This is a reduction in repeated SQL
+and WAL work, not removal of global transaction serialization or a throughput
+claim. The atomic global allocator remains a separate pending contract.
+
+**Ponto importante:** transition relations consume memory and can spill to disk;
+wide ciphertext/JSON updates now also use the transition-enabled UPDATE path.
+Existing operation bounds remain. Measure temporary I/O, peak memory, lock waits
+and WAL under representative history/batch sizes before activation; do not raise
+batch sizes or disable durability to compensate. This block has no VPS changes.
+
+Rollback requires drained own writers and later dependent schemas reversed first.
+Within one reviewed transaction, remove the new statement triggers/function,
+restore only the former global function/trigger definitions from migrations
+008/012/013 and their later trigger declarations, plus the generation-cache
+function/trigger from 047, and remove catalog entry 076. Do not rerun old schema
+migrations wholesale or reset/backfill counters. Preserve all source rows, ledger
+values, owner/pending counters and transaction-baseline triggers. Reconcile before
+resuming code compatible with the restored catalog.
 
 ## Activation and rollback review
 

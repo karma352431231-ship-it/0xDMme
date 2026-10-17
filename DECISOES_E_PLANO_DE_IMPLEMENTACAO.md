@@ -1,5 +1,16 @@
 # Capacity audit follow-up — 16 October 2026
 
+The sixteenth source block consolidates global charged-byte changes from 80
+source tables into exact statement transition deltas. Preserve their original
+events, profile overhead, global-before-owner/cache ordering, physical admission
+baselines and transaction rollback. Generation cache accounting joins its global
+batch; ranking entries already use statement accounting. This removes repeated
+ledger writes during batches, not the singleton guard itself. Migration 076
+changes accounting triggers only, with no source/counter backfill or VPS
+activation. Review transition-table memory/spills and activation separately.
+The atomic global allocator and remaining locks are still pending. See
+[statement accounting](docs/STORAGE_CAPACITY.md#global-statement-accounting--block-16).
+
 The fifteenth source block replaces the staging fixed global content budget with
 fresh own-volume availability, conservative pending-write envelopes and an
 explicit PostgreSQL/release operating reserve. Keep the existing global guard

@@ -454,6 +454,23 @@ await test('feed e discussão: elegibilidade, representantes, diversidade e árv
         await sql.query(
           'DROP TRIGGER community_ranking_discussion_visibility ON hash_talk.community_posts; DROP INDEX hash_talk.community_discussion_media_refs; DROP TABLE hash_talk.community_discussion_participants CASCADE; DROP FUNCTION hash_talk.prepare_discussion_visibility() CASCADE; DROP FUNCTION hash_talk.refresh_discussion_visibility() CASCADE; DROP FUNCTION hash_talk.discussion_media_blocked(uuid[]); DROP FUNCTION hash_talk.track_discussion_post() CASCADE; DROP FUNCTION hash_talk.adjust_discussion_contribution(uuid,uuid,integer); DROP FUNCTION hash_talk.track_discussion_participant(); ALTER TABLE hash_talk.community_posts DROP COLUMN discussion_participants, DROP COLUMN discussion_activity, DROP COLUMN discussion_blocked; DROP INDEX hash_talk.community_reply_first; DROP INDEX hash_talk.community_reply_votes',
         );
+        // This rollback-only historical rehearsal also needs its original
+        // accounting dependency, retired from the live catalog by migration 076.
+        const legacy = await readFile(
+          new URL(
+            '../../src/server/database/migrations/013-messages.sql',
+            import.meta.url,
+          ),
+          'utf8',
+        );
+        const accounting = legacy.match(
+          /CREATE FUNCTION hash_talk\.track_message_usage\(\)[\s\S]*?\$\$;/u,
+        )?.[0];
+        assert.ok(
+          accounting,
+          'Historical global accounting definition required.',
+        );
+        await sql.query(accounting);
         await sql.query(
           await readFile(
             new URL(

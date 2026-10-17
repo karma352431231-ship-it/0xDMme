@@ -188,6 +188,7 @@ const migrations = [
   '073-attachment-quota-accounting.sql',
   '074-storage-reservation-accounting.sql',
   '075-storage-admission-baselines.sql',
+  '076-global-statement-accounting.sql',
 ];
 
 export interface MaintenanceSnapshot {
