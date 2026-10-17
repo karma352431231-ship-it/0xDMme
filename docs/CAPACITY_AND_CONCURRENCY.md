@@ -404,6 +404,21 @@ preserve cross-table serialization. Schema activation, backfill/resource/load
 acceptance and rollback review remain pending. See
 [exact quota accounting](QUOTA_ACCOUNTING.md).
 
+## Fourteenth block: pending storage reservation envelopes
+
+Block 14 prepares the pending-write accounting required by physical admission.
+Six sources maintain exact totals of their current conservative reservation
+envelopes in fixed partitions. Private observations read those aggregates without
+scanning history or exposing identifiers/content. It preserves logical charges
+and quotas; it does not yet replace the stale global environment budget or its
+singleton guard. Migration 074 needs backfill/preservation/rollback review with
+the remaining global work. See [physical storage preparation](STORAGE_CAPACITY.md).
+
+**Ponto importante:** pending-envelope changes retain the global guard before
+their derived rows, including acceptance that leaves logical bytes unchanged.
+Unchanged charge/visibility/envelopes take no added guard. Review activation with
+the remaining atomic global-capacity replacement; this packet is its prerequisite.
+
 ## Remaining audit work
 
 - Size global content admission from the own data volume and operational space;

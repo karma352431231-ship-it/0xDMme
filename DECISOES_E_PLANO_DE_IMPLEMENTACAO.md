@@ -1,5 +1,15 @@
 # Capacity audit follow-up — 16 October 2026
 
+The fourteenth source block prepares incremental pending-write envelopes for
+vault, private/group/status/social media and public community preparation.
+Aggregate fixed UUID-prefix partitions without reading reservation history;
+preserve source charges, individual quotas, states, global usage and rollback.
+Expose only aggregate counters in private database observations. This is a
+prerequisite for physical-volume admission, not removal of the effective global
+budget or singleton contention. Preserve the coordinated global guard until its
+atomic replacement is implemented. Migration 074/backfill/rollback and activation
+remain separately reviewed. See [physical storage preparation](docs/STORAGE_CAPACITY.md).
+
 The thirteenth source block prepares exact incremental attachment quota totals,
 preserving all statuses, participant charges and personal-removal exclusions.
 Reconcile affected message/participant state under the existing global guard,

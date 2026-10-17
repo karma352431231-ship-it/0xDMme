@@ -1,6 +1,7 @@
 import { MentionNotificationStore } from './mention-notifications.ts';
 import { readMentionContexts } from './mention-contexts.ts';
 import { GroupDailyStore } from './group-daily.ts';
+import { StorageReservationStore } from './storage-reservations.ts';
 export type { GroupDailyStore } from './group-daily.ts';
 import { BackupStore } from './backups.ts';
 import { DailyStore } from './daily.ts';
@@ -177,6 +178,7 @@ const migrations = [
   '071-personal-quota-accounting.sql',
   '072-quota-lock-order.sql',
   '073-attachment-quota-accounting.sql',
+  '074-storage-reservation-accounting.sql',
 ];
 
 export interface MaintenanceSnapshot {
@@ -238,6 +240,7 @@ export class Database {
   readonly statuses: StatusStore;
   readonly statusMedia: StatusMediaStore;
   readonly representatives: RepresentativeStore;
+  readonly storageReservations: StorageReservationStore;
 
   constructor(
     connectionString: string,
@@ -262,6 +265,7 @@ export class Database {
     this.pool.on('error', () => {
       this.failed = true;
     });
+    this.storageReservations = new StorageReservationStore(this.pool);
     this.authentication = new AuthenticationStore(
       this.pool,
       contentCapacity,

@@ -9,10 +9,14 @@ const pending = new URL(`pending-${randomUUID()}.json`, directory);
 try {
   const config = readWebConfiguration(process.env);
   database = new Database(config.databaseUrl);
-  const metrics = await database.maintenanceSnapshot();
+  const [metrics, storageReservations] = await Promise.all([
+    database.maintenanceSnapshot(),
+    database.storageReservations.snapshot(),
+  ]);
   const snapshot = JSON.stringify({
     recordedAt: new Date().toISOString(),
     ...metrics,
+    storageReservations,
   });
   if (Buffer.byteLength(snapshot) > 16_384)
     throw new Error('Métricas excedidas.');

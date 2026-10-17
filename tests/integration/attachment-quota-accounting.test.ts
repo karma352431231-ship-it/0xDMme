@@ -341,7 +341,7 @@ async function verifyConcurrency(t: TestContext, context: AttachmentContext) {
     () => raceSources(context, false),
   );
   await t.test(
-    'owner-only changes acquire the ledger; status-only updates hold no derived/global locks',
+    'owner-only changes acquire the ledger; unchanged quota and pending-write envelopes hold no derived/global locks',
     async () => {
       await rolledBack(writer, async () => {
         await writer.query(
@@ -363,7 +363,7 @@ async function verifyConcurrency(t: TestContext, context: AttachmentContext) {
           )
         ).rows;
         await writer.query(
-          "UPDATE hash_talk.message_attachments SET status='accepted',received='{0}' WHERE message_id=$1",
+          "UPDATE hash_talk.message_attachments SET status='ready',received='{0}' WHERE message_id=$1",
           [fixture.message],
         );
         await reader.query(
