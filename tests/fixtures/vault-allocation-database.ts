@@ -17,6 +17,7 @@ import {
 import { seedStorageReservations } from './storage-reservation-database.ts';
 import { globalSourceSnapshot } from './global-usage-database.ts';
 import { allocationPredecessorDefinitions } from './vault-allocation-reversal.ts';
+import { messageAllocationPredecessor } from './message-allocation-reversal.ts';
 import { vaultLifecyclePredecessor } from './vault-lifecycle-reversal.ts';
 
 async function applyVaultMigration(client: pg.Client, file: string) {
@@ -43,6 +44,7 @@ async function applyVaultMigration(client: pg.Client, file: string) {
 export async function vaultAllocationFixture(
   t: TestContext,
   beforeUpgrade?: (client: pg.Client) => Promise<void>,
+  beforeMessageUpgrade?: (client: pg.Client) => Promise<void>,
 ) {
   const config = readWebConfiguration(process.env),
     url = new URL(config.databaseUrl),
@@ -108,6 +110,9 @@ export async function vaultAllocationFixture(
   await applyVaultMigration(inspector, '078-vault-allocation-accounting.sql');
   const lifecycle = await vaultLifecyclePredecessor(inspector);
   await beforeUpgrade?.(inspector);
+  await applyVaultMigration(inspector, '079-vault-lifecycle-allocations.sql');
+  const message = await messageAllocationPredecessor(inspector);
+  await beforeMessageUpgrade?.(inspector);
   await db.migrate();
   return {
     url: url.href,
@@ -124,6 +129,7 @@ export async function vaultAllocationFixture(
     before,
     predecessor,
     lifecycle,
+    message,
   };
 }
 export type VaultAllocationFixture = Awaited<

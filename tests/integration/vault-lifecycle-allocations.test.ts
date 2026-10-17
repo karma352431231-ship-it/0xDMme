@@ -21,6 +21,7 @@ import {
   bindVaultMaintenance,
 } from '../fixtures/vault-lifecycle-database.ts';
 import type { VaultLifecycleFixture } from '../fixtures/vault-lifecycle-database.ts';
+import { reverseMessageAllocations } from '../fixtures/message-allocation-reversal.ts';
 import { reverseVaultLifecycle } from '../fixtures/vault-lifecycle-reversal.ts';
 
 const full = 1_000_000_000_000n;
@@ -638,6 +639,7 @@ await test('vault lifecycle adoption preserves completion, physical promises, re
         await c.inspector.query(
           'LOCK TABLE hash_talk.vault_operations,hash_talk.vault_heads IN ACCESS EXCLUSIVE MODE',
         );
+        await reverseMessageAllocations(c.inspector, c.message);
         await reverseVaultLifecycle(c.inspector, c.lifecycle);
         assert.deepEqual(
           await globalSourceSnapshot(c.inspector, c.upgrade.sources),

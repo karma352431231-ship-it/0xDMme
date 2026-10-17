@@ -10,7 +10,8 @@ export interface ContentAllocation {
   readonly transactionId: string;
   readonly installationId: string;
   readonly bytes: number;
-  readonly scope: 'prepared' | 'vault-reserve' | 'vault-maintain';
+  readonly scope:
+    'prepared' | 'vault-reserve' | 'vault-maintain' | 'message-admit';
 }
 export type AllocationHeadroom = (client: CapacityClient) => Promise<bigint>;
 interface AllocationOwner {

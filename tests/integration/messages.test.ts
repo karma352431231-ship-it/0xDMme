@@ -1,3 +1,4 @@
+import { VolumeContentCapacity } from '../../src/server/storage-capacity/index.ts';
 import { vaultQuota } from '../../src/shared/vault/index.ts';
 import { withPendingUploadPressure } from './upload-pressure-fixture.ts';
 import { MessageLive } from '../../src/server/message-live/index.ts';
@@ -84,7 +85,12 @@ await test('mensagens persistentes: Olm/Megolm, recuperação, idempotência, ex
   const config = readWebConfiguration(process.env);
   if (!new URL(config.databaseUrl).pathname.startsWith('/hash_talk_test'))
     throw new Error('Banco exclusivo de teste necessário.');
-  let db = new Database(config.databaseUrl);
+  let db = new Database(
+    config.databaseUrl,
+    new VolumeContentCapacity({
+      read: () => Promise.resolve(1_000_000_000_000n),
+    }),
+  );
   await db.migrate();
   const inspector = new pg.Client({ connectionString: config.databaseUrl });
   await inspector.connect();
@@ -1417,7 +1423,12 @@ await test('mensagens persistentes: Olm/Megolm, recuperação, idempotência, ex
     async () => {
       sender.close();
       await db.close();
-      db = new Database(config.databaseUrl);
+      db = new Database(
+        config.databaseUrl,
+        new VolumeContentCapacity({
+          read: () => Promise.resolve(1_000_000_000_000n),
+        }),
+      );
       await db.migrate();
       notifications = new NotificationService({
         store: db.daily,

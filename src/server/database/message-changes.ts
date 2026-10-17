@@ -11,7 +11,7 @@ interface Snapshot {
  * per head update, with at most 256 revisions/account. NULL requires a full scan.
  * The bounded journal has no message bodies; pruning never deletes chat data. */
 export async function recordMessageChanges(
-  client: pg.PoolClient,
+  client: Pick<pg.PoolClient, 'query'>,
   accounts: string[],
   ids: string[] | null,
 ): Promise<void> {

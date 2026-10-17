@@ -1,4 +1,6 @@
 import type pg from 'pg';
+import type { ContentWriteAllocations } from './content-write-allocations.ts';
+import { withAllocationTransaction } from './allocation-transaction.ts';
 import { AccountError } from '../../shared/account/index.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
 import {
@@ -47,6 +49,7 @@ export class ContactStore {
   private readonly pool: pg.Pool;
   private readonly changes: import('./changes.ts').DatabaseChanges | undefined;
   private readonly relayChanges: boolean;
+  private readonly allocations: ContentWriteAllocations | undefined;
   private readonly pendingChanges = new WeakMap<
     pg.PoolClient,
     { accounts: Set<string>; authorization: boolean; removed: boolean }
@@ -55,10 +58,12 @@ export class ContactStore {
     pool: pg.Pool,
     changes?: import('./changes.ts').DatabaseChanges,
     relayChanges = false,
+    allocations?: ContentWriteAllocations,
   ) {
     this.pool = pool;
     this.changes = changes;
     this.relayChanges = relayChanges;
+    this.allocations = allocations;
   }
   /** Coordinated schema operations register hints; only a successful COMMIT publishes them. */
   changed(
@@ -84,45 +89,44 @@ export class ContactStore {
     access: ContactAccess = 'write',
     peer?: string,
   ): Promise<T> {
-    const client = await this.pool.connect();
     const pending = {
       accounts: new Set<string>(),
       authorization: false,
       removed: false,
     };
-    this.pendingChanges.set(client, pending);
-    try {
-      await client.query('BEGIN');
-      await this.admit(client, authority, { access, peer });
-      const result = await work(client);
-      if (this.relayChanges) {
-        const accounts = Array.from(pending.accounts);
-        for (let offset = 0; offset < accounts.length; offset += 64)
-          await client.query(
-            "SELECT pg_notify('hash_talk_content_changes',$1)",
-            [
-              JSON.stringify({
-                accounts: accounts.slice(offset, offset + 64),
-                authorization: pending.authorization,
-                removed: pending.removed,
-              }),
-            ],
-          );
+    const execute = async (client: pg.PoolClient) => {
+      this.pendingChanges.set(client, pending);
+      try {
+        await this.admit(client, authority, { access, peer });
+        const result = await work(client);
+        if (this.relayChanges) {
+          const accounts = Array.from(pending.accounts);
+          for (let offset = 0; offset < accounts.length; offset += 64)
+            await client.query(
+              "SELECT pg_notify('hash_talk_content_changes',$1)",
+              [
+                JSON.stringify({
+                  accounts: accounts.slice(offset, offset + 64),
+                  authorization: pending.authorization,
+                  removed: pending.removed,
+                }),
+              ],
+            );
+        }
+        return result;
+      } finally {
+        this.pendingChanges.delete(client);
       }
-      await client.query('COMMIT');
-      this.pendingChanges.delete(client);
-      this.changes?.committed(pending.accounts, {
-        authorization: pending.authorization,
-        removed: pending.removed,
-      });
-      return result;
-    } catch (error: unknown) {
-      await client.query('ROLLBACK');
-      throw error;
-    } finally {
-      this.pendingChanges.delete(client);
-      client.release();
-    }
+    };
+    const result =
+      access === 'pair' && this.allocations
+        ? await this.allocations.transaction(this.pool, execute)
+        : await withAllocationTransaction(this.pool, execute);
+    this.changes?.committed(pending.accounts, {
+      authorization: pending.authorization,
+      removed: pending.removed,
+    });
+    return result;
   }
   private async admit(
     client: pg.PoolClient,

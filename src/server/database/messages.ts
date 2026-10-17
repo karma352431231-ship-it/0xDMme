@@ -1,3 +1,4 @@
+import type { MessageAllocations } from './message-allocations.ts';
 import type { ContentCapacity } from './content-capacity.ts';
 import { recordMessageChanges, readMessageChanges } from './message-changes.ts';
 import { messageIndexPage } from './message-index.ts';
@@ -33,14 +34,17 @@ export class MessageStore {
   private readonly contacts: ContactStore;
   private readonly capacity: ContentCapacity;
   private readonly attachments: AttachmentStore;
+  private readonly allocations: MessageAllocations | undefined;
   constructor(
     contacts: ContactStore,
     capacity: ContentCapacity,
     attachments: AttachmentStore,
+    allocations?: MessageAllocations,
   ) {
     this.contacts = contacts;
     this.capacity = capacity;
     this.attachments = attachments;
+    this.allocations = allocations;
   }
   async profileKnown(
     authority: ContactAuthority,
@@ -109,7 +113,6 @@ export class MessageStore {
         await this.assertRelation(client, packet);
         const events = await this.currentDirectories(client, packet);
         await this.assertRecoverable(client, packet, events);
-        await this.attachments.admit(client, packet);
         const removedFor = await removedAudience(client, packet);
         const serialized = JSON.stringify(packet);
         const personal = packet.archives.map((archive) =>
@@ -124,6 +127,8 @@ export class MessageStore {
             ? []
             : e.devices.map((d) => ({ account: e.accountId, device: d.id })),
         );
+        await this.allocations?.admit(client, packet, references.length);
+        await this.attachments.admit(client, packet);
         await client.query(
           'INSERT INTO hash_talk.message_packets(id,sender,recipient,hash,body,charge,sender_charge,recipient_charge,sender_revision,recipient_revision,kind,relation) VALUES($1,$2,$3,$4,$5::jsonb,$6,$7,$8,$9,$10,$11,$12::jsonb)',
           [

@@ -1,5 +1,16 @@
 # Capacity audit follow-up — 16 October 2026
 
+The twentieth source block prepares volume-mode private-message admission on the
+existing durable allocator. Keep consent and ordered participant locks, both
+personal quotas, recovery, relation/removal rules and idempotency. Migration 080
+binds the complete packet, ready attachment acceptance, device references, both
+change checkpoints/pruning and push hints to a concrete pre-write envelope.
+Actual source effects are checked before writes, and completeness before COMMIT.
+Vault and message adapters share the existing coordinator connection; no pool
+budget is added. Other writer families, representative load acceptance and the
+final schema/VPS activation remain pending. See
+[private-message adoption](docs/STORAGE_CAPACITY.md#private-message-admission--block-20).
+
 The nineteenth source block completes prepared vault lifecycle adoption after
 the owner's explicit review/approval of migration 079. Completion and final
 discard use scoped operating-SQL envelopes; discarding retains its prior physical

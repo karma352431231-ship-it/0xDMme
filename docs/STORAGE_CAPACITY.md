@@ -453,6 +453,73 @@ more than 256 interrupted records. The full cryptographic vault/HTTP and related
 quota/accounting suites also pass. Synthetic pressure and SQL maintenance reversal
 establish protocol behavior; they do not establish real-volume/load acceptance.
 
+## Private-message admission — block 20
+
+Migration 080 adds the `message-admit` scope for volume-mode web admission.
+Text, profile, related actions and attachment packets retain the same signed
+protocol, checks, charges and both personal quotas. Consent admission remains
+shared; lock both participant accounts in UUID order before authority/consent
+checks and payload effects. General consent/device mutations retain their
+exclusive gate. Unrelated pairs can proceed independently; the same participants
+still coordinate quota, checkpoints, relations and current device authority.
+
+The common transaction/connection lifecycle now lives in `content-write-allocations`.
+Vault and private-message adapters declare their own envelopes and pre-COMMIT
+contracts through that component. Reuse the existing single coordinator and
+15 writer connections within the web budget of 16; workers remain at four.
+Contact transactions own borrowed-connection errors and discard uncertain COMMIT
+connections through the existing allocation transaction runner. Publish change
+hints only after successful COMMIT. Finalization failure keeps the durable token
+and fails health without reporting an acknowledged message as lost.
+
+Before the first charged mutation, grant nine serialized packet sizes, 8 KiB per
+device reference, 64 KiB for new checkpoints/journals and the actual row-size-based
+allowance for ready attachment updates, journal rows eligible for pruning and
+recipient push hints. Never scan message history to estimate this grant. Payloads
+of ready attachments are already reserved; accepting them releases only their
+pending promise, preserving logical charge and attachment/removal reconciliation.
+A concurrent change that exceeds the allowance fails atomically before its
+source effect. These conservative envelopes need physical/WAL/load measurement;
+they do not promise hardware-independent availability.
+
+BEFORE guards restrict every charged source plus uncharged message heads and
+references. Allow one bound packet INSERT; immutable ready-to-accepted attachment
+updates for its declared IDs; references for current participant devices; one
+head advance and matching single-ID journal per participant; pruning only older
+than the existing 256-revision window; and recipient push-state updates with
+unchanged subscription/charge. Charge actual old/new row SQL costs plus new
+logical charges against the durable grant. Deny other sources, participants,
+payload mutations, repeated checkpoints and excess envelopes. Transaction-local
+bindings/effects roll back with savepoints. Other scopes cannot use the new
+metadata guards to mutate private-message state.
+
+Before COMMIT, require the admitted packet, both exact head/journal advances,
+all declared attachment acceptances and exactly the expected current device
+references, excluding participants who removed the original of a related action.
+Keep application authorization, recovery/directory checks, relation/action rules,
+both final quota assertions and exact global accounting. Attachment quota
+reconciliation itself is unchanged: ready-to-accepted preserves its per-owner
+charge, while the existing pending trigger removes its physical promise.
+Unconverted attachment creation/removal and other writer families retain their
+legacy coordination; this is not a claim that P-DB is complete.
+
+080 creates guards/functions and widens the allocation scope; it rewrites no
+source rows, derived counters or old migration checksums. Under maintenance,
+stop our writers/coordinator, prove no live credits and hold the affected source
+locks. Restore the captured 079 allocation/source functions, remove only the new
+metadata triggers/message guard functions/scope and exact 080 catalog entry.
+Preserve post-upgrade packets, references, checkpoints, notifications, charges
+and pending promises. Reverse 080 before 079/078; test a populated reversal and
+back up/verify live preservation before final schema activation. Do not restore
+stale source data as rollback. Operational evidence remains outside Git.
+
+**Ponto importante:** this source packet removes the old ledger wait from complete
+private-message admission. Reads, receipts, removals, attachments outside admission,
+general/group/retention writers, integration/load acceptance and VPS activation
+remain pending. The central database hotspot receives composition/registration
+only; its migration runner and then connection/health split remain a separate
+reviewed task with concurrent migration/checksum, startup/health and worker tests.
+
 ## Activation and rollback review
 
 Re-read the live catalog/configuration before the final activation. Drain our

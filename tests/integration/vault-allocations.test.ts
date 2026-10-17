@@ -583,6 +583,7 @@ await test('vault allocation adoption preserves global, owner and physical admis
           sources: c.sources,
           predecessor: c.predecessor,
           lifecycle: c.lifecycle,
+          message: c.message,
         });
       } finally {
         await c.writer.query('ROLLBACK');

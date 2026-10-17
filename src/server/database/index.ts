@@ -1,5 +1,6 @@
 import type { ContentCapacity } from './content-capacity.ts';
-import { VaultAllocations } from './vault-allocations.ts';
+import type { ContentWriteAllocations } from './content-write-allocations.ts';
+import { createContentWriters } from './content-writers.ts';
 export type {
   ContentCapacity,
   AdaptiveContentCapacity,
@@ -201,6 +202,7 @@ const migrations = [
   '077-content-allocations.sql',
   '078-vault-allocation-accounting.sql',
   '079-vault-lifecycle-allocations.sql',
+  '080-message-admission-allocations.sql',
 ];
 
 export interface MaintenanceSnapshot {
@@ -227,7 +229,7 @@ export interface MaintenanceSnapshot {
 export class Database {
   readonly calls: CallStore;
   private readonly pool: pg.Pool;
-  private readonly vaultAllocations: VaultAllocations | undefined;
+  private readonly contentAllocations: ContentWriteAllocations | undefined;
   private failed = false;
   readonly changes = new DatabaseChanges();
   readonly authentication: AuthenticationStore;
@@ -272,23 +274,22 @@ export class Database {
     role: 'web' | 'worker' = 'web',
   ) {
     this.workSignals = new WorkSignals(connectionString, this.changes);
-    this.vaultAllocations =
-      typeof contentCapacity !== 'number' && role === 'web'
-        ? new VaultAllocations({
-            connectionString,
-            capacity: contentCapacity,
-            failed: () => {
-              this.failed = true;
-            },
-          })
-        : undefined;
+    const writers = createContentWriters({
+      connectionString,
+      capacity: contentCapacity,
+      role,
+      failed: () => {
+        this.failed = true;
+      },
+    });
+    this.contentAllocations = writers.allocations;
     this.pool = new pg.Pool({
       connectionString,
       ...(typeof contentCapacity === 'number'
         ? {}
         : { options: '-c hash_talk.storage_capacity_mode=volume' }),
       // Sized with max_connections (64): web 16 including coordinator; workers 4.
-      max: role === 'worker' ? 4 : this.vaultAllocations ? 15 : 16,
+      max: role === 'worker' ? 4 : this.contentAllocations ? 15 : 16,
       connectionTimeoutMillis: 3_000,
       idleTimeoutMillis: 10_000,
       query_timeout: 5_000,
@@ -308,15 +309,12 @@ export class Database {
       this.changes,
     );
     this.devices = new DeviceStore(this.pool, contentCapacity, this.changes);
-    this.vault = new VaultStore(
-      this.pool,
-      contentCapacity,
-      this.vaultAllocations,
-    );
+    this.vault = new VaultStore(this.pool, contentCapacity, writers.vault);
     this.contacts = new ContactStore(
       this.pool,
       this.changes,
       role === 'worker',
+      this.contentAllocations,
     );
     this.publicModeration = new PublicModerationStore(
       this.pool,
@@ -429,6 +427,7 @@ export class Database {
       this.contacts,
       contentCapacity,
       this.attachments,
+      writers.messages,
     );
     this.backups = new BackupStore(this.pool, this.contacts, contentCapacity, {
       clean: (c, account, item) => this.socialHistory.clean(c, account, item),
@@ -600,17 +599,18 @@ export class Database {
       ...snapshot,
       poolConnections:
         this.pool.totalCount +
-        (this.vaultAllocations?.activity.connections ?? 0),
+        (this.contentAllocations?.activity.connections ?? 0),
       poolIdle:
-        this.pool.idleCount + (this.vaultAllocations?.activity.idle ?? 0),
+        this.pool.idleCount + (this.contentAllocations?.activity.idle ?? 0),
       poolWaiting:
-        this.pool.waitingCount + (this.vaultAllocations?.activity.waiting ?? 0),
+        this.pool.waitingCount +
+        (this.contentAllocations?.activity.waiting ?? 0),
     };
   }
 
   async close(): Promise<void> {
     await this.workSignals.close();
     await this.pool.end();
-    await this.vaultAllocations?.close();
+    await this.contentAllocations?.close();
   }
 }

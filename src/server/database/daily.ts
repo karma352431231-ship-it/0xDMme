@@ -359,7 +359,7 @@ export class DailyStore {
 }
 /** Called inside message admission: one coalesced marker per subscribed device. */
 export async function enqueuePush(
-  c: pg.PoolClient,
+  c: Pick<pg.PoolClient, 'query'>,
   recipient: string,
   sender: string,
 ): Promise<void> {
