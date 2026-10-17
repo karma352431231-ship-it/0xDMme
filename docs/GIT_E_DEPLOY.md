@@ -1,5 +1,15 @@
 # 0xDMme — Git e envio à VPS
 
+## CI trigger policy — 17 October 2026
+
+The owner requested CI only for main integration. Run the existing checks on
+pushes to `main` and pull requests targeting `main`. Task-branch commits retain
+relevant local validation; they do not require a full remote CI run each time.
+An integrated, clean, pushed main commit with passing exact-commit CI remains a
+release prerequisite. This trigger policy does not authorize deployment or schema
+activation and does not weaken any CI job. Other task branches inherit the policy
+when they incorporate this workflow change.
+
 ## Chat actions and GIF notifications — activation authorized on 15/10/2026
 
 After full CI passed for `b3f3dd4`, the owner explicitly requested main integration
