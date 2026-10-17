@@ -1,3 +1,15 @@
+/* Isolated manage screen. */
+.community-manage {
+  display: grid;
+  gap: 14px;
+}
+.community-manage > h1 {
+  margin: 0 0 4px;
+  font: 700 22px/1.2 var(--font-display);
+}
+#app-shell .community-manage .community-card {
+  margin: 0;
+}
 /*
  * Community settings: tabs (Geral, Tags, Moderação, Propriedade) show one
  * group at a time; cards sit side by side on wide screens and stay compact.
