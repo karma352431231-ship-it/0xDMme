@@ -43,7 +43,9 @@ export async function messageAllocationFixture(t: TestContext) {
 export type MessageAllocationFixture = Awaited<
   ReturnType<typeof messageAllocationFixture>
 >;
-export async function messageUser(c: MessageAllocationFixture) {
+export async function messageUser(
+  c: Pick<MessageAllocationFixture, 'db' | 'inspector'>,
+) {
   const accounts = new AccountService({
       store: c.db.authentication,
       origin: 'http://127.0.0.1:45117',
@@ -89,7 +91,9 @@ export async function messageUser(c: MessageAllocationFixture) {
   return { session: login.session, directory, key, event };
 }
 export type MessageUser = Awaited<ReturnType<typeof messageUser>>;
-export async function messagePair(c: MessageAllocationFixture) {
+export async function messagePair(
+  c: Pick<MessageAllocationFixture, 'db' | 'inspector'>,
+) {
   const sender = await messageUser(c),
     recipient = await messageUser(c);
   await c.inspector.query(

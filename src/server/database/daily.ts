@@ -13,6 +13,7 @@ import type {
 import { defaultPushPreferences } from '../../shared/daily/index.ts';
 import type { ContactAuthority, ContactStore } from './contacts.ts';
 import { assertContentCapacity, assertVaultQuota } from './vault-quota.ts';
+import type { MessageReadAllocations } from './message-read-allocations.ts';
 import { readPushJobPage } from './push-jobs.ts';
 import type {
   PushJob,
@@ -36,14 +37,17 @@ export class DailyStore {
   private readonly pool: pg.Pool;
   private readonly contacts: ContactStore;
   private readonly capacity: ContentCapacity;
+  private readonly readAllocations: MessageReadAllocations | undefined;
   constructor(
     pool: pg.Pool,
     contacts: ContactStore,
     capacity: ContentCapacity,
+    readAllocations?: MessageReadAllocations,
   ) {
     this.pool = pool;
     this.contacts = contacts;
     this.capacity = capacity;
+    this.readAllocations = readAllocations;
   }
   private async budget(c: pg.PoolClient, account: string): Promise<void> {
     await assertVaultQuota(c, account);
@@ -142,6 +146,7 @@ export class DailyStore {
     });
   }
   async read(a: ContactAuthority, peer: string, ids: string[]): Promise<void> {
+    ids = [...new Set(ids)];
     return this.contacts.withMessageConsent(a, peer, async (c) => {
       const m = await c.query(
         `SELECT m.id FROM hash_talk.message_packets m JOIN hash_talk.message_references r ON r.message_id=m.id AND r.account_id=$1 AND r.device_id=$3 AND r.status='received' WHERE m.id=ANY($4::uuid[]) AND m.sender=$2 AND m.recipient=$1 AND m.body IS NOT NULL AND m.relation IS NULL AND m.kind<>'profile' AND NOT EXISTS(SELECT 1 FROM hash_talk.personal_removals pr WHERE pr.account_id=$1 AND pr.kind='message' AND pr.id=m.id)`,
@@ -152,6 +157,16 @@ export class DailyStore {
           409,
           'Leitura exige mensagens recebidas e preservadas neste aparelho.',
         );
+      if (
+        this.readAllocations &&
+        !(await this.readAllocations.prepare(c, {
+          accountId: a.session.accountId,
+          peer,
+          deviceId: a.session.deviceId,
+          ids,
+        }))
+      )
+        return;
       const updated = await c.query<{ share_epoch: number | null }>(
         `INSERT INTO hash_talk.message_reads(account_id,message_id,share_epoch) SELECT $1,unnest($2::uuid[]),CASE WHEN dc.read_receipts THEN dc.receipt_epoch ELSE NULL END FROM (SELECT 1) root LEFT JOIN hash_talk.daily_controls dc ON dc.account_id=$1 ON CONFLICT(account_id,message_id) DO UPDATE SET share_epoch=excluded.share_epoch WHERE hash_talk.message_reads.share_epoch IS DISTINCT FROM excluded.share_epoch RETURNING share_epoch`,
         [a.session.accountId, ids],

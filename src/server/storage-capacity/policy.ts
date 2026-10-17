@@ -62,7 +62,7 @@ async function admissionState(
       CASE WHEN current_setting('autovacuum_work_mem')='-1' THEN 0 ELSE pg_size_bytes(current_setting('autovacuum_work_mem')) END)
       *current_setting('autovacuum_max_workers')::bigint)::text AS maintenance_bytes,
     (current_setting('max_connections')::bigint*${contentSqlTransactionBytes})::text AS inflight_sql_bytes,
-    EXISTS(SELECT 1 FROM hash_talk.schema_migrations WHERE version=80) AS schema_ready`);
+    EXISTS(SELECT 1 FROM hash_talk.schema_migrations WHERE version=81) AS schema_ready`);
   const row = result.rows[0];
   if (
     !row ||

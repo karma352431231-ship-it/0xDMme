@@ -544,6 +544,58 @@ remain pending. The central database hotspot receives composition/registration
 only; its migration runner and then connection/health split remain a separate
 reviewed task with concurrent migration/checksum, startup/health and worker tests.
 
+## Private-message receipts — block 21
+
+Delivery ACKs no longer take the exclusive contact-admission gate. Within one
+transaction, take the shared gate, read only sender/recipient routing, lock the
+participant accounts in UUID order, authenticate the current session/directory
+and re-read receipt metadata (hash, presence and original relation ID), without
+transferring the encrypted packet body. Require the stored participants to match the locked set
+before any effect. Missing/foreign lookup candidates resolve to the actor so
+session/directory error priority is preserved; authorized missing/foreign packets
+still fail. Consent/device mutations continue to exclude this transaction. ACK
+keeps its prior consent semantics, personal-removal checks, hash validation,
+idempotency, revoked-reference retirement and successful-COMMIT-only hints.
+Independent pairs coexist; the same pair coordinates both directions. These
+updates change no charges and require no new payload credit.
+
+Volume-mode read marks use `message-read` credits through the existing coordinator
+and pool budget. Under the existing consent/participant locks, require every
+selected message to be preserved, addressed by the peer and received on this
+device. Normalize duplicate IDs. Existing current-epoch marks are a no-op without
+writes, hints or new capacity claims; accepted metadata remains usable under
+physical pressure. Fresh/changed marks declare 16 KiB per unique ID plus 16 KiB
+for SQL bookkeeping before the UPSERT. Keep the existing 16-ID transport batch;
+this is not a new account/visitor ceiling.
+
+Migration 081 adds the scope and enforces actual old/new row SQL costs and logical
+charge before source effects. Restrict writes to the bound account, peer, device
+and IDs, exact existing 256-byte charge, received/preserved original packets and
+the current private/shared receipt epoch. Only INSERT or share-epoch UPDATE is
+allowed. Other sources, immutable changes, missing receipts, excess budgets and
+repeated effects fail atomically; savepoints restore bindings and consumption.
+Require every declared ID's persisted row, source effect and current authority/
+privacy state before COMMIT. Final personal quota and exact global assertions
+remain. Failure rolls back the batch; post-commit finalization failure retains
+the durable credit and fails health without misreporting an accepted mark as lost.
+
+No legacy-data import/backfill or preservation reversal is added for 081. The
+owner permits clean pre-launch initialization/reset for final activation. Older
+migration checksums and still-active writer coordination remain unchanged. Test
+fresh boot and growing new histories, mixed writer coexistence, consent/device
+revocation, quota/pressure, incomplete batches and failures. Use the selected
+clean initialization/operational recovery procedure for the final batch; migration
+or source preparation alone does not reset data or activate the VPS.
+
+**Ponto importante:** ACK and read-mark source preparation closes these two
+private-message coordination paths. Payload opening/export can create and charge
+new device references, so it must retain write coordination until adopted.
+Message/personal removals, attachment and general/group/retention coordination,
+representative load, integration and final activation remain pending. Database
+entry-module changes are migration/composition wiring only; its separate migration
+runner then connection/health split retains checksum/atomicity, restart and worker
+test requirements.
+
 ## Activation and rollback review
 
 Re-read the live catalog/configuration before the final activation. Drain our

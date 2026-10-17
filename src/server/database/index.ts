@@ -203,6 +203,7 @@ const migrations = [
   '078-vault-allocation-accounting.sql',
   '079-vault-lifecycle-allocations.sql',
   '080-message-admission-allocations.sql',
+  '081-message-read-allocations.sql',
 ];
 
 export interface MaintenanceSnapshot {
@@ -412,7 +413,12 @@ export class Database {
       this.contacts,
       contentCapacity,
     );
-    this.daily = new DailyStore(this.pool, this.contacts, contentCapacity);
+    this.daily = new DailyStore(
+      this.pool,
+      this.contacts,
+      contentCapacity,
+      writers.reads,
+    );
     this.messageRecovery = new MessageRecoveryStore(
       this.contacts,
       contentCapacity,

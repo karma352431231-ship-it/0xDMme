@@ -10,7 +10,7 @@ import {
 } from '../../shared/devices/index.ts';
 import { contactPageSize } from '../../shared/contacts/index.ts';
 import { lockContactAdmission } from './contact-admission.ts';
-import type { ContactAccess } from './contact-admission.ts';
+import type { ContactAccess, ContactPeer } from './contact-admission.ts';
 import type {
   ContactList,
   DiscoveryMode,
@@ -85,9 +85,12 @@ export class ContactStore {
   }
   private async transaction<T>(
     authority: ContactAuthority | null,
-    work: (client: pg.PoolClient) => Promise<T>,
+    work: (
+      client: pg.PoolClient,
+      participants: readonly string[],
+    ) => Promise<T>,
     access: ContactAccess = 'write',
-    peer?: string,
+    peer?: ContactPeer,
   ): Promise<T> {
     const pending = {
       accounts: new Set<string>(),
@@ -97,8 +100,11 @@ export class ContactStore {
     const execute = async (client: pg.PoolClient) => {
       this.pendingChanges.set(client, pending);
       try {
-        await this.admit(client, authority, { access, peer });
-        const result = await work(client);
+        const participants = await this.admit(client, authority, {
+          access,
+          peer,
+        });
+        const result = await work(client, participants);
         if (this.relayChanges) {
           const accounts = Array.from(pending.accounts);
           for (let offset = 0; offset < accounts.length; offset += 64)
@@ -131,9 +137,9 @@ export class ContactStore {
   private async admit(
     client: pg.PoolClient,
     authority: ContactAuthority | null,
-    input: { access: ContactAccess; peer: string | undefined },
-  ): Promise<void> {
-    await lockContactAdmission(client, {
+    input: { access: ContactAccess; peer: ContactPeer | undefined },
+  ): Promise<readonly string[]> {
+    const participants = await lockContactAdmission(client, {
       actor: authority?.session.accountId ?? null,
       access: input.access,
       ...(input.peer ? { peer: input.peer } : {}),
@@ -141,6 +147,7 @@ export class ContactStore {
     if (authority) await this.authorize(client, authority);
     if (input.access === 'read')
       await client.query('SET TRANSACTION READ ONLY');
+    return participants;
   }
   private async authorize(
     client: pg.PoolClient,
@@ -276,6 +283,17 @@ export class ContactStore {
     work: (client: pg.PoolClient) => Promise<T>,
   ): Promise<T> {
     return this.transaction(null, work);
+  }
+  /** Existing-message effects recheck routing under both participant locks; consent semantics belong to the caller. */
+  async withMessageParticipants<T>(
+    authority: ContactAuthority,
+    peer: (client: pg.PoolClient) => Promise<string>,
+    work: (
+      client: pg.PoolClient,
+      participants: readonly string[],
+    ) => Promise<T>,
+  ): Promise<T> {
+    return this.transaction(authority, work, 'pair', peer);
   }
   async withMessageConsent<T>(
     authority: ContactAuthority,

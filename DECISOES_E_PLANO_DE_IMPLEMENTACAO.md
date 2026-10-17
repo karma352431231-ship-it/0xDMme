@@ -38,6 +38,20 @@ changes into the reset. Review initialization, stale-session handling, exact
 integrated CI, resource/load acceptance and operational recovery for the selected
 final transition. Hardware/free-space measurement and privacy boundaries remain.
 
+The twenty-first source block prepares participant-scoped private delivery ACKs
+and volume-mode read marks. Resolve only immutable message routing under the
+shared consent gate, acquire both accounts in UUID order, then recheck authority
+and stored participants. Preserve ACK semantics across consent changes, removal,
+revocation and retries; queue state changes add no charged bytes. Read marks use
+the existing coordinator and a concrete metadata envelope with BEFORE source and
+pre-COMMIT completeness/privacy checks. Unchanged adopted retries reserve/write
+nothing, including under physical pressure; new marks retain quota and capacity
+admission. Migration 081 changes guards/scopes without old-data conversion or
+backfill. Existing read-batch bounds remain protocol batching, not visitor caps.
+Fresh-schema synthetic tests and the assembled encrypted message flow validate
+new-data contracts. Removal/attachment coordination, representative load and final
+activation remain pending. See [receipt coordination](docs/STORAGE_CAPACITY.md#private-message-receipts--block-21).
+
 The twentieth source block prepares volume-mode private-message admission on the
 existing durable allocator. Keep consent and ordered participant locks, both
 personal quotas, recovery, relation/removal rules and idempotency. Migration 080

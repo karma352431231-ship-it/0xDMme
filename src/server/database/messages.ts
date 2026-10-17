@@ -24,6 +24,14 @@ interface StoredMessage {
   deletion: MessageProof | null;
   queue_active: boolean;
 }
+interface MessageReceiptRecord {
+  id: string;
+  sender: string;
+  recipient: string;
+  hash: string;
+  available: boolean;
+  original_id: string;
+}
 export interface MessageSnapshot {
   revision: number;
   directory: string;
@@ -249,10 +257,10 @@ export class MessageStore {
     );
     return result.rows[0] ?? null;
   }
-  private assertParticipant(
+  private assertParticipant<T extends { sender: string; recipient: string }>(
     authority: ContactAuthority,
-    row: StoredMessage | null,
-  ): asserts row is StoredMessage {
+    row: T | null,
+  ): asserts row is T {
     if (
       !row ||
       ![row.sender, row.recipient].includes(authority.session.accountId)
@@ -316,43 +324,76 @@ export class MessageStore {
     id: string,
     hash: string,
   ): Promise<void> {
-    return this.contacts.withMessageAuthority(authority, async (client) => {
-      const row = await this.record(client, id);
-      this.assertParticipant(authority, row);
-      if (!row.body || row.hash !== hash)
-        throw new AccountError(
-          409,
-          'Mensagem apagada ou confirmação divergente.',
+    return this.contacts.withMessageParticipants(
+      authority,
+      (client) => this.messagePeer(client, authority, id),
+      async (client, participants) => {
+        const row = await this.receiptRecord(client, id);
+        this.assertParticipant(authority, row);
+        if (
+          !participants.includes(row.sender) ||
+          !participants.includes(row.recipient)
+        )
+          throw new AccountError(404, 'Mensagem indisponível.');
+        if (!row.available || row.hash !== hash)
+          throw new AccountError(
+            409,
+            'Mensagem apagada ou confirmação divergente.',
+          );
+        const removed = await client.query(
+          "SELECT 1 FROM hash_talk.personal_removals WHERE account_id=$1 AND kind='message' AND id IN ($2,$3)",
+          [authority.session.accountId, id, row.original_id],
         );
-      const removed = await client.query(
-        "SELECT 1 FROM hash_talk.personal_removals WHERE account_id=$1 AND kind='message' AND id IN ($2,$3)",
-        [authority.session.accountId, id, originalId(row, id)],
-      );
-      if (removed.rowCount)
-        throw new AccountError(410, 'Mensagem removida do cofre pessoal.');
-      const { accountId, deviceId } = authority.session;
-      const updated = await client.query(
-        "UPDATE hash_talk.message_references SET status='received' WHERE message_id=$1 AND account_id=$2 AND device_id=$3 AND status='pending'",
-        [id, accountId, deviceId],
-      );
-      if (!updated.rowCount) return;
-      await this.retireRevoked(client, row);
-      if (accountId === row.recipient)
-        this.contacts.changed(client, [row.sender]);
-    });
+        if (removed.rowCount)
+          throw new AccountError(410, 'Mensagem removida do cofre pessoal.');
+        const { accountId, deviceId } = authority.session;
+        const updated = await client.query(
+          "UPDATE hash_talk.message_references SET status='received' WHERE message_id=$1 AND account_id=$2 AND device_id=$3 AND status='pending'",
+          [id, accountId, deviceId],
+        );
+        if (!updated.rowCount) return;
+        await this.retireRevoked(client, row.id);
+        if (accountId === row.recipient)
+          this.contacts.changed(client, [row.sender]);
+      },
+    );
+  }
+  private async messagePeer(
+    client: pg.PoolClient,
+    authority: ContactAuthority,
+    id: string,
+  ): Promise<string> {
+    const row = await this.receiptRecord(client, id),
+      actor = authority.session.accountId;
+    // Missing/foreign rows resolve to the actor so session/directory failures
+    // retain their priority; the authorized callback performs the actual check.
+    if (row?.sender === actor) return row.recipient;
+    if (row?.recipient === actor) return row.sender;
+    return actor;
+  }
+  private async receiptRecord(
+    client: pg.PoolClient,
+    id: string,
+  ): Promise<MessageReceiptRecord | null> {
+    const result = await client.query<MessageReceiptRecord>(
+      `SELECT id,sender,recipient,hash,body IS NOT NULL AS available,coalesce(relation->>'id',id::text) AS original_id
+       FROM hash_talk.message_packets WHERE id=$1`,
+      [id],
+    );
+    return result.rows[0] ?? null;
   }
   private async retireRevoked(
     client: pg.PoolClient,
-    row: StoredMessage,
+    id: string,
   ): Promise<void> {
     // Both recoverable capsules were admitted atomically. Only revoked references retire.
     await client.query(
       "UPDATE hash_talk.message_references r SET status='revoked' WHERE r.message_id=$1 AND r.status='pending' AND NOT EXISTS(SELECT 1 FROM hash_talk.device_directories d,jsonb_array_elements(d.event->'devices') member WHERE d.account_id=r.account_id AND member->>'id'=r.device_id::text)",
-      [row.id],
+      [id],
     );
     await client.query(
       "UPDATE hash_talk.message_packets SET queue_active=false WHERE id=$1 AND queue_active AND NOT EXISTS(SELECT 1 FROM hash_talk.message_references WHERE message_id=$1 AND status='pending')",
-      [row.id],
+      [id],
     );
   }
   async snapshot(authority: ContactAuthority): Promise<MessageSnapshot> {
