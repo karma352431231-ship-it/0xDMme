@@ -1,5 +1,29 @@
 # Physical storage admission preparation
 
+## Current transition policy — disposable pre-launch data
+
+On 17 October 2026, the owner explicitly authorized resetting the app's existing
+pre-launch test data when simpler or faster than preserving it, reporting no
+active users. A clean final initialization can replace legacy-data conversion,
+backfill and data-preserving reversal work that serves only that disposable
+history. Earlier block descriptions below record implemented behavior and tests;
+the owner's new decision supersedes their requirement to retain the current test
+dataset during activation. See the
+[recorded decision](../DECISOES_E_PLANO_DE_IMPLEMENTACAO.md#owner-decision--disposable-pre-launch-data-17-october-2026).
+
+Keep the reset within our own app data and the final reviewed activation batch.
+Prepare its concrete initialization/recovery procedure; preserve source history,
+deployment/access credentials, shared infrastructure and the other project. No reset or VPS action
+was performed by recording this policy. Preserve correct quotas, accounting,
+consent, delivery, E2EE and recovery for all new data after initialization.
+Populated synthetic regressions still test the app's future histories.
+
+Legacy writer coordination and compatibility views currently have runtime
+callers in this release. Replacing those requires coherent writer/schema work
+even on an empty database. Review the final initialization and stale-client
+behavior, integrated CI, physical envelopes and mixed-load acceptance. Reset
+permission does not establish throughput or remove overload/durability needs.
+
 ## Physical volume admission — source block 15
 
 Staging web and all three worker roles now use an adaptive capacity contract.

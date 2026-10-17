@@ -1,5 +1,43 @@
 # Capacity audit follow-up — 16 October 2026
 
+## Owner decision — disposable pre-launch data (17 October 2026)
+
+The owner explicitly authorized discarding all existing 0xDMme pre-launch test
+data when a reset is simpler or faster than preserving or converting it, and
+reported that the app has no active users. Prioritize a clean initialization for
+the final capacity release when it reduces implementation or transition work.
+Do not require legacy-data import, historical backfill or restoration of the
+current test dataset solely to retain that dataset. This decision supersedes
+contrary current-test-data preservation requirements in earlier capacity notes;
+those notes remain evidence of the already implemented and validated approach.
+
+Scope is only this app's disposable pre-launch database and payload/state data.
+Preserve source history, deployment/access credentials, canonical identity, infrastructure isolation
+and the other project's files/services/databases. The existing final-batch
+activation timing remains: this records authorization, not an immediate reset or
+release activation. Prepare the exact scoped reset, clean initialization and
+recovery procedure before using it; no additional permission is needed merely
+for the already authorized discard of this test dataset. Real user data accepted
+outside this pre-launch scope is not covered by this decision.
+
+Preserve all behavior required after initialization: E2EE, authentication,
+authorization, consent/revocation, personal quotas, exact accounting, delivery,
+idempotency, durability, retention and recovery across growing new histories.
+Continue populated synthetic tests where they exercise those future histories,
+concurrent operations, failure handling or recovery. Remove legacy upgrade/
+preservation work only when the selected transition no longer uses it; do not
+remove regression coverage just because the deployment starts empty.
+
+The existing `content_usage` compatibility view and legacy writer gates also
+coordinate still-active code paths in the prepared release. A reset alone does
+not remove that runtime dependency, replace their lock order or make concurrent
+claims safe. Evaluate a coherent final schema and remaining writer adoption
+before retiring those contracts. Do not silently delete published migration
+history, renumber old checksums or mix unrelated protocol/crypto/account-identity
+changes into the reset. Review initialization, stale-session handling, exact
+integrated CI, resource/load acceptance and operational recovery for the selected
+final transition. Hardware/free-space measurement and privacy boundaries remain.
+
 The twentieth source block prepares volume-mode private-message admission on the
 existing durable allocator. Keep consent and ordered participant locks, both
 personal quotas, recovery, relation/removal rules and idempotency. Migration 080
