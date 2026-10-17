@@ -4,6 +4,7 @@ import { AccountError } from '../../shared/account/index.ts';
 export type CapacityClient = Pick<pg.PoolClient, 'query'>;
 export interface AdaptiveContentCapacity {
   readonly mode: 'volume';
+  allocationHeadroom(client: CapacityClient): Promise<bigint>;
   assert(
     client: CapacityClient,
     input: { logicalBytes: number; intent: 'growth' | 'reclaim' },
@@ -22,12 +23,17 @@ export function contentCapacityUnavailable(): AccountError {
   );
 }
 
-/** Global coordination remains until the separate exact allocator replacement. */
+/** Legacy writers retain their guard; adopted credits use independent deltas. */
 export async function lockContentUsage(
   client: CapacityClient,
 ): Promise<number> {
+  const guard = await client.query<{ valid: boolean }>(
+    'SELECT hash_talk.guard_content_usage() AS valid',
+  );
+  if (guard.rows[0]?.valid !== true)
+    throw new Error('Contagem global indisponível.');
   const result = await client.query<{ bytes: string }>(
-    'SELECT used_bytes::text AS bytes FROM hash_talk.content_usage WHERE singleton FOR UPDATE',
+    'SELECT used_bytes::text AS bytes FROM hash_talk.content_usage WHERE singleton',
   );
   const bytes = Number(result.rows[0]?.bytes);
   if (!Number.isSafeInteger(bytes) || bytes < 0)

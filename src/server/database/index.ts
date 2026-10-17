@@ -1,4 +1,5 @@
 import type { ContentCapacity } from './content-capacity.ts';
+import { VaultAllocations } from './vault-allocations.ts';
 export type {
   ContentCapacity,
   AdaptiveContentCapacity,
@@ -195,6 +196,7 @@ const migrations = [
   '075-storage-admission-baselines.sql',
   '076-global-statement-accounting.sql',
   '077-content-allocations.sql',
+  '078-vault-allocation-accounting.sql',
 ];
 
 export interface MaintenanceSnapshot {
@@ -221,6 +223,7 @@ export interface MaintenanceSnapshot {
 export class Database {
   readonly calls: CallStore;
   private readonly pool: pg.Pool;
+  private readonly vaultAllocations: VaultAllocations | undefined;
   private failed = false;
   readonly changes = new DatabaseChanges();
   readonly authentication: AuthenticationStore;
@@ -265,13 +268,23 @@ export class Database {
     role: 'web' | 'worker' = 'web',
   ) {
     this.workSignals = new WorkSignals(connectionString, this.changes);
+    this.vaultAllocations =
+      typeof contentCapacity !== 'number' && role === 'web'
+        ? new VaultAllocations({
+            connectionString,
+            capacity: contentCapacity,
+            failed: () => {
+              this.failed = true;
+            },
+          })
+        : undefined;
     this.pool = new pg.Pool({
       connectionString,
       ...(typeof contentCapacity === 'number'
         ? {}
         : { options: '-c hash_talk.storage_capacity_mode=volume' }),
-      // Sized with postgresql.conf max_connections (64): web 16, each worker 4.
-      max: role === 'worker' ? 4 : 16,
+      // Sized with max_connections (64): web 16 including coordinator; workers 4.
+      max: role === 'worker' ? 4 : this.vaultAllocations ? 15 : 16,
       connectionTimeoutMillis: 3_000,
       idleTimeoutMillis: 10_000,
       query_timeout: 5_000,
@@ -291,7 +304,11 @@ export class Database {
       this.changes,
     );
     this.devices = new DeviceStore(this.pool, contentCapacity, this.changes);
-    this.vault = new VaultStore(this.pool, contentCapacity);
+    this.vault = new VaultStore(
+      this.pool,
+      contentCapacity,
+      this.vaultAllocations,
+    );
     this.contacts = new ContactStore(
       this.pool,
       this.changes,
@@ -577,14 +594,19 @@ export class Database {
       throw new Error('Métricas indisponíveis.');
     return {
       ...snapshot,
-      poolConnections: this.pool.totalCount,
-      poolIdle: this.pool.idleCount,
-      poolWaiting: this.pool.waitingCount,
+      poolConnections:
+        this.pool.totalCount +
+        (this.vaultAllocations?.activity.connections ?? 0),
+      poolIdle:
+        this.pool.idleCount + (this.vaultAllocations?.activity.idle ?? 0),
+      poolWaiting:
+        this.pool.waitingCount + (this.vaultAllocations?.activity.waiting ?? 0),
     };
   }
 
   async close(): Promise<void> {
     await this.workSignals.close();
     await this.pool.end();
+    await this.vaultAllocations?.close();
   }
 }

@@ -7,6 +7,7 @@ export interface ContentAllocation {
   readonly transactionId: string;
   readonly installationId: string;
   readonly bytes: number;
+  readonly scope: 'prepared' | 'vault-reserve';
 }
 export type AllocationHeadroom = (client: CapacityClient) => Promise<bigint>;
 interface AllocationOwner {
@@ -86,6 +87,7 @@ async function collectCompleted(client: CapacityClient): Promise<number> {
     ORDER BY transaction_id LIMIT 128)
     DELETE FROM hash_talk.content_allocations a USING completed c
     WHERE a.transaction_id=c.transaction_id`);
+  await client.query('SELECT hash_talk.compact_content_usage()');
   return result.rowCount ?? 0;
 }
 async function assertOwner(client: CapacityClient, owner: AllocationOwner) {
@@ -99,7 +101,7 @@ async function assertOwner(client: CapacityClient, owner: AllocationOwner) {
   if (result.rows[0]?.valid !== true) throw contentCapacityUnavailable();
 }
 
-/** Prepared allocator; existing runtime guards remain until coordinated adoption. */
+/** Durable credits; each adopted writer must enforce its concrete envelope. */
 export class ContentAllocator {
   private readonly pool: pg.Pool;
   private readonly headroom: AllocationHeadroom;
@@ -113,6 +115,7 @@ export class ContentAllocator {
   async reserve(
     ownerClient: CapacityClient,
     bytes: number,
+    scope: ContentAllocation['scope'] = 'prepared',
   ): Promise<ContentAllocation> {
     const needed = allocationBytes(bytes);
     const owner = await allocationOwner(ownerClient);
@@ -120,17 +123,21 @@ export class ContentAllocator {
       await lockAllocationGuard(client);
       await assertOwner(client, owner);
       await collectCompleted(client);
-      const existing = await client.query<{ bytes: string }>(
-        'SELECT bytes::text FROM hash_talk.content_allocations WHERE transaction_id=$1::xid8',
+      const existing = await client.query<{ bytes: string; scope: string }>(
+        'SELECT bytes::text,scope FROM hash_talk.content_allocations WHERE transaction_id=$1::xid8',
         [owner.transactionId],
       );
       if (existing.rows[0]) {
-        if (BigInt(existing.rows[0].bytes) !== needed)
+        if (
+          BigInt(existing.rows[0].bytes) !== needed ||
+          existing.rows[0].scope !== scope
+        )
           throw contentCapacityUnavailable();
         return Object.freeze({
           transactionId: owner.transactionId,
           installationId: owner.installationId,
           bytes,
+          scope,
         });
       }
       // Collection precedes this fresh pending-space read. A recently committed
@@ -145,13 +152,14 @@ export class ContentAllocator {
       )
         throw contentCapacityUnavailable();
       await client.query(
-        'INSERT INTO hash_talk.content_allocations(transaction_id,bytes) VALUES($1::xid8,$2)',
-        [owner.transactionId, bytes],
+        'INSERT INTO hash_talk.content_allocations(transaction_id,bytes,scope) VALUES($1::xid8,$2,$3)',
+        [owner.transactionId, bytes, scope],
       );
       return Object.freeze({
         transactionId: owner.transactionId,
         installationId: owner.installationId,
         bytes,
+        scope,
       });
     });
   }

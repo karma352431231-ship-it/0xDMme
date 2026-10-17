@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import pg from 'pg';
 import { Wallet } from 'ethers';
 import { Database } from '../../src/server/database/index.ts';
+import { VolumeContentCapacity } from '../../src/server/storage-capacity/index.ts';
 import { ObjectStore } from '../../src/server/object-store/index.ts';
 import { MessageService } from '../../src/server/messages/index.ts';
 import { messageBody } from '../../src/shared/messages/index.ts';
@@ -50,7 +51,10 @@ await test('cofre persistente: reservas, isolamento, concorrência, falhas, quot
   const config = readWebConfiguration(process.env);
   if (!new URL(config.databaseUrl).pathname.startsWith('/hash_talk_test'))
     throw new Error('Banco exclusivo necessário.');
-  const database = new Database(config.databaseUrl);
+  const capacity = new VolumeContentCapacity({
+    read: () => Promise.resolve(1_000_000_000_000n),
+  });
+  const database = new Database(config.databaseUrl, capacity);
   const inspector = new pg.Client({ connectionString: config.databaseUrl });
   const directory = await realpath(
     await mkdtemp(join(tmpdir(), '0xdmme-vault-')),
@@ -378,7 +382,7 @@ await test('cofre persistente: reservas, isolamento, concorrência, falhas, quot
       );
       assert.ok(writer);
       await objects.put(next.bytes);
-      const reopened = new Database(config.databaseUrl);
+      const reopened = new Database(config.databaseUrl, capacity);
       await reopened.vault.resumeInterrupted();
       await reopened.close();
       assert.equal(

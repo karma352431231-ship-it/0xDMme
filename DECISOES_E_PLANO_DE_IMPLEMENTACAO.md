@@ -1,5 +1,16 @@
 # Capacity audit follow-up — 16 October 2026
 
+The eighteenth source block connects vault reservation to durable pre-write
+credits after the owner's explicit scope approval. Migration 078 partitions exact
+global accounting behind a compatibility view, coordinates legacy final admission
+with grants and preserves owner/cross-table rules. Only volume-mode web vault
+reservation adopts the new path; other writers retain their guards. The existing
+web connection budget includes its coordinator. Local checks passed for
+preservation, quotas, competing claims, scoped envelopes, recovery and maintenance
+reversal. Representative load acceptance, schema activation and the final VPS
+release remain separate. See
+[vault allocator adoption](docs/STORAGE_CAPACITY.md#vault-allocator-adoption--block-18).
+
 The seventeenth source block prepares durable, transaction-owned credits as the
 first part of the global allocator protocol. A separate bounded coordinator
 transaction holds its guard only while collecting completed owners, measuring

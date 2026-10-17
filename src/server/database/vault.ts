@@ -2,6 +2,7 @@ import type { ContentCapacity } from './content-capacity.ts';
 import type pg from 'pg';
 import { pendingVaultCommits } from './vault-pending.ts';
 import { withUploadAdmission } from './upload-admission.ts';
+import type { VaultAllocations } from './vault-allocations.ts';
 import { AccountError } from '../../shared/account/index.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
 import { operationBytes, pageSize } from '../../shared/vault/index.ts';
@@ -25,13 +26,20 @@ interface Head {
 export class VaultStore {
   private readonly pool: pg.Pool;
   private readonly contentCapacity: ContentCapacity;
-  constructor(pool: pg.Pool, contentCapacity: ContentCapacity) {
+  private readonly allocations: VaultAllocations | undefined;
+  constructor(
+    pool: pg.Pool,
+    contentCapacity: ContentCapacity,
+    allocations?: VaultAllocations,
+  ) {
     this.pool = pool;
     this.contentCapacity = contentCapacity;
+    this.allocations = allocations;
   }
   private async transaction<T>(
     work: (client: pg.PoolClient) => Promise<T>,
   ): Promise<T> {
+    if (this.allocations) return this.allocations.transaction(this.pool, work);
     const client = await this.pool.connect();
     try {
       await client.query('BEGIN');
@@ -116,6 +124,7 @@ export class VaultStore {
           return { status: existing.state };
         }
         await this.assertHead(client, commit);
+        await this.allocations?.reserve(client, commit);
         await client.query(
           "INSERT INTO hash_talk.vault_operations(account_id,id,hash,object_hash,commit,charge,state) VALUES($1,$2,$3,$4,$5,$6,'reserved')",
           [

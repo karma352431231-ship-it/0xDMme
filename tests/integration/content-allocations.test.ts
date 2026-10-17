@@ -463,6 +463,9 @@ async function verifyPermissions(t: TestContext, c: Context) {
           hash_talk.storage_reservation_usage TO "${role}";
         GRANT SELECT,UPDATE ON hash_talk.content_allocation_guard TO "${role}";
         GRANT SELECT,INSERT,DELETE ON hash_talk.content_allocations TO "${role}"`);
+        await c.inspector
+          .query(`GRANT SELECT,UPDATE ON hash_talk.content_usage_legacy,
+          hash_talk.content_usage_partitions TO "${role}"`);
         await writer.connect();
         assert.equal(
           (await writer.query<{ name: string }>('SELECT current_user AS name'))

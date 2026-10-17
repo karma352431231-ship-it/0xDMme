@@ -301,6 +301,89 @@ only these two tables and catalog entry 077 in one transaction. Keep all source
 data, existing counters, old schema checksums and payload files unchanged. Restore
 code compatible with the retained catalog; do not expire live credits to roll back.
 
+## Vault allocator adoption — block 18
+
+The owner approved local preparation after explicit review of the central schema,
+guard and pool changes. Migration 078 and runtime adoption remain unactivated.
+Only `VaultStore.reserve` on volume-mode web connections adopts durable credits.
+Authorization, account locking, head validation and idempotent retry precede the
+grant. Personal quota checks and the existing error contract remain unchanged.
+Other vault mutations and other stores still follow legacy coordination.
+
+The web's existing sixteen query connections become fifteen owner connections
+and one lazy coordinator connection; worker pools stay at four. The coordinator
+does not borrow the owner pool, avoiding exhaustion by owners waiting for grants.
+It holds its guard only during a bounded grant/recovery transaction. Owner SQL
+retains its durable credit until COMMIT/ROLLBACK is proven by a fresh snapshot.
+Uncertain finalization retains credits and fails service health; it does not
+misreport an already acknowledged commit as lost. Restart collection is bounded,
+with no expiry of live promises. No dependency or PostgreSQL setting changes.
+
+Migration 078 renames the original ledger to `content_usage_legacy` and preserves
+`content_usage` as an exact aggregate compatibility view. Original source rows,
+charge formulas, quotas, events and migration checksums are unchanged. The legacy
+contribution plus signed partition deltas equals the logical total. Deleting a
+credit-origin record through the legacy path can make that component negative;
+its aggregate remains exact. Components retain safe-integer bounds and public
+admission refuses missing, negative or unsafe aggregate totals. Review runtime
+grants on the renamed base, new view, sequence and allocator tables at activation.
+
+An adopted transaction claims an unlocked ledger slot and keeps it through its
+transaction. Initially there is one slot per configured database connection; if
+all are busy, another slot is inserted transactionally. There is no fixed writer
+count refusal or per-operation history table. Slot count follows peak concurrent
+writers. Bounded recovery also folds up to 128 idle nonzero slots into the legacy
+component, skipping busy legacy/partition rows without waiting. The exact total
+is unchanged and ordinary traffic does not accumulate indefinitely in signed
+components. Legacy SQL delta updates/deletion through the old name remain supported.
+Statement accounting and the four quota/reservation functions change only their
+shared gate. The adopted source can avoid it because it is restricted to one
+account/operation; cross-table attachment and group mutations remain legacy.
+
+Before any adopted source row is inserted, a trigger verifies the current xid,
+volume mode, READ COMMITTED isolation, durable `vault-reserve` scope, account,
+operation, reserved state and unused grant. All eighty charged sources and ranking
+entries reject unsupported writes under that binding. The grant includes the
+pending object charge, four times the serialized commit size and 16 KiB SQL room.
+The source requires its actual charge plus four times `pg_column_size(NEW)` and
+4 KiB before heap insertion; an insufficient envelope rolls back without effects.
+The operating reserve remains necessary for physical SQL/index/WAL behavior.
+These are conservative admission envelopes, not guarantees against hardware loss.
+
+Legacy final physical admission takes the allocator guard through COMMIT and
+subtracts outstanding credits. A grant either precedes that assertion and is
+counted, or follows its visible commit and sees its pending promises. A validated
+adopted write has already consumed its pre-write envelope and avoids measuring or
+charging it twice. Cleanup classification uses signed transaction-local logical
+and pending deltas, rather than changes in global totals that independent writers
+can now affect. First baselines remain observable for compatibility. All local
+settings and consumed credits follow savepoint/transaction rollback.
+
+Activation needs preservation and load rehearsal plus an explicit schema review.
+For reversal, stop only our writers and coordinators; prove no live credits and
+retain a verified backup. Under source-table maintenance locks, capture the exact
+aggregate, restore the four predecessor quota functions and statement/baseline
+functions, remove adopted-source triggers, fold partition deltas into the original
+base, replace the view with the original table name/check and restore its baseline
+trigger. Remove only the new partition/functions/scope and matching catalog entry.
+Preserve all source rows, quotas, pending envelopes and post-activation writes;
+never roll back by restoring stale data. Rehearse this sequence on synthetic
+populated data before activation. Later migrations require their own dependency
+review before reversal. Operational access/evidence stays in `.local/`.
+
+**Ponto importante:** this first adopted flow can avoid the old global row lock.
+It does not finish P-DB, convert all writers or establish a throughput/user count.
+Representative physical envelope, slot growth, WAL and mixed-load acceptance,
+remaining coordination and the final reviewed activation are still pending.
+
+Local validation includes populated predecessor fingerprints/catalog and exact
+totals, competing legacy/credited claims in both orderings, source scope/envelope
+refusal, independent slots, savepoints, idle-slot consolidation, ordinary-role
+permissions, a post-commit finalization fault and transactional maintenance
+reversal. The assembled vault suite runs through the volume-mode web path with
+real cryptographic commits, HTTP, quotas, revocation and recovery. This is protocol
+and preservation evidence; it does not replace physical-volume/load acceptance.
+
 ## Activation and rollback review
 
 Re-read the live catalog/configuration before the final activation. Drain our

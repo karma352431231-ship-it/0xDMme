@@ -174,6 +174,12 @@ async function verifyRuntimeConnection(t: TestContext, c: CapacityContext) {
         await c.writer.query(
           `GRANT SELECT,UPDATE ON hash_talk.content_usage TO "${role}"`,
         );
+        await c.writer.query(
+          `GRANT SELECT,UPDATE ON hash_talk.content_usage_legacy,hash_talk.content_allocation_guard TO "${role}"`,
+        );
+        await c.writer.query(
+          `GRANT SELECT ON hash_talk.content_allocations TO "${role}"`,
+        );
         await rollback(c.writer, async () => {
           await c.writer.query(`SET LOCAL ROLE "${role}"`);
           await assertContentCapacity(c.writer, c.capacity);

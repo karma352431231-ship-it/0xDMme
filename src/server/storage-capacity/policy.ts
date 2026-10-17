@@ -11,8 +11,9 @@ import type { VolumeReader } from './volume.ts';
 const releaseWorkspaceBytes = 2n * 128n * 1024n * 1024n;
 interface AdmissionState {
   pendingBytes: bigint;
-  logicalBaseline: bigint | null;
-  pendingBaseline: bigint | null;
+  logicalDelta: bigint;
+  pendingDelta: bigint;
+  credits: bigint;
   operationalBytes: bigint;
 }
 function amount(value: string | null | undefined): bigint {
@@ -25,8 +26,11 @@ function amount(value: string | null | undefined): bigint {
     throw contentCapacityUnavailable();
   return BigInt(value);
 }
-function baseline(value: string | null): bigint | null {
-  return value === null || value === '' ? null : amount(value);
+function delta(value: string | null): bigint {
+  if (!value) return 0n;
+  if (!/^-?\d+$/u.test(value) || !Number.isSafeInteger(Number(value)))
+    throw contentCapacityUnavailable();
+  return BigInt(value);
 }
 
 async function admissionState(
@@ -37,8 +41,9 @@ async function admissionState(
     transaction_id: string | null;
     mode: string | null;
     isolation: string;
-    logical_baseline: string | null;
-    pending_baseline: string | null;
+    logical_delta: string | null;
+    pending_delta: string | null;
+    credits: string;
     database_bytes: string;
     wal_bytes: string;
     maintenance_bytes: string;
@@ -47,15 +52,16 @@ async function admissionState(
   }>(`SELECT pg_current_xact_id_if_assigned()::text AS transaction_id,
     current_setting('hash_talk.storage_capacity_mode',true) AS mode,
     current_setting('transaction_isolation') AS isolation,
-    current_setting('hash_talk.storage_logical_baseline',true) AS logical_baseline,
-    current_setting('hash_talk.storage_pending_baseline',true) AS pending_baseline,
+    current_setting('hash_talk.storage_logical_delta',true) AS logical_delta,
+    current_setting('hash_talk.storage_pending_delta',true) AS pending_delta,
+    (SELECT coalesce(sum(bytes),0)::text FROM hash_talk.content_allocations) AS credits,
     pg_database_size(current_database())::text AS database_bytes,
     pg_size_bytes(current_setting('max_wal_size'))::text AS wal_bytes,
     (greatest(pg_size_bytes(current_setting('maintenance_work_mem')),
       CASE WHEN current_setting('autovacuum_work_mem')='-1' THEN 0 ELSE pg_size_bytes(current_setting('autovacuum_work_mem')) END)
       *current_setting('autovacuum_max_workers')::bigint)::text AS maintenance_bytes,
     (current_setting('max_connections')::bigint*67108864)::text AS inflight_sql_bytes,
-    EXISTS(SELECT 1 FROM hash_talk.schema_migrations WHERE version=75) AS schema_ready`);
+    EXISTS(SELECT 1 FROM hash_talk.schema_migrations WHERE version=78) AS schema_ready`);
   const row = result.rows[0];
   if (
     !row ||
@@ -69,8 +75,9 @@ async function admissionState(
   const pending = await readStorageReservations(client);
   return {
     pendingBytes: BigInt(pending.reservedBytes),
-    logicalBaseline: baseline(row.logical_baseline),
-    pendingBaseline: baseline(row.pending_baseline),
+    logicalDelta: delta(row.logical_delta),
+    pendingDelta: delta(row.pending_delta),
+    credits: amount(row.credits),
     operationalBytes:
       releaseWorkspaceBytes +
       3n * amount(row.database_bytes) +
@@ -82,17 +89,13 @@ async function admissionState(
 
 function reclaiming(
   state: AdmissionState,
-  logical: bigint,
   intent: 'growth' | 'reclaim',
 ): boolean {
-  const pendingBefore = state.pendingBaseline ?? state.pendingBytes;
-  if (state.pendingBytes > pendingBefore) return false;
+  if (state.pendingDelta > 0n) return false;
   if (intent === 'reclaim') return true;
   return (
-    (state.logicalBaseline !== null && logical < state.logicalBaseline) ||
-    (state.pendingBaseline !== null &&
-      state.pendingBytes < state.pendingBaseline &&
-      logical <= (state.logicalBaseline ?? logical))
+    state.logicalDelta < 0n ||
+    (state.pendingDelta < 0n && state.logicalDelta <= 0n)
   );
 }
 
@@ -104,18 +107,45 @@ function requiredBytes(
     intent: 'growth' | 'reclaim';
   },
 ): bigint {
-  const logical = amount(String(input.logicalBytes));
+  amount(String(input.logicalBytes));
   const additional = amount(String(input.additionalBytes));
-  if (!additional && reclaiming(state, logical, input.intent)) {
+  if (!additional && reclaiming(state, input.intent)) {
     // Authorized cleanup may use the operating reserve, but cannot grant new payload promises.
-    const metadataGrowth = logical - (state.logicalBaseline ?? logical);
+    const metadataGrowth = state.logicalDelta;
     return metadataGrowth > 0n ? 2n * metadataGrowth : 0n;
   }
   if (input.intent === 'reclaim') throw contentCapacityUnavailable();
-  return state.pendingBytes + state.operationalBytes + 4n * additional;
+  return (
+    state.pendingBytes +
+    state.operationalBytes +
+    state.credits +
+    4n * additional
+  );
 }
 
-/** Called after charged SQL while the existing global ledger lock is retained. */
+async function allocatedWrite(client: CapacityClient): Promise<boolean> {
+  const result = await client.query<{
+    bytes: string | null;
+    consumed: string | null;
+  }>(
+    `SELECT hash_talk.active_content_allocation()::text AS bytes,
+    current_setting('hash_talk.content_consumed',true) AS consumed`,
+  );
+  const row = result.rows[0];
+  if (!row) throw contentCapacityUnavailable();
+  if (row.bytes === null) return false;
+  const used = amount(row.consumed);
+  if (!used || used > amount(row.bytes)) throw contentCapacityUnavailable();
+  return true;
+}
+async function lockPhysicalAdmission(client: CapacityClient) {
+  const result = await client.query(
+    'SELECT singleton FROM hash_talk.content_allocation_guard WHERE singleton FOR UPDATE',
+  );
+  if (result.rowCount !== 1) throw contentCapacityUnavailable();
+}
+
+/** Legacy final assertions coordinate with pre-write grants until their COMMIT. */
 export class VolumeContentCapacity implements AdaptiveContentCapacity {
   readonly mode = 'volume';
   private readonly volume: VolumeReader;
@@ -138,6 +168,10 @@ export class VolumeContentCapacity implements AdaptiveContentCapacity {
     input: { logicalBytes: number; intent: 'growth' | 'reclaim' },
   ): Promise<void> {
     try {
+      // A validated source already consumed its pre-write physical envelope.
+      // Re-measuring would charge its promise twice and reintroduce a global wait.
+      if (await allocatedWrite(client)) return;
+      await lockPhysicalAdmission(client);
       const state = await admissionState(client, true);
       const required = requiredBytes(state, { ...input, additionalBytes: 0 });
       if ((await this.volume.read()) < required)
