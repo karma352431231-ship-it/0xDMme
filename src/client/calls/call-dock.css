@@ -1,0 +1,26 @@
+/*
+ * Call dock.
+ */
+.call-dock {
+  position: fixed;
+  z-index: 100;
+  bottom: max(1rem, env(safe-area-inset-bottom));
+  right: 1rem;
+  width: min(25rem, calc(100vw - 2rem));
+  border: 1px solid var(--accent);
+  box-shadow: 0 0.5rem 2rem var(--shadow);
+  overflow-wrap: anywhere;
+  max-height: calc(100dvh - 2rem);
+  overflow-y: auto;
+}
+.call-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.call-actions button {
+  min-height: 44px;
+}
+.call-dock[hidden] {
+  display: none;
+}

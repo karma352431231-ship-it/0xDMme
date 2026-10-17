@@ -1,0 +1,5 @@
+.post-composer fieldset,
+.community-post fieldset {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}

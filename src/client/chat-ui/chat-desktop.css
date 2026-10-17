@@ -1,0 +1,141 @@
+/*
+ * Conversation column on wide screens (desktop density).
+ */
+@media (min-width: 1280px) {
+  /* Conversa: flush column, compact header, bubbles and composer. */
+  #app-shell[data-page='conversas'] main {
+    padding: 0;
+  }
+  #app-shell[data-page='conversas'][data-account='guest'][data-chat-open='false']
+    main {
+    padding: 16px 18px 0;
+  }
+  #app-shell .chat-panel.card {
+    border: 0;
+    border-radius: 0;
+    background: var(--panel);
+  }
+  #app-shell .chat-panel .chat-feedback {
+    min-height: 26px;
+    padding: 2px 18px;
+    border-radius: 0;
+  }
+  /* Up to date: no strip. Sync, failures and notices still show it. */
+  #app-shell .chat-panel .chat-feedback[data-state='ok'] {
+    display: none;
+  }
+  #app-shell .chat-panel .chat-header {
+    align-items: center;
+    gap: 12px;
+    padding: 12px 18px;
+  }
+  #app-shell .chat-peer-avatar {
+    flex: 0 0 38px;
+    width: 38px;
+    height: 38px;
+    font-size: 13px;
+  }
+  #app-shell .chat-peer h3 {
+    font-size: 15px;
+    font-weight: 600;
+  }
+  #app-shell .chat-panel .chat-peer p {
+    margin-top: 1px;
+    color: var(--text-muted);
+    font-size: 11.5px;
+  }
+  #app-shell .chat-panel .chat-icon {
+    flex: 0 0 32px;
+    width: 32px;
+    height: 32px;
+    padding: 7px;
+    border-radius: 9px;
+  }
+  #app-shell .chat-panel .chat-icon svg {
+    width: 18px;
+    height: 18px;
+  }
+  #app-shell .chat-panel .chat-history {
+    gap: 6px;
+    padding: 18px 22px;
+  }
+  #app-shell .chat-message {
+    max-width: 72%;
+    padding: 8px 12px 6px;
+    border: 0;
+    border-radius: 16px 16px 16px 5px;
+    box-shadow: inset 0 0 0 1px var(--line);
+    font-size: 13.5px;
+  }
+  #app-shell .chat-message.own {
+    border-radius: 16px 16px 5px;
+    box-shadow: none;
+    color: var(--sent-ink);
+  }
+  #app-shell .chat-panel .chat-message p {
+    margin: 0;
+    color: inherit;
+    font-size: 13.5px;
+    line-height: 1.45;
+  }
+  #app-shell .chat-message > :is(strong, small) {
+    font-size: 11.5px;
+  }
+  #app-shell .chat-message .message-meta {
+    margin-top: 2px;
+    font-size: 10.5px;
+    opacity: 0.7;
+  }
+  #app-shell .chat-panel .chat-older {
+    margin-top: 6px;
+    padding: 4px 10px;
+    color: var(--text-muted);
+    font-size: 11px;
+    font-weight: 600;
+  }
+  #app-shell .chat-panel .chat-composer {
+    padding: 12px 18px 16px;
+    border-top: 0;
+    border-radius: 0;
+    background: transparent;
+  }
+  #app-shell .compose-row {
+    gap: 10px;
+    align-items: center;
+  }
+  #app-shell .compose-input {
+    align-items: center;
+    padding: 2px 4px;
+    border-radius: 14px;
+    background: var(--surface-2);
+  }
+  #app-shell .chat-panel .compose-input textarea {
+    min-height: 36px;
+    padding: 8px 4px;
+    font-size: 13.5px;
+  }
+  #app-shell .chat-panel .compose-primary {
+    flex: 0 0 42px;
+    width: 42px;
+    height: 42px;
+    padding: 11px;
+    border-radius: 50%;
+  }
+  /* Mouse users get the bubble's options as a small floating button. */
+  @media (hover: hover) and (pointer: fine) {
+    #app-shell .chat-message .message-actions {
+      top: -12px;
+      right: 8px;
+      z-index: 1;
+    }
+    #app-shell .chat-message .message-actions > .chat-icon {
+      width: 26px;
+      height: 26px;
+      padding: 4px;
+      border: 1px solid var(--line);
+      border-radius: 9px;
+      background: var(--surface-3);
+      color: var(--text);
+    }
+  }
+}

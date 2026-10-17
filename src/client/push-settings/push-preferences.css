@@ -1,0 +1,23 @@
+/*
+ * Push notification preferences.
+ */
+.push-preferences {
+  min-width: 0;
+  display: grid;
+  gap: 12px;
+  margin-top: 20px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 16px;
+}
+.push-preferences label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+}
+.push-preferences input[type='checkbox'] {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+}

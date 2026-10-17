@@ -1,0 +1,269 @@
+/* === Theme tokens: the only place with literal colors (see tests/appearance.test.ts). === */
+/*
+ * Color tokens for the three approved themes (docs/UI_PAINEIS_E_TEMAS.md).
+ * Components use only these variables; the brand gradient is reserved for the
+ * mark, unread counters, status rings and the active area. Preto is the default
+ * when no valid explicit preference exists.
+ */
+:root[data-theme='navy'] {
+  color-scheme: dark;
+  --bg: #0a0f22;
+  --surface: #0f1630;
+  /* Column background (rail, contacts, chat, ranking). Preto paints it black. */
+  --panel: var(--surface);
+  --surface-2: #151d3a;
+  --surface-3: #1c2647;
+  --line: #27335a;
+  --line-strong: #34426e;
+  --text: #e8ecf8;
+  --post-text: #d6ddef;
+  --text-muted: #8a94b8;
+  --text-faint: #5c6690;
+  --accent: #4f7dff;
+  --accent-strong: #3d6af0;
+  --accent-ink: #ffffff;
+  --accent-soft: rgb(79 125 255 / 16%);
+  --accent-text: #8fadff;
+  --focus: #6f9bff;
+  --sent: #1e3270;
+  --sent-ink: #eef2ff;
+  --sent-line: #2a4290;
+  --recv: #161f3d;
+  --ok: #34d399;
+  --ok-soft: rgb(52 211 153 / 14%);
+  --warn: #fbbf24;
+  --danger: #f87171;
+  --check-read: #4ade80;
+  --overlay: rgb(4 7 18 / 62%);
+  --shadow: rgb(0 0 0 / 45%);
+  --brand-grad: linear-gradient(135deg, #2ee6f6, #3b82f6 55%, #8b5cf6);
+  --brand-ink: #ffffff;
+  /* QR codes need a light quiet zone and video letterboxing stays black in every theme. */
+  --qr-paper: #ffffff;
+  --media-backdrop: #000000;
+}
+:root,
+:root[data-theme='black'] {
+  color-scheme: dark;
+  --bg: #000000;
+  --surface: #0b0b0c;
+  --panel: var(--bg);
+  --surface-2: #151517;
+  --surface-3: #202023;
+  --line: #29292e;
+  --line-strong: #3a3a40;
+  --text: #f4f4f5;
+  --post-text: #e0e0e5;
+  --text-muted: #8e8e96;
+  --text-faint: #5b5b63;
+  --accent: #4f7dff;
+  --accent-strong: #3d6af0;
+  --accent-ink: #ffffff;
+  --accent-soft: rgb(79 125 255 / 15%);
+  --accent-text: #8fadff;
+  --focus: #6f9bff;
+  --sent: #1c2a55;
+  --sent-ink: #eef2ff;
+  --sent-line: #2a3c75;
+  --recv: #141416;
+  --ok: #34d399;
+  --ok-soft: rgb(52 211 153 / 14%);
+  --warn: #fbbf24;
+  --danger: #f87171;
+  --check-read: #4ade80;
+  --overlay: rgb(0 0 0 / 66%);
+  --shadow: rgb(0 0 0 / 55%);
+  --brand-grad: linear-gradient(135deg, #2ee6f6, #3b82f6 55%, #8b5cf6);
+  --brand-ink: #ffffff;
+  --qr-paper: #ffffff;
+  --media-backdrop: #000000;
+}
+:root[data-theme='white'] {
+  --interaction-active: var(--text);
+  --shared-post-bg: #e9e9ed;
+  color-scheme: light;
+  --bg: #f4f6fb;
+  --surface: #ffffff;
+  --panel: var(--surface);
+  --surface-2: #f0f3fa;
+  --surface-3: #e6ebf6;
+  --line: #d6dce9;
+  --line-strong: #bcc6db;
+  --text: #0d1330;
+  --post-text: #273249;
+  --text-muted: #5d6788;
+  --text-faint: #8790ad;
+  --accent: #3355f0;
+  --accent-strong: #2643d6;
+  --accent-ink: #ffffff;
+  --accent-soft: rgb(51 85 240 / 10%);
+  --accent-text: #2c48d6;
+  --focus: #3355f0;
+  --sent: #dfe7ff;
+  --sent-ink: #0d1330;
+  --sent-line: #c8d5fb;
+  --recv: #ffffff;
+  --ok: #047857;
+  --ok-soft: rgb(5 150 105 / 12%);
+  --warn: #b45309;
+  --danger: #dc2626;
+  --check-read: #15803d;
+  --overlay: rgb(13 19 48 / 35%);
+  --shadow: rgb(13 19 48 / 18%);
+}
+:root {
+  --shared-post-bg: #1c1c20;
+  --interaction-active: #ffffff;
+  /* Ping (src/client/ping) keeps the logo colors in every theme. */
+  --ping-body: #141b46;
+  --ping-face: #f2f5ff;
+  --ping-cyan: #2ee6f6;
+  --ping-blue: #3b82f6;
+  --ping-violet: #8b5cf6;
+  --ping-alert: #f5b544;
+  /* Community topic dots (16/10/2026), the same in every theme. */
+  --topic-ai: #22d3ee;
+  --topic-cat: #fb923c;
+  --topic-dog: #d97706;
+  --topic-meme: #facc15;
+  --topic-tech: #60a5fa;
+  --topic-stock: #34d399;
+  --topic-chinese: #f87171;
+  --topic-brainrot: #f472b6;
+  --topic-celebrity: #fbbf24;
+  --topic-nft: #a78bfa;
+  --topic-tiktok: #e879f9;
+  /* Controls drawn over video frames, the same in every theme. */
+  --media-control-bg: rgb(0 0 0 / 55%);
+  --media-control-ink: #ffffff;
+  accent-color: var(--accent);
+  /* Type scale shared by every theme; inputs stay at 16px so iOS does not zoom on focus. */
+  --fs-caption: 12px;
+  --fs-small: 13px;
+  --fs-body: 15px;
+  --fs-input: 16px;
+  --fs-heading: 20px;
+  --fs-title: 24px;
+  --font-mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  --font-body: Figtree, ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-display: Sora, Figtree, ui-sans-serif, system-ui, sans-serif;
+}
+/* Same-origin OFL fonts (vendor/fonts/README.md); other scripts fall back to the system. */
+@font-face {
+  font-family: Figtree;
+  font-style: normal;
+  font-weight: 300 900;
+  font-display: swap;
+  src: url('/figtree-latin-5.3.0.woff2') format('woff2');
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC,
+    U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212,
+    U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: Sora;
+  font-style: normal;
+  font-weight: 100 800;
+  font-display: swap;
+  src: url('/sora-latin-5.3.0.woff2') format('woff2');
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC,
+    U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212,
+    U+2215, U+FEFF, U+FFFD;
+}
+/* Zero-specificity defaults: controls without authored colors follow the theme instead of the browser palette. */
+:where(
+  input:not([type='checkbox'], [type='radio'], [type='range'], [type='file']),
+  select,
+  textarea,
+  button
+) {
+  background-color: var(--surface-2);
+  color: var(--text);
+}
+:where(dialog) {
+  background-color: var(--surface);
+  color: var(--text);
+}
+/* Previews in Perfil → Aparência show each theme regardless of the active one. */
+[data-theme-preview] .appearance-swatch {
+  background: linear-gradient(135deg, #0a0f22 50%, #4f7dff 50%);
+}
+[data-theme-preview='black'] .appearance-swatch {
+  background: linear-gradient(135deg, #000000 50%, #4f7dff 50%);
+}
+[data-theme-preview='white'] .appearance-swatch {
+  background: linear-gradient(135deg, #ffffff 50%, #3355f0 50%);
+}
+/* Avatars without a photo: a stable tone derived on the device from the address or group id. */
+:is(
+  .conversation-avatar,
+  .chat-peer-avatar,
+  .contact-avatar,
+  .rail-avatar,
+  .community-avatar,
+  .community-banner
+)[data-tone] {
+  color: var(--brand-ink);
+}
+:is(
+  .conversation-avatar,
+  .chat-peer-avatar,
+  .contact-avatar,
+  .rail-avatar,
+  .community-avatar,
+  .community-banner
+)[data-tone='0'] {
+  background: linear-gradient(135deg, #2ee6f6, #3b82f6);
+}
+:is(
+  .conversation-avatar,
+  .chat-peer-avatar,
+  .contact-avatar,
+  .rail-avatar,
+  .community-avatar,
+  .community-banner
+)[data-tone='1'] {
+  background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+}
+:is(
+  .conversation-avatar,
+  .chat-peer-avatar,
+  .contact-avatar,
+  .rail-avatar,
+  .community-avatar,
+  .community-banner
+)[data-tone='2'] {
+  background: linear-gradient(135deg, #8b5cf6, #d946ef);
+}
+:is(
+  .conversation-avatar,
+  .chat-peer-avatar,
+  .contact-avatar,
+  .rail-avatar,
+  .community-avatar,
+  .community-banner
+)[data-tone='3'] {
+  background: linear-gradient(135deg, #f59e0b, #ef4444);
+}
+:is(
+  .conversation-avatar,
+  .chat-peer-avatar,
+  .contact-avatar,
+  .rail-avatar,
+  .community-avatar,
+  .community-banner
+)[data-tone='4'] {
+  background: linear-gradient(135deg, #10b981, #06b6d4);
+}
+:is(
+  .conversation-avatar,
+  .chat-peer-avatar,
+  .contact-avatar,
+  .rail-avatar,
+  .community-avatar,
+  .community-banner
+)[data-tone='5'] {
+  background: linear-gradient(135deg, #64748b, #334155);
+}
+/* === End of theme tokens === */

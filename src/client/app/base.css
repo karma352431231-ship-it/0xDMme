@@ -1,0 +1,12 @@
+/*
+ * Document defaults.
+ */
+:root {
+  font-family: var(--font-body);
+  color: var(--text);
+  background: var(--bg);
+  font-synthesis: none;
+}
+* {
+  box-sizing: border-box;
+}

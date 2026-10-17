@@ -1,0 +1,19 @@
+/*
+ * Delivery and read checks.
+ */
+.message-checks {
+  flex: none;
+  height: 11px;
+  width: auto;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.message-checks.gray {
+  color: var(--text-faint);
+}
+.message-checks.green {
+  color: var(--check-read);
+}

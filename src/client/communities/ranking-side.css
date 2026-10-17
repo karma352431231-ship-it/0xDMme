@@ -1,6 +1,6 @@
 /*
  * Ranking beside the feed (16/10/2026). Hidden unless the layout rules in
- * app.css place it: the full Communities page and the split screen's right
+ * app/shell-layout.css place it: the full Communities page and the split screen's right
  * column when "Communities" is chosen.
  */
 .ranking-side,

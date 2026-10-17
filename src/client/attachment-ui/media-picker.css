@@ -1,0 +1,93 @@
+/* Attachments: the clip alone; a short summary of the choice beside it. */
+.media-picker {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  margin: 8px 0 0;
+}
+#app-shell .media-picker-button {
+  display: inline-grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.app .media-picker-button:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+.media-picker-button svg {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.media-picker small:empty {
+  display: none;
+}
+/* One thumbnail per chosen file, each with its own remove button. */
+.media-picker-previews {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 8px 0 0;
+}
+.media-picker-previews[hidden] {
+  display: none;
+}
+.media-picker-tile {
+  position: relative;
+  width: 96px;
+  height: 96px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface-2);
+}
+.media-picker-tile :is(img, video) {
+  display: block;
+  width: 100%;
+  max-width: none;
+  height: 100%;
+  object-fit: cover;
+}
+#app-shell .media-picker-tile .media-picker-remove {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  min-height: 0;
+  height: 24px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--overlay);
+  color: var(--text);
+  font-size: 16px;
+  line-height: 1;
+}
+.media-picker label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-size: 13px;
+}
+/* A file being dragged over a place that accepts it. */
+[data-dropping='true'] {
+  outline: 2px dashed var(--accent);
+  outline-offset: -4px;
+}

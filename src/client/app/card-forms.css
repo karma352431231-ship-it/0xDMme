@@ -1,0 +1,137 @@
+/*
+ * Shared form controls of the vault, backup, notifications, chat, status and
+ * call cards, and the chat/status layout.
+ */
+.vault-card progress {
+  width: 100%;
+  height: 1rem;
+  accent-color: var(--accent);
+}
+.vault-list {
+  padding-left: 1.2rem;
+  overflow-wrap: anywhere;
+}
+.vault-list li {
+  padding: 0.6rem 0;
+  border-bottom: 1px solid var(--line);
+}
+.vault-card form,
+.chat-panel form,
+.status-card form {
+  display: grid;
+  gap: 12px;
+  margin: 24px 0;
+}
+.vault-card label,
+.chat-panel label,
+.status-card label {
+  display: grid;
+  gap: 8px;
+  font-size: var(--fs-small);
+}
+.vault-card input,
+.vault-card select,
+.vault-card textarea,
+.chat-panel input:not([type='checkbox']),
+.chat-panel select,
+.chat-panel textarea,
+.status-card input:not([type='checkbox']),
+.status-card textarea {
+  width: 100%;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  background: var(--surface);
+  font: inherit;
+}
+.vault-card textarea {
+  resize: vertical;
+}
+.vault-card button,
+.backup-card button,
+.notifications-card button,
+.chat-panel button,
+.status-card button,
+.call-dock button,
+.call-settings button {
+  max-width: 100%;
+  margin: 5px 8px 5px 0;
+  padding: 10px 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  background: var(--surface-2);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+.vault-card button.primary,
+.backup-card button.primary,
+.chat-panel button.primary,
+.status-card button.primary,
+.call-dock button.primary {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+.vault-card button:disabled,
+.backup-card button:disabled,
+.notifications-card button:disabled,
+.chat-panel button:disabled,
+.status-card button:disabled,
+.call-dock button:disabled,
+.call-settings button:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+[data-contacts-container] {
+  grid-template-columns: minmax(0, 1fr);
+}
+.recovery-message {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.chat-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1rem;
+}
+.chat-layout > aside,
+.chat-layout > section,
+.status-card {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.chat-panel [hidden],
+.status-card [hidden] {
+  display: none;
+}
+.chat-panel details,
+.status-card details {
+  margin-block: 1rem;
+}
+.chat-panel summary,
+.status-card summary {
+  cursor: pointer;
+  padding-block: 0.5rem;
+}
+.status-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  padding-block: 0.5rem;
+  border-bottom: 1px solid var(--line);
+}
+.status-card img {
+  display: block;
+  max-width: 100%;
+  max-height: 28rem;
+  object-fit: contain;
+}
+.status-card [data-status-audience] label {
+  display: flex;
+  align-items: center;
+  margin-block: 0.75rem;
+}

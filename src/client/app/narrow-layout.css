@@ -1,0 +1,118 @@
+/*
+ * Narrow windows and phones: base frame of the shell.
+ */
+@media (max-width: 1000px) {
+  .app {
+    grid-template-columns: 280px minmax(0, 1fr);
+  }
+  main {
+    padding: 24px;
+  }
+  .cards {
+    grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 700px) {
+  .app {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr) auto;
+  }
+  .sidebar {
+    display: contents;
+  }
+  .brand-bar {
+    grid-row: 1;
+    background: var(--surface);
+    color: var(--text);
+    padding: max(10px, env(safe-area-inset-top)) 16px 10px;
+    gap: 12px;
+  }
+  .brand {
+    font-size: var(--fs-title);
+    gap: 10px;
+  }
+  .brand-mark {
+    width: 36px;
+    height: 36px;
+  }
+  .account {
+    display: none;
+  }
+  .chat-directory {
+    display: none;
+    grid-row: 2;
+    background: var(--surface);
+    color: var(--text);
+  }
+  .app[data-page='conversas'][data-chat-open='false']:is(
+      [data-account='connected'],
+      [data-history='available']
+    )
+    .chat-directory {
+    display: flex;
+  }
+  .app[data-page='conversas'][data-chat-open='false']:is(
+      [data-account='connected'],
+      [data-history='available']
+    )
+    main {
+    display: none;
+  }
+  main {
+    grid-row: 2;
+    padding: 18px 16px;
+  }
+  .mobile-nav {
+    display: flex;
+    grid-row: 3;
+    justify-content: space-around;
+    background: var(--surface);
+    color: var(--text-muted);
+    padding: 8px 8px max(8px, env(safe-area-inset-bottom));
+    border-top: 1px solid var(--line);
+    gap: 4px;
+  }
+  .mobile-nav a {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 8px 2px;
+    font-size: var(--fs-caption);
+    border-radius: 14px;
+  }
+  .mobile-nav a[aria-current='page'] {
+    background: var(--accent-soft);
+    color: var(--accent-text);
+  }
+  .page-heading {
+    gap: 10px;
+  }
+  .phase {
+    font-size: var(--fs-caption);
+    padding: 6px 8px;
+    white-space: normal;
+  }
+  h1 {
+    font-size: var(--fs-title);
+    margin-bottom: 12px;
+  }
+  footer {
+    flex-direction: column;
+    gap: 6px;
+  }
+  .card {
+    padding: 20px;
+  }
+  .update {
+    bottom: 90px;
+    right: 16px;
+    max-width: calc(100vw - 32px);
+    z-index: 50;
+  }
+  .voice-dock {
+    bottom: 90px;
+  }
+}

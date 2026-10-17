@@ -1,0 +1,3 @@
+.account #account-profile-feedback:empty {
+  display: none;
+}
