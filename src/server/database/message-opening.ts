@@ -1,3 +1,4 @@
+import type { MessageOpeningAllocations } from './message-opening-allocations.ts';
 import type pg from 'pg';
 import { AccountError } from '../../shared/account/index.ts';
 import type { MessagePacket } from '../../shared/messages/index.ts';
@@ -20,6 +21,7 @@ interface OpeningContext {
   client: pg.PoolClient;
   authority: ContactAuthority;
   participants: readonly string[];
+  missing: string[];
 }
 interface ExportRow {
   id: string;
@@ -31,7 +33,13 @@ interface ExportRow {
 export class MessageOpening {
   private readonly contacts: ContactStore;
   private readonly capacity: ContentCapacity;
-  constructor(contacts: ContactStore, capacity: ContentCapacity) {
+  private readonly allocations: MessageOpeningAllocations | undefined;
+  constructor(
+    contacts: ContactStore,
+    capacity: ContentCapacity,
+    allocations?: MessageOpeningAllocations,
+  ) {
+    this.allocations = allocations;
     this.contacts = contacts;
     this.capacity = capacity;
   }
@@ -41,10 +49,15 @@ export class MessageOpening {
       (client) => this.participants(client, input.authority, [input.id]),
       async (client, participants) => {
         await input.expect(client);
-        return this.open(
-          { client, authority: input.authority, participants },
-          input.id,
-        );
+        const context: OpeningContext = {
+          client,
+          authority: input.authority,
+          participants,
+          missing: [],
+        };
+        const packet = await this.open(context, input.id);
+        await this.persist(context);
+        return packet;
       },
     );
   }
@@ -55,10 +68,15 @@ export class MessageOpening {
       (client) => this.participants(client, input.authority, input.ids),
       async (client, participants) => {
         await input.expect(client);
-        return this.export(
-          { client, authority: input.authority, participants },
-          input.ids,
-        );
+        const context: OpeningContext = {
+          client,
+          authority: input.authority,
+          participants,
+          missing: [],
+        };
+        const rows = await this.export(context, input.ids);
+        await this.persist(context);
+        return rows;
       },
     );
   }
@@ -126,7 +144,7 @@ export class MessageOpening {
         423,
         'Entrega suspensa. É necessário novo consentimento.',
       );
-    if (!ref.rowCount) await this.reference(context, id);
+    if (!ref.rowCount) context.missing.push(id);
     // Load ciphertext only after authorization. Bodies never enter routing plans.
     const payload = await client.query<{ body: MessagePacket }>(
       'SELECT body FROM hash_talk.message_packets WHERE id=$1',
@@ -134,18 +152,35 @@ export class MessageOpening {
     );
     return payload.rows[0]!.body;
   }
-  private async reference(context: OpeningContext, id: string): Promise<void> {
+  private async persist(context: OpeningContext): Promise<void> {
+    if (!context.missing.length) return;
+    const { client, authority, participants, missing } = context;
+    await this.allocations?.prepare(client, {
+      accountId: authority.session.accountId,
+      deviceId: authority.session.deviceId,
+      participants,
+      ids: missing,
+    });
+    if (this.allocations) {
+      await this.references(context, missing);
+      return;
+    }
+    for (const id of missing) await this.references(context, [id]);
+  }
+  private async references(
+    context: OpeningContext,
+    ids: string[],
+  ): Promise<void> {
     const { client, authority } = context;
-    const inserted = await client.query(
-      'INSERT INTO hash_talk.message_references(message_id,account_id,device_id) VALUES($1,$2,$3) ON CONFLICT DO NOTHING',
-      [id, authority.session.accountId, authority.session.deviceId],
+    const updated = await client.query(
+      `WITH inserted AS (
+        INSERT INTO hash_talk.message_references(message_id,account_id,device_id)
+        SELECT id,$2,$3 FROM unnest($1::uuid[]) id ON CONFLICT DO NOTHING RETURNING message_id
+      ) UPDATE hash_talk.message_packets m SET charge=m.charge+256 FROM inserted r WHERE m.id=r.message_id`,
+      [ids, authority.session.accountId, authority.session.deviceId],
     );
-    if (!inserted.rowCount) return;
-    await client.query(
-      'UPDATE hash_talk.message_packets SET charge=charge+256 WHERE id=$1',
-      [id],
-    );
-    // Growth still uses the legacy gate until its complete envelope is adopted.
+    if (!updated.rowCount) return;
+    // An adopted credit uses exact partitions; other writers retain their gate.
     await assertContentCapacity(client, this.capacity);
   }
   private async export(

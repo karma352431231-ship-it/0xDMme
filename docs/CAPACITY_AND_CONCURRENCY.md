@@ -552,3 +552,18 @@ and rolled back with the whole window on failure. The export batch, response
 cutoff, unavailable statuses and signed data are preserved. This is a prerequisite
 for complete opening allocator adoption, not completion of P-DB-B/P-DB-C. No schema
 or VPS activation is included; final resource/load acceptance remains pending.
+
+## Private opening/export allocator adoption — block 25
+
+Volume-mode opening/export growth now uses the existing durable coordinator and
+exact global partitions. One account/device/operation-bound plan covers at most
+32 concrete missing references across all locked peers; no ciphertext enters it.
+Only pending reference insertion plus the exact 256-byte packet increment is
+adopted, with BEFORE scope/immutable/envelope checks and pre-COMMIT completeness.
+Existing references need no credit or write, and the response cutoff retains the
+last inspected object's reference. Personal quotas, signed snapshots, consent,
+revocation, unavailable entries, idempotency and atomic rollback remain. The
+numeric-capacity path and unrelated writers retain their old gates. No new pool,
+maintenance exemption, old-history conversion, reset or VPS activation. Mixed
+cleanup, remaining writer families and representative resource/load acceptance
+remain pending.

@@ -1,3 +1,4 @@
+import type { MessageOpeningAllocations } from './message-opening-allocations.ts';
 import { MessageOpening } from './message-opening.ts';
 import { deleteMessageCopies } from './message-deletion.ts';
 import type { MessageRemovalAllocations } from './message-removal-allocations.ts';
@@ -55,10 +56,11 @@ export class MessageStore {
     writers?: {
       admission: MessageAllocations | undefined;
       removals: MessageRemovalAllocations | undefined;
+      openings?: MessageOpeningAllocations | undefined;
     },
   ) {
     this.contacts = contacts;
-    this.opening = new MessageOpening(contacts, capacity);
+    this.opening = new MessageOpening(contacts, capacity, writers?.openings);
     this.capacity = capacity;
     this.attachments = attachments;
     this.allocations = writers?.admission;

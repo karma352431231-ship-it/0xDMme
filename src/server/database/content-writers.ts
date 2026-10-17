@@ -1,3 +1,4 @@
+import { MessageOpeningAllocations } from './message-opening-allocations.ts';
 import { MessageRemovalAllocations } from './message-removal-allocations.ts';
 import type { ContentCapacity } from './content-capacity.ts';
 import { ContentWriteAllocations } from './content-write-allocations.ts';
@@ -17,6 +18,7 @@ export function createContentWriters(input: {
   messages: MessageAllocations | undefined;
   reads: MessageReadAllocations | undefined;
   removals: MessageRemovalAllocations | undefined;
+  openings: MessageOpeningAllocations | undefined;
 } {
   if (typeof input.capacity === 'number' || input.role !== 'web')
     return {
@@ -25,6 +27,7 @@ export function createContentWriters(input: {
       messages: undefined,
       reads: undefined,
       removals: undefined,
+      openings: undefined,
     };
   const allocations = new ContentWriteAllocations({
     ...input,
@@ -36,5 +39,6 @@ export function createContentWriters(input: {
     messages: new MessageAllocations(allocations),
     reads: new MessageReadAllocations(allocations),
     removals: new MessageRemovalAllocations(allocations, input.capacity),
+    openings: new MessageOpeningAllocations(allocations),
   };
 }

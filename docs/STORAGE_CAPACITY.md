@@ -758,3 +758,42 @@ and check every planned reference and packet charge before COMMIT. Existing
 cross-table, personal quota and global guards remain until that adoption passes.
 No new pool, schema migration, old-history conversion, reset or live activation.
 Representative ciphertext memory/SQL/TOAST/WAL and mixed-load acceptance remain.
+
+## Private opening allocator adoption — block 25
+
+Source prepared only. Migration 083 adopts `object` and `backup-window` missing
+references in volume mode on the existing coordinator. The block 24 participant
+locks and current authority/snapshot/removal/consent checks remain. Inspection
+collects at most 32 concrete missing references, including the last inspected
+object outside the 16,000,000-byte response cutoff. The final response retains
+its existing bounded ciphertext and 410/423 entries; a later invalid selection
+fails the whole operation before growth effects or a grant. Existing references
+create no speculative write, plan or growth credit, even under pressure.
+
+One session-local `pg_temp.hash_talk_opening_plan`, truncated on COMMIT and
+reused on the connection, stores packet metadata and account/device/operation
+bindings. It stores no ciphertext. Its grant is growth, not maintenance, and
+shares the existing coordinator connection. The conservative envelope is 65,536
+bytes plus 32 times each metadata row size and 32,768 bytes per planned reference.
+This covers bounded plan/index/WAL work and metadata growth, not a second copy of
+an accepted payload. Existing SQL operating reserves still cover transient
+ciphertext comparison; physical/SQL/TOAST/WAL measurements remain acceptance work.
+
+BEFORE guards allow only the exact selected account/device pending reference
+insert and a single packet update adding 256 bytes. Every other packet field,
+including ciphertext, remains immutable. Unsupported source effects, repeated
+writes, changed bindings and exhausted credit fail before persistence. Pre-COMMIT
+completeness verifies every planned reference, exact final packet metadata and
+global partition availability; omitted effects fail the entire transaction.
+Savepoints restore plan/effect/cost state. Ordinary application permissions can
+create/reuse the temporary relation; effective TEMP privilege still needs live
+acceptance. No ciphertext is stored in a plan or growth payload grant.
+
+Both personal quota formulas stay unchanged. Global accounting uses exact
+partition deltas; non-adopted writers retain legacy gates. The old ledger lock
+blocks the numeric-capacity predecessor while the adopted path completes its
+256-byte growth. Failed post-COMMIT finalization keeps the durable credit, fails
+health and permits bounded recovery without reporting a committed opening lost.
+No migration activation, old-data import/backfill, reset, dependency or service
+change is included. Mixed cleanup, other writer families and final integrated
+physical/load acceptance remain pending.

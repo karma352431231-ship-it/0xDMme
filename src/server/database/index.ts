@@ -206,6 +206,7 @@ const migrations = [
   '080-message-admission-allocations.sql',
   '081-message-read-allocations.sql',
   '082-message-removal-allocations.sql',
+  '083-message-opening-allocations.sql',
 ];
 
 export interface MaintenanceSnapshot {
@@ -435,7 +436,11 @@ export class Database {
       this.contacts,
       contentCapacity,
       this.attachments,
-      { admission: writers.messages, removals: writers.removals },
+      {
+        admission: writers.messages,
+        removals: writers.removals,
+        openings: writers.openings,
+      },
     );
     this.backups = new BackupStore(this.pool, this.contacts, contentCapacity, {
       social: {

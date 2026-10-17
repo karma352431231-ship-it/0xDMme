@@ -4,7 +4,8 @@ export type ContentAllocationScope =
   | 'vault-maintain'
   | 'message-admit'
   | 'message-read'
-  | 'message-remove';
+  | 'message-remove'
+  | 'message-open';
 
 /** Maintenance spends the existing per-owner SQL reserve, never payload room. */
 const maintenanceScopes = ['vault-maintain', 'message-remove'] as const;

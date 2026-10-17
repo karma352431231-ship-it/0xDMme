@@ -38,6 +38,24 @@ changes into the reset. Review initialization, stale-session handling, exact
 integrated CI, resource/load acceptance and operational recovery for the selected
 final transition. Hardware/free-space measurement and privacy boundaries remain.
 
+The twenty-fifth source block adopts missing private-opening/export device
+references on the existing durable allocator. Migration 083 binds one bounded
+metadata-only temporary plan (at most 32 inspected IDs) to the account, current
+device and operation. Preserve ordered participant locks, authority/snapshot,
+consent and original/related removal checks. Collect the concrete missing
+references before source writes, reserve one growth envelope on the existing
+coordinator, allow only pending reference inserts and exact 256-byte packet
+increments, and verify complete effects/global accounting before COMMIT. Existing
+references need no credit; received/pending/revoked semantics and unavailable
+entries remain unchanged. The response cutoff retains the last inspected object's
+reference effect. A malformed later selection rolls back the whole operation
+without acquiring a growth credit. The new envelope covers metadata growth and
+SQL overhead; existing ciphertext is neither a new payload promise nor copied
+into plans. This is not a maintenance exemption or another connection pool.
+Mixed cleanup and other writer families retain their gates. No old-data conversion,
+reset or VPS activation. SQL/TOAST/WAL, physical margins and representative mixed
+load acceptance remain open. See [opening adoption](docs/STORAGE_CAPACITY.md#private-opening-allocator-adoption--block-25).
+
 The twenty-fourth source block isolates private payload opening/export in
 `message-opening.ts` and coordinates each bounded window with every participant
 in UUID order. Routing discovery projects metadata under shared contact admission;
