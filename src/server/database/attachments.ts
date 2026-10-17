@@ -1,3 +1,5 @@
+import { AttachmentReservations } from './attachment-reservations.ts';
+import type { AttachmentReservationAllocations } from './attachment-reservation-allocations.ts';
 import type { FileReclamation } from './file-reclamation.ts';
 import type { ContentCapacity } from './content-capacity.ts';
 import type pg from 'pg';
@@ -7,12 +9,6 @@ import { canonical } from '../../shared/devices/index.ts';
 import type { AttachmentRef } from '../../shared/attachments/index.ts';
 import type { MessagePacket } from '../../shared/messages/index.ts';
 import type { ContactAuthority, ContactStore } from './contacts.ts';
-import {
-  assertContentCapacity,
-  assertVaultQuota,
-  lockContentUsage,
-} from './vault-quota.ts';
-import { withUploadAdmission } from './upload-admission.ts';
 interface AttachmentRow {
   id: string;
   message_id: string;
@@ -27,86 +23,30 @@ export class AttachmentStore {
   private readonly pool: pg.Pool;
   private readonly reclamation: FileReclamation | undefined;
   private readonly contacts: ContactStore;
-  private readonly capacity: ContentCapacity;
+  private readonly reservations: AttachmentReservations;
   constructor(
     pool: pg.Pool,
     contacts: ContactStore,
     capacity: ContentCapacity,
-    reclamation?: FileReclamation,
+    writers: {
+      reclamation?: FileReclamation | undefined;
+      reservations?: AttachmentReservationAllocations | undefined;
+    } = {},
   ) {
     this.pool = pool;
-    this.reclamation = reclamation;
+    this.reclamation = writers.reclamation;
     this.contacts = contacts;
-    this.capacity = capacity;
+    this.reservations = new AttachmentReservations({
+      contacts,
+      capacity,
+      allocations: writers.reservations,
+    });
   }
   async reserve(
     a: ContactAuthority,
     input: { message: string; peer: string; refs: AttachmentRef[] },
   ): Promise<unknown> {
-    return withUploadAdmission(() =>
-      this.contacts.withMessageConsent(a, input.peer, async (c) => {
-        const message = await c.query(
-          'SELECT 1 FROM hash_talk.message_packets WHERE id=$1',
-          [input.message],
-        );
-        if (message.rowCount)
-          throw new AccountError(409, 'Mensagem já aceita ou apagada.');
-        // Match accounting maintenance's ledger-before-byte-owner lock order.
-        await lockContentUsage(c);
-        for (const ref of input.refs) {
-          const existing = await this.row(c, ref.id);
-          if (existing) {
-            this.sameReservation(existing, a, input, ref);
-            continue;
-          }
-          const other = await c.query(
-            'SELECT 1 FROM hash_talk.message_attachments WHERE message_id=$1 AND NOT(id=ANY($2::uuid[]))',
-            [input.message, input.refs.map((r) => r.id)],
-          );
-          if (other.rowCount)
-            throw new AccountError(409, 'Referências do envio divergentes.');
-          await c.query(
-            'INSERT INTO hash_talk.message_attachments(id,message_id,sender,recipient,descriptor,bytes,charge) VALUES($1,$2,$3,$4,$5::jsonb,$6,$7)',
-            [
-              ref.id,
-              input.message,
-              a.session.accountId,
-              input.peer,
-              JSON.stringify(ref),
-              ref.bytes,
-              ref.bytes + 4096,
-            ],
-          );
-        }
-        await assertVaultQuota(c, a.session.accountId);
-        await assertVaultQuota(c, input.peer);
-        await assertContentCapacity(c, this.capacity);
-        const rows = await c.query<AttachmentRow>(
-          'SELECT * FROM hash_talk.message_attachments WHERE id=ANY($1::uuid[])',
-          [input.refs.map((r) => r.id)],
-        );
-        return rows.rows.map((r) => ({
-          id: r.id,
-          received: r.received,
-          ready: r.status === 'ready',
-        }));
-      }),
-    );
-  }
-  private sameReservation(
-    row: AttachmentRow,
-    a: ContactAuthority,
-    input: { message: string; peer: string },
-    ref: AttachmentRef,
-  ): void {
-    if (
-      row.sender !== a.session.accountId ||
-      row.recipient !== input.peer ||
-      row.message_id !== input.message ||
-      canonical(row.descriptor) !== canonical(ref) ||
-      row.status === 'deleting'
-    )
-      throw new AccountError(409, 'Reserva de anexo divergente.');
+    return this.reservations.reserve(a, input);
   }
   private async row(
     c: pg.PoolClient,

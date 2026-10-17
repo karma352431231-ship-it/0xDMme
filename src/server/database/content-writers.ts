@@ -1,3 +1,4 @@
+import { AttachmentReservationAllocations } from './attachment-reservation-allocations.ts';
 import { FileReclamation } from './file-reclamation.ts';
 import { PersonalCleanupAllocations } from './personal-cleanup-allocations.ts';
 import { MessageOpeningAllocations } from './message-opening-allocations.ts';
@@ -23,6 +24,7 @@ export function createContentWriters(input: {
   openings: MessageOpeningAllocations | undefined;
   cleanup: PersonalCleanupAllocations | undefined;
   reclamation: FileReclamation | undefined;
+  attachmentReservations: AttachmentReservationAllocations | undefined;
 } {
   if (typeof input.capacity === 'number')
     return {
@@ -34,6 +36,7 @@ export function createContentWriters(input: {
       openings: undefined,
       cleanup: undefined,
       reclamation: undefined,
+      attachmentReservations: undefined,
     };
   const allocations = new ContentWriteAllocations({
     ...input,
@@ -44,6 +47,7 @@ export function createContentWriters(input: {
     return {
       allocations,
       reclamation,
+      attachmentReservations: undefined,
       vault: undefined,
       messages: undefined,
       reads: undefined,
@@ -54,6 +58,7 @@ export function createContentWriters(input: {
   return {
     allocations,
     reclamation,
+    attachmentReservations: new AttachmentReservationAllocations(allocations),
     vault: new VaultAllocations(allocations, input.capacity),
     messages: new MessageAllocations(allocations),
     reads: new MessageReadAllocations(allocations),

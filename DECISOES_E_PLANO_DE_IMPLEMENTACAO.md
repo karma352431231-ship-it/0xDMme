@@ -38,6 +38,21 @@ changes into the reset. Review initialization, stale-session handling, exact
 integrated CI, resource/load acceptance and operational recovery for the selected
 final transition. Hardware/free-space measurement and privacy boundaries remain.
 
+The twenty-ninth source block adopts complete private attachment reservation
+in volume-mode web writers. Migration 087 freezes the bounded file/thumbnail
+selection and every new source row before growth; one physical credit covers
+only missing files plus concrete SQL/metadata work. Shared contact admission,
+ordered account locks and fresh consent/session checks precede byte-owner locks.
+BEFORE guards and a pre-COMMIT checkpoint enforce exact descriptors, owners,
+message routing, initial writer/parts/state/time, charges and complete effects.
+Both-owner quota and pending/global accounting remain exact. Identical retries
+preserve existing parts/writers without another credit or charge, including under
+physical pressure. New pending partitions are acquired in UUID/bucket order.
+The existing coordinator and connection budget are reused. Private begin/finish/
+release/cancel/recovery/expiry, social reservation/lifecycle/admission and other
+writers remain separate contracts. No reset or VPS activation is included.
+See [private reservation](docs/STORAGE_CAPACITY.md#private-upload-reservation--block-29).
+
 The twenty-eighth source block adopts SQL confirmation of actual vault/private/
 social file reclamation on the existing coordinator. Migration 086 binds one
 eligible retained-vault receipt or deleting media row, resolves all accounts under

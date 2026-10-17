@@ -623,3 +623,19 @@ refuse unrelated effects. Missing/live targets use no credit. Volume-mode worker
 SQL and coordinator connections share the existing four-connection budget (3+1).
 Upload/expiry transitions and other writer families remain legacy; no release
 activation or accepted-data expiry is added. See [storage contract](STORAGE_CAPACITY.md#file-reclamation-confirmation--block-28).
+
+## Twenty-ninth block: complete private upload reservation
+
+Volume-mode web reservation now uses one bounded exact source plan and physical
+credit for missing file/thumbnail promises plus SQL metadata. Existing matching
+rows remain untouched; repeated requests preserve partial progress and writers
+without another grant, including at zero growth headroom. Both-owner quotas,
+current consent/revocation and exact global/pending accounting remain mandatory.
+BEFORE guards refuse unrelated or altered effects, and completeness is checked
+before COMMIT. Ordered accounts, byte owners and pending buckets protect
+independent/opposite sends; the existing coordinator and pool budget are reused.
+
+`AttachmentReservations` owns this complete operation instead of extending the
+attachment lifecycle store. This block does not adopt private transfer/expiry or
+social upload/admission. No reset or activation is included. See
+[reservation contract](STORAGE_CAPACITY.md#private-upload-reservation--block-29).

@@ -210,6 +210,7 @@ const migrations = [
   '084-personal-cleanup-allocations.sql',
   '085-cleanup-physical-credits.sql',
   '086-file-reclamation-allocations.sql',
+  '087-attachment-reservation-allocations.sql',
 ];
 
 export interface MaintenanceSnapshot {
@@ -435,7 +436,10 @@ export class Database {
       this.pool,
       this.contacts,
       contentCapacity,
-      writers.reclamation,
+      {
+        reclamation: writers.reclamation,
+        reservations: writers.attachmentReservations,
+      },
     );
     this.messages = new MessageStore(
       this.contacts,

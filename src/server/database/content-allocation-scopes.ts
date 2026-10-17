@@ -9,7 +9,8 @@ export type ContentAllocationScope =
   | 'message-remove'
   | 'message-open'
   | 'personal-clean'
-  | 'file-reclaim';
+  | 'file-reclaim'
+  | 'attachment-reserve';
 
 /** Maintenance uses the existing SQL allowance; excess needs physical credits. */
 const maintenanceScopes = [

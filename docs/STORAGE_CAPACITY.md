@@ -977,3 +977,50 @@ general/group/retention sources retain their current gates until separately
 adopted. No accepted-data expiry, source/backfill, reset or VPS activation is
 included. Real mount durability, SQL/WAL/resource margins and representative
 integrated load remain acceptance work.
+
+## Private upload reservation — block 29
+
+Migration 087 adopts only complete `AttachmentStore.reserve` in volume-mode web
+writers. `AttachmentReservations` owns the operation and its legacy path;
+`AttachmentReservationAllocations` binds one concrete plan to the existing
+coordinator. The two-descriptor file/thumbnail protocol limit is preserved, with
+strict parsing at the store boundary. This is no new upload-count limit.
+
+Acquire shared contact admission, all participant accounts in UUID order, then
+recheck current session/directory/consent and message absence. Lock existing
+selected byte owners in UUID order and validate immutable routing/descriptors.
+Freeze existing rows unchanged and exact new reserved rows, including bytes,
+charge, empty received parts, absent writer and transaction creation time. A
+partially repeated selection reserves only its missing file promises. When new
+rows are needed, reject any other attachment outside the requested selection for
+that message. No SQL transaction spans filesystem operations.
+
+Before insertion, declare the whole missing file/thumbnail charge and concrete
+metadata/SQL/index/WAL envelope against measured headroom. All growth competes
+with outstanding payload and maintenance-excess credits using the unchanged 085
+physical formula. BEFORE guards allow only the frozen new rows once; other
+sources, UPDATE/DELETE, different descriptors/owners/message/bytes/charge/state/
+parts/writer/time or changed operation bindings refuse. A pre-COMMIT checkpoint
+requires every planned insertion, unchanged prior rows and available global and
+pending accounting. Both participants' personal quotas remain mandatory. A late
+failure rolls back all source and counter effects. Savepoints restore effect
+markers; failed post-COMMIT credit finalization retains durable credit and fails
+health until snapshot-safe recovery.
+
+Insert new rows in UUID order, which also orders their derived pending buckets,
+so independent two-file reservations cannot acquire the same bucket pair in
+opposite order. Identical retries require no insertion, physical grant or global
+ledger assertion. They still validate current authority, immutable metadata and
+both quotas, and preserve received parts, ready state or the active writer. Such
+retries remain possible with no growth headroom or a held coordinator/legacy
+ledger. Fixed-budget writers retain ledger-before-byte-owner order and their
+existing capacity assertion. No process/pool budget changes.
+
+Private ready-file acceptance is already adopted in 080; durable reclamation
+confirmation remains in 086. Private begin/finish/release/cancel/startup recovery/
+temporary expiry, all social upload/admission transitions and general/group/
+retention writers retain their existing coordination. Never infer expiry of
+accepted media or early release of file charges from this reservation scope.
+Migration 087 is prepared only, preserves all earlier migration files and does
+not backfill, reset or activate data. Representative physical/SQL/WAL/resource/
+load acceptance remains pending.
