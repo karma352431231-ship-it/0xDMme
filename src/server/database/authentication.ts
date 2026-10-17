@@ -78,9 +78,9 @@ export class AuthenticationStore {
   async createChallenge(challenge: LoginChallenge): Promise<void> {
     await withTemporaryAdmission('Muitos pedidos de login. Aguarde.', () =>
       transaction(this.pool, async (client) => {
-        await client.query(`DELETE FROM hash_talk.login_challenges WHERE id IN
-        (SELECT id FROM hash_talk.login_challenges WHERE expires_at <= now()
-         ORDER BY expires_at LIMIT 64 FOR UPDATE SKIP LOCKED)`);
+        await client.query(`WITH expired AS MATERIALIZED (SELECT id FROM hash_talk.login_challenges
+          WHERE expires_at<=now() ORDER BY expires_at LIMIT 64 FOR UPDATE SKIP LOCKED)
+        DELETE FROM hash_talk.login_challenges target USING expired WHERE target.id=expired.id`);
         await client.query(
           `INSERT INTO hash_talk.login_challenges
         (id, browser_hash, address, device_id, message, expires_at, ecosystem, handoff_hash) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
@@ -264,8 +264,9 @@ export class AuthenticationStore {
   async createHandoff(input: Omit<LoginHandoff, 'address'>): Promise<void> {
     await withTemporaryAdmission('Muitos pedidos de retorno. Aguarde.', () =>
       transaction(this.pool, async (client) => {
-        await client.query(`DELETE FROM hash_talk.login_handoffs WHERE browser_hash IN
-        (SELECT browser_hash FROM hash_talk.login_handoffs WHERE expires_at <= now() ORDER BY expires_at LIMIT 64 FOR UPDATE SKIP LOCKED)`);
+        await client.query(`WITH expired AS MATERIALIZED (SELECT browser_hash FROM hash_talk.login_handoffs
+          WHERE expires_at<=now() ORDER BY expires_at LIMIT 64 FOR UPDATE SKIP LOCKED)
+        DELETE FROM hash_talk.login_handoffs target USING expired WHERE target.browser_hash=expired.browser_hash`);
         await client.query(
           `INSERT INTO hash_talk.login_handoffs
         (browser_hash,ticket_hash,ecosystem,device_id,expires_at) VALUES ($1,$2,$3,$4,$5)`,

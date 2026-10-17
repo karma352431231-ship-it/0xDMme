@@ -356,6 +356,15 @@ and bounded cleanup on creation; the physical-volume admission review remains
 separate. Validate transient memory peaks, admission fairness and expired-row
 cleanup throughput under representative synthetic load before activation.
 
+Expired login challenges, browser handoffs and device links select each 64-row
+`SKIP LOCKED` cleanup batch in a materialized CTE before deletion. A valid nested
+loop semi-join can otherwise rescan the locking selector and exceed its LIMIT;
+local reproduction removed 79 of 80 expired rows despite a 64-row selection.
+Regression coverage forces that plan for all three sources, keeps an expired row
+locked and verifies creation proceeds while exactly 64 other expired rows retire.
+The fixture owns a fresh database so unrelated expired state cannot affect the
+batch assertion. This changes no admission count, retention deadline or schema.
+
 ## Eleventh block: exact group quota counters
 
 Group quota checks and accepted-media occupancy read exact per-group counters

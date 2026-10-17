@@ -202,7 +202,9 @@ export class DeviceStore {
             'Código já utilizado. Crie um novo pedido.',
           );
         await client.query(
-          `DELETE FROM hash_talk.device_links WHERE id IN (SELECT id FROM hash_talk.device_links WHERE expires_at<=now() ORDER BY expires_at LIMIT 64 FOR UPDATE SKIP LOCKED)`,
+          `WITH expired AS MATERIALIZED (SELECT id FROM hash_talk.device_links
+            WHERE expires_at<=now() ORDER BY expires_at LIMIT 64 FOR UPDATE SKIP LOCKED)
+          DELETE FROM hash_talk.device_links target USING expired WHERE target.id=expired.id`,
         );
         const existing = await client.query(
           'SELECT account_id FROM hash_talk.device_directories WHERE account_id=$1',

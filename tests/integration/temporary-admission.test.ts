@@ -27,45 +27,32 @@ await test('temporary SQL admission preserves authentication beyond former globa
   const config = readWebConfiguration(process.env);
   if (!new URL(config.databaseUrl).pathname.startsWith('/hash_talk_test'))
     throw new Error('Exclusive synthetic database required.');
-  const db = new Database(config.databaseUrl),
-    inspector = new pg.Client({ connectionString: config.databaseUrl });
+  const url = new URL(config.databaseUrl),
+    name =
+      'hash_talk_test_temporary_' + crypto.randomUUID().replaceAll('-', ''),
+    admin = new pg.Client({ connectionString: url.href });
+  await admin.connect();
+  await admin.query(
+    `CREATE DATABASE "${name}" TEMPLATE template0 ENCODING 'UTF8'`,
+  );
+  url.pathname = '/' + name;
+  const db = new Database(url.href),
+    inspector = new pg.Client({ connectionString: url.href });
   const service = new AccountService({
     store: db.authentication,
     origin: 'https://0xdmme.app',
   });
   const devices = new DeviceService(db.devices);
-  const accounts: string[] = [],
-    prefix = crypto.randomUUID().replaceAll('-', '');
+  const prefix = crypto.randomUUID().replaceAll('-', '');
   await db.migrate();
   await inspector.connect();
   t.after(async () => {
     service.opening.close();
     await inspector.query('ROLLBACK');
-    for (const table of [
-      'device_links',
-      'device_events',
-      'device_directories',
-      'login_sessions',
-      'login_devices',
-    ])
-      await inspector.query(
-        `DELETE FROM hash_talk.${table} WHERE account_id=ANY($1::uuid[])`,
-        [accounts],
-      );
-    await inspector.query(
-      'DELETE FROM hash_talk.accounts WHERE id=ANY($1::uuid[])',
-      [accounts],
-    );
-    await inspector.query(
-      'DELETE FROM hash_talk.login_challenges WHERE browser_hash LIKE $1',
-      [prefix + '%'],
-    );
-    await inspector.query(
-      'DELETE FROM hash_talk.login_handoffs WHERE browser_hash LIKE $1',
-      [prefix + '%'],
-    );
     await inspector.end();
     await db.close();
+    await admin.query(`DROP DATABASE "${name}"`);
+    await admin.end();
   });
   async function authorizedSource() {
     const wallet = Wallet.createRandom();
@@ -81,7 +68,6 @@ await test('temporary SQL admission preserves authentication beyond former globa
       },
       challenge.browserToken,
     );
-    accounts.push(login.session.accountId);
     const identity = await createIdentity(
       login.session.deviceId,
       'Synthetic source',
@@ -200,11 +186,28 @@ await test('temporary SQL admission preserves authentication beyond former globa
   await t.test(
     'former admission locks and locked expired rows cannot block independent creation',
     async () => {
-      await inspector.query(
-        `UPDATE hash_talk.login_challenges SET expires_at=now()-interval '1 second'
-      WHERE id IN (SELECT id FROM hash_talk.login_challenges WHERE browser_hash LIKE $1 ORDER BY browser_hash LIMIT 80)`,
-        [prefix + '%'],
+      const constrainedUrl = new URL(url);
+      // A valid nested-loop semi-join rescans an unmaterialized locking selector.
+      // Force that plan so one batch must remain bounded independently of stats.
+      constrainedUrl.searchParams.set(
+        'options',
+        '-c enable_hashjoin=off -c enable_mergejoin=off -c enable_hashagg=off -c enable_material=off -c enable_sort=off',
       );
+      const constrained = new Database(constrainedUrl.href);
+      for (const source of [
+        'login_challenges',
+        'login_handoffs',
+        'device_links',
+      ]) {
+        const key = source === 'login_handoffs' ? 'browser_hash' : 'id',
+          filter = source === 'device_links' ? 'code_hash' : 'browser_hash';
+        const updated = await inspector.query(
+          `UPDATE hash_talk.${source} SET expires_at=now()-interval '1 second'
+          WHERE ${key} IN (SELECT ${key} FROM hash_talk.${source} WHERE ${filter} LIKE $1 ORDER BY ${filter} LIMIT 80)`,
+          [prefix + '%'],
+        );
+        assert.equal(updated.rowCount, 80);
+      }
       await inspector.query('BEGIN');
       try {
         for (const name of [
@@ -215,23 +218,43 @@ await test('temporary SQL admission preserves authentication beyond former globa
           await inspector.query('SELECT pg_advisory_xact_lock(hashtext($1))', [
             name,
           ]);
-        await inspector.query(
-          'SELECT id FROM hash_talk.login_challenges WHERE expires_at<=now() ORDER BY expires_at LIMIT 1 FOR UPDATE',
-        );
+        for (const source of [
+          'login_challenges',
+          'login_handoffs',
+          'device_links',
+        ]) {
+          const key = source === 'login_handoffs' ? 'browser_hash' : 'id';
+          await inspector.query(
+            `SELECT ${key} FROM hash_talk.${source} WHERE expires_at<=now() ORDER BY expires_at LIMIT 1 FOR UPDATE`,
+          );
+        }
         await waitForBoundary(
           Promise.all([
-            db.authentication.createChallenge(challenge()),
-            db.authentication.createHandoff(handoff()),
-            db.devices.createLink(source.session, link()),
+            constrained.authentication.createChallenge(challenge()),
+            constrained.authentication.createHandoff(handoff()),
+            constrained.devices.createLink(source.session, link()),
           ]),
         );
-        const remaining = await inspector.query<{ total: number }>(
-          `SELECT count(*)::integer AS total FROM hash_talk.login_challenges WHERE expires_at<=now() AND browser_hash LIKE $1`,
-          [prefix + '%'],
-        );
-        assert.equal(remaining.rows[0]?.total, 16);
+        for (const source of [
+          'login_challenges',
+          'login_handoffs',
+          'device_links',
+        ]) {
+          const filter =
+            source === 'device_links' ? 'code_hash' : 'browser_hash';
+          const remaining = await inspector.query<{ total: number }>(
+            `SELECT count(*)::integer AS total FROM hash_talk.${source} WHERE expires_at<=now() AND ${filter} LIKE $1`,
+            [prefix + '%'],
+          );
+          assert.equal(
+            remaining.rows[0]?.total,
+            16,
+            source + ' must remove one bounded batch.',
+          );
+        }
       } finally {
         await inspector.query('ROLLBACK');
+        await constrained.close();
       }
     },
   );
