@@ -4,6 +4,7 @@ import { test } from 'node:test';
 import { runInNewContext } from 'node:vm';
 import { build } from 'esbuild';
 import type { AccountSession } from '../src/shared/account/index.ts';
+import { MessageReadiness } from '../src/client/message-live/index.ts';
 
 // Exercise the real entry point, routing and panels against the IDs in each
 // authored document. Feature controllers have their own behavioral tests.
@@ -23,12 +24,13 @@ const featureExports: Record<string, string[]> = {
   contacts: ['startContacts'],
   'voice-playback': ['VoicePlayback'],
   calls: ['CallLog', 'startCalls'],
-  communities: ['startCommunities'],
+  communities: ['startCommunities', 'startRankingSide'],
   'public-profile': ['startPublicProfile'],
   activity: ['startActivity'],
   'external-media': ['ExternalMediaConsent'],
   'file-drop': ['keepPageOnStrayDrop'],
   'transient-menu': ['startTransientMenus'],
+  scrollbars: ['startScrollbarFade'],
   'account-settings': ['AccountSettingsController'],
   daily: ['Daily'],
   'notification-sound': ['applySoundPreference', 'storedSoundPreference'],
@@ -43,12 +45,13 @@ const bundle = await build({
     {
       name: 'feature-controllers',
       setup(builder) {
-        builder.onResolve(
-          { filter: /^\.\.\/[^/]+\/index\.ts$/ },
-          ({ path }) => ({
-            path: path.split('/')[1] ?? '',
-            namespace: 'fixture',
-          }),
+        builder.onResolve({ filter: /^\.\.\/[^/]+\/index\.ts$/ }, ({ path }) =>
+          path === '../app-navigation/index.ts'
+            ? undefined
+            : {
+                path: path.split('/')[1] ?? '',
+                namespace: 'fixture',
+              },
         );
         builder.onLoad({ filter: /.*/, namespace: 'fixture' }, ({ path }) => {
           const names = featureExports[path];
@@ -95,7 +98,12 @@ class Node extends EventTarget {
   }
 }
 
-async function page(approval: boolean, userAgent: string, hash = '#conversas') {
+async function page(
+  approval: boolean,
+  userAgent: string,
+  hash = '#conversas',
+  authorized = false,
+) {
   const html = await readFile(
     `src/client/app/${approval ? 'wallet' : 'index'}.html`,
     'utf8',
@@ -115,6 +123,8 @@ async function page(approval: boolean, userAgent: string, hash = '#conversas') {
   const enrollments: Node[] = [];
   const modes: (string | undefined)[] = [];
   let pwaStarts = 0;
+  const readied: string[] = [];
+  let directorySettled: (session: AccountSession | null) => void = () => {};
   let changed: (session: AccountSession | null) => void = () => {};
   const feature = {
     sync: {},
@@ -125,11 +135,23 @@ async function page(approval: boolean, userAgent: string, hash = '#conversas') {
     mount: () => {},
     mountMeter: () => {},
     ready: () => {},
-    authorized: () => false,
+    authorized: () => authorized,
+    activeAuthors: () => Promise.resolve(new Set<string>()),
+    statusesChanged: () => {},
   };
   const fixture: Record<string, unknown> = {};
   for (const names of Object.values(featureExports))
     for (const name of names) fixture[name] = () => feature;
+  for (const name of [
+    'startPublicProfile',
+    'startCommunities',
+    'startContacts',
+    'startActivity',
+    'startStatus',
+    'startVault',
+    'startCalls',
+  ])
+    fixture[name] = () => ({ ...feature, ready: () => readied.push(name) });
   Object.assign(fixture, {
     mountEnrollmentLogin: (node: Node) => enrollments.push(node),
     startAccount: (options: { changed: typeof changed }) => {
@@ -146,10 +168,14 @@ async function page(approval: boolean, userAgent: string, hash = '#conversas') {
       pwaStarts++;
       return { render: () => {} };
     },
-    MessageReadiness: class {
-      update(): boolean {
-        return false;
-      }
+    MessageReadiness,
+    startMessages: (
+      _access: unknown,
+      _sync: unknown,
+      options: { directorySettled?: typeof directorySettled },
+    ) => {
+      directorySettled = options.directorySettled ?? (() => {});
+      return { ...feature, ready: () => readied.push('startMessages') };
     },
     VoicePlayback: class {},
     keepPageOnStrayDrop: () => {},
@@ -166,19 +192,93 @@ async function page(approval: boolean, userAgent: string, hash = '#conversas') {
     },
     Daily: class {},
   });
+  const location = {
+    hash: approval ? '#configuracoes' : hash,
+    pathname: '/',
+    search: '',
+  };
+  const setAddress = (
+    _state: unknown,
+    _unused: string,
+    value: string,
+  ): void => {
+    const url = new URL(value, 'http://local.invalid');
+    Object.assign(location, {
+      hash: url.hash,
+      pathname: url.pathname,
+      search: url.search,
+    });
+  };
+  Object.assign(document, { documentElement: new Node() });
   runInNewContext(source, {
     fixture,
     document,
     window: new EventTarget(),
     navigator: { onLine: true, userAgent },
-    location: { hash: approval ? '#configuracoes' : hash },
+    location,
+    history: { replaceState: setAddress, pushState: setAddress },
+    MutationObserver: class {
+      observe(): void {}
+    },
+    HTMLAnchorElement: class extends Node {},
+    Element: Node,
+    Event,
+    queueMicrotask,
     matchMedia: () => Object.assign(new EventTarget(), { matches: !approval }),
     localStorage: { getItem: () => null, setItem: () => {} },
     URLSearchParams,
     HTMLElement: Node,
   });
-  return { nodes, mounted, enrollments, modes, document, pwaStarts, changed };
+  return {
+    nodes,
+    mounted,
+    enrollments,
+    modes,
+    document,
+    pwaStarts,
+    changed,
+    readied,
+    directorySettled,
+  };
 }
+
+await test('authorized mobile boot starts the directory and calls before optional startup reads', async () => {
+  const view = await page(false, 'Android', '#chats', true);
+  view.readied.length = 0;
+  const session = {
+    accountId: 'synthetic-account',
+    deviceId: 'synthetic-device',
+    csrf: 'synthetic',
+    name: 'Synthetic',
+  } as AccountSession;
+  view.changed(session);
+  view.changed({ ...session });
+  assert.equal(
+    view.readied.filter((value) => value === 'startMessages').length,
+    1,
+  );
+  assert.ok(view.readied.includes('startCalls'));
+  assert.ok(!view.readied.includes('startActivity'));
+  assert.ok(!view.readied.includes('startPublicProfile'));
+  view.directorySettled(session);
+  assert.ok(view.readied.includes('startActivity'));
+  assert.ok(view.readied.includes('startPublicProfile'));
+  assert.ok(view.readied.includes('startCommunities'));
+});
+
+for (const route of ['#communities', '#contacts'])
+  await test(`${route} keeps its foreground startup independent of the private directory`, async () => {
+    const view = await page(false, 'Android', route, true);
+    view.readied.length = 0;
+    view.changed({
+      accountId: 'synthetic-account',
+      deviceId: 'synthetic-device',
+      csrf: 'synthetic',
+    } as AccountSession);
+    assert.ok(view.readied.includes('startCommunities'));
+    assert.ok(view.readied.includes('startContacts'));
+    assert.ok(view.readied.includes('startCalls'));
+  });
 
 await test('documento da wallet inicializa a confirmação em Android e iPhone sem os painéis do app', async () => {
   for (const agent of ['Android', 'iPhone']) {

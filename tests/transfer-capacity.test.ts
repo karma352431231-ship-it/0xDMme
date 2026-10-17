@@ -17,6 +17,11 @@ import type {
   CommunityMediaResult,
 } from '../src/shared/community-media/index.ts';
 import { deferred } from './fixtures/deferred.ts';
+import {
+  chatFileLimit,
+  fileLimit,
+  partLimit,
+} from '../src/shared/attachments/index.ts';
 
 const id = '11111111-1111-4111-8111-111111111111';
 const authority: ContactAuthority = {
@@ -211,4 +216,58 @@ await test('independent media preparations start together and shutdown releases 
     service.operate('media-finish', authority, { id, media: ids[0] }),
     { status: 503 },
   );
+});
+
+await test('last transfer part follows private/group 10 MB and social 3 MB limits', async (t) => {
+  t.mock.method(process, 'availableMemory', () => 64 * 1_048_576);
+  const db = new Database('postgresql://127.0.0.1/hash_talk_test');
+  t.after(() => db.close());
+  const objects = new ObjectStore(
+    '/private/tmp/0xdmme-unused-transfer-fixture',
+  );
+  const reached = new Error('Synthetic persistence boundary reached.');
+  const begin = () => Promise.reject(reached);
+  t.mock.method(db.attachments, 'begin', begin);
+  t.mock.method(db.socialMedia, 'begin', begin);
+  t.mock.method(db.groupMedia, 'begin', begin);
+  const cases = [
+    {
+      service: new AttachmentService(
+        db.attachments,
+        db.messages,
+        objects,
+        chatFileLimit,
+      ),
+      operation: 'attachment-part',
+      maximum: chatFileLimit,
+      scope: {},
+    },
+    {
+      service: new AttachmentService(db.socialMedia, null, objects, fileLimit),
+      operation: 'attachment-part',
+      maximum: fileLimit,
+      scope: {},
+    },
+    {
+      service: new GroupMediaService(db.groupMedia, db.groupRetention, objects),
+      operation: 'group-attachment-part',
+      maximum: chatFileLimit,
+      scope: { groupId: id, head: authority.directory },
+    },
+  ];
+  for (const entry of cases) {
+    const last = Math.ceil(entry.maximum / partLimit) - 1;
+    const input = { ...entry.scope, id, index: last, ciphertext: 'AQ==' };
+    await assert.rejects(
+      entry.service.operate(authority, entry.operation, input),
+      reached,
+    );
+    await assert.rejects(
+      entry.service.operate(authority, entry.operation, {
+        ...input,
+        index: last + 1,
+      }),
+      { status: 400 },
+    );
+  }
 });

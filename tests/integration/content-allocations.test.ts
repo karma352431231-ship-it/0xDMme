@@ -593,7 +593,7 @@ await test('transaction-owned content credits preserve atomic grants and recover
       assert.deepEqual(
         (
           await inspector.query(
-            'SELECT version,checksum,applied_at FROM hash_talk.schema_migrations WHERE version<=76 ORDER BY version',
+            'SELECT version,checksum,applied_at FROM hash_talk.schema_migrations WHERE version<=79 ORDER BY version',
           )
         ).rows,
         versions,

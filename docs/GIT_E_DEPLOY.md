@@ -1,14 +1,401 @@
 # 0xDMme — Git e envio à VPS
 
-## CI trigger policy — 17 October 2026
+## Capacity integration — owner approval on 17 October 2026
 
-The owner requested CI only for main integration. Run the existing checks on
-pushes to `main` and pull requests targeting `main`. Task-branch commits retain
-relevant local validation; they do not require a full remote CI run each time.
-An integrated, clean, pushed main commit with passing exact-commit CI remains a
-release prerequisite. This trigger policy does not authorize deployment or schema
-activation and does not weaken any CI job. Other task branches inherit the policy
-when they incorporate this workflow change.
+The owner requested integrating the prepared capacity work into main, updating
+its isolated VPS environment and testing there, then explicitly approved the
+conflict resolutions after reviewing the private integration packet. Preserve
+main's applied migrations 001–072 byte for byte, including ranking activity,
+10 MB private/group attachments and community addresses. The eighteen unapplied
+capacity migrations formerly numbered 070–087 are integrated as 073–090; their
+prior source identities remain in Git history and earlier block reports refer
+to those original numbers. No applied migration identity or checksum changes.
+
+The unapplied statement-accounting and allocated-source catalog guards now
+require all 81 charged sources, including `community_addresses`. Private upload
+reservation keeps the approved 10 MB file bound, 96 kB thumbnail bound and exact
+both-owner/pending/physical accounting. Private/group transfer part bounds follow
+the 10 MB context; social/status keep their 3 MB product bounds. Daily reads retain
+both current public-profile projection and scoped receipt allocation. Social
+uploads retain main's current conversation/block authorization alongside memory
+admission; obsolete pending-count ceilings are not restored.
+
+This approval supersedes the earlier branch-only/final-activation timing for
+this integration and VPS test release. It does not declare the capacity audit
+finished: remaining database contention, public-media delivery, real storage,
+TURN/network and representative acceptance remain visible. Exact integrated
+checks and main CI precede deployment through the existing executor. Prepare a
+reviewed 072→090 transition and scoped failure/recovery checks before activation;
+source integration alone never activates SQL, templates or services. The existing
+authorization to discard this app's pre-launch test data remains available only
+within its recorded scope. No reset has been performed by this integration.
+
+**Ponto importante:** report actual activation and VPS evidence separately from
+source validation. Preserve the other project, main's deploy byte-budget fix,
+stylesheets and unrelated session changes. Private access, migration mapping,
+operational baselines and receipts remain exclusively in the main `.local/`.
+
+## CI only on main, branches on demand — owner decision on 17/10/2026
+
+The `Verificações` workflow ran on every push to any branch and on pull requests, so a commit pushed to its task branch and then to `main` was checked twice. Of the last 300 runs, 194 came from task branches and 77 repeated a commit already checked. The owner chose to run it automatically only on pushes to `main` and on pull requests, and on task branches only on demand (`workflow_dispatch`: GitHub → Actions → Verificações → Run workflow, choosing the branch). The Git credential stored on the Mac cannot start runs: the dispatch API answered 403 on 17/10/2026, as re-runs already did. Agents therefore ask the owner to start a branch run; giving that token Actions write access would be an account change for the owner to make. A newer run on the same branch or pull request cancels an unfinished one; runs on `main` are never cancelled.
+
+The deploy gate is unchanged: `npm run deploy:staging` still requires the latest `push` run on `main` for the exact commit to have passed. Before integrating, run `npm run check` locally; start the on-demand run when a branch needs the integration tests (PostgreSQL and ffmpeg) before it reaches `main`. While the repository is public, the minutes are free; the change mainly removes waiting and duplicate noise.
+
+## Release file growth — owner-authorized fix on 17/10/2026
+
+The owner requested correcting the release file-count restriction and integrating
+it into main immediately, separately from the unactivated capacity work. The old
+1,024-entry manifest and 4,096-member authored/build extraction ceilings must not
+force unrelated source modules or stylesheets to be merged. Replace those counts
+with byte budgets: at most 1 MiB for the serialized release manifest, and the
+existing 128 MiB expanded archive allowance including member headers and padding.
+This supersedes earlier source-entry count allowances recorded below.
+Use the same manifest allowance for initial preparation, verified cached builds,
+remote validation and exact authored-source comparison. The 1 MiB metadata budget
+fits beside a base64-encoded 16 MiB archive within the existing 24 MiB deployment
+input envelope; private operational fields retain that input-envelope check.
+
+Preserve the 16 MiB compressed transfer, combined runtime release budget, path/
+symlink/type/duplicate guards, SHA-256 verification, corresponding-source contract,
+exact-commit CI, compatibility checks and rollback. Backup/object and QR tree
+limits and dependency-specific guards are outside this source-growth adjustment.
+Do not change application code, SQL migrations, dependencies, Node, service units,
+shared configuration or activate the pending capacity branch. Use only the existing
+`npm run deploy:staging` command when VPS code activation is needed, from a clean,
+integrated, pushed main commit with passing exact-commit CI. The executor is sent
+from that reviewed checkout on each invocation; it is not a persistent VPS daemon.
+Keep access, inventories and operational receipts only in `.local/`.
+
+**Ponto importante:** main integration makes the reviewed fix available to future
+deploy invocations. Report VPS activation separately and only after the matching
+published receipt and served release are verified. Byte limits remain deliberate
+resource budgets; this change removes the fixed authored/build file counts.
+
+## Optimistic private texts — activation authorized on 16/10/2026
+
+After initially requesting Git-only delivery, the owner explicitly authorized
+main integration and VPS activation, then resumed the release after context
+compaction. The reviewed source task ends at `b875691`. Show own ordinary text
+and replies immediately in the keyed conversation history, replacing verbose
+send/history placeholders with a retry cross on failure. Only actual server
+acceptance earns a sent check; preserve verified delivery/read markers, E2EE,
+encrypted persistence, stable IDs, authorization and session invalidation.
+
+Merge into current main, preserving its independently integrated navigation and
+community-address release. Require full CI for the exact pushed integration
+commit and use only `npm run deploy:staging` from its clean checkout, building on
+the Mac. This text presentation release adds no backend, database, dependency,
+Node, service-unit or infrastructure transition. Preserve the active main's
+72 SQL migrations and executor; no migration or operational flag is needed.
+Keep preservation/readiness checks, public asset and corresponding-source
+verification and the actual previous release for rollback. Access, baselines,
+artifacts and operational receipts remain exclusively in `.local/`.
+
+**Ponto importante:** report activation only after the matching `published`
+receipt and served build are verified. Immediate display does not establish
+durable saving, acceptance or delivery; real device acceptance remains necessary.
+
+## Consecutive private texts — activation authorized on 16/10/2026
+
+The owner authorized integrating the reviewed branch ending at `d55990d` into
+current main, requested an immediate notification when that merge is published,
+and authorized VPS activation. The branch includes the measured private text-send
+repair, the public DM continuity repair and the opt-in console diagnostic. Preserve
+bounded input admission, atomic encrypted FIFO persistence, fresh authorization,
+SDK exclusion and immediate invalidation. Physical send cadence remains to be
+accepted on the owner's devices.
+
+Require full CI for the exact pushed integration commit and use only
+`npm run deploy:staging` from its clean checkout, building on the Mac. Preserve the
+backend, all 71 SQL migrations and their executor, dependencies, Node, models,
+installed units, traffic bounds and shared infrastructure. No database transition
+or operational flag is part of this release. Keep preservation/readiness checks,
+public asset and corresponding-source verification, and the actual previous
+release for rollback. Access, artifacts, baselines and receipts stay in `.local/`.
+
+**Ponto importante:** report activation only after the matching published receipt
+and served build are verified. Admission, encrypted persistence, server acceptance
+and delivery remain distinct states; never promise instantaneous network delivery.
+
+## Usable mobile conversations — activation authorized on 16/10/2026
+
+After the source repair passed 85 targeted scenarios and full exact-commit CI,
+the owner explicitly authorized main integration and VPS activation, then resumed
+the release after context compaction. The reviewed task ends at `f9d0f73`.
+Accept the latest visible conversation choice during startup and run it at the
+next exclusive boundary; keep selected-history verification and send gates.
+Move unrelated startup maintenance into bounded turns that yield to foreground
+work. See the
+[functional startup contract](BOOT_CONTATOS_CONVERSAS.md#usable-conversations-during-mobile-startup--16102026).
+
+Merge this task into current main and require full CI for the exact pushed
+integration commit. Use only `npm run deploy:staging` from its clean checkout,
+with the build prepared on the Mac. Preserve the entire backend, all 71 SQL
+migrations and their executor, dependencies, Node, models, installed units and
+shared infrastructure. Do not add a database transition or operational flag.
+Keep preservation checks, own-service readiness, public asset/source verification
+and the actual previous release for rollback. Access, baselines, artifacts and
+operational receipts stay exclusively in `.local/`.
+
+**Ponto importante:** activation requires a matching `published` receipt and
+served build. A new physical Android capture must measure accepted tap, verified
+history and usable composer; passing CI or a visible list alone does not
+establish the actual mobile improvement.
+
+## Private-directory boot repair — activation authorized on 16/10/2026
+
+After the complete Chrome Android capture and the scoped startup repair, the
+owner explicitly authorized main integration and VPS activation. The reviewed
+code ends at `d5527c1`; 100 targeted scenarios and its full exact-commit CI passed.
+Prioritize the foreground private directory before optional session warmups,
+preserving online authority checks, calls and incoming group links. See the
+[startup contract](BOOT_CONTATOS_CONVERSAS.md#foreground-directory-startup--16102026).
+
+Integrate with current main and require full CI for the exact pushed integration
+commit. Deploy from its clean checkout using only `npm run deploy:staging`, with
+the build on the Mac. This repair preserves the entire backend, all 71 SQL
+migrations and their executor, dependencies, Node, models, units and shared
+infrastructure. Keep existing preservation checks, worker readiness, public
+asset/source verification and the previous release for rollback. Access,
+baselines, artifacts and receipts stay exclusively in `.local/`.
+
+**Ponto importante:** activation requires a matching `published` receipt and
+served build. A new physical Android capture is still required to establish
+the actual mobile improvement; passing CI alone does not measure that gain.
+
+## Followed-profile alerts — activation authorized on 16/10/2026
+
+The owner asked for X-style system alerts for posts and replies by profiles
+followed with notifications on, leaving every other alert unchanged. The
+existing `npm run deploy:staging` registers only the code transition of
+`daily.ts`, `index.ts` and `public-notification-preview.ts` from
+`762bd805aa6af374d98688eca5e7c1a571eb8b66` to reviewed
+`49f1c1984de1364b251d6b8225ae8b74de242010`, comparing the full database trees.
+No migration runs: keep the 71 SQL files and their executor, dependencies, Node,
+models, units and services exact. Build on the Mac from a clean, pushed main with
+full exact-commit CI. Keep preservation, readiness, public files/sources and
+rollback; access, artifacts and receipts stay exclusively in `.local/`.
+
+**Ponto importante:** the push payload stays generic; the Worker reads the preview
+and the approved public photo from our origin. Open apps pick up the new Worker on
+their next load. Real delivery on physical devices remains to be accepted.
+
+## Feed vote position repair — activation authorized on 15/10/2026
+
+During discovery acceptance, the owner reported the upvote scroll reset and
+authorized completing main integration and VPS publication of its repair.
+Update only confirmed vote presentation in the existing feed card; preserve
+the page, reading position and drafts. Keep the existing refresh path for a
+non-visible post. See the [repair contract](PERFIL_PUBLICO_E_FEEDS.md#feed-votes-preserve-reading-position--15102026).
+
+Require full CI for the exact integrated and pushed commit, a clean checkout
+and the existing `npm run deploy:staging` with its Mac build, preservation checks,
+public asset verification and retained previous release. No backend, migration,
+dependency, Node, service unit or shared infrastructure change is included.
+
+## Discovery module extraction — activation authorized on 15/10/2026
+
+After the source checkpoint was restored and verified and the three task commits
+passed CI, the owner explicitly requested main integration and VPS activation.
+The reviewed task ends at `59bbed9`: ranking presentation moves to
+`ranking-view.ts`, feed cards to `feed-card.ts`, and loading/pagination stays in
+`discovery.ts`. The 13 new UI tests, 57 targeted local tests and synthetic browser
+comparisons at 1280/390 pixels preserve the existing behavior and presentation
+in both languages. Further coordinator extraction is outside this release.
+
+Merge only this task into current main and require the integrated commit's full
+CI before activation. Use a clean isolated checkout of that exact pushed main
+commit and only the existing `npm run deploy:staging`, with the build on the Mac.
+Keep the entire backend, all 71 migrations and their checksums, dependencies,
+Node, models, service units and shared infrastructure identical to the main
+predecessor. Do not add a database transition or operational flag for this task.
+
+Keep access, configuration baselines, build artifacts and operational evidence
+private in `.local/`. Reuse the executor's before/after preservation checks,
+public asset verification, worker readiness and retained previous release.
+
+**Ponto importante:** code recovery and the verified source checkpoint remain
+available. Activation is complete only after the `published` receipt, matching
+served build, healthy own services and passing preservation checks; a merge,
+push or source synchronization alone does not activate the app.
+
+## Chat attachments up to 10 MB — activation authorized on 16/10/2026
+
+The owner asked to raise the private and group chat attachment limit from 3 MB
+to 10 MB, then explicitly approved doing it with a migration and activating it on
+the VPS once CI passes. `@` DMs, status and other media keep their limits.
+
+Use only the existing `npm run deploy:staging`. Its transition module
+`deploy_chat_attachments.py` pins published `78138f4df621807596cb88ca795a36c32a9598a9`
+to reviewed `49befd3e791e704bec116223459a40c0be2a288b`. The 70 prior SQL files,
+dependencies, Node, model configuration and installed service units remain exact.
+Migration 071 only replaces `message_attachments_bytes_check` and
+`group_media_bytes_check` with validated 10 MB bounds; it refuses to run unless both
+are the original validated 3 MB checks, and it adds no columns or rows.
+
+Keep the private backup, all-row/ledger/checksum comparisons with no omitted
+columns, the community-table check, other-project fingerprints/health and scoped
+rollback. Pause only our web and three workers. Require a clean, integrated, pushed
+main commit with full exact-commit CI and the Mac build. Access, evidence,
+artifacts, backups and receipts stay exclusively in `.local/`.
+
+**Ponto importante:** activation requires a `published` receipt, 71 verified
+migrations and ready workers. Larger files consume the unchanged 1 GB account and
+group quotas faster. App versions loaded before the release cannot open attachments
+above 3 MB until they update. See [attachments contract](BLOCO_08_FOTOS_E_ARQUIVOS.md).
+
+## Ranking activity — activation authorized on 16/10/2026
+
+The owner approved the ranking sidebar, the Chat | Communities switch and the
+active-member metric (posted, replied or voted in 24 hours) delivered through a
+migration, then explicitly asked to integrate it into main and activate it on the VPS.
+
+Use only the existing `npm run deploy:staging`. Its transition module
+`deploy_ranking_activity.py` pins published `ae7bd3023e5872d733909a11d2cb6f1251e77ed0`
+to reviewed `29d2804ebe48f63829b9e4069013f93d41ff3d18`. The 69 prior SQL files,
+dependencies, Node, model configuration and installed service units remain exact.
+Migration 070 adds only nullable `community_votes.voted_at`, its partial index
+`community_votes_recent` and `community_ranking_entries.previous_participants`
+(default 0); it refuses to run if any of them already exists and rewrites no rows.
+
+Keep the private backup, all-row/ledger/checksum comparisons with only the two new
+columns omitted, the community-table check, other-project fingerprints/health and
+scoped rollback. Pause only our web and three workers. Require a clean, integrated,
+pushed main commit with full exact-commit CI and the Mac build. Access, evidence,
+artifacts, backups and receipts stay exclusively in `.local/`.
+
+**Ponto importante:** activation requires a `published` receipt, 70 verified
+migrations and ready workers. Votes cast before the migration have no time and do
+not count, so growth reads inflated for about 48 hours; the metric version bump
+recomputes every community and the ranking may briefly report it is preparing.
+See [ranking metric](RANKING_COMUNIDADES_TRENDING.md).
+
+## Perfil e DMs públicas diretas — ativação autorizada em 15/10/2026
+
+Após a CI integral de `3bfc25d`, o proprietário pediu integrar o lote à main e
+ativar na VPS. Inclui contadores separados de Posts/Respostas, nomes imediatos
+para até três comunidades, botão View names em uma linha e DMs pelo `@` sem
+solicitação/aceite. Seguidores em comum de usuários já existem e foram validados.
+
+O executor registra somente a transição de código de banco de `08dff88` para
+`3bfc25d`, comparando árvores completas e seis módulos sociais. Não executar
+migrações: conservar os 69 SQLs e seu executor, dependências, Node, modelos,
+unidades/configurações e demais serviços. Build no Mac, checkout limpo/enviado,
+CI integral do commit exato integrado e `npm run deploy:staging` existente.
+Conferir preservação, prontidão, arquivos/fontes públicos e rollback. Acesso,
+artefatos, baselines e recibos ficam exclusivamente em `.local/`.
+
+**Ponto importante:** pedidos/recusas históricos sem bloqueio deixam de impedir
+DMs públicas; bloqueios bilaterais continuam protegendo conteúdo, chaves e mídia.
+Chats por wallet conservam o consentimento. A autorização não implica publicação:
+exigir recibo `published` e versão servida conferida. O aceite em aparelho físico
+continua pendente. [Contrato](PERFIL_PUBLICO_E_FEEDS.md#perfil-e-métricas).
+
+## Paridade dos chats, edição e prévias — ativação autorizada em 15/10/2026
+
+O proprietário pediu concluir a paridade das DMs pelo `@` com as restrições de
+cada contexto, acrescentou edição de texto próprio, depois pediu prévias da
+última mensagem enviada/recebida na lista, checks e horários AM/PM. Autorizou
+integrar o conjunto à main e ativar na VPS. Inclui a correção do registro de DM
+`ff2e132` e a coordenação/edição `2f1497a`, com as prévias no lote seguinte.
+
+Exigir CI integral do commit exato integrado e publicado, checkout limpo,
+build no Mac e `npm run deploy:staging` existente. Os handlers novos de prévia
+devolvem somente metadados autorizados; conteúdo continua cifrado. Sem nova
+dependência, alteração de Node, migração, serviço compartilhado ou infraestrutura.
+Conservar as demais mudanças já integradas, verificar preservação, prontidão,
+fontes/arquivos servidos e rollback. Acesso, evidências e recibos somente em
+`.local/`. [Contrato e limites](PARIDADE_CHATS.md).
+
+A verificação do executor registra a transição de código de banco entre
+`02b47e9` e `2fc2ed0`, comparando as árvores completas e os sete caminhos
+alterados, inclusive a troca de `social-reactions.ts` por `social-actions.ts`.
+Isso permite a troca de código deste lote sem executar uma migração. As 69
+migrações, seu executor e todos os demais arquivos de banco devem permanecer
+idênticos; um predecessor diferente ou bytes fora da revisão continuam bloqueados.
+
+**Ponto importante:** não anunciar a ativação antes de recibo `published` e
+conferência da versão servida. Prévia não marca mensagem recebida como lida;
+as funções exclusivas do contexto privado permanecem separadas. O aceite em
+celular físico continua pendente.
+
+## Enquadramento e zoom da foto privada — ativação autorizada em 15/10/2026
+
+Após a CI integral de `af5e05f`, o proprietário pediu integrar à main e enviar
+à VPS a correção do avatar e sua ampliação. Esta autorização substitui o limite
+anterior de entrega em branch somente para este lote. Integrar sem incluir
+trabalhos pendentes de outras branches, exigir CI do commit integrado e enviado
+e publicar pelo `npm run deploy:staging` existente, com build no Mac,
+preservação, prontidão, conferência dos arquivos públicos/fontes e rollback.
+
+Conservar backend, 69 migrações, dependências, Node, modelos, unidades e
+configurações da release `d05646a`. Nenhuma mudança de infraestrutura ou serviço
+compartilhado faz parte deste lote. Acesso, evidências e recibos ficam em `.local/`.
+
+**Ponto importante:** publicação exige recibo `published` e versão servida
+conferida. O zoom reutiliza os bytes privados já recebidos, sem sincronização
+adicional. A validação visual usou imagens sintéticas em larguras de celular
+e desktop; o aceite em celular físico continua pendente. [Contrato](UI_CONVERSAS.md#enquadramento-e-ampliação-da-foto-privada--15102026).
+
+## Foto privada e URLs — ativação autorizada em 15/10/2026
+
+Após a entrega de `0455607`, o proprietário pediu integrar à main e ativar na
+VPS. Integrar somente este lote, mantendo os demais trabalhos pendentes fora da
+release. Exigir CI integral do commit exato integrado e enviado e publicar pelo
+`npm run deploy:staging` existente, com build local, preservação, prontidão dos
+serviços próprios, hashes públicos/fontes e rollback.
+
+As alterações são de cliente, regras compartilhadas de links, testes e
+documentação. Conservar backend, as 69 migrações, dependências, Node, modelos,
+unidades e configurações instaladas. Nenhuma mudança de serviço compartilhado
+ou de infraestrutura faz parte desta autorização. Acesso, artefatos e recibos
+ficam exclusivamente em `.local/`.
+
+**Ponto importante:** exigir recibo `published` e versão servida conferida. Foto
+privada passa a salvar automaticamente; nome e privacidade continuam exigindo
+confirmação. Links antigos continuam válidos, e conversa privada não entra na
+URL. O aceite com conta real em celular físico continua pendente. [Contrato](PERFIL_PRIVADO_E_ROTAS.md).
+
+## Boot de contatos e conversas — ativação autorizada em 15/10/2026
+
+Após a CI integral de `9be4698`, o proprietário pediu enviar à main e ativar
+na VPS a melhoria de carga das listas. Esta autorização substitui a restrição
+anterior de entrega em branch para os commits `b99e279` e `9be4698`.
+Preservar os trabalhos pendentes de outras branches fora desta release.
+
+O lote muda somente cliente, testes e documentação. Backend, 69 migrações,
+dependências, Node, modelos, unidades e configurações instaladas permanecem
+iguais à release `38e6dac`. Exigir checkout limpo e enviado, CI integral do
+commit integrado e build no Mac. Publicar somente pelo executor existente
+`npm run deploy:staging`, mantendo preservação, prontidão dos serviços próprios,
+hashes públicos/fontes e rollback. Acesso, artefatos e recibos ficam em `.local/`.
+
+**Ponto importante:** confirmar recibo `published` e versão servida. A entrega
+reutiliza somente ciphertext validado e mantém as guardas de autorização,
+remoção e sessão; não libera histórico antes de sua confirmação. Os tempos
+medidos cobrem a carga das listas com transporte fictício, não o boot completo
+em aparelhos físicos. [Contrato e validação](BOOT_CONTATOS_CONVERSAS.md).
+
+## Atraso na abertura dos chats — ativação autorizada em 15/10/2026
+
+Após a correção `4aaa019` passar na CI integral, o proprietário pediu integrar
+à main e ativar na VPS. Esta autorização substitui o limite anterior de entrega
+em branch da investigação e da correção de atraso. Integrar os commits do
+medidor local e da correção sem incluir trabalhos pendentes de outras branches.
+O medidor continua opcional, executado no console, sem importação pelo app.
+
+Este lote altera cliente, ferramenta local, testes e documentação. Preservar
+integralmente backend, 69 migrações, dependências, Node, modelos, configurações
+e serviços instalados. Exigir CI integral do commit exato integrado e enviado,
+build no Mac e publicação somente pelo `npm run deploy:staging` existente.
+Conservar verificações de preservação, prontidão, hashes públicos/fontes e
+rollback; acesso, artefatos e recibos ficam exclusivamente em `.local/`.
+
+**Ponto importante:** exigir recibo `published` e versão servida conferida.
+O ganho medido usa respostas sintéticas e não estabelece latência em aparelhos
+físicos; a nova captura no aparelho afetado continua necessária. A conferência
+autenticada final permanece e o primeiro envio pode esperar identidades.
+Quedas de voz ficam para investigação posterior. [Contrato e validação](BLOCO_07_MENSAGENS.md#redução-do-atraso-na-abertura--15102026).
 
 ## Chat actions and GIF notifications — activation authorized on 15/10/2026
 
@@ -279,6 +666,45 @@ existing executor. Access, baselines, artifacts and evidence remain in `.local/`
 **Ponto importante:** publication requires a `published` receipt and verified
 served assets. Do not attribute connection failures to the app without evidence;
 this fix addresses the interface reconstruction demonstrated by the investigation.
+
+## Settings Organization Release Authorized on 16/10/2026
+
+The owner asked for `claude/settings-layout` to be merged into `main` and
+activated on the VPS. It contains the Profile and settings organization (card
+spacing, a one-column vault with a danger zone, the New organization step, the
+language under Appearance and language) and moves muting to the conversation
+menu. See [settings UI](UI_CONFIGURACOES.md#settings-organization--16102026).
+
+Frontend release: backend, SQL migrations, dependencies, Node, detector, units
+and infrastructure keep the sources of the `main` it is based on. Use only
+`npm run deploy:staging` from the clean, pushed `main` with passing
+exact-commit CI, a locally prepared build and the existing preservation,
+readiness and rollback checks. Access, baselines, artifacts and receipts stay
+in `.local/`.
+
+**Ponto importante:** the conversation-menu mute and the settings categories
+were not exercised with a real account before release; confirm them after
+activation. A push alone does not confirm activation.
+
+## Center Feed Batch Release Authorized on 15/10/2026
+
+The owner asked for `claude/layout-a-batch` to be merged into `main` and
+activated on the VPS: center feed with the conversation on the right, the "+"
+menu with Post and Create community, the opened post without a box, smaller
+reply media, colored Activity avatars, and private contact photos with card
+updates sent to confirmed contacts. See
+[UI decision](UI_PAINEIS_E_TEMAS.md#center-feed-and-fixes--15102026).
+
+Frontend release: backend, SQL migrations, dependencies, Node, detector, units
+and infrastructure keep the sources of the `main` it is based on. Use only
+`npm run deploy:staging` from the clean, pushed `main` with passing
+exact-commit CI, a locally prepared build and the existing preservation,
+readiness and rollback checks. Access, baselines, artifacts and receipts stay
+in `.local/`.
+
+**Ponto importante:** private contact photos and card updates were not exercised
+between two real accounts before release; confirm both directions after
+activation. A push alone does not confirm activation.
 
 ## Community Creation Back Arrow Release Authorized on 14/10/2026
 
@@ -853,7 +1279,11 @@ DMs E2EE não entram no scanner.
 
 ## Teto do manifesto ampliado — 09/10/2026
 
-O proprietário pediu ampliar o teto de arquivos por release, que impedia o app de crescer (a publicação do redesign precisou juntar arquivos para caber). O executor passa a aceitar até 1024 entradas (`MAX_MANIFEST_FILES` em `deploy_remote.py`), no lugar de 512 mais conjuntos revisados. O teto continua barrando pacotes descontrolados; orçamentos de arquivo, extração e runtime não mudaram.
+Historical decision of 09/10/2026: the owner raised the release-entry allowance
+from 512 plus reviewed extras to 1,024 because source growth had blocked the
+redesign. The byte budgets were unchanged. The 17/10/2026 source-growth decision
+above supersedes this entry-count allowance with serialized metadata and
+expanded-archive byte accounting.
 
 Na mesma data, o pool de conexões do app subiu de 4 para 16 (web) e de 1 para 4 (cada worker), acompanhando `max_connections` 64. Como o app executa migrações ao iniciar, o executor só aceita código de banco revisado: a primeira ativação foi recusada antes de trocar a release e o par exato `b1aa82c` → `68831a5` (somente `src/server/database/index.ts`) passou a constar das revisões fixadas, sem SQL ou migração.
 
@@ -1892,3 +2322,72 @@ O proprietário pediu executar os cortes do plano temporário e ativar na VPS ao
 Exigir checkout limpo/enviado e CI integral do commit exato. Reusar `npm run deploy:staging`, build no Mac, verificações de preservação, prontidão dos serviços próprios e rollback já existentes. São mudanças apenas de organização do cliente e testes/documentação; conservar as 61 migrações, backend, dependências, Node, infraestrutura e configuração ativa. Guardar recibos e acesso exclusivamente em `.local/`.
 
 **Ponto importante:** a autorização cobre esta release do chat. Não autoriza incluir a outra branch, trocar o detector de moderação, migrar banco ou alterar serviços compartilhados.
+
+## URLs simples e endereços de comunidades — ativação autorizada em 16/10/2026
+
+O proprietário pediu integrar à main e ativar este lote. Após explicação da
+necessidade de guardar endereços únicos, aprovou expressamente a nova migração.
+Fontes revisadas: `9bf1bdaaa507a8c12cf3566e3d4e9c6d090a1fdd`; predecessor ativo
+conferido por hashes de todas as fontes públicas, package/lockfile e Node:
+`21fc70c0d508230fa26146be32ad8faa67890812`.
+
+Reusar `npm run deploy:staging`, de checkout integrado, limpo, enviado e com CI
+integral do commit exato aprovada. `deploy_community_addresses.py` é módulo
+interno desse executor, restrito à transição 071→072 e às fontes exatas. Não é
+um comando alternativo de implantação. O executor resolve o Git comum do
+worktree somente depois da verificação de Python e mantém acesso, baseline,
+builds, backups e evidências na `.local/` do checkout original, sem copiar o
+acesso para as outras árvores. Código/build e validação do checkout continuam
+na árvore integrada escolhida.
+
+A migração acrescenta somente `community_addresses`, inicialmente vazia, sem
+backfill, com unicidade, vínculo à comunidade, cobrança global e autovacuum.
+Comparar todas as colunas/linhas das tabelas antigas e ledger e checksums 001–071
+antes/depois, conferir a tabela vazia e suas guardas, ensaiar a restauração do
+backup e conservar o rollback existente. Parar/reabrir somente os serviços
+próprios conforme o ciclo já existente. Depois da abertura, preservar escritas
+novas e não restaurar um banco antigo sobre elas.
+
+**Ponto importante:** caminhos públicos agora são servidos pelo shell existente,
+sem ajuste de Nginx, certificados, firewall, limites de tráfego ou serviços de
+outro projeto. Preservar dependências, Node, detector, dados e prazos antigos.
+Links/capacidades privadas continuam no fragmento; somente rotas reconhecidas
+recebem o shell e somente `/` armazena o documento offline. Conferir os hashes
+públicos, saúde e fingerprints existentes antes/depois. Acesso e evidências
+operacionais ficam exclusivamente em `.local/`.
+
+Na preparação de 16/10/2026, o build e a verificação de CI passaram, mas a
+sincronização de fontes ainda procurava o acesso na árvore isolada e parou com
+`FileNotFoundError` antes de conectar à VPS. O leitor de `sync-git.py` agora
+resolve também o Git comum e valida o ignore na árvore original. A regressão
+confere o caminho de leitura; o acesso não é copiado. Fontes da aplicação,
+migração, predecessor e autorização permanecem idênticos. Reutilizar os
+resultados válidos, exigir CI do commit corrigido e repetir a preparação uma
+vez depois desse diagnóstico; nenhuma ativação ocorreu nessa tentativa.
+
+Na primeira ativação desse lote, a migração chegou à verificação com 101 tabelas
+(incluindo o catálogo). A consulta histórica do verificador tinha `LIMIT 100` e
+truncou o conjunto. A falha ocorreu antes de abrir os escritores: o executor
+restaurou o backup e a release antiga; schema 071, ausência da tabela nova,
+fontes antigas e prontidão foram conferidos em leitura, com rollback verificado.
+A correção limita a enumeração ao tamanho do conjunto explicitamente revisado
+mais uma linha, permitindo verificar as 101 tabelas e recusando qualquer tabela
+extra ou ausente. Não ampliar o conjunto permitido nem dispensar checksums,
+linhas, ledger, backup ou manutenção. A regressão falhou com o limite anterior
+e cobre o conjunto completo e ambas as divergências. Preservar backup/recibo da
+tentativa e exigir CI do commit corrigido antes de nova ativação pelo mesmo
+executor. Fontes da aplicação, SQL e aprovação continuam iguais às revisadas.
+
+A revisão final reproduziu o retorno indevido do endereço da comunidade ao UUID
+ao abrir uma conversa. A fonte revisada acima incorpora a sincronização do
+endereço canônico com o roteador e os painéis, sem remontar conteúdo/rascunhos.
+Os 21 testes de navegação pertinentes, tipos, lint, fronteiras, build e formato
+passaram; o SQL 072 e todas as migrações anteriores permanecem idênticos.
+
+A fonte final distingue também nomes em formato de UUID do identificador da
+comunidade, na página e no miniperfil. A regressão falhou antes da correção e
+passou com a leitura explícita pelo endereço. Isso não altera SQL, autenticação,
+identidade persistente, protocolo, dependências ou Node. A tentativa anterior
+com rollback verificado foi arquivada integralmente na área privada de backups,
+com dump, objetos, candidato e recibo preservados, liberando somente a vaga de
+workspace operacional. A próxima ativação exige novo backup dos dados atuais.

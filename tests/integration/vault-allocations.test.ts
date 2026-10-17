@@ -555,7 +555,7 @@ await test('vault allocation adoption preserves global, owner and physical admis
       assert.deepEqual(
         (
           await c.inspector.query(
-            'SELECT * FROM hash_talk.schema_migrations WHERE version<=77 ORDER BY version',
+            'SELECT * FROM hash_talk.schema_migrations WHERE version<=80 ORDER BY version',
           )
         ).rows,
         c.before.catalog,

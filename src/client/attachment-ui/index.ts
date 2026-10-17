@@ -1,6 +1,7 @@
 import { t, translatedError } from '../../shared/i18n/index.ts';
 import { dropFilesInto } from '../file-drop/index.ts';
 import { showToast } from '../toast/index.ts';
+import { fileLimit } from '../../shared/attachments/index.ts';
 import type { AttachmentContent } from '../../shared/attachments/index.ts';
 import { VoicePlayback } from '../voice-playback/index.ts';
 import { prepareAttachment } from '../attachments/index.ts';
@@ -10,9 +11,16 @@ import type { MediaView } from './media.ts';
 export class AttachmentUi {
   private readonly playback: VoicePlayback;
   private readonly changed: () => void;
-  constructor(playback: VoicePlayback, changed: () => void) {
+  /** Product limit of the conversation: 10 MB in private and group chats. */
+  private readonly maximum: number;
+  constructor(
+    playback: VoicePlayback,
+    changed: () => void,
+    maximum = fileLimit,
+  ) {
     this.playback = playback;
     this.changed = changed;
+    this.maximum = maximum;
   }
   private selection: AttachmentSelection | null = null;
   private previewUrl: string | null = null;
@@ -82,7 +90,7 @@ export class AttachmentUi {
       void run(async () => {
         this.clearSelection();
         const generation = this.selectionGeneration,
-          value = await prepareAttachment(file, false).catch(
+          value = await prepareAttachment(file, false, this.maximum).catch(
             (error: unknown) => {
               input.value = '';
               showToast(
@@ -138,20 +146,32 @@ export class AttachmentUi {
       );
       return;
     }
-    label.textContent = t(
-      '{0} · {1} MB. Original preservado; pode conter GPS/EXIF ou outros metadados. Clique em Enviar para compartilhar.',
-      [value.name, (value.bytes.length / 1_000_000).toFixed(2)],
+    // A compact file card (16/10/2026): thumbnail or file icon, name, size.
+    const card = document.createElement('div'),
+      copy = document.createElement('span'),
+      name = document.createElement('strong'),
+      detail = document.createElement('small');
+    card.className = 'attachment-card';
+    copy.className = 'attachment-card-copy';
+    name.textContent = value.name;
+    name.title = value.name;
+    detail.textContent = t('attachment.card-detail {0}', [
+      (value.bytes.length / 1_000_000).toFixed(2),
+    ]);
+    detail.title = t('attachment.card-metadata');
+    copy.append(name, detail);
+    card.append(this.cardThumbnail(value), copy);
+    area.replaceChildren(card);
+  }
+  private cardThumbnail(value: AttachmentSelection): Element {
+    if (!value.image) return fileIcon();
+    const image = document.createElement('img');
+    this.previewUrl = URL.createObjectURL(
+      new Blob([value.bytes], { type: value.type }),
     );
-    area.replaceChildren(label);
-    if (value.image) {
-      const image = document.createElement('img');
-      this.previewUrl = URL.createObjectURL(
-        new Blob([value.bytes], { type: value.type }),
-      );
-      image.src = this.previewUrl;
-      image.alt = t('Prévia local da imagem original');
-      area.append(image);
-    }
+    image.src = this.previewUrl;
+    image.alt = t('Prévia local da imagem original');
+    return image;
   }
   render<V extends MediaView>(input: {
     content?: AttachmentContent;
@@ -193,4 +213,21 @@ export class AttachmentUi {
       this.queued--;
     });
   }
+}
+
+function fileIcon(): SVGSVGElement {
+  const ns = 'http://www.w3.org/2000/svg',
+    svg = document.createElementNS(ns, 'svg');
+  svg.setAttribute('class', 'attachment-card-file');
+  svg.setAttribute('viewBox', '0 0 24 24');
+  svg.setAttribute('aria-hidden', 'true');
+  for (const d of [
+    'M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z',
+    'M14 3v5h5',
+  ]) {
+    const path = document.createElementNS(ns, 'path');
+    path.setAttribute('d', d);
+    svg.append(path);
+  }
+  return svg;
 }

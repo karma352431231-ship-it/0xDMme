@@ -2,7 +2,7 @@ import { base64, object } from '../../shared/account/index.ts';
 import type { BackupRecord } from '../backup-records/index.ts';
 import {
   attachmentContent,
-  fileLimit,
+  chatFileLimit,
 } from '../../shared/attachments/index.ts';
 import { bytesHash } from '../../shared/vault/index.ts';
 import {
@@ -121,7 +121,7 @@ export async function restoredGroupMedia(
     hash: file.ref.hash,
     thumbnail,
   });
-  const bytes = Uint8Array.from(base64(checked.bytes, fileLimit));
+  const bytes = Uint8Array.from(base64(checked.bytes, chatFileLimit));
   try {
     if ((await bytesHash(bytes)) !== file.ref.hash)
       throw new Error('Mídia histórica adulterada.');

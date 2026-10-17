@@ -1,4 +1,13 @@
+import {
+  appAddress,
+  navigateApp,
+  startAppNavigation,
+} from '../app-navigation/index.ts';
 import { t, currentLanguage } from '../../shared/i18n/index.ts';
+import {
+  canonicalAppHash,
+  routeParams,
+} from '../../shared/app-routes/index.ts';
 import { mountPublicSearch } from '../public-search/index.ts';
 import { startGroupEntrypoints } from './group-entrypoints.ts';
 import { paintAvatar, startAppearance } from '../appearance/index.ts';
@@ -6,6 +15,7 @@ import { startPwa } from '../pwa/index.ts';
 import { updateBlockReason } from './update-readiness.ts';
 import { keepPageOnStrayDrop } from '../file-drop/index.ts';
 import { startTransientMenus } from '../transient-menu/index.ts';
+import { startScrollbarFade } from '../scrollbars/index.ts';
 import { startAccount } from '../account/index.ts';
 import {
   startDevices,
@@ -21,7 +31,8 @@ import { startRepresentatives } from '../representatives/index.ts';
 import { startContacts } from '../contacts/index.ts';
 import { VoicePlayback } from '../voice-playback/index.ts';
 import { CallLog, startCalls } from '../calls/index.ts';
-import { startCommunities } from '../communities/index.ts';
+import { startCommunities, startRankingSide } from '../communities/index.ts';
+import { startRightColumn } from './right-column.ts';
 import { startPublicProfile } from '../public-profile/index.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
 import type { AddressBookEntry } from '../../shared/contacts/index.ts';
@@ -41,6 +52,7 @@ import { ExternalMediaConsent } from '../external-media/index.ts';
 import { startAccountSettings } from './account-settings.ts';
 import type { PageKey } from './pages.ts';
 import { mountLanguageSettings, startLanguage } from '../language/index.ts';
+import { SessionBoot } from './session-boot.ts';
 
 function element<T extends HTMLElement>(id: string): T {
   const result = document.getElementById(id);
@@ -52,6 +64,7 @@ function element<T extends HTMLElement>(id: string): T {
 startLanguage();
 keepPageOnStrayDrop();
 startTransientMenus();
+startScrollbarFade();
 // Theme first, so the first render already uses the saved device choice.
 const appearance = startAppearance();
 let connectedAccount: AccountSession | null = null;
@@ -72,11 +85,12 @@ let currentHash = '';
 let profileAuthenticated = false;
 let closePublicProfile: (() => void) | null = null;
 function openConversation(): void {
-  if (location.hash !== '#conversas') {
-    location.hash = '#conversas';
+  if (pageKey(appAddress()) !== 'conversas') {
+    navigateApp('#chats');
     route();
   }
   element('app-shell').dataset['chatOpen'] = 'true';
+  rightColumn?.showChat();
   element('workspace').scrollTop = 0;
   panels?.privateChatOpened();
 }
@@ -113,6 +127,23 @@ const communities = startCommunities(
   externalMedia,
   publicProfiles.follows,
 );
+// Ranking beside the feed and the Chat | Communities switch (16/10/2026).
+// The wallet approval document has no app shell and gets neither.
+const appShell = document.getElementById('app-shell');
+const rankingSide = appShell
+  ? startRankingSide({
+      shell: appShell,
+      access: devices,
+      signedIn: () => connectedAccount !== null,
+    })
+  : null;
+const rightColumn =
+  appShell && rankingSide
+    ? startRightColumn({
+        shell: appShell,
+        showCommunities: rankingSide.refresh,
+      })
+    : null;
 const playback = new VoicePlayback();
 const callLog = new CallLog(vault.sync);
 const calls = startCalls({
@@ -153,7 +184,7 @@ const messages = startMessages(devices, vault.sync, {
   playback,
   openConversation,
   openContact: (contact: AddressBookEntry) => {
-    location.hash = '#contatos';
+    navigateApp('#contacts');
     route();
     contacts.showContact(contact);
   },
@@ -161,6 +192,7 @@ const messages = startMessages(devices, vault.sync, {
     const shell = document.getElementById('app-shell');
     if (shell) shell.dataset['history'] = available ? 'available' : 'empty';
   },
+  directorySettled: (session) => sessionBoot.settled(session),
   representatives,
   liveEvent: (event) => {
     statuses.event(event);
@@ -226,6 +258,17 @@ const accountSettings = startAccountSettings({
   },
   contacts,
 });
+// Optional session warmups follow the foreground private directory's first load.
+const sessionBoot = new SessionBoot((session) => {
+  publicProfiles.ready();
+  communities.ready();
+  contacts.ready();
+  activity.ready();
+  statuses.ready();
+  void vault.ready();
+  loadSessionExtras(session.accountId);
+  if (!account.approvalPage) accountSettings.ready();
+});
 // Status rings load once per authorized session; activity has its own wakeups.
 let sessionExtrasFor = '';
 const account = startAccount({
@@ -240,6 +283,7 @@ const account = startAccount({
     devices.saveProfile(session, profile, key),
   changed: (session) => {
     connectedAccount = session;
+    sessionBoot.setSession(session);
     const shell = document.getElementById('app-shell');
     if (shell) {
       shell.dataset['account'] = session ? 'connected' : 'guest';
@@ -300,6 +344,7 @@ const panels = account.approvalPage
         showProfile: (container, handle) =>
           publicProfiles.show(container, handle),
       },
+      publicChatOpened: () => rightColumn?.showChat(),
     });
 // Approval HTML is loaded online and does not install or activate a shell.
 const pwa = account.approvalPage
@@ -341,28 +386,42 @@ function leaveFeatures(next: PageKey): void {
   backups.leave();
   vault.leave();
 }
+function canonicalizeRoute(): void {
+  const canonical = canonicalAppHash(appAddress());
+  if (canonical && canonical !== appAddress())
+    history.replaceState(null, '', canonical);
+}
+function updateMountedPage(key: PageKey): boolean {
+  if (currentPage !== key) return false;
+  if (key === 'perfil') {
+    openSettingsSection(
+      element('page-content'),
+      requestedSettingsSection(appAddress()),
+    );
+    return true;
+  }
+  if (key === 'conversas') {
+    if (currentHash !== appAddress()) panels?.routed(key);
+    return true;
+  }
+  return currentHash === appAddress();
+}
 function route(): void {
   if (account.approvalPage) {
     renderApprovalPage();
     return;
   }
-  const key = pageKey(location.hash);
+  canonicalizeRoute();
+  const key = pageKey(appAddress());
   if (key === null) return;
-  if (
-    currentPage === key &&
-    (currentHash === location.hash || key === 'perfil')
-  ) {
+  if (key !== 'conversas') sessionBoot.release();
+  if (updateMountedPage(key)) {
     // Account handles wallet-return fragments; keep profile drafts/camera mounted.
-    currentHash = location.hash;
-    if (key === 'perfil')
-      openSettingsSection(
-        element('page-content'),
-        requestedSettingsSection(location.hash),
-      );
+    currentHash = appAddress();
     return;
   }
   currentPage = key;
-  currentHash = location.hash;
+  currentHash = appAddress();
   element('app-shell').dataset['page'] = key;
   renderPageHeader(key);
   leaveFeatures(key);
@@ -399,9 +458,7 @@ function showAboutLinks(): void {
 }
 function renderPageHeader(key: PageKey): void {
   const dm =
-    key === 'comunidades' &&
-    new URLSearchParams(location.hash.split('?')[1] ?? '').get('view') ===
-      'dms';
+    key === 'comunidades' && routeParams(appAddress()).get('view') === 'dms';
   const title = dm ? t('Mensagens pelo @') : pages[key].title;
   element('page-title').textContent = title;
   // Phones name the screen in the top bar (the page heading is read, not shown).
@@ -422,18 +479,19 @@ function mountProfileSettings(content: HTMLElement): void {
   const privacySettings = content.querySelector<HTMLElement>(
     '[data-privacy-settings]',
   );
-  if (privacySettings) {
-    account.mountPrivacy(privacySettings);
+  if (privacySettings) account.mountPrivacy(privacySettings);
+  const appearanceSettings = content.querySelector<HTMLElement>(
+    '[data-appearance-settings]',
+  );
+  if (appearanceSettings) {
+    appearance.mount(appearanceSettings);
+    // Language sits with the theme under "Appearance and language" (16/10/2026).
     mountLanguageSettings(
-      privacySettings,
+      appearanceSettings,
       (language) => accountSettings.saveLanguage(language),
       interruptionReason,
     );
   }
-  const appearanceSettings = content.querySelector<HTMLElement>(
-    '[data-appearance-settings]',
-  );
-  if (appearanceSettings) appearance.mount(appearanceSettings);
   const dailyContainer = content.querySelector<HTMLElement>(
     '[data-daily-settings]',
   );
@@ -460,7 +518,7 @@ function mountProfileSettings(content: HTMLElement): void {
   );
   if (vaultSettings) mountVault(vaultSettings);
 }
-/** Same vault and backup cards as #cofre, now also inside Perfil → Cofre e backup. */
+/** Same vault and backup cards as #vault, now also inside Perfil → Cofre e backup. */
 function mountVault(container: HTMLElement): void {
   vault.mount(container);
   const backupContainer = document.createElement('div');
@@ -479,7 +537,7 @@ function mountFeature(key: PageKey): void {
     communities.mount(
       communityContainer,
       element('community-directory'),
-      new URLSearchParams(location.hash.split('?')[1] ?? ''),
+      routeParams(appAddress()),
     );
   if (key === 'conversas') {
     messages.ready();
@@ -510,16 +568,13 @@ function mountPublicProfiles(content: HTMLElement): void {
   if (own) publicProfiles.mount(own);
   const review = content.querySelector<HTMLElement>('[data-moderation-review]');
   if (review)
-    publicProfiles.mountReview(
-      review,
-      new URLSearchParams(location.hash.split('?')[1] ?? '').get('id'),
-    );
+    publicProfiles.mountReview(review, routeParams(appAddress()).get('id'));
   const view = content.querySelector<HTMLElement>('[data-public-profile-view]');
   if (view)
     closePublicProfile = publicProfiles.show(
       view,
-      new URLSearchParams(location.hash.split('?')[1] ?? '').get('handle') ??
-        new URLSearchParams(location.hash.split('?')[1] ?? '').get('id'),
+      routeParams(appAddress()).get('handle') ??
+        routeParams(appAddress()).get('id'),
     );
 }
 
@@ -533,10 +588,7 @@ function mountStatusFeature(key: PageKey, content: HTMLElement): void {
     '[data-status-container]',
   );
   if (key === 'status' && container)
-    statuses.mount(
-      container,
-      new URLSearchParams(location.hash.split('?')[1] ?? '').get('autor'),
-    );
+    statuses.mount(container, routeParams(appAddress()).get('autor'));
 }
 
 function mountAccountPanels(key: PageKey): void {
@@ -578,18 +630,16 @@ function connection(): void {
     devices.authorized(),
   );
   if (connectedAccount && devices.authorized()) {
-    publicProfiles.ready();
-    communities.ready();
+    sessionBoot.update(connectedAccount, {
+      directoryStarting: messagesReady,
+      prioritizeDirectory:
+        pageKey(appAddress()) === 'conversas' &&
+        appShell?.dataset['contactScope'] !== 'public',
+    });
     if (messagesReady) messages.ready();
     calls.ready();
-    contacts.ready();
-    activity.ready();
     groupEntrypoints.ready();
-    statuses.ready();
-    void vault.ready();
-    loadSessionExtras(connectedAccount.accountId);
-    if (!account.approvalPage) accountSettings.ready();
-  }
+  } else sessionBoot.reset();
   renderConnection();
 }
 function renderConnection(): void {
@@ -681,6 +731,11 @@ document
   ?.addEventListener('click', () => {
     element('app-shell').dataset['chatOpen'] = 'false';
     messages.viewChanged();
+  });
+if (!account.approvalPage)
+  startAppNavigation(() => {
+    currentHash = appAddress();
+    panels?.canonicalized(currentHash);
   });
 window.addEventListener('hashchange', route);
 window.addEventListener('online', connection);

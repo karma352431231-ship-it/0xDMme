@@ -4,6 +4,16 @@ Data: 08/10/2026. Estado: cortes 1–10 e visualizações implementados localmen
 
 Referência central: [decisões, seção 6.4](../DECISOES_E_PLANO_DE_IMPLEMENTACAO.md#64-comunidades-públicas--camada-social-planejada). Contrato atualmente implementado: [corte 6 de comunidades](COMUNIDADES_PUBLICAS.md#corte-6--feed-e-descoberta-local-em-06102026).
 
+## Active members and growth display — owner decision on 16/10/2026
+
+This supersedes two earlier rules below: §3 (votes only as aggregate totals, never turning voters into participants) and the §2 sentence on showing missing history instead of a percent. It also supersedes the aggregate-only note in [public upvotes](PUBLIC_UPVOTES.md).
+
+- **Active member.** A distinct public profile that posted, replied **or voted** (up or down, current position not zero) in the community within the window. Public communities already show who voted, so the ranking may count distinct voters. It still never exposes voter lists. A vote records when it was last cast (`community_votes.voted_at`, migration 070). Votes cast before the migration have no time and do not count. Reading, following or keeping a page open still do not count.
+- **Growth.** Active members in the last 24 hours compared with the previous 24 hours, stored per ranking entry (`previous_participants`). It is shown as a raw percent with no cap and no "forming" label (for example 700% or 10,000%). With no active members in the previous window, the bar shows the new active members ("▲ +12 active"), because a percent over zero does not exist.
+- **Version.** `rankingMetricVersion` is 2. On activation every community is recomputed once, and the ranking may answer "in preparation" for a moment.
+- **Realtime.** Posts, replies and votes already mark the community for recomputation, and the database notification wakes the worker, which publishes within about a second. Vote times now also set when a vote leaves a window. The sidebar re-reads the public ranking every 4 seconds while it is on screen and the tab is visible, and redraws only when a new ranking was published.
+- **First 48 hours.** Right after activation the previous window has no vote times, so growth is inflated until both windows include votes.
+
 ## Execução dos cortes 1–8 — autorizada em 08/10/2026
 
 O proprietário autorizou a implementação local dos cortes 1–8 e a continuidade após compactação, reconstruindo o estado antes de continuar. Escolheu a opção B: variação líquida agregada de positivos por post, retenção operacional de até 14 dias, sem histórico de identidades de votantes. Fixou recém-criadas em **até sete dias**. Arquivadas ficam fora de Trending/recém-criadas, mas continuam em Maiores e na listagem completa. Depois autorizou decisões técnicas autônomas, com resumo final para revisão.

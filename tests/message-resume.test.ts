@@ -3,6 +3,104 @@ import { test } from 'node:test';
 import { setImmediate } from 'node:timers/promises';
 import { resumeFixture } from './fixtures/message-resume.ts';
 
+await test('restoring outgoing text uses current authority and excludes other recipients, attachments and message actions', async () => {
+  const { controller, data, peer } = resumeFixture();
+  const input = {
+    id: 'own-text',
+    peer,
+    kind: 'text',
+    draft: [{ text: 'Own pending content' }],
+    createdAt: 1700000000000,
+  };
+  data.records.set('outbox:own-text', input);
+  data.records.set('outbox:other', { ...input, id: 'other', peer: 'another' });
+  data.records.set('outbox:media', {
+    ...input,
+    id: 'media',
+    kind: 'attachment',
+  });
+  data.records.set('outbox:action', {
+    ...input,
+    id: 'action',
+    relation: { type: 'edit' },
+  });
+  const before = data.authorityReads;
+  const drafts = await controller.pendingTexts(peer, [
+    'own-text',
+    'other',
+    'media',
+    'action',
+  ]);
+  assert.equal(data.authorityReads, before + 1);
+  assert.deepEqual(
+    Array.from(drafts, (draft) => ({ ...draft })),
+    [
+      {
+        id: 'own-text',
+        peer,
+        text: 'Own pending content',
+        createdAt: 1700000000000,
+      },
+    ],
+  );
+});
+
+await test('session replacement during a pending-text restore prevents publishing decrypted content', async () => {
+  const { controller, data, peer, session } = resumeFixture();
+  data.records.set('outbox:stale', {
+    id: 'stale',
+    peer,
+    kind: 'text',
+    draft: [{ text: 'Old account draft' }],
+  });
+  data.beforeLocalOpen = () =>
+    controller.setSession({ ...session, csrf: 'd'.repeat(64) });
+  await assert.rejects(controller.pendingTexts(peer, ['stale']), /Sessão/u);
+});
+
+await test('reabrir janela confirmada compartilha uma conferência de autoridade entre snapshot, entrega e confirmação', async () => {
+  const { controller, data, add, peer } = resumeFixture();
+  await add('Já confirmada');
+  await controller.synchronize();
+  controller.select(peer);
+  const before = data.authorityReads;
+  assert.equal(await controller.probe(), false);
+  assert.equal(data.authorityReads - before, 1);
+  assert.equal(data.frames.at(-1)?.[0]?.text, 'Já confirmada');
+});
+
+await test('troca de sessão durante a preparação do perfil impede conferir ou enviar dados pela nova conta', async () => {
+  const { controller, data, session, peer } = resumeFixture();
+  data.beforeLocalRead = (name) => {
+    if (name.startsWith('profile-sent:'))
+      controller.setSession({ ...session, csrf: 'd'.repeat(64) });
+  };
+  await assert.rejects(
+    controller.shareProfile(peer, {
+      name: 'Synthetic',
+      revision: 1,
+      photo: null,
+    }),
+    /Sessão/,
+  );
+  assert.equal(data.authorityReads, 0);
+  assert.equal(data.requests.length, 0);
+});
+
+await test('envio após selecionar janela retida exige identidades atuais antes de distribuir chaves ou publicar', async () => {
+  const { controller, data, peer } = resumeFixture();
+  controller.pending = () =>
+    Promise.resolve([{ id: crypto.randomUUID(), peer }]);
+  const failure = new Error('Identidades indisponíveis');
+  controller.loadPins = () => Promise.reject(failure);
+  await assert.rejects(
+    controller.sendPending(),
+    (error: unknown) => error === failure,
+  );
+  assert.equal(data.authorityReads, 0);
+  assert.equal(data.requests.length, 0);
+});
+
 await test('retomadas sem mudança conferem estado/entrega e confirmam sem reler índice ou conteúdo', async () => {
   const { controller, data, add } = resumeFixture();
   await add('Mensagem já carregada');
@@ -80,7 +178,7 @@ await test('exclusão/invalidação e troca de sessão descartam o reuso mesmo s
 });
 
 await test('falha na conferência ou confirmação fecha o histórico e impede fallback para a janela retida', async () => {
-  for (const operation of ['snapshot', 'confirm']) {
+  for (const operation of ['snapshot', 'delivery', 'confirm']) {
     const { controller, data, add } = resumeFixture();
     await add('Histórico confirmado');
     await controller.synchronize();

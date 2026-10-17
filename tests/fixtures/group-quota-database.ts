@@ -11,10 +11,10 @@ export async function groupQuotaPredecessor(client: pg.Client) {
   );
   const files = (await readdir(directory))
     .filter(
-      (name) => /^\d{3}.*\.sql$/u.test(name) && Number(name.slice(0, 3)) <= 69,
+      (name) => /^\d{3}.*\.sql$/u.test(name) && Number(name.slice(0, 3)) <= 72,
     )
     .sort();
-  assert.equal(files.length, 69);
+  assert.equal(files.length, 72);
   await client.query('BEGIN');
   try {
     await client.query('CREATE SCHEMA hash_talk');

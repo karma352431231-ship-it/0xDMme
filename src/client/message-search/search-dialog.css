@@ -1,0 +1,99 @@
+/*
+ * Conversation search dialog.
+ */
+.conversation-search {
+  width: min(620px, calc(100vw - 24px));
+  max-height: calc(100dvh - 24px);
+  overflow-y: auto;
+  border: 1px solid var(--line-strong);
+  border-radius: 20px;
+  background: var(--surface);
+  color: var(--text);
+  padding: 24px;
+}
+.conversation-search::backdrop {
+  background: var(--overlay);
+}
+.search-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.search-heading h2 {
+  margin: 0;
+  font-size: var(--fs-title);
+}
+.conversation-search button {
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: var(--surface-2);
+  color: var(--accent-text);
+  padding: 10px 12px;
+  font: inherit;
+}
+.search-heading button {
+  font-size: var(--fs-title);
+  border: 0;
+  background: transparent;
+  padding: 0 8px;
+}
+.conversation-search label {
+  display: block;
+  margin: 22px 0 10px;
+  font-size: var(--fs-small);
+}
+.search-input-row {
+  display: flex;
+  gap: 8px;
+}
+.search-input-row input {
+  flex: 1;
+  width: 100%;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: var(--surface);
+  color: inherit;
+  font: inherit;
+}
+.search-scope,
+[data-search-notice] {
+  color: var(--text-muted);
+  font-size: var(--fs-caption);
+  line-height: 1.6;
+}
+.conversation-search h3 {
+  font-size: var(--fs-body);
+  margin-top: 24px;
+}
+.conversation-search .chat-contacts {
+  max-height: 240px;
+  overflow-y: auto;
+}
+.conversation-search .conversation-row {
+  border: 0;
+  background: transparent;
+  padding: 12px;
+  color: inherit;
+}
+.conversation-search .conversation-row:hover {
+  background: var(--surface-2);
+}
+[data-search-messages] {
+  padding: 0;
+  list-style: none;
+  overflow-wrap: anywhere;
+}
+[data-search-messages] li {
+  border-top: 1px solid var(--line);
+  padding: 14px 0;
+}
+[data-search-messages] p {
+  white-space: pre-wrap;
+  font-size: var(--fs-small);
+  margin: 8px 0;
+}
+[data-search-results] {
+  overflow-wrap: anywhere;
+}

@@ -1,0 +1,38 @@
+/* Generic controls of the communities area; the shared chat keeps its own. */
+:is(.app[data-page='comunidades'], .community-scope)
+  :is(button, input, textarea, select):where(:not(.chat-panel *)) {
+  font: inherit;
+  color: var(--text);
+}
+:is(.app[data-page='comunidades'], .community-scope)
+  :is(button, select, textarea):where(:not(.chat-panel *)),
+:is(.app[data-page='comunidades'], .community-scope)
+  input:not([type='checkbox']):where(:not(.chat-panel *)) {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  min-height: 40px;
+  max-width: 100%;
+}
+:is(.app[data-page='comunidades'], .community-scope)
+  :is(button, select):where(:not(.chat-panel *)) {
+  padding: 8px 12px;
+}
+:is(.app[data-page='comunidades'], .community-scope)
+  :is(button, a, summary):where(:not(.chat-panel *)):hover {
+  color: var(--accent);
+}
+:is(.app[data-page='comunidades'], .community-scope) .icon-button {
+  background: transparent;
+  border: 0;
+  padding: 0;
+}
+.app[data-page='comunidades'] .account .avatar {
+  padding: 0;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.app[data-page='comunidades'] .chat-directory {
+  display: none;
+}

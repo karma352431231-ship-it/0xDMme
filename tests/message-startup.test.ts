@@ -139,6 +139,7 @@ await test('authorized contacts appear during a slow runtime transfer; messages 
     fixture = controller(() => runtime.promise);
   const contacts = delayed();
   let initialized = false;
+  let directorySettled = false;
   const startup = fixture.start({
     loadPins: () => Promise.resolve(),
     loadContacts: () => {
@@ -150,8 +151,13 @@ await test('authorized contacts appear during a slow runtime transfer; messages 
       return Promise.resolve();
     },
     guard: () => {},
+    settled: () => {
+      directorySettled = true;
+    },
   });
   await contacts.promise;
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  assert.equal(directorySettled, true);
   assert.equal(initialized, false);
   runtime.resolve();
   await startup;
@@ -163,7 +169,8 @@ for (const failure of ['runtime', 'directory', 'logout'] as const)
       fixture = controller(() => runtime.promise);
     const directory = delayed();
     let invalid = false,
-      initialized = false;
+      initialized = false,
+      settled = false;
     const startup = fixture
       .start({
         loadPins: () => Promise.resolve(),
@@ -174,6 +181,9 @@ for (const failure of ['runtime', 'directory', 'logout'] as const)
         },
         guard: () => {
           if (invalid) throw new Error('Session changed');
+        },
+        settled: () => {
+          settled = true;
         },
       })
       .then(
@@ -188,6 +198,7 @@ for (const failure of ['runtime', 'directory', 'logout'] as const)
     else directory.resolve();
     assert.ok(await startup);
     assert.equal(initialized, false);
+    assert.equal(settled, failure !== 'logout');
   });
 
 await test('startup settles its directory task even when the runtime fails first', async () => {

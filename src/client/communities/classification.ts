@@ -40,10 +40,16 @@ function topicLabel(
   className: string,
 ) {
   const node = el('span', '', className),
-    icon = el('span', topic.symbol);
-  icon.setAttribute('aria-hidden', 'true');
-  node.append(icon, el('span', t(topic.label)));
+    dot = topicDot(topic.id);
+  node.append(dot, el('span', t(topic.label)));
   return node;
+}
+/** The topic's colored dot; decorative, the name beside it carries the meaning. */
+export function topicDot(id: CommunityTopic): HTMLElement {
+  const dot = el('span', '', 'community-topic-dot');
+  dot.dataset['topic'] = id;
+  dot.setAttribute('aria-hidden', 'true');
+  return dot;
 }
 export function topicPicker(
   host: HTMLElement,
@@ -149,12 +155,24 @@ export function rankingTopicFilter(
   },
 ): void {
   if (!options.active) return;
-  const topics = el('div', '', 'community-ranking-topics');
+  // Collapsed behind a button on every screen size (16/10/2026); the count
+  // keeps an active filter visible while closed.
+  const topics = el('details', '', 'community-ranking-topics');
+  const toggle = el('summary', topicToggleLabel(options.selected.length));
+  topics.append(toggle);
   host.append(topics);
   topicPicker(topics, {
     selected: options.selected,
     maximum: communityTopics.length,
     label: t('community.topics.filter'),
-    change: options.change,
+    change: (value) => {
+      toggle.textContent = topicToggleLabel(value.length);
+      options.change(value);
+    },
   });
+}
+function topicToggleLabel(count: number): string {
+  return count
+    ? t('community.topics.toggle-count {0}', [String(count)])
+    : t('community.topics.toggle');
 }

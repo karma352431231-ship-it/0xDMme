@@ -970,3 +970,97 @@
     background: var(--surface);
   }
 }
+
+/*
+ * Settings organization (16/10/2026, docs/UI_CONFIGURACOES.md): each block
+ * keeps its own save button; cards get even spacing, empty status lines take
+ * no room, the vault is one column and risky actions sit in a danger zone.
+ */
+#app-shell[data-page='perfil'] .settings-body .card {
+  display: grid;
+  gap: 10px;
+  align-content: start;
+}
+#app-shell[data-page='perfil'] .settings-body .card > :is(p, h2, h3, form) {
+  margin: 0;
+}
+#app-shell[data-page='perfil']
+  .settings-body
+  .card
+  > :is(button, a[href], .settings-subsection) {
+  justify-self: start;
+}
+#app-shell[data-page='perfil'] .settings-body [role='status']:empty {
+  display: none;
+}
+#app-shell[data-page='perfil']
+  .settings-body
+  :is(.card, .settings-block)
+  + :is(.card, .settings-block) {
+  margin-top: 12px;
+}
+/* Vault and backup: one column, the same width, in order. */
+#app-shell[data-page='perfil'] .settings-body [data-vault-settings] {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+}
+#app-shell[data-page='perfil'] .settings-body .backup-card {
+  margin-top: 12px;
+}
+#app-shell[data-page='perfil'] .settings-body .backup-card .card {
+  grid-template-columns: repeat(auto-fit, minmax(160px, max-content));
+  align-items: center;
+}
+#app-shell[data-page='perfil']
+  .settings-body
+  .backup-card
+  .card
+  > :not(button, a[href]) {
+  grid-column: 1 / -1;
+}
+/* Danger zone: separated, explained, in the destructive color. */
+#app-shell[data-page='perfil'] .settings-danger {
+  display: grid;
+  gap: 8px;
+  margin-top: 6px;
+  padding: 14px 16px;
+  border: 1px solid color-mix(in srgb, var(--danger) 38%, transparent);
+  border-radius: 12px;
+}
+#app-shell[data-page='perfil'] .settings-danger h3 {
+  margin: 0;
+  color: var(--danger);
+  font-size: var(--fs-small);
+}
+#app-shell[data-page='perfil'] .settings-danger p {
+  margin: 0;
+  color: var(--text-muted);
+}
+#app-shell[data-page='perfil'] .settings-danger button {
+  justify-self: start;
+  border-color: color-mix(in srgb, var(--danger) 45%, transparent);
+  color: var(--danger);
+}
+/* A secondary step that opens in place, such as New organization. */
+#app-shell[data-page='perfil'] .settings-subsection {
+  display: grid;
+  gap: 10px;
+  width: 100%;
+  border-top: 1px solid var(--line);
+  padding-top: 10px;
+}
+#app-shell[data-page='perfil'] .settings-subsection > summary {
+  color: var(--accent-text);
+  font-weight: 600;
+  cursor: pointer;
+  list-style: none;
+}
+#app-shell[data-page='perfil'] .settings-subsection > summary::before {
+  content: '+ ';
+}
+#app-shell[data-page='perfil'] .settings-subsection[open] > summary::before {
+  content: '− ';
+}
+#app-shell[data-page='perfil'] .settings-subsection > button {
+  justify-self: start;
+}

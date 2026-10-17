@@ -38,7 +38,7 @@ export async function allocationPredecessor(client: pg.Client) {
   await globalUsagePredecessor(client);
   const sql = await readFile(
     new URL(
-      '../../src/server/database/migrations/076-global-statement-accounting.sql',
+      '../../src/server/database/migrations/079-global-statement-accounting.sql',
       import.meta.url,
     ),
     'utf8',
@@ -47,7 +47,7 @@ export async function allocationPredecessor(client: pg.Client) {
   try {
     await client.query(sql);
     await client.query(
-      'INSERT INTO hash_talk.schema_migrations(version,checksum) VALUES(76,$1)',
+      'INSERT INTO hash_talk.schema_migrations(version,checksum) VALUES(79,$1)',
       [createHash('sha256').update(sql).digest('hex')],
     );
     await client.query('COMMIT');

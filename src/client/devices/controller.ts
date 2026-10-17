@@ -1,5 +1,6 @@
 import { t } from '../../shared/i18n/index.ts';
 import { authoritySignature } from './authority-signature.ts';
+import { AuthorityWork } from './authority-work.ts';
 import { fetchApi, readApiJson } from '../api-response/index.ts';
 import {
   boundedText,
@@ -35,7 +36,11 @@ import {
   recoverSecrets,
 } from '../device-keys/index.ts';
 import type { Keyring, LocalIdentity } from '../device-keys/index.ts';
-import type { VaultAuthority, VaultLocator } from '../vault-authority/index.ts';
+import type {
+  VaultAuthority,
+  VaultLocator,
+  VaultWorkOptions,
+} from '../vault-authority/index.ts';
 import {
   exclusive,
   localIdentity,
@@ -168,6 +173,7 @@ async function api(
   return data;
 }
 export class DeviceController {
+  private readonly authorityWork = new AuthorityWork();
   async createEnrollment(): Promise<EnrollmentCode> {
     return this.withVault(false, async (a) => {
       if (this.session?.walletConfirmed !== true)
@@ -353,20 +359,31 @@ export class DeviceController {
   get authorized(): boolean {
     return this.ring !== null && this.identity !== null;
   }
-  async run<T>(operation: (session: AccountSession) => Promise<T>): Promise<T> {
+  async run<T>(
+    operation: (session: AccountSession) => Promise<T>,
+    options: VaultWorkOptions = {},
+  ): Promise<T> {
     const session = this.session;
     const generation = this.generation;
     if (!session) throw new Error('Conecte a wallet original primeiro.');
-    return exclusive(session.accountId, async () => {
-      if (generation !== this.generation)
-        throw new Error('Sessão alterada antes da operação.');
-      const result = await operation(session);
-      if (generation !== this.generation) {
-        this.ring = null;
-        throw new Error('Sessão alterada durante a operação.');
-      }
-      return result;
-    });
+    return this.authorityWork.run(
+      (waitMs) =>
+        exclusive(
+          session.accountId,
+          async () => {
+            if (generation !== this.generation)
+              throw new Error('Sessão alterada antes da operação.');
+            const result = await operation(session);
+            if (generation !== this.generation) {
+              this.ring = null;
+              throw new Error('Sessão alterada durante a operação.');
+            }
+            return result;
+          },
+          waitMs,
+        ),
+      options.priority,
+    );
   }
   async refresh(): Promise<void> {
     return this.run(async (session) => {
@@ -381,6 +398,7 @@ export class DeviceController {
   async withVault<T>(
     offline: boolean,
     work: (authority: VaultAuthority) => Promise<T>,
+    options: VaultWorkOptions = {},
   ): Promise<T> {
     return this.run(async (session) => {
       await this.loadIdentity(session);
@@ -416,7 +434,7 @@ export class DeviceController {
       const result = await work(authority);
       this.assertSession(session);
       return result;
-    });
+    }, options);
   }
   async withLocalVault<T>(
     locator: VaultLocator,

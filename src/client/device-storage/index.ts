@@ -149,6 +149,7 @@ function transaction<T>(
 export async function exclusive<T>(
   accountId: string,
   operation: () => Promise<T>,
+  waitMs = 8000,
 ): Promise<T> {
   if (!navigator.locks)
     throw new Error(
@@ -156,7 +157,7 @@ export async function exclusive<T>(
     );
   return navigator.locks.request(
     `0xdmme-device-authority:${accountId}`,
-    { mode: 'exclusive', signal: AbortSignal.timeout(8000) },
+    { mode: 'exclusive', signal: AbortSignal.timeout(waitMs) },
     operation,
   );
 }

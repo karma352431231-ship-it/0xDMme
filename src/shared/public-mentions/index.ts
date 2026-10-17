@@ -41,9 +41,7 @@ export function mentionToken(mention: PublicMention): string {
 }
 export function mentionHref(mention: PublicMention): string {
   const id = uuid(mention.id);
-  return mention.kind === 'user'
-    ? `#publico?id=${id}`
-    : `#comunidades?id=${id}`;
+  return mention.kind === 'user' ? `#users?id=${id}` : `#communities?id=${id}`;
 }
 export function mentionPlainText(text: string): string {
   let result = '',

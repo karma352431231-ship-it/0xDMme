@@ -1,0 +1,59 @@
+/* Ranking as a table: position, community, then figures in fixed columns. */
+.community-ranking {
+  display: grid;
+  margin: 14px 0 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+  overflow: hidden;
+}
+.ranking-row + .ranking-row {
+  border-top: 1px solid var(--line);
+}
+.ranking-link {
+  display: grid;
+  grid-template-columns: 28px 40px minmax(0, 1fr) repeat(3, minmax(64px, auto));
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  color: var(--text);
+  text-decoration: none;
+}
+.ranking-link:hover {
+  background: var(--surface-2);
+}
+.ranking-position {
+  color: var(--text-faint);
+  font-family: var(--font-mono);
+  font-size: var(--fs-small);
+  text-align: center;
+}
+.ranking-copy {
+  display: grid;
+  min-width: 0;
+}
+.ranking-copy strong,
+.ranking-copy small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ranking-copy small,
+.ranking-stat small {
+  color: var(--text-muted);
+  font-size: var(--fs-caption);
+}
+.ranking-stat {
+  display: grid;
+  justify-items: end;
+  font-variant-numeric: tabular-nums;
+}
+.ranking-growth strong {
+  color: var(--ok);
+}
+.community-ranking > .community-empty {
+  margin: 0;
+  border: 0;
+}

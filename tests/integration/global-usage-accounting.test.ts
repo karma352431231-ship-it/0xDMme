@@ -45,6 +45,43 @@ async function reconciled(c: GlobalContext) {
 async function verifyBatches(t: TestContext, c: GlobalContext) {
   const { writer, fixture } = c;
   await t.test(
+    'community addresses retain exact UTF-8 charges across insert, update and delete',
+    async () => {
+      await rollback(writer, async () => {
+        const community = (
+          await writer.query<{ id: string }>(
+            'SELECT id FROM hash_talk.communities ORDER BY id LIMIT 1',
+          )
+        ).rows[0]!.id;
+        const before = await globalBytes(writer);
+        await writer.query(
+          'INSERT INTO hash_talk.community_addresses(community_id,slug) VALUES($1,$2)',
+          [community, 'synthetic-capacity'],
+        );
+        assert.equal(
+          await globalBytes(writer),
+          before + BigInt(256 + Buffer.byteLength('synthetic-capacity')),
+        );
+        await writer.query(
+          'UPDATE hash_talk.community_addresses SET slug=$2 WHERE community_id=$1',
+          [community, 'sintético-capacity'],
+        );
+        assert.equal(
+          await globalBytes(writer),
+          before + BigInt(256 + Buffer.byteLength('sintético-capacity')),
+        );
+        await reconciled(c);
+        await writer.query(
+          'DELETE FROM hash_talk.community_addresses WHERE community_id=$1',
+          [community],
+        );
+        assert.equal(await globalBytes(writer), before);
+        assert.equal(await globalWrites(writer), 3);
+        await reconciled(c);
+      });
+    },
+  );
+  await t.test(
     'thousand-row insert, charge update and deletion each write one exact global delta',
     async () => {
       await rollback(writer, async () => {
@@ -305,7 +342,7 @@ await test('statement global accounting preserves populated history and avoids p
         'SELECT version,checksum,applied_at FROM hash_talk.schema_migrations ORDER BY version',
       )
     ).rows;
-  assert.equal(sources.length, 80);
+  assert.equal(sources.length, 81);
   await observeGlobalWrites(writer);
   await t.test(
     'predecessor reproduces one thousand global counter writes for a thousand-row operation',
@@ -321,7 +358,7 @@ await test('statement global accounting preserves populated history and avoids p
     async () => {
       const migration = await readFile(
         new URL(
-          '../../src/server/database/migrations/076-global-statement-accounting.sql',
+          '../../src/server/database/migrations/079-global-statement-accounting.sql',
           import.meta.url,
         ),
         'utf8',
@@ -357,7 +394,7 @@ await test('statement global accounting preserves populated history and avoids p
       assert.deepEqual(
         (
           await writer.query(
-            'SELECT version,checksum,applied_at FROM hash_talk.schema_migrations WHERE version<=75 ORDER BY version',
+            'SELECT version,checksum,applied_at FROM hash_talk.schema_migrations WHERE version<=78 ORDER BY version',
           )
         ).rows,
         versions,
@@ -368,7 +405,7 @@ await test('statement global accounting preserves populated history and avoids p
     },
   );
   await t.test(
-    'all eighty sources preserve their original events with only statement accounting triggers',
+    'all eighty-one sources preserve their original events with only statement accounting triggers',
     async () => {
       const actual = (
         await writer.query<{

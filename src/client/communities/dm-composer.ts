@@ -16,6 +16,7 @@ import { showToast } from '../toast/index.ts';
 import type { VoicePlayback } from '../voice-playback/index.ts';
 import { VoiceRecording } from '../voice-recording/index.ts';
 import type { DmView } from './dm-chat.ts';
+import { DmComposition } from './dm-composition.ts';
 
 export interface ChosenMedia {
   selection: AttachmentSelection;
@@ -39,6 +40,7 @@ export function startDmComposer(options: {
     pending: boolean;
   }) => Promise<void>;
   discardPending: () => Promise<void>;
+  changed: () => void;
 }) {
   let view: DmView | null = null,
     chosen: ChosenMedia | null = null,
@@ -48,6 +50,7 @@ export function startDmComposer(options: {
     previewUrl: string | null = null;
   let abort = new AbortController();
   const emoji = new EmojiPicker();
+  const composition = new DmComposition();
   const gifs = new GifSearch(
     () => options.privacy.authorize('gifs', abort.signal),
     () => AbortSignal.any([abort.signal, options.privacy.signal]),
@@ -76,12 +79,24 @@ export function startDmComposer(options: {
       recording: recording.active,
       attachment: chosen !== null || pending,
     });
-    const record = node<HTMLButtonElement>('[data-voice-record]');
-    if (record) record.disabled = busy || chosen !== null || pending;
+    syncMediaControls();
     for (const selector of ['[data-voice-stop]', '[data-voice-cancel]']) {
       const control = node(selector);
       if (control) control.hidden = !recording.active;
     }
+    options.changed();
+  }
+  function syncMediaControls(): void {
+    const record = node<HTMLButtonElement>('[data-voice-record]');
+    if (record)
+      record.disabled =
+        busy || chosen !== null || pending || composition.target !== null;
+    const file = node<HTMLInputElement>('[data-attachment-file]');
+    if (file) file.disabled = busy || composition.target !== null;
+    node<HTMLButtonElement>('[data-chat-attachment]')?.toggleAttribute(
+      'disabled',
+      busy || composition.target !== null,
+    );
   }
   function releasePreview(): void {
     options.playback.release(previewId);
@@ -156,6 +171,7 @@ export function startDmComposer(options: {
       releasePreview();
     }
     pending = false;
+    composition.clear();
     view.text.value = '';
     view.text.dispatchEvent(new Event('input'));
   }
@@ -167,7 +183,7 @@ export function startDmComposer(options: {
     input.addEventListener('change', () => {
       const file = input.files?.[0];
       input.value = '';
-      if (!file) return;
+      if (!file || composition.target) return;
       void prepareSocialImage(file)
         .then((value) => {
           if (view === current && writable) choose(value);
@@ -199,7 +215,14 @@ export function startDmComposer(options: {
   function bindVoice(): void {
     bindRecordGesture(node('[data-voice-record]'), {
       start: () => {
-        if (!busy && writable && !chosen && !pending && !recording.active)
+        if (
+          !busy &&
+          writable &&
+          !chosen &&
+          !pending &&
+          !recording.active &&
+          !composition.target
+        )
           void recording.start();
       },
       release: () => {
@@ -235,6 +258,7 @@ export function startDmComposer(options: {
     /** Binds a freshly built conversation; a refresh reuses the same view. */
     bind(next: DmView): void {
       view = next;
+      composition.bind(next.form, next.text, sync);
       bindChatComposer(next.form, sync);
       next.form.addEventListener('submit', (event) => {
         event.preventDefault();
@@ -252,6 +276,7 @@ export function startDmComposer(options: {
     }): void {
       busy = state.busy;
       writable = state.writable;
+      if (!writable) recording.cancel();
       if (pending !== state.pending && !chosen) {
         pending = state.pending;
         releasePreview();
@@ -269,7 +294,19 @@ export function startDmComposer(options: {
     get active(): boolean {
       return recording.active || chosen !== null;
     },
+    get editing() {
+      return composition.target;
+    },
+    edit(target: Parameters<DmComposition['choose']>[0]): void {
+      if (!writable || busy || recording.active || chosen || pending) return;
+      composition.choose(target);
+      sync();
+    },
+    cancelEdit(): void {
+      composition.clear();
+    },
     leave(): void {
+      composition.clear();
       recording.cancel();
       discardChosen();
       abort.abort();

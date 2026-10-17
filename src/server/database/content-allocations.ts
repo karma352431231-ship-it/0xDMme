@@ -90,7 +90,7 @@ async function lockAllocationGuard(client: CapacityClient) {
   const state = await client.query<{ valid: boolean }>(`SELECT
     current_setting('transaction_isolation')='read committed'
     AND current_setting('hash_talk.storage_capacity_mode',true)='volume'
-    AND EXISTS(SELECT 1 FROM hash_talk.schema_migrations WHERE version=77) AS valid`);
+    AND EXISTS(SELECT 1 FROM hash_talk.schema_migrations WHERE version=80) AS valid`);
   if (state.rows[0]?.valid !== true) throw contentCapacityUnavailable();
 }
 async function collectCompleted(client: CapacityClient): Promise<number> {

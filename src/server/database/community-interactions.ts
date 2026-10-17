@@ -85,7 +85,7 @@ export async function setPostVote(
     );
   if (old.position === position) return;
   await context.client.query(
-    `INSERT INTO hash_talk.community_votes(profile_id,post_id,position,revision) VALUES($1,$2,$3,1) ON CONFLICT(profile_id,post_id) DO UPDATE SET position=$3,revision=hash_talk.community_votes.revision+1`,
+    `INSERT INTO hash_talk.community_votes(profile_id,post_id,position,revision,voted_at) VALUES($1,$2,$3,1,clock_timestamp()) ON CONFLICT(profile_id,post_id) DO UPDATE SET position=$3,revision=hash_talk.community_votes.revision+1,voted_at=clock_timestamp()`,
     [context.actor.id, row.id, position],
   );
   await reconcileUpvoteNotice(context, row, position);

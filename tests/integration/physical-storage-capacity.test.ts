@@ -54,6 +54,17 @@ async function addAttachment(
 async function verifyGrowth(t: TestContext, c: CapacityContext) {
   const { writer, capacity, volume, fixture } = c;
   await t.test(
+    'physical admission refuses an incompletely initialized integrated schema',
+    async () => {
+      await rollback(writer, async () => {
+        await writer.query(
+          'DELETE FROM hash_talk.schema_migrations WHERE version=84',
+        );
+        await assert.rejects(assertContentCapacity(writer, capacity), pressure);
+      });
+    },
+  );
+  await t.test(
     'physical admission accepts exact logical usage above the retired 900 MB ceiling while individual quotas remain',
     async () => {
       await rollback(writer, async () => {
@@ -405,7 +416,7 @@ await test('physical capacity preserves atomic reservations, cleanup and migrati
   await storageReservationPredecessor(writer);
   const sql = await readFile(
     new URL(
-      '../../src/server/database/migrations/074-storage-reservation-accounting.sql',
+      '../../src/server/database/migrations/077-storage-reservation-accounting.sql',
       import.meta.url,
     ),
     'utf8',
@@ -413,7 +424,7 @@ await test('physical capacity preserves atomic reservations, cleanup and migrati
   await writer.query('BEGIN');
   await writer.query(sql);
   await writer.query(
-    'INSERT INTO hash_talk.schema_migrations(version,checksum) VALUES(74,$1)',
+    'INSERT INTO hash_talk.schema_migrations(version,checksum) VALUES(77,$1)',
     [createHash('sha256').update(sql).digest('hex')],
   );
   await writer.query('COMMIT');
@@ -443,7 +454,7 @@ await test('physical capacity preserves atomic reservations, cleanup and migrati
       assert.deepEqual(
         (
           await writer.query(
-            'SELECT version,checksum,applied_at FROM hash_talk.schema_migrations WHERE version<=74 ORDER BY version',
+            'SELECT version,checksum,applied_at FROM hash_talk.schema_migrations WHERE version<=77 ORDER BY version',
           )
         ).rows,
         versions,

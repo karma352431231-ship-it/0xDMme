@@ -11,7 +11,11 @@ import type { EnrollmentCode } from '../../shared/device-enrollment/index.ts';
 import { notifyMessageControls } from '../message-controls/index.ts';
 import { QrCamera, renderQr } from '../device-qr/index.ts';
 import { DeviceController } from './controller.ts';
-import type { VaultAuthority, VaultLocator } from '../vault-authority/index.ts';
+import type {
+  VaultAuthority,
+  VaultLocator,
+  VaultWorkOptions,
+} from '../vault-authority/index.ts';
 export {
   startEnrollmentEntry,
   mountEnrollmentLogin,
@@ -330,8 +334,11 @@ export function startDevices(options: {
       locator: VaultLocator,
       work: (a: VaultAuthority) => Promise<T>,
     ) => controller.withLocalVault(locator, work),
-    withVault: <T>(offline: boolean, work: (a: VaultAuthority) => Promise<T>) =>
-      controller.withVault(offline, work),
+    withVault: <T>(
+      offline: boolean,
+      work: (a: VaultAuthority) => Promise<T>,
+      options?: VaultWorkOptions,
+    ) => controller.withVault(offline, work, options),
     privateKey: openKeys,
     setSession(session: AccountSession | null): void {
       if (session?.csrf !== controller.session?.csrf) {

@@ -1,5 +1,70 @@
 # Perfil público individual e feeds — 10/10/2026
 
+## Feed votes preserve reading position — 15/10/2026
+
+The owner reported an upvote scrolling the feed to the top during acceptance of
+the discovery release. The existing confirmed-vote callback called `reload`,
+resetting the displayed cursor and scroll before loading the first page. The
+module extraction preserved that earlier behavior; the repair belongs to the
+card's existing vote presentation in `feed-card.ts`.
+
+After a successful vote, paint only the server-confirmed score and pressed vote
+state. Do not reload, reorder, replace cards or dispose media/reply drafts for a
+visible post. Preserve the current page and reading position for upvotes,
+downvotes and vote removal. A non-visible confirmed post still takes the existing
+refresh path so removed content does not remain displayed. Hide/block/management
+refreshes and the explicit new-posts control keep their existing behavior.
+
+The regression test reproduces a jump from scroll position 900 to zero before
+the repair on a later feed page, then checks cursor, card/draft identity, confirmed
+score, pressed controls and absence of a feed reload for all three vote outcomes.
+Continue to fetch current private vote state, use its revision and reject late
+results after navigation/session changes; no optimistic success or new API is added.
+
+**Ponto importante:** this is a frontend acceptance repair for the approved
+discovery release. Keep backend, migrations, dependencies and infrastructure
+unchanged; integrate and activate only after exact-commit CI through the existing
+deployment executor with preservation/readiness and retained code rollback.
+
+## Discovery module extraction — owner approval on 15/10/2026
+
+The owner approved extracting the existing discovery screen after saving a
+verified source checkpoint, including the original checkout's uncommitted work.
+The checkpoint and recovery evidence stay private in `.local/`. This work uses
+an isolated branch based on current main; it does not edit another session's tree.
+
+First record the existing ranking and refresh-pill behavior in tests, then extract
+ranking presentation into `ranking-view.ts`, followed by feed cards into
+`feed-card.ts`. Keep filters, loading, cursors, snapshot comparison, session
+generations, cancellation, deduplication and media disposal in `discovery.ts`.
+Cards reuse the existing voting, reply, sharing, following, preference and
+management modules. Pass explicit action/lifetime contracts; do not distribute
+the coordinator's mutable state among renderers.
+
+This supersedes the earlier proposal in this document to extract feed
+loading/pagination into `discovery-feed.ts` for this task. No rules, copy, routes,
+styles, dependencies, backend or schema change. Preserve English and Simplified
+Chinese presentation, ranking positions across pages, identical-page node reuse,
+late-result rejection, feed return and resource cleanup. Each extraction is a
+separate commit after the preceding checks and CI pass; compare full-page and
+split-layout previews at desktop and phone widths before any publication.
+
+The remaining coordinator still encloses filters, mounting and page lifecycle in
+one large closure. Do not add new screen responsibilities there. A separate
+future task can extract `discovery-filters.ts` first and the screen frame into
+`discovery-shell.ts` second, leaving request/pagination/session ownership in the
+coordinator. Preserve topic/order/period callbacks, search cancellation, guest
+gates and mount/leave ordering; verify those contracts and responsive layouts
+after each extraction. These further moves are outside the approved two extractions.
+
+**Ponto importante:** a source checkpoint allows code recovery; it is not a
+database or VPS backup. After all three task commits passed CI, the owner
+explicitly authorized integrating into main and activating on the test VPS.
+Use the existing deployment executor, the integrated commit's full CI,
+preservation/readiness checks and code rollback. This release does not change
+backend, schema, dependencies or installed infrastructure. Confirm a `published`
+receipt and the served build before reporting activation complete.
+
 Direção aprovada pelo proprietário. A página pública por `@` reúne somente identidade e atividade públicas. Publicações continuam dentro de comunidades; o perfil apresenta as mesmas publicações e respostas, sem copiar conteúdo ou criar um mural pessoal independente.
 
 ## Interações nas publicações — ajuste de 10/10/2026
@@ -46,9 +111,46 @@ extração, sem misturá-la ao seletor.
 
 ## Perfil e métricas
 
+**Atualização de 15/10/2026:** Posts e Respostas passam a ocupar separadamente as
+duas primeiras métricas. O contador de conversas geradas deixa de aparecer; o
+contrato antigo do resumo é preservado para compatibilidade. Até três comunidades
+seguidas mostram foto e nome diretamente. Acima disso, conservar até cinco fotos
+e a lista paginada, com botão compacto de texto em uma linha. Essa regra substitui
+a compactação incondicional descrita em 12/10/2026. Seguidores em comum de usuários
+já usam a direção visitante → pessoa seguida → perfil visitado, com leitura
+assinada, paginação e bloqueios bilaterais entre os três participantes.
+
+DM pelo `@` passa a abrir diretamente, sem solicitação/aceite ou follow. O endpoint
+legado de pedido abre a conversa; aceitar também permanece compatível. Recusar um
+pedido legado informa que esse fluxo foi desativado e orienta usar Bloquear, sem
+simular uma recusa que permitiria mensagens. Abrir promove pedidos/recusas antigos
+sem bloqueio uma vez, sem reescrever relações já abertas. Não apaga histórico nem
+remove bloqueios. E2EE, dispositivos/chaves disponíveis, cotas, mídia permitida,
+recibos e consentimento do chat por wallet permanecem.
+
+**Ponto importante:** só DMs pela identidade pública dispensam aceite; isso não
+expõe mensagens ao público nem compartilha identidade/dados do perfil privado.
+
+Validação local: verificação completa (lint, tipos, fronteiras, licenças,
+formatação, idiomas, build e testes), 33 integrações de perfil social/controles/DMs
+em banco temporário exclusivo e nove regressões finais do cliente, incluindo
+troca de conversa antes de abrir uma DM. Prévia sintética no navegador a 320 e
+1280 px confirmou métricas, nomes imediatos, expansão/recolhimento e ausência de
+rolagem horizontal. O botão View names mediu aproximadamente 98 × 36 px a 320 px.
+Não substitui aceite em aparelho físico nem implica publicação na VPS.
+
+Revisão de responsabilidades: `public-profile/page.ts` e `communities/dms.ts`
+continuam hotspots. Esta alteração reduz suas regras existentes; abertura de DM
+fica em `dm-opening.ts` e a persistência da abertura em `social-conversations.ts`.
+Separação futura, em tarefa própria: primeiro identidade/ações do cabeçalho em
+`profile-header.ts`, depois abas/paginação em `profile-activity.ts`, deixando a
+página coordenar o ciclo de vida. Nas DMs, separar montagem/ciclo de vida antes de
+histórico/mídia. Riscos: respostas antigas, permissões, rolagem e descarte de URLs;
+validar navegação, snapshots, bloqueios, rascunhos, E2EE e limpeza em cada corte.
+
 - Visão geral combina posts, respostas e compartilhamentos por data; Posts e Respostas filtram apenas o conteúdo escrito pelo perfil. Respostas conservam comunidade, postagem original e destino da resposta. Conteúdo excluído/retirado e respostas cujo original não está visível não compõem atividade ou métricas públicas.
-- Conversas geradas conta posts visíveis do autor com ao menos uma resposta visível de outro perfil, uma vez por post. Auto-resposta não pontua; não é certificação de qualidade ou de pessoas únicas.
-- Participação mostra totais de posts e respostas elegíveis separados.
+- Posts mostra o total de posts elegíveis do perfil.
+- Respostas mostra o total de respostas elegíveis do perfil.
 - Idade conta a criação do perfil público, não o início da conta privada. Registrar futuras criações; manter desconhecida nos perfis existentes, sem usar primeiro post, UUID ou data da migração como idade.
 - Comunidades mostra o total e a lista completa das comunidades seguidas, paginada. O proprietário escolheu esta exposição mesmo sem publicar nelas. Esta regra substitui a lista privada dos cortes 3/6 de comunidades; salvos, ocultos e votos individuais mantêm a proteção anterior.
 
@@ -241,7 +343,7 @@ Community banner images fill the complete rectangular band using centered cover 
 
 The manual browser regression in `tests/fixtures/public-image-frames-browser.ts` uses the real public image loader with synthetic PNG responses and the bundled app CSS. Mount `publicImageFramesFixture(root, language)`, wait for its seven images to decode, then call `verify()` and `close()`. It checks image coverage at visible corners, the inner photo border, neutral backing, missing-image fallback, overflow and cleanup. Exercise 320/390/1280 px, English/Chinese and Black/Navy/White. The uncorrected stylesheet fails on the oval banner and the partial-height personal photo; the corrected stylesheet must pass all frames. Validation passed in all 18 viewport/language/theme combinations, plus nine targeted theme/media tests, lint, types, dependency boundaries, formatting, localization and the web build. Browser evidence uses synthetic images only.
 
-`community.css` and `profile.css` remain existing stylesheet hotspots. The former spans directory, posts, hero and management; the latter spans the public header, followed communities and profile editing. This repair changes its existing image rules only. A separate reviewed task should extract directory/avatar styles first, hero/management second, and post/reply styles last, preserving cascade order and specificity. For `profile.css`, extract the public header first, followed communities second and the profile editor last. Check full page/panel/mobile layout, placeholders, image clipping, menus and focus after each extraction; do not mix either refactor into this repair.
+`community.css` and `profile.css` remain existing stylesheet hotspots. (Update 17/10/2026: `community.css` is now an ordered `@import` list of per-section files with the same cascade; `profile.css` still awaits its split.) The former spans directory, posts, hero and management; the latter spans the public header, followed communities and profile editing. This repair changes its existing image rules only. A separate reviewed task should extract directory/avatar styles first, hero/management second, and post/reply styles last, preserving cascade order and specificity. For `profile.css`, extract the public header first, followed communities second and the profile editor last. Check full page/panel/mobile layout, placeholders, image clipping, menus and focus after each extraction; do not mix either refactor into this repair.
 
 The owner initially chose “Manter só na branch”. Later on 14/10/2026, the owner explicitly requested main integration and VPS activation for the completed image repairs, superseding that delivery restriction. Publish through the existing executor with exact-commit CI and preservation checks; see [release authorization](GIT_E_DEPLOY.md#owner-image-editor-repairs--activation-authorized-on-14102026).
 

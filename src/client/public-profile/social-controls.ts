@@ -11,6 +11,7 @@ import type {
 } from '../../shared/profile-social/index.ts';
 import type { PublicProfiles } from './controller.ts';
 import { communityIcon } from '../communities/index.ts';
+import { showToast } from '../toast/index.ts';
 
 function button(
   host: HTMLElement,
@@ -83,11 +84,23 @@ export async function profileSocialControls(
           revision: alerts.revision,
         }),
       );
-      if (!signal.aborted) paint();
+      if (signal.aborted) return;
+      paint();
+      showToast(
+        alerts.enabled
+          ? t('profile.bell-on {0}', [summary.profile.handle])
+          : t('profile.bell-off {0}', [summary.profile.handle]),
+      );
     },
     error,
   );
-  bell.append(communityIcon('bell'));
+  // On: filled accent bell with a check; off: outline bell (16/10/2026).
+  bell.className = 'profile-bell';
+  followButton.className = 'profile-follow';
+  const check = document.createElement('span');
+  check.className = 'profile-bell-check';
+  check.append(communityIcon('check'));
+  bell.append(communityIcon('bell'), check);
   function paint(): void {
     followButton.textContent = follow.following ? t('Seguindo') : t('Seguir');
     followButton.setAttribute('aria-pressed', String(follow.following));

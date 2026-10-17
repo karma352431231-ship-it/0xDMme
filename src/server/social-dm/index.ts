@@ -20,6 +20,7 @@ export const socialDmOperations = [
   'dm-message-history',
   'dm-received',
   'dm-message-status',
+  'dm-preview-status',
   'dm-secret-get',
   'dm-secret-save',
   'dm-attachment-reserve',
@@ -30,6 +31,7 @@ export const socialDmOperations = [
   'dm-profile',
   'dm-list',
   'dm-state',
+  'dm-open',
   'dm-request',
   'dm-decide',
   'dm-block',
@@ -81,12 +83,14 @@ export class SocialDmService {
           'snapshot',
           'after',
           ...(Object.hasOwn(d, 'actions') ? ['actions'] : []),
+          ...(Object.hasOwn(d, 'edits') ? ['edits'] : []),
         ]);
         const s = object(d['snapshot']);
         keys(s, ['anchor', 'removals', 'directory', 'profile']);
         return db.socialHistory.page(a, {
           after: socialRevision(d['after']),
           actions: Object.hasOwn(d, 'actions') ? boolean(d['actions']) : false,
+          edits: Object.hasOwn(d, 'edits') ? boolean(d['edits']) : false,
           snapshot: {
             anchor: socialRevision(s['anchor']),
             removals: socialRevision(s['removals']),
@@ -103,6 +107,7 @@ export class SocialDmService {
         });
       },
       'dm-message-status': (a, d) => db.socialHistory.reads.status(a, d),
+      'dm-preview-status': (a, d) => db.socialHistory.reads.preview(a, d),
       'dm-received': async (a, d) => {
         keys(d, ['items']);
         if (!Array.isArray(d['items']) || d['items'].length > 16)
@@ -153,6 +158,10 @@ export class SocialDmService {
       'dm-request': (a, d) => {
         keys(d, ['peer']);
         return db.socialDm.request(a, uuid(d['peer']));
+      },
+      'dm-open': (a, d) => {
+        keys(d, ['peer']);
+        return db.socialDm.open(a, uuid(d['peer']));
       },
       'dm-decide': (a, d) => {
         keys(d, ['peer', 'revision', 'accept']);

@@ -9,7 +9,10 @@ export const backupLimit = 4 * 1024 * 1024 * 1024;
 export const backupFrameLimit = 65536;
 export const backupReportLimit = 32_000_000;
 export const backupChunk = 262144;
-export const backupRecordLimit = 6_000_000;
+/** One record, including a media record: base64 of a 10 MB chat file plus its fields (16/10/2026). */
+export const backupRecordLimit = 14_000_000;
+/** Message text inside a record keeps its earlier bound. */
+export const backupTextLimit = 6_000_000;
 export const backupItemLimit = 65536;
 export interface BackupTarget {
   kind: 'vault' | 'message' | 'dm-message';

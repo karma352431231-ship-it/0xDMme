@@ -1,7 +1,10 @@
 import type pg from 'pg';
 import { AccountError } from '../../shared/account/index.ts';
 import { canonical } from '../../shared/devices/index.ts';
-import { attachmentRefs } from '../../shared/attachments/index.ts';
+import {
+  attachmentRefs,
+  chatFileLimit,
+} from '../../shared/attachments/index.ts';
 import type { AttachmentRef } from '../../shared/attachments/index.ts';
 import type { ContactAuthority, ContactStore } from './contacts.ts';
 import type { ContentCapacity } from './content-capacity.ts';
@@ -43,7 +46,7 @@ export class AttachmentReservations {
     this.allocations = input.allocations;
   }
   reserve(authority: ContactAuthority, data: Input): Promise<unknown> {
-    const input = { ...data, refs: attachmentRefs(data.refs) };
+    const input = { ...data, refs: attachmentRefs(data.refs, chatFileLimit) };
     return withUploadAdmission(() =>
       this.contacts.withMessageConsent(authority, input.peer, (client) =>
         this.admit(client, authority, input),

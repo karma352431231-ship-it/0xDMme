@@ -1,5 +1,10 @@
 # Painéis e temas — redesign aprovado em 09/10/2026
 
+**Revisão de 15/10/2026:** o arranjo e o destino público do painel passam a ter
+URL própria em inglês, restaurável pela recarga e pelo histórico, preservando a
+conversa privada montada. Perfis de usuário/comunidade e categorias de configurações
+também têm destinos próprios. [Formatos, privacidade e validação](PERFIL_PRIVADO_E_ROTAS.md).
+
 O proprietário avaliou a proposta de redesign apresentada em 09/10/2026 (página privada do proprietário: <https://claude.ai/artifact/BbkJaQgG4LP3oJLuiFNMcG>, versão 2) e aprovou a direção, com dois ajustes no desktop e um no mobile. A interface atual era uma base de MVP para testar funções; esta revisão define a interface do produto final. As imagens da FOMO e da GMGN foram referências de organização, não de conteúdo, dados ou marca.
 
 ## Decisões
@@ -433,3 +438,81 @@ Rules: one Ping per screen, only for empty, waiting, warning and confirmation mo
 - **Create community form.** A banner and a photo can be added while creating, with the same local preview, review notice and limits as editing an existing community. The server still creates the community with name, description and rules; chosen images then go through the existing confirmed presentation request and app review. If the images are refused after the community exists, the form says so with the reason, and pressing Create community again retries only the images. No server, migration or privacy change.
 - **Clearer hierarchy.** The form no longer reads as one white block: the lead text and field labels use the secondary tone, the public content notice sits in its own quiet box with a small warning-colored title, and Create community is the one filled blue button. Image slots are shared with the editor through `communities/image-slots.ts`; the form lives in `communities/community-create.ts` and `community-create.css`.
 - **Back from creating.** The create form has a back arrow beside its title that returns to the feed, on the full page and inside the panel (community links keep the panel in place). The “⋯” menu and the floating create button are not shown while creating.
+
+## Center feed and fixes — 15/10/2026
+
+Owner decision after reviewing three options (option A chosen).
+
+- **Layout.** At 1280 px or more the full layout is Contacts (unchanged) | Feed | Conversation, with the conversation in a fixed 400 px column on the right edge and its collapse arrow pointing right. Collapsing the conversation leaves Contacts | Feed, and the feed content is centered at the Communities page width (900 px plus padding). Visitors without local history keep the sign-in card on the left. Screens below 1280 px and phones are unchanged.
+- **Post and Create community.** The Post buttons in the panel heading and the Communities toolbar were removed. The floating "+" opens a small menu with **Post** (pencil, same composer as before) and **Create community** (person-plus icon, same page as before). It is outlined beside Contacts, filled on the full page and on phones, where it replaced the floating Post button. Create community left the "⋯" menu. With the conversation column on the right, the button sits at the bottom-right of the feed column.
+- **Opened post.** No box around the opened post: a divider below it and its larger title keep it leading, and the replies start closer, as on X. Replying still opens the box only after Reply is pressed.
+- **Reply media.** Pictures and GIFs in replies are 49% of the post presentation (70% × 70%), with a 180 px floor on phones.
+- **Activity.** Read items dim their text only; avatars keep their colors.
+- **Private contact photos.** The conversation list and the private chat header show the photo from the contact's verified private profile card already received on this device, decrypted once per card version and never looked up publicly. After a profile change, the app sends the new card to every confirmed private contact in the background, one at a time, skipping contacts that already have that exact card. Before, the card only went to a contact whose conversation was opened. Cards remain end-to-end encrypted messages.
+
+## Ranking sidebar and Chat | Communities — 16/10/2026
+
+Owner decision after reviewing the sidebar (https://claude.ai/artifact/RNiWCXQr76ZREsgVRJYhP5) and the switch (https://claude.ai/artifact/UYxQs6rMMNcJXaXUw3sc62), option A.
+
+- **Full Communities page (1280 px or more).** The layout is rail | left navigation (260 px) | feed | ranking sidebar (380 px), FOMO "Trending" style. The left navigation stays at the owner's request on 16/10/2026: it holds Feed, Ranking and the followed communities, which the sidebar's **Following** tab also lists. The tabs are Trending, Largest, New and Following. Each row shows position, photo, name, topic, followers and active growth. **»** collapses the sidebar into a strip of photos and **«** expands it; this choice is kept on the device. **See full ranking** opens the full table.
+- **Split screen.** A **Chat | Communities** switch sits above the right column, which shows the conversation or the ranking. It starts on **Chat**. Opening a conversation, private or public, returns to Chat. The switch shares the column's divider and background so both read as one column, with compact buttons. New messages never switch the view; they add to the badge on Chat, which sums the unread counters the conversation list shows.
+- **Realtime.** See [active members and growth](RANKING_COMUNIDADES_TRENDING.md#active-members-and-growth-display--owner-decision-on-16102026).
+- Phones and screens below 1280 px are unchanged. Follower faces from the mockup are not drawn yet: they would need one extra request per row on every refresh.
+
+## Public videos in the feed — 16/10/2026
+
+At the owner's request, public post videos use one X-like height on every layout: up to `min(560px, 75vh)` on desktop, `min(560px, 68vh)` on phones, and `min(392px, 55vh)` in replies. The frame matches the video's proportion, so vertical "shorts" no longer sit inside side bars. Touch screens show an explicit **Full screen** button over the player's corner, because phone controls drop or hide that choice; desktops keep the native control. Loading and playback rules are unchanged.
+
+## Ranking fixes, topic button and new-posts pill — 16/10/2026
+
+- **Ranking table.** The sidebar's styles reused the table's class names and squeezed the community names out of the isolated Ranking page; the sidebar now uses its own `ranking-side-*` classes, guarded by a test. The "active" column label is translated.
+- **Topics.** The ranking topic filter sits behind a **Topics** button on every screen size; it shows how many topics are selected while closed.
+- **New-posts pill.** "Reload from the beginning" is replaced by an X-style pill at the top of the feed. It appears after the reader has gone deep into the feed (more than one and a half screens) and then returns to the top, or presses the active Feed/Discover tab again. While the reader is away from the top, the app checks the first feed page at most once every 45 seconds; when posts newer than the ones shown exist, the pill shows up to three author photos and "posted". Pressing it scrolls up and reloads only the feed, not the page. Near the top, pressing the active tab still reloads directly. Next-page navigation is unchanged.
+
+## Profile, feed and chat polish — 16/10/2026
+
+Owner-approved batch after testing on phone and desktop:
+
+- **Topics** show as a pill with a colored dot and the name instead of emoji, everywhere topics appear (creation form, ranking filter, cards, ranking sidebar). Colors are theme tokens `--topic-<id>`. On a community page the topics sit quietly under the name, beside the creation date.
+- **Feed "+ Follow" on phones** never offers your own profile; your own posts only offer the community.
+- **Public profile on phones** is one compact card: header, bio, the four numbers in a row and the communities. Your own profile has no "Message"; editing is a round pencil button. Message, Following, the bell, the pencil and "…" share one height (40 px, 34 px beside the chat).
+- **Bell:** off is an outline bell; on is a filled accent bell with a small green check. Turning it on or off confirms with a toast.
+- **Post composer:** a missing title or tag shows a red summary on top and a red mark with a short message on the part itself, which receives focus.
+- **Chat reactions** hang from the bubble's bottom edge, at its start, in private and public chats.
+- **Uploads:** a ring fills while a file is sent and spins while it is processed. Posts show it over each chosen thumbnail; the private chat shows it in its status strip. The chat composer shows the chosen file as a card (thumbnail or file icon, name, size, "may keep GPS/EXIF"). Group and `@` chats have no upload progress events yet, so they keep their busy state.
+
+## Framing, profile card and sending — 16/10/2026
+
+- **Framing editor** (`src/client/image-crop`): choosing a community photo or banner, a public profile photo or banner, or the private profile photo first opens an X-style editor. Drag to move, slider/wheel/pinch to zoom, arrows and +/- on the keyboard; the picture always covers the frame. Photos use a 1:1 frame (round for profiles, rounded square for communities) saved at 800 × 800; banners use 3:1 at 1500 × 500. PNG keeps transparency, the rest becomes JPEG. Cancel keeps the current picture. The framed copy then goes through the same local preparation (size, pixels, metadata removal) as before; nothing leaves the device earlier.
+- **Public profile:** on phones Message, Following, the bell and "…" fit one row (36 px). The numbers read Posts, Replies, Followed communities, then the date. In one column (up to 900 px and beside the chat) the header and the numbers form one card.
+- **Sending a message:** a message on its way shows as an outgoing bubble with pulsing dots and a small × to discard it, only in its own conversation, instead of the raw "pending send to <id>" line.
+- **Profile tab on phones** opens the category list; a direct link to a category still opens it, and wide screens keep reopening the last category.
+
+## Banner frame and profile editor layout — 16/10/2026
+
+- **Banners** of profiles and communities always show the 3:1 frame chosen in the editor, on phones, desktops, beside the chat and in the editors themselves. Desktop banners grow taller to keep the same crop instead of cutting top and bottom.
+- **Public profile editor:** same contents, more even spacing. Inner margins are uniform (24 px, 16 px on phones), the remove buttons sit away from the corners, the "View my public profile" link is a quieter label, and "Confirm changes" sits inside the card (right-aligned on desktop, full width on phones). On phones the handle has its own line under the photo instead of breaking mid-word.
+
+## All black, dividers and scrollbars — 17/10/2026
+
+- **Preto theme is all black.** The rail, Contacts, feed, chat and ranking columns use the `--panel` token: black in Preto, the previous panel color in Azul and Branco. Columns are separated by their existing hairlines. Buttons, chips and inputs keep their dark gray so they still read as controls.
+- **Post dividers.** Posts in the split feed, the full Communities feed, a community's posts and profile activity are separated by a hairline, like X, with no box, gap or rounded corners (`communities/post-dividers.css`). The opened post keeps its own layout.
+- **Less empty space on large monitors.** From about 1700 px the side columns grow with the window: Contacts 272→320 px, chat 400→460 px, the Communities list 260→300 px and the ranking 380→440 px. The feed keeps its reading width (944 px split, 900 px full page), so the empty space beside it shrinks without disappearing.
+- **"+" inside the feed.** The floating button is placed from the right edge of the centered feed instead of the window, on the split screen (with or without the chat) and on the full Communities page (with the ranking open or collapsed).
+- **Scrollbars.** On mouse devices, every scrollable area of every page (app, wallet, recovery, Phantom probe and source listings) has a thin thumb with no track. It shows while the area scrolls and fades 2 s after scrolling stops (`src/client/scrollbars`). Touch devices keep their system overlay scrollbars.
+- **Public contact photos.** In Contacts → Public, the approved photo covers the whole avatar; the initials only show while it loads or when there is no photo.
+
+## app.css split into feature stylesheets — 17/10/2026
+
+The owner approved splitting `src/client/app/app.css` (3,840 lines, changed by most UI tasks) after the release file ceiling was replaced by byte budgets (`6c23c4c`). This supersedes the 09/10 consolidation above that moved the theme tokens into `app.css` to fit the old 540-file manifest.
+
+- `app.css` is only the ordered `@import` list. The import order is the cascade order; a rule in a later file wins ties.
+- Theme tokens are in `app/theme.css` (still one marked block; the literal-color test skips only that block). Shell layout, rail, base elements, page frame, narrow and phone layouts are in `app/`. Feature parts moved next to their modules: Contacts (`contacts/directory*.css`, `conversation-list.css`), chat (`chat-ui/chat-desktop.css`, `chat-phone.css`, `message-content.css`), the split-screen feed (`communities/feed-panel.css`), Activity, account and settings, wallet, devices, search, emoji, GIF, voice, calls, toast and attachments.
+- Verification: the bundled stylesheet keeps the same 2,322 rules in the same order and media conditions; only adjacent `@media` groups were split. Four tiny pieces were folded into their owner files after auditing every swapped pair of rules. In the browser, the computed style of every element matched the previous stylesheet across pages, layouts, account states and phone, laptop and 1920 px widths.
+- Some small files keep their original position on purpose (for example `activity/activity-filters.css`, `app/narrow-tweaks.css`, `account-settings/profile-identity.css`): moving them would change the order against rules that can match the same elements.
+
+## community.css split into section files — 17/10/2026
+
+Approved by the owner right after the `app.css` split, with the same method. `src/client/communities/community.css` (2,244 lines) is now only the ordered `@import` list of the communities stylesheets, still imported at the same place in `app.css`. Each section lives in its own file in `communities/`: page frame, controls, directory, tools, post card, feed filters, post actions, page sections, post media layout, responsive rules, discovery menu, ranking table, page columns, directory head, wide and phone page, post focus, hero (with its phone rules), composer, post tabs, empty state, settings tabs (with the isolated manage screen), public DMs and tags.
+
+- Verification: the order-preserving split produced a byte-identical bundled stylesheet. Two folds (hero phone rules into `hero.css`, manage screen into `settings-tabs.css`) swap 93 rule pairs; each was audited and none can match the same element with equal specificity and a shared property. In the browser, computed styles of every element matched the live stylesheet on the Communities page (post and manage layouts, ranking open or collapsed, guest and signed in) and in the split-screen feed, in the Preto, Azul and Branco themes, at 1920, 1440 and 375 px (touch).

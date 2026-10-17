@@ -340,6 +340,7 @@ export class CommunityDiscoveryStore {
                 community,
                 activity: row.contributions,
                 participants: row.participants,
+                previousParticipants: row.previous_participants,
                 upvotes: row.upvotes,
                 historyComplete: row.history_complete,
               },

@@ -1,3 +1,8 @@
+import {
+  appDocumentPath,
+  publicPostHash,
+  appHref,
+} from '../../shared/app-routes/index.ts';
 import { t } from '../../shared/i18n/index.ts';
 import { cacheableRequest } from '../../shared/pwa-policy/index.ts';
 import { genericNotification } from '../../shared/daily/index.ts';
@@ -144,14 +149,18 @@ scope.addEventListener('activate', (event) => {
 });
 
 scope.addEventListener('fetch', (event) => {
-  if (!cacheableRequest(event.request, scope.location.origin, assets)) return;
-  if (
-    event.request.mode === 'navigate' &&
-    new URL(event.request.url).pathname === '/'
-  ) {
+  const url = new URL(event.request.url);
+  const documentRequest =
+    event.request.method === 'GET' &&
+    url.origin === scope.location.origin &&
+    !event.request.headers.has('authorization') &&
+    ((url.pathname === '/' && !url.search) ||
+      appDocumentPath(url.pathname + url.search));
+  if (event.request.mode === 'navigate' && documentRequest) {
     event.respondWith(appDocument(event.request));
     return;
   }
+  if (!cacheableRequest(event.request, scope.location.origin, assets)) return;
   event.respondWith(
     caches.open(cacheName).then(async (cache) => {
       const cached = await cache.match(event.request.url);
@@ -171,7 +180,7 @@ async function appDocument(request: Request): Promise<Response> {
     });
   } catch (error) {
     const cache = await caches.open(cacheName);
-    const cached = await cache.match(request.url);
+    const cached = await cache.match('/');
     // Keep the offline document paired with its fully installed release assets.
     if (cached) return cached;
     throw error;
@@ -218,7 +227,7 @@ async function notify(): Promise<void> {
     const appearance = notificationAppearance(data);
     await scope.registration.showNotification(appearance.title, {
       ...appearance,
-      icon: '/icon-192.png',
+      icon: appearance.icon ?? '/icon-192.png',
       badge: '/notification-badge.png',
       silent: !sound,
       renotify: sound,
@@ -242,33 +251,63 @@ async function wakeOpenClients(): Promise<void> {
     // Live hints, return-to-app reconciliation and the foreground fallback remain active.
   }
 }
-function notificationAppearance(data: object): {
+interface NotificationAppearance {
   title: string;
   body: string;
   tag: string;
+  icon?: string;
   data?: { href: string };
-} {
+}
+function notificationAppearance(data: object): NotificationAppearance {
   const call = 'call' in data && data.call === true;
   const showCall = call && 'showCall' in data && data.showCall === true;
-  if (!call && 'publicPreview' in data) {
-    const preview = publicNotificationPreview(data.publicPreview);
-    return {
-      title: preview.reply
-        ? t('@{0} respondeu · 0xDMme', [preview.author.handle])
-        : t('@{0} publicou · 0xDMme', [preview.author.handle]),
-      body: preview.text || t('Nova publicação com mídia.'),
-      tag: '0xdmme-public-activity',
-      data: {
-        href: `/#comunidades?id=${preview.community}&post=${preview.post}`,
-      },
-    };
-  }
+  if (!call && 'publicPreview' in data)
+    return publicAppearance(publicNotificationPreview(data.publicPreview));
   return {
     title: genericNotification.title,
     body: showCall
       ? t('Chamada de voz recebida. Abra o app para atender.')
       : t(genericNotification.body),
     tag: call ? '0xdmme-call' : '0xdmme-activity',
+  };
+}
+function publicAppearance(
+  preview: ReturnType<typeof publicNotificationPreview>,
+): NotificationAppearance {
+  if (preview.followed) return followedAppearance(preview);
+  return {
+    title: preview.reply
+      ? t('@{0} respondeu · 0xDMme', [preview.author.handle])
+      : t('@{0} publicou · 0xDMme', [preview.author.handle]),
+    body: preview.text || t('Nova publicação com mídia.'),
+    tag: '0xdmme-public-activity',
+    data: {
+      href: appHref(
+        'communities',
+        new URLSearchParams({ id: preview.community, post: preview.post }),
+      ),
+    },
+  };
+}
+/**
+ * X-style alert for posts and replies by profiles followed with notifications
+ * on (16/10/2026): the author's handle on top, the post below, the author's
+ * public photo as the image. One alert per post, so several stay visible.
+ */
+function followedAppearance(
+  preview: ReturnType<typeof publicNotificationPreview>,
+): NotificationAppearance {
+  return {
+    title: `@${preview.author.handle}`,
+    body: preview.text || t('Nova publicação com mídia.'),
+    tag: `0xdmme-post-${preview.post}`,
+    ...(preview.author.avatar ? { icon: preview.author.avatar } : {}),
+    data: {
+      href: appHref(
+        'communities',
+        new URLSearchParams({ id: preview.community, post: preview.post }),
+      ),
+    },
   };
 }
 scope.addEventListener('push', (event) => {
@@ -282,9 +321,10 @@ function notificationHref(data: unknown): string {
     typeof data.href === 'string'
       ? data.href
       : '';
-  const publicPost =
-    /^\/#comunidades\?id=[a-f0-9-]{36}&post=[a-f0-9-]{36}$/u.test(href);
-  return new URL(publicPost ? href : '/#conversas', scope.location.origin).href;
+  const publicPost = publicPostHash(
+    href.startsWith('/#') ? href.slice(1) : href,
+  );
+  return new URL(publicPost ?? '/chats', scope.location.origin).href;
 }
 scope.addEventListener('notificationclick', (event) => {
   event.notification.close();
@@ -299,10 +339,10 @@ scope.addEventListener('notificationclick', (event) => {
         (client) => new URL(client.url).origin === scope.location.origin,
       );
       if (existing) {
-        if (url.includes('#comunidades'))
+        if (publicPostHash(new URL(url).pathname + new URL(url).search))
           existing.postMessage({
             type: 'OPEN_PUBLIC_POST',
-            hash: new URL(url).hash,
+            hash: new URL(url).pathname + new URL(url).search,
           });
         await existing.focus();
       } else await scope.clients.openWindow(url);

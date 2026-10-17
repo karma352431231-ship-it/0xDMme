@@ -22,6 +22,14 @@ import type {
 import { prepareAttachment } from '../attachments/index.ts';
 import { dropFilesInto } from '../file-drop/index.ts';
 import { showToast } from '../toast/index.ts';
+import { uploadRing } from '../upload-progress/index.ts';
+import type { UploadRing } from '../upload-progress/index.ts';
+
+/** Progress of one chosen file: a sent fraction, or null while the server prepares it. */
+export interface MediaProgress {
+  index: number;
+  fraction: number | null;
+}
 
 export interface CommunityMediaAccess {
   community: string;
@@ -107,7 +115,7 @@ async function upload(
   access: CommunityMediaAccess,
   source: CommunityMediaSource,
   blob: Blob,
-  onProgress: (text: string) => void,
+  onProgress: (fraction: number | null) => void,
 ): Promise<string> {
   let state = communityMediaState(
     await request(access, 'media-reserve', { source }),
@@ -118,9 +126,7 @@ async function upload(
     index < parts && state.status === 'uploading';
     index++
   ) {
-    onProgress(
-      t('Enviando arquivo: {0}%.', [Math.round((index / parts) * 100)]),
-    );
+    onProgress(index / parts);
     const bytes = new Uint8Array(
       await blob
         .slice(
@@ -143,9 +149,7 @@ async function upload(
     );
   const deadline = Date.now() + 390_000;
   while (state.status === 'processing') {
-    onProgress(
-      t('Preparando arquivo e miniatura. Isso pode reduzir a qualidade.'),
-    );
+    onProgress(null);
     if (Date.now() > deadline)
       throw new Error(
         'Preparação ainda em andamento. Tente novamente para retomar.',
@@ -165,7 +169,7 @@ async function upload(
 export async function uploadCommunityMedia(
   access: CommunityMediaAccess,
   files: File[],
-  onProgress: (text: string) => void,
+  onProgress: (progress: MediaProgress) => void,
 ): Promise<string[]> {
   validateMediaSelection(files);
   const result: string[] = [],
@@ -188,7 +192,12 @@ export async function uploadCommunityMedia(
       hash: prepared.hash,
       bytes: prepared.blob.size,
     };
-    result.push(await upload(access, source, prepared.blob, onProgress));
+    const index = result.length;
+    result.push(
+      await upload(access, source, prepared.blob, (fraction) =>
+        onProgress({ index, fraction }),
+      ),
+    );
   }
   return result;
 }
@@ -307,13 +316,16 @@ export function mediaEditor(
   return async () => {
     if (remove.checked) return [];
     if (!chosen.length) return ids;
+    const rings = new Map<number, UploadRing>();
     try {
-      prepared ??= await uploadCommunityMedia(access, chosen, (text) => {
-        if (access.valid() && field.isConnected) status.textContent = text;
+      prepared ??= await uploadCommunityMedia(access, chosen, (progress) => {
+        if (access.valid() && field.isConnected)
+          showTileProgress(previews, rings, progress);
       });
       status.textContent = '';
       return prepared;
     } catch (error: unknown) {
+      for (const ring of rings.values()) ring.element.remove();
       if (access.valid() && field.isConnected)
         status.textContent =
           error instanceof Error
@@ -322,6 +334,23 @@ export function mediaEditor(
       throw error;
     }
   };
+}
+/** A ring over the thumbnail being sent; finished files keep a full ring. */
+function showTileProgress(
+  previews: HTMLElement,
+  rings: Map<number, UploadRing>,
+  progress: MediaProgress,
+): void {
+  const tile = previews.children[progress.index] as HTMLElement | undefined;
+  if (!tile) return;
+  let ring = rings.get(progress.index);
+  if (!ring) {
+    ring = uploadRing();
+    rings.set(progress.index, ring);
+    tile.append(ring.element);
+  }
+  ring.set(progress.fraction);
+  for (const [index, done] of rings) if (index < progress.index) done.set(1);
 }
 export function restrictedMedia(
   container: HTMLElement,

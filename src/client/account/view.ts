@@ -1,3 +1,4 @@
+import { navigateApp } from '../app-navigation/index.ts';
 import { t } from '../../shared/i18n/index.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
 import { shortAddress } from '../appearance/index.ts';
@@ -81,7 +82,7 @@ export class AccountView {
   bindSidebar(): void {
     document.getElementById('account-avatar')?.addEventListener('click', () => {
       if (!this.core.session || !this.profile.loaded) {
-        location.hash = '#configuracoes';
+        navigateApp('#settings');
         return;
       }
       document.getElementById('account-photo')?.click();

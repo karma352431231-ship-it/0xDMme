@@ -310,6 +310,62 @@ await test('rankings: métricas exatas, votos agregados, eventos, recuperação 
     },
   );
   await t.test(
+    'quem só vota conta como ativo na janela do voto e o anterior é publicado',
+    async () => {
+      const voter = await make();
+      await voter.publicIdentity(`rank_${crypto.randomUUID().slice(0, 8)}`);
+      const active = async () =>
+        (await measureRanking(inspector, [community], new Date())).find(
+          (row) => row.community_id === community,
+        )!.day;
+      const before = await active();
+      const state = postState(
+        await voter.operate('post-state', { id: community, post: third }),
+      );
+      await voter.operate('post-vote', {
+        id: community,
+        post: third,
+        voteRevision: state.vote.revision,
+        position: 1,
+      });
+      const now = await active();
+      assert.equal(now.current.participants, before.current.participants + 1);
+      // The same vote cast 30 hours ago belongs to the previous window.
+      await inspector.query(
+        "UPDATE hash_talk.community_votes SET voted_at=clock_timestamp()-interval '30 hours' WHERE post_id=$1 AND position=1 AND voted_at>clock_timestamp()-interval '1 minute'",
+        [third],
+      );
+      const earlier = await active();
+      assert.equal(earlier.current.participants, before.current.participants);
+      assert.equal(
+        earlier.previous.participants,
+        before.previous.participants + 1,
+      );
+      await refresh();
+      const row = (await page()).items.find(
+        (r) => r.community.id === community,
+      )!;
+      assert.equal(row.participants, earlier.current.participants);
+      assert.equal(row.previousParticipants, earlier.previous.participants);
+      // A withdrawn vote stops counting, so later checks see the original members.
+      const cast = postState(
+        await voter.operate('post-state', { id: community, post: third }),
+      );
+      await voter.operate('post-vote', {
+        id: community,
+        post: third,
+        voteRevision: cast.vote.revision,
+        position: 0,
+      });
+      const withdrawn = await active();
+      assert.equal(withdrawn.current.participants, before.current.participants);
+      assert.equal(
+        withdrawn.previous.participants,
+        before.previous.participants,
+      );
+    },
+  );
+  await t.test(
     'rollback não deixa pendência nem sinal; exclusão do original retira respostas',
     async () => {
       const before = await inspector.query<{ revision: string }>(

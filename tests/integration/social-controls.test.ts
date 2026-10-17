@@ -370,6 +370,7 @@ await test('controles sociais: autoridade, badges, confirmação, edição, bloq
       assert.ok(preview);
       assert.equal(preview.author.handle, authorId.handle);
       assert.ok(preview.text.includes('sininho'));
+      assert.equal(preview.followed, true);
       const queued = await inspector.query<{ pending: boolean }>(
         'SELECT pending FROM hash_talk.push_subscriptions WHERE account_id=$1 AND device_id=$2',
         [reader.login.session.accountId, reader.login.session.deviceId],

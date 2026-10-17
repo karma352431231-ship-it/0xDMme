@@ -1,0 +1,403 @@
+/*
+ * Workspace shell: hidden-by-default panels, the wide-screen column grid
+ * (Contacts | Feed | Conversation, Communities page, split screen) and the
+ * feed panel frame.
+ */
+/* Workspace panels (docs/UI_PAINEIS_E_TEMAS.md): Contatos | Conversa | Feed on wide screens. */
+.rail,
+.feed-panel,
+.feed-strip,
+.directory-search,
+.archived-row,
+.directory-foot,
+.chip-short,
+.chat-panel .chat-collapse,
+.public-chat,
+.public-chat-bar [data-chat-collapse] {
+  display: none;
+}
+.directory-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.contact-scope {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2px;
+  margin: 10px 16px 0;
+  padding: 3px;
+  border-radius: 10px;
+  background: var(--surface-2);
+}
+.contact-scope button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 0;
+  border-radius: 8px;
+  padding: 7px 0;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: var(--fs-small);
+  font-weight: 600;
+}
+.contact-scope svg {
+  width: 15px;
+  height: 15px;
+  flex: 0 0 auto;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.contact-scope button[aria-pressed='true'] {
+  background: var(--surface-3);
+  color: var(--text);
+}
+.public-directory {
+  display: none;
+}
+.app[data-contact-scope='public']
+  :is(
+    .directory-filters,
+    .directory-tools,
+    .directory-status,
+    .directory-scroll
+  ) {
+  display: none;
+}
+.app[data-contact-scope='public'] .public-directory {
+  display: grid;
+  flex: 1 1 auto;
+  align-content: start;
+  gap: 2px;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 8px;
+}
+.public-directory > p {
+  margin: 0;
+  padding: 8px 14px;
+  color: var(--text-muted);
+  font-size: var(--fs-small);
+}
+.public-directory > a:not(.conversation-row) {
+  padding: 10px 14px;
+  color: var(--accent-text);
+  font-size: var(--fs-small);
+}
+.public-directory .public-row {
+  min-height: 64px;
+  text-decoration: none;
+}
+.public-directory .public-row:hover {
+  background: var(--surface-2);
+}
+.app[data-chat-scope='public'] .conversation-content {
+  display: none;
+}
+.app[data-chat-scope='public'] .public-chat {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+  overflow: hidden;
+}
+.public-chat-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--line);
+  color: var(--text-muted);
+  font-size: var(--fs-small);
+}
+.public-chat-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 14px;
+}
+
+@media (min-width: 1280px) {
+  /* The id outranks the communities stylesheets and the feature files listed
+     later in app.css.
+     Side columns grow a little on large monitors (17/10/2026) so the centered
+     feed leaves less empty space; at 1280–1700px they keep their base widths. */
+  #app-shell {
+    --contacts-col: clamp(272px, 16vw, 320px);
+    --chat-col: clamp(400px, 23vw, 460px);
+    --community-nav-col: clamp(260px, 15vw, 300px);
+    --ranking-col: clamp(380px, 22vw, 440px);
+    grid-template-columns: 64px var(--contacts-col) minmax(0, 1fr);
+  }
+  #app-shell[data-page='comunidades'] {
+    grid-template-columns: 64px var(--community-nav-col) minmax(0, 1fr);
+  }
+  .sidebar .area-nav,
+  .app[data-page='comunidades'] .area-nav {
+    display: none;
+  }
+  .rail {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 18px 0;
+    border-right: 1px solid var(--line);
+    background: var(--panel);
+  }
+  .rail-button {
+    position: relative;
+    display: grid;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    border: 0;
+    border-radius: 12px;
+    background: transparent;
+    color: var(--text-muted);
+  }
+  .rail-button svg {
+    width: 20px;
+    height: 20px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+  .rail-button:hover {
+    background: var(--surface-2);
+    color: var(--text);
+  }
+  .rail-button:is([aria-pressed='true'], [aria-current='page']) {
+    background: var(--accent-soft);
+    color: var(--text);
+  }
+  .rail-button:is([aria-pressed='true'], [aria-current='page'])::before {
+    content: '';
+    position: absolute;
+    top: 12px;
+    bottom: 12px;
+    left: -10px;
+    width: 3px;
+    border-radius: 0 3px 3px 0;
+    background: var(--brand-grad);
+  }
+  /* Option A (15/10/2026): Contacts | Feed in the center | Conversation on the
+     right edge. The conversation moves after the feed only in this layout;
+     visitors without history keep the sign-in card on the left (rules below). */
+  #app-shell[data-page='conversas'][data-layout='all'] {
+    grid-template-columns: 64px var(--contacts-col) minmax(0, 1fr) var(
+        --chat-col
+      );
+  }
+  #app-shell[data-page='conversas'][data-layout='all']:not(
+      [data-account='guest']:not([data-history='available'])
+    )
+    > main {
+    order: 1;
+    border-left: 1px solid var(--line);
+  }
+  /* Full Communities page (16/10/2026): the left navigation (Feed, Ranking,
+     followed communities) stays, the feed is in the center and the ranking
+     sidebar on the right. */
+  #app-shell[data-page='comunidades'] {
+    grid-template-columns: 64px var(--community-nav-col) minmax(0, 1fr) var(
+        --ranking-col
+      );
+  }
+  #app-shell[data-page='comunidades']:has(
+      > .ranking-side[data-collapsed='true']
+    ) {
+    grid-template-columns: 64px var(--community-nav-col) minmax(0, 1fr) 64px;
+  }
+  #app-shell[data-page='comunidades'] > .ranking-side {
+    display: flex;
+  }
+  /* Split screen: "Chat | Communities" above the right column, which shows the
+     conversation or the ranking. Visitors without history keep their layout. */
+  #app-shell[data-page='conversas'][data-layout='all']:not(
+      [data-account='guest']:not([data-history='available'])
+    ) {
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+  #app-shell[data-page='conversas'][data-layout='all']:not(
+      [data-account='guest']:not([data-history='available'])
+    )
+    > :is(.rail, .sidebar, .feed-panel) {
+    grid-row: 1 / -1;
+  }
+  #app-shell[data-page='conversas'][data-layout='all']:not(
+      [data-account='guest']:not([data-history='available'])
+    )
+    > .right-switch {
+    display: grid;
+    grid-column: 4;
+    grid-row: 1;
+  }
+  #app-shell[data-page='conversas'][data-layout='all']:not(
+      [data-account='guest']:not([data-history='available'])
+    )
+    > :is(main, .ranking-side) {
+    grid-column: 4;
+    grid-row: 2;
+  }
+  #app-shell[data-page='conversas'][data-layout='all'][data-right='communities']:not(
+      [data-account='guest']:not([data-history='available'])
+    )
+    > main {
+    display: none;
+  }
+  #app-shell[data-page='conversas'][data-layout='all'][data-right='communities']:not(
+      [data-account='guest']:not([data-history='available'])
+    )
+    > .ranking-side {
+    display: flex;
+  }
+  /* Same reading width as the full Communities page, centered. */
+  #app-shell[data-page='conversas']:is(
+      [data-layout='all'],
+      [data-layout='nochat']
+    )
+    .feed-panel
+    > :is(.feed-panel-heading, .feed-panel-body) {
+    width: 100%;
+    max-width: 944px;
+    margin-inline: auto;
+  }
+  #app-shell[data-page='conversas'][data-layout='nochat'] {
+    grid-template-columns: 64px var(--contacts-col) minmax(0, 1fr);
+  }
+  .app[data-page='conversas'][data-layout='nochat'] main {
+    display: none;
+  }
+  #app-shell[data-page='conversas'][data-layout='solo'] {
+    grid-template-columns: 64px var(--contacts-col) minmax(0, 1fr) 46px;
+  }
+  /* Visitors without local history have no contacts: the login card takes the
+     left column and the feed takes the space the contact list used. */
+  #app-shell[data-page='conversas'][data-account='guest']:not(
+      [data-history='available']
+    )
+    .sidebar {
+    display: none;
+  }
+  #app-shell[data-page='conversas'][data-account='guest']:not(
+      [data-history='available']
+    ):is([data-layout='all'], [data-layout='nochat']) {
+    grid-template-columns: 64px minmax(340px, 440px) minmax(0, 1fr);
+  }
+  #app-shell[data-page='conversas'][data-account='guest']:not(
+      [data-history='available']
+    )[data-layout='solo'] {
+    grid-template-columns: 64px minmax(0, 1fr) 46px;
+  }
+  .app[data-page='conversas'][data-account='guest']:not(
+      [data-history='available']
+    )[data-layout='solo']
+    .account-section {
+    max-width: 560px;
+  }
+  .app[data-page='conversas'][data-account='guest']:not(
+      [data-history='available']
+    )[data-layout='nochat']
+    main {
+    display: flex;
+  }
+  .app[data-page='conversas']:not([data-layout='solo']) .feed-panel {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
+    border-left: 1px solid var(--line);
+    background: var(--bg);
+    color: var(--text);
+    font-size: var(--fs-body);
+  }
+  .app[data-page='conversas'][data-layout='all']
+    :is(.chat-collapse, .public-chat-bar [data-chat-collapse]) {
+    display: inline-flex;
+  }
+  /* The conversation sits on the right edge, so collapsing points right. */
+  .app[data-page='conversas'][data-layout='all']:not(
+      [data-account='guest']:not([data-history='available'])
+    )
+    :is(.chat-collapse, .public-chat-bar [data-chat-collapse])
+    svg {
+    transform: scaleX(-1);
+  }
+  .app[data-page='conversas'][data-layout='solo'] .feed-strip {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    padding: 16px 0;
+    border: 0;
+    border-left: 1px solid var(--line);
+    background: var(--panel);
+    color: var(--text-muted);
+    cursor: pointer;
+  }
+  .feed-strip:hover {
+    background: var(--surface-2);
+    color: var(--text);
+  }
+  .feed-strip svg {
+    width: 20px;
+    height: 20px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.8;
+  }
+  .feed-strip span {
+    writing-mode: vertical-rl;
+    font-size: var(--fs-small);
+    font-weight: 600;
+    letter-spacing: 0.04em;
+  }
+}
+.feed-panel-heading {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--line);
+}
+.feed-panel-heading h2 {
+  margin: 0;
+  font-size: var(--fs-input);
+}
+.feed-panel-tabs {
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 10px;
+  background: var(--surface-2);
+}
+.feed-panel-tabs a {
+  padding: 5px 10px;
+  border-radius: 8px;
+  color: var(--text-muted);
+  font-size: var(--fs-small);
+  font-weight: 600;
+  text-decoration: none;
+}
+.feed-panel-tabs a[aria-current='page'] {
+  background: var(--surface-3);
+  color: var(--text);
+}
+.feed-panel-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 18px 20px;
+}

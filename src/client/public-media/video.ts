@@ -28,7 +28,7 @@ export function mountPublicVideo(
   retry.type = 'button';
   retry.textContent = t('Tentar carregar vídeo');
   retry.hidden = true;
-  slot.append(video, caption, retry);
+  slot.append(video, fullscreenButton(video), caption, retry);
   let visible = false,
     stopped = false,
     current: AbortController | null = null,
@@ -114,4 +114,39 @@ export function mountPublicVideo(
   options.signal.addEventListener('abort', cleanup, { once: true });
   if (options.signal.aborted) cleanup();
   return cleanup;
+}
+
+/** iOS Safari only offers full screen on the video element itself. */
+type FullscreenVideo = HTMLVideoElement & {
+  webkitEnterFullscreen?: () => void;
+};
+
+/**
+ * Phones shrink the native controls and hide their full-screen choice in an
+ * overflow menu or drop it, so touch screens get an explicit button (16/10/2026).
+ */
+function fullscreenButton(video: FullscreenVideo): HTMLButtonElement {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'public-video-fullscreen';
+  button.setAttribute('aria-label', t('video.fullscreen'));
+  button.title = t('video.fullscreen');
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('viewBox', '0 0 24 24');
+  svg.setAttribute('aria-hidden', 'true');
+  const corners = document.createElementNS(
+    'http://www.w3.org/2000/svg',
+    'path',
+  );
+  corners.setAttribute('d', 'M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5');
+  svg.append(corners);
+  button.append(svg);
+  button.addEventListener('click', () => {
+    if (typeof video.requestFullscreen === 'function') {
+      video.requestFullscreen().catch(() => video.webkitEnterFullscreen?.());
+      return;
+    }
+    video.webkitEnterFullscreen?.();
+  });
+  return button;
 }

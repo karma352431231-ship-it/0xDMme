@@ -687,7 +687,7 @@ await test('scoped private-message capacity preserves every admission effect and
       assert.deepEqual(
         (
           await c.inspector.query(
-            'SELECT * FROM hash_talk.schema_migrations WHERE version<=79 ORDER BY version',
+            'SELECT * FROM hash_talk.schema_migrations WHERE version<=82 ORDER BY version',
           )
         ).rows,
         c.upgrade.catalog,

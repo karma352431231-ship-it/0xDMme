@@ -36,7 +36,7 @@ BEGIN
       'hash_talk.track_content_usage()'::regprocedure,
       'hash_talk.track_message_usage()'::regprocedure,
       'hash_talk.track_message_recovery_usage()'::regprocedure);
-  IF source_count<>80 THEN RAISE EXCEPTION 'Unexpected global accounting catalog'; END IF;
+  IF source_count<>81 THEN RAISE EXCEPTION 'Unexpected global accounting catalog'; END IF;
   EXECUTE 'LOCK TABLE '||sources||' IN SHARE ROW EXCLUSIVE MODE';
 
   -- Generation cache accounting joins the same batch; leaving its old row

@@ -24,7 +24,7 @@ BEGIN
   END IF;
   FOR ref IN SELECT r FROM jsonb_array_elements(refs) r ORDER BY r->>'id' LOOP
     selected:=(ref->>'id')::uuid;
-    IF selected IS NULL OR octet_length(ref::text)>=4096 OR (ref->>'bytes')::integer NOT BETWEEN 1 AND 3000000 THEN
+    IF selected IS NULL OR octet_length(ref::text)>=4096 OR (ref->>'bytes')::integer NOT BETWEEN 1 AND 10000000 THEN
       RAISE EXCEPTION 'Invalid attachment reservation descriptor' USING ERRCODE='PCA01';
     END IF;
     SELECT to_jsonb(a) INTO before_state FROM hash_talk.message_attachments a WHERE id=selected FOR UPDATE;

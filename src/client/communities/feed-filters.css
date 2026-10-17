@@ -1,0 +1,39 @@
+/*
+ * Feed filters, scopes and personal links.
+ */
+.community-feed-filters {
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 16px;
+}
+.community-ranking-period {
+  display: contents;
+}
+.community-ranking-period[hidden] {
+  display: none;
+}
+.community-feed-scopes {
+  display: flex;
+  gap: 8px;
+}
+.community-feed-scopes a,
+.community-personal-links a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+}
+.community-feed-scopes a[aria-current='page'] {
+  background: var(--accent-soft);
+  color: var(--accent);
+  border-color: var(--accent);
+}
+.community-personal-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 14px;
+}

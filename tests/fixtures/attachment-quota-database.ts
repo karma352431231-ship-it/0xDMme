@@ -13,9 +13,9 @@ export async function attachmentQuotaPredecessor(client: pg.Client) {
   await client.query('BEGIN');
   try {
     for (const file of [
-      '070-group-quota-accounting.sql',
-      '071-personal-quota-accounting.sql',
-      '072-quota-lock-order.sql',
+      '073-group-quota-accounting.sql',
+      '074-personal-quota-accounting.sql',
+      '075-quota-lock-order.sql',
     ]) {
       const sql = await readFile(
         new URL(

@@ -10,6 +10,8 @@ export function dmMessageMenu(
     signal: AbortSignal;
     picker: EmojiPicker;
     react?: (emoji: string) => Promise<void>;
+    edit?: () => void;
+    editable?: boolean;
     run: (work: () => Promise<void>) => Promise<void>;
   },
 ): () => void {
@@ -26,6 +28,15 @@ export function dmMessageMenu(
     });
   });
   menu.panel.append(copy);
+  if (input.edit && input.editable) {
+    const edit = document.createElement('button');
+    edit.type = 'button';
+    edit.textContent = t('Editar');
+    edit.addEventListener('click', () => {
+      input.edit?.();
+    });
+    menu.panel.append(edit);
+  }
   if (input.react) {
     const reaction = document.createElement('button');
     reaction.type = 'button';

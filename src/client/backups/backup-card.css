@@ -1,0 +1,42 @@
+/*
+ * Backup card, list and history.
+ */
+.backup-card {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.backup-card label {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 10px 0;
+  font-size: var(--fs-small);
+}
+.backup-card input[type='file'] {
+  max-width: 100%;
+  min-width: 0;
+}
+.backup-list {
+  display: grid;
+  gap: 0.65rem;
+  margin: 1rem 0;
+}
+.backup-list label {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  overflow-wrap: anywhere;
+}
+.backup-list input[type='checkbox'] {
+  width: auto;
+  flex: 0 0 auto;
+}
+.backup-history article {
+  border-top: 1px solid currentColor;
+  padding: 1rem 0;
+  overflow-wrap: anywhere;
+}
+.backup-history p {
+  white-space: pre-wrap;
+}

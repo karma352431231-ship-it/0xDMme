@@ -2,6 +2,7 @@ import { t, translatedError } from '../../shared/i18n/index.ts';
 import { AccountError } from '../../shared/account/index.ts';
 import { HistoryPreparation } from './preparation.ts';
 import { LiveUpdates } from '../message-live/index.ts';
+import { ConversationOpening } from './opening.ts';
 import type { LiveUpdate } from '../message-live/index.ts';
 
 interface SynchronizationState {
@@ -12,6 +13,8 @@ interface SynchronizationState {
   visible: boolean;
   suspended: boolean;
   liveConnecting: boolean;
+  startupPending?: boolean;
+  textPending?: boolean;
 }
 interface SynchronizationOperations {
   state: () => SynchronizationState;
@@ -44,6 +47,7 @@ export class MessageSynchronization {
   private readonly preparation = new HistoryPreparation();
   private automaticAttempts = 0;
   private lastTransferAttempt = 0;
+  private readonly opening = new ConversationOpening();
   busy = false;
   failed = false;
 
@@ -51,7 +55,8 @@ export class MessageSynchronization {
     this.options = options;
     this.updates = new LiveUpdates({
       available: () =>
-        this.canPreload() &&
+        this.canSynchronize() &&
+        options.state().connected &&
         !this.preloadRunning &&
         !options.state().liveConnecting,
       run: (update) => {
@@ -77,6 +82,7 @@ export class MessageSynchronization {
     this.lastTransferAttempt = Date.now();
   }
   reset(): void {
+    this.cancelOpening();
     this.updates.clear();
     this.stopPreload();
     this.automaticAttempts = 0;
@@ -91,8 +97,39 @@ export class MessageSynchronization {
   private current(generation: number): boolean {
     return !this.closed && generation === this.options.state().generation;
   }
-  async run(work: () => Promise<void>): Promise<void> {
-    if (this.closed || this.busy) return;
+  /** Accept a visible row while startup owns the engine; the latest choice
+   * runs before maintenance resumes, without overlapping either operation. */
+  open(work: () => Promise<void>): Promise<void> {
+    if (this.closed) return Promise.resolve();
+    const result = this.opening.request(work);
+    if (!this.busy) void this.openNext();
+    return result;
+  }
+  cancelOpening(): void {
+    this.opening.clear();
+  }
+  private async openNext(): Promise<void> {
+    const pending = this.opening.take();
+    if (!pending) return;
+    try {
+      await this.run(pending.work);
+    } finally {
+      pending.done();
+    }
+  }
+  get openingRequested(): boolean {
+    return this.opening.waiting;
+  }
+  get backgroundReady(): boolean {
+    return this.canSynchronize();
+  }
+  async background(work: () => Promise<void>): Promise<void> {
+    await this.maintain(work, (error) => {
+      this.report(error, t('Não foi possível concluir a operação.'));
+    });
+  }
+  async run(work: () => Promise<void>): Promise<boolean> {
+    if (this.closed || this.busy) return false;
     this.stopPreload();
     this.busy = true;
     this.failed = false;
@@ -101,16 +138,19 @@ export class MessageSynchronization {
     try {
       // A user action waits for automatic maintenance instead of being dropped.
       await this.maintenance;
-      if (!this.current(current)) return;
+      if (!this.current(current)) return false;
       this.failed = false;
       await work();
-      if (!this.current(current)) return;
-      if (this.options.state().online) this.options.complete();
+      if (!this.current(current)) return false;
+      if (this.options.state().online && !this.opening.waiting)
+        this.options.complete();
+      return true;
     } catch (error: unknown) {
       if (this.current(current)) {
         this.failed = true;
         this.report(error, t('Não foi possível concluir a operação.'));
       }
+      return false;
     } finally {
       await this.finishRun(current);
     }
@@ -130,7 +170,9 @@ export class MessageSynchronization {
   private async finishRun(current: number): Promise<void> {
     // Keep the operation exclusive until its final pending projection settles.
     await this.projectPending(current);
+    if (this.current(current) && this.failed) this.opening.clear();
     this.busy = false;
+    await this.openNext();
     this.options.status();
     this.updates.resume();
     this.schedulePreload();
@@ -142,6 +184,9 @@ export class MessageSynchronization {
     this.options.pause();
   }
   private canSynchronize(): boolean {
+    return this.foregroundReady && !this.options.state().textPending;
+  }
+  get foregroundReady(): boolean {
     const state = this.options.state();
     return (
       !this.closed &&
@@ -153,7 +198,8 @@ export class MessageSynchronization {
     );
   }
   private canPreload(): boolean {
-    return this.canSynchronize() && this.options.state().connected;
+    const state = this.options.state();
+    return this.canSynchronize() && state.connected && !state.startupPending;
   }
   private schedulePreload(): void {
     if (
@@ -270,6 +316,7 @@ export class MessageSynchronization {
       })
       .finally(() => {
         this.maintenance = null;
+        if (this.current(current)) this.options.status();
         this.updates.resume();
         this.schedulePreload();
       });

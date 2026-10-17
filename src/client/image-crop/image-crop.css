@@ -1,0 +1,127 @@
+/* Framing editor for photos and banners (16/10/2026), X-style. */
+.image-crop-dialog {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  width: min(640px, 100vw);
+  height: min(680px, 100dvh);
+  max-width: none;
+  max-height: none;
+  margin: auto;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--surface);
+  color: var(--text);
+  overflow: hidden;
+}
+.image-crop-dialog::backdrop {
+  background: var(--overlay);
+}
+.image-crop-dialog > header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+}
+.image-crop-dialog > header strong {
+  flex: 1;
+  font-size: 17px;
+}
+.image-crop-dialog button {
+  min-height: 0;
+  margin: 0;
+  cursor: pointer;
+}
+.image-crop-dialog .image-crop-apply {
+  padding: 8px 18px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--text);
+  color: var(--surface);
+  font-weight: 700;
+}
+.image-crop-dialog .image-crop-apply:disabled {
+  opacity: 0.6;
+}
+.image-crop-dialog .image-crop-cancel {
+  padding: 8px 12px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+.image-crop-stage {
+  position: relative;
+  overflow: hidden;
+  background: var(--media-backdrop);
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+.image-crop-stage:active {
+  cursor: grabbing;
+}
+.image-crop-stage:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+}
+.image-crop-image {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  max-width: none;
+  max-height: none;
+  transform-origin: center;
+  pointer-events: none;
+}
+/* The frame dims everything outside it; round frames show the circle. */
+.image-crop-frame {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  translate: -50% -50%;
+  border: 2px solid var(--accent);
+  box-shadow: 0 0 0 9999px var(--media-control-bg);
+  pointer-events: none;
+}
+.image-crop-frame[data-round='true'] {
+  border-radius: 50%;
+}
+.image-crop-zoom {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 20px calc(14px + env(safe-area-inset-bottom));
+}
+.image-crop-zoom input[type='range'] {
+  flex: 1;
+  accent-color: var(--accent);
+}
+.image-crop-dialog .image-crop-step {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text);
+}
+.image-crop-step svg {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+@media (max-width: 700px) {
+  .image-crop-dialog {
+    width: 100vw;
+    height: 100dvh;
+    border: 0;
+    border-radius: 0;
+  }
+}

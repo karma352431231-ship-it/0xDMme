@@ -19,8 +19,8 @@
     <a class="skip" href="#workspace">Skip to content</a>
     <div class="app" id="app-shell" data-account="guest" data-chat-open="false">
       <nav class="rail" aria-label="Screen layout">
-        <a class="rail-logo" href="#conversas" aria-label="0xDMme"
-          ><img src="/icon.svg" alt=""
+        <a class="rail-logo" href="/split/feed" aria-label="0xDMme"
+          ><img src="/logo.svg" alt=""
         /></a>
         <button
           type="button"
@@ -49,7 +49,7 @@
         </button>
         <a
           class="rail-button"
-          href="#comunidades"
+          href="#communities"
           data-route="comunidades"
           aria-label="Communities only"
           title="Communities only"
@@ -61,7 +61,7 @@
         ></a>
         <a
           class="rail-button"
-          href="#atividade"
+          href="#activity"
           data-route="atividade"
           aria-label="Activity"
           title="Activity"
@@ -78,7 +78,7 @@
         >
         <a
           class="rail-profile"
-          href="#perfil"
+          href="#settings"
           data-route="perfil"
           aria-label="Profile and settings"
           title="Profile and settings"
@@ -89,8 +89,8 @@
       </nav>
       <aside class="sidebar" aria-label="Contacts and profile">
         <div class="brand-bar">
-          <a class="brand" href="#conversas"
-            ><img class="brand-mark" src="/icon.svg" alt="" /><span
+          <a class="brand" href="/split/feed"
+            ><img class="brand-mark" src="/logo.svg" alt="" /><span
               >0xDMme</span
             ></a
           ><span class="mobile-title" data-mobile-title aria-hidden="true"
@@ -104,7 +104,7 @@
           >
           <a
             class="icon-button activity-entry"
-            href="#atividade"
+            href="#activity"
             data-route="atividade"
             aria-label="Activity"
             ><svg viewBox="0 0 24 24" aria-hidden="true">
@@ -125,8 +125,8 @@
           </button>
         </div>
         <nav class="area-nav" aria-label="App workspace">
-          <a href="#conversas" data-route="conversas">Conversations</a>
-          <a href="#comunidades" data-route="comunidades">Communities</a>
+          <a href="#chats" data-route="conversas">Conversations</a>
+          <a href="#communities" data-route="comunidades">Communities</a>
         </nav>
         <section
           id="community-directory"
@@ -153,7 +153,7 @@
                   +
                 </summary>
                 <div class="directory-create-actions">
-                  <a href="#contatos">Add contact</a>
+                  <a href="#contacts">Add contact</a>
                   <button data-private-group-action="create" type="button">
                     Create group
                   </button>
@@ -310,10 +310,10 @@
           />
           <div class="account-copy">
             <div class="account-heading">
-              <a href="#perfil" id="account-label">No account connected</a
+              <a href="#settings" id="account-label">No account connected</a
               ><a
                 class="icon-button account-settings"
-                href="#perfil"
+                href="#settings"
                 aria-label="Open profile and settings"
                 ><svg viewBox="0 0 24 24" aria-hidden="true">
                   <circle cx="12" cy="5" r="1" />
@@ -334,12 +334,12 @@
         </div>
       </aside>
       <nav class="community-mobile-tabs" aria-label="Communities">
-        <a href="#comunidades?view=feed" data-community-view="feed">Feed</a>
-        <a href="#comunidades?view=explore" data-community-view="explore"
+        <a href="#communities?view=feed" data-community-view="feed">Feed</a>
+        <a href="#communities?view=explore" data-community-view="explore"
           >Ranking</a
         >
         <a
-          href="#comunidades?view=communities"
+          href="#communities?view=communities"
           data-community-view="communities"
           >Mine</a
         >
@@ -383,26 +383,15 @@
         <header class="feed-panel-heading">
           <h2>Communities</h2>
           <nav class="feed-panel-tabs" aria-label="Community sections">
-            <a href="#comunidades?view=feed" data-feed-tab="feed">Feed</a>
-            <a href="#comunidades?view=explore" data-feed-tab="explore"
+            <a href="#communities?view=feed" data-feed-tab="feed">Feed</a>
+            <a href="#communities?view=explore" data-feed-tab="explore"
               >Ranking</a
             >
-            <a href="#comunidades?view=communities" data-feed-tab="communities"
+            <a href="#communities?view=communities" data-feed-tab="communities"
               >Mine</a
             >
           </nav>
           <div data-public-search></div>
-          <button
-            type="button"
-            class="feed-panel-post"
-            data-community-compose
-            title="Choose a community to post in"
-          >
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M4 20h4L19 9l-4-4L4 16z" />
-              <path d="m13.5 6.5 4 4" /></svg
-            >Post
-          </button>
           <a
             class="own-public-profile-shortcut"
             data-own-public-profile
@@ -438,26 +427,26 @@
         <span>Communities</span>
       </button>
       <nav class="mobile-nav" aria-label="Main navigation">
-        <a href="#conversas" data-route="conversas"
+        <a href="#chats" data-route="conversas"
           ><svg viewBox="0 0 24 24" aria-hidden="true">
             <path d="M4 4h16v12H8l-4 4z" /></svg
           ><span>Conversations</span></a
         >
-        <a href="#comunidades" data-route="comunidades"
+        <a href="#communities" data-route="comunidades"
           ><svg viewBox="0 0 24 24" aria-hidden="true">
             <circle cx="8" cy="8" r="3" />
             <circle cx="17" cy="9" r="2" />
             <path d="M2 21v-3a6 6 0 0 1 12 0v3M16 14a4 4 0 0 1 6 4v3" /></svg
           ><span>Communities</span></a
         >
-        <a href="#atividade" data-route="atividade"
+        <a href="#activity" data-route="atividade"
           ><svg viewBox="0 0 24 24" aria-hidden="true">
             <path d="M6 8a6 6 0 1 1 12 0c0 7 3 8 3 8H3s3-1 3-8" />
             <path d="M10 20a2 2 0 0 0 4 0" /></svg
           ><span>Activity</span
           ><span class="activity-badge" data-activity-count hidden></span
         ></a>
-        <a href="#perfil" data-route="perfil"
+        <a href="#settings" data-route="perfil"
           ><svg viewBox="0 0 24 24" aria-hidden="true">
             <circle cx="12" cy="12" r="10" />
             <circle cx="12" cy="9" r="3" />

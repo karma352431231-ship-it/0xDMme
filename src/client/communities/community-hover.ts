@@ -1,3 +1,4 @@
+import { appRoute, communityHref } from '../../shared/app-routes/index.ts';
 import { classificationBadges } from './classification.ts';
 import {
   t,
@@ -8,7 +9,7 @@ import { renderMentions } from '../public-mentions/index.ts';
 import type { Community } from '../../shared/communities/index.ts';
 import type { HoverCardProvider } from '../hover-card/index.ts';
 import { showPublicAvatar } from '../public-media/index.ts';
-import type { Communities } from './controller.ts';
+import type { Communities, CommunityReference } from './controller.ts';
 import { readCommunity } from './controller.ts';
 import { communityElement as el } from './elements.ts';
 import { communityAvatar } from './presentation.ts';
@@ -18,24 +19,30 @@ const cacheTime = 60_000,
   cacheSize = 32;
 const cache = new Map<string, { at: number; value: Community }>();
 
-async function community(id: string, signal: AbortSignal): Promise<Community> {
-  const held = cache.get(id);
+async function community(
+  target: CommunityReference,
+  signal: AbortSignal,
+): Promise<Community> {
+  const key =
+    typeof target === 'string' ? 'id:' + target : 'slug:' + target.slug;
+  const held = cache.get(key);
   if (held && Date.now() - held.at < cacheTime) return held.value;
   const value = await readCommunity(
-    id,
+    target,
     AbortSignal.any([signal, AbortSignal.timeout(8000)]),
   );
   if (cache.size >= cacheSize) cache.delete(cache.keys().next().value!);
-  cache.set(id, { at: Date.now(), value });
+  cache.set(key, { at: Date.now(), value });
   return value;
 }
 /** Only a plain community link previews; post, tag and view links do not. */
-function communityOf(link: HTMLAnchorElement): string | null {
-  const [path, query = ''] = (link.getAttribute('href') ?? '').split('?');
-  if (path !== '#comunidades') return null;
-  const params = new URLSearchParams(query);
-  const id = params.get('id');
-  return id && [...params.keys()].length === 1 ? id : null;
+function communityOf(link: HTMLAnchorElement): CommunityReference | null {
+  const route = appRoute(link.getAttribute('href') ?? '');
+  if (route?.page !== 'communities') return null;
+  const params = route.params;
+  if (params.size !== 1) return null;
+  const slug = params.get('slug');
+  return slug ? { slug } : params.get('id');
 }
 
 /** Community preview: photo, name, description, followers and Seguir. */
@@ -44,10 +51,10 @@ export function communityHoverProvider(input: {
   signedIn: () => boolean;
 }): HoverCardProvider {
   return (link) => {
-    const id = communityOf(link);
-    if (!id) return null;
+    const target = communityOf(link);
+    if (!target) return null;
     return async (card, signal) => {
-      const value = await community(id, signal);
+      const value = await community(target, signal);
       if (signal.aborted) return;
       const head = el('div', '', 'hover-card-head'),
         avatar = communityAvatar(value.name),
@@ -62,7 +69,7 @@ export function communityHoverProvider(input: {
         });
       head.append(avatar, actions);
       const name = el('a', value.name, 'hover-card-title');
-      name.href = `#comunidades?id=${encodeURIComponent(value.id)}`;
+      name.href = communityHref(value);
       const banner = previewBanner(value, avatar, signal);
       card.append(
         banner,
@@ -112,7 +119,8 @@ async function followButton(
       .request('follow', { id: input.id, following: !following })
       .then((value) => {
         following = communityState(value).following;
-        cache.delete(input.id);
+        for (const [key, held] of cache)
+          if (held.value.id === input.id) cache.delete(key);
         if (!input.signal.aborted) paint();
       })
       .catch((error: unknown) => {

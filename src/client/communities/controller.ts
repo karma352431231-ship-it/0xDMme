@@ -28,19 +28,23 @@ export async function communityRead(
     'communities/read',
   );
 }
-export async function readCommunity(id: string, signal: AbortSignal) {
+export type CommunityReference = string | { slug: string };
+export async function readCommunity(
+  target: CommunityReference,
+  signal: AbortSignal,
+) {
+  const path =
+    typeof target === 'string'
+      ? encodeURIComponent(target)
+      : 'address/' + encodeURIComponent(target.slug);
   return community(
     await readApiJson(
-      await fetchApi(
-        'communities/read',
-        `/api/communities/${encodeURIComponent(id)}`,
-        {
-          credentials: 'omit',
-          cache: 'no-store',
-          redirect: 'error',
-          signal,
-        },
-      ),
+      await fetchApi('communities/read', `/api/communities/${path}`, {
+        credentials: 'omit',
+        cache: 'no-store',
+        redirect: 'error',
+        signal,
+      }),
       'communities/read',
     ),
   );

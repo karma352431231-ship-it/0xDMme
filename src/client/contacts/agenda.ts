@@ -1,6 +1,7 @@
 import { t, currentLanguage } from '../../shared/i18n/index.ts';
 import {
   addressBookEntry,
+  contactInvitationValue,
   invitation,
   invitationLink,
   readInvitation,
@@ -18,7 +19,13 @@ export interface BookVersion {
 }
 type AgendaSync = Pick<
   VaultSync,
-  'entries' | 'currentHeads' | 'heads' | 'isRemoved' | 'open' | 'save'
+  | 'entries'
+  | 'currentHeads'
+  | 'heads'
+  | 'isRemoved'
+  | 'open'
+  | 'openMany'
+  | 'save'
 >;
 export function walletKey(wallet: WalletContact): string {
   return `${wallet.ecosystem}:${wallet.address}`;
@@ -130,24 +137,36 @@ export class AddressBook {
         : groups.findIndex((heads) => heads[0]!.change.entity === after) + 1;
     if (after !== null && offset === 0)
       throw new Error('A agenda mudou. Atualize a lista antes de continuar.');
-    const page = groups.slice(offset, offset + 16),
-      items: BookVersion[] = [];
-    for (const heads of page) {
-      if (heads.length > 16)
-        throw new Error(
-          'Resolva as versões deste contato antes de abrir a lista.',
-        );
-      const versions: BookVersion[] = [];
-      for (const head of heads) versions.push(await this.open(head.commit.id));
-      // Removal wins concurrent copies until an explicit save joins their heads.
-      items.push(
-        versions.find((version) => version.contact.removed) ?? versions[0]!,
-      );
-    }
+    const page = groups.slice(offset, offset + 16);
+    const items = await this.openGroups(page);
     return {
       items,
       next: groups.length > offset + 16 ? page.at(-1)![0]!.change.entity : null,
     };
+  }
+  private async openGroups(groups: VaultEntry[][]): Promise<BookVersion[]> {
+    if (groups.some((heads) => heads.length > 16))
+      throw new Error(
+        'Resolva as versões deste contato antes de abrir a lista.',
+      );
+    const entries = groups.flat(),
+      versions = new Map<string, BookVersion>();
+    for (let offset = 0; offset < entries.length; offset += 16) {
+      const page = entries.slice(offset, offset + 16);
+      const values = await this.sync.openMany(
+        page.map((entry) => entry.commit.id),
+      );
+      for (const [index, vault] of page.entries())
+        versions.set(vault.commit.id, {
+          vault,
+          contact: addressBookEntry(JSON.parse(values[index]!) as unknown),
+        });
+    }
+    // Removal wins concurrent copies until an explicit save joins their heads.
+    return groups.map((heads) => {
+      const opened = heads.map((head) => versions.get(head.commit.id)!);
+      return opened.find((version) => version.contact.removed) ?? opened[0]!;
+    });
   }
   async remove(
     contact: AddressBookEntry,
@@ -204,7 +223,7 @@ export function incomingInvitation(
   hash: string,
   origin: string,
 ): Invitation | null {
-  return hash.startsWith('#contatos?convite=')
+  return contactInvitationValue(hash) !== null
     ? readInvitation(origin + '/' + hash, origin)
     : null;
 }

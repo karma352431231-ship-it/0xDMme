@@ -53,7 +53,7 @@ import {
 import { createCommunityAccount } from './community-fixture.ts';
 import { groupParticipant } from '../fixtures/group-participant.ts';
 
-await test('cortes 7–8: consentimento, E2EE, mídia e cofre social', async (t) => {
+await test('cortes 7–8: DMs diretas, bloqueio, E2EE, mídia e cofre social', async (t) => {
   const config = readWebConfiguration(process.env);
   if (!new URL(config.databaseUrl).pathname.startsWith('/hash_talk_test'))
     throw new Error('Banco exclusivo de testes necessário.');
@@ -170,7 +170,7 @@ await test('cortes 7–8: consentimento, E2EE, mídia e cofre social', async (t)
       deviceName: 'Aparelho de DMs',
     });
   await t.test(
-    'contato privado não dá consentimento social; pedido não contém dados privados',
+    'DM pública abre sem aceite/follow e sem revelar dados do contato privado',
     async () => {
       await inspector.query(
         "INSERT INTO hash_talk.contact_relations(lo,hi,requester,state) VALUES(least($1::uuid,$2::uuid),greatest($1::uuid,$2::uuid),$1,'approved')",
@@ -181,9 +181,14 @@ await test('cortes 7–8: consentimento, E2EE, mídia e cofre social', async (t)
         { status: 403 },
       );
       const requested = socialRelation(
-        await operate(alice, 'request', { peer: bp.id }),
+        await operate(alice, 'open', { peer: bp.id }),
       );
-      assert.equal(requested.canSend, false);
+      assert.equal(requested.canSend, true);
+      assert.equal(requested.state, 'approved');
+      assert.equal(
+        socialRelation(await operate(bob, 'state', { peer: ap.id })).canSend,
+        true,
+      );
       assert.equal(
         socialRelation(await operate(alice, 'request', { peer: bp.id }))
           .revision,
@@ -197,8 +202,8 @@ await test('cortes 7–8: consentimento, E2EE, mídia e cofre social', async (t)
       ])
         assert.equal(JSON.stringify(requested).includes(value), false);
       await assert.rejects(
-        operate(alice, 'decide', { peer: bp.id, revision: 1, accept: true }),
-        { status: 403 },
+        operate(bob, 'decide', { peer: ap.id, revision: 1, accept: false }),
+        { status: 409 },
       );
       await operate(bob, 'decide', { peer: ap.id, revision: 1, accept: true });
       await operate(bob, 'decide', { peer: ap.id, revision: 1, accept: true });
@@ -206,6 +211,35 @@ await test('cortes 7–8: consentimento, E2EE, mídia e cofre social', async (t)
         socialRelation(await operate(alice, 'state', { peer: bp.id })).canSend,
         true,
       );
+    },
+  );
+  await t.test(
+    'pedidos/recusas antigos abrem uma vez, inclusive com abertura simultânea',
+    async () => {
+      for (const state of ['pending', 'rejected']) {
+        await inspector.query(
+          'UPDATE hash_talk.social_relations SET state=$3,revision=revision+1 WHERE lo=least($1::uuid,$2::uuid) AND hi=greatest($1::uuid,$2::uuid)',
+          [ap.id, bp.id, state],
+        );
+        const previous = socialRelation(
+          await operate(alice, 'state', { peer: bp.id }),
+        );
+        assert.equal(previous.canSend, true);
+        const opened = await Promise.all([
+          operate(alice, 'open', { peer: bp.id }).then(socialRelation),
+          operate(bob, 'open', { peer: ap.id }).then(socialRelation),
+        ]);
+        for (const row of opened) {
+          assert.equal(row.canSend, true);
+          assert.equal(row.state, 'approved');
+          assert.equal(row.revision, previous.revision + 1);
+        }
+        assert.equal(
+          socialRelation(await operate(alice, 'open', { peer: bp.id }))
+            .revision,
+          previous.revision + 1,
+        );
+      }
     },
   );
   await t.test(
@@ -680,6 +714,146 @@ await test('cortes 7–8: consentimento, E2EE, mídia e cofre social', async (t)
     },
   );
   await t.test(
+    'edição pública exige autoria e texto, é idempotente e negocia leitura com clientes anteriores',
+    async () => {
+      const root = await am.encrypt({
+        authority: a.authority,
+        peerHistory: [b.directory],
+        recovery: [ar, br],
+        id: crypto.randomUUID(),
+        text: 'Texto original público',
+      });
+      const accepted = (await operate(alice, 'publish', { packet: root })) as {
+        hash: string;
+      };
+      const relation = {
+        id: root.id,
+        hash: accepted.hash,
+        author: ap.id,
+        type: 'edit' as const,
+      };
+      const edit = await am.encrypt({
+        authority: a.authority,
+        peerHistory: [b.directory],
+        recovery: [ar, br],
+        id: crypto.randomUUID(),
+        text: encodeDailyText({
+          text: 'Texto corrigido público',
+          reply: null,
+          forwarded: false,
+        }),
+        relation,
+      });
+      await operate(alice, 'publish', { packet: edit });
+      await operate(alice, 'publish', { packet: edit });
+      const count = await inspector.query<{ count: number }>(
+        'SELECT count(*)::integer AS count FROM hash_talk.social_messages WHERE id=$1',
+        [edit.id],
+      );
+      assert.equal(count.rows[0]?.count, 1);
+      const forged = await bm.encrypt({
+        authority: b.authority,
+        peerHistory: [a.directory],
+        recovery: [br, ar],
+        id: crypto.randomUUID(),
+        text: 'Tentativa de outro autor',
+        relation: { ...relation, author: bp.id },
+      });
+      await assert.rejects(operate(bob, 'publish', { packet: forged }), {
+        status: 409,
+      });
+      const wrongHash = await am.encrypt({
+        authority: a.authority,
+        peerHistory: [b.directory],
+        recovery: [ar, br],
+        id: crypto.randomUUID(),
+        text: 'Hash errado',
+        relation: { ...relation, hash: 'f'.repeat(64) },
+      });
+      await assert.rejects(operate(alice, 'publish', { packet: wrongHash }), {
+        status: 409,
+      });
+      const snapshot = await operate(alice, 'personal-snapshot', {});
+      const first = await inspector.query<{ sequence: string }>(
+        'SELECT sequence::text FROM hash_talk.social_messages WHERE id=$1',
+        [root.id],
+      );
+      const after = Number(first.rows[0]!.sequence) - 1;
+      const legacy = (await operate(alice, 'personal-page', {
+        snapshot,
+        after,
+        actions: true,
+      })) as { items: { packet?: { id: string } }[] };
+      assert.equal(
+        legacy.items.some((row) => row.packet?.id === edit.id),
+        false,
+      );
+      const current = (await operate(alice, 'personal-page', {
+        snapshot,
+        after,
+        actions: true,
+        edits: true,
+      })) as { items: { packet?: { id: string } }[] };
+      assert.equal(
+        current.items.some((row) => row.packet?.id === edit.id),
+        true,
+      );
+      const key = await openRecoveryKey(br, b.authority);
+      try {
+        const content = await bm.decryptContent({
+          packet: edit,
+          senderEvent: a.directory,
+          exported: openRoomKey(
+            key,
+            edit.archives.find((row) => row.accountId === bp.id)!,
+          ),
+        });
+        assert.equal(content.text.includes('Texto corrigido público'), true);
+        assert.equal(
+          JSON.stringify(edit).includes('Texto corrigido público'),
+          false,
+        );
+      } finally {
+        key.free();
+      }
+      await inspector.query(
+        'DELETE FROM hash_talk.social_receipts WHERE message_id=ANY($1::uuid[])',
+        [[root.id, edit.id]],
+      );
+      await inspector.query(
+        'DELETE FROM hash_talk.social_messages WHERE id=ANY($1::uuid[])',
+        [[root.id, edit.id]],
+      );
+    },
+  );
+  await t.test(
+    'checks da lista pública consultam somente envios próprios e não marcam leitura',
+    async () => {
+      const before = await inspector.query(
+        'SELECT * FROM hash_talk.social_receipts WHERE message_id=$1 ORDER BY profile_id,device_id',
+        [packet.id],
+      );
+      const own = (await operate(alice, 'preview-status', {
+        own: [packet.id],
+      })) as { id: string; read: boolean }[];
+      assert.equal(own[0]?.id, packet.id);
+      assert.equal(own[0]?.read, false);
+      assert.deepEqual(
+        await operate(bob, 'preview-status', { own: [packet.id] }),
+        [],
+      );
+      assert.deepEqual(
+        await operate(outsider, 'preview-status', { own: [packet.id] }),
+        [],
+      );
+      const after = await inspector.query(
+        'SELECT * FROM hash_talk.social_receipts WHERE message_id=$1 ORDER BY profile_id,device_id',
+        [packet.id],
+      );
+      assert.deepEqual(after.rows, before.rows);
+    },
+  );
+  await t.test(
     'leitura de DM exige recebimento neste aparelho e consentimento, sem confundir ACK',
     async () => {
       await assert.rejects(
@@ -832,15 +1006,13 @@ await test('cortes 7–8: consentimento, E2EE, mídia e cofre social', async (t)
       assert.equal(
         socialPage(await operate(alice, 'list', { after: null })).items[0]
           ?.canSend,
-        false,
+        true,
       );
       const fresh = socialRelation(
         await operate(bob, 'request', { peer: ap.id }),
       );
-      await assert.rejects(
-        operate(bob, 'decide', { peer: ap.id, revision: 1, accept: true }),
-        { status: 403 },
-      );
+      assert.equal(fresh.canSend, true);
+      assert.equal(fresh.state, 'approved');
       await operate(alice, 'decide', {
         peer: bp.id,
         revision: fresh.revision,
@@ -849,7 +1021,7 @@ await test('cortes 7–8: consentimento, E2EE, mídia e cofre social', async (t)
     },
   );
   await t.test(
-    'capacidade global recusa nova solicitação sem efeito parcial',
+    'capacidade global recusa nova conversa sem efeito parcial',
     async () => {
       const small = new Database(config.databaseUrl, 1),
         service = new MessageService(small, small.devices);

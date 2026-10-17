@@ -1,0 +1,59 @@
+/*
+ * Phones: top bar, page headings and bottom bar.
+ */
+@media (max-width: 700px) {
+  #app-shell .brand-bar {
+    gap: 10px;
+    padding: max(12px, env(safe-area-inset-top)) 16px 10px;
+  }
+  #app-shell .brand {
+    display: none;
+  }
+  #app-shell .mobile-title {
+    display: block;
+    color: var(--text);
+    font: 700 22px/1.1 var(--font-display);
+  }
+  #app-shell .brand-bar .test-badge {
+    padding: 2px 7px;
+    font-size: 10px;
+  }
+  #app-shell:not([data-page='conversas']) #open-search {
+    display: none;
+  }
+  #app-shell .brand-bar .icon-button {
+    flex-basis: 40px;
+    width: 40px;
+    height: 40px;
+  }
+  #app-shell:not([data-page='perfil']) .page-heading {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  /* Bottom bar: the active tab is told by color, without a pill. */
+  #app-shell .mobile-nav {
+    padding: 6px 4px max(10px, env(safe-area-inset-bottom));
+  }
+  #app-shell .mobile-nav a {
+    gap: 3px;
+    padding: 4px 2px;
+    color: var(--text-faint);
+    font-size: 11px;
+    font-weight: 600;
+  }
+  #app-shell .mobile-nav a[aria-current='page'] {
+    background: transparent;
+    color: var(--text);
+  }
+  #app-shell .mobile-nav a[aria-current='page'] svg {
+    color: var(--accent);
+  }
+  #app-shell .mobile-nav svg {
+    width: 22px;
+    height: 22px;
+  }
+}

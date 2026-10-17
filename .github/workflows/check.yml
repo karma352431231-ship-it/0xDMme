@@ -1,10 +1,20 @@
 name: Verificações
 
+# Automatic on main, where deploy requires the exact pushed commit to pass, and
+# on pull requests. Task branches run on demand (Actions -> Run workflow, or the
+# workflow_dispatch API) so the same commit is not checked twice (17/10/2026).
 on:
   push:
     branches: [main]
   pull_request:
-    branches: [main]
+  workflow_dispatch:
+
+# A newer run on the same branch or pull request replaces an unfinished one.
+# On main each commit gets its own group, so no run there is queued behind or
+# cancelled by another: deploy reads the run of its exact commit.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref == 'refs/heads/main' && github.sha || github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 permissions:
   contents: read

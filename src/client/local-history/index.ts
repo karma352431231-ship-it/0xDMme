@@ -368,8 +368,13 @@ export async function dmConversationHistory(
   a: VaultAuthority,
   peer: string,
   before: number | null,
-  visible: (id: string, source: string) => boolean = () => true,
+  options: {
+    visible?: (id: string, source: string) => boolean;
+    maximum?: 1 | 16;
+  } = {},
 ): Promise<Extract<BackupRecord, { type: 'dm-message' }>[]> {
+  const visible = options.visible ?? (() => true),
+    maximum = options.maximum ?? 16;
   const rows = await transaction<StoredRecord[]>((tx, done) => {
     const request = tx
       .objectStore('records')
@@ -391,7 +396,7 @@ export async function dmConversationHistory(
     const seen = new Set<string>();
     request.onsuccess = () => {
       const cursor = request.result;
-      if (!cursor || result.length === 16) {
+      if (!cursor || result.length === maximum) {
         done(result);
         return;
       }

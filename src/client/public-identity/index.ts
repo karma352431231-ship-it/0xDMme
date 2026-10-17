@@ -10,7 +10,7 @@ export function publicIdentityAvatar(
 ): HTMLAnchorElement {
   const avatar = document.createElement('a');
   avatar.className = 'public-identity-avatar conversation-avatar';
-  avatar.href = `#publico?id=${profile.id}`;
+  avatar.href = `#users?id=${profile.id}`;
   avatar.setAttribute(
     'aria-label',
     t('Abrir perfil de @{0}', [profile.handle]),

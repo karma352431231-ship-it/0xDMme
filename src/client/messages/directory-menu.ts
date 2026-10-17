@@ -1,5 +1,5 @@
 import { t } from '../../shared/i18n/index.ts';
-import type { ConversationEntry } from './directory.ts';
+import type { ConversationAction, ConversationEntry } from './directory.ts';
 
 export function keepConversationMenu(
   current: ConversationEntry,
@@ -139,6 +139,41 @@ export class ConversationMenu {
       events.abort();
     });
   }
+  /** Actions with choices swap the list for those choices and a way back. */
+  private renderActions(
+    list: HTMLElement,
+    actions: readonly ConversationAction[],
+    parent: readonly ConversationAction[] | null,
+  ): void {
+    list.replaceChildren();
+    if (parent) {
+      const back = document.createElement('button');
+      back.type = 'button';
+      back.className = 'menu-back';
+      back.textContent = t('Voltar');
+      back.addEventListener('click', () => {
+        this.renderActions(list, parent, null);
+      });
+      list.append(back);
+    }
+    for (const action of actions) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.textContent = action.label;
+      button.dataset['conversationAction'] = action.id;
+      button.disabled = this.busy;
+      button.addEventListener('click', () => {
+        if (action.choices) {
+          this.renderActions(list, action.choices, actions);
+          list.querySelector<HTMLButtonElement>('button')?.focus();
+          return;
+        }
+        this.close();
+        action.perform();
+      });
+      list.append(button);
+    }
+  }
   private open(entry: ConversationEntry, anchor: HTMLElement): void {
     if (this.busy || !entry.actions?.length) return;
     this.close();
@@ -154,18 +189,10 @@ export class ConversationMenu {
     close.className = 'menu-close';
     close.textContent = t('Fechar');
     close.addEventListener('click', () => this.close());
-    dialog.append(title, close);
-    for (const action of entry.actions) {
-      const button = document.createElement('button');
-      button.type = 'button';
-      button.textContent = action.label;
-      button.dataset['conversationAction'] = action.id;
-      button.addEventListener('click', () => {
-        this.close();
-        action.perform();
-      });
-      dialog.append(button);
-    }
+    const list = document.createElement('div');
+    list.className = 'conversation-menu-actions';
+    dialog.append(title, close, list);
+    this.renderActions(list, entry.actions, null);
     if (entry.menuNote) {
       const note = document.createElement('small');
       note.textContent = entry.menuNote;

@@ -20,7 +20,7 @@ export function postSharing(
   button.className = 'post-action post-share';
   button.append(communityIcon('share'));
   container.append(button);
-  if (button instanceof HTMLAnchorElement) button.href = '#perfil';
+  if (button instanceof HTMLAnchorElement) button.href = '#settings';
   if (!(button instanceof HTMLButtonElement) || !access) {
     button.setAttribute('aria-label', t('Entre pelo Perfil para compartilhar'));
     return;

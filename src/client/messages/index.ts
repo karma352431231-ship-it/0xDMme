@@ -1,7 +1,10 @@
-import { t } from '../../shared/i18n/index.ts';
+import { t, translatedError } from '../../shared/i18n/index.ts';
 import { MessageContinuity } from './continuity.ts';
 import { initializeMessageDirectory } from './startup.ts';
 import { MessageSynchronization } from './synchronization.ts';
+import { MessageWarmup } from './warmup.ts';
+import { TextSendQueue } from './text-send.ts';
+import { OutgoingTexts } from './outgoing-text.ts';
 import { MessageHistoryUi } from './history-ui.ts';
 import { bindMessageLifecycle } from './lifecycle.ts';
 import {
@@ -45,7 +48,10 @@ import {
 } from '../notification-sound/index.ts';
 import { encodeDailyText, decodeDailyText } from '../../shared/daily/index.ts';
 import type { DailyPreferences } from '../../shared/daily/index.ts';
-import { attachmentContent } from '../../shared/attachments/index.ts';
+import {
+  attachmentContent,
+  chatFileLimit,
+} from '../../shared/attachments/index.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
 import type { Peer, AddressBookEntry } from '../../shared/contacts/index.ts';
 import type { VaultAccess } from '../vault-authority/index.ts';
@@ -55,6 +61,10 @@ import type { MessageView } from './controller.ts';
 import { MessageDirectory } from './directory-controller.ts';
 import type { ConversationPeer } from './directory-controller.ts';
 import { MessageDirectoryUi } from './directory-ui.ts';
+import { PeerPhotos } from './peer-photos.ts';
+import { ProfileBroadcast } from './profile-broadcast.ts';
+import { ConversationPreviewLoader } from '../conversation-preview/index.ts';
+import { uploadStatus } from '../upload-progress/index.ts';
 export function startMessages(
   access: VaultAccess,
   sync: VaultSync,
@@ -65,6 +75,7 @@ export function startMessages(
     openConversation: () => void;
     openContact: (contact: AddressBookEntry) => void;
     directoryChanged: (available: boolean) => void;
+    directorySettled?: (session: AccountSession | null) => void;
     representatives?: ReturnType<typeof startRepresentatives>;
     liveEvent?: (event: LiveEvent) => void;
     liveState?: (connected: boolean) => void;
@@ -75,7 +86,7 @@ export function startMessages(
 ) {
   const { playback, sharedProfile, preferences } = options;
   const contacts = new Contacts(access),
-    attachments = new AttachmentUi(playback, voiceStatus),
+    attachments = new AttachmentUi(playback, voiceStatus, chatFileLimit),
     daily = new Daily(access, sync);
   const sound = new NotificationSound();
   const agenda = new ContactDirectory(sync),
@@ -108,6 +119,9 @@ export function startMessages(
   let settingsHost: HTMLElement | null = null;
   let pushSettings: ReturnType<typeof mountPushSettings> | null = null;
   let message = t('Entre e autorize este aparelho para conversar.');
+  // Sent fraction of the attachment being uploaded, shown as a ring (16/10/2026).
+  const uploadIndicator = uploadStatus();
+  let uploading: number | null = null;
   let recordingPeer: string | null = null;
   const voice = new VoiceRecording({
     changed: () => voiceStatus(),
@@ -129,6 +143,7 @@ export function startMessages(
   function composerStatus(): void {
     updateChatComposer(node('[data-message-form]'), {
       blocked: synchronization.busy || rows === null || !selected,
+      textSendBlocked: canQueueText() ? textQueue.full : undefined,
       recording: voice.active,
       attachment: attachments.selected !== null,
     });
@@ -167,9 +182,25 @@ export function startMessages(
         voice.active ||
         !!attachments.selected?.voice;
   }
-  const controller = new Messages(access, sync, (value, update) => {
-    rows = value;
-    renderHistory(update);
+  const outgoing = new OutgoingTexts();
+  let pendingRender = 0;
+  const controller = new Messages(
+    access,
+    sync,
+    (value, update) => {
+      pendingRender++;
+      rows = value;
+      outgoing.observed(value);
+      renderHistory(update);
+    },
+    (value) => {
+      outgoing.acknowledge(value);
+      renderHistory();
+    },
+  );
+  const previews = new ConversationPreviewLoader({
+    load: (peers) => controller.directoryPreviews(peers),
+    changed: renderContacts,
   });
   const groups = startGroups(access, sync, {
     externalMedia: options.externalMedia,
@@ -199,7 +230,20 @@ export function startMessages(
       renderContacts();
     },
   });
+  const peerPhotos = new PeerPhotos({
+    scope: () => session?.accountId ?? null,
+    load: (id) => controller.knownProfile(id),
+  });
+  const showPeerPhoto = (
+    host: HTMLElement,
+    peer: string,
+    signal: AbortSignal,
+    ready?: (url: string | null) => void,
+  ) => peerPhotos.show(host, peer, signal, ready);
   const directoryUi = new MessageDirectoryUi({
+    previews: previews.values,
+    previewsFailed: () => previews.failed,
+    peerPhoto: showPeerPhoto,
     snapshot: () => ({
       peers: directoryData.peers,
       selected,
@@ -217,11 +261,11 @@ export function startMessages(
     contactActions,
     perform: performDirectoryAction,
     openPeer: (peer) => {
-      if (!reopenSelectedPeer(peer)) void run(() => openPeer(peer));
+      void requestPeer(peer);
     },
     openContact: options.openContact,
     openGroup: (group) => {
-      void run(() => groups.open(group));
+      void synchronization.open(() => groups.open(group));
     },
     changed: options.directoryChanged,
     presence: renderPresence,
@@ -261,7 +305,23 @@ export function startMessages(
       );
     },
   });
-  const synchronization = new MessageSynchronization({
+  // Confirmed contacts get the new card after a profile change, not only on open.
+  const profileBroadcast = new ProfileBroadcast({
+    card: sharedProfile,
+    peers: () =>
+      directoryData.peers
+        .filter((peer) => !peer.localOnly)
+        .map((peer) => peer.accountId),
+    share: (peer, card) => controller.shareProfile(peer, card),
+    ready: () =>
+      startupWarmup.ready &&
+      !startupWarmup.pending &&
+      !textQueue.pending &&
+      !!session &&
+      navigator.onLine &&
+      !synchronization.busy,
+  });
+  const synchronization: MessageSynchronization = new MessageSynchronization({
     state: () => ({
       generation,
       connected: connected(),
@@ -270,12 +330,20 @@ export function startMessages(
       visible: document.visibilityState === 'visible',
       suspended: continuity.suspended,
       liveConnecting: live.connecting,
+      startupPending: startupWarmup.pending,
+      textPending: textQueue.pending,
     }),
     status,
     notice: (value) => {
       message = value;
     },
     complete: () => {
+      if (!startupWarmup.pending && !textQueue.pending)
+        void previews.refresh(
+          directoryData.peers
+            .filter((peer) => !peer.localOnly)
+            .map((peer) => peer.accountId),
+        );
       message = controller.transportPending
         ? t('Alguns envios ainda estão pendentes. A retomada é automática.')
         : t('Conversas atualizadas.');
@@ -293,7 +361,60 @@ export function startMessages(
     periodic: periodicMessages,
     periodicWork: periodicMessageWork,
     pending: () => controller.pending(),
-    sendPending: () => controller.sendPending(),
+    sendPending: () => sendPending(),
+  });
+  const textQueue: TextSendQueue = new TextSendQueue({
+    draftChanged: (draft, phase) => outgoing.update(draft, phase),
+    save: (draft) => controller.queueText(draft),
+    available: () => synchronization.foregroundReady,
+    transmit: async () => {
+      const ok = await synchronization.run(() => sendPending());
+      return { ok, more: (await controller.pending()).length > 0 };
+    },
+    changed: () => {
+      renderHistory();
+      renderPending().catch(reportTextSaveError);
+      status();
+      synchronization.resume();
+      if (!textQueue.pending) broadcastProfile();
+    },
+    failed: reportTextSaveError,
+  });
+  const startupWarmup: MessageWarmup = new MessageWarmup({
+    available: () => synchronization.backgroundReady,
+    run: (step) => synchronization.background(step),
+    changed: () => {
+      synchronization.resume();
+      broadcastProfile();
+    },
+    failed: (error) => {
+      message =
+        error instanceof Error
+          ? translatedError(error.message)
+          : t('Não foi possível concluir a operação.');
+      status();
+    },
+    steps: [
+      async () => {
+        await groups.refresh();
+        contactsMore();
+      },
+      async () => {
+        const current = generation;
+        await sendPending();
+        if (current === generation) await controller.savePins();
+      },
+      dailyTick,
+      async () => {
+        const current = generation;
+        await previews.refresh(
+          directoryData.peers
+            .filter((peer) => !peer.localOnly)
+            .map((peer) => peer.accountId),
+        );
+        if (current === generation) options.directorySettled?.(session);
+      },
+    ],
   });
   const continuity = new MessageContinuity({
     current: () => live.current,
@@ -303,10 +424,15 @@ export function startMessages(
     reconnect: () => live.retry(),
     check: () => requestRefresh('probe'),
   });
+  /** The name the conversation list shows: saved alias, profile name, then the address. */
+  const peerTitle = (peer: ConversationPeer) =>
+    agenda.find(peer)?.contact.alias || peer.name || peer.address;
   const historyUi = new MessageHistoryUi({
+    peerPhoto: showPeerPhoto,
     node,
     context: () => ({
       selected,
+      title: selected ? peerTitle(selected) : null,
       peers: directoryData.peers,
       session,
       calls: !!options.calls,
@@ -321,8 +447,7 @@ export function startMessages(
           .filter((peer) => !peer.localOnly)
           .map((peer) => ({
             id: peer.accountId,
-            title:
-              agenda.find(peer)?.contact.alias || peer.name || peer.address,
+            title: peerTitle(peer),
             seed: peer.address,
           })),
       profile: (id) => controller.knownProfile(id),
@@ -332,6 +457,11 @@ export function startMessages(
     media: (view, thumbnail) => controller.media(view, thumbnail),
     run,
     composerChanged: composerStatus,
+    outgoing: () => outgoing.forPeer(selected?.accountId),
+    retryOutgoing: () => {
+      outgoing.retry();
+      textQueue.retry();
+    },
     ...(options.externalMedia ? { externalMedia: options.externalMedia } : {}),
     ...(options.representatives
       ? { representatives: options.representatives }
@@ -375,6 +505,8 @@ export function startMessages(
     if (['authorization', 'invalidated', 'revoked', 'ended'].includes(event))
       suspend('invalidate');
     else if (event === 'removed') {
+      previews.clear();
+      renderContacts();
       // Cancel the history token immediately without cancelling an in-flight
       // signed mutation (the sender receives its own deletion before its reply).
       controller.removed();
@@ -421,9 +553,20 @@ export function startMessages(
     if (directoryStatus)
       directoryStatus.textContent = synchronization.failed ? message : '';
   }
+  /** While an attachment is sent, the strip shows its ring instead of text. */
+  function renderUploadStatus(text: HTMLElement): boolean {
+    if (!synchronization.busy) uploading = null;
+    if (uploading === null) return false;
+    uploadIndicator.set(uploading);
+    text.replaceChildren(uploadIndicator.element);
+    const strip = text.closest<HTMLElement>('.chat-feedback');
+    if (strip) strip.dataset['state'] = 'notice';
+    return true;
+  }
   function renderChatStatus(): void {
     const text = node('[data-message-status]');
     if (!text) return;
+    if (renderUploadStatus(text)) return;
     const upToDate =
       !synchronization.busy &&
       !synchronization.failed &&
@@ -438,6 +581,8 @@ export function startMessages(
     if (strip) strip.dataset['state'] = upToDate ? 'ok' : 'notice';
   }
   function status(): void {
+    textQueue.resume();
+    startupWarmup.resume();
     renderStatusMessage();
     menu.setBusy(synchronization.busy);
     const dailyStatus = settingsHost?.querySelector('[data-daily-status]');
@@ -451,7 +596,7 @@ export function startMessages(
           | HTMLSelectElement
           | HTMLTextAreaElement
         >(
-          'button:not([data-chat-back]),input,select,textarea:not([data-message-text]):not([data-group-text])',
+          'button:not([data-chat-back]):not([data-conversation]),input,select,textarea:not([data-message-text]):not([data-group-text])',
         )
         .forEach((control) => {
           control.disabled = synchronization.busy;
@@ -505,8 +650,8 @@ export function startMessages(
     });
     return button;
   }
-  function run(work: () => Promise<void>): Promise<void> {
-    return synchronization.run(work);
+  async function run(work: () => Promise<void>): Promise<void> {
+    await synchronization.run(work);
   }
   function stopPreload(): void {
     synchronization.stopPreload();
@@ -571,9 +716,19 @@ export function startMessages(
     node('[data-message-pending]')?.replaceChildren();
     if (mounted) delete mounted.dataset['voicePeer'];
   }
+  async function sendPending(): Promise<void> {
+    outgoing.beginTransfer();
+    try {
+      await controller.sendPending();
+    } catch (error: unknown) {
+      outgoing.failTransfer();
+      renderHistory();
+      throw error;
+    }
+  }
   async function transmit(): Promise<void> {
     if (navigator.onLine) {
-      await controller.sendPending();
+      await sendPending();
       await synchronizeVisible();
       await controller.savePins();
     }
@@ -627,20 +782,77 @@ export function startMessages(
   async function renderPending(): Promise<void> {
     const list = node('[data-message-pending]');
     if (!list) return;
-    const current = generation;
+    const expected = generation,
+      peer = selected?.accountId,
+      revision = ++pendingRender;
+    const current = () =>
+      expected === generation &&
+      revision === pendingRender &&
+      peer === selected?.accountId &&
+      list === node('[data-message-pending]');
     const pending = await controller.pending();
-    if (current !== generation || list !== node('[data-message-pending]'))
-      return;
-    list.replaceChildren();
-    for (const item of pending) {
-      const li = document.createElement('li');
-      li.textContent = t('Envio pendente para {0} ', [item.peer.slice(0, 8)]);
-      li.append(
-        action(t('Apagar envio'), async () => {
-          await controller.discard(item.id);
+    if (!current()) return;
+    list.replaceChildren(
+      ...pending
+        .filter(
+          (item) => item.peer === peer && !item.text && !outgoing.has(item.id),
+        )
+        .map((item) =>
+          pendingBubble(
+            action(t('Apagar envio'), async () => {
+              await controller.discard(item.id);
+            }),
+          ),
+        ),
+    );
+    if (!peer || rows === null) return;
+    const restored = await outgoing.restorePending({
+      peer,
+      pending,
+      verified: rows,
+      current: () => current() && rows !== null,
+      read: (ids) => controller.pendingTexts(peer, ids),
+    });
+    if (restored) renderHistory();
+  }
+  function reportTextSaveError(error: unknown): void {
+    message =
+      error instanceof Error
+        ? translatedError(error.message)
+        : t('Não foi possível concluir a operação.');
+    status();
+  }
+  function canQueueText(): boolean {
+    return (
+      !!selected &&
+      !selected.localOnly &&
+      rows !== null &&
+      !continuity.suspended &&
+      !voice.active &&
+      !attachments.selected &&
+      composing?.mode !== 'edit'
+    );
+  }
+  function queueText(): boolean {
+    const field = node<HTMLTextAreaElement>('[data-message-text]');
+    if (!canQueueText() || !selected || !field?.value.trim()) return false;
+    try {
+      textQueue.enqueue({
+        id: crypto.randomUUID(),
+        peer: selected.accountId,
+        text: encodeDailyText({
+          text: field.value,
+          reply: composing?.view.id ?? null,
+          forwarded: false,
         }),
-      );
-      list.append(li);
+      });
+      field.value = '';
+      clearContext();
+      field.dispatchEvent(new Event('input'));
+      return true;
+    } catch (error: unknown) {
+      reportTextSaveError(error);
+      return true;
     }
   }
   function organizationIds(): string[] {
@@ -712,10 +924,6 @@ export function startMessages(
       },
     ];
   }
-  function selectedOrganizationId(target: string): string {
-    if (groups.selected || !selected) return target;
-    return directoryUi.contactOrganizationId(agenda.find(selected), target);
-  }
   function renderContacts(): void {
     directoryUi.renderContacts();
   }
@@ -729,6 +937,18 @@ export function startMessages(
     showDirectConversation();
     enterConversation();
     return true;
+  }
+  function requestPeer(peer: ConversationPeer): Promise<void> {
+    if (reopenSelectedPeer(peer)) return Promise.resolve();
+    const current = generation;
+    const clear = directoryUi.openingPeer(peer.accountId);
+    return synchronization
+      .open(async () => {
+        clear();
+        if (current === generation && !continuity.suspended)
+          await openPeer(peer);
+      })
+      .finally(clear);
   }
   async function openPeer(peer: ConversationPeer): Promise<void> {
     if (
@@ -747,7 +967,6 @@ export function startMessages(
       await controller.openArchive(peer.accountId);
       return;
     }
-    await controller.loadPins();
     const card = sharedProfile();
     if (card) await controller.shareProfile(peer.accountId, card);
     await synchronizeVisible();
@@ -768,6 +987,9 @@ export function startMessages(
     if (mounted) mounted.dataset['voicePeer'] = peer.accountId;
     controller.select(peer.accountId);
     renderHistory();
+    // Pending bubbles belong to the open conversation only; a failed local
+    // read keeps the previous list until the next send or synchronization.
+    renderPending().catch(() => undefined);
   }
   function mountRepresentativeChat(peer: ConversationPeer): void {
     const representativePanel = node('[data-representative-chat]');
@@ -834,14 +1056,9 @@ export function startMessages(
           if (current !== generation) throw new Error('Sessão alterada.');
         },
       });
-      await groups.refresh();
-      contactsMore();
-      await controller.sendPending();
-      if (selected && conversationMounted('[data-direct-conversation]')) {
-        await refreshSelected();
-      }
+      if (!synchronization.openingRequested) await refreshSelected();
       await controller.savePins();
-      await dailyTick();
+      startupWarmup.request();
       if (
         session &&
         navigator.onLine &&
@@ -849,7 +1066,10 @@ export function startMessages(
       )
         live.start();
     } catch (error: unknown) {
-      if (current === generation) controller.hide();
+      if (current === generation) {
+        controller.hide();
+        options.directorySettled?.(session);
+      }
       throw error;
     }
   }
@@ -874,7 +1094,7 @@ export function startMessages(
     await controller.savePins();
   }
   async function refreshSelected(): Promise<void> {
-    if (!selected) return;
+    if (!selected || !conversationMounted('[data-direct-conversation]')) return;
     if (selected.localOnly) {
       await controller.openArchive(selected.accountId);
       return;
@@ -885,7 +1105,8 @@ export function startMessages(
   }
   async function synchronizeVisible(): Promise<void> {
     if (!conversationMounted('[data-direct-conversation]')) return;
-    if (await controller.probe()) {
+    if (await controller.probe({ priority: 'interactive' })) {
+      await controller.loadPins();
       synchronization.prepareHistory();
       await controller.synchronize();
     }
@@ -911,11 +1132,12 @@ export function startMessages(
     recordingPeer = null;
     await renderPending();
     if (navigator.onLine) {
-      await controller.sendPending();
+      await sendPending();
       await synchronizeVisible();
       await controller.savePins();
     }
-    await dailyTick();
+    if (startupWarmup.pending) await historyUi.markRead(daily);
+    else await dailyTick();
   }
   /** GIF tab of the composer's emoji panel; a chosen GIF is sent at once. */
   function gifPane(host: HTMLElement, close: () => void): void {
@@ -935,7 +1157,7 @@ export function startMessages(
     );
     await renderPending();
     if (navigator.onLine) {
-      await controller.sendPending();
+      await sendPending();
       await synchronizeVisible();
     }
   }
@@ -1047,6 +1269,9 @@ export function startMessages(
     return result;
   }
   function suspend(reason: 'pause' | 'invalidate' = 'pause'): void {
+    synchronization.cancelOpening();
+    previews.clear();
+    renderContacts();
     stopPreload();
     menu.close();
     emojiPicker.close();
@@ -1059,6 +1284,7 @@ export function startMessages(
   }
   function attachmentProgress(progress: { done: number; total: number }): void {
     if (!synchronization.busy || !mounted?.isConnected) return;
+    uploading = progress.total ? progress.done / progress.total : 0;
     message = t(
       'Enviando anexo: parte {0} de {1}. Fechar o app pausa a transferência; o rascunho cifrado permanece.',
       [progress.done, progress.total],
@@ -1066,7 +1292,8 @@ export function startMessages(
     status();
   }
   function beforeUnload(event: BeforeUnloadEvent): void {
-    if (!voice.active && !attachments.selected?.voice) return;
+    if (!voice.active && !attachments.selected?.voice && !textQueue.unsaved)
+      return;
     event.preventDefault();
     event.returnValue = '';
   }
@@ -1163,12 +1390,19 @@ export function startMessages(
     return synchronization.pendingWork();
   }
   function preferencesChanged(): void {
+    if (!startupWarmup.ready || startupWarmup.pending) return;
     if (!synchronization.busy && session && navigator.onLine)
       void synchronization.maintainPresence();
+    broadcastProfile();
+  }
+  /** Background round; a failure is retried by the next tick or profile save. */
+  function broadcastProfile(): void {
+    profileBroadcast.run().catch(() => undefined);
   }
   function pageHide(event: PageTransitionEvent): void {
     continuity.freeze();
     synchronization.reset();
+    startupWarmup.pause();
     if (voice.active)
       void voice.stop(
         t(
@@ -1176,6 +1410,9 @@ export function startMessages(
         ),
       );
     if (!event.persisted) {
+      textQueue.reset();
+      outgoing.reset();
+      startupWarmup.reset();
       voice.cancel();
       groups.suspend(true);
       playback.close();
@@ -1204,6 +1441,7 @@ export function startMessages(
     preferences: preferencesChanged,
     tick: () => {
       continuity.changed();
+      broadcastProfile();
       return synchronization.periodicTick();
     },
     progress: attachmentProgress,
@@ -1300,7 +1538,7 @@ export function startMessages(
       'submit',
       (event) => {
         event.preventDefault();
-        void run(submit);
+        if (!queueText()) void run(submit);
       },
     );
   }
@@ -1324,12 +1562,7 @@ export function startMessages(
       renderContacts();
     },
     async openContact(peer: Peer): Promise<void> {
-      if (synchronization.busy)
-        throw new Error(
-          'Aguarde a atualização das conversas e tente novamente.',
-        );
-      if (reopenSelectedPeer(peer)) return;
-      await run(() => openPeer(peer));
+      await requestPeer(peer);
     },
     async contactSaved(contact: AddressBookEntry): Promise<void> {
       await agenda.saved(contact);
@@ -1356,7 +1589,10 @@ export function startMessages(
         return;
       }
       generation++;
+      textQueue.reset();
+      outgoing.reset();
       continuity.reset();
+      previews.clear();
       historyUi.clear();
       externalAbort.abort();
       externalAbort = new AbortController();
@@ -1370,6 +1606,7 @@ export function startMessages(
       live.stop();
       emojiPicker.reset();
       synchronization.reset();
+      startupWarmup.reset();
       session = value;
       contacts.setSession(value);
       daily.setSession(value);
@@ -1398,6 +1635,7 @@ export function startMessages(
     },
     canActivate: () =>
       !synchronization.busy &&
+      !textQueue.unsaved &&
       !voice.active &&
       !attachments.selected?.voice &&
       groups.canActivate(),
@@ -1427,28 +1665,6 @@ export function startMessages(
         container.querySelector(selector)?.addEventListener('click', () => {
           void run(work);
         });
-      const peerLabel = container.querySelector('[data-mute-peer]');
-      if (peerLabel)
-        peerLabel.textContent =
-          selected?.name ||
-          selected?.address ||
-          groups.selected?.title ||
-          t('selecione uma conversa primeiro');
-      on('[data-mute]', async () => {
-        const target = groups.selected?.state.groupId ?? selected?.accountId;
-        if (!target || selected?.localOnly)
-          throw new Error(
-            'Selecione uma conversa antes de alterar os alertas.',
-          );
-        await daily.mute(
-          target,
-          Number(
-            container.querySelector<HTMLSelectElement>('[data-mute-duration]')
-              ?.value ?? 0,
-          ),
-          { settingsId: selectedOrganizationId(target) },
-        );
-      });
       pushSettings = mountPushSettings(
         container.querySelector<HTMLElement>('[data-push-settings]')!,
         daily,
@@ -1475,7 +1691,15 @@ export function startMessages(
       if (selected) container.dataset['voicePeer'] = selected.accountId;
       attachments.mount(container, run);
       const form = node('[data-message-form]');
-      if (form) bindChatComposer(form, composerStatus);
+      if (form)
+        bindChatComposer(form, () => {
+          if (
+            canQueueText() &&
+            node<HTMLTextAreaElement>('[data-message-text]')?.value
+          )
+            textQueue.deferBackground();
+          composerStatus();
+        });
       bindChatOptions(container);
       mountGroups(container);
       bindVoiceControls();
@@ -1495,3 +1719,22 @@ export type { MessageItem } from './history.ts';
 export { Messages } from './controller.ts';
 
 export type { MessageView } from './controller.ts';
+
+/** Legacy media/control sends keep their existing discardable progress row. */
+function pendingBubble(discard: HTMLButtonElement): HTMLLIElement {
+  const li = document.createElement('li'),
+    dots = document.createElement('span'),
+    label = document.createElement('span');
+  li.className = 'chat-pending-bubble';
+  dots.className = 'chat-pending-dots';
+  dots.setAttribute('aria-hidden', 'true');
+  dots.append(...[0, 1, 2].map(() => document.createElement('i')));
+  label.className = 'chat-pending-label';
+  label.textContent = t('message.sending');
+  discard.className = 'chat-pending-discard';
+  discard.setAttribute('aria-label', discard.textContent ?? '');
+  discard.title = discard.textContent ?? '';
+  discard.textContent = '×';
+  li.append(dots, label, discard);
+  return li;
+}

@@ -1,3 +1,4 @@
+import { communityHref } from '../../shared/app-routes/index.ts';
 import { t, currentLanguage } from '../../shared/i18n/index.ts';
 import type { CommunityPost } from '../../shared/community-posts/index.ts';
 import { avatarInitials, avatarTone } from '../appearance/index.ts';
@@ -30,8 +31,15 @@ const paths = {
     'm20 11-8.5 8.5a5 5 0 0 1-7-7L13 4a3.5 3.5 0 0 1 5 5l-8.5 8.5a2 2 0 0 1-3-3L14 7',
   ],
   pencil: ['M4 20h4L19 9l-4-4L4 16z', 'm13.5 6.5 4 4'],
+  check: ['m5 12.5 4.5 4.5L19 7'],
   plus: ['M12 5v14', 'M5 12h14'],
   back: ['m14 6-6 6 6 6'],
+  community: [
+    'M15 20v-1.5a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4V20',
+    'M8.5 4a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7',
+    'M19 8v6',
+    'M22 11h-6',
+  ],
   reply: ['m9 14-5-5 5-5', 'M4 9h10a6 6 0 0 1 6 6v5'],
   hide: [
     'M3 3l18 18',
@@ -102,7 +110,7 @@ export function postHeader(
     link(
       identity,
       `@${post.author.handle}`,
-      `#publico?handle=${encodeURIComponent(post.author.handle)}`,
+      `#users?handle=${encodeURIComponent(post.author.handle)}`,
     );
     identity.lastElementChild?.classList.add('community-post-author');
     authorBadges(identity, post);
@@ -110,7 +118,7 @@ export function postHeader(
     identity.append(el('span', t('Conta removida'), 'community-post-author'));
   const byline = el('div', '', 'community-post-byline');
   if (context === 'feed') {
-    link(byline, group.name, `#comunidades?id=${group.id}`);
+    link(byline, group.name, communityHref(group));
     byline.lastElementChild?.classList.add('community-post-community');
   }
   const time = el(
@@ -148,7 +156,7 @@ function authorAvatar(post: CommunityPost): HTMLElement {
   if (post.author) {
     avatar.setAttribute(
       'href',
-      `#publico?handle=${encodeURIComponent(post.author.handle)}`,
+      `#users?handle=${encodeURIComponent(post.author.handle)}`,
     );
     avatar.setAttribute(
       'aria-label',
@@ -166,7 +174,7 @@ export function postComments(
   post: CommunityPost,
 ): void {
   const a = el('a', '', 'post-action post-comments');
-  a.href = `#comunidades?id=${post.community}&post=${post.id}`;
+  a.href = `#communities?id=${post.community}&post=${post.id}`;
   a.setAttribute(
     'aria-label',
     t('Abrir postagem e {0} respostas diretas', [post.replies]),
@@ -183,7 +191,7 @@ export function postTagLink(node: HTMLElement, post: CommunityPost): void {
   if (!post.tags.length) return;
   const row = el('div', '', 'post-tags');
   for (const tag of post.tags) {
-    link(row, tag.label, `#comunidades?id=${post.community}&tag=${tag.id}`);
+    link(row, tag.label, `#communities?id=${post.community}&tag=${tag.id}`);
     row.lastElementChild?.classList.add('post-tag');
   }
   node.append(row);

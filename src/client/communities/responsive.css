@@ -1,0 +1,137 @@
+/*
+ * Communities on narrow windows, phones and touch screens.
+ */
+@media (max-width: 1000px) and (min-width: 701px) {
+  .app[data-page='comunidades'] {
+    grid-template-columns: 230px minmax(0, 1fr);
+  }
+  .app[data-page='comunidades'] main {
+    padding: 24px 18px;
+  }
+}
+@media (max-width: 700px) {
+  .app[data-page='comunidades'] {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto auto minmax(0, 1fr) auto;
+  }
+  .app[data-page='comunidades'] .brand-bar {
+    background: var(--surface);
+    padding: max(15px, env(safe-area-inset-top)) 15px 15px;
+  }
+  .app[data-page='comunidades'] .community-directory {
+    display: none;
+  }
+  .app[data-page='comunidades'] .community-mobile-tabs {
+    grid-row: 2;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
+    background: var(--surface);
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--line);
+  }
+  .community-mobile-tabs a {
+    display: grid;
+    place-items: center;
+    padding: 8px 4px;
+    border-radius: 7px;
+    min-height: 40px;
+  }
+  .community-mobile-tabs a[aria-current='page'] {
+    background: var(--accent-soft);
+    color: var(--accent-text);
+  }
+  .app[data-page='comunidades'] main {
+    grid-row: 3;
+    padding: 16px 13px;
+  }
+  .community-tools {
+    margin: 0 0 8px;
+  }
+  .community-tools > a,
+  .community-more > summary {
+    font-size: 0;
+    min-height: 40px;
+    padding: 4px 6px;
+    width: 40px;
+    justify-content: center;
+  }
+  .community-tools > a:not(:has(svg)) {
+    font-size: var(--fs-caption);
+    width: auto;
+  }
+  .community-heading h1 {
+    font-size: var(--fs-title);
+    letter-spacing: -0.5px;
+  }
+  .community-heading {
+    margin-bottom: 16px;
+  }
+  .community-public-label {
+    display: none;
+  }
+  .app[data-page='comunidades'] .community-card {
+    padding: 13px;
+    background: var(--surface);
+  }
+  .app[data-page='comunidades'] .community-card h2 {
+    font-size: var(--fs-input);
+  }
+  .community-post-identity {
+    display: block;
+  }
+  .community-post-community {
+    font-size: var(--fs-small);
+  }
+  .community-post-byline {
+    margin-top: 3px;
+    font-size: var(--fs-caption);
+  }
+  .community-feed-filters {
+    gap: 8px;
+  }
+  .community-feed-scopes {
+    flex: 1 0 100%;
+  }
+  .community-feed-scopes a {
+    min-height: 36px;
+    font-size: var(--fs-caption);
+  }
+  .post-action-caption {
+    display: none;
+  }
+  .post-actions {
+    gap: 6px;
+  }
+  .app[data-page='comunidades'] .mobile-nav {
+    grid-row: 4;
+    background: var(--surface);
+    border-color: var(--line);
+    padding: 10px 2px max(10px, env(safe-area-inset-bottom));
+  }
+  .app[data-page='comunidades'] .mobile-nav a {
+    font-size: var(--fs-caption);
+    border-radius: 12px;
+  }
+  .app[data-page='comunidades'] .mobile-nav a[aria-current='page'] {
+    background: var(--accent-soft);
+    color: var(--accent-text);
+  }
+  .app[data-page='comunidades'] .mobile-nav svg {
+    width: 21px;
+    height: 21px;
+  }
+  .app[data-page='comunidades'] :is(input, textarea, select) {
+    font-size: var(--fs-input);
+  }
+}
+@media (pointer: coarse) {
+  .app[data-page='comunidades']
+    :is(button, .post-action, summary, .community-mobile-tabs a) {
+    min-height: 44px;
+  }
+  .app[data-page='comunidades'] .post-votes :is(button, a) {
+    min-width: 44px;
+    min-height: 44px;
+  }
+}

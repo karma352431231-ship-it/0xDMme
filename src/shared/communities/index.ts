@@ -1,3 +1,4 @@
+import { communitySlug } from '../community-address/index.ts';
 import { communityClassification } from '../community-classification/index.ts';
 import type { CommunityClassification } from '../community-classification/index.ts';
 import { communityName } from '../community-name/index.ts';
@@ -14,6 +15,7 @@ export const communityPageSize = 24;
 export const communityPolicy = 'community.content-policy';
 export type CommunityRole = 'owner' | 'moderator' | 'participant';
 export interface CommunityMeta {
+  slug?: string | null;
   name: string;
   description: string;
   rules: string;
@@ -103,6 +105,12 @@ function classificationFields(data: Record<string, unknown>) {
     ? { classification: communityClassification(data['classification']) }
     : {};
 }
+function addressFields(data: Record<string, unknown>): {
+  slug?: string | null;
+} {
+  if (!Object.hasOwn(data, 'slug')) return {};
+  return { slug: data['slug'] === null ? null : communitySlug(data['slug']) };
+}
 export function community(value: unknown): Community {
   const d = object(value),
     classification = classificationFields(d);
@@ -118,6 +126,7 @@ export function community(value: unknown): Community {
     'followers',
     ...Object.keys(classification),
     ...(Object.hasOwn(d, 'banner') ? ['banner'] : []),
+    ...(Object.hasOwn(d, 'slug') ? ['slug'] : []),
     ...(Object.hasOwn(d, 'createdAt') ? ['createdAt'] : []),
   ]);
   if (
@@ -134,6 +143,7 @@ export function community(value: unknown): Community {
       rules: d['rules'],
     }),
     id,
+    ...addressFields(d),
     revision: communityRevision(d['revision']),
     archived: communityBoolean(d['archived']),
     avatar: publicAvatar(d['avatar'], 'community-photo', id),

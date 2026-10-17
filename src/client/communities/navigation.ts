@@ -1,3 +1,5 @@
+import { communitySlug } from '../../shared/community-address/index.ts';
+import { uuid } from '../../shared/account/index.ts';
 import { t } from '../../shared/i18n/index.ts';
 import { communityElement as el, communityLink as link } from './elements.ts';
 import { iconLabel } from './presentation.ts';
@@ -26,7 +28,7 @@ export function communityNavigation(
   if (options.view === 'create') return;
   const tools = el('nav', '', 'community-tools');
   tools.setAttribute('aria-label', t('Acessos de comunidades'));
-  if (options.selected) link(tools, t('← Feed'), '#comunidades?view=feed');
+  if (options.selected) link(tools, t('← Feed'), '#communities?view=feed');
   const menu = el('details', '', 'community-more'),
     summary = el('summary', t('Mais opções'));
   iconLabel(summary, 'more');
@@ -51,10 +53,10 @@ function moreChoices(options: {
     link(
       choices,
       t('Gerenciar comunidade'),
-      `#comunidades?id=${options.manage}&view=manage`,
+      `#communities?id=${options.manage}&view=manage`,
     );
   if (!options.signedIn) {
-    link(choices, t('Entrar pelo Perfil'), '#perfil');
+    link(choices, t('Entrar pelo Perfil'), '#settings');
     return choices;
   }
   for (const [key, title] of [
@@ -62,23 +64,37 @@ function moreChoices(options: {
     ['hidden', t('Ocultos')],
     ['replies', t('Respostas ao seu conteúdo')],
     ['invitations', t('Transferências')],
-    ['create', t('Criar comunidade')],
   ] as const)
-    link(choices, title, `#comunidades?view=${key}`);
-  // Phones only: wider screens show the floating create button instead.
-  choices.lastElementChild?.classList.add('community-more-create');
+    link(choices, title, `#communities?view=${key}`);
   return choices;
 }
 
-/** The exposed way to create a community; CSS places it bottom-right. */
-function createCommunityButton(): HTMLAnchorElement {
-  const create = document.createElement('a');
-  create.className = 'community-create-fab';
-  create.href = '#comunidades?view=create';
-  create.setAttribute('aria-label', t('Criar comunidade'));
-  create.title = t('Criar comunidade');
-  iconLabel(create, 'plus');
-  return create;
+/**
+ * The floating "+" opens two choices: post (same composer trigger the old
+ * Post button used) or create a community. CSS places it bottom-right.
+ */
+function createCommunityButton(): HTMLDetailsElement {
+  const menu = el('details', '', 'community-create-menu');
+  menu.dataset['transientMenu'] = '';
+  const summary = el('summary', '', 'community-create-fab');
+  summary.setAttribute('aria-label', t('community.create-menu'));
+  summary.title = t('community.create-menu');
+  iconLabel(summary, 'plus');
+  const choices = el('div', '', 'community-create-choices');
+  const post = el('button', t('Postar'), 'community-create-choice');
+  post.type = 'button';
+  post.dataset['communityCompose'] = '';
+  iconLabel(post, 'pencil');
+  const create = el('a', t('Criar comunidade'), 'community-create-choice');
+  create.href = '#communities?view=create';
+  iconLabel(create, 'community');
+  choices.append(post, create);
+  // A choice closes the menu; the composer or the create page takes over.
+  choices.addEventListener('click', () => {
+    menu.open = false;
+  });
+  menu.append(summary, choices);
+  return menu;
 }
 
 export function communityDirectoryNavigation(
@@ -94,7 +110,7 @@ export function communityDirectoryNavigation(
     ['feed', t('Comunidades')],
     ['dms', t('Mensagens @')],
   ] as const) {
-    link(tabs, title, `#comunidades?view=${key}`);
+    link(tabs, title, `#communities?view=${key}`);
     if ((view === 'dms') === (key === 'dms'))
       tabs.lastElementChild?.setAttribute('aria-current', 'page');
   }
@@ -104,7 +120,7 @@ export function communityDirectoryNavigation(
     ['feed', t('Feed'), 'layers'],
     ['explore', t('Ranking'), 'compass'],
   ] as const) {
-    link(nav, title, `#comunidades?view=${key}`);
+    link(nav, title, `#communities?view=${key}`);
     const a = nav.lastElementChild as HTMLAnchorElement;
     iconLabel(a, icon);
     if (!selected && (view === key || (key === 'feed' && view === 'following')))
@@ -124,8 +140,8 @@ export function postReturnTarget(
   community: string,
 ): string {
   return lastList
-    ? `#comunidades?${lastList}`
-    : `#comunidades?id=${encodeURIComponent(community)}`;
+    ? `#communities?${lastList}`
+    : `#communities?id=${encodeURIComponent(community)}`;
 }
 
 const communityViews = new Set([
@@ -149,4 +165,20 @@ const communityViews = new Set([
 export function communityView(view: string, selected: string | null): string {
   if (!communityViews.has(view)) return 'feed';
   return ['manage', 'followers'].includes(view) && !selected ? 'feed' : view;
+}
+
+/** Keep public address names distinct from IDs before their first lookup. */
+export function communitySelection(params: URLSearchParams): {
+  selected: string | null;
+  slug: string | null;
+} {
+  const slug = params.get('slug');
+  if (slug !== null) {
+    const value = communitySlug(slug);
+    return { selected: value, slug: value };
+  }
+  return {
+    selected: params.has('id') ? uuid(params.get('id')) : null,
+    slug: null,
+  };
 }

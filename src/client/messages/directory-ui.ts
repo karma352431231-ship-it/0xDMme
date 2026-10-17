@@ -24,6 +24,7 @@ import { mountOfflineNotice } from '../ping/index.ts';
 import { showGroupDirectoryPhoto } from '../groups/index.ts';
 import { releaseConversationAvatars } from './directory-avatars.ts';
 import type { startGroups } from '../groups/index.ts';
+import type { ConversationPreview } from '../conversation-preview/index.ts';
 type Groups = Pick<
   ReturnType<typeof startGroups>,
   'entries' | 'selected' | 'listLabel' | 'unread' | 'photo'
@@ -54,17 +55,36 @@ interface DirectoryView {
   openGroup: (group: Groups['entries'][number]) => void;
   changed: (available: boolean) => void;
   presence: () => void;
+  /** Covers row initials with the contact's private card photo. */
+  peerPhoto?: (host: HTMLElement, peer: string, signal: AbortSignal) => void;
+  previews?: ReadonlyMap<string, ConversationPreview>;
+  previewsFailed?: () => boolean;
 }
 /** Projection and interaction only; no authority or persistence owned here. */
 export class MessageDirectoryUi {
   private filter: ConversationFilter = 'all';
+  private opening: string | null = null;
+  private openingGeneration = 0;
   private readonly options: DirectoryView;
   constructor(options: DirectoryView) {
     this.options = options;
   }
   reset(): void {
+    this.opening = null;
+    this.openingGeneration++;
     this.filter = 'all';
     this.pause();
+  }
+  /** Acknowledge a queued tap without changing the crypto engine's recipient. */
+  openingPeer(peer: string): () => void {
+    const current = ++this.openingGeneration;
+    this.opening = peer;
+    this.renderContacts();
+    return () => {
+      if (current !== this.openingGeneration || this.opening === null) return;
+      this.opening = null;
+      this.renderContacts();
+    };
   }
   pause(): void {
     const list = this.options.node('[data-message-contacts]');
@@ -109,14 +129,18 @@ export class MessageDirectoryUi {
     return {
       id: peer.accountId,
       title: this.contactTitle(contact, peer),
-      detail: this.contactLabel(peer, settingsId),
+      ...this.previewPresentation(peer, settingsId),
       kind: 'contact',
       seed: peer.address,
+      ...(peer.localOnly || !this.options.peerPhoto
+        ? {}
+        : {
+            avatar: (host: HTMLElement, signal: AbortSignal) =>
+              this.options.peerPhoto?.(host, peer.accountId, signal),
+          }),
       status: this.options.snapshot().statusAuthors.has(peer.accountId),
       searchText: t('{0} {1} {2}', [contact.alias, peer.name, peer.address]),
-      selected:
-        !this.options.groups.selected &&
-        this.options.snapshot().selected?.accountId === peer.accountId,
+      selected: this.selectedPeer(peer.accountId),
       hidden: contact.removed,
       ...settings,
       favorite: this.options.daily.favorite(favoriteId),
@@ -131,6 +155,13 @@ export class MessageDirectoryUi {
       },
     };
   }
+  private selectedPeer(peer: string): boolean {
+    if (this.opening) return this.opening === peer;
+    return (
+      !this.options.groups.selected &&
+      this.options.snapshot().selected?.accountId === peer
+    );
+  }
   private contactActions(
     contact: AddressBookEntry,
     settingsId: string,
@@ -144,6 +175,18 @@ export class MessageDirectoryUi {
       },
       ...this.options.contactActions(contact, settingsId, mutePeer),
     ];
+  }
+  private previewPresentation(
+    peer: Peer,
+    settingsId: string,
+  ): Pick<ConversationEntry, 'detail' | 'preview'> {
+    const preview = this.options.previews?.get(peer.accountId);
+    return {
+      detail: this.options.previewsFailed?.()
+        ? t('preview.unavailable')
+        : this.contactLabel(peer, settingsId),
+      ...(preview ? { preview } : {}),
+    };
   }
   contactOrganizationId(saved: SavedContact | undefined, peer: string): string {
     return saved && this.options.daily.hasOrganization(saved.entity)

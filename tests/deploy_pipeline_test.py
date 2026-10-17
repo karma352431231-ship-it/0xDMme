@@ -36,13 +36,16 @@ class DeploymentTests(unittest.TestCase):
             root=Path(directory)
             source=root/'src';source.mkdir()
             expected={}
-            for index in range(remote.MAX_MANIFEST_FILES):
+            for index in range(1100):
                 name='fixture-'+str(index)+'.ts'
                 (source/name).write_bytes(b'authored')
                 expected['src/'+name]=b'authored'
             self.assertTrue(backups.matches_export(root,expected,source_only=True))
             with self.assertRaisesRegex(RuntimeError,'Reviewed tree budget'):
                 backups.file_tree(source)
+            with patch.object(remote, 'MAX_MANIFEST_BYTES', 1024):
+                with self.assertRaisesRegex(RuntimeError, 'manifest byte budget'):
+                    backups.matches_export(root,expected,source_only=True)
             (source/'one-more.ts').write_bytes(b'authored')
             with self.assertRaisesRegex(RuntimeError,'Reviewed tree budget'):
                 backups.matches_export(root,expected,source_only=True)
@@ -51,7 +54,7 @@ class DeploymentTests(unittest.TestCase):
         names = ['deploy_sources', 'deploy_runtime', 'deploy_remote', 'deploy_backup_io', 'deploy_blocks45',
                  'deploy_request_limit', 'deploy_background', 'deploy_profile_social',
                  'deploy_profile_description', 'deploy_group_links',
-                 'deploy_post_tags', 'deploy_media_worker', 'deploy_social_controls', 'deploy_social_experience', 'deploy_discussion', 'deploy_mentions', 'deploy_message_changes', 'deploy_community_classification', 'deploy_public_upvotes', 'deploy_social_reactions']
+                 'deploy_post_tags', 'deploy_media_worker', 'deploy_social_controls', 'deploy_social_experience', 'deploy_discussion', 'deploy_mentions', 'deploy_message_changes', 'deploy_community_classification', 'deploy_public_upvotes', 'deploy_social_reactions', 'deploy_ranking_activity', 'deploy_chat_attachments', 'deploy_community_addresses']
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory); (root / 'infra/staging').mkdir(parents=True)
             config = {'files': {}}
@@ -86,14 +89,46 @@ class DeploymentTests(unittest.TestCase):
                 'timeout':False, 'exit_code':1, 'category':category})
             self.assertNotIn('private-', json.dumps(failure))
 
-    def test_manifest_size_is_bounded_at_the_reviewed_limit(self):
+    def test_manifest_accepts_modular_growth_and_bounds_serialized_bytes(self):
         value = manifest()
-        missing = remote.MAX_MANIFEST_FILES - len(value['files'])
-        value['files'].update({'src/fixture-' + str(i) + '.ts': 'a' * 64 for i in range(missing)})
+        value['files'].update({'src/fixture-' + str(i) + '.ts': 'a' * 64 for i in range(2048)})
         remote.validate(value)
-        value['files']['src/one-too-many.ts'] = 'a' * 64
-        with self.assertRaisesRegex(RuntimeError, 'manifest size'):
+        encoded = len((json.dumps(value, indent=2) + '\n').encode())
+        with patch.object(remote, 'MAX_MANIFEST_BYTES', encoded):
             remote.validate(value)
+        with patch.object(remote, 'MAX_MANIFEST_BYTES', encoded - 1):
+            with self.assertRaisesRegex(RuntimeError, 'manifest byte budget'):
+                remote.validate(value)
+        for invalid in [{}, [], None]:
+            with self.assertRaisesRegex(RuntimeError, 'manifest files'):
+                remote.validate(dict(value, files=invalid))
+
+    def test_archive_accepts_many_small_files_within_expanded_byte_budget(self):
+        buffer = io.BytesIO()
+        with tarfile.open(fileobj=buffer, mode='w:gz') as archive:
+            for index in range(4100):
+                archive.addfile(tarfile.TarInfo('dist/file-' + str(index)))
+        buffer.seek(0)
+        with tempfile.TemporaryDirectory() as directory:
+            with tarfile.open(fileobj=buffer) as archive:
+                remote.extract(archive, Path(directory), ['dist'])
+            self.assertEqual(len(list((Path(directory) / 'dist').iterdir())), 4100)
+
+    def test_archive_counts_headers_and_padding_before_any_extraction(self):
+        for sizes in [(0, 0, 0), (513,)]:
+            buffer = io.BytesIO()
+            with tarfile.open(fileobj=buffer, mode='w:gz') as archive:
+                for index, size in enumerate(sizes):
+                    member = tarfile.TarInfo('dist/file-' + str(index))
+                    member.size = size
+                    archive.addfile(member, io.BytesIO(b'x' * size))
+            buffer.seek(0)
+            with tempfile.TemporaryDirectory() as directory:
+                with tarfile.open(fileobj=buffer) as archive:
+                    with patch.object(remote, 'MAX_RELEASE', 1024):
+                        with self.assertRaisesRegex(RuntimeError, 'Extraction budget'):
+                            remote.extract(archive, Path(directory), ['dist'])
+                self.assertEqual(list(Path(directory).iterdir()), [])
 
     def test_manifest_rejects_escape_and_unbounded_input(self):
         for name in ['/etc/passwd', 'src/../../etc/passwd', '.local/access', 'data/history']:
@@ -476,6 +511,12 @@ class DeploymentTests(unittest.TestCase):
                 target = root / relative
                 target.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copyfile(deploy.ROOT / relative, target)
+            # Source-file splits must survive preparation and the verified cache,
+            # including manifests larger than the old 128 KiB cache allowance.
+            styles = root / 'src/client/fixture-styles'
+            styles.mkdir()
+            for index in range(300):
+                (styles / ('area-' + str(index) + '-modular-source-fixture.css')).write_text('/* synthetic */\n')
             subprocess.check_call(['git', 'init', '--quiet'], cwd=root)
             subprocess.check_call(['git', 'add', '.'], cwd=root)
             subprocess.check_call(['git', '-c', 'user.name=Test fixture', '-c',
@@ -487,6 +528,8 @@ class DeploymentTests(unittest.TestCase):
                   patch.object(deploy, 'ROOT', root),
                   patch.object(deploy, 'run', side_effect=lambda args, cwd=root, timeout=30: original_run(args, cwd=cwd, timeout=timeout))):
                 prepared, archive_path = deploy.prepare(revision, 'codex/test')
+                self.assertGreater(len(prepared['files']), 1024)
+                self.assertGreater((archive_path.parent / 'manifest.json').stat().st_size, 128 * 1024)
                 self.assertLessEqual(archive_path.stat().st_size, remote.MAX_ARCHIVE)
                 self.assertEqual(len(prepared['source_parts']), 18)
                 self.assertEqual(len([n for n in prepared['files'] if n in deploy.public_sources.PARTS]),18)
@@ -1180,6 +1223,111 @@ class SavedBookmarkCodeTests(CommunityFeedCodeTests):
             with self.subTest(path=relative):
                 path = self.candidate / 'src/server/database' / relative
                 original = path.read_bytes(); path.write_text('unreviewed preference write')
+                try:
+                    with (patch.object(backups, 'git_export', side_effect=lambda sha: self.exports[sha]),
+                          self.assertRaises(RuntimeError)):
+                        remote.compatibility(self.candidate, self.live)
+                finally:
+                    path.write_bytes(original)
+
+
+class ChatParityCodeTests(CommunityFeedCodeTests):
+    def setUp(self):
+        super().setUp()
+        for relative in ['communities.ts', 'community-discovery.ts']:
+            (self.candidate / 'src/server/database' / relative).write_bytes(
+                (self.live / 'src/server/database' / relative).read_bytes())
+        self.changed_modules = ['message-index.ts', 'messages.ts', 'social-crypto.ts',
+                                'social-history.ts', 'social-read-receipts.ts', 'social-actions.ts']
+        for relative in self.changed_modules[:-1]:
+            (self.live / 'src/server/database' / relative).write_text('existing chat operation')
+            (self.candidate / 'src/server/database' / relative).write_text('reviewed chat operation')
+        (self.live / 'src/server/database/social-reactions.ts').write_text('existing reaction admission')
+        (self.candidate / 'src/server/database/social-actions.ts').write_text('reviewed own-text edit admission')
+        self.exports = {
+            remote.CHAT_PARITY_BEFORE: self.export(self.live),
+            remote.CHAT_PARITY_REVIEWED: self.export(self.candidate),
+        }
+
+    def test_chat_modules_and_renamed_action_require_exact_reviewed_bytes(self):
+        for relative in self.changed_modules:
+            with self.subTest(path=relative):
+                path = self.candidate / 'src/server/database' / relative
+                original = path.read_bytes(); path.write_text('unreviewed chat operation')
+                try:
+                    with (patch.object(backups, 'git_export', side_effect=lambda sha: self.exports[sha]),
+                          self.assertRaises(RuntimeError)):
+                        remote.compatibility(self.candidate, self.live)
+                finally:
+                    path.write_bytes(original)
+
+    def test_old_reaction_module_cannot_remain_in_candidate(self):
+        (self.candidate / 'src/server/database/social-reactions.ts').write_text('unexpected legacy action path')
+        with (patch.object(backups, 'git_export', side_effect=lambda sha: self.exports[sha]),
+              self.assertRaises(RuntimeError)):
+            remote.compatibility(self.candidate, self.live)
+
+
+class PublicDmOpeningCodeTests(CommunityFeedCodeTests):
+    def setUp(self):
+        super().setUp()
+        for relative in ['communities.ts', 'community-discovery.ts']:
+            (self.candidate / 'src/server/database' / relative).write_bytes(
+                (self.live / 'src/server/database' / relative).read_bytes())
+        self.changed_modules = ['social-crypto.ts', 'social-dm.ts', 'social-matrix.ts',
+                                'social-media.ts', 'social-read-receipts.ts', 'social-conversations.ts']
+        for relative in self.changed_modules[:-1]:
+            (self.live / 'src/server/database' / relative).write_text('existing public DM operation')
+            (self.candidate / 'src/server/database' / relative).write_text('reviewed direct public DM operation')
+        (self.candidate / 'src/server/database/social-conversations.ts').write_text('reviewed atomic opening')
+        self.exports = {
+            remote.PUBLIC_DM_OPENING_BEFORE: self.export(self.live),
+            remote.PUBLIC_DM_OPENING_REVIEWED: self.export(self.candidate),
+        }
+
+    def test_direct_dm_operations_require_exact_reviewed_bytes(self):
+        for relative in self.changed_modules:
+            with self.subTest(path=relative):
+                path = self.candidate / 'src/server/database' / relative
+                original = path.read_bytes(); path.write_text('unreviewed public DM operation')
+                try:
+                    with (patch.object(backups, 'git_export', side_effect=lambda sha: self.exports[sha]),
+                          self.assertRaises(RuntimeError)):
+                        remote.compatibility(self.candidate, self.live)
+                finally:
+                    path.write_bytes(original)
+
+    def test_opening_module_cannot_be_omitted(self):
+        (self.candidate / 'src/server/database/social-conversations.ts').unlink()
+        with (patch.object(backups, 'git_export', side_effect=lambda sha: self.exports[sha]),
+              self.assertRaises(RuntimeError)):
+            remote.compatibility(self.candidate, self.live)
+
+
+class FollowedAlertsCodeTests(CommunityFeedCodeTests):
+    def setUp(self):
+        super().setUp()
+        for relative in ['communities.ts', 'community-discovery.ts']:
+            (self.candidate / 'src/server/database' / relative).write_bytes(
+                (self.live / 'src/server/database' / relative).read_bytes())
+        self.changed_modules = ['daily.ts', 'index.ts', 'public-notification-preview.ts']
+        for relative in self.changed_modules:
+            (self.live / 'src/server/database' / relative).write_text('existing preview')
+            (self.candidate / 'src/server/database' / relative).write_text('reviewed followed alert')
+        self.exports = {
+            remote.FOLLOWED_ALERTS_BEFORE: self.export(self.live),
+            remote.FOLLOWED_ALERTS_REVIEWED: self.export(self.candidate),
+        }
+
+    def test_reviewed_followed_alert_modules_pass(self):
+        with patch.object(backups, 'git_export', side_effect=lambda sha: self.exports[sha]):
+            self.assertTrue(remote.database_code_reviewed(self.candidate, self.live))
+
+    def test_followed_alert_modules_require_exact_reviewed_bytes(self):
+        for relative in self.changed_modules:
+            with self.subTest(path=relative):
+                path = self.candidate / 'src/server/database' / relative
+                original = path.read_bytes(); path.write_text('unreviewed preview')
                 try:
                     with (patch.object(backups, 'git_export', side_effect=lambda sha: self.exports[sha]),
                           self.assertRaises(RuntimeError)):

@@ -76,7 +76,14 @@ export function invitation(value: unknown): Invitation {
 }
 export function invitationLink(origin: string, value: Invitation): string {
   const valid = invitation(value);
-  return `${new URL(origin).origin}/#contatos?convite=${valid.owner}.${valid.token}`;
+  return `${new URL(origin).origin}/#contacts?invite=${valid.owner}.${valid.token}`;
+}
+export function contactInvitationValue(hash: string): string | null {
+  return (
+    /^#(?:contacts\?(?:invite|convite)=|contatos\?convite=)(.*)$/u.exec(
+      hash,
+    )?.[1] ?? null
+  );
 }
 export function readInvitation(text: string, origin: string): Invitation {
   const url = new URL(text);
@@ -84,10 +91,10 @@ export function readInvitation(text: string, origin: string): Invitation {
     url.origin !== new URL(origin).origin ||
     url.pathname !== '/' ||
     url.search ||
-    !url.hash.startsWith('#contatos?convite=')
+    contactInvitationValue(url.hash) === null
   )
     throw new Error('Use um link de convite do 0xDMme desta origem.');
-  const parts = url.hash.slice('#contatos?convite='.length).split('.');
+  const parts = contactInvitationValue(url.hash)!.split('.');
   if (parts.length !== 2) throw new Error('Convite inválido.');
   return invitation({ owner: parts[0], token: parts[1] });
 }

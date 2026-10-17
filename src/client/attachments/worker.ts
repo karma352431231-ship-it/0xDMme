@@ -24,7 +24,7 @@ type Request =
       maximum: number;
       image: boolean;
     }
-  | { operation: 'original'; file: File };
+  | { operation: 'original'; file: File; maximum: number };
 const scope = globalThis as unknown as Scope;
 async function run(data: Request): Promise<unknown> {
   if (data.operation === 'photo') return preparePhoto(data.file);
@@ -38,7 +38,7 @@ async function run(data: Request): Promise<unknown> {
       );
     return { bytes };
   }
-  return prepareOriginal(data.file);
+  return prepareOriginal(data.file, data.maximum);
 }
 scope.addEventListener('message', (event) => {
   void run(event.data)

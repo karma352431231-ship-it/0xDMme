@@ -2,22 +2,19 @@ import { messageTime } from '../message-presentation/index.ts';
 import { t } from '../../shared/i18n/index.ts';
 import type { PublicProfile } from '../../shared/public-profile/index.ts';
 import type { SocialRelation } from '../../shared/social-dm/index.ts';
-import { paintAvatar } from '../appearance/index.ts';
 import { chatCollapse, chatComposer, chatIcon } from '../chat-ui/index.ts';
 import { emojiText } from '../emoji/index.ts';
 import type { ExternalMediaConsent } from '../external-media/index.ts';
 import { showExternalVideos } from '../external-video/index.ts';
 import { gifUrls, showGifText } from '../gif-search/index.ts';
-import { showPublicAvatar } from '../public-media/index.ts';
+import { paintDmAvatar } from './dm-peer-photo.ts';
 import { pingChipMarkup } from '../ping/index.ts';
 import { communityElement as el } from './elements.ts';
-
-const peerPhotos = new WeakMap<HTMLElement, () => void>();
 
 /** Parts of a public @ conversation, laid out exactly as the private chat. */
 export interface DmView {
   panel: HTMLElement;
-  avatar: HTMLElement;
+  avatar: HTMLButtonElement;
   title: HTMLElement;
   state: HTMLElement;
   options: HTMLElement;
@@ -79,80 +76,31 @@ export function paintDmPeer(
   const { profile } = input;
   view.title.textContent = `@${profile.handle}`;
   view.state.textContent = input.state;
-  peerPhotos.get(view.avatar)?.();
-  peerPhotos.delete(view.avatar);
-  view.avatar.replaceChildren();
-  paintAvatar(view.avatar, { label: profile.handle, seed: profile.id });
-  if (profile.avatar)
-    peerPhotos.set(
-      view.avatar,
-      showPublicAvatar(view.avatar, {
-        kind: 'avatar',
-        target: profile.id,
-        reference: profile.avatar,
-        signal: input.signal,
-      }),
-    );
+  paintDmAvatar(view.avatar, profile, input.signal);
 }
 
 /** Header subtitle, as the private chat shows presence. */
 export function dmStateLabel(
   value: SocialRelation | null,
-  own: string | null,
   local: boolean,
 ): string {
   if (local) return t('Cópia neste aparelho');
   if (!value || value.state === 'none') return t('Sem conversa ainda');
   if (value.blocked) return t('Bloqueada');
-  if (value.state === 'pending')
-    return value.requester === own
-      ? t('Aguardando aceite')
-      : t('Pedido de conversa');
-  if (value.state === 'rejected') return t('Pedido recusado');
+  if (!value.canSend) return t('DM indisponível.');
   return t('Mensagem pública pelo @');
 }
 
-export type DmRequestAction = 'request' | 'accept' | 'reject';
-/**
- * What replaces the composer while there is no approved conversation; null
- * means the composer is shown. The text and actions follow the relation.
- */
-export function dmRequestState(input: {
+/** Only local copies or unavailable/blocked peers replace the composer. */
+export function dmComposerGate(input: {
   value: SocialRelation | null;
-  own: string | null;
   local: boolean;
-  canRequest: boolean;
-  handle: string;
-}): { text: string; actions: DmRequestAction[] } | null {
-  const { value, handle } = input;
+}): string | null {
   if (input.local)
-    return {
-      text: t('Cópia local. Conecte para sincronizar e enviar mensagens.'),
-      actions: [],
-    };
-  if (input.canRequest)
-    return {
-      text: t('Peça para conversar com @{0}. A pessoa precisa aceitar.', [
-        handle,
-      ]),
-      actions: ['request'],
-    };
-  if (value?.state === 'pending' && value.requester === input.own)
-    return {
-      text: t('Pedido enviado. Aguardando @{0} aceitar.', [handle]),
-      actions: [],
-    };
-  if (value?.state === 'pending')
-    return {
-      text: t('@{0} quer conversar com você.', [handle]),
-      actions: ['accept', 'reject'],
-    };
-  if (!value?.canSend)
-    return {
-      text: t('Esta conversa está recusada, bloqueada ou indisponível.'),
-      actions: [],
-    };
-  return null;
+    return t('Cópia local. Conecte para sincronizar e enviar mensagens.');
+  return input.value?.canSend && !input.value.blocked
+    ? null
+    : t('DM indisponível.');
 }
 
 /** A message bubble; attachments are filled by the media renderer. */
@@ -162,6 +110,7 @@ export function dmBubble(
     kind: 'text' | 'attachment';
     text: string;
     sentAt?: number;
+    edited?: boolean;
   },
   input: {
     own: boolean;
@@ -185,6 +134,7 @@ export function dmBubble(
   const time = messageTime(item.sentAt),
     meta = el('small', '', 'message-meta');
   if (time) meta.append(time);
+  if (item.edited) meta.append(el('span', t('Editada')));
   row.append(meta);
   if (item.kind !== 'text') return { row, stop: () => undefined };
   const text = el('p');

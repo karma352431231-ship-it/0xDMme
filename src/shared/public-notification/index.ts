@@ -8,18 +8,21 @@ export interface PublicNotificationPreview {
   post: string;
   text: string;
   reply: boolean;
+  /** A post or reply by a profile followed with notifications on (16/10/2026). */
+  followed: boolean;
 }
 export function publicNotificationPreview(
   value: unknown,
 ): PublicNotificationPreview {
   const data = object(value);
-  keys(data, ['author', 'community', 'post', 'text', 'reply']);
+  keys(data, ['author', 'community', 'post', 'text', 'reply', 'followed']);
   return {
     author: publicProfile(data['author']),
     community: uuid(data['community']),
     post: uuid(data['post']),
     text: communityText(data['text'], 180, true),
     reply: communityBoolean(data['reply']),
+    followed: communityBoolean(data['followed']),
   };
 }
 export function publicNotificationText(title: string, text: string): string {

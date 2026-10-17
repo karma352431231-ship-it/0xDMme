@@ -183,7 +183,7 @@ export class ActivityPosts {
       });
     } else {
       const login = el('a', t('Responder'), 'post-action post-comments');
-      login.href = '#perfil';
+      login.href = '#settings';
       login.setAttribute('aria-label', t('Entre pelo Perfil para responder'));
       toolbar.append(login);
       postSharing(toolbar, post, null);
@@ -191,7 +191,7 @@ export class ActivityPosts {
     // Card clicks still use the existing panel/return navigation without a CTA.
     const discussion = el('a', '', 'post-discussion');
     discussion.hidden = true;
-    discussion.href = `#comunidades?id=${post.community}&post=${post.id}`;
+    discussion.href = `#communities?id=${post.community}&post=${post.id}`;
     toolbar.append(discussion);
     const stopViews = postViews(card.node, post, toolbar);
     card.stop = () => {
@@ -274,7 +274,7 @@ export class ActivityPosts {
       post = card.entry.post;
     this.status(card, t('Resposta publicada.'));
     const link = el('a', t('Ver resposta publicada'));
-    link.href = `#comunidades?id=${post.community}&post=${reply.post.id}`;
+    link.href = `#communities?id=${post.community}&post=${reply.post.id}`;
     card.node.querySelector('.activity-post-status')?.append(' ', link);
     try {
       const parent = postState(

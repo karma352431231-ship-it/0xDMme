@@ -95,7 +95,7 @@ async function worker(
     }
     const path = new URL(input.url).pathname;
     assert.equal(input.mode, 'navigate');
-    assert.equal(path, '/');
+    assert.ok(path.startsWith('/') && !path.startsWith('/api/'));
     assert.equal(request.cache, 'no-store');
     assert.equal(request.redirect, 'error');
     return path;
@@ -130,6 +130,7 @@ async function worker(
       },
     },
     URL,
+    URLSearchParams,
     JSON,
     crypto,
     registration: {
@@ -268,12 +269,40 @@ await test('URL padrão abre o HTML atual online e conserva a versão completa p
     await scope.cache.get(request.url)?.clone().text(),
     'public-shell',
   );
+  for (const path of [
+    '/split/feed',
+    '/users/handle/karma',
+    '/communities/new-community?view=manage',
+  ]) {
+    assert.equal(
+      await scope.dispatch('fetch', {
+        request: navigation(scope.origin + path),
+      }),
+      true,
+    );
+    assert.equal(await scope.response()?.text(), 'current-online-shell');
+    assert.equal(scope.cache.has(scope.origin + path), false);
+  }
   scope.offline();
   await scope.dispatch('fetch', { request });
   assert.equal(await scope.response()?.text(), 'public-shell');
   assert.equal(scope.activations(), 0);
   assert.equal(scope.deleted.length, 0);
 
+  for (const path of [
+    '/split/feed',
+    '/users/handle/karma',
+    '/communities/new-community?view=manage',
+  ]) {
+    assert.equal(
+      await scope.dispatch('fetch', {
+        request: navigation(scope.origin + path),
+      }),
+      true,
+    );
+    assert.equal(await scope.response()?.text(), 'public-shell');
+    assert.equal(scope.cache.has(scope.origin + path), false);
+  }
   for (const path of [
     '/?atualizar=1',
     '/?token=synthetic',
@@ -407,7 +436,7 @@ await test('push revalida mute/sessão, ignora conteúdo recebido e abre somente
     },
   });
   assert.equal(closed, true);
-  assert.deepEqual(scope.opened, [scope.origin + '/#conversas']);
+  assert.deepEqual(scope.opened, [scope.origin + '/chats']);
   for (const options of [
     { pushAllowed: false },
     { pushAllowed: true, pushCheckFails: true },
@@ -519,6 +548,7 @@ await test('push público mostra autor e prévia validada, com símbolo monocrom
     community: crypto.randomUUID(),
     text: 'Pequena prévia pública',
     reply: true,
+    followed: false,
   };
   const scope = await worker({ pushAllowed: true, publicPreview });
   await scope.dispatch('push');
@@ -530,8 +560,17 @@ await test('push público mostra autor e prévia validada, com símbolo monocrom
     notification: { close() {}, data: notification.options.data as unknown },
   });
   assert.deepEqual(scope.opened, [
-    `${scope.origin}/#comunidades?id=${publicPreview.community}&post=${publicPreview.post}`,
+    `${scope.origin}/communities/id/${publicPreview.community}/posts/${publicPreview.post}`,
   ]);
+  await scope.dispatch('notificationclick', {
+    notification: {
+      close() {},
+      data: {
+        href: `/#comunidades?id=${publicPreview.community}&post=${publicPreview.post}`,
+      },
+    },
+  });
+  assert.equal(scope.opened[1], scope.opened[0]);
   const blocked = await worker({ pushAllowed: false, publicPreview });
   await blocked.dispatch('push');
   assert.equal(blocked.notifications.length, 0);
@@ -544,6 +583,50 @@ await test('push público mostra autor e prévia validada, com símbolo monocrom
   });
   await invalid.dispatch('push');
   assert.equal(invalid.notifications.length, 0);
+});
+
+await test('posts and replies from followed profiles show the author photo and handle, one alert per post', async () => {
+  const author = crypto.randomUUID(),
+    review = crypto.randomUUID();
+  const publicPreview = {
+    author: {
+      id: author,
+      handle: 'followed',
+      avatar: `/api/public-media/avatar/${author}/${review}`,
+    },
+    post: crypto.randomUUID(),
+    community: crypto.randomUUID(),
+    text: 'Oui Madamme',
+    reply: false,
+    followed: true,
+  };
+  const scope = await worker({ pushAllowed: true, publicPreview });
+  await scope.dispatch('push');
+  const notification = scope.notifications[0]!;
+  assert.equal(notification.title, '@followed');
+  assert.equal(notification.options.body, 'Oui Madamme');
+  assert.equal(notification.options.icon, publicPreview.author.avatar);
+  assert.equal(notification.options.tag, `0xdmme-post-${publicPreview.post}`);
+  const plain = await worker({
+    pushAllowed: true,
+    publicPreview: {
+      ...publicPreview,
+      reply: true,
+      author: { ...publicPreview.author, avatar: null },
+    },
+  });
+  await plain.dispatch('push');
+  assert.equal(plain.notifications[0]?.title, '@followed');
+  assert.equal(plain.notifications[0]?.options.icon, '/icon-192.png');
+  const foreign = await worker({
+    pushAllowed: true,
+    publicPreview: {
+      ...publicPreview,
+      author: { ...publicPreview.author, avatar: 'https://example.com/a.png' },
+    },
+  });
+  await foreign.dispatch('push');
+  assert.equal(foreign.notifications.length, 0);
 });
 
 await test('Chinese background alerts localize app text without translating public content', async () => {
@@ -570,6 +653,7 @@ await test('Chinese background alerts localize app text without translating publ
     community: crypto.randomUUID(),
     text: publicNotificationText('', ''),
     reply: true,
+    followed: false,
   };
   assert.equal(preview.text, '');
   const media = await worker({

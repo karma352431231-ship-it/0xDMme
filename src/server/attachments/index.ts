@@ -8,6 +8,7 @@ import {
 } from '../../shared/account/index.ts';
 import {
   attachmentRefs,
+  fileLimit,
   partLimit,
   verifyAttachmentPart,
 } from '../../shared/attachments/index.ts';
@@ -46,12 +47,15 @@ export interface AttachmentStorage extends Pick<
 function writeRequest(
   operation: string,
   d: Record<string, unknown>,
+  maximum: number,
 ): { id: string; index: number | null; bytes: Uint8Array | null } {
   const finishing = operation === 'attachment-finish';
   keys(d, finishing ? ['id'] : ['id', 'index', 'ciphertext']);
   return {
     id: uuid(d['id']),
-    index: finishing ? null : integer(d['index'], 11),
+    index: finishing
+      ? null
+      : integer(d['index'], Math.ceil(maximum / partLimit) - 1),
     bytes: finishing ? null : base64(d['ciphertext'], partLimit),
   };
 }
@@ -62,6 +66,8 @@ export class AttachmentService {
     ObjectStore,
     'attachment' | 'readAttachment' | 'discardAttachment'
   >;
+  /** Product limit of this conversation type: private chats accept 10 MB, `@` DMs 3 MB. */
+  private readonly maximum: number;
   private cleaning: Promise<void> | null = null;
   constructor(
     store: AttachmentStorage,
@@ -70,10 +76,12 @@ export class AttachmentService {
       ObjectStore,
       'attachment' | 'readAttachment' | 'discardAttachment'
     >,
+    maximum = fileLimit,
   ) {
     this.store = store;
     this.messages = messages;
     this.objects = objects;
+    this.maximum = maximum;
   }
   async clean(): Promise<void> {
     if (this.cleaning) return this.cleaning;
@@ -123,7 +131,7 @@ export class AttachmentService {
       return this.store.reserve(a, {
         message: uuid(d['message']),
         peer: uuid(d['peer']),
-        refs: attachmentRefs(d['refs']),
+        refs: attachmentRefs(d['refs'], this.maximum),
         ...(this.messages ? {} : { media: socialMedia(d['media']) }),
       });
     }
@@ -145,7 +153,7 @@ export class AttachmentService {
     operation: string,
     d: Record<string, unknown>,
   ): Promise<unknown> {
-    const { id, index, bytes } = writeRequest(operation, d),
+    const { id, index, bytes } = writeRequest(operation, d, this.maximum),
       lease = await this.store.begin(a, id, index);
     const status = index === null ? 'ready' : 'stored';
     try {
@@ -186,7 +194,7 @@ export class AttachmentService {
     const input = {
       message: uuid(d['message']),
       id: uuid(d['id']),
-      index: integer(d['index'], 11),
+      index: integer(d['index'], Math.ceil(this.maximum / partLimit) - 1),
     };
     if (this.messages && snapshot)
       await this.messages.confirmSnapshot(a, snapshot);

@@ -1,0 +1,83 @@
+/* Upload ring shared by posts and chats (16/10/2026). */
+.upload-ring {
+  position: relative;
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+}
+.upload-ring svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+}
+.upload-ring circle {
+  fill: none;
+  stroke-width: 3.2;
+}
+.upload-ring-track {
+  stroke: color-mix(in srgb, var(--text) 18%, transparent);
+}
+.upload-ring-bar {
+  stroke: var(--accent);
+  stroke-linecap: round;
+  transition: stroke-dashoffset 200ms ease-out;
+}
+.upload-ring[data-state='processing'] svg {
+  animation: upload-ring-spin 900ms linear infinite;
+}
+.upload-ring-value {
+  position: relative;
+  color: var(--text);
+  font-size: 9.5px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+@keyframes upload-ring-spin {
+  to {
+    transform: rotate(270deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .upload-ring[data-state='processing'] svg {
+    animation-duration: 2.4s;
+  }
+}
+.upload-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-muted);
+  font-size: var(--fs-small);
+}
+.upload-status .upload-ring {
+  width: 26px;
+  height: 26px;
+}
+.upload-status .upload-ring-value {
+  display: none;
+}
+/* Over a chosen thumbnail in the post editor. */
+.media-picker-tile > .upload-ring {
+  position: absolute;
+  inset: 0;
+  width: auto;
+  height: auto;
+  border-radius: inherit;
+  background: var(--media-control-bg);
+}
+.media-picker-tile > .upload-ring svg {
+  inset: calc(50% - 20px);
+  width: 40px;
+  height: 40px;
+}
+.media-picker-tile > .upload-ring .upload-ring-value {
+  color: var(--media-control-ink);
+  font-size: 11px;
+}
+.media-picker-tile > .upload-ring .upload-ring-track {
+  stroke: color-mix(in srgb, var(--media-control-ink) 30%, transparent);
+}

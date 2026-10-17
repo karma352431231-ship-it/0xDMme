@@ -4,6 +4,8 @@ Implementação local autorizada em 03/10/2026. O proprietário escolheu as reco
 
 ## Experiência atual
 
+**Teto de 10 MB — 16/10/2026:** a pedido do proprietário, chats privados e grupos aceitam originais de até 10 MB (`chatFileLimit`), conferidos no envio, na admissão do servidor e pelas restrições `message_attachments_bytes_check`/`group_media_bytes_check` (migração 071). DMs pelo `@` e status conservam 3 MB no cliente, no servidor e no banco. Os validadores de descritores aceitam o limite maior como fronteira de formato; o limite de produto de cada contexto é imposto no envio e na admissão. O preparo de fotos normalizadas (2.048 px/3 MB) e o orçamento de pixels não mudam. Registros do backup independente admitem 14 MB para conter a mídia em base64. As menções a 3 MB abaixo descrevem a entrega histórica.
+
 O [ajuste de chats solicitado em 09/10/2026](CHAT_ORIGINAIS_E_PREVIAS.md) substitui a escolha de otimização e o carregamento integral por toque: enviar sempre o original até 3 MB, mostrar imagens compatíveis automaticamente no histórico verificado e manter cartões de perfil fora da linha de mensagens. Autorização, cifras, cache, recuperação e exclusão permanecem. As regras abaixo registram a experiência histórica de 03/10/2026; processamento de fotos fora do chat conserva seus contratos específicos.
 
 ## Experiência histórica de 03/10/2026

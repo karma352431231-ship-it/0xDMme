@@ -50,7 +50,7 @@ async function verifyReads(t: TestContext, context: StorageContext) {
       assert.deepEqual(
         (
           await writer.query(
-            'SELECT version,checksum,applied_at FROM hash_talk.schema_migrations WHERE version<=73 ORDER BY version',
+            'SELECT version,checksum,applied_at FROM hash_talk.schema_migrations WHERE version<=76 ORDER BY version',
           )
         ).rows,
         before.versions,

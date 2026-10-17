@@ -69,7 +69,7 @@ await test('group accounting upgrades populated history and preserves transactio
       assert.deepEqual(
         (
           await inspector.query(
-            'SELECT version,checksum,applied_at FROM hash_talk.schema_migrations WHERE version<=69 ORDER BY version',
+            'SELECT version,checksum,applied_at FROM hash_talk.schema_migrations WHERE version<=72 ORDER BY version',
           )
         ).rows,
         checksums.rows,

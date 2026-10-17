@@ -5,7 +5,9 @@ import {
 } from '@matrix-org/matrix-sdk-crypto-wasm';
 import {
   attachmentRef,
+  chatFileLimit,
   fileLimit,
+  fileLimitMessage,
   partLimit,
 } from '../../shared/attachments/index.ts';
 import type {
@@ -22,7 +24,7 @@ export async function sealFile(
   maximum = fileLimit,
 ): Promise<SealedFile> {
   if (!bytes.length || bytes.length > maximum)
-    throw new Error('Arquivo deve ter até 3 MB.');
+    throw new Error(fileLimitMessage(maximum));
   await initAsync('/matrix-crypto-18.9.0.wasm');
   const sealed = Attachment.encrypt(bytes);
   try {
@@ -53,7 +55,7 @@ export async function sealFile(
 export async function openFile(
   file: PrivateFile,
   bytes: Uint8Array,
-  maximum = fileLimit,
+  maximum = chatFileLimit,
 ): Promise<Uint8Array<ArrayBuffer>> {
   const ref = attachmentRef(file.ref, maximum);
   if (bytes.length !== ref.bytes || (await bytesHash(bytes)) !== ref.hash)

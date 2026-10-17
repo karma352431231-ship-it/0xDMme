@@ -1,6 +1,7 @@
 /** Versioned, local transforms: changing one community never rescales another. */
 export const rankingVersion = 1;
-export const rankingMetricVersion = 1;
+/** 2 (16/10/2026): active members include public voters. */
+export const rankingMetricVersion = 2;
 export const rankingDay = 86_400_000;
 export const rankingNewAge = 7 * rankingDay;
 export const rankingNewFollowers = 500;

@@ -1,0 +1,47 @@
+/* Wide communities page: about and management beside the posts. */
+@media (min-width: 1280px) {
+  .app[data-page='comunidades'] [data-community-layout='detail'] {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 320px;
+    align-items: start;
+    gap: 0 24px;
+  }
+  .app[data-page='comunidades'] [data-community-layout='detail'] > * {
+    grid-column: 1;
+  }
+  .app[data-page='comunidades']
+    [data-community-layout='detail']
+    > :is(.community-tools, .community-feedback) {
+    grid-column: 1 / -1;
+  }
+  .app[data-page='comunidades']
+    [data-community-layout='detail']
+    > .community-summary {
+    position: sticky;
+    top: 0;
+    grid-column: 2;
+    grid-row: 3;
+  }
+  .app[data-page='comunidades']
+    [data-community-layout='detail']
+    > .community-posts {
+    grid-row: 3 / span 3;
+  }
+  .app[data-page='comunidades']
+    [data-community-layout='detail']
+    > .community-management {
+    grid-column: 2;
+    grid-row: 4;
+  }
+}
+@media (max-width: 700px) {
+  .ranking-link {
+    grid-template-columns: 22px 36px minmax(0, 1fr) auto;
+    gap: 10px;
+    padding: 12px;
+  }
+  /* Phones keep the last figure: growth, or followers when ranking by size. */
+  .ranking-stat:not(:last-child) {
+    display: none;
+  }
+}

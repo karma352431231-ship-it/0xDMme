@@ -31,5 +31,5 @@ export async function reverseMessageAllocations(
     DROP FUNCTION hash_talk.mark_message_admission(text,text,integer);
     ALTER TABLE hash_talk.content_allocations DROP CONSTRAINT content_allocations_scope_check;
     ALTER TABLE hash_talk.content_allocations ADD CONSTRAINT content_allocations_scope_check CHECK(scope IN ('prepared','vault-reserve','vault-maintain'));
-    DELETE FROM hash_talk.schema_migrations WHERE version=80`);
+    DELETE FROM hash_talk.schema_migrations WHERE version=83`);
 }

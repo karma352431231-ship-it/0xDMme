@@ -1,3 +1,4 @@
+import { communitySlug } from '../../shared/community-address/index.ts';
 import { upvoterLookup } from './upvotes.ts';
 import { directoryLookup } from './directory.ts';
 import {
@@ -55,6 +56,7 @@ export function createCommunityHandler(read: {
   origin?: string;
   suggestions?: (query: string) => Promise<CommunityPage>;
   views?: (input: unknown) => Promise<unknown>;
+  readAddress?: (slug: string) => Promise<Community>;
   read: (id: string) => Promise<Community>;
   list: (after: string | null) => Promise<CommunityPage>;
   feed?: (filter: FeedFilter, after: string | null) => Promise<FeedPage>;
@@ -113,6 +115,26 @@ export function createCommunityHandler(read: {
       ),
     );
   }
+  async function addressLookup(address: URL): Promise<Community | null> {
+    if (
+      !address.pathname.startsWith('/api/communities/address/') ||
+      !read.readAddress ||
+      address.search
+    )
+      return null;
+    return community(
+      await read.readAddress(
+        communitySlug(
+          decodeURIComponent(
+            address.pathname.slice('/api/communities/address/'.length),
+          ),
+        ),
+      ),
+    );
+  }
+  async function publicDirectory(address: URL) {
+    return (await addressLookup(address)) ?? directoryLookup(address, read);
+  }
   async function readLookup(request: IncomingMessage): Promise<unknown> {
     if (request.method !== 'GET' && request.method !== 'HEAD')
       throw new AccountError(405, 'Método inválido.');
@@ -130,7 +152,7 @@ export function createCommunityHandler(read: {
       )
     )
       return communitySubresource(address);
-    const directory = await directoryLookup(address, read);
+    const directory = await publicDirectory(address);
     if (directory) return directory;
     if (
       address.search ||
@@ -188,7 +210,7 @@ export function createCommunityHandler(read: {
           feedFilter({
             scope: 'all',
             order: query.get('order') ?? 'mixed',
-            period: query.get('period') ?? 'all',
+            period: query.get('period') ?? 'day',
             community: query.get('community'),
             tag: query.get('tag'),
           }),

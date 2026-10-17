@@ -8,6 +8,7 @@ import {
 } from '../../shared/account/index.ts';
 import {
   attachmentRefs,
+  chatFileLimit,
   partLimit,
   verifyAttachmentPart,
 } from '../../shared/attachments/index.ts';
@@ -52,7 +53,9 @@ function writeRequest(
     input: {
       ...scope(d),
       id: uuid(d['id']),
-      index: finishing ? null : integer(d['index'], 11),
+      index: finishing
+        ? null
+        : integer(d['index'], Math.ceil(chatFileLimit / partLimit) - 1),
     },
     bytes: finishing ? null : base64(d['ciphertext'], partLimit),
   };
@@ -82,7 +85,7 @@ export class GroupMediaService {
         return store.reserve(a, {
           ...scope(d),
           message: uuid(d['message']),
-          refs: attachmentRefs(d['refs']),
+          refs: attachmentRefs(d['refs'], chatFileLimit),
         });
       },
       'group-attachment-cancel': async (a, d) => {
@@ -199,7 +202,7 @@ export class GroupMediaService {
       ...scope(d),
       message: uuid(d['message']),
       id: uuid(d['id']),
-      index: integer(d['index'], 11),
+      index: integer(d['index'], Math.ceil(chatFileLimit / partLimit) - 1),
     };
     const ref = await this.store.readable(a, input),
       part = ref.parts[input.index];

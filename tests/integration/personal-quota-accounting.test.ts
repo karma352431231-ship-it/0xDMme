@@ -43,7 +43,7 @@ async function verifyQuotaReads(t: TestContext, context: PersonalQuotaContext) {
       assert.deepEqual(
         (
           await inspector.query(
-            'SELECT version,checksum,applied_at FROM hash_talk.schema_migrations WHERE version<=70 ORDER BY version',
+            'SELECT version,checksum,applied_at FROM hash_talk.schema_migrations WHERE version<=73 ORDER BY version',
           )
         ).rows,
         versionRows,
@@ -404,7 +404,7 @@ await test('direct personal accounting preserves the historical formula across m
   await groupQuotaPredecessor(inspector);
   const previous = await readFile(
     new URL(
-      '../../src/server/database/migrations/070-group-quota-accounting.sql',
+      '../../src/server/database/migrations/073-group-quota-accounting.sql',
       import.meta.url,
     ),
     'utf8',
@@ -412,7 +412,7 @@ await test('direct personal accounting preserves the historical formula across m
   await inspector.query('BEGIN');
   await inspector.query(previous);
   await inspector.query(
-    'INSERT INTO hash_talk.schema_migrations(version,checksum) VALUES(70,$1)',
+    'INSERT INTO hash_talk.schema_migrations(version,checksum) VALUES(73,$1)',
     [createHash('sha256').update(previous).digest('hex')],
   );
   await inspector.query('COMMIT');

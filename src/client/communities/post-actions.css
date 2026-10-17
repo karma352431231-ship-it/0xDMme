@@ -1,0 +1,68 @@
+/*
+ * Post action row: votes, score and options.
+ */
+.post-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  align-items: center;
+  margin-top: 12px;
+}
+:is(.app[data-page='comunidades'], .community-scope)
+  .post-actions
+  :is(.post-action, .post-votes, .post-more > summary) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 0;
+  border-radius: 22px;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 40px;
+  padding: 6px 12px;
+  font-size: var(--fs-caption);
+  margin: 0;
+}
+.post-votes {
+  gap: 0;
+  padding: 0 !important;
+}
+:is(.app[data-page='comunidades'], .community-scope)
+  .post-votes
+  :is(button, a) {
+  display: grid;
+  place-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: 22px;
+  padding: 6px;
+  min-width: 36px;
+  min-height: 40px;
+  margin: 0;
+  color: var(--text);
+}
+.post-score {
+  min-width: 26px;
+  text-align: center;
+  font-size: var(--fs-caption);
+  font-weight: 600;
+}
+:is(.app[data-page='comunidades'], .community-scope)
+  .post-save[aria-pressed='true'] {
+  color: var(--accent);
+}
+.post-more {
+  min-width: 0;
+}
+:is(.app[data-page='comunidades'], .community-scope)
+  .post-actions
+  .post-more
+  > summary {
+  font-size: 0;
+  width: 40px;
+  padding: 10px;
+  list-style: none;
+  cursor: pointer;
+  line-height: 0;
+}

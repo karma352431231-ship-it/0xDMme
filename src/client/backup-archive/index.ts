@@ -30,6 +30,7 @@ import {
 import type { BackupRecord } from '../backup-records/index.ts';
 import {
   attachmentContent,
+  chatFileLimit,
   contentRefs,
 } from '../../shared/attachments/index.ts';
 import { BackupOutput } from './output.ts';
@@ -431,7 +432,7 @@ export class BackupReader {
       groups.add(row.state.groupId);
     }
     if (isMediaRecord(row)) {
-      if ((await bytesHash(base64(row.bytes, 3_000_000))) !== row.hash)
+      if ((await bytesHash(base64(row.bytes, chatFileLimit))) !== row.hash)
         throw new Error('Mídia de backup adulterada.');
       media.add(
         row.type === 'dm-media'

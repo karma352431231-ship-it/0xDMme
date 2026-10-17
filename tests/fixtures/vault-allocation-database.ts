@@ -88,7 +88,7 @@ export async function vaultAllocationFixture(
   });
   await Promise.all([writer.connect(), reader.connect(), inspector.connect()]);
   await allocationPredecessor(inspector);
-  await applyVaultMigration(inspector, '077-content-allocations.sql');
+  await applyVaultMigration(inspector, '080-content-allocations.sql');
   const fixture = await seedStorageReservations(inspector),
     sources = (
       await inspector.query<{
@@ -107,10 +107,10 @@ export async function vaultAllocationFixture(
         )
       ).rows,
     };
-  await applyVaultMigration(inspector, '078-vault-allocation-accounting.sql');
+  await applyVaultMigration(inspector, '081-vault-allocation-accounting.sql');
   const lifecycle = await vaultLifecyclePredecessor(inspector);
   await beforeUpgrade?.(inspector);
-  await applyVaultMigration(inspector, '079-vault-lifecycle-allocations.sql');
+  await applyVaultMigration(inspector, '082-vault-lifecycle-allocations.sql');
   const message = await messageAllocationPredecessor(inspector);
   await beforeMessageUpgrade?.(inspector);
   await db.migrate();

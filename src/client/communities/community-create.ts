@@ -40,7 +40,7 @@ export function mountCommunityCreation(
   const title = el('div', '', 'community-create-title');
   // Inside the panel, community links stay in the panel, so this returns there too.
   const back = el('a', '', 'community-create-back');
-  back.href = '#comunidades?view=feed';
+  back.href = '#communities?view=feed';
   back.setAttribute('aria-label', t('Voltar'));
   back.title = t('Voltar');
   iconLabel(back, 'back');

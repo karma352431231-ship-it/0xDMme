@@ -34,6 +34,13 @@ def run(args, timeout=30):
     return result.stdout.strip()
 
 
+def private_target_file():
+    common = Path(run(['git', 'rev-parse', '--path-format=absolute', '--git-common-dir']))
+    private_root = common.resolve().parent
+    run(['git', '-C', str(private_root), 'check-ignore', '--', '.local/VPS_SSH_TARGET'])
+    return private_root / '.local/VPS_SSH_TARGET'
+
+
 def main():
     if len(sys.argv) != 1:
         raise RuntimeError('Run without arguments from the prepared repository.')
@@ -49,8 +56,7 @@ def main():
                   '--exit-code', 'origin', f'refs/heads/{branch}'])
     if remote.split()[0] != revision:
         raise RuntimeError('Push this exact commit to GitHub first.')
-    target_file = ROOT / '.local/VPS_SSH_TARGET'
-    run(['git', 'check-ignore', '--', '.local/VPS_SSH_TARGET'])
+    target_file = private_target_file()
     if target_file.is_symlink():
         raise RuntimeError('Private SSH target must be a regular local file.')
     target = target_file.read_text().strip()

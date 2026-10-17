@@ -18,5 +18,6 @@ export function projectDmMessages(
     reactions: view.reactions,
     ownReaction: view.ownReaction,
     displayText: view.content.text,
+    edited: view.edited,
   }));
 }

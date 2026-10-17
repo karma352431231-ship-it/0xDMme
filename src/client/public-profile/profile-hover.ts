@@ -4,6 +4,7 @@ import {
   currentLanguage,
 } from '../../shared/i18n/index.ts';
 import { renderMentions } from '../public-mentions/index.ts';
+import { appRoute } from '../../shared/app-routes/index.ts';
 import { fetchApi, readApiJson } from '../api-response/index.ts';
 import { uuid } from '../../shared/account/index.ts';
 import {
@@ -59,10 +60,10 @@ async function read(path: string, signal: AbortSignal): Promise<unknown> {
 function targetOf(
   link: HTMLAnchorElement,
 ): { id: string } | { handle: string } | null {
-  const [path, query = ''] = (link.getAttribute('href') ?? '').split('?');
-  if (path !== '#publico') return null;
+  const route = appRoute(link.getAttribute('href') ?? '');
+  if (route?.page !== 'users') return null;
   try {
-    const params = new URLSearchParams(query);
+    const params = route.params;
     return params.has('id')
       ? { id: uuid(params.get('id')) }
       : { handle: publicHandle(params.get('handle')) };
@@ -107,7 +108,7 @@ export function profileHoverProvider(
       }
       head.append(avatar, actions);
       const name = line('a', `@${value.profile.handle}`, 'hover-card-title');
-      (name as HTMLAnchorElement).href = `#publico?id=${value.profile.id}`;
+      (name as HTMLAnchorElement).href = `#users?id=${value.profile.id}`;
       const banner = line('div', '', 'public-profile-banner hover-card-banner');
       if (value.banner)
         showPublicAvatar(banner, {

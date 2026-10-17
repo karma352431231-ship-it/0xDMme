@@ -14,8 +14,10 @@ import { discoverWallets } from '../wallet/index.ts';
 import { signRecovery } from '../wallet-recovery/index.ts';
 import { applyTheme, storedTheme } from '../appearance/index.ts';
 import { recoveryApi } from './index.ts';
+import { startScrollbarFade } from '../scrollbars/index.ts';
 
 startLanguage();
+startScrollbarFade();
 applyTheme(storedTheme().theme);
 
 const status = document.querySelector<HTMLElement>('[data-status]');

@@ -1,5 +1,40 @@
 # Capacity audit follow-up — 16 October 2026
 
+## Capacity integration — owner approval on 17 October 2026
+
+The owner requested integrating the prepared capacity work into main, updating
+its isolated VPS environment and testing there, then explicitly approved the
+conflict resolutions after reviewing the private integration packet. Preserve
+main's applied migrations 001–072 byte for byte, including ranking activity,
+10 MB private/group attachments and community addresses. The eighteen unapplied
+capacity migrations formerly numbered 070–087 are integrated as 073–090; their
+prior source identities remain in Git history and earlier block reports refer
+to those original numbers. No applied migration identity or checksum changes.
+
+The unapplied statement-accounting and allocated-source catalog guards now
+require all 81 charged sources, including `community_addresses`. Private upload
+reservation keeps the approved 10 MB file bound, 96 kB thumbnail bound and exact
+both-owner/pending/physical accounting. Private/group transfer part bounds follow
+the 10 MB context; social/status keep their 3 MB product bounds. Daily reads retain
+both current public-profile projection and scoped receipt allocation. Social
+uploads retain main's current conversation/block authorization alongside memory
+admission; obsolete pending-count ceilings are not restored.
+
+This approval supersedes the earlier branch-only/final-activation timing for
+this integration and VPS test release. It does not declare the capacity audit
+finished: remaining database contention, public-media delivery, real storage,
+TURN/network and representative acceptance remain visible. Exact integrated
+checks and main CI precede deployment through the existing executor. Prepare a
+reviewed 072→090 transition and scoped failure/recovery checks before activation;
+source integration alone never activates SQL, templates or services. The existing
+authorization to discard this app's pre-launch test data remains available only
+within its recorded scope. No reset has been performed by this integration.
+
+**Ponto importante:** report actual activation and VPS evidence separately from
+source validation. Preserve the other project, main's deploy byte-budget fix,
+stylesheets and unrelated session changes. Private access, migration mapping,
+operational baselines and receipts remain exclusively in the main `.local/`.
+
 ## Owner decision — disposable pre-launch data (17 October 2026)
 
 The owner explicitly authorized discarding all existing 0xDMme pre-launch test
@@ -396,6 +431,176 @@ approve changing the other project's infrastructure or weakening data safety.
 
 # 0xDMme — decisões e plano de implementação
 
+**Release source growth — authorized on 17/10/2026:** the owner requested fixing
+the deployment file-count restriction and integrating it into main immediately.
+Replace the 1,024-entry manifest ceiling and 4,096-member authored/build extraction
+ceiling with a consistent 1 MiB serialized-manifest budget and the existing
+128 MiB expanded archive budget, counting headers and padding. Preserve transfer,
+runtime, integrity, exact-source, CI, compatibility and rollback guards. This is
+an isolated deployment correction; it does not activate the pending capacity work
+or change application behavior, schema, dependencies or shared infrastructure.
+**Ponto importante:** use the existing deployment executor from reviewed main;
+source integration and actual VPS publication have separate evidence. See the
+[deployment contract](docs/GIT_E_DEPLOY.md#release-file-growth--owner-authorized-fix-on-17102026).
+
+**Optimistic private text presentation — authorized on 16/10/2026:** the owner
+requested displaying own text immediately and replacing verbose send/history
+placeholders with a retry cross when sending fails. Render session-local drafts
+in the same keyed history as verified messages, using their existing stable IDs.
+Only real server acceptance earns a sent check; delivery/read markers retain
+their existing verified meaning. Keep ciphertext-before-transmission, authority,
+retention, quotas and exclusive SDK operation. Restore ordinary encrypted drafts
+under current authority after the history gate opens. Bound the own-text display
+cache to 64 entries of at most 128 KiB, hide it on invalidation and clear session
+plaintext on replacement. The owner initially requested Git-only delivery, then
+explicitly authorized main integration and VPS activation and resumed the release
+after context compaction. Preserve the latest integrated main, require full CI for
+the exact pushed release, and reuse the existing deployment executor with its
+preservation, readiness, public-source verification and retained rollback checks.
+**Ponto importante:** presentation is optimistic; actual persistence, acceptance
+and delivery remain distinct. See the
+[activation scope](docs/GIT_E_DEPLOY.md#optimistic-private-texts--activation-authorized-on-16102026).
+See the [presentation contract](docs/DIAGNOSTICO_LAG_CHAT.md#optimistic-own-text-presentation--16102026).
+
+**Measured private text-send repair — authorized on 16/10/2026:** after the
+complete desktop capture demonstrated rejected Enter attempts and foreground
+blocking beyond publication, the owner approved applying the fix. Separate
+bounded local text/reply admission, durable FIFO persistence and exclusive
+transmission. Preserve stable IDs, strict ciphertext-before-transmission, fresh
+remote authorization, recipient trust/recovery and existing send quotas. Keep
+unsaved local input visibly distinct from durable pending work and server
+acceptance; guard ordinary page closing/PWA activation until it is saved, and
+discard unsaved plaintext on session replacement. Defer normal account-wide
+rechecks during a typing burst without delaying immediate invalidation. Existing
+editing/media/group/handle flows remain unchanged. The owner subsequently
+authorized main integration and VPS activation, with a notification immediately
+after the integrated main commit is published. Require that commit's full CI
+and the existing deployment executor with preservation, readiness, public-file
+verification and retained rollback. **Ponto importante:** physical send cadence
+still requires acceptance; no server, SQL, dependency or crypto-format transition
+is approved or included. See the
+[implementation contract](docs/DIAGNOSTICO_LAG_CHAT.md#applying-the-measured-private-text-send-repair--16102026).
+See the [activation scope](docs/GIT_E_DEPLOY.md#consecutive-private-texts--activation-authorized-on-16102026).
+
+**Consecutive message-send diagnosis — 16/10/2026:** the owner asked to remove
+the pause between Enter submissions, accepting a desktop console capture if the
+actual bottleneck cannot be established from source alone. The private send path
+holds its busy gate through submission and follow-up work; source inspection does
+not assign physical timings to those phases. Extend the opt-in local collector to
+record Enter intent, actual click/submit events and fixed composer-control states
+without input values or message content. Keep request/lock/response timing, bounded
+memory and explicit cleanup. **Ponto importante:** the collector does not change
+sending, authorization, SDK exclusion or durability; use the capture to distinguish
+rejected Enter attempts from transmission and follow-up cost before changing them.
+See [send capture instructions](docs/DIAGNOSTICO_LAG_CHAT.md#consecutive-text-send-capture--16102026).
+
+**Public DM continuity repair — 16/10/2026:** while checking the pause between
+consecutive sends, the owner reported `DM session changed.` on the Android handle
+messages page. Reproduce the cancellation boundary with the actual signed client
+and retain the existing immediate invalidation of verified history. Distinguish
+initial stream connection from loss of an established stream, wait for an active
+handshake before a coalesced recheck, and prevent obsolete operation results/errors
+from replacing the current view. Preserve real HTTP errors, session replacement,
+authorization, E2EE, storage and polling budgets. No backend, dependency, migration
+or activation is included. **Ponto importante:** the text-send interval remains a
+separate investigation; this repair does not claim a measured mobile speedup.
+See [continuity contract](docs/PARIDADE_CHATS.md#public-dm-connection-continuity--16102026).
+
+**Usable mobile conversations — 16/10/2026:** after the next physical capture,
+the owner clarified that a published contact could not be opened while startup
+was still busy and requested fixing both startup waits. Accept a visible private
+conversation choice during startup, retaining only the latest pending recipient.
+Run it at the next exclusive foreground boundary before unrelated maintenance;
+never change the crypto engine's recipient during another operation. Keep draft
+typing local and enable sending only after the selected history is verified.
+Coalesce initial profile-triggered presence work into post-initialization
+maintenance. Load groups, resume durable outbox work, update presence and release
+optional app warmups in separate bounded turns, preserving live invalidation,
+online authority/removal checks, consent, recovery and session cancellation.
+No dependency, protocol, backend, migration or retention change is included.
+The source repair passed 85 targeted scenarios and full exact-commit CI. The
+owner subsequently authorized main integration and VPS activation on 16/10/2026,
+then explicitly resumed the release after context compaction. Require the exact
+integrated commit's full CI and the existing deployment executor with preservation,
+readiness, verified public files and retained rollback. A new physical comparison
+is still required before claiming a speedup. See the
+[activation scope](docs/GIT_E_DEPLOY.md#usable-mobile-conversations--activation-authorized-on-16102026).
+See [functional startup contract](docs/BOOT_CONTATOS_CONVERSAS.md#usable-conversations-during-mobile-startup--16102026).
+
+**Measured private-directory boot repair — 16/10/2026:** after the complete
+physical console capture located repeated authenticated work before initial
+directory publication, the owner approved applying the fixes. Defer optional
+session warmups while the foreground private chat directory starts, coalescing
+readiness rechecks during that interval. Keep calls and incoming group links immediate, keep other
+foreground screens on their normal startup path. The newer functional-startup
+contract above supersedes release at first directory publication; navigation and
+a current-session startup failure still release deferred work.
+Logout, device/CSRF changes and authorization loss discard the pending warmup.
+Every operation retains its own existing online authorization, revocation and
+history gates. No stale authority cache, new protocol, backend, migration,
+dependency or persistent plaintext is introduced. Exact physical timings and
+captures remain private in `.local/`; a new physical comparison is required
+before claiming a mobile speedup. See [boot scheduling contract](docs/BOOT_CONTATOS_CONVERSAS.md#foreground-directory-startup--16102026).
+
+The owner subsequently authorized main integration and VPS activation on
+16/10/2026, then explicitly resumed that release after context compaction.
+Use the existing deployment executor with full exact integrated-commit CI,
+preservation/readiness checks, verified public assets and retained rollback.
+See [activation scope](docs/GIT_E_DEPLOY.md#private-directory-boot-repair--activation-authorized-on-16102026).
+
+**Feed vote position repair — 15/10/2026:** during acceptance of the authorized
+discovery release, the owner reported that upvoting jumps to the top of the feed.
+The confirmed-vote callback still used the existing reload-from-start path,
+which resets both cursor and scroll; this path predates the module extraction.
+Update the confirmed score and pressed vote controls in the existing card instead,
+preserving its page, nodes, media and reply draft. If the returned post is no
+longer visible, retain the existing refresh/removal path. Signed reads/writes,
+revision checks, authorization and explicit feed refresh behavior remain unchanged.
+This is a frontend acceptance repair under the approved discovery release flow,
+with exact integrated-commit CI and the existing deployment executor. See the
+[repair contract](docs/PERFIL_PUBLICO_E_FEEDS.md#feed-votes-preserve-reading-position--15102026).
+
+**Discovery refactor approved on 15/10/2026:** the owner required a verified source
+checkpoint before proceeding with the separate hotspot task. Extract ranking
+presentation first, then feed cards; preserve behavior and keep loading/pagination,
+session generations and resource lifecycle in the discovery coordinator. Existing
+interaction modules remain authoritative. This supersedes the earlier proposal
+to extract feed loading during this task. Record existing UI behavior in tests
+before moving code, use separate validated commits and inspect responsive previews.
+The checkpoint includes uncommitted source and Git history, with private recovery
+evidence in `.local/`; it excludes live databases and VPS state. The owner then
+explicitly authorized main integration and VPS activation after the three task
+commits passed CI. Use the existing deployment command, the integrated commit's
+full CI, preservation/readiness checks and code rollback. No dependency, backend
+or schema change is included. See the
+[module contract](docs/PERFIL_PUBLICO_E_FEEDS.md#discovery-module-extraction--owner-approval-on-15102026).
+
+**Anexos de até 10 MB nos chats privados e de grupo — decisão do proprietário em 16/10/2026:** o teto de anexo do chat privado e dos grupos passa de 3 MB para 10 MB, com a migração 071 e ativação autorizadas. DMs pelo `@`, status, fotos de perfil/grupo/comunidade e mídia pública mantêm seus tetos. A cota de 1 GB por conta, a cota dos grupos, E2EE, retenção e recuperação não mudam; cada arquivo maior consome proporcionalmente mais cota. Cada registro do backup independente passa a admitir 14 MB para conter uma mídia de 10 MB em base64. **Ponto importante:** versões antigas do app abertas em outro aparelho não abrem anexos acima de 3 MB até atualizar. [Contrato](docs/BLOCO_08_FOTOS_E_ARQUIVOS.md).
+
+**Última mensagem na lista, AM/PM e ativação — pedido do proprietário em 15/10/2026:** após concluir a paridade e edição, mostrar a última mensagem enviada ou recebida diretamente na lista dos dois chats, com checks somente nos envios e leitura conforme privacidade, sem marcar recebidas como lidas ao olhar a lista. O proprietário esclareceu que se refere à lista, sem notificações com app fechado. Usar AM/PM nos dois chats e integrar/ativar o conjunto com CI integral do commit exato, build local, executor existente, preservação e rollback. **Ponto importante:** preservar E2EE e separação de contextos; sem nova migração, dependência ou infraestrutura. [Contrato atual](docs/PARIDADE_CHATS.md).
+
+**Paridade dos chats e edição pelo `@` — pedido do proprietário em 15/10/2026:** alinhar a experiência do chat pelo perfil público à do chat privado, preservando identidade, consentimento e recursos exclusivos de cada contexto. O pedido posterior autoriza edição de texto próprio também pelo `@`, substituindo a proibição histórica de edição sem liberar encaminhamento privado, chamadas, grupos, vídeos enviados, cartões privados, transações ou contratos. Preservar E2EE, histórico, cotas, bloqueio, recuperação e remoções. **Ponto importante:** entrega em branch, sem ativação automática ou migração. [Matriz e contrato](docs/PARIDADE_CHATS.md).
+
+**Correção do registro de DM pelo `@` — 15/10/2026:** o erro de contexto em `dm-register` foi reproduzido com a autoridade do cliente e o validador do servidor: a tradução do nome técnico do aparelho divergia do valor histórico aceito no protocolo. Compartilhar o identificador fixo, corrigir somente o nome local antes da assinatura e preservar alias, chaves, eventos assinados e separação da identidade privada. **Ponto importante:** correção em branch, sem ativação, migração ou nova dependência. [Contrato e regressões](docs/COMUNIDADES_PUBLICAS.md#corte-7--base-de-dms-pelo--local-em-06102026).
+
+**Ativação do enquadramento e zoom da foto — autorizada em 15/10/2026:** após a CI integral de `af5e05f`, o proprietário pediu integrar à main e enviar à VPS. A autorização substitui a restrição de ativação do registro abaixo somente para este lote. Conservar backend, 69 migrações, dependências, runtime e infraestrutura; exigir CI do commit integrado e executor existente com build local, preservação, prontidão e rollback. **Ponto importante:** confirmar recibo `published` e versão servida; teste em celular físico permanece pendente. [Contrato operacional](docs/GIT_E_DEPLOY.md#enquadramento-e-zoom-da-foto-privada--ativação-autorizada-em-15102026).
+
+**Foto privada do cabeçalho — pedido de 15/10/2026:** corrigir o fundo aparente e o enquadramento central e permitir ampliar ao tocar. Usar exclusivamente a foto privada já recebida no aparelho, sem sincronização ou busca pública nova; ampliação fecha ao mudar contato, foto, sessão ou página. Reutilizar o visualizador existente por uma interface de apresentação independente da leitura pública, conservando E2EE e retenção. **Ponto importante:** implementação em branch; ativação na VPS é etapa separada. [Contrato e limites](docs/UI_CONVERSAS.md#enquadramento-e-ampliação-da-foto-privada--15102026).
+
+**Ativação de foto privada e URLs — autorizada em 15/10/2026:** após a entrega de `0455607`, o proprietário pediu integrar à main e ativar na VPS. Esta autorização substitui a restrição de ativação do registro abaixo somente para este lote. Preservar backend, 69 migrações, dependências, Node, modelos e infraestrutura; exigir CI integral do commit integrado e executor existente com build local, preservação, prontidão e rollback. **Ponto importante:** exigir recibo `published` e versão servida conferida; teste com conta real em celular físico permanece pendente. [Contrato operacional](docs/GIT_E_DEPLOY.md#foto-privada-e-urls--ativação-autorizada-em-15102026).
+
+**Foto privada automática e URLs — pedido do proprietário em 15/10/2026:** escolher ou remover a foto privada salva imediatamente o perfil cifrado, sem confirmação adicional; isso substitui a preparação de foto pendente, preservando a confirmação explícita de nome e privacidade. Endereços de navegação passam a inglês, com compatibilidade dos links antigos e destinos próprios para painéis, categorias de configurações, usuários e comunidades. O fragmento restaura somente o contexto público e o arranjo, sem incluir conversa privada, wallet ou conteúdo. **Ponto importante:** implementação em branch, sem ativação automática, backend, migração ou dependência nova. Contratos, limites da validação e proposta de separação dos hotspots em [Foto privada e URLs](docs/PERFIL_PRIVADO_E_ROTAS.md).
+
+**Ativação do boot mobile — autorizada em 15/10/2026:** após a CI integral de `9be4698`, o proprietário pediu enviar a melhoria à main e ativar na VPS. Esta autorização substitui a restrição de ativação do registro de boot abaixo. Integrar somente os commits deste lote, preservando backend, 69 migrações, dependências, runtime, modelos e infraestrutura instalada; exigir CI do commit integrado, build local e executor existente com preservação, prontidão e rollback. **Ponto importante:** publicação exige recibo e versão servida conferidos; o tempo total em aparelho físico permanece sem medição. [Contrato operacional](docs/GIT_E_DEPLOY.md#boot-de-contatos-e-conversas--ativação-autorizada-em-15102026).
+
+**Boot mobile — melhoria solicitada em 15/10/2026:** o proprietário relata lentidão para contatos/conversas aparecerem tanto na abertura quanto na retomada. Um ensaio com a carga real das listas e transporte fictício reproduziu downloads e autoridades repetidos por contato, mesmo com ciphertext local. Abrir agenda/pins em lotes de até 16 objetos, obtendo autoridade atual e conferindo remoções antes/depois; reutilizar somente ciphertext validado contra o commit autenticado e o AAD existente. Cache corrompido, falha, exclusão, revogação ou troca de sessão não liberam conteúdo. **Ponto importante:** o ganho medido não é o tempo total do celular; não há ativação autorizada nesta etapa, mudança de backend, migração, dependência, criptografia, retenção ou telemetria. [Contrato e medições](docs/BOOT_CONTATOS_CONVERSAS.md).
+
+**Ativação da correção de atraso — 15/10/2026:** depois da CI integral aprovada em `4aaa019`, o proprietário pediu integrar à main e ativar na VPS. Esta decisão substitui a restrição de ativação dos dois registros abaixo, somente para o medidor local e a correção de atraso deste chat. Preservar os demais trabalhos fora da entrega, backend, 69 migrações, dependências, runtime e serviços instalados; exigir CI do commit exato integrado e publicado, build no Mac e o executor existente. **Ponto importante:** publicação depende de recibo e versão servida verificados; medição física e investigação de voz continuam pendentes. [Contrato operacional](docs/GIT_E_DEPLOY.md#atraso-na-abertura-dos-chats--ativação-autorizada-em-15102026).
+
+**Prioridade solicitada em 15/10/2026:** após a captura real de latência, o proprietário pediu focar primeiro no atraso de abertura/troca de conversa, deixando a investigação de quedas de voz para depois. Reduzir consultas redundantes sem retirar conferência de snapshot, exclusões ou autorização. Janelas individuais já confirmadas com snapshot igual não dependem de recarregar identidades do cofre; carga nova e publicação de perfil conservam a conferência de identidades. Estado/entrega/confirmação e recibos compartilham suas autoridades dentro de operações coerentes, com validação no servidor a cada pedido. A abertura explícita e seus recibos precedem manutenção ainda não iniciada na mesma aba, mantendo a exclusão nativa entre abas e progresso limitado da manutenção. Contrato, orçamento e ensaio comparativo no [bloco 07](docs/BLOCO_07_MENSAGENS.md#redução-do-atraso-na-abertura--15102026). Não inclui ativação, mudança de protocolo, banco, dependências, retenção ou investigação de voz.
+
+**Investigação de estabilidade solicitada em 15/10/2026:** o proprietário relata demora com a página visível em desktop/mobile, principalmente ao alternar conversas, e pede um medidor executado no console para observar os disparos de sincronização antes de atribuir a causa. Preparar captura opt-in, local, limitada e removível, com eventos fixos de navegação/visibilidade, estado de sincronização, categorias e tempos de requisições, fila/ocupação da exclusão local e atraso da interface. Não registrar conteúdo, identidade, chaves, corpos HTTP ou dados de aparelho/rede nem enviar telemetria. A linha do tempo e posições do chamador são evidência para investigação, não diagnóstico automático. Esta etapa não altera as guardas de histórico/chamadas nem autoriza ativação. Uso, cobertura e limites em [diagnóstico de lag do chat](docs/DIAGNOSTICO_LAG_CHAT.md).
+
 Decisão de 11/10/2026: retirar os tetos operacionais de backup de objetos (256 MiB), banco/dump/SQL (64 MiB), inclusive a recusa por tamanho físico do PostgreSQL. Usar medição de espaço real, arquivos temporários privados e hashes por blocos; preservar integridade, isolamento, rollback e CI. Substitui a aprovação anterior de ampliar só o backup de objetos. [Contrato do deploy](docs/GIT_E_DEPLOY.md).
 
 Decisão de 11/10/2026: remover o teto de 2 MiB do pacote principal de fontes correspondentes no build, no servidor e na verificação HTTP do deploy. O pacote conserva todos os inputs/licenças, hashes e seleção explícita; mantém os orçamentos independentes de empacotamento e da versão inteira. [Contrato atualizado](docs/FONTES_FRONTEND.md). Substitui somente o teto histórico do pacote principal, sem mudar cotas de arquivos dos usuários.
@@ -490,7 +695,7 @@ abaixo a 9–10 pendentes ou execução somente local descrevem a autorização 
 | Diferenciais blockchain da V1 | Representantes/permissões verificáveis e acordos assinados dentro da conversa, inicialmente com assinaturas fora da blockchain. Demais propostas ficam no roadmap.                                                                                     |
 | ZK                            | Manter a base de privacidade/autorização de grupos já planejada. Votações privadas, elegibilidade por ativos e credenciais/cotas avançadas ficam após a V1. Assinatura digital comum não deve ser anunciada como prova ZK.                             |
 
-As bibliotecas criptográficas foram selecionadas no bloco 01; integração do protocolo e compatibilidade de wallets/redes ainda precisam dos aceites dos blocos responsáveis. Cota vigente de 1 GB, teto de 3 MB e política de cofre completo estão decididos; não alterá-los silenciosamente por conveniência técnica. As regras de contabilização e admissão precisam ser implementadas de modo consistente; ver seção 12.
+As bibliotecas criptográficas foram selecionadas no bloco 01; integração do protocolo e compatibilidade de wallets/redes ainda precisam dos aceites dos blocos responsáveis. Cota vigente de 1 GB, teto de anexos (10 MB em chats privados e grupos desde 16/10/2026, 3 MB nos demais contextos) e política de cofre completo estão decididos; não alterá-los silenciosamente por conveniência técnica. As regras de contabilização e admissão precisam ser implementadas de modo consistente; ver seção 12.
 
 ## 3. Restrições de custo e operação
 
@@ -641,7 +846,7 @@ Apagar a fila não apaga o histórico do cofre. A interface e a política de dad
 - Recuperação com a wallet original e sua assinatura exclusiva deve funcionar sem aparelho anterior, se reproduzir a assinatura da configuração. Contas legadas usam o código até migrar explicitamente.
 - Sem aparelho autorizado e sem conseguir reproduzir a assinatura exclusiva (ou sem código em conta legada), perde-se acesso ao conteúdo. Não introduzir chave mestra administrativa para contornar isso.
 - Exportar, por si só, não apaga conteúdo nem libera cota. A limpeza do cofre é uma ação explícita separada, limitada ao conteúdo preservado em uma exportação completa validada. Novidades posteriores ao corte permanecem no servidor.
-- O teto de 3 MB vale para anexos de conversa, não para o arquivo agregado de backup. Importar backup é leitura local; republicar conteúdo no cofre continua sujeito à cota pessoal de 1 GB.
+- O teto de anexos de conversa (10 MB em chats privados e grupos desde 16/10/2026) não vale para o arquivo agregado de backup. Importar backup é leitura local; republicar conteúdo no cofre continua sujeito à cota pessoal de 1 GB.
 
 ### 5.6 Simplificação aprovada em 04/10/2026
 
@@ -842,6 +1047,11 @@ Após as alterações visuais dessa entrega, o proprietário confirmou em 09/10/
 - **Visitante sem wallet — decisão do proprietário em 11/10/2026:** em Conversas, quem não conectou a wallet (e não tem histórico local neste aparelho) não vê a lista de contatos nem a conversa vazia (“Vamos conversar?” e a barra de conexão). No desktop fica só o cartão **Conta por wallet** à esquerda e as comunidades ocupam o espaço da lista; vale também para **Só conversas**. Abaixo de 1280 px some a lista de contatos e a navegação lateral continua; no mobile fica só o cartão. Visitante com histórico local continua vendo a lista.
 - **Configurações iniciais e escolhas por conta — decisão do proprietário em 11/10/2026:** na primeira entrada com a conta pronta, um assistente oferece três pontos de partida (**Reservado**, **Equilibrado**, **Social**) e uma revisão de todas as opções antes de salvar: tema, quem pode pedir conversa, online, confirmação de leitura, GIFs/vídeos externos, push (mensagens, chamadas, identificar chamada), sons e lembrete de backup. Os perfis prontos só pré-marcam; nada é aplicado sem confirmar, e “Agora não” mantém tudo como está (o assistente volta na próxima entrada). As escolhas valem **por conta, não por aparelho**: tema, sons, mídia externa e push ficam num registro `settings` próprio do cofre cifrado (entidade fixa por conta, rótulo “Configurações da conta”), aplicado em cada aparelho ao entrar e atualizado quando a pessoa muda essas opções em Perfil. Privacidade e descoberta já eram da conta (perfil cifrado e servidor) e não são duplicadas. O push pede a permissão do navegador no próprio toque de salvar. Em outro aparelho, a permissão do navegador continua local: se já concedida, a inscrição é feita sozinha; se nunca pedida, aparece uma vez o convite “Ativar notificações”; se negada, nada acontece. Push desligado na conta desinscreve os aparelhos ao abrirem. Isso substitui “salvo somente no aparelho” para o tema, a escolha de som “persistida neste navegador” (03/10/2026) e “outro aparelho pede consentimento próprio” da mídia externa (10/10/2026). O arranjo dos painéis e a última categoria do Perfil continuam no aparelho. Sem migração, dependência ou dado legível novo no servidor. Detalhes em [UI de configurações](docs/UI_CONFIGURACOES.md).
 
+- **app.css split — owner decision on 17/10/2026:** `app.css` becomes the ordered list of stylesheet imports, and its parts move to the modules that own them (theme tokens in `app/theme.css`), keeping the exact cascade order. This supersedes the 09/10 consolidation made for the old 540-file release ceiling, now replaced by byte budgets. No behavior change; published as `6b0021e`. The same day `communities/community.css` became the ordered import list of its section files, with the same verification ([details](docs/UI_PAINEIS_E_TEMAS.md#communitycss-split-into-section-files--17102026)). Details in [UI panels](docs/UI_PAINEIS_E_TEMAS.md#appcss-split-into-feature-stylesheets--17102026).
+- **All-black columns, post dividers and feed spacing — owner decision on 17/10/2026:** in the Preto theme every column (rail, Contacts, feed, chat, ranking) is black; Azul and Branco keep their panel colors through the new `--panel` token. Posts in lists are separated by a hairline (X model) instead of boxed cards with gaps. On large monitors the side columns grow a little so the centered feed leaves less empty space (reduced, not removed), and the floating "+" is placed from the feed's right edge so it stays inside the feed, on the split screen and on the Communities page. Scrollbars across the whole site have no track and show only while scrolling, fading 2 s after it stops (mouse devices). Public `@` contacts show their photo without the initials on top. Presentation only: no server, data or privacy change. Details in [UI panels](docs/UI_PAINEIS_E_TEMAS.md#all-black-dividers-and-scrollbars--17102026).
+- **Ranking sidebar, Chat | Communities and active growth — owner decision on 16/10/2026:** the full Communities page puts the ranking beside the feed (FOMO style), and the split screen's right column switches between Chat (the default) and Communities. Active members now include public voters, and growth against the previous 24 hours is shown as a raw percent with no cap. This supersedes the earlier aggregate-only vote rule and the "show missing history" rule. It requires migration 070 (vote time and previous active members) and metrics version 2. The ranking updates within seconds of posts, replies and votes. Details in [ranking](docs/RANKING_COMUNIDADES_TRENDING.md#active-members-and-growth-display--owner-decision-on-16102026) and [UI](docs/UI_PAINEIS_E_TEMAS.md#ranking-sidebar-and-chat--communities--16102026).
+- **Settings organization — owner decision on 16/10/2026:** the Profile and settings blocks get even card spacing, a one-column vault with **Reset vault** in a danger zone, a **New organization** step, the app language under **Appearance and language**, and muting moved from Settings into the conversation menu. Each block keeps its own save button; a single save bar was not adopted. No rule, storage or privacy change. Details in [settings UI](docs/UI_CONFIGURACOES.md#settings-organization--16102026).
+- **Center feed (option A) and related fixes — owner decision on 15/10/2026:** on wide screens the full layout becomes **Contacts | Feed in the center | Conversation** in a fixed right column (400 px), replacing the earlier Contatos | Conversa | Feed default. Contacts are unchanged. With the conversation collapsed, the feed uses the full Communities page width (900 px of content), centered. The Post buttons leave the headers: the floating "+" opens **Post** and **Create community**. The opened post loses its box (X model), reply pictures and GIFs shrink by another 30%, and read Activity items keep avatar colors. Private contacts now show the photo from their verified private profile card in the conversation list and header. Each user sends an updated card to all confirmed contacts after a profile change, not only when a conversation is opened. No server, migration or privacy change: cards stay end-to-end encrypted messages. Details in [UI panels](docs/UI_PAINEIS_E_TEMAS.md#center-feed-and-fixes--15102026).
 - **Ping character and community actions — owner decision on 14/10/2026:** the logo's chat bubble with a face (option A1, no arms) becomes the app's character, **Ping**. The app icon, favicon, PWA icon and X profile photo stay faceless; Ping appears only in empty, waiting, warning and confirmation moments, one per screen, with the same expressions on desktop and mobile. Two new one-line texts were approved: "Encrypted on this device" at the start of a private conversation and "Support never asks for your seed phrase" in public `@` conversations. The communities "⋯" menu drops items already reachable as the Mine tab and the Following chip, and creating a community gets an exposed floating button. Details in [Ping and community actions](docs/UI_PAINEIS_E_TEMAS.md#ping-character-and-community-actions--14102026).
   **Ponto importante:** a revisão muda a apresentação e o lugar de acesso, não as proteções. DMs pelo `@` continuam E2EE e separadas da identidade privada; preferências de tema/layout não vão legíveis ao servidor (o tema da conta viaja só cifrado no cofre). Implementação local não ativa a revisão na VPS nem substitui aceite físico.
 
@@ -904,6 +1114,23 @@ Uma prova de existência não armazena o conteúdo e não comprova concordância
 Provas podem ser verificadas no backend sem transação on-chain. Medir custo de geração em celulares reais. Bibliotecas e circuitos auditados são candidatos; a integração do aplicativo ainda exige revisão própria.
 
 ### 6.4 Comunidades públicas — camada social planejada
+
+**Perfil e DMs diretas — atualização aprovada em 15/10/2026:** o proprietário
+retirou a solicitação/aceite somente das DMs pelo `@`: abrir um perfil permite
+iniciar conversa E2EE diretamente, sem seguir ou obter aprovação do destinatário.
+Pedidos e recusas históricos sem bloqueio deixam de impedir mensagens; bloqueios
+bilaterais, aparelho autorizado, chaves disponíveis, tipos permitidos, cotas e
+limites de envio permanecem. O consentimento do chat privado por wallet não muda.
+No perfil, Posts substitui Conversas geradas e Respostas substitui Participação;
+até três comunidades mostram foto/nome, acima disso usam o resumo expansível.
+Seguidores em comum de usuários já existem e conservam a leitura assinada e os
+bloqueios entre os participantes. Contrato em [perfil público](docs/PERFIL_PUBLICO_E_FEEDS.md).
+
+Após a CI integral de `3bfc25d`, o proprietário autorizou integrar este lote à
+main e ativar na VPS pelo executor existente, com CI do commit final, build no
+Mac, preservação e rollback. Conservar as 69 migrações, dependências, Node,
+modelos e infraestrutura. O executor fixa somente a transição exata de código
+social entre `08dff88` e `3bfc25d`; chats por wallet mantêm aceite e bloqueios.
 
 **Feed e discussões aprovados em 12/10/2026:** Descobrir → Destaques aceita replies com cinco votos líquidos ou três outros perfis na ramificação, priorizando autores seguidos entre os elegíveis e limitando um comentário por original/autor. Seguindo aceita um reply por original, o mais antigo entre autores seguidos. Discussão começa em Mais discutidos, com alternativas por votos/data; ramificações priorizam as respostas com maior placar líquido de votos (esclarecimento do proprietário em 12/10/2026), preservando linhas de parentesco, recolher/expandir e outras respostas. Continuar este fio abre a subdiscussão inicialmente em Mais votados. Participantes distintos pesam mais que mensagens repetidas das mesmas contas. Escolhas técnicas, limites de renderização, privacidade e migração local no [contrato](docs/PERFIL_PUBLICO_E_FEEDS.md#feed-e-árvore-de-discussão--critérios-aprovados-em-12102026). Manter apenas no Git, sem envio à VPS.
 
@@ -2494,3 +2721,29 @@ records scope and consequences.
 ### Chat actions approved on 15/10/2026
 
 The owner requested multi-message forwarding in private chats, a recipient chooser with local aliases and received private photos, removal of the redundant reaction-removal menu item, and reaction chips below message bubbles in both private and public-identity chats. Public-identity chats must not offer Forward. New messages show their authenticated sender-device time; historical messages without a recorded clock remain undated. The implementation preserves current consent, identity separation, E2EE, recovery and quotas. Optional versioned application presentation metadata does not change cryptographic envelopes or signing formats. Public reactions extend only the existing signed reaction relation; edits/private cards remain excluded. See [the UI contract](docs/UI_CONVERSAS.md#message-forwarding-and-reaction-presentation--15102026) for compatibility, lifecycle and validation details.
+
+### URLs simples, Discover e miniperfis — 16/10/2026
+
+O proprietário pediu caminhos sem `#` para perfis e comunidades, `/split/feed`
+para a tela dividida e a logo, Discover inicialmente em 24 horas e banners dos
+dois miniperfis no mesmo quadro 3:1 do editor. Escolheu endereços únicos para
+comunidades e restringiu a atribuição às novas; preservar as existentes por UUID.
+Endereços são gerados uma vez, com sufixo em colisões, e não mudam na edição do
+nome. Posts conservam ID público no final. Links antigos continuam aceitos;
+capacidades privadas e retornos da wallet mantêm os fragmentos originais.
+Contrato e validação em [URLs](docs/PERFIL_PRIVADO_E_ROTAS.md#endereços-das-comunidades--decisão-de-16102026).
+
+Depois pediu integrar à main e ativar na VPS. Após a explicação da necessidade
+de persistência, aprovou explicitamente a migração nova (071→072), que acrescenta
+somente `community_addresses`, sem backfill, com unicidade, FK, cobrança e
+manutenção. Publicar pelo executor existente, com fontes exatas, CI, backup,
+ensaio de restauração e preservação de todas as linhas antigas/ledger.
+
+**Ponto importante:** a decisão cobre esta transição e publicação; não altera
+política de privacidade/retenção, dependências/Node, detector ou serviços de
+outros projetos. Os hotspots de montagem `app/index.ts`, `startPanels` e
+`startCommunities` conservam suas responsabilidades; em tarefa própria, separar
+primeiro rotas/montagem da sessão, depois ciclos de feed/perfil/DM e a montagem
+de detalhe/gestão de comunidades, com regressões de cancelamento, permissões,
+rascunhos, histórico e montagem única. As novas regras ficam em módulos de
+rotas, navegação e atribuição de endereços.

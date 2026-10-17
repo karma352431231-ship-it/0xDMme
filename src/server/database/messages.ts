@@ -5,7 +5,7 @@ import type { MessageRemovalAllocations } from './message-removal-allocations.ts
 import type { MessageAllocations } from './message-allocations.ts';
 import type { ContentCapacity } from './content-capacity.ts';
 import { recordMessageChanges, readMessageChanges } from './message-changes.ts';
-import { messageIndexPage } from './message-index.ts';
+import { latestMessageItems, messageIndexPage } from './message-index.ts';
 import type { AttachmentStore } from './attachments.ts';
 import type pg from 'pg';
 import { AccountError } from '../../shared/account/index.ts';
@@ -450,6 +450,15 @@ export class MessageStore {
     return this.contacts.withMessageRead(authority, async (client) => {
       await this.expect(client, authority, range.snapshot);
       return readMessageChanges(client, authority, range);
+    });
+  }
+  async preview(
+    authority: ContactAuthority,
+    input: { peers: string[]; snapshot: MessageSnapshot },
+  ) {
+    return this.contacts.withMessageAuthority(authority, async (client) => {
+      await this.expect(client, authority, input.snapshot);
+      return latestMessageItems(client, authority, input.peers);
     });
   }
   async relations(

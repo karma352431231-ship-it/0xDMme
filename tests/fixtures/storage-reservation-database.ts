@@ -20,7 +20,7 @@ export const reservationSources = [
 
 export async function storageReservationPredecessor(client: pg.Client) {
   await attachmentQuotaPredecessor(client);
-  const file = '073-attachment-quota-accounting.sql',
+  const file = '076-attachment-quota-accounting.sql',
     sql = await readFile(
       new URL('../../src/server/database/migrations/' + file, import.meta.url),
       'utf8',
@@ -29,7 +29,7 @@ export async function storageReservationPredecessor(client: pg.Client) {
   try {
     await client.query(sql);
     await client.query(
-      'INSERT INTO hash_talk.schema_migrations(version,checksum) VALUES(73,$1)',
+      'INSERT INTO hash_talk.schema_migrations(version,checksum) VALUES(76,$1)',
       [createHash('sha256').update(sql).digest('hex')],
     );
     await client.query('COMMIT');

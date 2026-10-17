@@ -75,7 +75,7 @@ export async function rehearseAllocationReversal(input: {
       DROP FUNCTION hash_talk.active_content_allocation();
       DROP FUNCTION hash_talk.compact_content_usage();
       ALTER TABLE hash_talk.content_allocations DROP COLUMN scope;
-      DELETE FROM hash_talk.schema_migrations WHERE version=78`);
+      DELETE FROM hash_talk.schema_migrations WHERE version=81`);
     assert.deepEqual(await globalSourceSnapshot(client, sources), before);
     assert.equal(await globalBytes(client), total);
     const id = crypto.randomUUID();

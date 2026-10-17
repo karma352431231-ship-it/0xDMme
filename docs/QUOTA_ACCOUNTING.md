@@ -2,7 +2,7 @@
 
 ## Prepared attachment accounting — 16 October 2026
 
-Migration `073-attachment-quota-accounting.sql` replaces the last online personal
+Migration `076-attachment-quota-accounting.sql` replaces the last online personal
 history sum with `attachment_quota_usage`, one indexed total per account.
 `attachment_quota_messages` holds only positive charged totals per message and
 participant. These derived rows let both attachment changes and personal-removal
@@ -51,7 +51,7 @@ message/attachment, vault, account and device integration remains required.
 
 ## Prepared personal accounting — 16 October 2026
 
-Migration `071-personal-quota-accounting.sql` maintains the directly owned
+Migration `074-personal-quota-accounting.sql` maintains the directly owned
 portions of personal usage in `account_quota_usage` and `profile_quota_usage`.
 Keep profile-owned charges keyed by profile; the existing unique account/profile
 mapping joins them at read time. No historical rewrite is needed for that join.
@@ -77,7 +77,7 @@ locks on their sources. PostgreSQL transition rows can spill to temporary
 storage; measure realistic statement sizes, backfill duration and memory/I/O
 before activation. Existing authorization/account/global coordination remains.
 
-Migration `072-quota-lock-order.sql` keeps the global ledger ahead of both
+Migration `075-quota-lock-order.sql` keeps the global ledger ahead of both
 personal and group counters, including changes to personal ownership charges
 or accepted-media occupancy that leave global bytes unchanged. Only nonzero
 deltas acquire that lock. This closes the inverse order with global-triggered
@@ -100,7 +100,7 @@ records and the global content ledger. No migration is activated by a push.
 
 ## Prepared group accounting — 16 October 2026
 
-Migration `070-group-quota-accounting.sql` maintains exact derived totals for
+Migration `073-group-quota-accounting.sql` maintains exact derived totals for
 each group. Online quota checks read one indexed counter row rather than
 repeating historical sums. The approved 2 GB group quota, its 75% media / 25%
 text split and administrative margin stay unchanged. Personal attachment

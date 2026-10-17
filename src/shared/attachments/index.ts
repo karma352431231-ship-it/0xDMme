@@ -9,7 +9,25 @@ import { fingerprint } from '../devices/index.ts';
 import { integer, bytesHash } from '../vault/index.ts';
 import { voiceMetadata } from '../voice/index.ts';
 import type { VoiceMetadata } from '../voice/index.ts';
+/** Status, `@` DMs and other media keep the approved 3 MB product limit. */
 export const fileLimit = 3_000_000;
+/**
+ * Private and group chat attachments: 10 MB at the owner's request on
+ * 16/10/2026. Content descriptors accept up to this format bound; each
+ * context enforces its own product limit when sending and at server admission.
+ */
+export const chatFileLimit = 10_000_000;
+/** Fixed catalog messages for the two product limits. */
+export function oversizedFileMessage(maximum: number): string {
+  return maximum > fileLimit
+    ? 'Arquivo vazio ou acima do limite de 10 MB. Escolha outro arquivo.'
+    : 'Arquivo vazio ou acima do limite de 3 MB. Escolha outro arquivo.';
+}
+export function fileLimitMessage(maximum: number): string {
+  return maximum > fileLimit
+    ? 'Arquivo deve ter até 10 MB.'
+    : 'Arquivo deve ter até 3 MB.';
+}
 export const thumbnailLimit = 96_000;
 export const partLimit = 262_144;
 export interface AttachmentRef {
@@ -56,11 +74,14 @@ export function attachmentRef(
   });
   return { id: uuid(row['id']), hash: fingerprint(row['hash']), bytes, parts };
 }
-export function attachmentRefs(input: unknown): AttachmentRef[] {
+export function attachmentRefs(
+  input: unknown,
+  maximum = fileLimit,
+): AttachmentRef[] {
   if (!Array.isArray(input) || !input.length || input.length > 2)
     throw new AccountError(400, 'Referências de anexo inválidas.');
   const refs = input.map((row, index) =>
-    attachmentRef(row, index ? thumbnailLimit : fileLimit),
+    attachmentRef(row, index ? thumbnailLimit : maximum),
   );
   if (new Set(refs.map((r) => r.id)).size !== refs.length)
     throw new AccountError(400, 'Referência repetida.');
@@ -136,7 +157,7 @@ function attachmentMedia(
   row: Record<string, unknown>,
   images: readonly string[],
 ) {
-  const file = privateFile(row['file'], fileLimit),
+  const file = privateFile(row['file'], chatFileLimit),
     thumbnail =
       row['thumbnail'] === null
         ? null

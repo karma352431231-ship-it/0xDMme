@@ -44,10 +44,10 @@ def measured(stage):
         value['cpu_seconds'] = round(value['cpu_seconds'] + cpu() - used, 3)
 
 
-# Manifest entries per release. Raised from 512 (plus reviewed extras) to 1024 on
-# 09/10/2026 by the owner: the app outgrew it. It still rejects runaway packages
-# such as node_modules; archive, extraction and runtime budgets are unchanged.
-MAX_MANIFEST_FILES = 1024
+# Bound serialized metadata instead of authored module count. One MiB fits beside
+# the maximum base64 archive within the existing 24 MiB deployment input budget.
+# Owner-approved on 17/10/2026; transfer/extraction/runtime byte budgets stay fixed.
+MAX_MANIFEST_BYTES = 1024 * 1024
 # Paths reviewed for earlier transitions; kept because other checks name them.
 REQUEST_DIAGNOSTIC_FILES = frozenset([
     'src/client/api-response/index.ts', 'infra/staging/deploy_request_limit.py',
@@ -180,6 +180,19 @@ MEDIA_OUTPUT_REVIEWED = '5e024bfa606213f6c99760378a82fed68d2699e2'
 # migrations, accounting, write operations and other modules stay identical.
 SAVED_BOOKMARK_BEFORE = 'c2beaf05d3c62826580b752e8b31d94930386a4e'
 SAVED_BOOKMARK_REVIEWED = '877a9f9d80bd08a6dca23e2ad3616c7044f9f1c9'
+# Owner activation request of 15/10/2026: chat previews and public DM edits.
+# Pin both full database trees, including the reaction-to-action module rename.
+# All 69 migrations, their executor, dependencies and Node remain unchanged.
+CHAT_PARITY_BEFORE = '02b47e9050f78d7a770661ea0326945a1c992cd2'
+CHAT_PARITY_REVIEWED = '2fc2ed033851c69b8b54dbf962d2676b7b0f75a4'
+# Owner authorized integration and activation of direct public DMs on 15/10/2026.
+# Only these six database modules change; all 69 SQL files/executor stay exact.
+PUBLIC_DM_OPENING_BEFORE = '08dff889caa2fe04911b2bc8f720c71465013e5a'
+PUBLIC_DM_OPENING_REVIEWED = '3bfc25dd20fb202d1a4ea834e18bd66b316bc3b0'
+# Owner requested X-style alerts for followed profiles on 16/10/2026. Only the
+# preview read, its store and the store wiring change; all 71 SQL files stay exact.
+FOLLOWED_ALERTS_BEFORE = '762bd805aa6af374d98688eca5e7c1a571eb8b66'
+FOLLOWED_ALERTS_REVIEWED = '49f1c1984de1364b251d6b8225ae8b74de242010'
 # Exact two-reader repair approved after explanation on 14/10/2026.
 # Pin both full database trees; all 66 migrations/executor stay exact.
 # Owner-requested mandatory topics: only new admission changes, without SQL or backfill.
@@ -217,14 +230,24 @@ def valid_release_branch(value):
     return isinstance(value, str) and re.fullmatch(r'(?:main|codex/[A-Za-z0-9][A-Za-z0-9._/-]*)', value) is not None
 
 
+def validate_manifest_budget(config):
+    # These operational fields are not part of the persisted release manifest.
+    # The complete transport, including these fields, retains its 24 MiB bound.
+    manifest = {name: value for name, value in config.items()
+                if name not in ('baseline', 'archive', 'request_limit', 'media_worker')}
+    if len((json.dumps(manifest, indent=2) + '\n').encode()) > MAX_MANIFEST_BYTES:
+        raise RuntimeError('Release manifest byte budget exceeded.')
+
+
 def validate(config):
     if not re.fullmatch(r'[a-f0-9]{40}', config['commit']):
         raise RuntimeError('Invalid commit.')
     if not valid_release_branch(config['branch']):
         raise RuntimeError('Invalid branch.')
     files = config['files']
-    if not 1 <= len(files) <= MAX_MANIFEST_FILES:
-        raise RuntimeError('Invalid release manifest size.')
+    if not isinstance(files, dict) or not files:
+        raise RuntimeError('Invalid release manifest files.')
+    validate_manifest_budget(config)
     for name, value in files.items():
         parts = PurePosixPath(name).parts
         if (not parts or name.startswith('/') or '..' in parts or
@@ -244,11 +267,13 @@ def validate(config):
 
 
 def extract(archive, destination, allowed):
-    members = archive.getmembers()
-    if len(members) > 4096 or sum(m.size for m in members) > MAX_RELEASE:
-        raise RuntimeError('Extraction budget exceeded.')
     names = set()
-    for member in members:
+    for member in archive:
+        # Include headers, extended headers and payload padding, so many empty
+        # files cannot bypass the expanded-byte budget. Validate before writing.
+        padded = ((member.size + tarfile.BLOCKSIZE - 1) // tarfile.BLOCKSIZE) * tarfile.BLOCKSIZE
+        if member.offset_data + padded > MAX_RELEASE:
+            raise RuntimeError('Extraction budget exceeded.')
         parts = PurePosixPath(member.name).parts
         if (not parts or member.name.startswith('/') or '..' in parts or
                 parts[0] not in allowed or member.name in names or
@@ -392,6 +417,14 @@ def database_code_reviewed(candidate, live):
          POSE_MODERATION_BEFORE, POSE_MODERATION_REVIEWED),
         ({'community-discovery.ts', 'community-interaction-view.ts', 'community-preferences.ts'},
          SAVED_BOOKMARK_BEFORE, SAVED_BOOKMARK_REVIEWED),
+        ({'message-index.ts', 'messages.ts', 'social-actions.ts', 'social-crypto.ts',
+          'social-history.ts', 'social-reactions.ts', 'social-read-receipts.ts'},
+         CHAT_PARITY_BEFORE, CHAT_PARITY_REVIEWED),
+        ({'social-conversations.ts', 'social-crypto.ts', 'social-dm.ts',
+          'social-matrix.ts', 'social-media.ts', 'social-read-receipts.ts'},
+         PUBLIC_DM_OPENING_BEFORE, PUBLIC_DM_OPENING_REVIEWED),
+        ({'daily.ts', 'index.ts', 'public-notification-preview.ts'},
+         FOLLOWED_ALERTS_BEFORE, FOLLOWED_ALERTS_REVIEWED),
     ]
     selected = next((review for review in reviews if changed == review[0]), None)
     if selected is None:
@@ -477,6 +510,15 @@ def backup_review(candidate, live):
 
 def database_review(candidate, live):
     count = len(list((candidate / 'src/server/database/migrations').glob('*.sql')))
+    if count == 72:
+        import deploy_community_addresses
+        return deploy_community_addresses.review(candidate, live)
+    if count == 71:
+        import deploy_chat_attachments
+        return deploy_chat_attachments.review(candidate, live)
+    if count == 70:
+        import deploy_ranking_activity
+        return deploy_ranking_activity.review(candidate, live)
     if count == 69:
         import deploy_social_reactions
         return deploy_social_reactions.review(candidate, live)
@@ -591,10 +633,13 @@ def communities_snapshot():
 
 def verify_community_tables(expected):
     import deploy_blocks45 as backups
+    reviewed = set(expected) | {'schema_migrations'}
+    # Include the whole reviewed set plus one row to detect unexpected tables.
+    limit = len(reviewed) + 1
     tables = backups.pg(['psql', '--no-psqlrc', '--set=ON_ERROR_STOP=1',
         '--tuples-only', '--no-align', '-c',
-        "SELECT tablename FROM pg_tables WHERE schemaname='hash_talk' ORDER BY tablename LIMIT 100"])
-    if set(tables.decode().splitlines()) != set(expected) | {'schema_migrations'}:
+        "SELECT tablename FROM pg_tables WHERE schemaname='hash_talk' ORDER BY tablename LIMIT " + str(limit)])
+    if set(tables.decode().splitlines()) != reviewed:
         raise RuntimeError('Community transition table set differs; existing data not reviewed.')
 
 
@@ -1084,6 +1129,15 @@ def activate(config, work):
     if (database_files(candidate) != database_files(DATA / 'release')
             and not database_code_reviewed(candidate, DATA / 'release')):
         # Any unreviewed database change was rejected by prepare()/compatibility().
+        if len(list((candidate / 'src/server/database/migrations').glob('*.sql'))) == 72:
+            import deploy_community_addresses
+            return deploy_community_addresses.activate(config, work, candidate, before)
+        if len(list((candidate / 'src/server/database/migrations').glob('*.sql'))) == 71:
+            import deploy_chat_attachments
+            return deploy_chat_attachments.activate(config, work, candidate, before)
+        if len(list((candidate / 'src/server/database/migrations').glob('*.sql'))) == 70:
+            import deploy_ranking_activity
+            return deploy_ranking_activity.activate(config, work, candidate, before)
         if len(list((candidate / 'src/server/database/migrations').glob('*.sql'))) == 69:
             import deploy_social_reactions
             return deploy_social_reactions.activate(config, work, candidate, before)

@@ -1,3 +1,5 @@
+import { communityHref } from '../../shared/app-routes/index.ts';
+import { navigateApp } from '../app-navigation/index.ts';
 import { upvoteNoticePage } from '../../shared/public-upvotes/index.ts';
 import { InteractionQueue } from '../interaction-queue/index.ts';
 import {
@@ -26,6 +28,7 @@ import type { AccountSession } from '../../shared/account/index.ts';
 export { renderActivityEntry } from './activity-entry.ts';
 export { ActivityPosts } from './activity-posts.ts';
 export { communityAvatar, communityIcon } from './presentation.ts';
+export { startRankingSide } from './ranking-side.ts';
 import { uuid } from '../../shared/account/index.ts';
 import { communityState } from '../../shared/communities/index.ts';
 import type {
@@ -69,6 +72,7 @@ import {
   communityDirectoryNavigation,
   communityNavigation,
   communityView,
+  communitySelection,
   postReturnTarget,
 } from './navigation.ts';
 
@@ -100,7 +104,7 @@ export function startCommunities(
   feedReturn.bind({
     container: () => mounted,
     bookmark: () => discovery.bookmark(),
-    reset: () => discovery.reset(),
+    reset: () => discovery.tabAgain(),
   });
   composer.bind(() => session !== null);
   let mounted: HTMLElement | null = null,
@@ -118,6 +122,7 @@ export function startCommunities(
     selectedDm: string | null = null,
     localDm = false,
     selected: string | null = null,
+    selectedSlug: string | null = null,
     selectedPost: string | null = null,
     selectedTag: string | null = null,
     cursor: string | null = null;
@@ -215,7 +220,7 @@ export function startCommunities(
       const a = communityElement('a', '', 'community-row-link'),
         avatar = communityAvatar(item.name),
         copy = communityElement('span', '', 'community-row-copy');
-      a.href = `#comunidades?id=${item.id}`;
+      a.href = communityHref(item);
       if (item.id === selected) a.setAttribute('aria-current', 'page');
       copy.append(
         communityElement('strong', item.name),
@@ -330,7 +335,7 @@ export function startCommunities(
         ['replies', t('Respostas')],
         ['create', t('Criar comunidade')],
       ] as const)
-        communityLink(links, label, `#comunidades?view=${key}`);
+        communityLink(links, label, `#communities?view=${key}`);
       card.append(links);
     }
     rows(card, page);
@@ -380,7 +385,7 @@ export function startCommunities(
       request: (operation, data) => controller.request(operation, data),
       current: () => old === generation,
       open: (id) => {
-        location.hash = `#comunidades?id=${id}`;
+        navigateApp(`#communities?id=${id}`);
       },
     });
   }
@@ -414,7 +419,7 @@ export function startCommunities(
         ? [communityElement('p', t('Arquivada'), 'community-hero-meta')]
         : []),
     );
-    head.append(avatar, title, classificationBadges(value.classification));
+    head.append(avatar, title);
     hero.append(banner, head);
     publicPhoto(avatar, value);
     // The follower line sits under the name, aligned with it.
@@ -425,7 +430,10 @@ export function startCommunities(
       controller,
       signal: abort.signal,
     });
-    title.append(communityCreationDate(value));
+    title.append(
+      communityCreationDate(value),
+      classificationBadges(value.classification),
+    );
     if (value.description) {
       const description = communityElement(
         'p',
@@ -438,7 +446,7 @@ export function startCommunities(
     const about = communityAbout(value);
     if (about) hero.append(about);
     if (!state) {
-      communityLink(head, t('Entre pelo Perfil para participar'), '#perfil');
+      communityLink(head, t('Entre pelo Perfil para participar'), '#settings');
       return;
     }
     participant(head, state);
@@ -499,7 +507,7 @@ export function startCommunities(
     arrow.href = href;
     arrow.title = t('Voltar');
     arrow.setAttribute('aria-label', t('Voltar'));
-    identity.href = `#comunidades?id=${value.id}`;
+    identity.href = communityHref(value);
     identity.append(avatar, communityElement('span', value.name));
     header.append(arrow, identity);
     publicPhoto(avatar, value);
@@ -579,7 +587,7 @@ export function startCommunities(
   function manageScreen(value: Community, own: CommunityState): void {
     if (!mounted) return;
     mounted.dataset['communityLayout'] = 'manage';
-    const back = backHeader(value, `#comunidades?id=${value.id}`);
+    const back = backHeader(value, communityHref(value));
     const management = communityElement('section', '', 'community-manage');
     management.append(communityElement('h1', t('Gerenciar comunidade')));
     mounted.append(back, management);
@@ -638,10 +646,7 @@ export function startCommunities(
       if (header) {
         clearPublicPhotos(header);
         header.replaceWith(
-          backHeader(
-            result.community,
-            `#comunidades?id=${result.community.id}`,
-          ),
+          backHeader(result.community, communityHref(result.community)),
         );
       }
     } else {
@@ -668,7 +673,6 @@ export function startCommunities(
     discovery.mount(container, {
       view,
       signedIn: session !== null,
-      openComposer: () => composer.open(),
       bookmark: returnBookmark,
       followChanged: async () => {
         followedDirectory.reset();
@@ -710,6 +714,7 @@ export function startCommunities(
     try {
       const next = await readCommunityDetail({
         id: selected,
+        slug: selectedSlug,
         signedIn: session !== null,
         signal: signal(),
         valid: () => old === generation,
@@ -718,6 +723,8 @@ export function startCommunities(
       });
       if (!next) return;
       current = next.community;
+      selected = current.id;
+      selectedSlug = null;
       state = next.state;
       if (view === 'manage' && presentation?.retainDraft(next.state)) return;
       if (next.changed || view === 'followers') details();
@@ -778,7 +785,7 @@ export function startCommunities(
       try {
         selectedDm = params.has('dm') ? uuid(params.get('dm')) : null;
         localDm = params.get('history') === 'local';
-        selected = params.has('id') ? uuid(params.get('id')) : null;
+        ({ selected, slug: selectedSlug } = communitySelection(params));
         selectedPost = params.has('post') ? uuid(params.get('post')) : null;
         selectedTag = params.has('tag') ? uuid(params.get('tag')) : null;
         // A post opened from a list returns to that list, not to its community.

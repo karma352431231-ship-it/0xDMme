@@ -1,0 +1,18 @@
+/*
+ * Scrollbars (17/10/2026): no gray track, only a thin thumb, and only while
+ * the element is scrolling; it fades 2s after scrolling stops (index.ts sets
+ * data-scrolling). Mouse devices only: touch scrollbars are already overlays.
+ * Rules that hide a scrollbar (scrollbar-width: none) keep winning. Every
+ * page loads it: app.css for the app, wallet, recovery and probe pages, and
+ * source-document.css for the source listings; each page script starts index.ts.
+ */
+@media (hover: hover) and (pointer: fine) {
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: transparent transparent;
+  }
+  [data-scrolling] {
+    /* Source documents have no theme tokens: the system gray stands in. */
+    scrollbar-color: var(--text-faint, GrayText) transparent;
+  }
+}

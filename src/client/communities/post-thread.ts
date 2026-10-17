@@ -173,7 +173,7 @@ export class PostThread {
     link(
       container,
       t('Continuar este fio →'),
-      `#comunidades?id=${this.actions.community}&post=${post.id}`,
+      `#communities?id=${this.actions.community}&post=${post.id}`,
     );
   }
   private branch(

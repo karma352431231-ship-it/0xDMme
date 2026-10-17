@@ -6,18 +6,13 @@ import type { PublicProfile } from '../../shared/public-profile/index.ts';
 import type { ContactAuthority, ContactStore } from './contacts.ts';
 import type { PublicProfileStore } from './public-profile.ts';
 import { assertContentCapacity, assertVaultQuota } from './vault-quota.ts';
+import { openSocialConversation } from './social-conversations.ts';
+import type { SocialRelationRow } from './social-conversations.ts';
 
 export interface SocialContext {
   client: pg.PoolClient;
   actor: PublicProfile;
   authority: ContactAuthority;
-}
-interface RelationRow {
-  lo: string;
-  hi: string;
-  requester: string;
-  state: SocialRelation['state'];
-  revision: string;
 }
 export class SocialDmStore {
   private readonly contacts: ContactStore;
@@ -66,7 +61,7 @@ export class SocialDmStore {
     peers: string[],
   ): Promise<Set<string>> {
     const result = await context.client.query<{ peer: string }>(
-      `SELECT CASE WHEN r.lo=$1 THEN r.hi ELSE r.lo END AS peer FROM hash_talk.social_relations r WHERE r.state='approved' AND ((r.lo=$1 AND r.hi=ANY($2::uuid[])) OR (r.hi=$1 AND r.lo=ANY($2::uuid[]))) AND NOT EXISTS(SELECT 1 FROM hash_talk.social_blocks b WHERE b.blocked AND ((b.actor=r.lo AND b.target=r.hi) OR (b.actor=r.hi AND b.target=r.lo)))`,
+      `SELECT CASE WHEN r.lo=$1 THEN r.hi ELSE r.lo END AS peer FROM hash_talk.social_relations r WHERE ((r.lo=$1 AND r.hi=ANY($2::uuid[])) OR (r.hi=$1 AND r.lo=ANY($2::uuid[]))) AND NOT EXISTS(SELECT 1 FROM hash_talk.social_blocks b WHERE b.blocked AND ((b.actor=r.lo AND b.target=r.hi) OR (b.actor=r.hi AND b.target=r.lo)))`,
       [context.actor.id, peers],
     );
     return new Set(result.rows.map((row) => row.peer));
@@ -111,17 +106,20 @@ export class SocialDmStore {
     );
     return Boolean(found.rowCount);
   }
-  async requireConsent(context: SocialContext, peer: string): Promise<void> {
+  async requireConversation(
+    context: SocialContext,
+    peer: string,
+  ): Promise<void> {
     if (peer === context.actor.id) return;
     const row = await this.relation(context, peer);
-    if (row?.state !== 'approved' || (await this.blocked(context, peer)))
-      throw new AccountError(403, 'DM sem aceite atual ou indisponível.');
+    if (!row || (await this.blocked(context, peer)))
+      throw new AccountError(403, 'DM indisponível.');
   }
   private async relation(
     context: SocialContext,
     peer: string,
-  ): Promise<RelationRow | null> {
-    const result = await context.client.query<RelationRow>(
+  ): Promise<SocialRelationRow | null> {
+    const result = await context.client.query<SocialRelationRow>(
       'SELECT lo,hi,requester,state,revision::text FROM hash_talk.social_relations WHERE lo=least($1::uuid,$2::uuid) AND hi=greatest($1::uuid,$2::uuid)',
       [context.actor.id, peer],
     );
@@ -129,7 +127,7 @@ export class SocialDmStore {
   }
   private async projection(
     context: SocialContext,
-    row: RelationRow,
+    row: SocialRelationRow,
     peer: PublicProfile,
   ): Promise<SocialRelation> {
     const own = await this.ownBlock(context, peer.id);
@@ -140,8 +138,7 @@ export class SocialDmStore {
       revision: Number(row.revision),
       blocked: own.blocked,
       blockRevision: own.revision,
-      canSend:
-        row.state === 'approved' && !(await this.blocked(context, peer.id)),
+      canSend: !(await this.blocked(context, peer.id)),
     };
   }
   async state(
@@ -168,7 +165,9 @@ export class SocialDmStore {
   }
   async list(authority: ContactAuthority, after: string | null) {
     return this.withActor(authority, async (context) => {
-      const rows = await context.client.query<RelationRow & { peer: string }>(
+      const rows = await context.client.query<
+        SocialRelationRow & { peer: string }
+      >(
         `WITH peers AS (
           SELECT lo,hi,requester,state,revision::text,CASE WHEN lo=$1 THEN hi ELSE lo END AS peer FROM hash_talk.social_relations WHERE lo=$1 OR hi=$1
           UNION ALL SELECT least(actor,target),greatest(actor,target),target,'none','0',target FROM hash_talk.social_blocks b WHERE blocked AND actor=$1 AND NOT EXISTS(SELECT 1 FROM hash_talk.social_relations r WHERE r.lo=least(b.actor,b.target) AND r.hi=greatest(b.actor,b.target))
@@ -209,85 +208,47 @@ export class SocialDmStore {
                 (b) => b.actor === context.actor.id && b.target === row.peer,
               )?.revision ?? 0,
             ),
-            canSend:
-              row.state === 'approved' &&
-              !blocks.rows.some(
-                (b) =>
-                  b.blocked && (b.actor === row.peer || b.target === row.peer),
-              ),
+            canSend: !blocks.rows.some(
+              (b) =>
+                b.blocked && (b.actor === row.peer || b.target === row.peer),
+            ),
           };
         }),
         next: rows.rows.length > 16 ? (page.at(-1)?.peer ?? null) : null,
       };
     });
   }
-  async request(authority: ContactAuthority, peer: string) {
+  async open(authority: ContactAuthority, peer: string) {
     return this.withActor(authority, async (context) => {
       const target = await this.target(context, peer);
       if (await this.blocked(context, peer))
         throw new AccountError(403, 'DM indisponível.');
-      let row = await this.relation(context, peer);
-      const changing = !row || row.state === 'rejected';
-      if (row?.state === 'rejected') {
-        if (row.requester === context.actor.id)
-          throw new AccountError(
-            403,
-            'Solicitação recusada. O destinatário pode iniciar um novo pedido.',
-          );
-        await context.client.query(
-          "UPDATE hash_talk.social_relations SET state='pending',requester=$3,revision=revision+1 WHERE lo=$1 AND hi=$2",
-          [row.lo, row.hi, context.actor.id],
-        );
-        row = {
-          ...row,
-          state: 'pending',
-          requester: context.actor.id,
-          revision: String(Number(row.revision) + 1),
-        };
-      }
-      if (!row) {
-        const result = await context.client.query<RelationRow>(
-          "INSERT INTO hash_talk.social_relations(lo,hi,requester,state,revision) VALUES(least($1::uuid,$2::uuid),greatest($1::uuid,$2::uuid),$1,'pending',1) RETURNING lo,hi,requester,state,revision::text",
-          [context.actor.id, peer],
-        );
-        row = result.rows[0] ?? null;
-        await this.limits(context);
-      }
-      if (!row) throw new Error('Solicitação não confirmada.');
-      if (changing) await this.changed(context, [context.actor.id, peer]);
-      return this.projection(context, row, target);
+      const opened = await openSocialConversation({
+        client: context.client,
+        actor: context.actor.id,
+        peer,
+      });
+      if (opened.created) await this.limits(context);
+      if (opened.changed) await this.changed(context, [context.actor.id, peer]);
+      return this.projection(context, opened.row, target);
     });
+  }
+  /** Compatibility for clients that still use the old request operation. */
+  request(authority: ContactAuthority, peer: string) {
+    return this.open(authority, peer);
   }
   async decide(
     authority: ContactAuthority,
     input: { peer: string; revision: number; accept: boolean },
   ) {
-    return this.withActor(authority, async (context) => {
-      const target = await this.target(context, input.peer),
-        row = await this.relation(context, input.peer);
-      if (!row || row.requester === context.actor.id)
+    if (!input.accept)
+      return this.withActor(authority, () => {
         throw new AccountError(
-          403,
-          'Somente o destinatário decide a solicitação.',
+          409,
+          'Solicitações de DM foram desativadas. Use Bloquear para impedir mensagens.',
         );
-      if (await this.blocked(context, input.peer))
-        throw new AccountError(403, 'DM indisponível.');
-      const state = input.accept ? 'approved' : 'rejected';
-      if (row.state === state && Number(row.revision) === input.revision + 1)
-        return this.projection(context, row, target);
-      if (row.state !== 'pending' || Number(row.revision) !== input.revision)
-        throw new AccountError(409, 'Solicitação mudou. Recarregue.');
-      await context.client.query(
-        'UPDATE hash_talk.social_relations SET state=$3,revision=revision+1 WHERE lo=$1 AND hi=$2',
-        [row.lo, row.hi, state],
-      );
-      await this.changed(context, [context.actor.id, input.peer]);
-      return this.projection(
-        context,
-        { ...row, state, revision: String(Number(row.revision) + 1) },
-        target,
-      );
-    });
+      });
+    return this.open(authority, input.peer);
   }
   private async ownBlock(
     context: SocialContext,
@@ -317,11 +278,6 @@ export class SocialDmStore {
         'INSERT INTO hash_talk.social_blocks(actor,target,blocked,revision) VALUES($1,$2,$3,1) ON CONFLICT(actor,target) DO UPDATE SET blocked=excluded.blocked,revision=hash_talk.social_blocks.revision+1',
         [context.actor.id, input.peer, input.blocked],
       );
-      if (input.blocked)
-        await context.client.query(
-          "UPDATE hash_talk.social_relations SET state='rejected',requester=$2,revision=revision+1 WHERE lo=least($1::uuid,$2::uuid) AND hi=greatest($1::uuid,$2::uuid)",
-          [context.actor.id, input.peer],
-        );
       await this.limits(context);
       await this.changed(context, [context.actor.id, input.peer]);
     });

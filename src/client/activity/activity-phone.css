@@ -1,0 +1,22 @@
+/*
+ * Activity on phones.
+ */
+@media (max-width: 700px) {
+  /* Atividade */
+  #app-shell .activity-heading h2 {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  #app-shell .activity-heading {
+    justify-content: flex-end;
+  }
+  #app-shell .activity-heading button {
+    min-height: 32px;
+    padding: 5px 12px;
+    font-size: 12.5px;
+  }
+}

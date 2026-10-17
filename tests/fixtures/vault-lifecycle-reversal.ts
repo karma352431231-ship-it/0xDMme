@@ -60,5 +60,5 @@ export async function reverseVaultLifecycle(
     ALTER TABLE hash_talk.content_allocations DROP CONSTRAINT content_allocations_scope_check;
     ALTER TABLE hash_talk.content_allocations DROP CONSTRAINT content_allocations_check;
     ALTER TABLE hash_talk.content_allocations ADD CONSTRAINT content_allocations_scope_check CHECK(scope IN ('prepared','vault-reserve'));
-    DELETE FROM hash_talk.schema_migrations WHERE version=79`);
+    DELETE FROM hash_talk.schema_migrations WHERE version=82`);
 }

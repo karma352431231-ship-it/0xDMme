@@ -1,4 +1,10 @@
+import { appAddress, navigateApp } from '../app-navigation/index.ts';
 import { t } from '../../shared/i18n/index.ts';
+import {
+  appHref,
+  appRoute,
+  routeParams,
+} from '../../shared/app-routes/index.ts';
 const icons = {
   profile:
     '<circle cx="12" cy="8" r="4"/><path d="M4 21v-2a8 8 0 0 1 16 0v2"/>',
@@ -68,9 +74,9 @@ export function saveSettingsSection(storage: SectionStorage, id: string): void {
   }
 }
 
-/** `#perfil?secao=<id>` opens that category, e.g. "Editar perfil público". */
+/** `#settings?section=<id>` opens that category, e.g. "Editar perfil público". */
 export function requestedSettingsSection(hash: string): string | null {
-  return new URLSearchParams(hash.split('?')[1] ?? '').get('secao');
+  return routeParams(hash).get('section');
 }
 /** Opens a category by id; unknown ids leave the page as it is. */
 export function openSettingsSection(
@@ -86,6 +92,17 @@ export function openSettingsSection(
   section.scrollIntoView({ block: 'nearest' });
 }
 
+/** Delayed toggles from a previous page must not replace its new destination. */
+function rememberSettingsSection(section: HTMLDetailsElement): void {
+  const id = section.dataset['settingsSection'];
+  if (!section.isConnected || !section.open || !id) return;
+  const route = appRoute(appAddress());
+  if (route?.page !== 'settings') return;
+  saveSettingsSection(localStorage, id);
+  if (route.params.get('section') !== id)
+    navigateApp(appHref('settings', new URLSearchParams({ section: id })));
+}
+
 /** Category list, shortcuts and the always-open category of the wide layout. */
 export function startSettingsCategories(
   host: HTMLElement,
@@ -96,8 +113,7 @@ export function startSettingsCategories(
   for (const section of sections) {
     section.addEventListener('toggle', categories.sync);
     section.addEventListener('toggle', () => {
-      const id = section.dataset['settingsSection'];
-      if (section.open && id) saveSettingsSection(localStorage, id);
+      rememberSettingsSection(section);
     });
     // Beside the list the open category is the page itself; it closes on phones.
     section.querySelector('summary')?.addEventListener('click', (event) => {
@@ -116,9 +132,12 @@ export function startSettingsCategories(
         if (target) target.open = true;
       });
     });
+  // A link to a category opens it. Beside the list (wide screens) the last
+  // category returns; on phones the plain Profile tab shows the list instead
+  // (16/10/2026), and a reload keeps its category through the URL.
   const saved =
-    requestedSettingsSection(location.hash) ??
-    savedSettingsSection(localStorage);
+    requestedSettingsSection(appAddress()) ??
+    (wide() ? savedSettingsSection(localStorage) : null);
   const last = sections.find(
     (section) => section.dataset['settingsSection'] === saved,
   );
@@ -200,8 +219,8 @@ const profileContent = t('html.148d3089e900', [
   }),
   settingsSection({
     id: 'appearance',
-    title: t('Aparência'),
-    description: t('Tema Azul, Preto ou Branco'),
+    title: t('settings.appearance-language'),
+    description: t('settings.appearance-language.detail'),
     content: '<div data-appearance-settings></div>',
   }),
   settingsSection({
@@ -266,6 +285,18 @@ export function pageContent(key: PageKey, authenticated: boolean): string {
 export function pageKey(hash: string): PageKey | null {
   const selected = hash.slice(1).split('?')[0] ?? '';
   if (selected === 'workspace') return null;
-  if (selected === 'configuracoes') return 'perfil';
-  return Object.hasOwn(pages, selected) ? (selected as PageKey) : 'conversas';
+  const route = appRoute(hash);
+  const keys = {
+    chats: 'conversas',
+    split: 'conversas',
+    activity: 'atividade',
+    communities: 'comunidades',
+    settings: 'perfil',
+    users: 'publico',
+    review: 'analise',
+    contacts: 'contatos',
+    vault: 'cofre',
+    status: 'status',
+  } as const;
+  return route ? keys[route.page] : 'conversas';
 }

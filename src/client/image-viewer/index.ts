@@ -1,5 +1,5 @@
 import { t } from '../../shared/i18n/index.ts';
-/** Uses the already approved image URL: opening/zooming makes no new network request. */
+/** Reuses the caller's image URL and lifetime; viewing never fetches image bytes. */
 export function openImageViewer(input: {
   url: string;
   alt: string;
@@ -36,7 +36,8 @@ export function openImageViewer(input: {
   const stop = (): void => {
     input.signal.removeEventListener('abort', stop);
     dialog.remove();
-    if (input.trigger.isConnected) input.trigger.focus({ preventScroll: true });
+    if (!input.signal.aborted && input.trigger.isConnected)
+      input.trigger.focus({ preventScroll: true });
   };
   zoom.addEventListener('click', toggle);
   image.addEventListener('click', toggle);

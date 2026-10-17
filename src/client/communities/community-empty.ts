@@ -1,3 +1,4 @@
+import { communityHref } from '../../shared/app-routes/index.ts';
 import { t } from '../../shared/i18n/index.ts';
 import { explorePage } from '../../shared/community-discovery/index.ts';
 import type { Community } from '../../shared/communities/index.ts';
@@ -63,7 +64,7 @@ function row(item: Community, signal: AbortSignal): HTMLElement {
   const link = el('a', '', 'community-row-link'),
     avatar = communityAvatar(item.name),
     copy = el('span', '', 'community-row-copy');
-  link.href = `#comunidades?id=${encodeURIComponent(item.id)}`;
+  link.href = communityHref(item);
   copy.append(
     el('strong', item.name),
     el(

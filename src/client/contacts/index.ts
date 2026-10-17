@@ -2,6 +2,7 @@ import { t, translatedError } from '../../shared/i18n/index.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
 import {
   addressBookEntry,
+  contactInvitationValue,
   discoveryMode,
   invitationLink,
   readInvitation,
@@ -709,8 +710,8 @@ export function startContacts(
       received = null;
       status = t('Convite inválido. Confira o link completo.');
     }
-    if (location.hash.startsWith('#contatos?'))
-      history.replaceState(null, '', location.pathname + '#contatos');
+    if (contactInvitationValue(location.hash) !== null)
+      history.replaceState(null, '', location.pathname + '#contacts');
   }
   function mountCamera(): void {
     const video = node<HTMLVideoElement>('[data-contact-camera]');

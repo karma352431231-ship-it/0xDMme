@@ -1,0 +1,100 @@
+/*
+ * Account and device cards: forms, QR and approvals.
+ */
+.account-card form {
+  display: grid;
+  gap: 12px;
+  margin: 20px 0;
+}
+.account-card label {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  font-size: var(--fs-small);
+}
+.account-card input:not([type='checkbox']),
+.device-card input:not([type='checkbox']),
+.device-card textarea {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  font: inherit;
+}
+
+.device-card label {
+  display: block;
+  margin-block: 12px;
+}
+
+.device-card textarea {
+  width: 100%;
+  min-height: 90px;
+  resize: vertical;
+}
+
+.device-card ul {
+  padding-left: 20px;
+}
+
+.device-card li {
+  margin-block: 12px;
+  overflow-wrap: anywhere;
+}
+
+.device-card [data-device-fingerprint],
+.device-card [data-device-candidate] {
+  overflow-wrap: anywhere;
+}
+
+.device-card button {
+  margin: 5px 8px 5px 0;
+}
+.account-card input[type='checkbox'] {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--accent);
+}
+.account-card img {
+  object-fit: cover;
+  border-radius: 50%;
+}
+.account-address {
+  overflow-wrap: anywhere;
+}
+.account-card [hidden] {
+  display: none;
+}
+.account-card a {
+  text-decoration: underline;
+  font-size: var(--fs-small);
+}
+
+.wallet-approval {
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+.device-qr {
+  width: min(100%, 360px);
+  background: var(--qr-paper);
+  margin-block: 16px;
+  line-height: 0;
+}
+.device-qr svg {
+  width: 100%;
+  height: auto;
+}
+.device-card [hidden] {
+  display: none;
+}
+.device-card fieldset {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.device-card video {
+  width: min(100%, 480px);
+  display: block;
+  background: var(--media-backdrop);
+}

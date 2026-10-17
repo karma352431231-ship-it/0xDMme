@@ -7,8 +7,8 @@ import { storageReservationPredecessor } from './storage-reservation-database.ts
 export async function globalUsagePredecessor(client: pg.Client) {
   await storageReservationPredecessor(client);
   for (const file of [
-    '074-storage-reservation-accounting.sql',
-    '075-storage-admission-baselines.sql',
+    '077-storage-reservation-accounting.sql',
+    '078-storage-admission-baselines.sql',
   ]) {
     const sql = await readFile(
       new URL('../../src/server/database/migrations/' + file, import.meta.url),

@@ -66,7 +66,7 @@ export function upvoteRows(
     controls.className = 'activity-actions';
     const link = noticeLink({
       label: t('Abrir'),
-      href: `#comunidades?id=${first.community}&post=${first.post}`,
+      href: `#communities?id=${first.community}&post=${first.post}`,
       read: group.every((item) => item.read),
       acknowledge: () =>
         actions.open(group.filter((item) => !item.read).map((item) => item.id)),

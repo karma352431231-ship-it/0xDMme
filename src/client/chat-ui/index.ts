@@ -21,6 +21,7 @@ const icons = {
 
 export { bindRecordGesture, showRecording } from './voice.ts';
 export { sendOnEnter } from './enter.ts';
+export { ChatAvatarPhoto } from './avatar-photo.ts';
 
 export function chatIcon(name: keyof typeof icons): string {
   return `<svg viewBox="0 0 24 24" aria-hidden="true">${icons[name]}</svg>`;
@@ -62,6 +63,8 @@ export function chatComposer(scope: 'message' | 'group' | 'public'): string {
     chatIcon('clip'),
     chatIcon('mic'),
     chatIcon('send'),
+    // Private and group chats accept 10 MB files; `@` DMs keep 3 MB (16/10/2026).
+    t(scope === 'public' ? 'chat.attach-up-to-3mb' : 'chat.attach-up-to-10mb'),
   ]);
 }
 
@@ -81,7 +84,12 @@ export function composerState(input: {
 
 export function updateChatComposer(
   form: HTMLElement | null,
-  input: { blocked: boolean; recording: boolean; attachment: boolean },
+  input: {
+    blocked: boolean;
+    recording: boolean;
+    attachment: boolean;
+    textSendBlocked?: boolean | undefined;
+  },
 ): void {
   if (!form) return;
   const text = form.querySelector<HTMLTextAreaElement>('textarea');
@@ -89,7 +97,7 @@ export function updateChatComposer(
   const send = form.querySelector<HTMLButtonElement>('[data-compose-send]');
   if (send) {
     send.hidden = !state.send;
-    send.disabled = state.disabled;
+    send.disabled = input.textSendBlocked ?? state.disabled;
   }
   const record = form.querySelector<HTMLElement>('[data-voice-record]');
   if (record) record.hidden = !state.record;

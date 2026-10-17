@@ -170,10 +170,10 @@ async function runtime(t: TestContext, c: MessageReceiptFixture, pair: Pair) {
   await t.test(
     'maximum file/thumbnail reserves only missing growth and preserves existing ready bytes',
     async () => {
-      const i = input(pair, [ref(3_000_000)]);
+      const i = input(pair, [ref(10_000_000)]);
       await c.db.attachments.reserve(pair.sender, i);
       await c.inspector.query(
-        "UPDATE hash_talk.message_attachments SET status='ready',received=ARRAY(SELECT generate_series(0,11)) WHERE id=$1",
+        "UPDATE hash_talk.message_attachments SET status='ready',received=ARRAY(SELECT generate_series(0,38)) WHERE id=$1",
         [i.refs[0]!.id],
       );
       const before = await state(c);

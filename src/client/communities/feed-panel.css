@@ -1,0 +1,229 @@
+/*
+ * Communities beside Contacts: the split-screen feed panel on wide screens
+ * (desktop density).
+ */
+@media (min-width: 1280px) {
+  /* Comunidades ao lado */
+  #app-shell .feed-panel-heading {
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 16px 22px 10px;
+    border-bottom: 0;
+  }
+  #app-shell .feed-panel-heading h2 {
+    font-size: 18px;
+    font-weight: 600;
+  }
+  #app-shell .feed-panel-tabs {
+    gap: 4px;
+    padding: 0;
+    background: transparent;
+  }
+  #app-shell .feed-panel-tabs a {
+    padding: 6px 10px;
+    font-size: 12.5px;
+  }
+  #app-shell .feed-panel-heading .icon-button {
+    flex: 0 0 32px;
+    width: 32px;
+    height: 32px;
+    border-radius: 9px;
+    background: var(--surface-2);
+    color: var(--text);
+  }
+  #app-shell .feed-panel-heading .icon-button svg {
+    width: 18px;
+    height: 18px;
+  }
+  #app-shell .feed-panel-body {
+    position: relative;
+    padding: 0 22px 18px;
+    font-size: 13.5px;
+  }
+  /* Feed and Ranking are named by the tabs; other lists keep their title. */
+  #app-shell
+    .feed-panel:has(
+      .feed-panel-tabs
+        a[aria-current='page']:is(
+          [data-feed-tab='feed'],
+          [data-feed-tab='explore']
+        )
+    )
+    :is(.community-heading, .community-tools > a[href$='view=dms']) {
+    display: none;
+  }
+  #app-shell
+    .feed-panel:has(
+      .feed-panel-tabs
+        a[aria-current='page']:is(
+          [data-feed-tab='feed'],
+          [data-feed-tab='explore']
+        )
+    )
+    .feed-panel-body
+    > .community-tools {
+    position: absolute;
+    top: 0;
+    right: 22px;
+    margin: 0;
+  }
+  #app-shell .feed-panel .community-tools {
+    margin: 0 0 8px;
+  }
+  #app-shell .feed-panel :is(.community-tools > a, .community-more > summary) {
+    min-height: 30px;
+    padding: 6px;
+    border-radius: 9px;
+  }
+  #app-shell .feed-panel .community-more > summary {
+    font-size: 0;
+  }
+  #app-shell .feed-panel .community-heading {
+    margin-bottom: 12px;
+  }
+  #app-shell .feed-panel .community-heading h1 {
+    font-size: 16px;
+    font-weight: 600;
+  }
+  #app-shell .feed-panel .community-feed-filters {
+    gap: 8px;
+    margin: 0 0 12px;
+    padding-right: 44px;
+  }
+  #app-shell .feed-panel .community-feed-scopes {
+    gap: 6px;
+  }
+  #app-shell .feed-panel .community-feed-scopes a {
+    min-height: 0;
+    padding: 5px 10px;
+    border: 0;
+    border-radius: 99px;
+    background: transparent;
+    box-shadow: inset 0 0 0 1px var(--line);
+    color: var(--text-muted);
+    font-size: 12.5px;
+    font-weight: 600;
+  }
+  #app-shell .feed-panel .community-feed-scopes a[aria-current='page'] {
+    background: var(--surface-3);
+    box-shadow: none;
+    color: var(--text);
+  }
+  #app-shell .feed-panel .discovery-menu > summary {
+    min-height: 0;
+    padding: 6px 10px;
+    border-radius: 9px;
+    color: var(--text-muted);
+    font-size: 12.5px;
+  }
+  #app-shell .feed-panel .community-card {
+    padding: 14px 16px;
+    border-radius: 14px;
+  }
+  #app-shell .feed-panel .community-post-header {
+    gap: 8px;
+    margin-bottom: 8px;
+    font-size: 12.5px;
+  }
+  #app-shell .feed-panel .community-post-header .community-avatar {
+    flex: 0 0 30px;
+    width: 30px;
+    height: 30px;
+    border-radius: 8px;
+    font-size: 11px;
+  }
+  #app-shell .feed-panel .community-post-header .public-avatar-preview {
+    border-radius: 8px;
+  }
+  #app-shell .feed-panel .community-post-byline {
+    font-size: 12.5px;
+  }
+  #app-shell .feed-panel .community-post-follow {
+    min-height: 0;
+    padding: 2px 4px;
+    font-size: 12px;
+    font-weight: 700;
+  }
+  #app-shell .feed-panel .community-card h2 {
+    margin: 0 0 6px;
+    font-size: 15px;
+    line-height: 1.3;
+  }
+  #app-shell .feed-panel .community-card p {
+    margin: 0 0 8px;
+    color: var(--text-muted);
+    font-size: 13.5px;
+    line-height: 1.45;
+  }
+  #app-shell .feed-panel .post-tag {
+    margin: 0 0 8px;
+    padding: 2px 7px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 700;
+  }
+  #app-shell .feed-panel .community-public-media {
+    margin: 8px 0;
+  }
+  #app-shell .feed-panel .community-media-preview {
+    max-height: 260px;
+    border-radius: 10px;
+  }
+  #app-shell .feed-panel .post-actions {
+    gap: 6px;
+    margin-top: 8px;
+  }
+  #app-shell
+    .feed-panel
+    .post-actions
+    :is(.post-action, .post-votes, .post-more > summary) {
+    min-height: 28px;
+    padding: 4px 10px;
+    background: var(--surface-2);
+    color: var(--text-muted);
+    font-size: 12.5px;
+    font-weight: 600;
+  }
+  #app-shell .feed-panel .post-votes :is(button, a) {
+    min-width: 26px;
+    min-height: 28px;
+    padding: 4px;
+  }
+  #app-shell .feed-panel .post-score {
+    color: var(--text);
+  }
+  #app-shell .feed-panel .post-actions .post-more > summary {
+    font-size: 0;
+    width: 28px;
+    padding: 4px;
+  }
+  #app-shell .feed-panel .post-actions svg {
+    width: 15px;
+    height: 15px;
+  }
+  /* Counts speak for themselves in the narrow panel; captions stay for screen readers. */
+  #app-shell .feed-panel .post-action-caption {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  #app-shell .feed-panel .post-toolbar:not(.community-feed-filters) {
+    justify-content: center;
+    margin: 14px 0 0;
+  }
+  #app-shell .feed-panel .post-toolbar:not(.community-feed-filters) button {
+    min-height: 0;
+    margin: 0;
+    padding: 6px 12px;
+    border: 0;
+    border-radius: 99px;
+    background: transparent;
+    box-shadow: inset 0 0 0 1px var(--line);
+    color: var(--text-muted);
+    font-size: 12.5px;
+    font-weight: 600;
+  }
+}

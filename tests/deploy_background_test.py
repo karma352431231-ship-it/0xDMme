@@ -16,11 +16,10 @@ class BackgroundTests(unittest.TestCase):
         from deploy_pipeline_test import manifest
         value = manifest()
         value['files'].update({p: 'a' * 64 for p in base.BACKGROUND_SOURCE_FILES})
-        missing = base.MAX_MANIFEST_FILES - len(value['files'])
-        value['files'].update({'src/f' + str(i) + '.ts': 'a' * 64 for i in range(missing)})
+        value['files'].update({'src/f' + str(i) + '.ts': 'a' * 64 for i in range(1100)})
         base.validate(value)
-        value['files']['infra/unreviewed.service'] = 'a' * 64
-        with self.assertRaisesRegex(RuntimeError, 'manifest size'):
+        value['archive_bytes'] = base.MAX_ARCHIVE + 1
+        with self.assertRaisesRegex(RuntimeError, 'Archive budget'):
             base.validate(value)
 
     def test_migration_preserves_old_records_and_only_admits_known_initial_state(self):

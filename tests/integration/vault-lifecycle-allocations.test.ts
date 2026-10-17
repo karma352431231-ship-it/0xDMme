@@ -616,7 +616,7 @@ await test('vault lifecycle adoption preserves completion, physical promises, re
       assert.deepEqual(
         (
           await c.inspector.query(
-            'SELECT * FROM hash_talk.schema_migrations WHERE version<=78 ORDER BY version',
+            'SELECT * FROM hash_talk.schema_migrations WHERE version<=81 ORDER BY version',
           )
         ).rows,
         c.upgrade.catalog,

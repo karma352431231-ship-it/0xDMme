@@ -1,5 +1,40 @@
 # Physical storage admission preparation
 
+## Capacity integration — owner approval on 17 October 2026
+
+The owner requested integrating the prepared capacity work into main, updating
+its isolated VPS environment and testing there, then explicitly approved the
+conflict resolutions after reviewing the private integration packet. Preserve
+main's applied migrations 001–072 byte for byte, including ranking activity,
+10 MB private/group attachments and community addresses. The eighteen unapplied
+capacity migrations formerly numbered 070–087 are integrated as 073–090; their
+prior source identities remain in Git history and earlier block reports refer
+to those original numbers. No applied migration identity or checksum changes.
+
+The unapplied statement-accounting and allocated-source catalog guards now
+require all 81 charged sources, including `community_addresses`. Private upload
+reservation keeps the approved 10 MB file bound, 96 kB thumbnail bound and exact
+both-owner/pending/physical accounting. Private/group transfer part bounds follow
+the 10 MB context; social/status keep their 3 MB product bounds. Daily reads retain
+both current public-profile projection and scoped receipt allocation. Social
+uploads retain main's current conversation/block authorization alongside memory
+admission; obsolete pending-count ceilings are not restored.
+
+This approval supersedes the earlier branch-only/final-activation timing for
+this integration and VPS test release. It does not declare the capacity audit
+finished: remaining database contention, public-media delivery, real storage,
+TURN/network and representative acceptance remain visible. Exact integrated
+checks and main CI precede deployment through the existing executor. Prepare a
+reviewed 072→090 transition and scoped failure/recovery checks before activation;
+source integration alone never activates SQL, templates or services. The existing
+authorization to discard this app's pre-launch test data remains available only
+within its recorded scope. No reset has been performed by this integration.
+
+**Ponto importante:** report actual activation and VPS evidence separately from
+source validation. Preserve the other project, main's deploy byte-budget fix,
+stylesheets and unrelated session changes. Private access, migration mapping,
+operational baselines and receipts remain exclusively in the main `.local/`.
+
 ## Current transition policy — disposable pre-launch data
 
 On 17 October 2026, the owner explicitly authorized resetting the app's existing
@@ -113,7 +148,7 @@ also needs to know which accepted reservations may still produce filesystem
 writes. Removing the stale environment budget without that distinction could
 admit more promised payload than the own volume can preserve.
 
-Migration `074-storage-reservation-accounting.sql` materializes the current
+Migration `077-storage-reservation-accounting.sql` materializes the current
 pending-write envelope separately from logical quotas. Each eligible reservation
 contributes its existing full charge once, regardless of how many participants
 are charged personally. This is an exact total of the specified envelope, a

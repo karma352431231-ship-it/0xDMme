@@ -86,7 +86,7 @@ await test('componentes usam somente tokens de tema, sem cores literais', async 
     if (!entry.endsWith('.css')) continue;
     // The isolated crypto lab keeps its own light/dark palette outside the app shell.
     if (entry.includes('crypto-probe')) continue;
-    // Theme tokens live in one marked block of app.css; everything else must use them.
+    // Theme tokens live in one marked block of app/theme.css; everything else must use them.
     for (const color of literalColors(
       await readFile(new URL(entry, base), 'utf8'),
     ))

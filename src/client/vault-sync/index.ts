@@ -1,9 +1,7 @@
-import { fetchApi, readApiJson } from '../api-response/index.ts';
 import { RemovalIndex } from '../personal-removals/index.ts';
-import { base64, encode, object } from '../../shared/account/index.ts';
+import { encode, object } from '../../shared/account/index.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
 import {
-  blockLimit,
   bytesHash,
   commitHash,
   integer,
@@ -24,8 +22,6 @@ import {
   sealCommit,
 } from '../vault-crypto/index.ts';
 import {
-  cacheBlock,
-  cachedBlock,
   cachedPage,
   checkpoint,
   commitPage,
@@ -36,6 +32,8 @@ import {
 import type { VaultCheckpoint, VaultDraft } from '../vault-storage/index.ts';
 import { readPage } from './protocol.ts';
 import type { VaultPage } from './protocol.ts';
+import { vaultApi as api } from './api.ts';
+import { assertVaultObjectsAvailable, openVaultObjects } from './objects.ts';
 export interface VaultEntry {
   commit: VaultCommit;
   change: VaultChange;
@@ -54,39 +52,6 @@ function validatePageHead(page: VaultPage, next: VaultCheckpoint): void {
     throw new Error('Página de cofre omitida.');
   if (page.sequence === next.sequence && page.head !== next.head)
     throw new Error('Cofre remoto divergente do checkpoint.');
-}
-async function api(
-  authority: VaultAuthority,
-  path: string,
-  input: unknown,
-): Promise<unknown> {
-  if (authority.offline)
-    throw new Error(
-      'Cópia local apenas. Entre e confira a autorização para sincronizar com o servidor.',
-    );
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-    'X-Hash-Talk-CSRF': authority.session.csrf,
-  };
-  if (path === 'upload')
-    headers['X-0xdmme-Vault-Id'] = String(
-      object(object(input)['commit'])['id'],
-    );
-  const response = await fetchApi(
-    `vault/${path}`,
-    `/api/account/vault/${path}`,
-    {
-      method: 'POST',
-      credentials: 'same-origin',
-      cache: 'no-store',
-      redirect: 'error',
-      headers,
-      body: JSON.stringify(input),
-      signal: AbortSignal.timeout(8000),
-    },
-  );
-  const data = await readApiJson(response, `vault/${path}`);
-  return data;
 }
 export class VaultSync {
   session: AccountSession | null = null;
@@ -485,32 +450,33 @@ export class VaultSync {
     });
   }
   async open(id: string): Promise<string> {
+    return (await this.openMany([id]))[0]!;
+  }
+  /** At most sixteen immutable blocks share one verified authority/removal read. */
+  async openMany(ids: readonly string[]): Promise<string[]> {
+    if (ids.length > 16 || new Set(ids).size !== ids.length)
+      throw new Error('Página de cofre inválida.');
+    if (!ids.length) return [];
+    const page = [...ids];
+    const generation = this.generation;
     return this.run(async (authority) => {
-      const entry = this.entries.get(id);
-      if (!entry) throw new Error('Carregue esta versão primeiro.');
-      if (this.isRemoved(id))
-        throw new Error(
-          'Versão removida do cofre pessoal. Consulte o backup independente.',
-        );
-      let bytes = authority.offline
-        ? await cachedBlock(authority.session.accountId, id)
-        : null;
-      if (!bytes) {
-        if (authority.offline)
-          throw new Error(
-            'Este bloco ainda não está no aparelho. Reconecte para carregar.',
-          );
-        const data = object(await api(authority, 'object', { id }));
-        if (data['id'] !== id) throw new Error('Objeto divergente.');
-        bytes = base64(data['ciphertext'], blockLimit);
-      }
-      const value = await openBlock(
-        await authority.key(entry.commit.epoch),
-        entry.commit,
-        bytes,
-      );
-      await cacheBlock(authority.session.accountId, id, bytes);
-      return value;
+      const guard = () => {
+        if (generation !== this.generation) throw new Error('Sessão alterada.');
+      };
+      await this.removals.load(authority, guard);
+      guard();
+      const read = {
+        authority,
+        entries: this.entries,
+        removed: (id: string) => this.isRemoved(id),
+        guard,
+      };
+      const values = await openVaultObjects(read, page);
+      // Recheck authorization/removals after decryption too. A cleanup or
+      // revocation during this page must reject it before exposing any value.
+      await this.removals.load(authority, guard);
+      assertVaultObjectsAvailable(read, page);
+      return values;
     });
   }
 }

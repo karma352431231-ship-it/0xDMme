@@ -1,5 +1,35 @@
 /** Authored app text. Tuple order: English, Simplified Chinese. */
 export const catalog: Record<string, readonly [string, string]> = {
+  'chat.outgoing-message': ['Your message', '你的消息'],
+  'chat.composed-at {0}': ['Written at {0}', '撰写于 {0}'],
+  'chat.send-failed': [
+    'Message could not be sent. Try again.',
+    '消息未能发送。请重试。',
+  ],
+  'chat.retry-send': ['Retry sending message', '重试发送消息'],
+  'chat.saving-local': [
+    'Saving message on this device…',
+    '正在将消息保存到此设备…',
+  ],
+  'chat.save-failed': [
+    'Message not saved. Retry before closing this page.',
+    '消息尚未保存。请在关闭此页面前重试。',
+  ],
+  'chat.retry-save': ['Retry saving message', '重试保存消息'],
+  'preview.audio': ['Voice message', '语音消息'],
+  'preview.unavailable': ['Message preview unavailable.', '无法显示消息预览。'],
+  'Message action target is unavailable.': [
+    'This message is no longer available for this action.',
+    '此消息已无法进行此操作。',
+  ],
+  'Message action limit reached.': [
+    'This message has reached its edit and reaction limit.',
+    '该消息的编辑和回应次数已达上限。',
+  ],
+  'Invalid public-identity message or action.': [
+    'This message or action is unavailable in handle chats.',
+    '用户名聊天中不支持此消息或操作。',
+  ],
   'message.sent-at {0}': ['Sent at {0}', '发送于 {0}'],
   'message.remove-reaction {0} {1}': [
     'Remove my {0} reaction · {1}',
@@ -93,6 +123,8 @@ export const catalog: Record<string, readonly [string, string]> = {
     '社区主题 · 已选 {0}/2（必选）',
   ],
   'community.topics.filter': ['Filter by topic', '按主题筛选'],
+  'community.topics.toggle': ['Topics', '主题'],
+  'community.topics.toggle-count {0}': ['Topics · {0}', '主题 · {0}'],
   'Invalid publication mode.': ['Invalid publication mode.', '发布模式无效。'],
   'community.content-policy': [
     'Mark your community NSFW if it will contain sexually explicit content, including AI-generated images or drawings. Keep explicit content out of unmarked communities.',
@@ -186,11 +218,6 @@ export const catalog: Record<string, readonly [string, string]> = {
   '{0} — {1}': ['{0} — {1}', '{0} — {1}'],
   '{0} · {1}': ['{0} · {1}', '{0} · {1}'],
   '{0} · {1} · {2}': ['{0} · {1} · {2}', '{0} · {1} · {2}'],
-  '{0} · {1} MB. Original preservado; pode conter GPS/EXIF ou outros metadados. Clique em Enviar para compartilhar.':
-    [
-      '{0} · {1} MB. Original preserved; it may contain GPS/EXIF or other metadata. Click Send to share.',
-      '{0} · {1} MB。原始文件已保留，可能含有 GPS/EXIF 或其他元数据。点击“发送”以分享。',
-    ],
   '{0} · {1} na fila': ['{0} · {1} queued', '{0} · 队列中有 {1} 项'],
   '{0} · {1}. Confirme somente o pedido que você iniciou. A wallet pedirá assinaturas para entrar e abrir seus dados cifrados no navegador original. Não há transação ou autorização de tokens.':
     [
@@ -608,6 +635,100 @@ export const catalog: Record<string, readonly [string, string]> = {
   'Abrindo conversa…': ['Opening conversation…', '正在打开对话…'],
   'Abrindo sua conta…': ['Opening your account…', '正在打开账户…'],
   'chat.encrypted-on-device': ['Encrypted on this device', '已在此设备上加密'],
+  'conversation.mute': ['Mute alerts…', '静音提醒…'],
+  'ranking.title': ['Communities', '社区'],
+  'ranking.trending': ['Trending', '热门'],
+  'ranking.largest': ['Largest', '最大'],
+  'ranking.new': ['New', '最新'],
+  'ranking.following': ['Following', '已关注'],
+  'ranking.community': ['Community', '社区'],
+  'ranking.window': ['Last 24 h', '最近 24 小时'],
+  'ranking.full': ['See full ranking', '查看完整排行'],
+  'ranking.collapse': ['Collapse ranking', '收起排行'],
+  'ranking.expand': ['Expand ranking', '展开排行'],
+  'ranking.followers {0}': ['{0} followers', '{0} 位关注者'],
+  'ranking.active {0}': ['{0} active', '{0} 位活跃'],
+  'ranking.active-new {0}': ['▲ +{0} active', '▲ +{0} 位活跃'],
+  'ranking.growth-up {0}': ['▲ {0}% active', '▲ 活跃 {0}%'],
+  'ranking.growth-down {0}': ['▼ {0}% active', '▼ 活跃 {0}%'],
+  'ranking.active-label': ['active', '活跃'],
+  'feed.refresh': ['Refresh', '刷新'],
+  'feed.refresh-label': [
+    'Back to the top and load new posts',
+    '回到顶部并加载新帖子',
+  ],
+  'feed.posted': ['posted', '发布了'],
+  'feed.posted-label': [
+    'New posts: back to the top and load them',
+    '有新帖子：回到顶部并加载',
+  ],
+  'profile.bell-on {0}': ['Notifications on for @{0}', '已开启 @{0} 的通知'],
+  'profile.bell-off {0}': ['Notifications off for @{0}', '已关闭 @{0} 的通知'],
+  'upload.sending {0}': ['Sending: {0}%', '正在发送：{0}%'],
+  'upload.percent {0}': ['{0}%', '{0}%'],
+  'upload.processing': ['Processing…', '处理中…'],
+  'upload.sending-file': ['Sending file…', '正在发送文件…'],
+  'attachment.card-detail {0}': [
+    '{0} MB · original, may keep GPS/EXIF',
+    '{0} MB · 原始文件，可能保留 GPS/EXIF',
+  ],
+  'attachment.card-metadata': [
+    'The original is sent as is and may keep photo metadata such as GPS/EXIF.',
+    '原始文件按原样发送，可能保留 GPS/EXIF 等照片元数据。',
+  ],
+  'message.sending': ['Sending…', '正在发送…'],
+  'crop.title': ['Edit media', '编辑图片'],
+  'crop.stage': [
+    'Drag to move the picture; use + and - to zoom',
+    '拖动以移动图片；使用 + 和 - 缩放',
+  ],
+  'crop.zoom': ['Zoom', '缩放'],
+  'crop.zoom-in': ['Zoom in', '放大'],
+  'crop.zoom-out': ['Zoom out', '缩小'],
+  'crop.apply': ['Apply', '应用'],
+  'crop.cancel': ['Cancel', '取消'],
+  'crop.failed': [
+    'Could not frame the picture. Try another one.',
+    '无法裁剪图片。请换一张试试。',
+  ],
+  'ranking.empty': ['No communities here yet.', '这里还没有社区。'],
+  'ranking.sign-in': [
+    'Sign in to see the communities you follow.',
+    '登录后即可查看你关注的社区。',
+  ],
+  'ranking.unavailable': [
+    'Ranking unavailable right now. Trying again…',
+    '排行暂时不可用，正在重试…',
+  ],
+  'right-column.label': ['Conversation or communities', '对话或社区'],
+  'right-column.chat': ['Chat', '聊天'],
+  'right-column.communities': ['Communities', '社区'],
+  'chat.attach-up-to-3mb': [
+    'Attach photo or file · up to 3 MB',
+    '附加图片或文件 · 最大 3 MB',
+  ],
+  'chat.attach-up-to-10mb': [
+    'Attach photo or file · up to 10 MB',
+    '附加图片或文件 · 最大 10 MB',
+  ],
+  'video.fullscreen': ['Full screen', '全屏'],
+  'conversation.mute-1h': ['Mute for 1 hour', '静音 1 小时'],
+  'conversation.mute-8h': ['Mute for 8 hours', '静音 8 小时'],
+  'conversation.mute-24h': ['Mute for 24 hours', '静音 24 小时'],
+  'conversation.mute-7d': ['Mute for 7 days', '静音 7 天'],
+  'conversation.mute-forever': [
+    'Mute until I turn alerts back on',
+    '静音直到我重新开启',
+  ],
+  'conversation.resume-alerts': ['Resume alerts', '恢复提醒'],
+  'conversation.alerts-saved': ['Alert setting saved.', '提醒设置已保存。'],
+  'settings.appearance-language': ['Appearance and language', '外观与语言'],
+  'settings.appearance-language.detail': [
+    'Navy, Black or White theme and the app language',
+    '藏蓝、黑色或白色主题，以及应用语言',
+  ],
+  'representatives.new-organization': ['New organization', '新建组织'],
+  'community.create-menu': ['Create', '创建'],
   'community.create.images': ['Community banner and photo', '社区横幅和头像'],
   'community.create.add-banner': ['Add banner', '添加横幅'],
   'community.create.add-photo': ['Add photo', '添加头像'],
@@ -911,6 +1032,10 @@ export const catalog: Record<string, readonly [string, string]> = {
     'The file must be no larger than 3 MB.',
     '文件大小不得超过 3 MB。',
   ],
+  'Arquivo deve ter até 10 MB.': [
+    'The file must be no larger than 10 MB.',
+    '文件大小不得超过 10 MB。',
+  ],
   'Arquivo do perfil ou da comunidade identificado pelo registro abaixo.': [
     'Profile or community file identified by the record below.',
     '下方记录所标识的个人资料或社区文件。',
@@ -945,6 +1070,10 @@ export const catalog: Record<string, readonly [string, string]> = {
   'Arquivo vazio ou acima do limite de 3 MB. Escolha outro arquivo.': [
     'File empty or larger than 3 MB. Choose another file.',
     '文件为空或超过 3 MB。请选择其他文件。',
+  ],
+  'Arquivo vazio ou acima do limite de 10 MB. Escolha outro arquivo.': [
+    'File empty or larger than 10 MB. Choose another file.',
+    '文件为空或超过 10 MB。请选择其他文件。',
   ],
   'Arquivo: {0}': ['File: {0}', '文件：{0}'],
   'Arquivos divergem para o mesmo registro histórico.': [
@@ -2601,7 +2730,6 @@ export const catalog: Record<string, readonly [string, string]> = {
       'Uploading attachment: part {0} of {1}. Closing the app pauses the transfer; the encrypted draft is preserved.',
       '正在上传附件：第 {0} 部分，共 {1} 部分。关闭应用会暂停传输；加密草稿会保留。',
     ],
-  'Enviando arquivo: {0}%.': ['Uploading file: {0}%.', '正在上传文件：{0}%。'],
   Enviar: ['Send', '发送'],
   'Enviar autorização para aceite': [
     'Send authorization for acceptance',
@@ -2945,9 +3073,9 @@ export const catalog: Record<string, readonly [string, string]> = {
     'Photo not confirmed. Try again.',
     '图片未确认。请重试。',
   ],
-  'Foto preparada. Confirme as alterações em Perfil para salvar.': [
-    'Photo prepared. Confirm changes in Profile to save.',
-    '图片已准备好。请在“个人资料”中确认更改以保存。',
+  'Não foi possível salvar a foto. Selecione-a novamente para tentar.': [
+    'Could not save the photo. Select it again to retry.',
+    '无法保存照片。请重新选择照片后重试。',
   ],
   'Foto privada indisponível neste aparelho.': [
     'Private photo unavailable on this device.',
@@ -5031,10 +5159,6 @@ export const catalog: Record<string, readonly [string, string]> = {
     '准备仍在进行。请重试以恢复。',
   ],
   'preparação da sessão': ['session preparation', '会话准备'],
-  'Preparando arquivo e miniatura. Isso pode reduzir a qualidade.': [
-    'Preparing file and thumbnail. This may reduce quality.',
-    '正在处理文件和缩略图。这可能降低画质。',
-  ],
   'Preparando backup: {0} itens.': [
     'Preparing backup: {0} items.',
     '正在准备备份：{0} 项。',
@@ -5239,7 +5363,6 @@ export const catalog: Record<string, readonly [string, string]> = {
   'Reativar microfone': ['Re-enable microphone', '重新启用麦克风'],
   'Recarregar comunidade': ['Reload community', '重新加载社区'],
   'Recarregar conversa': ['Reload conversation', '重新加载对话'],
-  'Recarregar do início': ['Reload from the beginning', '从头重新加载'],
   'Recarregar lista': ['Reload list', '重新加载列表'],
   'Recarregar notificações': ['Reload notifications', '重新加载通知'],
   'Recarregar postagens': ['Reload posts', '重新加载帖子'],
@@ -6268,7 +6391,6 @@ export const catalog: Record<string, readonly [string, string]> = {
     '查看 {0} 个社区列表',
   ],
   'Ver análise e contestar': ['View analysis and appeal', '查看分析并申诉'],
-  'Ver comunidades seguidas': ['View followed communities', '查看已关注社区'],
   'Ver imagem original': ['View original image', '查看原始图片'],
   'Ver mais': ['View more', '查看更多'],
   'Ver menos': ['View less', '收起'],
@@ -6277,6 +6399,16 @@ export const catalog: Record<string, readonly [string, string]> = {
     '查看我的已处理媒体（受限）',
   ],
   'Ver nomes': ['View names', '查看名称'],
+  'Todas as mensagens @': ['All handle messages', '全部用户名私信'],
+  'Conversa de DM não confirmada.': [
+    'DM conversation not confirmed.',
+    '私信会话尚未确认。',
+  ],
+  'Solicitações de DM foram desativadas. Use Bloquear para impedir mensagens.':
+    [
+      'DM requests have been disabled. Use Block to prevent messages.',
+      '私信申请已停用。请使用屏蔽来阻止消息。',
+    ],
   'Ver outros comentários': ['View other comments', '查看其他评论'],
   'Ver perfil público': ['View public profile', '查看公开个人资料'],
   'Ver postagem completa': ['View full post', '查看完整帖子'],
@@ -6484,8 +6616,8 @@ export const catalog: Record<string, readonly [string, string]> = {
     '<div class="public-chat-bar"><span>通过 @ 发送消息</span><button data-chat-collapse class="icon-button" type="button" aria-label="收起对话" title="收起对话"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12H9M13 7l-5 5 5 5M4 5v14"/></svg></button></div><div class="public-chat-body"></div>',
   ],
   'html.148d3089e900': [
-    '<section class="profile-settings" aria-label="Account settings"><h2>Settings</h2><p class="settings-intro">Open the category you want to adjust.</p>\n{0}\n{1}\n{2}\n{3}\n{4}\n{5}\n{6}\n{7}\n<div class="profile-content-links"><button type="button" data-open-section="account">Edit profile</button><a href="#status">My status</a><a href="#contatos">Contacts</a></div></section>',
-    '<section class="profile-settings" aria-label="账户设置"><h2>设置</h2><p class="settings-intro">打开需要调整的设置类别。</p>\n{0}\n{1}\n{2}\n{3}\n{4}\n{5}\n{6}\n{7}\n<div class="profile-content-links"><button type="button" data-open-section="account">编辑个人资料</button><a href="#status">我的状态</a><a href="#contatos">联系人</a></div></section>',
+    '<section class="profile-settings" aria-label="Account settings"><h2>Settings</h2><p class="settings-intro">Open the category you want to adjust.</p>\n{0}\n{1}\n{2}\n{3}\n{4}\n{5}\n{6}\n{7}\n<div class="profile-content-links"><button type="button" data-open-section="account">Edit profile</button><a href="#status">My status</a><a href="#contacts">Contacts</a></div></section>',
+    '<section class="profile-settings" aria-label="账户设置"><h2>设置</h2><p class="settings-intro">打开需要调整的设置类别。</p>\n{0}\n{1}\n{2}\n{3}\n{4}\n{5}\n{6}\n{7}\n<div class="profile-content-links"><button type="button" data-open-section="account">编辑个人资料</button><a href="#status">我的状态</a><a href="#contacts">联系人</a></div></section>',
   ],
   'html.33d7dbf67efc': [
     '<article class="card"><p id="pwa-state" role="status">Checking for updates…</p><button id="check-updates" type="button">Check for updates</button></article><nav class="about-app-links" aria-label="Source code and licenses" data-about-links></nav>',
@@ -6496,16 +6628,16 @@ export const catalog: Record<string, readonly [string, string]> = {
     '<fieldset class="appearance-options"><legend>主题</legend>{0}</fieldset><p class="appearance-feedback" role="status"></p><p class="settings-test-note">登录后，主题将随账户同步到各设备。</p>',
   ],
   'html.eedc51d31423': [
-    '<article class="card"><h2>Local backup</h2><p>Keep a full encrypted copy. Importing a file adds its history to this device\'s conversations.</p><p data-backup-status role="status"></p><button data-backup-save class="primary" type="button">Save backup file</button><a data-backup-download hidden>Download prepared file</a><button data-backup-validate type="button">Validate file</button><input data-backup-file type="file" accept=".0xdm,application/octet-stream" hidden><button data-backup-clean type="button" disabled>Reset vault</button><button data-backup-cancel type="button" hidden>Cancel</button></article>',
-    '<article class="card"><h2>本地备份</h2><p>保留完整的加密副本。导入文件会将历史加入此设备的对话中。</p><p data-backup-status role="status"></p><button data-backup-save class="primary" type="button">保存备份文件</button><a data-backup-download hidden>下载已处理文件</a><button data-backup-validate type="button">验证文件</button><input data-backup-file type="file" accept=".0xdm,application/octet-stream" hidden><button data-backup-clean type="button" disabled>重置保险库</button><button data-backup-cancel type="button" hidden>取消</button></article>',
+    '<article class="card"><h2>Local backup</h2><p>Keep a full encrypted copy. Importing a file adds its history to this device\'s conversations.</p><p data-backup-status role="status"></p><button data-backup-save class="primary" type="button">Save backup file</button><a data-backup-download hidden>Download prepared file</a><button data-backup-validate type="button">Validate file</button><input data-backup-file type="file" accept=".0xdm,application/octet-stream" hidden><button data-backup-cancel type="button" hidden>Cancel</button><section class="settings-danger"><h3>Danger zone</h3><p>Available after you validate a backup file: removes from your server vault only what that file preserves, after confirmation. Later messages and other people\'s copies remain.</p><button data-backup-clean type="button" disabled>Reset vault</button></section></article>',
+    '<article class="card"><h2>本地备份</h2><p>保留完整的加密副本。导入文件会将历史加入此设备的对话中。</p><p data-backup-status role="status"></p><button data-backup-save class="primary" type="button">保存备份文件</button><a data-backup-download hidden>下载已处理文件</a><button data-backup-validate type="button">验证文件</button><input data-backup-file type="file" accept=".0xdm,application/octet-stream" hidden><button data-backup-cancel type="button" hidden>取消</button><section class="settings-danger"><h3>危险操作</h3><p>验证备份文件后可用：确认后，仅从服务器保险库中移除该文件已保存的内容。之后的消息和其他人的副本会保留。</p><button data-backup-clean type="button" disabled>重置保险库</button></section></article>',
   ],
   'html.dc84c57fff55': [
     '<article class="card call-settings"><h2>Voice calls</h2><p>Receive calls from approved contacts while the app is open and connected. Muted or archived conversations do not ring. No call history is kept.</p><button data-call-toggle type="button" aria-pressed="true">Disable incoming calls</button><p data-call-status role="status"></p></article>',
     '<article class="card call-settings"><h2>语音通话</h2><p>应用打开并联网时，可以接听已批准联系人的来电。静音或归档对话不会响铃。不会保留通话历史。</p><button data-call-toggle type="button" aria-pressed="true">关闭来电</button><p data-call-status role="status"></p></article>',
   ],
   'html.46729037ae98': [
-    '<form data-{0} class="chat-composer">\n    {1}\n    <div class="compose-preview"><div data-attachment-preview></div><button data-attachment-clear class="chat-icon" type="button" aria-label="Remove attachment" title="Remove attachment" hidden>{2}</button></div>\n    <p data-voice-status class="compose-notice" role="status"></p>\n    <div class="voice-recorder"><button data-voice-cancel class="chat-icon" type="button" aria-label="Cancel recording" title="Cancel recording" hidden>{3}</button><span class="voice-rec-dot" aria-hidden="true"></span><span data-voice-clock class="voice-rec-clock">0:00</span><span class="voice-rec-limit">/ 1:30</span><span class="voice-rec-hint">Release to review</span><button data-voice-stop class="chat-icon compose-primary" type="button" aria-label="Stop and review" title="Stop and review" hidden>{4}</button></div>\n    <div class="compose-row">\n      <div class="compose-input">\n        <button data-{5}-emoji class="chat-icon" type="button" aria-label="Choose emoji" title="Choose emoji">{6}</button>\n        <textarea data-{7}-text rows="1" aria-label="Message" placeholder="Message…"></textarea>\n        <button data-chat-attachment type="button" class="chat-icon" aria-label="Attach photo or file" title="Attach photo or file · up to 3 MB">{8}</button>\n      </div>\n      <button data-voice-record class="chat-icon compose-primary" type="button" aria-label="Record voice message" title="Record voice">{9}</button>\n      <button data-compose-send class="chat-icon compose-primary" type="submit" aria-label="Send message" title="Send" hidden>{10}</button>\n    </div>\n    <input data-attachment-file type="file" aria-label="Photo or file" hidden>\n  </form>',
-    '<form data-{0} class="chat-composer">\n    {1}\n    <div class="compose-preview"><div data-attachment-preview></div><button data-attachment-clear class="chat-icon" type="button" aria-label="移除附件" title="移除附件" hidden>{2}</button></div>\n    <p data-voice-status class="compose-notice" role="status"></p>\n    <div class="voice-recorder"><button data-voice-cancel class="chat-icon" type="button" aria-label="取消录音" title="取消录音" hidden>{3}</button><span class="voice-rec-dot" aria-hidden="true"></span><span data-voice-clock class="voice-rec-clock">0:00</span><span class="voice-rec-limit">/ 1:30</span><span class="voice-rec-hint">松开以检查</span><button data-voice-stop class="chat-icon compose-primary" type="button" aria-label="停止并检查" title="停止并检查" hidden>{4}</button></div>\n    <div class="compose-row">\n      <div class="compose-input">\n        <button data-{5}-emoji class="chat-icon" type="button" aria-label="选择表情" title="选择表情">{6}</button>\n        <textarea data-{7}-text rows="1" aria-label="消息" placeholder="消息…"></textarea>\n        <button data-chat-attachment type="button" class="chat-icon" aria-label="附加图片或文件" title="附加图片或文件 · 最大 3 MB">{8}</button>\n      </div>\n      <button data-voice-record class="chat-icon compose-primary" type="button" aria-label="录制语音消息" title="录制语音">{9}</button>\n      <button data-compose-send class="chat-icon compose-primary" type="submit" aria-label="发送消息" title="发送" hidden>{10}</button>\n    </div>\n    <input data-attachment-file type="file" aria-label="图片或文件" hidden>\n  </form>',
+    '<form data-{0} class="chat-composer">\n    {1}\n    <div class="compose-preview"><div data-attachment-preview></div><button data-attachment-clear class="chat-icon" type="button" aria-label="Remove attachment" title="Remove attachment" hidden>{2}</button></div>\n    <p data-voice-status class="compose-notice" role="status"></p>\n    <div class="voice-recorder"><button data-voice-cancel class="chat-icon" type="button" aria-label="Cancel recording" title="Cancel recording" hidden>{3}</button><span class="voice-rec-dot" aria-hidden="true"></span><span data-voice-clock class="voice-rec-clock">0:00</span><span class="voice-rec-limit">/ 1:30</span><span class="voice-rec-hint">Release to review</span><button data-voice-stop class="chat-icon compose-primary" type="button" aria-label="Stop and review" title="Stop and review" hidden>{4}</button></div>\n    <div class="compose-row">\n      <div class="compose-input">\n        <button data-{5}-emoji class="chat-icon" type="button" aria-label="Choose emoji" title="Choose emoji">{6}</button>\n        <textarea data-{7}-text rows="1" aria-label="Message" placeholder="Message…"></textarea>\n        <button data-chat-attachment type="button" class="chat-icon" aria-label="Attach photo or file" title="{11}">{8}</button>\n      </div>\n      <button data-voice-record class="chat-icon compose-primary" type="button" aria-label="Record voice message" title="Record voice">{9}</button>\n      <button data-compose-send class="chat-icon compose-primary" type="submit" aria-label="Send message" title="Send" hidden>{10}</button>\n    </div>\n    <input data-attachment-file type="file" aria-label="Photo or file" hidden>\n  </form>',
+    '<form data-{0} class="chat-composer">\n    {1}\n    <div class="compose-preview"><div data-attachment-preview></div><button data-attachment-clear class="chat-icon" type="button" aria-label="移除附件" title="移除附件" hidden>{2}</button></div>\n    <p data-voice-status class="compose-notice" role="status"></p>\n    <div class="voice-recorder"><button data-voice-cancel class="chat-icon" type="button" aria-label="取消录音" title="取消录音" hidden>{3}</button><span class="voice-rec-dot" aria-hidden="true"></span><span data-voice-clock class="voice-rec-clock">0:00</span><span class="voice-rec-limit">/ 1:30</span><span class="voice-rec-hint">松开以检查</span><button data-voice-stop class="chat-icon compose-primary" type="button" aria-label="停止并检查" title="停止并检查" hidden>{4}</button></div>\n    <div class="compose-row">\n      <div class="compose-input">\n        <button data-{5}-emoji class="chat-icon" type="button" aria-label="选择表情" title="选择表情">{6}</button>\n        <textarea data-{7}-text rows="1" aria-label="消息" placeholder="消息…"></textarea>\n        <button data-chat-attachment type="button" class="chat-icon" aria-label="附加图片或文件" title="{11}">{8}</button>\n      </div>\n      <button data-voice-record class="chat-icon compose-primary" type="button" aria-label="录制语音消息" title="录制语音">{9}</button>\n      <button data-compose-send class="chat-icon compose-primary" type="submit" aria-label="发送消息" title="发送" hidden>{10}</button>\n    </div>\n    <input data-attachment-file type="file" aria-label="图片或文件" hidden>\n  </form>',
   ],
   'html.2e7c749dbe8a': [
     '<div data-compose-bar class="compose-context" hidden><p data-compose-context></p><button data-compose-cancel class="chat-icon" type="button" aria-label="Cancel reply or edit">{0}</button></div>',
@@ -6516,8 +6648,8 @@ export const catalog: Record<string, readonly [string, string]> = {
     '<button data-chat-collapse class="chat-icon chat-collapse" type="button" aria-label="收起对话" title="收起对话">{0}</button>',
   ],
   'html.3b20f44af6d9': [
-    '<article class="card chat-panel">\n    <div class="chat-welcome">{5}<h2>Let\'s chat?</h2><p>Choose a conversation from the menu.</p></div>\n    <div class="chat-feedback"><p data-message-status role="status"></p><details class="chat-options"><summary>Connection</summary><div class="chat-popover"><p data-message-live role="status"></p><button data-message-refresh type="button">Sync now</button></div></details></div>\n    <div class="chat-layout"><section data-direct-conversation class="chat-conversation">\n      <header class="chat-header"><button data-chat-back class="chat-icon chat-mobile-back" type="button" aria-label="Back to conversations">{0}</button><span data-chat-avatar class="chat-peer-avatar" aria-hidden="true">#</span><div class="chat-peer"><h3 data-message-peer></h3><p data-peer-presence></p></div><button data-call-start class="chat-icon" type="button" aria-label="Voice call" title="Voice call">{1}</button><details class="chat-options"><summary class="chat-icon" aria-label="Conversation options" title="Conversation options">{2}</summary><div class="chat-popover"><button data-chat-edit-contact type="button">Edit contact</button><details><summary>Representative authorizations</summary><div data-representative-chat></div></details><a href="#perfil">Profile and settings</a></div></details>{3}</header>\n      <div class="chat-thread">{6}<p data-message-gate class="chat-gate" role="status"></p><button data-message-older class="chat-older" type="button" hidden>Earlier messages</button><div data-message-history class="chat-history" tabindex="0" aria-label="Conversation messages" hidden></div><ul data-message-pending class="chat-pending" aria-label="Pending sends on this device"></ul></div>\n      {4}\n    </section><section data-group-conversation class="chat-conversation" hidden></section></div>\n  </article>',
-    '<article class="card chat-panel">\n    <div class="chat-welcome">{5}<h2>聊聊吧？</h2><p>请从菜单中选择对话。</p></div>\n    <div class="chat-feedback"><p data-message-status role="status"></p><details class="chat-options"><summary>连接</summary><div class="chat-popover"><p data-message-live role="status"></p><button data-message-refresh type="button">立即同步</button></div></details></div>\n    <div class="chat-layout"><section data-direct-conversation class="chat-conversation">\n      <header class="chat-header"><button data-chat-back class="chat-icon chat-mobile-back" type="button" aria-label="返回对话">{0}</button><span data-chat-avatar class="chat-peer-avatar" aria-hidden="true">#</span><div class="chat-peer"><h3 data-message-peer></h3><p data-peer-presence></p></div><button data-call-start class="chat-icon" type="button" aria-label="语音通话" title="语音通话">{1}</button><details class="chat-options"><summary class="chat-icon" aria-label="对话选项" title="对话选项">{2}</summary><div class="chat-popover"><button data-chat-edit-contact type="button">编辑联系人</button><details><summary>代表授权</summary><div data-representative-chat></div></details><a href="#perfil">个人资料与设置</a></div></details>{3}</header>\n      <div class="chat-thread">{6}<p data-message-gate class="chat-gate" role="status"></p><button data-message-older class="chat-older" type="button" hidden>更早的消息</button><div data-message-history class="chat-history" tabindex="0" aria-label="对话消息" hidden></div><ul data-message-pending class="chat-pending" aria-label="此设备上的待发送内容"></ul></div>\n      {4}\n    </section><section data-group-conversation class="chat-conversation" hidden></section></div>\n  </article>',
+    '<article class="card chat-panel">\n    <div class="chat-welcome">{5}<h2>Let\'s chat?</h2><p>Choose a conversation from the menu.</p></div>\n    <div class="chat-feedback"><p data-message-status role="status"></p><details class="chat-options"><summary>Connection</summary><div class="chat-popover"><p data-message-live role="status"></p><button data-message-refresh type="button">Sync now</button></div></details></div>\n    <div class="chat-layout"><section data-direct-conversation class="chat-conversation">\n      <header class="chat-header"><button data-chat-back class="chat-icon chat-mobile-back" type="button" aria-label="Back to conversations">{0}</button><button data-chat-avatar class="chat-peer-avatar" type="button" disabled aria-label="Zoom in on image">#</button><div class="chat-peer"><h3 data-message-peer></h3><p data-peer-presence></p></div><button data-call-start class="chat-icon" type="button" aria-label="Voice call" title="Voice call">{1}</button><details class="chat-options"><summary class="chat-icon" aria-label="Conversation options" title="Conversation options">{2}</summary><div class="chat-popover"><button data-chat-edit-contact type="button">Edit contact</button><details><summary>Representative authorizations</summary><div data-representative-chat></div></details><a href="#settings">Profile and settings</a></div></details>{3}</header>\n      <div class="chat-thread">{6}<p data-message-gate class="chat-gate" role="status"></p><button data-message-older class="chat-older" type="button" hidden>Earlier messages</button><div data-message-history class="chat-history" tabindex="0" aria-label="Conversation messages" hidden></div><ul data-message-pending class="chat-pending" aria-label="Pending sends on this device"></ul></div>\n      {4}\n    </section><section data-group-conversation class="chat-conversation" hidden></section></div>\n  </article>',
+    '<article class="card chat-panel">\n    <div class="chat-welcome">{5}<h2>聊聊吧？</h2><p>请从菜单中选择对话。</p></div>\n    <div class="chat-feedback"><p data-message-status role="status"></p><details class="chat-options"><summary>连接</summary><div class="chat-popover"><p data-message-live role="status"></p><button data-message-refresh type="button">立即同步</button></div></details></div>\n    <div class="chat-layout"><section data-direct-conversation class="chat-conversation">\n      <header class="chat-header"><button data-chat-back class="chat-icon chat-mobile-back" type="button" aria-label="返回对话">{0}</button><button data-chat-avatar class="chat-peer-avatar" type="button" disabled aria-label="放大图片">#</button><div class="chat-peer"><h3 data-message-peer></h3><p data-peer-presence></p></div><button data-call-start class="chat-icon" type="button" aria-label="语音通话" title="语音通话">{1}</button><details class="chat-options"><summary class="chat-icon" aria-label="对话选项" title="对话选项">{2}</summary><div class="chat-popover"><button data-chat-edit-contact type="button">编辑联系人</button><details><summary>代表授权</summary><div data-representative-chat></div></details><a href="#settings">个人资料与设置</a></div></details>{3}</header>\n      <div class="chat-thread">{6}<p data-message-gate class="chat-gate" role="status"></p><button data-message-older class="chat-older" type="button" hidden>更早的消息</button><div data-message-history class="chat-history" tabindex="0" aria-label="对话消息" hidden></div><ul data-message-pending class="chat-pending" aria-label="此设备上的待发送内容"></ul></div>\n      {4}\n    </section><section data-group-conversation class="chat-conversation" hidden></section></div>\n  </article>',
   ],
   ' Contagem indisponível.': [' Count unavailable.', ' 浏览数不可用。'],
   ' Contagem indisponível: {0}': [
@@ -6529,8 +6661,8 @@ export const catalog: Record<string, readonly [string, string]> = {
     '<section class="chat-conversation"><header class="chat-header"><div class="chat-peer"><h3>用户名私信</h3><p>与公开个人资料的对话</p></div>{0}</header><div class="chat-thread"><div data-dm-list class="dm-list"></div></div></section>',
   ],
   'html.bac5e10aced2': [
-    '<section class="chat-conversation">\n    <header class="chat-header"><a class="chat-icon chat-mobile-back" href="#comunidades?view=dms" aria-label="Back to handle messages">{0}</a><span data-dm-avatar class="chat-peer-avatar" aria-hidden="true">@</span><div class="chat-peer"><h3 data-dm-peer></h3><p data-dm-state></p></div><details class="chat-options"><summary class="chat-icon" aria-label="Conversation options" title="Conversation options">{1}</summary><div class="chat-popover" data-dm-options></div></details>{2}</header>\n    <div class="chat-thread"><p data-dm-gate class="chat-gate" role="status"></p><button data-dm-older class="chat-older" type="button" hidden>Earlier messages</button><div data-dm-history class="chat-history" tabindex="0" aria-label="Conversation messages"></div></div>\n    <div data-dm-request class="dm-request" hidden></div>\n    {3}\n  </section>',
-    '<section class="chat-conversation">\n    <header class="chat-header"><a class="chat-icon chat-mobile-back" href="#comunidades?view=dms" aria-label="返回用户名私信">{0}</a><span data-dm-avatar class="chat-peer-avatar" aria-hidden="true">@</span><div class="chat-peer"><h3 data-dm-peer></h3><p data-dm-state></p></div><details class="chat-options"><summary class="chat-icon" aria-label="对话选项" title="对话选项">{1}</summary><div class="chat-popover" data-dm-options></div></details>{2}</header>\n    <div class="chat-thread"><p data-dm-gate class="chat-gate" role="status"></p><button data-dm-older class="chat-older" type="button" hidden>更早的消息</button><div data-dm-history class="chat-history" tabindex="0" aria-label="对话消息"></div></div>\n    <div data-dm-request class="dm-request" hidden></div>\n    {3}\n  </section>',
+    '<section class="chat-conversation">\n    <header class="chat-header"><a class="chat-icon chat-mobile-back" href="#communities?view=dms" aria-label="Back to handle messages">{0}</a><button data-dm-avatar class="chat-peer-avatar" type="button" aria-label="View profile photo" disabled>@</button><div class="chat-peer"><h3 data-dm-peer></h3><p data-dm-state></p></div><details class="chat-options"><summary class="chat-icon" aria-label="Conversation options" title="Conversation options">{1}</summary><div class="chat-popover" data-dm-options></div></details>{2}</header>\n    <div class="chat-thread"><p data-dm-gate class="chat-gate" role="status"></p><button data-dm-older class="chat-older" type="button" hidden>Earlier messages</button><div data-dm-history class="chat-history" tabindex="0" aria-label="Conversation messages"></div></div>\n    <div data-dm-request class="dm-request" hidden></div>\n    {3}\n  </section>',
+    '<section class="chat-conversation">\n    <header class="chat-header"><a class="chat-icon chat-mobile-back" href="#communities?view=dms" aria-label="返回用户名私信">{0}</a><button data-dm-avatar class="chat-peer-avatar" type="button" aria-label="查看头像" disabled>@</button><div class="chat-peer"><h3 data-dm-peer></h3><p data-dm-state></p></div><details class="chat-options"><summary class="chat-icon" aria-label="对话选项" title="对话选项">{1}</summary><div class="chat-popover" data-dm-options></div></details>{2}</header>\n    <div class="chat-thread"><p data-dm-gate class="chat-gate" role="status"></p><button data-dm-older class="chat-older" type="button" hidden>更早的消息</button><div data-dm-history class="chat-history" tabindex="0" aria-label="对话消息"></div></div>\n    <div data-dm-request class="dm-request" hidden></div>\n    {3}\n  </section>',
   ],
   ' · Arquivada': [' · Archived', ' · 已归档'],
   ' · referência de identidade guardada': [
@@ -6614,8 +6746,8 @@ export const catalog: Record<string, readonly [string, string]> = {
     '<header><div><span class="group-eyebrow">私密群组</span><h2>群组图片</h2></div><button data-close class="group-close" type="button" aria-label="关闭群组图片">{0}</button></header><div data-preview class="group-photo-preview" aria-hidden="true"></div><p class="group-hint">请选择群组图片。图片将裁剪为正方形。</p><input data-file type="file" accept="image/png,image/jpeg,image/webp" hidden><div class="group-button-row"><button data-pick type="button">选择图片</button><button data-remove class="group-danger" type="button">移除图片</button></div><div class="group-form-footer"><button data-save class="group-primary" type="button" disabled>保存图片</button></div><p data-feedback class="group-feedback" role="status"></p>',
   ],
   'html.6f2aac1c9ed0': [
-    '<dialog data-group-settings class="group-dialog group-settings" aria-label="Group settings"><header><div><span class="group-eyebrow">PRIVATE GROUP</span><h2>Group settings</h2></div><button data-group-settings-close class="group-close" type="button" aria-label="Close settings">{0}</button></header><div class="group-settings-identity"><button data-group-settings-avatar data-group-photo class="group-person-avatar group-photo-trigger" type="button" aria-label="Change group photo" title="Change group photo"></button><div><strong data-group-settings-title></strong><p data-group-settings-count></p></div></div><section class="group-members-section"><div class="group-section-heading"><h3>Participants</h3><button data-group-manage class="group-primary" type="button">Add</button></div><ul data-group-members class="group-people-list"></ul></section><details data-group-vault class="group-vault"><summary>Group vault<span aria-hidden="true">⌄</span></summary><div class="group-vault-body"><p data-group-usage></p><p data-group-cleanup-warning role="status"></p><ul data-group-cleanup-items></ul><button data-group-cleanup-more type="button" hidden>Next selected media</button><p><a href="#cofre">Save an encrypted backup</a> to keep a copy of media before cleanup. Statuses are not included in the backup.</p><button data-group-clear class="group-danger" type="button">Clear remote vault</button></div></details><footer class="group-settings-footer"><p data-group-owner-note class="group-hint">To leave, offer ownership to another member and wait for acceptance.</p><div class="group-button-row"><button data-group-leave class="group-danger" type="button">Leave group</button><button data-group-delete class="group-danger" type="button">Delete group</button></div></footer><p data-group-settings-notice role="status" class="group-feedback"></p></dialog>',
-    '<dialog data-group-settings class="group-dialog group-settings" aria-label="群组设置"><header><div><span class="group-eyebrow">私密群组</span><h2>群组设置</h2></div><button data-group-settings-close class="group-close" type="button" aria-label="关闭设置">{0}</button></header><div class="group-settings-identity"><button data-group-settings-avatar data-group-photo class="group-person-avatar group-photo-trigger" type="button" aria-label="更换群组图片" title="更换群组图片"></button><div><strong data-group-settings-title></strong><p data-group-settings-count></p></div></div><section class="group-members-section"><div class="group-section-heading"><h3>成员</h3><button data-group-manage class="group-primary" type="button">添加</button></div><ul data-group-members class="group-people-list"></ul></section><details data-group-vault class="group-vault"><summary>群组保险库<span aria-hidden="true">⌄</span></summary><div class="group-vault-body"><p data-group-usage></p><p data-group-cleanup-warning role="status"></p><ul data-group-cleanup-items></ul><button data-group-cleanup-more type="button" hidden>下一批已选媒体</button><p><a href="#cofre">保存加密备份</a> 以在清理前保留媒体副本。状态不包含在备份中。</p><button data-group-clear class="group-danger" type="button">清理远程保险库</button></div></details><footer class="group-settings-footer"><p data-group-owner-note class="group-hint">退出前，请向其他成员转让所有权并等待对方接受。</p><div class="group-button-row"><button data-group-leave class="group-danger" type="button">退出群组</button><button data-group-delete class="group-danger" type="button">删除群组</button></div></footer><p data-group-settings-notice role="status" class="group-feedback"></p></dialog>',
+    '<dialog data-group-settings class="group-dialog group-settings" aria-label="Group settings"><header><div><span class="group-eyebrow">PRIVATE GROUP</span><h2>Group settings</h2></div><button data-group-settings-close class="group-close" type="button" aria-label="Close settings">{0}</button></header><div class="group-settings-identity"><button data-group-settings-avatar data-group-photo class="group-person-avatar group-photo-trigger" type="button" aria-label="Change group photo" title="Change group photo"></button><div><strong data-group-settings-title></strong><p data-group-settings-count></p></div></div><section class="group-members-section"><div class="group-section-heading"><h3>Participants</h3><button data-group-manage class="group-primary" type="button">Add</button></div><ul data-group-members class="group-people-list"></ul></section><details data-group-vault class="group-vault"><summary>Group vault<span aria-hidden="true">⌄</span></summary><div class="group-vault-body"><p data-group-usage></p><p data-group-cleanup-warning role="status"></p><ul data-group-cleanup-items></ul><button data-group-cleanup-more type="button" hidden>Next selected media</button><p><a href="#vault">Save an encrypted backup</a> to keep a copy of media before cleanup. Statuses are not included in the backup.</p><button data-group-clear class="group-danger" type="button">Clear remote vault</button></div></details><footer class="group-settings-footer"><p data-group-owner-note class="group-hint">To leave, offer ownership to another member and wait for acceptance.</p><div class="group-button-row"><button data-group-leave class="group-danger" type="button">Leave group</button><button data-group-delete class="group-danger" type="button">Delete group</button></div></footer><p data-group-settings-notice role="status" class="group-feedback"></p></dialog>',
+    '<dialog data-group-settings class="group-dialog group-settings" aria-label="群组设置"><header><div><span class="group-eyebrow">私密群组</span><h2>群组设置</h2></div><button data-group-settings-close class="group-close" type="button" aria-label="关闭设置">{0}</button></header><div class="group-settings-identity"><button data-group-settings-avatar data-group-photo class="group-person-avatar group-photo-trigger" type="button" aria-label="更换群组图片" title="更换群组图片"></button><div><strong data-group-settings-title></strong><p data-group-settings-count></p></div></div><section class="group-members-section"><div class="group-section-heading"><h3>成员</h3><button data-group-manage class="group-primary" type="button">添加</button></div><ul data-group-members class="group-people-list"></ul></section><details data-group-vault class="group-vault"><summary>群组保险库<span aria-hidden="true">⌄</span></summary><div class="group-vault-body"><p data-group-usage></p><p data-group-cleanup-warning role="status"></p><ul data-group-cleanup-items></ul><button data-group-cleanup-more type="button" hidden>下一批已选媒体</button><p><a href="#vault">保存加密备份</a> 以在清理前保留媒体副本。状态不包含在备份中。</p><button data-group-clear class="group-danger" type="button">清理远程保险库</button></div></details><footer class="group-settings-footer"><p data-group-owner-note class="group-hint">退出前，请向其他成员转让所有权并等待对方接受。</p><div class="group-button-row"><button data-group-leave class="group-danger" type="button">退出群组</button><button data-group-delete class="group-danger" type="button">删除群组</button></div></footer><p data-group-settings-notice role="status" class="group-feedback"></p></dialog>',
   ],
   ' · silenciada': [' · muted', ' · 已静音'],
   ' · organização em conflito': [
@@ -6623,14 +6755,13 @@ export const catalog: Record<string, readonly [string, string]> = {
     ' · 组织存在冲突',
   ],
   'Editada · ': ['Edited · ', '已编辑 · '],
-  'Envio pendente para {0} ': ['Pending send to {0} ', '待发送给 {0} '],
   'html.bc850aca5a52': [
     '<div class="search-heading"><h2 id="conversation-search-title">Search</h2><button type="button" data-search-close aria-label="Close search">×</button></div><form><label for="conversation-query">Chats, contacts or words in messages</label><div class="search-input-row"><input id="conversation-query" type="search" maxlength="128" autocomplete="off" spellcheck="false"><button type="submit">Search messages</button></div></form><p class="search-scope">Local search in loaded chats and messages synced or imported on this device.</p><h3>Chats and contacts</h3><div data-search-chats class="chat-contacts"></div><h3>Messages</h3><p data-search-notice role="status">Type to find a conversation or search for words in messages.</p><ul data-search-messages></ul><button type="button" data-search-next hidden>Continue search</button>',
     '<div class="search-heading"><h2 id="conversation-search-title">搜索</h2><button type="button" data-search-close aria-label="关闭搜索">×</button></div><form><label for="conversation-query">聊天、联系人或消息中的文字</label><div class="search-input-row"><input id="conversation-query" type="search" maxlength="128" autocomplete="off" spellcheck="false"><button type="submit">搜索消息</button></div></form><p class="search-scope">在此设备已加载的聊天以及已同步或导入的消息中进行本地搜索。</p><h3>聊天与联系人</h3><div data-search-chats class="chat-contacts"></div><h3>消息</h3><p data-search-notice role="status">输入以查找对话，或搜索消息中的文字。</p><ul data-search-messages></ul><button type="button" data-search-next hidden>继续搜索</button>',
   ],
   'html.71689221bc60': [
-    '<article class="card notifications-card"><h2>Push on this device</h2><p>The provider receives subscription details and timing, without text, wallet or contact name.</p><div class="settings-actions"><button data-push-enable type="button">Enable push on this device</button><button data-push-disable type="button">Disable push on this device</button></div><p class="settings-hint">iPhone/iPad: open from the home screen icon before enabling. Your browser will ask for permission.</p><div data-push-settings></div>\n<section class="settings-block"><h3>Sounds</h3><div class="settings-actions"><button data-sound-toggle type="button" aria-pressed="true">Disable sounds</button><p data-sound-status role="status"></p></div></section>\n<section class="settings-block"><h3>Mute conversation</h3><p>Selected: <span data-mute-peer></span></p><div class="settings-actions"><label>Duration<select data-mute-duration><option value="0">Resume alerts</option><option value="3600000">1 hour</option><option value="28800000">8 hours</option><option value="86400000">24 hours</option><option value="604800000">7 days</option><option value="9007199254740991">Until re-enabled</option></select></label><button data-mute type="button">Save mute setting</button></div></section>\n<details class="settings-help"><summary>How do alerts and sounds work?</summary><p>Messages and community replies use generic alerts. Calls may show “Incoming voice call”, depending on the preference above. Push permission and lock screen display are controlled by the browser and system.</p><p>Sounds are on initially and the choice stays in this browser, including when switching accounts. The browser may require a tap to allow audio. Push volume and sound follow your system. Muted or archived conversations do not alert; offline or without a valid session, no new remote alert is shown.</p></details><p data-daily-status role="status"></p></article>',
-    '<article class="card notifications-card"><h2>此设备的推送</h2><p>服务商会接收订阅信息和时间，不会接收文字、钱包信息或联系人姓名。</p><div class="settings-actions"><button data-push-enable type="button">在此设备上启用推送</button><button data-push-disable type="button">关闭此设备的推送</button></div><p class="settings-hint">iPhone/iPad：请先通过主屏幕图标打开，再启用。浏览器会请求权限。</p><div data-push-settings></div>\n<section class="settings-block"><h3>声音</h3><div class="settings-actions"><button data-sound-toggle type="button" aria-pressed="true">关闭声音</button><p data-sound-status role="status"></p></div></section>\n<section class="settings-block"><h3>将对话静音</h3><p>已选择： <span data-mute-peer></span></p><div class="settings-actions"><label>时长<select data-mute-duration><option value="0">恢复通知</option><option value="3600000">1 小时</option><option value="28800000">8 小时</option><option value="86400000">24 小时</option><option value="604800000">7 天</option><option value="9007199254740991">直到重新开启</option></select></label><button data-mute type="button">保存静音设置</button></div></section>\n<details class="settings-help"><summary>通知和声音如何运作？</summary><p>消息和社区回复使用通用通知。根据上方设置，通话可能显示“收到语音来电”。推送权限和锁屏显示由浏览器及系统控制。</p><p>声音默认开启，选项保留在此浏览器中，包括切换账户后。浏览器可能需要点击才能播放音频。推送音量和声音由系统控制。静音或归档对话不会通知；离线或没有有效会话时，不会出现新的远程通知。</p></details><p data-daily-status role="status"></p></article>',
+    '<article class="card notifications-card"><h2>Push on this device</h2><p>The provider receives subscription details and timing, without text, wallet or contact name.</p><div class="settings-actions"><button data-push-enable type="button">Enable push on this device</button><button data-push-disable type="button">Disable push on this device</button></div><p class="settings-hint">iPhone/iPad: open from the home screen icon before enabling. Your browser will ask for permission.</p><div data-push-settings></div>\n<section class="settings-block"><h3>Sounds</h3><div class="settings-actions"><button data-sound-toggle type="button" aria-pressed="true">Disable sounds</button><p data-sound-status role="status"></p></div></section>\n<details class="settings-help"><summary>How do alerts and sounds work?</summary><p>Messages and community replies use generic alerts. Calls may show “Incoming voice call”, depending on the preference above. Push permission and lock screen display are controlled by the browser and system.</p><p>Sounds are on initially and the choice stays in this browser, including when switching accounts. The browser may require a tap to allow audio. Push volume and sound follow your system. Muted or archived conversations do not alert; offline or without a valid session, no new remote alert is shown.</p></details><p data-daily-status role="status"></p></article>',
+    '<article class="card notifications-card"><h2>此设备的推送</h2><p>服务商会接收订阅信息和时间，不会接收文字、钱包信息或联系人姓名。</p><div class="settings-actions"><button data-push-enable type="button">在此设备上启用推送</button><button data-push-disable type="button">关闭此设备的推送</button></div><p class="settings-hint">iPhone/iPad：请先通过主屏幕图标打开，再启用。浏览器会请求权限。</p><div data-push-settings></div>\n<section class="settings-block"><h3>声音</h3><div class="settings-actions"><button data-sound-toggle type="button" aria-pressed="true">关闭声音</button><p data-sound-status role="status"></p></div></section>\n<details class="settings-help"><summary>通知和声音如何运作？</summary><p>消息和社区回复使用通用通知。根据上方设置，通话可能显示“收到语音来电”。推送权限和锁屏显示由浏览器及系统控制。</p><p>声音默认开启，选项保留在此浏览器中，包括切换账户后。浏览器可能需要点击才能播放音频。推送音量和声音由系统控制。静音或归档对话不会通知；离线或没有有效会话时，不会出现新的远程通知。</p></details><p data-daily-status role="status"></p></article>',
   ],
   'html.d3072845e018': [
     '<article class="card public-profile-card"><h2>Public profile</h2>\n<div data-public-create><p>Your handle, public activity and all followed communities are visible on the web. Your private wallet, name and photo are not included in this profile.</p><label>Public handle<input data-public-input type="text" minlength="3" maxlength="31" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="seu_nome"></label>\n<p>3–30 unaccented letters, numbers or _. Your handle is unique and fixed for the lifetime of your account.</p>\n<button type="button" class="primary" data-public-action="create">Create public profile</button></div>\n<div data-public-owned hidden></div>\n<section data-public-moderation aria-label="Rejected public files"></section>\n<div><button type="button" data-public-action="moderation-latest" hidden>Latest notices</button><button type="button" data-public-action="moderation-older" hidden>Previous notices</button></div>\n<p data-external-media-status role="status"></p><button type="button" data-public-action="external-media">External media</button>\n<p data-public-status role="status"></p><button type="button" data-public-action="reload" hidden>Try again</button></article>',

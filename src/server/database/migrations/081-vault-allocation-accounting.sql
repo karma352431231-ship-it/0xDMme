@@ -156,7 +156,7 @@ DECLARE source record; source_count integer; proc regprocedure; definition text;
 BEGIN
   SELECT count(DISTINCT tgrelid) INTO source_count FROM pg_trigger
     WHERE tgfoid='hash_talk.track_statement_content_usage()'::regprocedure;
-  IF source_count<>80 THEN RAISE EXCEPTION 'Unexpected global accounting catalog'; END IF;
+  IF source_count<>81 THEN RAISE EXCEPTION 'Unexpected global accounting catalog'; END IF;
   FOR source IN SELECT DISTINCT c.relname FROM pg_trigger t JOIN pg_class c ON c.oid=t.tgrelid
     WHERE t.tgfoid='hash_talk.track_statement_content_usage()'::regprocedure
     UNION SELECT 'community_ranking_entries'

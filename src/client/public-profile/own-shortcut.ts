@@ -20,7 +20,7 @@ export function startOwnProfileShortcut(controller: PublicProfiles) {
         link.hidden = !own;
         link.replaceChildren();
         if (!own) return;
-        link.href = `#publico?handle=${encodeURIComponent(own.handle)}`;
+        link.href = `#users?handle=${encodeURIComponent(own.handle)}`;
         link.setAttribute('aria-label', t('Abrir meu perfil público'));
         link.title = `@${own.handle}`;
         link.textContent = own.avatar

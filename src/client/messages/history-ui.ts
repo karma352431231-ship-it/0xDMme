@@ -6,7 +6,11 @@ import {
 } from '../message-presentation/index.ts';
 import { t } from '../../shared/i18n/index.ts';
 import { messageStates, messageStateText } from '../message-state/index.ts';
-import { historyPosition, updateMessageStates } from '../chat-ui/index.ts';
+import {
+  ChatAvatarPhoto,
+  historyPosition,
+  updateMessageStates,
+} from '../chat-ui/index.ts';
 import { displayName, paintAvatar } from '../appearance/index.ts';
 import type { HistoryUpdate } from '../message-visibility/index.ts';
 import { dailyViews } from '../daily-text/index.ts';
@@ -25,12 +29,16 @@ import type { ConversationPeer } from './directory-controller.ts';
 import type { startRepresentatives } from '../representatives/index.ts';
 import { receivedState } from './controller.ts';
 import type { Messages, MessageView } from './controller.ts';
+import { outgoingTextRows } from './outgoing-text.ts';
+import type { OutgoingText } from './outgoing-text.ts';
 
 type Actions = Parameters<typeof messageActions<MessageView>>[0];
 interface HistoryPresentation {
   node: <T extends HTMLElement>(selector: string) => T | null;
   context: () => {
     selected: ConversationPeer | null;
+    /** Same name as the conversation list, so a saved name replaces the address. */
+    title: string | null;
     peers: readonly ConversationPeer[];
     session: AccountSession | null;
     calls: boolean;
@@ -41,10 +49,19 @@ interface HistoryPresentation {
   media: Messages['media'];
   run: (work: () => Promise<void>) => Promise<void>;
   composerChanged: () => void;
+  outgoing?: () => readonly OutgoingText[];
+  retryOutgoing?: () => void;
   externalMedia?: ExternalMediaConsent;
   representatives?: Pick<ReturnType<typeof startRepresentatives>, 'renderCard'>;
   forwarding?: ForwardDirectory;
   flush?: () => Promise<void>;
+  /** Covers the header initials with the contact's private card photo. */
+  peerPhoto?: (
+    host: HTMLElement,
+    peer: string,
+    signal: AbortSignal,
+    ready?: (url: string | null) => void,
+  ) => void;
   actions: Pick<Actions, 'action' | 'picker' | 'choose' | 'react'> & {
     forward: (view: DailyView<MessageView>, peer: string) => Promise<void>;
     remove: (view: MessageView) => Promise<void>;
@@ -58,6 +75,8 @@ export class MessageHistoryUi {
   private readonly forwarding: MessageForwardSelection<MessageView> | null;
   private readIds = new Set<string>();
   private views: readonly MessageView[] | null = null;
+  private headerPhoto: AbortController | null = null;
+  private readonly avatarPhoto = new ChatAvatarPhoto();
   private pending: HistoryUpdate | null = null;
   constructor(options: HistoryPresentation) {
     this.options = options;
@@ -75,6 +94,8 @@ export class MessageHistoryUi {
         : null;
   }
   clear(): void {
+    this.avatarPhoto.clear();
+    this.headerPhoto?.abort();
     this.forwarding?.clear();
     this.pending = null;
     this.views = null;
@@ -82,6 +103,8 @@ export class MessageHistoryUi {
     this.externalRows.clear();
   }
   clearMedia(): void {
+    this.avatarPhoto.clear();
+    this.headerPhoto?.abort();
     this.externalRows.clear();
   }
   /** Apply background results only when the conversation is visible. Closing
@@ -128,15 +151,25 @@ export class MessageHistoryUi {
       if (this.views === null) this.options.attachments.clearMedia();
       this.externalRows.render(
         history,
-        dailyViews(this.views ?? []).map((view) => ({
-          id: view.id,
-          key: this.rowKey(view),
-          render: (signal) => this.renderMessage(view, signal),
-        })),
+        [
+          ...dailyViews(this.views ?? []).map((view) => ({
+            id: view.id,
+            key: this.rowKey(view),
+            render: (signal: AbortSignal) => this.renderMessage(view, signal),
+          })),
+          ...this.outgoingRows(),
+        ],
         this.options.signal(),
       );
       this.renderStates();
     } else if (this.views !== null) this.renderStates();
+  }
+  private outgoingRows(): ReturnType<typeof outgoingTextRows> {
+    return outgoingTextRows({
+      drafts: this.views === null ? [] : (this.options.outgoing?.() ?? []),
+      verified: this.views ?? [],
+      retry: this.options.retryOutgoing ?? (() => {}),
+    });
   }
   private rowKey(view: DailyView<MessageView>): string {
     const original = view.content.reply
@@ -174,10 +207,7 @@ export class MessageHistoryUi {
     );
   }
   private peerLabel(): string {
-    const { selected } = this.options.context();
-    return (
-      selected?.name || selected?.address || t('Selecione um contato aprovado')
-    );
+    return this.options.context().title || t('Selecione um contato aprovado');
   }
   private renderPeer(): void {
     const { selected, calls } = this.options.context();
@@ -197,11 +227,35 @@ export class MessageHistoryUi {
       title.title = selected?.address ?? '';
     }
     const avatar = this.options.node('[data-chat-avatar]');
-    if (avatar)
-      paintAvatar(avatar, {
-        label: this.peerLabel(),
-        seed: selected?.address ?? '',
-      });
+    if (!avatar) return;
+    paintAvatar(avatar, {
+      label: this.peerLabel(),
+      seed: selected?.address ?? '',
+    });
+    this.paintHeaderPhoto(avatar, selected);
+  }
+  /** Each header paint cancels the previous photo request. */
+  private paintHeaderPhoto(
+    avatar: HTMLElement,
+    selected: ConversationPeer | null,
+  ): void {
+    this.headerPhoto?.abort();
+    this.headerPhoto = new AbortController();
+    if (!selected || selected.localOnly) {
+      this.avatarPhoto.clear();
+      return;
+    }
+    const ready = this.avatarPhoto.bind({
+      trigger: avatar as HTMLButtonElement,
+      peer: selected.accountId,
+      signal: this.options.signal(),
+    });
+    this.options.peerPhoto?.(
+      avatar,
+      selected.accountId,
+      this.headerPhoto.signal,
+      ready,
+    );
   }
   private messageState(view: DailyView<MessageView>): HTMLElement {
     const detail = document.createElement('small');
@@ -354,7 +408,7 @@ export class MessageHistoryUi {
       this.options.visible()
     );
   }
-  async markRead(daily: Pick<Daily, 'read' | 'receipts'>): Promise<void> {
+  async markRead(daily: Pick<Daily, 'readConversation'>): Promise<void> {
     const window = this.readableWindow();
     if (!window) return;
     const { views, peer } = window;
@@ -368,17 +422,19 @@ export class MessageHistoryUi {
           row.state !== messageStates.suspended,
       )
       .map((row) => row.id);
-    if (incoming.length) await daily.read(peer, incoming);
-    if (!this.stillVisible(peer, views)) return;
-    const receipts = await daily.receipts(
-      views
-        .filter(
-          (row) =>
-            row.own && !row.archived && !row.relation && row.kind !== 'profile',
-        )
-        .map((row) => row.id),
-    );
-    if (!this.stillVisible(peer, views)) return;
+    const outgoing = views
+      .filter(
+        (row) =>
+          row.own && !row.archived && !row.relation && row.kind !== 'profile',
+      )
+      .map((row) => row.id);
+    const receipts = await daily.readConversation({
+      peer,
+      incoming,
+      outgoing,
+      current: () => this.stillVisible(peer, views),
+    });
+    if (receipts === null || !this.stillVisible(peer, views)) return;
     this.readIds = receipts;
     this.renderStates();
   }

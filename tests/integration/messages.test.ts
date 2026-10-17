@@ -21,7 +21,11 @@ import {
   sealFile,
   openFile,
 } from '../../src/client/attachment-crypto/index.ts';
-import { contentRefs, partLimit } from '../../src/shared/attachments/index.ts';
+import {
+  chatFileLimit,
+  contentRefs,
+  partLimit,
+} from '../../src/shared/attachments/index.ts';
 import { indexedPacket } from '../../src/client/messages/history.ts';
 import { base64, encode } from '../../src/shared/account/index.ts';
 import assert from 'node:assert/strict';
@@ -385,6 +389,59 @@ await test('mensagens persistentes: Olm/Megolm, recuperação, idempotência, ex
       });
       assert.ok(Array.isArray(delivery));
       assert.equal(object(delivery[0])['recipient_received'], false);
+    },
+  );
+  await t.test(
+    'prévia privada retorna última mensagem própria ou recebida sem marcar leitura e isola contas',
+    async () => {
+      const before = await inspector.query(
+        'SELECT * FROM hash_talk.message_reads WHERE message_id=$1',
+        [accepted.id],
+      );
+      const snapshot = await op(alice, 'snapshot');
+      const own = object(
+        await op(alice, 'preview', {
+          peers: [bob.session.accountId, outsider.session.accountId],
+          snapshot,
+        }),
+      );
+      const ownItems = own['items'] as { id: string }[];
+      assert.deepEqual(
+        ownItems.map((row) => row.id),
+        [accepted.id],
+      );
+      const incoming = object(
+        await op(bob, 'preview', {
+          peers: [alice.session.accountId],
+          snapshot: await op(bob, 'snapshot'),
+        }),
+      );
+      assert.deepEqual(
+        (incoming['items'] as { id: string }[]).map((row) => row.id),
+        [accepted.id],
+      );
+      const absent = object(
+        await op(outsider, 'preview', {
+          peers: [alice.session.accountId, bob.session.accountId],
+          snapshot: await op(outsider, 'snapshot'),
+        }),
+      );
+      assert.deepEqual(absent['items'], []);
+      assert.equal(
+        JSON.stringify(own).includes('Conteúdo sintético privado'),
+        false,
+      );
+      await assert.rejects(
+        op(alice, 'preview', {
+          peers: Array.from({ length: 17 }, () => bob.session.accountId),
+          snapshot,
+        }),
+      );
+      const after = await inspector.query(
+        'SELECT * FROM hash_talk.message_reads WHERE message_id=$1',
+        [accepted.id],
+      );
+      assert.deepEqual(after.rows, before.rows);
     },
   );
   await t.test(
@@ -1317,6 +1374,38 @@ await test('mensagens persistentes: Olm/Megolm, recuperação, idempotência, ex
         blocked: false,
       });
       await approve(alice, bob);
+    },
+  );
+  await t.test(
+    'private chat attachments are admitted up to 10 MB; larger references are refused',
+    async () => {
+      const ref = (bytes: number) => ({
+        id: crypto.randomUUID(),
+        hash: 'd'.repeat(64),
+        bytes,
+        parts: Array.from(
+          { length: Math.ceil(bytes / partLimit) },
+          (_, index) => ({
+            hash: 'e'.repeat(64),
+            bytes: Math.min(partLimit, bytes - index * partLimit),
+          }),
+        ),
+      });
+      const message = crypto.randomUUID();
+      await assert.rejects(
+        op(alice, 'attachment-reserve', {
+          message,
+          peer: bob.session.accountId,
+          refs: [ref(chatFileLimit + 1)],
+        }),
+        { status: 400 },
+      );
+      await op(alice, 'attachment-reserve', {
+        message,
+        peer: bob.session.accountId,
+        refs: [ref(chatFileLimit)],
+      });
+      await op(alice, 'attachment-cancel', { message });
     },
   );
   await t.test(

@@ -6,6 +6,9 @@ import type { MessagePacket } from '../messages/index.ts';
 import { publicProfile } from '../public-profile/index.ts';
 import type { PublicProfile } from '../public-profile/index.ts';
 
+/** Historical wire value: UI translations must never enter signed DM directories. */
+export const socialDeviceName = 'Aparelho de DMs';
+
 export interface SocialRelation {
   peer: PublicProfile;
   requester: string;
@@ -67,7 +70,7 @@ export function socialDirectory(input: unknown): DirectoryEvent {
     event.profile !== null ||
     event.linkId !== null ||
     !['initialize', 'revoke', 'recover'].includes(event.kind) ||
-    event.devices.some((device) => device.name !== 'Aparelho de DMs')
+    event.devices.some((device) => device.name !== socialDeviceName)
   )
     throw new AccountError(
       400,
@@ -80,12 +83,11 @@ export function socialPacket(input: unknown): MessagePacket {
   if (
     packet.kind === 'profile' ||
     (packet.relation &&
-      (packet.relation.type !== 'reaction' || packet.kind !== 'text')) ||
+      (packet.kind !== 'text' ||
+        (packet.relation.type === 'edit' &&
+          packet.relation.author !== packet.sender))) ||
     (packet.kind === 'attachment' && !packet.socialMedia)
   )
-    throw new AccountError(
-      400,
-      'DM accepts text, declared media and reactions; private profile and edits are forbidden.',
-    );
+    throw new AccountError(400, 'Invalid public-identity message or action.');
   return packet;
 }

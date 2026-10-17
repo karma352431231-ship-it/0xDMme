@@ -21,6 +21,7 @@ import {
   verify,
 } from '../../shared/devices/index.ts';
 import { integer } from '../../shared/vault/index.ts';
+import { chatFileLimit } from '../../shared/attachments/index.ts';
 import {
   messageBody,
   messagePacket,
@@ -130,7 +131,12 @@ export class MessageService {
     this.objects = objects ?? null;
     this.devices = devices;
     this.attachments = objects
-      ? new AttachmentService(db.attachments, db.messages, objects)
+      ? new AttachmentService(
+          db.attachments,
+          db.messages,
+          objects,
+          chatFileLimit,
+        )
       : null;
     this.groupMedia = this.mediaService(objects);
     this.statuses = this.statusService(objects);
@@ -203,6 +209,15 @@ export class MessageService {
           d['ids'].map(uuid),
           snapshot(d['snapshot']),
         );
+      },
+      preview: (a, d) => {
+        keys(d, ['peers', 'snapshot']);
+        if (!Array.isArray(d['peers']) || d['peers'].length > 16)
+          throw new AccountError(400, 'Lote inválido.');
+        return db.messages.preview(a, {
+          peers: [...new Set(d['peers'].map(uuid))],
+          snapshot: snapshot(d['snapshot']),
+        });
       },
       object: (a, d) => {
         keys(d, ['id', 'snapshot']);

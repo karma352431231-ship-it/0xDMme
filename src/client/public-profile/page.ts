@@ -25,6 +25,7 @@ import { profileCommunities } from './communities-panel.ts';
 import { renderActivityEntry } from '../communities/index.ts';
 import type { PublicProfiles } from './controller.ts';
 import { editPublicProfileHash } from '../profile-shortcut/index.ts';
+import { communityIcon } from '../communities/index.ts';
 
 function element<K extends keyof HTMLElementTagNameMap>(
   tag: K,
@@ -46,14 +47,9 @@ function about(host: HTMLElement, summary: ProfileSummary): void {
   const metrics = element('dl', '', 'public-profile-metrics');
   const number = (count: number) => count.toLocaleString(currentLanguage());
   for (const [value, label] of [
-    [number(summary.conversations), t('Conversas geradas')],
-    [
-      t('{0} posts · {1} respostas', [
-        number(summary.posts),
-        number(summary.replies),
-      ]),
-      t('Participação'),
-    ],
+    [number(summary.posts), t('Posts')],
+    [number(summary.replies), t('Respostas')],
+    [number(summary.communities), t('Comunidades seguidas')],
     [
       summary.createdAt
         ? new Date(summary.createdAt).toLocaleDateString(currentLanguage(), {
@@ -63,7 +59,6 @@ function about(host: HTMLElement, summary: ProfileSummary): void {
         : t('Data não registrada'),
       t('Perfil público desde'),
     ],
-    [number(summary.communities), t('Comunidades seguidas')],
   ] as const) {
     const item = element('div');
     item.append(element('dd', value), element('dt', label));
@@ -238,12 +233,14 @@ export function showProfilePage(
         signal: lifetime.signal,
       });
     status.textContent = '';
-    if (!block.blocked)
+    // Your own profile has no "Message"; editing sits in the round pencil.
+    const own = options.controller?.profile?.profile.id === summary.profile.id;
+    if (!block.blocked && !own)
       link(
         actions,
-        t('Solicitar DM'),
-        `#comunidades?view=dms&dm=${summary.profile.id}`,
-      );
+        t('Mensagem'),
+        `#communities?view=dms&dm=${summary.profile.id}`,
+      ).className = 'profile-message';
     void follow(actions, summary, block).catch(error);
     profileCommunities(communities, {
       total: summary.communities,
@@ -327,17 +324,21 @@ export function showProfilePage(
   ): Promise<void> {
     const controller = options.controller;
     if (!controller?.hasSession()) {
-      link(host, t('Entrar para seguir'), '#perfil');
+      link(host, t('Entrar para seguir'), '#settings');
       return;
     }
     if (!controller.profile) await controller.refresh();
     if (lifetime.signal.aborted) return;
     if (!controller.profile) {
-      link(host, t('Criar perfil para seguir'), '#perfil');
+      link(host, t('Criar perfil para seguir'), '#settings');
       return;
     }
     if (controller.profile.profile.id === summary.profile.id) {
-      link(host, t('Editar perfil público'), editPublicProfileHash);
+      const edit = link(host, '', editPublicProfileHash);
+      edit.className = 'profile-edit';
+      edit.setAttribute('aria-label', t('Editar perfil público'));
+      edit.title = t('Editar perfil público');
+      edit.append(communityIcon('pencil'));
       return;
     }
     await profileSocialControls(host, summary, {

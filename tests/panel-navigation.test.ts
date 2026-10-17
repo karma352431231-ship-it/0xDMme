@@ -1,0 +1,168 @@
+import {
+  appAddress,
+  replaceCommunityAddress,
+} from '../src/client/app-navigation/index.ts';
+import assert from 'node:assert/strict';
+import { test } from 'node:test';
+import { startPanels } from '../src/client/app/panels.ts';
+
+await test('private conversations keep mobile/tablet chat URLs; public empty DMs survive routing', () => {
+  for (const width of [390, 900, 1440]) checkNavigation(width);
+});
+
+function checkNavigation(width: number): void {
+  const location = { hash: '', pathname: '/chats', search: '' };
+  const setAddress = (_state: unknown, _title: string, href: string): void => {
+    const url = new URL(href, 'http://local.invalid');
+    Object.assign(location, {
+      hash: url.hash,
+      pathname: url.pathname,
+      search: url.search,
+    });
+  };
+  const shell = {
+    dataset: {} as Record<string, string>,
+    querySelectorAll: () => [],
+  };
+  const container = { replaceChildren: () => {} } as unknown as HTMLElement;
+  const opened: (string | null)[] = [];
+  let closed = 0;
+  let chatShown = 0;
+  const globals = {
+    document: { addEventListener: () => {} },
+    window: new EventTarget(),
+    location,
+    history: { replaceState: setAddress, pushState: setAddress },
+    localStorage: { getItem: () => null, setItem: () => {} },
+    matchMedia: (query: string) => ({
+      matches: query.includes('1280') ? width >= 1280 : width >= 701,
+      addEventListener: () => {},
+    }),
+  };
+  const previous = new Map<string, PropertyDescriptor | undefined>();
+  for (const [key, value] of Object.entries(globals)) {
+    previous.set(key, Object.getOwnPropertyDescriptor(globalThis, key));
+    Object.defineProperty(globalThis, key, { configurable: true, value });
+  }
+  try {
+    const panels = startPanels({
+      shell: shell as unknown as HTMLElement,
+      feedBody: container,
+      publicChat: container,
+      publicDirectory: container,
+      communities: {
+        mountFeed: () => {},
+        leaveFeed: () => {},
+        openDm: (_host, id) => {
+          opened.push(id);
+        },
+        closeDm: () => {
+          closed++;
+        },
+        dmDirectory: () => Promise.resolve(),
+        showProfile: () => () => {},
+      },
+      publicChatOpened: () => {
+        chatShown++;
+      },
+    });
+    panels.routed('conversas');
+    if (width < 1280) assert.equal(location.pathname, '/chats');
+    panels.privateChatOpened();
+    if (width < 1280) assert.equal(location.pathname, '/chats');
+    else assert.equal(location.pathname, '/split/feed');
+    if (width < 701) return;
+    location.hash = '#split?layout=split&dm=';
+    panels.routed('conversas');
+    panels.routed('conversas');
+    assert.deepEqual(opened, [null]);
+    assert.equal(chatShown, 1);
+    assert.equal(closed, 0);
+    assert.equal(shell.dataset['chatScope'], 'public');
+    panels.privateChatOpened();
+    panels.routed('conversas');
+    assert.equal(closed, 1);
+    assert.equal(shell.dataset['chatScope'], 'private');
+    assert.equal(
+      new URLSearchParams(location.hash.split('?')[1]).has('dm'),
+      false,
+    );
+  } finally {
+    for (const [key, descriptor] of previous)
+      if (descriptor) Object.defineProperty(globalThis, key, descriptor);
+      else Reflect.deleteProperty(globalThis, key);
+  }
+}
+
+await test('a resolved community address stays readable when opening a private conversation', () => {
+  const id = crypto.randomUUID();
+  const location = {
+    hash: '',
+    pathname: `/split/communities/id/${id}`,
+    search: '',
+  };
+  const window = new EventTarget();
+  const setAddress = (_state: unknown, _title: string, href: string): void => {
+    const url = new URL(href, 'http://local.invalid');
+    Object.assign(location, {
+      hash: url.hash,
+      pathname: url.pathname,
+      search: url.search,
+    });
+  };
+  const shell = {
+    dataset: {} as Record<string, string>,
+    querySelectorAll: () => [],
+  };
+  const container = { replaceChildren: () => {} } as unknown as HTMLElement;
+  const globals = {
+    document: { addEventListener: () => {} },
+    window,
+    location,
+    history: { replaceState: setAddress, pushState: setAddress },
+    localStorage: { getItem: () => null, setItem: () => {} },
+    matchMedia: () => ({ matches: true, addEventListener: () => {} }),
+  };
+  const previous = new Map<string, PropertyDescriptor | undefined>();
+  for (const [key, value] of Object.entries(globals)) {
+    previous.set(key, Object.getOwnPropertyDescriptor(globalThis, key));
+    Object.defineProperty(globalThis, key, { configurable: true, value });
+  }
+  let mounts = 0;
+  try {
+    const panels = startPanels({
+      shell: shell as unknown as HTMLElement,
+      feedBody: container,
+      publicChat: container,
+      publicDirectory: container,
+      communities: {
+        mountFeed: () => {
+          mounts++;
+          replaceCommunityAddress({ id, slug: 'named-community' });
+        },
+        leaveFeed: () => {},
+        openDm: () => {},
+        closeDm: () => {},
+        dmDirectory: () => Promise.resolve(),
+        showProfile: () => () => {},
+      },
+      publicChatOpened: () => {},
+    });
+    window.addEventListener('0xdmme-route-canonicalized', () =>
+      panels.canonicalized(appAddress()),
+    );
+    panels.routed('conversas');
+    assert.equal(location.pathname, '/split/communities/named-community');
+    panels.privateChatOpened();
+    assert.equal(location.pathname, '/split/communities/named-community');
+    assert.equal(
+      mounts,
+      1,
+      'Canonicalizing must preserve the mounted public content',
+    );
+  } finally {
+    for (const [key, descriptor] of previous)
+      if (descriptor) Object.defineProperty(globalThis, key, descriptor);
+      else Reflect.deleteProperty(globalThis, key);
+  }
+});

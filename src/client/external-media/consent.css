@@ -1,0 +1,23 @@
+/*
+ * External media gate and consent dialog.
+ */
+.external-media-gate {
+  display: grid;
+  gap: 0.5rem;
+  min-width: 0;
+}
+.external-media-consent {
+  width: min(32rem, calc(100vw - 2rem));
+  max-height: calc(100dvh - 2rem);
+  overflow: auto;
+  margin: auto;
+  padding: 1.5rem;
+  color: var(--text);
+  background: var(--surface);
+}
+.external-media-consent::backdrop {
+  background: var(--overlay);
+}
+.external-media-consent .settings-actions {
+  margin-top: 1rem;
+}
