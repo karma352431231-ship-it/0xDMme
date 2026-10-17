@@ -434,12 +434,6 @@ export function startCommunityDiscovery(
       );
       label.prepend(communityIcon('globe'));
       text.append(label);
-      if (view === 'following')
-        link(
-          mounted,
-          t('Ver comunidades seguidas'),
-          '#communities?view=communities',
-        );
       filters();
       feedback = el('p', '', 'community-feedback');
       feedback.setAttribute('role', 'status');

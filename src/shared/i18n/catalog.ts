@@ -6391,7 +6391,6 @@ export const catalog: Record<string, readonly [string, string]> = {
     '查看 {0} 个社区列表',
   ],
   'Ver análise e contestar': ['View analysis and appeal', '查看分析并申诉'],
-  'Ver comunidades seguidas': ['View followed communities', '查看已关注社区'],
   'Ver imagem original': ['View original image', '查看原始图片'],
   'Ver mais': ['View more', '查看更多'],
   'Ver menos': ['View less', '收起'],
