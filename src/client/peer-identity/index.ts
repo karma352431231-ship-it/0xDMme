@@ -104,6 +104,13 @@ export class PeerIdentity {
       await this.sync.refresh();
       this.guard(generation);
     } while (!this.sync.complete);
+    await this.loadCurrent();
+  }
+  /** Hydrate a completely verified vault state, including our just-confirmed pin. */
+  async loadCurrent(): Promise<void> {
+    const generation = this.generation;
+    if (!this.sync.complete)
+      throw new Error('Identidades ainda não sincronizadas.');
     const entries = [...this.sync.currentHeads().values()].flat();
     const pending = entries.filter(
       (entry) =>

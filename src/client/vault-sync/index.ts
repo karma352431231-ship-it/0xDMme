@@ -34,6 +34,7 @@ import { readPage } from './protocol.ts';
 import type { VaultPage } from './protocol.ts';
 import { vaultApi as api } from './api.ts';
 import { assertVaultObjectsAvailable, openVaultObjects } from './objects.ts';
+export { readPage } from './protocol.ts';
 export interface VaultEntry {
   commit: VaultCommit;
   change: VaultChange;
@@ -65,6 +66,9 @@ export class VaultSync {
   private locator: VaultLocator | null = null;
   private localOnly = false;
   private readonly removals = new RemovalIndex();
+  get removalCursor(): number {
+    return this.removals.cursor;
+  }
   isRemoved(id: string): boolean {
     return this.removals.has('vault', id);
   }

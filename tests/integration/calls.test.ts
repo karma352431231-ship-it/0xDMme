@@ -167,6 +167,7 @@ await test('chamadas: HTTP assinado, consentimento, preferência global, silênc
       directory: await eventHash(event),
       channel: crypto.randomUUID(),
       sequence: 0,
+      invitation: false,
       wallet: {
         ecosystem: 'evm' as const,
         address: wallet.address.toLowerCase(),
@@ -236,6 +237,7 @@ await test('chamadas: HTTP assinado, consentimento, preferência global, silênc
         Origin: origin,
         'Content-Type': 'application/json',
         'X-Hash-Talk-CSRF': csrf,
+        ...(user.invitation ? { 'X-0xdmme-Call-Invite': '1' } : {}),
         Cookie: 'hash-talk-session=' + user.sessionToken,
       },
       body: JSON.stringify(input),
@@ -324,6 +326,88 @@ await test('chamadas: HTTP assinado, consentimento, preferência global, silênc
     target: a.session.accountId,
     accept: true,
   });
+  await t.test(
+    'new capability is opt-in; early encrypted invitation, first offer and end remain signed and authorized',
+    async () => {
+      assert.equal(Object.hasOwn(await sync(a), 'invitation'), false);
+      a.invitation = true;
+      b.invitation = true;
+      assert.equal((await sync(a)).invitation, true);
+      assert.equal((await sync(b)).invitation, true);
+      const started = object(await operate(a, 'start', start()));
+      assert.equal(started['invitation'], true);
+      const id = String(object(started['call'])['id']);
+      const body = {
+        iv: Buffer.alloc(12).toString('base64'),
+        wrappedKey: Buffer.alloc(384).toString('base64'),
+        ciphertext: Buffer.alloc(32).toString('base64'),
+      };
+      const before = await sync(b);
+      assert.equal(before.call?.signal, null);
+      assert.equal(before.call?.invitation, null);
+      await operate(a, 'invite', {
+        id,
+        packets: [{ device: b.session.deviceId, body }],
+      });
+      const pending = await sync(b);
+      assert.ok(pending.call?.invitation);
+      assert.equal(pending.call.signal, null);
+      const accepted = object(await operate(b, 'accept', { id }));
+      assert.equal(accepted['phase'], 'connecting');
+      await operate(a, 'offer', {
+        id,
+        sequence: 1,
+        packets: [{ device: b.session.deviceId, body }],
+      });
+      assert.ok((await sync(b)).call?.signal);
+      await operate(b, 'answer', { id, sequence: 1, body });
+      assert.ok((await sync(a)).call?.signal);
+      await operate(a, 'end', { id });
+      assert.equal((await sync(b)).call, null);
+      a.invitation = false;
+      b.invitation = false;
+    },
+  );
+  await t.test(
+    'fresh call context is signed, bounded and does not reveal an unauthorized peer',
+    async () => {
+      async function context(peer: string) {
+        const p = {
+          deviceId: a.session.deviceId,
+          directory: a.directory,
+          payload: { peer, vault: 0, removals: 0 },
+        };
+        return fetch(origin + '/api/account/messages/call-context', {
+          method: 'POST',
+          headers: {
+            Origin: origin,
+            'Content-Type': 'application/json',
+            'X-Hash-Talk-CSRF': a.session.csrf,
+            Cookie: 'hash-talk-session=' + a.sessionToken,
+          },
+          body: JSON.stringify({
+            ...p,
+            signature: await sign(
+              a.identity.signing,
+              messageBody(
+                a.session.accountId,
+                a.session.deviceId,
+                'call-context',
+                p,
+              ),
+            ),
+          }),
+        });
+      }
+      const response = await context(b.session.accountId);
+      assert.equal(response.status, 200);
+      const result = object(await response.json());
+      assert.equal(object(result['peer'])['head'], b.directory);
+      assert.deepEqual(object(result['removals'])['items'], []);
+      assert.equal(object(result['vault'])['sequence'], 0);
+      assert.equal((await context(crypto.randomUUID())).status, 404);
+    },
+  );
   const saved = await operate(b, 'configure', { enabled: false, revision: 0 });
   assert.equal(object(saved)['status'], 'saved');
   const changed = await sync(b);

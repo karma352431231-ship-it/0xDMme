@@ -1,7 +1,11 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { TestContext } from 'node:test';
-import { VoiceCalls } from '../src/client/calls/index.ts';
+import {
+  CallSecurity,
+  VoiceConnection,
+  VoiceCalls,
+} from '../src/client/calls/index.ts';
 import { VoicePlayback } from '../src/client/voice-playback/index.ts';
 import { VaultSync } from '../src/client/vault-sync/index.ts';
 import type {
@@ -118,7 +122,7 @@ await test('call wakeups advance the pending poll, coalesce bursts and retain fi
   assert.equal(requests, 1);
   t.mock.timers.tick(1000);
   for (let i = 0; i < 100; i++) calls.wake();
-  t.mock.timers.tick(100);
+  t.mock.timers.tick(0);
   await flush();
   assert.equal(
     requests,
@@ -133,7 +137,7 @@ await test('call wakeups advance the pending poll, coalesce bursts and retain fi
   assert.equal(requests, 3);
   calls.setSession(null);
   calls.wake();
-  t.mock.timers.tick(100);
+  t.mock.timers.tick(0);
   await flush();
   assert.equal(requests, 3, 'a wakeup cannot authorize a session');
 });
@@ -161,13 +165,180 @@ await test('a call wakeup during an in-flight snapshot is retained without concu
   t.mock.timers.tick(0);
   await flush();
   for (let i = 0; i < 100; i++) calls.wake();
-  t.mock.timers.tick(100);
+  t.mock.timers.tick(0);
   assert.equal(requests, 1);
   assert.ok(release);
   release(response());
   await flush();
-  t.mock.timers.tick(100);
+  t.mock.timers.tick(0);
   await flush();
   assert.equal(requests, 2);
   assert.equal(maximum, 1);
+});
+
+await test('verified invitation rings before SDP; early accept waits for the first full offer without answering the invitation', async (t) => {
+  const { calls, session } = fixture(t);
+  Object.defineProperty(globalThis, 'document', {
+    configurable: true,
+    value: {
+      visibilityState: 'visible',
+      createElement: () => ({ setAttribute() {}, pause() {}, remove() {} }),
+    },
+  });
+  const body = {
+    iv: Buffer.alloc(12).toString('base64'),
+    wrappedKey: Buffer.alloc(384).toString('base64'),
+    ciphertext: Buffer.alloc(32).toString('base64'),
+  };
+  const incoming = {
+    id: crypto.randomUUID(),
+    peer: crypto.randomUUID(),
+    caller: false,
+    peerDevice: crypto.randomUUID(),
+    peerDirectory: 'b'.repeat(64),
+    phase: 'ringing' as const,
+    deadline: 160000,
+    authorizedFor: 20000,
+    sequence: 0,
+    signal: null,
+    invitation: body,
+  };
+  let current: unknown = null,
+    answers = 0,
+    opened = 0;
+  t.mock.method(CallSecurity.prototype, 'open', (view: typeof incoming) => {
+    opened++;
+    return Promise.resolve({
+      id: view.id,
+      from: view.peer,
+      fromDevice: view.peerDevice,
+      to: session.accountId,
+      toDevice: session.deviceId,
+      fromDirectory: view.peerDirectory,
+      toDirectory: 'a'.repeat(64),
+      sequence: view.sequence,
+      type: view.signal ? 'offer' : 'invite',
+      sdp: view.signal ? 'full-offer' : '',
+      signature: 'synthetic',
+    });
+  });
+  t.mock.method(CallSecurity.prototype, 'seal', () =>
+    Promise.resolve([{ device: incoming.peerDevice, body }]),
+  );
+  t.mock.method(VoiceConnection.prototype, 'acquire', () => Promise.resolve());
+  t.mock.method(VoiceConnection.prototype, 'create', () => {});
+  t.mock.method(VoiceConnection.prototype, 'answer', (sdp: string) => {
+    assert.equal(sdp, 'full-offer');
+    answers++;
+    return Promise.resolve('full-answer');
+  });
+  const commands: string[] = [];
+  t.mock.method(globalThis, 'fetch', (url: string) => {
+    const op = url.split('/').at(-1)!;
+    commands.push(op);
+    if (op === 'sync')
+      return Promise.resolve(
+        Response.json({
+          configured: true,
+          enabled: true,
+          revision: 0,
+          invitation: true,
+          call: current,
+        }),
+      );
+    if (op === 'accept') {
+      current = { ...incoming, phase: 'connecting' };
+      return Promise.resolve(Response.json(current));
+    }
+    if (op === 'end') {
+      current = null;
+      return Promise.resolve(Response.json({ status: 'ended' }));
+    }
+    if (op === 'turn')
+      return Promise.resolve(
+        Response.json({
+          iceServers: [
+            {
+              urls: ['turn:relay.example:3478?transport=udp'],
+              username: 'synthetic',
+              credential: 'synthetic',
+            },
+          ],
+        }),
+      );
+    return Promise.resolve(Response.json({ status: 'sent' }));
+  });
+  calls.setSession(session);
+  t.mock.timers.tick(0);
+  await flush();
+  current = incoming;
+  calls.wake();
+  t.mock.timers.tick(100);
+  await flush();
+  assert.equal(calls.active, true);
+  assert.equal(opened, 1);
+  await calls.accept();
+  assert.equal(answers, 0);
+  assert.equal(commands.includes('answer'), false);
+  current = {
+    ...incoming,
+    phase: 'connecting',
+    sequence: 1,
+    signal: body,
+    invitation: null,
+  };
+  calls.wake();
+  t.mock.timers.tick(100);
+  await flush();
+  assert.equal(opened, 2);
+  assert.equal(answers, 1);
+  assert.equal(commands.filter((x) => x === 'answer').length, 1);
+  await calls.end();
+  assert.equal(calls.active, false);
+  // Cancellation and authorization expiry can happen while identity verification
+  // is pending. Neither may publish a stale incoming call after it resolves.
+  for (const expired of [false, true]) {
+    let release: (() => void) | null = null;
+    t.mock.method(
+      CallSecurity.prototype,
+      'open',
+      () =>
+        new Promise((resolve) => {
+          release = () =>
+            resolve({
+              id: incoming.id,
+              from: incoming.peer,
+              fromDevice: incoming.peerDevice,
+              to: session.accountId,
+              toDevice: session.deviceId,
+              fromDirectory: incoming.peerDirectory,
+              toDirectory: 'a'.repeat(64),
+              sequence: 0,
+              type: 'invite',
+              sdp: '',
+              signature: 'synthetic',
+            });
+        }),
+    );
+    current = { ...incoming, deadline: Date.now() + 60000 };
+    calls.wake();
+    t.mock.timers.tick(100);
+    await flush();
+    if (expired) t.mock.timers.tick(20001);
+    else calls.wake();
+    const finish = release;
+    assert.ok(finish);
+    (finish as () => void)();
+    await flush();
+    assert.equal(
+      calls.active,
+      false,
+      expired
+        ? 'expired verification cannot ring'
+        : 'a cancellation hint requires a fresh snapshot before ringing',
+    );
+    current = null;
+    t.mock.timers.tick(100);
+    await flush();
+  }
 });

@@ -2927,3 +2927,40 @@ primeiro rotas/montagem da sessão, depois ciclos de feed/perfil/DM e a montagem
 de detalhe/gestão de comunidades, com regressões de cancelamento, permissões,
 rascunhos, histórico e montagem única. As novas regras ficam em módulos de
 rotas, navegação e atribuição de endereços.
+
+### Authenticated early voice invitations — 18 October 2026
+
+After rejecting five-to-seven-second foreground ringing and unchanged phone
+noise/echo, the owner explicitly approved the reviewed call setup correction,
+including a signing-only capability of at most twenty seconds. A negotiated,
+signed and per-device encrypted sequence-zero invitation can precede full SDP
+and relay gathering. The recipient must verify the same account/device/directory
+bindings and pinned identity before ringing. An empty SSE hint grants no authority.
+Legacy clients and servers retain the complete-offer flow through explicit
+capability negotiation. First-device acceptance may precede the full offer;
+other endpoints lose authority, and the original frozen first-offer targets are
+validated without delivering to losing endpoints. Later offers target the winner.
+
+Fresh bounded call context reads compose existing public vault, personal-removal
+and contact-directory contracts. Reuse of hydrated pins requires matching fresh
+vault head/sequence AND a current empty personal-removal page; changes require
+full verification or rejection. The client retains only session-bound signing
+and public identity material for bounded initial setup. Every server operation
+still checks current session/device/contact authority and replay protection.
+Cancellation hints or expired authorization during identity verification force a
+fresh snapshot before presentation. Server SSE coalescing remains 100 ms; the
+client uses one pending flag and immediately schedules that signed snapshot.
+
+**Ponto importante:** this is a local implementation decision, not device/audio
+acceptance or a universal latency guarantee. Android 16/17 and iOS 26/27 are the
+requested compatibility targets. Mandatory own TURN, E2EE, consent, lease/ring
+limits and retention remain unchanged; headphones are not an acceptance workaround.
+No dependency, schema or shared-infrastructure change is approved by this decision.
+
+Once the first negotiated foreground snapshot succeeds, the call client starts
+one bounded session preparation of already stored identity pins, shared with an
+overlapping call. It opens no microphone and requests no peer directory. This
+moves existing-pin hydration out of the first click after a page reload; each
+call still performs fresh vault/removal/peer checks. Failure is reported in the
+call notice and the normal call path can retry verification. A never-seen peer
+still requires verified pin persistence before the initial invitation is sent.

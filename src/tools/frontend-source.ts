@@ -70,6 +70,7 @@ const authored = [
   'src/shared/public-avatar',
   'src/shared/image-inspection',
   'src/client/calls',
+  'src/client/call-identity',
   'src/shared/calls',
   'src/client/wallet-statements',
   'src/client/representatives',

@@ -15,6 +15,9 @@ export class RemovalIndex {
   private localAfter: string | null = null;
   private after = 0;
   private localComplete = false;
+  get cursor(): number {
+    return this.after;
+  }
   reset(): void {
     this.rows.clear();
     this.localAfter = null;

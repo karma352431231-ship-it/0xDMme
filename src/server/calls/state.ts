@@ -20,6 +20,7 @@ interface Endpoint {
   sequence: number;
   expires: number;
   listening: boolean;
+  invitation: boolean;
   media: MediaState;
 }
 interface Connection {
@@ -30,6 +31,8 @@ interface Connection {
   directory: string;
   ringing: Map<string, Endpoint>;
   waiting: Set<string>;
+  invitations: Map<string, SealedSecret>;
+  initialTargets: Set<string>;
   offers: Map<string, { sequence: number; body: SealedSecret }>;
   callee: Endpoint | null;
   phase: CallView['phase'];
@@ -55,6 +58,7 @@ export class CallState {
     a: ContactAuthority,
     request: { channel: string; sequence: number; at: number },
     register: boolean,
+    invitation = false,
   ): Endpoint {
     this.clean();
     if (Math.abs(this.clock() - request.at) > 10_000)
@@ -81,6 +85,7 @@ export class CallState {
         sequence: 0,
         expires: 0,
         listening: false,
+        invitation,
         media: 'idle',
       };
       this.endpoints.set(key, endpoint);
@@ -95,6 +100,7 @@ export class CallState {
     this.checkEndpointLease(endpoint, register);
     if (request.sequence <= endpoint.sequence)
       throw new AccountError(409, 'Pedido de chamada repetido.');
+    endpoint.invitation = invitation;
     endpoint.sequence = request.sequence;
     endpoint.expires = this.clock() + leaseMs;
     return endpoint;
@@ -208,6 +214,12 @@ export class CallState {
       ringing,
       waiting,
       offers: new Map(),
+      invitations: new Map(),
+      initialTargets: new Set(
+        [...ringing.values()]
+          .map((e) => e.authority.session.deviceId)
+          .concat([...waiting]),
+      ),
       callee: null,
       phase: 'ringing',
       deadline: this.clock() + ringMs,
@@ -228,21 +240,48 @@ export class CallState {
     const call = this.require(endpoint, id);
     if (call.callee === endpoint)
       return this.view(endpoint, call) ?? unavailable();
-    if (
-      call.phase !== 'ringing' ||
-      !call.ringing.has(endpoint.key) ||
-      !call.signals.has(endpoint.key)
-    )
-      return unavailable();
+    if (!this.canAccept(call, endpoint)) return unavailable();
     call.callee = endpoint;
     call.phase = 'connecting';
     call.deadline = this.clock() + leaseMs;
     call.ringing.clear();
     call.waiting.clear();
     call.offers.clear();
+    for (const device of call.invitations.keys())
+      if (device !== endpoint.authority.session.deviceId)
+        call.invitations.delete(device);
     for (const key of call.signals.keys())
       if (key !== endpoint.key) call.signals.delete(key);
     return this.view(endpoint, call) ?? unavailable();
+  }
+  private canAccept(call: Connection, endpoint: Endpoint): boolean {
+    const authenticated =
+      call.signals.has(endpoint.key) ||
+      (endpoint.invitation &&
+        call.invitations.has(endpoint.authority.session.deviceId));
+    return (
+      call.phase === 'ringing' &&
+      call.ringing.has(endpoint.key) &&
+      authenticated
+    );
+  }
+  invite(
+    endpoint: Endpoint,
+    id: string,
+    packets: { device: string; body: SealedSecret }[],
+  ): void {
+    const call = this.require(endpoint, id);
+    if (
+      !endpoint.invitation ||
+      endpoint !== call.caller ||
+      call.phase !== 'ringing' ||
+      call.sequence !== 0 ||
+      call.invitations.size
+    )
+      return unavailable();
+    this.validatePackets(packets, call.initialTargets);
+    for (const packet of packets)
+      call.invitations.set(packet.device, packet.body);
   }
   offer(
     endpoint: Endpoint,
@@ -260,10 +299,14 @@ export class CallState {
     )
       return unavailable();
     const targets = this.targetEndpoints(call);
-    const devices = new Set([
-      ...targets.map((e) => e.authority.session.deviceId),
-      ...call.waiting,
-    ]);
+    // The first full offer may have been prepared before a device accepted.
+    const devices =
+      call.sequence === 0
+        ? call.initialTargets
+        : new Set([
+            ...targets.map((e) => e.authority.session.deviceId),
+            ...call.waiting,
+          ]);
     this.validatePackets(input.packets, devices);
     call.signals.clear();
     call.offers.clear();
@@ -283,6 +326,8 @@ export class CallState {
           body: packet.body,
         });
     }
+    call.invitations.clear();
+    call.initialTargets.clear();
     call.sequence = input.sequence;
     call.lastOffer = this.clock();
   }
@@ -349,7 +394,7 @@ export class CallState {
       !!call &&
       call.recipient === account &&
       call.phase === 'ringing' &&
-      call.offers.has(device) &&
+      (call.offers.has(device) || call.invitations.has(device)) &&
       (peerDirectory === undefined ||
         peerDirectory === call.caller.authority.directory)
     );
@@ -367,7 +412,10 @@ export class CallState {
     if (
       call.caller !== endpoint ||
       call.phase !== 'ringing' ||
-      call.sequence !== 1 ||
+      !(
+        call.sequence === 1 ||
+        (call.sequence === 0 && call.invitations.size > 0)
+      ) ||
       !call.deadline
     )
       return null;
@@ -414,6 +462,16 @@ export class CallState {
       ),
       sequence: signal?.sequence ?? c.sequence,
       signal: signal?.body ?? null,
+      ...this.invitationView(e, c),
+    };
+  }
+  private invitationView(
+    e: Endpoint,
+    c: Connection,
+  ): { invitation?: SealedSecret | null } {
+    if (!e.invitation || e === c.caller) return {};
+    return {
+      invitation: c.invitations.get(e.authority.session.deviceId) ?? null,
     };
   }
   private remote(c: Connection, caller: boolean) {
@@ -443,6 +501,8 @@ export class CallState {
     this.accounts.delete(c.caller.authority.session.accountId);
     this.accounts.delete(c.recipient);
     c.signals.clear();
+    c.invitations.clear();
+    c.initialTargets.clear();
     c.ringing.clear();
     c.waiting.clear();
     c.offers.clear();
@@ -506,7 +566,7 @@ export class CallState {
       calls: this.calls.size,
       endpoints: this.endpoints.size,
       packets: [...this.calls.values()].reduce(
-        (n, c) => n + c.signals.size + c.offers.size,
+        (n, c) => n + c.signals.size + c.offers.size + c.invitations.size,
         0,
       ),
     };

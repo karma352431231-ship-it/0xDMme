@@ -18,8 +18,10 @@ export interface CallView {
   authorizedFor: number;
   sequence: number;
   signal: SealedSecret | null;
+  invitation?: SealedSecret | null;
 }
 export interface CallSnapshot {
+  invitation?: boolean;
   configured: boolean;
   enabled: boolean;
   revision: number;
@@ -34,7 +36,7 @@ export interface CallDescription {
   fromDirectory: string;
   toDirectory: string;
   sequence: number;
-  type: 'offer' | 'answer';
+  type: 'offer' | 'answer' | 'invite';
   sdp: string;
   signature: string;
 }
@@ -68,7 +70,7 @@ export function callDescription(input: unknown): CallDescription {
     'sdp',
     'signature',
   ]);
-  if (d['type'] !== 'offer' && d['type'] !== 'answer')
+  if (!['offer', 'answer', 'invite'].includes(String(d['type'])))
     throw new AccountError(400, 'Negociação inválida.');
   if (typeof d['signature'] !== 'string' || d['signature'].length > 128)
     throw new AccountError(400, 'Assinatura inválida.');
@@ -81,10 +83,15 @@ export function callDescription(input: unknown): CallDescription {
     fromDirectory: fingerprint(d['fromDirectory']),
     toDirectory: fingerprint(d['toDirectory']),
     sequence: integer(d['sequence'], Number.MAX_SAFE_INTEGER),
-    type: d['type'],
-    sdp: relaySdp(d['sdp']),
+    type: d['type'] as CallDescription['type'],
+    sdp: d['type'] === 'invite' ? invitationSdp(d) : relaySdp(d['sdp']),
     signature: d['signature'],
   };
+}
+function invitationSdp(d: Record<string, unknown>): string {
+  if (d['sdp'] !== '' || d['sequence'] !== 0)
+    throw new AccountError(400, 'Convite de chamada inválido.');
+  return '';
 }
 /** Remove ICE related addresses before sharing; reject all non-relay candidates. */
 export function relaySdp(input: unknown): string {
@@ -144,10 +151,19 @@ export function relayCandidate(line: string): string {
 }
 export function callSnapshot(input: unknown): CallSnapshot {
   const d = object(input);
-  keys(d, ['configured', 'enabled', 'revision', 'call']);
+  keys(d, [
+    'configured',
+    'enabled',
+    'revision',
+    'call',
+    ...(Object.hasOwn(d, 'invitation') ? ['invitation'] : []),
+  ]);
+  if (Object.hasOwn(d, 'invitation') && d['invitation'] !== true)
+    throw new AccountError(400, 'Capacidade de chamada inválida.');
   if (typeof d['configured'] !== 'boolean' || typeof d['enabled'] !== 'boolean')
     throw new AccountError(400, 'Preferência de chamadas inválida.');
   return {
+    ...(d['invitation'] === true ? { invitation: true } : {}),
     configured: d['configured'],
     enabled: d['enabled'],
     revision: integer(d['revision'], Number.MAX_SAFE_INTEGER),
@@ -167,6 +183,7 @@ function callView(input: unknown): CallView {
     'authorizedFor',
     'sequence',
     'signal',
+    ...(Object.hasOwn(d, 'invitation') ? ['invitation'] : []),
   ]);
   if (
     typeof d['caller'] !== 'boolean' ||
@@ -187,5 +204,11 @@ function callView(input: unknown): CallView {
     authorizedFor: integer(d['authorizedFor'], leaseMs),
     sequence: integer(d['sequence'], Number.MAX_SAFE_INTEGER),
     signal: d['signal'] === null ? null : sealedSecret(d['signal']),
+    ...(Object.hasOwn(d, 'invitation')
+      ? {
+          invitation:
+            d['invitation'] === null ? null : sealedSecret(d['invitation']),
+        }
+      : {}),
   };
 }
