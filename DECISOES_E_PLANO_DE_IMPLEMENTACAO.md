@@ -2986,3 +2986,10 @@ completion wait and no automatic microphone reopening. Ordinary mute and all
 default capture/codec/signaling rules remain unchanged. The bilingual notice
 explains that a new call is required to speak again. This is a test of capture-
 session influence on playback, not a replacement for two-way voice acceptance.
+
+A fixed synthetic cue may be sent by an explicit Audio check action through the
+existing negotiated RTP sender to distinguish capture input from later audio
+processing. It temporarily replaces outgoing microphone audio, restores the same
+live track, and records/analyzes no speech. It changes no normal capture policy,
+signaling authority or mandatory relay rule; lifecycle/deadline limits are in the
+voice-call contract. This remains diagnostic evidence, not audio acceptance.

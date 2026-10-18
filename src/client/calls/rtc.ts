@@ -1,3 +1,4 @@
+import { sendCallTestTone } from './test-tone.ts';
 import { t } from '../../shared/i18n/index.ts';
 import { leaseMs, relaySdp } from '../../shared/calls/index.ts';
 import type { MediaState } from '../../shared/calls/index.ts';
@@ -81,6 +82,7 @@ export class VoiceConnection {
   state: MediaState = 'idle';
   muted = false;
   captureStopped = false;
+  private testTone: AbortController | null = null;
   constructor(options: {
     changed: (state: MediaState) => void;
     failed: (notice: string) => void;
@@ -255,11 +257,30 @@ export class VoiceConnection {
       },
     });
   }
+  async sendTestTone(): Promise<void> {
+    const pc = this.require(),
+      g = this.generation,
+      sender = pc.getSenders()[0];
+    if (this.testTone || !sender || this.captureStopped || this.muted)
+      throw new Error('Test tone unavailable.');
+    const abort = new AbortController();
+    this.testTone = abort;
+    try {
+      await sendCallTestTone(sender, abort.signal);
+    } catch (error: unknown) {
+      if (g === this.generation && error !== abort.signal.reason)
+        this.failed(t('calls.test-tone-failed'));
+      throw error;
+    } finally {
+      if (this.testTone === abort) this.testTone = null;
+    }
+  }
   /** Explicit diagnostic: keep receiving, release capture until this call ends. */
   async stopCaptureForInspection(): Promise<void> {
     const pc = this.require(),
       g = this.generation;
     if (this.captureStopped) return;
+    this.testTone?.abort();
     this.captureStopped = true;
     this.muted = true;
     for (const track of this.microphone?.getAudioTracks() ?? []) track.stop();
@@ -268,6 +289,7 @@ export class VoiceConnection {
   }
   mute(): void {
     if (this.captureStopped) return;
+    this.testTone?.abort();
     this.muted = !this.muted;
     for (const track of this.microphone?.getAudioTracks() ?? [])
       track.enabled = !this.muted;
@@ -281,6 +303,7 @@ export class VoiceConnection {
     }
   }
   close(): void {
+    this.testTone?.abort();
     this.generation++;
     this.abort.abort();
     this.pc?.close();

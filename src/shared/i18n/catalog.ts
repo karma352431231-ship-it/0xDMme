@@ -1,5 +1,22 @@
 /** Authored app text. Tuple order: English, Simplified Chinese. */
 export const catalog: Record<string, readonly [string, string]> = {
+  'calls.test-tone-explanation': [
+    'Sends one quiet, generated beep to the other person instead of your microphone for about one second, then restores your microphone. It records nothing. Available only with your microphone on.',
+    '用一个轻柔的合成提示音代替麦克风音频发送给对方，持续约一秒，然后恢复麦克风。不录制任何内容。仅在麦克风开启时可用。',
+  ],
+  'calls.test-tone-send': ['Send one test beep', '发送一个测试提示音'],
+  'calls.test-tone-sending': [
+    'Sending one test beep…',
+    '正在发送一个测试提示音…',
+  ],
+  'calls.test-tone-sent': [
+    'Test finished; microphone restored.',
+    '测试结束，麦克风已恢复。',
+  ],
+  'calls.test-tone-failed': [
+    'Audio test could not finish. End this call before trying again.',
+    '无法完成音频测试。请结束本次通话后重试。',
+  ],
   'calls.audio-check-stop-capture': [
     'Test listening without microphone',
     '测试关闭麦克风后的收听',

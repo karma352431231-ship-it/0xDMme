@@ -221,3 +221,25 @@ This action changes no default audio constraints or ordinary mute behavior.
 
 **Ponto importante:** this is an optional one-way diagnostic for one call, not
 an accepted substitute for normal two-way calling or a confirmed audio fix.
+
+### Fixed signal through the existing sender
+
+The optional Audio check can replace the current live, enabled local microphone
+track for about 1.2 seconds with a fixed synthetic cue: one 640 Hz pulse, peak
+amplitude 0.05, with 10 ms fades, surrounded by silence. A media-stream destination
+feeds only the already negotiated RTP sender; the cue is not played locally.
+The same live microphone track is restored afterward. This bypasses capture/DSP
+as a source of repeated speech without observing, recording or analyzing user
+audio. There is no new peer, SDP, server operation, relay or external service.
+
+The action requires a connected call and live unmuted capture, with one action
+at a time. Native operations have 1500 ms deadlines. Muting, ending or explicitly
+closing capture cancels the cue; an ended track is never reopened or restored.
+Synthetic nodes/tracks/context are closed on success, error and cancellation.
+Unexpected sender/restoration failure ends the local call rather than pretending
+normal outgoing voice has recovered. The existing sanitized report is unchanged.
+
+**Ponto importante:** a fixed cue comparison distinguishes input capture from
+later processing; it does not establish acoustic acceptance or justify changes
+to the default audio path. Both official languages explain the temporary voice
+replacement before the explicit send action.
