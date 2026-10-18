@@ -197,6 +197,10 @@ FOLLOWED_ALERTS_REVIEWED = '49f1c1984de1364b251d6b8225ae8b74de242010'
 # Pin both complete database trees; all 91 migrations and write paths stay exact.
 SCOPED_SNAPSHOT_BEFORE = '2d4fabaa37d0d1fc7b40059595a500c0f8651d01'
 SCOPED_SNAPSHOT_REVIEWED = '90126582d128ed5e0a0e1a1138950c06b9a53488'
+# Owner requested completion of the database audit on 18/10/2026. Exact code-only
+# upload recovery/retry/collection correction; all 91 migrations stay byte-identical.
+UPLOAD_LIFECYCLE_BEFORE = 'f2049d24b61d95f86e80afe7db79fcfada60bc63'
+UPLOAD_LIFECYCLE_REVIEWED = '1c92c68fc1bacaae0dbbd5fd669827e7b75a2efe'
 # Exact two-reader repair approved after explanation on 14/10/2026.
 # Pin both full database trees; all 66 migrations/executor stay exact.
 # Owner-requested mandatory topics: only new admission changes, without SQL or backfill.
@@ -431,6 +435,8 @@ def database_code_reviewed(candidate, live):
          FOLLOWED_ALERTS_BEFORE, FOLLOWED_ALERTS_REVIEWED),
         ({'groups.ts', 'social-dm.ts', 'social-history.ts'},
          SCOPED_SNAPSHOT_BEFORE, SCOPED_SNAPSHOT_REVIEWED),
+        ({'attachments.ts', 'group-media.ts', 'social-media.ts', 'status-media.ts', 'upload-recovery.ts'},
+         UPLOAD_LIFECYCLE_BEFORE, UPLOAD_LIFECYCLE_REVIEWED),
     ]
     selected = next((review for review in reviews if changed == review[0]), None)
     if selected is None:

@@ -69,6 +69,7 @@ export class SocialMediaStore {
         );
         if (existing.rowCount)
           throw new AccountError(409, 'Mensagem de DM já aceita.');
+        let created = false;
         for (const ref of input.refs) {
           const old = await this.row(context.client, ref.id);
           if (old) {
@@ -97,8 +98,11 @@ export class SocialMediaStore {
               ref.bytes + 4096,
             ],
           );
+          created = true;
         }
-        await this.social.limits(context, [context.actor.id, input.peer]);
+        // Existing promises need no new capacity; authority and exact identity were still checked.
+        if (created)
+          await this.social.limits(context, [context.actor.id, input.peer]);
         const rows = await context.client.query<Row>(
           'SELECT * FROM hash_talk.social_media WHERE id=ANY($1::uuid[])',
           [input.refs.map((r) => r.id)],

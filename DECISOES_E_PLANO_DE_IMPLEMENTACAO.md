@@ -1,5 +1,31 @@
 # Capacity audit follow-up — 16 October 2026
 
+## Database upload lifecycle audit correction — 18 October 2026
+
+The owner requested completion of the database audit. Concrete regressions were
+reproduced and corrected without changing quotas, retention, authorization,
+cryptographic formats, wire bytes or migration history:
+
+- Startup recovery of private, group and status uploads uses independently
+  committed batches of at most 32 rows with a UUID cursor, preserving every
+  field except the interrupted writing status/token. Failed batches can resume.
+- An identical social reservation still checks current authority, consent and
+  exact descriptor identity, but requires no new growth allowance. Any missing
+  descriptor still requires both owners' quotas and physical capacity atomically.
+- Private/group collection continues returning already deleting work for durable
+  removal retries without rewriting those rows. New expiry selections remain
+  bounded to eight and never expire accepted media through temporary cleanup.
+
+See [database upload contracts](docs/DATABASE_UPLOAD_CONTRACTS.md) for the concrete
+contract-to-test map and unchanged lock/I/O boundaries. The exact code-only
+release follows [Git and deployment](docs/GIT_E_DEPLOY.md#reviewed-upload-lifecycle-correction--18-october-2026).
+No reset, new migration, dependency/runtime or infrastructure change is included.
+
+**Ponto importante:** the demonstrated upload regressions are distinct from the
+remaining assembled throughput/resource acceptance. Legacy coordination gates
+and the existing vault-v1 sequence boundary remain unchanged; this is not a new
+unlimited-history or maximum-user-capacity claim.
+
 ## Approved worker boot correction — 17 October 2026
 
 The existing three worker definitions are linked from a later data mount. A

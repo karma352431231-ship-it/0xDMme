@@ -1,3 +1,4 @@
+import { recoverInterruptedUploads } from './upload-recovery.ts';
 import type { ContentCapacity } from './content-capacity.ts';
 import type pg from 'pg';
 import { randomUUID } from 'node:crypto';
@@ -199,9 +200,7 @@ export class StatusMediaStore {
     });
   }
   async resumeInterrupted(): Promise<void> {
-    await this.pool.query(
-      "UPDATE hash_talk.status_media SET status='reserved',writer=NULL WHERE status='writing'",
-    );
+    await recoverInterruptedUploads(this.pool, 'status_media');
   }
   async garbage(): Promise<{ id: string; status_id: string }[]> {
     const result = await this.pool.query<{ id: string; status_id: string }>(
