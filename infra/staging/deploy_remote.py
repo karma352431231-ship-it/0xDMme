@@ -238,7 +238,7 @@ def validate_manifest_budget(config):
     # These operational fields are not part of the persisted release manifest.
     # The complete transport, including these fields, retains its 24 MiB bound.
     manifest = {name: value for name, value in config.items()
-                if name not in ('baseline', 'archive', 'request_limit', 'media_worker', 'capacity')}
+                if name not in ('baseline', 'archive', 'request_limit', 'media_worker', 'capacity', 'worker_boot')}
     if len((json.dumps(manifest, indent=2) + '\n').encode()) > MAX_MANIFEST_BYTES:
         raise RuntimeError('Release manifest byte budget exceeded.')
 
@@ -835,6 +835,11 @@ def preflight(config):
     if actual != config['commit']:
         raise RuntimeError('VPS Git revision mismatch.')
     healthy()
+    if (DATA / 'background-units').exists():
+        import deploy_background
+        deploy_background.verify_current(config)
+        if not deploy_background.ready():
+            raise RuntimeError('Own workers not ready; refusing maintenance.')
     return own_state()
 
 
@@ -1419,6 +1424,9 @@ def main():
     if 'request_limit' in config:
         import deploy_request_limit as request_limits
         request_limits.reviewed_path(config['request_limit'])
+    if 'worker_boot' in config:
+        import deploy_worker_boot
+        deploy_worker_boot.review(config)
     action = sys.argv[1]
     work = DATA / ('deployment-' + config['commit'])
     if 'media_worker' in config:
@@ -1444,7 +1452,7 @@ def main():
                     return {'preflight_passed': True, 'already_active': True, 'commit': config['commit']}
         retention_capacity(work)
         return {'preflight_passed': True, 'activated': False}
-    if action not in ['receive', 'activate', 'requests']:
+    if action not in ['receive', 'activate', 'requests', 'worker-boot']:
         raise RuntimeError('Invalid deployment action.')
     fd = os.open(DATA / 'deployment.lock', os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
     with os.fdopen(fd, 'w') as lock:
@@ -1452,6 +1460,9 @@ def main():
         if action != 'activate':
             with measured('preflight'):
                 preflight(config)
+        if action == 'worker-boot':
+            import deploy_worker_boot
+            return deploy_worker_boot.published(config, work)
         if action == 'requests':
             import deploy_request_limit as request_limits
             if 'request_limit' not in config:

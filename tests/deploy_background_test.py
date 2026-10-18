@@ -98,16 +98,11 @@ class BackgroundTests(unittest.TestCase):
             self.assertFalse(dropin.exists())
             self.assertFalse(unit_root.exists())
 
-    def test_worker_readiness_requires_three_exclusive_leases(self):
-        with patch.object(base, 'run', return_value=b'active\n'), \
-             patch.object(workers.backups, 'pg', return_value=b'2\n'):
+    def test_worker_readiness_uses_the_exact_bounded_probe(self):
+        with patch.object(workers.worker_readiness, 'ready', return_value=False):
             self.assertFalse(workers.ready())
-        with patch.object(base, 'run', return_value=b'active\n'), \
-             patch.object(workers.backups, 'pg', return_value=b'3\n'):
+        with patch.object(workers.worker_readiness, 'ready', return_value=True):
             self.assertTrue(workers.ready())
-        with patch.object(base, 'run', return_value=b'failed\n'), \
-             patch.object(workers.backups, 'pg', return_value=b'3\n'):
-            self.assertFalse(workers.ready())
 
     def test_start_only_touches_our_worker_units_and_never_shared_services(self):
         with patch.object(base, 'run') as run, patch.object(workers, 'ready', return_value=True):
@@ -163,6 +158,7 @@ class UncappedWorkerTransitionTests(unittest.TestCase):
         self.release = self.data / 'release/infra/staging'
         for path in [self.units, self.release, self.system]:
             path.mkdir(parents=True)
+        (self.system / 'multi-user.target.wants').mkdir()
         dropin = root / '40-background.conf'
         dropin.write_text('background mode')
         self.config = {'files': {'infra/staging/0xdmme-background.conf': base.digest(dropin)}}
@@ -171,6 +167,7 @@ class UncappedWorkerTransitionTests(unittest.TestCase):
         for unit in workers.UNITS:
             (self.units / unit).write_text('uncapped ' + unit)
             (self.system / unit).symlink_to(self.units / unit)
+            (self.system / 'multi-user.target.wants' / unit).symlink_to(self.units / unit)
             (self.release / unit).write_text(self.old[unit])
             self.config['files']['infra/staging/' + unit] = base.digest(self.units / unit)
         system = self.system
@@ -203,11 +200,20 @@ class UncappedWorkerTransitionTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, 'without infrastructure review'):
             workers.verify_current(self.config)
 
+    def test_complete_root_layout_is_accepted_but_original_bytes_still_match(self):
+        with patch.object(workers.worker_layout, 'root_metadata'), patch.object(workers.worker_layout.os, 'fchown'):
+            before = workers.worker_layout.snapshot(self.system, self.units)
+            workers.worker_layout.install(self.system, self.units, before)
+            self.assertEqual(workers.verify_current(self.config), 'root')
+            (self.units / workers.UNITS[0]).write_text('changed preserved original')
+            with self.assertRaisesRegex(RuntimeError, 'Original and installed'):
+                workers.verify_current(self.config)
+
     def test_regular_file_instead_of_link_is_refused(self):
         link = self.system / workers.UNITS[2]
         link.unlink()
         link.write_text('uncapped ' + workers.UNITS[2])
-        with self.assertRaisesRegex(RuntimeError, 'link differs'):
+        with self.assertRaisesRegex(RuntimeError, 'metadata|layout'):
             workers.verify_current(self.config)
 
 

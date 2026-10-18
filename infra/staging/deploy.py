@@ -24,6 +24,7 @@ import deploy_runtime as runtime
 import deploy_request_limit as request_limits
 import deploy_media_worker as media_worker
 import deploy_capacity_proxy as capacity_proxy
+import deploy_worker_boot as worker_boot
 from deploy_python import ensure_python314
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -194,7 +195,7 @@ def private_inputs():
 
 def executor_code(config):
     modules = []
-    for name in ['deploy_sources', 'deploy_runtime', 'deploy_remote', 'deploy_backup_io', 'deploy_blocks45', 'deploy_request_limit', 'deploy_background', 'deploy_profile_social', 'deploy_profile_description', 'deploy_group_links', 'deploy_post_tags', 'deploy_media_worker', 'deploy_social_controls', 'deploy_social_experience', 'deploy_discussion', 'deploy_mentions', 'deploy_message_changes', 'deploy_community_classification', 'deploy_public_upvotes', 'deploy_social_reactions', 'deploy_ranking_activity', 'deploy_chat_attachments', 'deploy_community_addresses', 'deploy_capacity_proxy', 'deploy_capacity_database', 'deploy_group_media_parts']:
+    for name in ['deploy_sources', 'deploy_runtime', 'deploy_remote', 'deploy_backup_io', 'deploy_blocks45', 'deploy_request_limit', 'deploy_worker_layout', 'deploy_worker_readiness', 'deploy_background', 'deploy_worker_boot', 'deploy_profile_social', 'deploy_profile_description', 'deploy_group_links', 'deploy_post_tags', 'deploy_media_worker', 'deploy_social_controls', 'deploy_social_experience', 'deploy_discussion', 'deploy_mentions', 'deploy_message_changes', 'deploy_community_classification', 'deploy_public_upvotes', 'deploy_social_reactions', 'deploy_ranking_activity', 'deploy_chat_attachments', 'deploy_community_addresses', 'deploy_capacity_proxy', 'deploy_capacity_database', 'deploy_group_media_parts']:
         path = ROOT / 'infra/staging' / (name + '.py')
         if digest(path) != config['files'].get('infra/staging/' + name + '.py'):
             raise RuntimeError('Deployment executor changed after the reviewed commit.')
@@ -202,9 +203,9 @@ def executor_code(config):
     raw = json.dumps(modules).encode()
     if len(raw) > 256 * 1024:
         raise RuntimeError('Deployment executor source budget exceeded.')
-    packed = base64.b64encode(zlib.compress(raw)).decode()
+    packed = base64.b85encode(zlib.compress(raw, level=9)).decode()
     return ('import sys,types,json,base64,zlib\n'
-            'modules=json.loads(zlib.decompress(base64.b64decode(' + repr(packed) + ')))\n'
+            'modules=json.loads(zlib.decompress(base64.b85decode(' + repr(packed) + ')))\n'
             'for name,source in modules:\n'
             ' m=types.ModuleType(name);sys.modules[name]=m;exec(source,m.__dict__)\n'
             'print(json.dumps(sys.modules["deploy_remote"].execute()))')
@@ -213,7 +214,7 @@ def executor_code(config):
 def remote(action, config, target):
     code = executor_code(config)
     worker_paths = []
-    if action == 'activate' and 'src/server/worker.ts' in config['files']:
+    if action == 'worker-boot' or (action == 'activate' and 'src/server/worker.ts' in config['files']):
         worker_paths = ['-p', 'TemporaryFileSystem=/tmp:rw,nosuid,nodev,noexec,size=16M',
                         '-p', 'Environment=TMPDIR=/tmp']
     proxy_properties = []
@@ -221,6 +222,9 @@ def remote(action, config, target):
         proxy_properties = ['-p', 'TemporaryFileSystem=/var/log/nginx:rw',
                             '-p', 'BindPaths=/dev/null:/run/nginx.pid']
     writable = '/var/lib/0xdmme/data'
+    if action == 'worker-boot':
+        # Directory access is needed for atomic rename of only the six constant own paths.
+        writable += ' /etc/systemd/system'
     if action == 'activate' and 'src/server/worker.ts' in config['files']:
         writable += ' /etc/systemd/system/0xdmme-test.service.d'
     if action == 'activate' and 'media_worker' in config:
@@ -272,7 +276,10 @@ def main():
     parser.add_argument('--media-worker', action='store_true',
                         help='Activate the separately reviewed own media bundle with this release.')
     parser.add_argument('--capacity', action='store_true', help='Activate the reviewed capacity schema and own proxy transition.')
+    parser.add_argument('--worker-boot', action='store_true', help='Apply the separately reviewed own worker boot layout after code publication.')
     args = parser.parse_args()
+    if args.worker_boot and (args.prepare or args.capacity or args.request_limit or args.media_worker):
+        parser.error('Worker boot requires its separate --check or --activate release.')
     if (args.request_limit or args.media_worker or args.capacity) and args.prepare:
         parser.error('Operational adjustments require --check or --activate.')
     if args.capacity and (args.request_limit or args.media_worker):
@@ -308,6 +315,8 @@ def main():
             raise RuntimeError('Private request-limit review exceeded budget.')
         config['request_limit'] = json.loads(review.read_text())
         request_limits.validate(config['request_limit'])
+    if args.worker_boot:
+        worker_boot.configure(config, PRIVATE_ROOT)
     # Existing source-sync contract checks clean tree, canonical remote and exact SHA.
     run([sys.executable, 'infra/staging/sync-git.py'], timeout=150)
     checked = remote('check', config, target)
@@ -317,6 +326,8 @@ def main():
     if checked.get('already_active'):
         if args.request_limit:
             print(json.dumps(remote('requests', config, target)))
+        if args.worker_boot:
+            print(json.dumps(remote('worker-boot', config, target)))
         return
     repository()  # Refuse a changed checkout/branch before sending the build.
     if run(['git', 'rev-parse', 'HEAD']).decode().strip() != revision:
@@ -326,6 +337,8 @@ def main():
     print(json.dumps(result))
     if args.request_limit:
         print(json.dumps(remote('requests', config, target)))
+    if args.worker_boot:
+        print(json.dumps(remote('worker-boot', config, target)))
 
 
 if __name__ == '__main__':
