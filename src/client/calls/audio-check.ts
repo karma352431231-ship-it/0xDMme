@@ -1,9 +1,11 @@
 import { t } from '../../shared/i18n/index.ts';
+import { createTestToneControl } from './test-tone-control.ts';
 
 /** User-requested report stays in this tab and is cleared when the call ends. */
 export function createCallAudioCheck(options: {
   read: () => Promise<unknown>;
   stopCapture: () => Promise<void>;
+  testTone: () => Promise<void>;
 }) {
   const element = document.createElement('details');
   element.className = 'call-audio-check';
@@ -24,6 +26,7 @@ export function createCallAudioCheck(options: {
   stopCapture.textContent = t('calls.audio-check-stop-capture');
   const stopExplanation = document.createElement('p');
   stopExplanation.textContent = t('calls.audio-check-stop-capture-explanation');
+  const tone = createTestToneControl(options.testTone);
   const report = document.createElement('textarea');
   report.readOnly = true;
   report.rows = 5;
@@ -40,14 +43,16 @@ export function createCallAudioCheck(options: {
     report,
     stopExplanation,
     stopCapture,
+    tone.element,
     status,
   );
   let generation = 0,
     active = false,
     collecting = false;
   async function collect(): Promise<void> {
-    if (!active || collecting || stopping) return;
+    if (!active || collecting || stopping || tone.busy()) return;
     collecting = true;
+    tone.block(true);
     run.disabled = true;
     copy.hidden = true;
     report.value = '';
@@ -69,6 +74,7 @@ export function createCallAudioCheck(options: {
     } finally {
       if (g === generation) {
         collecting = false;
+        tone.block(false);
         run.disabled = false;
       }
     }
@@ -86,8 +92,9 @@ export function createCallAudioCheck(options: {
   }
   let stopping = false;
   async function releaseCapture(): Promise<void> {
-    if (!active || stopping || collecting) return;
+    if (!active || stopping || collecting || tone.busy()) return;
     stopping = true;
+    tone.block(true);
     stopCapture.disabled = true;
     run.disabled = true;
     const g = generation;
@@ -104,6 +111,7 @@ export function createCallAudioCheck(options: {
     } finally {
       if (g === generation) {
         stopping = false;
+        tone.block(false);
         run.disabled = false;
       }
     }
@@ -119,7 +127,8 @@ export function createCallAudioCheck(options: {
   });
   return {
     element,
-    update(next: boolean, stopped = false): void {
+    update(next: boolean, stopped = false, muted = false): void {
+      tone.update(next && !stopped && !muted);
       stopCapture.disabled = stopped || stopping;
       if (active === next) return;
       active = next;
@@ -127,6 +136,7 @@ export function createCallAudioCheck(options: {
       generation++;
       collecting = false;
       stopping = false;
+      tone.block(false);
       stopCapture.disabled = stopped;
       run.disabled = false;
       report.value = '';

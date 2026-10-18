@@ -660,6 +660,13 @@ export class VoiceCalls {
     await this.rtc?.play();
     this.render();
   }
+  async sendTestTone(): Promise<void> {
+    const rtc = this.rtc,
+      g = this.generation;
+    if (!rtc || rtc.state !== 'connected') throw new Error('Conexão ausente.');
+    await rtc.sendTestTone();
+    this.guard(g);
+  }
   async stopCaptureForInspection(): Promise<void> {
     const rtc = this.rtc,
       g = this.generation;

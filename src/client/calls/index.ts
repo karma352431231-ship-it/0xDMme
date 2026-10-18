@@ -100,6 +100,7 @@ export function startCalls(options: {
   const audioCheck = createCallAudioCheck({
     read: () => calls.inspectAudio(),
     stopCapture: () => calls.stopCaptureForInspection(),
+    testTone: () => calls.sendTestTone(),
   });
   dock.append(audioCheck.element);
   function button(label: string, work: () => Promise<void>): HTMLButtonElement {
@@ -126,7 +127,7 @@ export function startCalls(options: {
     duration.textContent = state.connected
       ? `${Math.floor(state.seconds / 60)}:${String(state.seconds % 60).padStart(2, '0')}`
       : '';
-    audioCheck.update(state.connected, state.captureStopped);
+    audioCheck.update(state.connected, state.captureStopped, state.muted);
     renderControls(state, active);
     renderSettings(state);
   }
