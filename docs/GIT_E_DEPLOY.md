@@ -1,5 +1,55 @@
 # 0xDMme — Git e envio à VPS
 
+## Prepared worker boot operation — 17 October 2026
+
+Status: source prepared for review; the separate own-infrastructure operation is
+not yet approved or activated. The change retains the three existing worker unit
+bytes and all dependencies/drop-ins. Read access, exact link snapshots, unit
+checksums, preservation/accounting evidence and receipts stay in the original
+checkout's ignored `.local/`.
+
+After the owner approves the concrete operation, integrate reviewed source into
+main, run full local verification, push and require passing CI of that exact main
+commit. Bind it in `.local/VPS_WORKER_BOOT_REVIEW.json` (0600, ignored, at most
+4096 bytes): `commit` is the full SHA and `unit_sha256` maps exactly the three
+`0xdmme-{ranking,content,public}-worker.service` names to their unchanged template
+checksums. Use `npm run deploy:check -- --worker-boot` and then only
+`npm run deploy:staging -- --worker-boot`. The flag cannot combine with the other
+operational flags. Check mode does not exchange definitions or restart services.
+
+The existing command first publishes code with its usual own web/worker
+maintenance and rollback. Only after the exact release receipt and active hashes
+match does the separate locked `worker-boot` action exchange six fixed own paths:
+three volume-backed `/etc/systemd/system` definition links become root-owned 0644
+regular files, and their three `multi-user.target.wants` links become relative
+links to those files. Original volume files are retained. For atomic replacements
+this action alone receives write access to the `/etc/systemd/system` directory;
+its code has no configurable unit/path names. Other actions retain their current
+write boundaries. Strict filesystem isolation, swap-off policy, a private 16 MiB
+`/tmp`, and the 240-second executor deadline remain in force.
+
+Verify definitions with `systemd-analyze`, reread the manager and restart the three
+own workers sequentially. Each must become loaded/running and regain its exact
+exclusive role lease within the thirty-second window, with the other workers
+still ready and their process identities unchanged. Compare own configuration,
+web/PostgreSQL/media/push/TURN identities and the approved shared preservation
+reference. Reconcile pending/credits, exact source/derived/global totals and all
+previously acknowledged synthetic packet hashes before/after using the existing
+private audit probes. No PostgreSQL/Nginx/shared restart, reboot, reset, migration,
+package update, firewall change or SQL/object restore belongs to this action.
+
+On caught failure, validate every affected path before returning the six original
+links, reread definitions and start only unready own workers. Retain a private
+failure receipt and refuse automatic retry. Unexpected administrator edits,
+interruption, hard termination or failed rollback require manual evidence review;
+do not force links, delete evidence or restore an old database. The already
+published code remains active if this later infrastructure step fails. A completed
+same-commit repetition verifies its receipt without restarting workers again.
+
+**Ponto importante:** this verifies definition availability and own process
+recovery without rebooting the shared host. It does not demonstrate an actual boot
+or finish combined-volume recovery, capacity measurements or final acceptance.
+
 ## Reviewed snapshot read deployment — 17 October 2026
 
 The owner requested integration, main verification and VPS deployment of the

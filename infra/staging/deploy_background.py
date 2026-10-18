@@ -7,11 +7,13 @@ import time
 
 import deploy_remote as base
 import deploy_blocks45 as backups
+import deploy_worker_layout as worker_layout
+import deploy_worker_readiness as worker_readiness
 
 BEFORE = '2921232287a929477e6d7cf18e7f82ff9d0fcddd'
 REVIEWED = 'a2ed2c32cb63abd85311fc381b691fe1c6d6ce37'
-ROLES = ('ranking', 'content', 'public')
-UNITS = tuple('0xdmme-' + role + '-worker.service' for role in ROLES)
+ROLES = worker_layout.ROLES
+UNITS = worker_layout.UNITS
 UNIT_ROOT = base.DATA / 'background-units'
 DROPIN = Path('/etc/systemd/system/0xdmme-test.service.d/40-background.conf')
 # Owner decision of 09/10/2026 (option A): worker resource caps were removed on
@@ -93,10 +95,7 @@ def stop():
 
 
 def ready():
-    active = all(base.run(['systemctl', 'show', unit, '--property=ActiveState', '--value']).strip() == b'active' for unit in UNITS)
-    sql = "SELECT count(*) FROM pg_locks WHERE locktype='advisory' AND granted AND objid IN (" + ','.join("(hashtext('hash-talk:background:" + role + "')::bigint & 4294967295)::oid" for role in ROLES) + ')'
-    leases = backups.pg(['psql', '--no-psqlrc', '--tuples-only', '--no-align', '-c', sql]).strip()
-    return active and leases == b'3'
+    return worker_readiness.ready()
 
 
 def start():
@@ -179,13 +178,15 @@ def verify_current(config):
     source = base.DATA / 'release'
     if base.digest(DROPIN) != config['files']['infra/staging/0xdmme-background.conf']:
         raise RuntimeError('Own background mode differs from the release.')
+    kind = worker_layout.detect(Path('/etc/systemd/system'), UNIT_ROOT)
     for unit in UNITS:
         path = Path('/etc/systemd/system') / unit
-        if not path.is_symlink() or path.resolve() != UNIT_ROOT / unit:
-            raise RuntimeError('Own worker unit link differs.')
         installed = base.digest(path)
+        if base.digest(UNIT_ROOT / unit) != installed:
+            raise RuntimeError('Original and installed own worker bytes differ.')
         released = base.digest(source / 'infra/staging' / unit)
         if installed != config['files']['infra/staging/' + unit]:
             raise RuntimeError('Own worker unit changed without infrastructure review.')
         if released != installed and released != UNCAPPED_FROM.get(unit):
             raise RuntimeError('Own worker unit changed without infrastructure review.')
+    return kind

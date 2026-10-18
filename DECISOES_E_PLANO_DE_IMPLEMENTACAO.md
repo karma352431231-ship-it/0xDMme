@@ -1,5 +1,51 @@
 # Capacity audit follow-up — 16 October 2026
 
+## Prepared worker boot correction — 17 October 2026
+
+The existing three worker definitions are linked from a later data mount. A
+recorded early-boot `LoadState=not-found` and the linked-unit storage contract
+justify preparing root-resident definitions. The owner authorized preparation;
+**infrastructure activation remains pending a separate review**. Healthy current
+workers do not constitute a completed reboot rehearsal.
+
+Only the existing deployment command gains the explicit `--worker-boot` option.
+Its private, ignored `VPS_WORKER_BOOT_REVIEW.json` binds the integrated commit to
+exact SHA-256 values of the three unchanged worker templates. A complete legacy
+layout or a complete root layout is accepted; mixed paths, altered unit bytes,
+unsafe root-file ownership/mode/device, missing enablement or missing per-role
+leases refuse maintenance. Root files must also match the retained volume copies.
+
+The transition exchanges exactly three own definition links for root-owned 0644
+regular files and their three enablement links for relative root targets. It
+retains original volume definitions, drop-ins, users, swap policy, namespaces,
+resource settings and dependencies. PostgreSQL already waits for readiness before
+its start job completes; existing worker ordering after PostgreSQL/data is kept.
+No new readiness service, schema, dependency or application behavior is introduced.
+
+The separate layout action follows verified code publication. It verifies the
+manager graph, rereads definitions, then restarts one own worker at a time, with
+a thirty-second readiness window and the other two workers unchanged and ready.
+Readiness requires loaded/running process state and exactly one exclusive
+single-key advisory lock for each role in the current database, including both
+key halves and the lock namespace. Probe connection/query/process deadlines are
+bounded; credentials stay in the owned process environment and subprocess memory.
+
+Failure restores only the six validated original links, rereads definitions and
+returns affected workers to readiness. Unexpected edits prevent overwrite and
+leave private failure evidence. Interrupted/failed attempts require inspection;
+there is no blind retry or SQL/object restore. Completed repetition verifies the
+receipt and current layout without another restart. The existing executor source
+and SSH budgets remain 256 KiB and 64 KiB; standard-library base85 with level-nine
+zlib replaces base64 transport to fit the added modules without raising a gate.
+
+**Ponto importante:** source preparation and automated regressions do not approve
+or establish VPS activation. Full local checks, integration into clean pushed
+main, exact passing main CI, private preservation/accounting checks and explicit
+infrastructure approval precede the operation. The ordinary code publication
+still briefly stops/restarts our web and three workers; only the subsequent
+layout action preserves web/PostgreSQL/media/push/TURN process identities. Keep
+combined-volume recovery margins and the remaining capacity acceptance open.
+
 ## Group and social snapshot read coordination — 17 October 2026
 
 The P-DB-C follow-up restricts this correction to current-group reads and social
