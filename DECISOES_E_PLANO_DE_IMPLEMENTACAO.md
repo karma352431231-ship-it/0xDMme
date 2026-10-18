@@ -2964,3 +2964,18 @@ moves existing-pin hydration out of the first click after a page reload; each
 call still performs fresh vault/removal/peer checks. Failure is reported in the
 call notice and the normal call path can retry verification. A never-seen peer
 still requires verified pin persistence before the initial invitation is sent.
+
+### Local call audio inspection — 18 October 2026
+
+Repeated-audio diagnosis uses an optional user-triggered in-tab report rather
+than server telemetry or recordings. It includes only whitelisted processing
+settings, own output inventory and bounded packet/concealment/jitter counters.
+No automatic upload, audio/energy, identifiers, storage, additional microphone
+access or capture/codec/signaling change is introduced. The report clears on
+connection end; an explicit clipboard copy follows the clipboard lifetime.
+Implementation and privacy/resource limits are documented in
+[the voice-call contract](docs/BLOCO15_CHAMADAS_VOZ.md#explicit-local-audio-inspection--18-october-2026).
+
+**Ponto importante:** this supports diagnosis and does not establish acoustic
+acceptance or replace the existing device validation requirements. Operational
+evidence and device/network details remain exclusively in .local/.

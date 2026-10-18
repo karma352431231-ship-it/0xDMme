@@ -655,6 +655,14 @@ export class VoiceCalls {
     await this.rtc?.play();
     this.render();
   }
+  async inspectAudio() {
+    const rtc = this.rtc,
+      g = this.generation;
+    if (!rtc) throw new Error('Conexão ausente.');
+    const report = await rtc.inspectAudio();
+    this.guard(g);
+    return report;
+  }
   async configure(enabled: boolean): Promise<void> {
     await this.run(async (g) => {
       await this.transport.request('configure', {

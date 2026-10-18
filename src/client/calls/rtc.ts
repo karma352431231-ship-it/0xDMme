@@ -2,6 +2,7 @@ import { t } from '../../shared/i18n/index.ts';
 import { leaseMs, relaySdp } from '../../shared/calls/index.ts';
 import type { MediaState } from '../../shared/calls/index.ts';
 import { object } from '../../shared/account/index.ts';
+import { inspectCallAudio, observeCallOutput } from './audio-diagnostics.ts';
 
 export function iceConfiguration(input: unknown): RTCConfiguration {
   const data = object(input),
@@ -49,6 +50,7 @@ export class VoiceConnection {
   private microphone: MediaStream | null = null;
   private readonly audio: HTMLAudioElement;
   private generation = 0;
+  private releaseObservation: (() => void) | null = null;
   private readonly changed: (state: MediaState) => void;
   private readonly failed: (notice: string) => void;
   private readonly autoplay: () => void;
@@ -102,6 +104,7 @@ export class VoiceConnection {
       ...configuration,
       iceTransportPolicy: 'relay',
     });
+    this.releaseObservation = observeCallOutput(this.pc, this.audio);
     for (const track of this.microphone.getAudioTracks())
       this.pc.addTrack(track, this.microphone);
     this.pc.addEventListener(
@@ -214,6 +217,20 @@ export class VoiceConnection {
     if (g !== this.generation) throw new Error('Chamada encerrada.');
     return relaySdp(pc.localDescription?.sdp);
   }
+  async inspectAudio() {
+    const pc = this.require(),
+      microphone = this.microphone,
+      g = this.generation;
+    if (!microphone) throw new Error('Microfone não autorizado.');
+    return inspectCallAudio({
+      pc,
+      microphone,
+      audio: this.audio,
+      guard: () => {
+        if (g !== this.generation) throw new Error('Chamada encerrada.');
+      },
+    });
+  }
   mute(): void {
     this.muted = !this.muted;
     for (const track of this.microphone?.getAudioTracks() ?? [])
@@ -231,6 +248,8 @@ export class VoiceConnection {
     this.generation++;
     this.abort.abort();
     this.pc?.close();
+    this.releaseObservation?.();
+    this.releaseObservation = null;
     this.pc = null;
     for (const track of this.microphone?.getTracks() ?? []) track.stop();
     this.microphone = null;

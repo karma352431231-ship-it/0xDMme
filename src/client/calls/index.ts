@@ -1,3 +1,4 @@
+import { createCallAudioCheck } from './audio-check.ts';
 import { t } from '../../shared/i18n/index.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
 import type { VaultAccess } from '../vault-authority/index.ts';
@@ -96,6 +97,8 @@ export function startCalls(options: {
       }
     },
   });
+  const audioCheck = createCallAudioCheck(() => calls.inspectAudio());
+  dock.append(audioCheck.element);
   function button(label: string, work: () => Promise<void>): HTMLButtonElement {
     const element = document.createElement('button');
     element.type = 'button';
@@ -120,6 +123,7 @@ export function startCalls(options: {
     duration.textContent = state.connected
       ? `${Math.floor(state.seconds / 60)}:${String(state.seconds % 60).padStart(2, '0')}`
       : '';
+    audioCheck.update(state.connected);
     renderControls(state, active);
     renderSettings(state);
   }
