@@ -1,3 +1,4 @@
+import { recoverInterruptedUploads } from './upload-recovery.ts';
 import type { ContentCapacity } from './content-capacity.ts';
 import type pg from 'pg';
 import { randomUUID } from 'node:crypto';
@@ -316,14 +317,19 @@ export class GroupMediaStore {
     }));
   }
   async resumeInterrupted(): Promise<void> {
-    await this.pool.query(
-      "UPDATE hash_talk.group_media SET status='reserved',writer=NULL WHERE status='writing'",
-    );
+    await recoverInterruptedUploads(this.pool, 'group_media');
   }
   async garbage(): Promise<{ id: string; group_id: string }[]> {
     return this.contacts.withMaintenance(async (client) => {
       const rows = await client.query<{ id: string; group_id: string }>(
-        "UPDATE hash_talk.group_media SET status='deleting' WHERE id IN (SELECT id FROM hash_talk.group_media WHERE status='deleting' OR (status IN ('reserved','ready') AND created_at<clock_timestamp()-interval '24 hours') ORDER BY sequence LIMIT 8) AND status IN ('reserved','ready','deleting') RETURNING id,group_id",
+        `WITH due AS MATERIALIZED (
+          SELECT id,group_id,status FROM hash_talk.group_media WHERE status='deleting' OR
+          (status IN ('reserved','ready') AND created_at<clock_timestamp()-interval '24 hours')
+          ORDER BY sequence,id LIMIT 8
+        ), changed AS (
+          UPDATE hash_talk.group_media SET status='deleting'
+          WHERE id IN (SELECT id FROM due) AND status IN ('reserved','ready') RETURNING id,group_id
+        ) SELECT id,group_id FROM due WHERE status='deleting' UNION ALL SELECT id,group_id FROM changed`,
       );
       return rows.rows;
     });

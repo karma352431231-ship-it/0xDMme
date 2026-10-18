@@ -1,3 +1,4 @@
+import { recoverInterruptedUploads } from './upload-recovery.ts';
 import { AttachmentReservations } from './attachment-reservations.ts';
 import type { AttachmentReservationAllocations } from './attachment-reservation-allocations.ts';
 import type { FileReclamation } from './file-reclamation.ts';
@@ -214,16 +215,18 @@ export class AttachmentStore {
   }
   async resumeInterrupted(): Promise<void> {
     // Startup only, after the previous single application writer has stopped.
-    await this.pool.query(
-      "UPDATE hash_talk.message_attachments SET status='reserved',writer=NULL WHERE status='writing'",
-    );
+    await recoverInterruptedUploads(this.pool, 'message_attachments');
   }
   async garbage(): Promise<{ id: string }[]> {
     const result = await this.pool.query<{ id: string }>(
-      `UPDATE hash_talk.message_attachments SET status='deleting' WHERE id IN
-      (SELECT id FROM hash_talk.message_attachments WHERE status='deleting' OR
-      (status IN ('reserved','ready') AND created_at<now()-interval '24 hours') ORDER BY created_at LIMIT 8)
-      AND status IN ('reserved','ready','deleting') RETURNING id`,
+      `WITH due AS MATERIALIZED (
+        SELECT id,status FROM hash_talk.message_attachments WHERE status='deleting' OR
+        (status IN ('reserved','ready') AND created_at<now()-interval '24 hours')
+        ORDER BY created_at,id LIMIT 8
+      ), changed AS (
+        UPDATE hash_talk.message_attachments SET status='deleting'
+        WHERE id IN (SELECT id FROM due) AND status IN ('reserved','ready') RETURNING id
+      ) SELECT id FROM due WHERE status='deleting' UNION ALL SELECT id FROM changed`,
     );
     return result.rows;
   }
