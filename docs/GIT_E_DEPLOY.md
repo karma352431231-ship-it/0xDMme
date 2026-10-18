@@ -1,5 +1,27 @@
 # 0xDMme — Git e envio à VPS
 
+## Reviewed signed community reader release — 18 October 2026
+
+The diverse-feed profile demonstrated an exclusive contact-admission timeout
+with four signed reads at 30000 synthetic roots. Source
+`d441c08eb2298aed7e9db52eecd8b979fb9372a3` changes only the complete community
+reader to the existing shared, current-authority, SQL read-only contract. Both
+signed feed and follower-page consumers are read-only. Writers, identity,
+visibility, quota, dependencies, Node and migrations 001–091 are unchanged.
+
+The existing executor pins both entire database trees from live predecessor
+`ed30f83d47a3932e391d17a6ecde4031da9ab0ec` to that reviewed source. Exactly
+`communities.ts` may differ. Extra files, modified predecessor/candidate bytes,
+migrations or runtime changes remain refused; this is not a general exception.
+Use the existing routine code-release authorization: clean pushed integrated
+main, passing exact-commit CI, then official `npm run deploy:check` and
+`npm run deploy:staging`, with private preservation/accounting evidence and
+rollback retained. No operational flag, reset or shared-service change.
+
+**Ponto importante:** passing local read/history contracts does not itself
+publish this change or close device, live-resource and assembled acceptance.
+Calls stay last under the owner's current audit order.
+
 ## Reviewed upload lifecycle correction — 18 October 2026
 
 The database audit found three concrete regressions: unbounded startup upload
