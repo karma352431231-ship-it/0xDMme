@@ -8,43 +8,52 @@ import { eventHash, verify } from '../../shared/devices/index.ts';
 import type { DirectoryEvent } from '../../shared/devices/index.ts';
 import type { VaultAccess } from '../vault-authority/index.ts';
 import type { VaultSync } from '../vault-sync/index.ts';
-import { messageApi } from '../message-api/index.ts';
 import { sealTo } from '../device-keys/index.ts';
-import { PeerIdentity, peerHistory } from '../peer-identity/index.ts';
+import { CallIdentity } from '../call-identity/index.ts';
+import type { SigningAuthority } from '../message-api/index.ts';
+import { leaseMs } from '../../shared/calls/index.ts';
 
 export class CallSecurity {
-  private readonly access: VaultAccess;
-  private readonly identities: PeerIdentity;
+  private readonly identities: CallIdentity;
+  private prepared: {
+    peer: string;
+    directory: DirectoryEvent;
+    a: SigningAuthority;
+    until: number;
+    stamp: string;
+  } | null = null;
   private generation = 0;
   constructor(access: VaultAccess, sync: VaultSync) {
-    this.access = access;
-    this.identities = new PeerIdentity(sync);
+    this.identities = new CallIdentity(access, sync);
+    this.identities.enable(false);
+  }
+  prime(): Promise<void> {
+    return this.identities.prime();
+  }
+  setContext(enabled: boolean): void {
+    this.identities.enable(enabled);
   }
   clear(): void {
     this.generation++;
+    this.prepared = null;
     this.identities.clear();
   }
   private guard(g: number): void {
     if (g !== this.generation) throw new Error('Identidade da chamada mudou.');
   }
   async directory(peer: string): Promise<DirectoryEvent> {
-    const g = this.generation;
-    await this.identities.load();
-    this.guard(g);
-    const events = await this.access.withVault(false, (a) =>
-      peerHistory(
-        (op, d) => messageApi(a, op, d, () => this.guard(g)),
-        peer,
-        null,
-        this.identities.get(peer),
-      ),
+    const until = Date.now() + leaseMs,
+      g = this.generation;
+    const result = await this.identities.withPeer(peer, (a, directory) =>
+      Promise.resolve({
+        directory,
+        a: { session: { ...a.session }, directory: a.directory, sign: a.sign },
+      }),
     );
-    await this.identities.remember(peer, events);
-    await this.identities.save();
     this.guard(g);
-    const last = events.at(-1);
-    if (!last) throw new Error('Identidade do contato ausente.');
-    return last;
+    const stamp = this.identities.current;
+    this.prepared = stamp ? { ...result, peer, until, stamp } : null;
+    return result.directory;
   }
   async seal(input: {
     view: CallView;
@@ -54,57 +63,78 @@ export class CallSecurity {
     sdp: string;
   }) {
     const g = this.generation;
-    const peer = await this.directory(input.view.peer);
+    const prepared = this.prepared;
+    if (
+      input.sequence <= 1 &&
+      prepared &&
+      prepared.peer === input.view.peer &&
+      Date.now() < prepared.until &&
+      prepared.stamp === this.identities.current
+    ) {
+      return this.encrypt(prepared.a, prepared.directory, input);
+    }
+    return this.identities.withPeer(input.view.peer, async (a, peer) => {
+      this.guard(g);
+      return this.encrypt(a, peer, input);
+    });
+  }
+  private async encrypt(
+    a: SigningAuthority,
+    peer: DirectoryEvent,
+    input: {
+      view: CallView;
+      devices: string[];
+      sequence: number;
+      type: CallDescription['type'];
+      sdp: string;
+    },
+  ) {
+    const g = this.generation;
     if ((await eventHash(peer)) !== input.view.peerDirectory)
       throw new Error('Aparelhos do contato mudaram.');
-    return this.access.withVault(false, async (a) => {
-      const packets = [];
-      for (const id of input.devices) {
-        this.guard(g);
-        const device = peer.devices.find((d) => d.id === id);
-        if (!device) throw new Error('Aparelho do contato não autorizado.');
-        const body: Omit<CallDescription, 'signature'> = {
-          id: input.view.id,
-          from: a.session.accountId,
-          fromDevice: a.session.deviceId,
-          to: input.view.peer,
-          toDevice: id,
-          fromDirectory: a.directory,
-          toDirectory: input.view.peerDirectory,
-          sequence: input.sequence,
-          type: input.type,
-          sdp: input.sdp,
-        };
-        const signed = {
-          ...body,
-          signature: await a.sign(descriptionBody(body)),
-        };
-        packets.push({
-          device: id,
-          body: await sealTo(
-            device.wrapping,
-            signed,
-            callContext(input.view.id, id),
-          ),
-        });
-      }
+    const packets = [];
+    for (const id of input.devices) {
       this.guard(g);
-      return packets;
-    });
+      const device = peer.devices.find((d) => d.id === id);
+      if (!device) throw new Error('Aparelho do contato não autorizado.');
+      const body: Omit<CallDescription, 'signature'> = {
+        id: input.view.id,
+        from: a.session.accountId,
+        fromDevice: a.session.deviceId,
+        to: input.view.peer,
+        toDevice: id,
+        fromDirectory: a.directory,
+        toDirectory: input.view.peerDirectory,
+        sequence: input.sequence,
+        type: input.type,
+        sdp: input.sdp,
+      };
+      const signed = {
+        ...body,
+        signature: await a.sign(descriptionBody(body)),
+      };
+      packets.push({
+        device: id,
+        body: await sealTo(
+          device.wrapping,
+          signed,
+          callContext(input.view.id, id),
+        ),
+      });
+    }
+    this.guard(g);
+    return packets;
   }
   async open(view: CallView): Promise<CallDescription> {
     const g = this.generation;
-    const peer = await this.directory(view.peer);
-    if ((await eventHash(peer)) !== view.peerDirectory)
-      throw new Error('Diretório da chamada divergente.');
-    return this.access.withVault(false, async (a) => {
-      if (!view.signal || !a.openSecret)
+    return this.identities.withPeer(view.peer, async (a, peer) => {
+      if ((await eventHash(peer)) !== view.peerDirectory)
+        throw new Error('Diretório da chamada divergente.');
+      const envelope = view.signal ?? view.invitation;
+      if (!envelope || !a.openSecret)
         throw new Error('Sinalização protegida indisponível.');
       const d = callDescription(
-        await a.openSecret(
-          view.signal,
-          callContext(view.id, a.session.deviceId),
-        ),
+        await a.openSecret(envelope, callContext(view.id, a.session.deviceId)),
       );
       const signer = peer.devices.find((p) => p.id === d.fromDevice);
       if (!signer) throw new Error('Aparelho do contato revogado.');
@@ -115,6 +145,7 @@ export class CallSecurity {
           account: a.session.accountId,
           device: a.session.deviceId,
           directory: a.directory,
+          invitation: !view.signal,
         },
         signer.signing,
       );
@@ -138,8 +169,10 @@ export function assertDescription(c: {
   account: string;
   device: string;
   directory: string;
+  invitation?: boolean;
 }): void {
   const { d, view } = c;
+  assertInvitation(c);
   if (
     d.id !== view.id ||
     d.from !== view.peer ||
@@ -148,18 +181,27 @@ export function assertDescription(c: {
     d.toDevice !== c.device
   )
     throw new Error('Extremos da chamada divergentes.');
-  assertNegotiation(d, view, c.directory);
+  assertNegotiation(d, view, c.directory, c.invitation === true);
+}
+function assertInvitation(c: Parameters<typeof assertDescription>[0]): void {
+  const { view } = c;
+  if (
+    c.invitation &&
+    (view.caller || !view.invitation || view.signal || view.sequence !== 0)
+  )
+    throw new Error('Convite de chamada divergente.');
 }
 function assertNegotiation(
   d: CallDescription,
   view: CallView,
   directory: string,
+  invitation: boolean,
 ): void {
   if (
-    d.sequence !== view.sequence ||
+    d.sequence !== (invitation ? 0 : view.sequence) ||
     d.fromDirectory !== view.peerDirectory ||
     d.toDirectory !== directory ||
-    d.type !== (view.caller ? 'answer' : 'offer')
+    d.type !== (invitation ? 'invite' : view.caller ? 'answer' : 'offer')
   )
     throw new Error('Negociação antiga ou de outro aparelho.');
 }

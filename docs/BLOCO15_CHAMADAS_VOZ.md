@@ -39,8 +39,8 @@ one pending flag per event type. Call RAM state is not published as a database
 commit. Failed commands and periodic sync do not create call hints; a failed
 hint cannot undo a successful call operation.
 
-The client coalesces bursts for 100 ms and advances its scheduled signed call
-snapshot. A hint arriving during a snapshot or user operation remains pending
+The server coalesces hints for 100 ms; the client keeps one pending flag and
+immediately advances its scheduled signed call snapshot. A hint arriving during a snapshot or user operation remains pending
 until that work completes. It does not overlap signed requests, refresh chat or
 status history, grant authority, or skip encrypted offer/identity verification.
 SSE ready also requests a fresh call snapshot. The five-second polling fallback,
@@ -117,3 +117,52 @@ Logs, capturas e dados operacionais dos ensaios ficam exclusivamente em `.local/
 7. Medir banda/CPU/RAM e compatibilidade com o outro projeto antes do piloto. Reiniciar apenas nosso serviço em ensaio autorizado; nenhuma chamada deve sobreviver em banco/cofre/backup/logs. Reavaliar capacidade após a medição.
 
 **Ponto importante:** a release `44af35f` foi ativada em 05/10/2026 após revisão operacional autorizada, backup/ensaio de restauração e migrações 026–027. TURN e emissor próprios estão ativos, com preservação do outro projeto. Chrome transmitiu áudio sintético por UDP/TCP/TLS, exclusivamente por relay, sem perda registrada; isolamento, certificado e socket foram conferidos. Isso não comprova qualidade acústica, suspensão, redes distintas/restritas ou entrega real de push em celulares. Ver [resultado do deploy](GIT_E_DEPLOY.md#ativação-de-chamadas-push-e-grupos--05102026) e [emissor](../infra/push/README.md).
+
+## Early authenticated invitation — local follow-up, 18 October 2026
+
+New clients opt in using `X-0xdmme-Call-Invite: 1`. Only opted-in endpoints receive
+an `invitation` capability/view field. A new client uses the previous complete-
+offer path when an old server omits that capability. An old client never receives
+the new encrypted invitation type or extra strict-parser fields. Negotiation is
+framing only; every operation still uses the existing signed proof and current
+server authority. The separate empty SSE hint contains no invitation payload.
+
+After signed start assigns the server UUID, the caller signs and encrypts an
+empty-SDP sequence-zero invitation to the exact frozen target set. The recipient
+checks sender/recipient accounts/devices, both directory hashes, pinned identity,
+call UUID, type, sequence and signature before presenting it. Full signed relay-
+only SDP is still mandatory before media. Accepting an invitation selects exactly
+one endpoint and starts the existing twenty-second connecting deadline. The
+first full offer can still contain the frozen initial device set; the server
+validates that set but delivers only to the selected endpoint. Later negotiation
+targets only that winner. Invitations/target sets are transient, fit the existing
+one-MiB call admission reservation, and clear on full offer, end/expiry/shutdown.
+
+`server/call-context` composes three existing bounded public reads: owner vault,
+personal removals and private peer directory. It owns no SQL or shared transaction.
+`client/call-identity` reuses hydrated identity pins only after fresh head/sequence
+and personal-removal checks agree with the completely verified local state.
+Unknown, conflicting, changed or paged state receives full verification or fails
+closed. The peer-identity module can hydrate the verified vault state after its
+own confirmed pin save; this does not bypass fresh reads on the next operation.
+
+The transport retains only a session-bound signing callback and public proof
+identity for at most twenty seconds counted before the online authority read.
+It retains no content/wrapping key closure, refreshes at expiry and clears on
+reset or failed requests. Initial peer/signing material may be reused only for
+sequence-zero/one setup within the same window and unchanged local state. The
+server revalidates exact current authority/directories for each command. A cancel
+hint or elapsed authorization during slow verification prevents a stale ring.
+
+**Ponto importante:** local ring/cancel probes and automated contracts do not
+establish successful phone audio, restricted-network recovery or capacity.
+Physical clean speakerphone/Bluetooth audio and actual changed-release TURN flow
+remain required. Capture constraints and audio processing are unchanged.
+
+Once the first negotiated foreground snapshot succeeds, the call client starts
+one bounded session preparation of already stored identity pins, shared with an
+overlapping call. It opens no microphone and requests no peer directory. This
+moves existing-pin hydration out of the first click after a page reload; each
+call still performs fresh vault/removal/peer checks. Failure is reported in the
+call notice and the normal call path can retry verification. A never-seen peer
+still requires verified pin persistence before the initial invitation is sent.

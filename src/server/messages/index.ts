@@ -1,3 +1,4 @@
+import { callContext } from '../call-context/index.ts';
 import { SocialDmService, socialDmOperations } from '../social-dm/index.ts';
 import { AttachmentService } from '../attachments/index.ts';
 import { representativeOperations } from '../representatives/index.ts';
@@ -74,6 +75,7 @@ export class MessageService {
     | 'contacts'
     | 'attachments'
     | 'backups'
+    | 'vault'
     | 'groups'
     | 'groupDaily'
     | 'groupMessages'
@@ -105,6 +107,7 @@ export class MessageService {
       | 'contacts'
       | 'attachments'
       | 'backups'
+      | 'vault'
       | 'groups'
       | 'groupDaily'
       | 'groupMessages'
@@ -141,6 +144,7 @@ export class MessageService {
     this.groupMedia = this.mediaService(objects);
     this.statuses = this.statusService(objects);
     this.actions = {
+      'call-context': callContext(db),
       live: (a, d) => {
         keys(d, []);
         return Promise.resolve(a.directory);

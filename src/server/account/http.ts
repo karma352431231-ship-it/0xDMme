@@ -670,6 +670,7 @@ export function createAccountHandler(options: {
         request.url.slice('/api/account/calls/'.length),
         session,
         input,
+        { invitation: request.headers['x-0xdmme-call-invite'] === '1' },
       ),
     );
     return true;

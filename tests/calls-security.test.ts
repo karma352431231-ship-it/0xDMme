@@ -140,3 +140,84 @@ await test('configuração da mídia só usa TURN e força relay, sem STUN/fallb
   ])
     assert.throws(() => iceConfiguration(raw));
 });
+
+await test('sequence-zero invitation is signed/encrypted and cannot substitute an SDP offer or another binding', async () => {
+  const sender = await createIdentity(crypto.randomUUID(), 'Invitation sender'),
+    recipient = await createIdentity(
+      crypto.randomUUID(),
+      'Invitation recipient',
+    );
+  const body: Omit<CallDescription, 'signature'> = {
+    id: crypto.randomUUID(),
+    from: crypto.randomUUID(),
+    fromDevice: sender.public.id,
+    to: crypto.randomUUID(),
+    toDevice: recipient.public.id,
+    fromDirectory: 'a'.repeat(64),
+    toDirectory: 'b'.repeat(64),
+    sequence: 0,
+    type: 'invite',
+    sdp: '',
+  };
+  const signed = {
+    ...body,
+    signature: await sign(sender.signing, descriptionBody(body)),
+  };
+  const envelope = await sealTo(
+    recipient.public.wrapping,
+    signed,
+    callContext(body.id, body.toDevice),
+  );
+  const d = callDescription(
+    await openFrom(
+      recipient.wrapping,
+      envelope,
+      callContext(body.id, body.toDevice),
+    ),
+  );
+  const view: CallView = {
+    id: body.id,
+    peer: body.from,
+    caller: false,
+    peerDevice: body.fromDevice,
+    peerDirectory: body.fromDirectory,
+    phase: 'ringing',
+    deadline: Date.now() + 60000,
+    authorizedFor: 20000,
+    sequence: 0,
+    signal: null,
+    invitation: envelope,
+  };
+  const binding = {
+    view,
+    account: body.to,
+    device: body.toDevice,
+    directory: body.toDirectory,
+    invitation: true,
+  };
+  await verifyCallDescription(d, binding, sender.public.signing);
+  await assert.rejects(
+    verifyCallDescription(
+      d,
+      { ...binding, invitation: false },
+      sender.public.signing,
+    ),
+  );
+  for (const patch of [
+    { id: crypto.randomUUID() },
+    { from: crypto.randomUUID() },
+    { fromDevice: crypto.randomUUID() },
+    { to: crypto.randomUUID() },
+    { toDevice: crypto.randomUUID() },
+    { fromDirectory: 'c'.repeat(64) },
+    { toDirectory: 'c'.repeat(64) },
+    { signature: 'tampered' },
+  ]) {
+    await assert.rejects(
+      verifyCallDescription({ ...d, ...patch }, binding, sender.public.signing),
+    );
+  }
+  assert.throws(() => callDescription({ ...signed, sequence: 1 }));
+  assert.throws(() => callDescription({ ...signed, sdp: 'v=0' }));
+  assert.throws(() => callDescription({ ...signed, type: 'offer' }));
+});

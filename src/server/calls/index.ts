@@ -69,6 +69,7 @@ export class CallService {
     op: string,
     session: AccountSession,
     input: unknown,
+    capabilities: { invitation?: boolean } = {},
   ): Promise<unknown> {
     const { proof } = await this.options.messages.authenticate(
       `call:${op}`,
@@ -99,7 +100,12 @@ export class CallService {
             503,
             'Chamadas aguardam a configuração do TURN próprio.',
           );
-        const endpoint = this.state.endpoint(a, request, op === 'sync');
+        const endpoint = this.state.endpoint(
+          a,
+          request,
+          op === 'sync',
+          capabilities.invitation === true,
+        );
         if (peer && !gate.allowed) this.state.endAccounts([session.accountId]);
         if (!this.options.wake) gate.wakeDevices = [];
         const result = this.action(op, { endpoint, d, gate });
@@ -111,7 +117,8 @@ export class CallService {
         'endpoint' in result
       ) {
         this.notify(op, session.accountId, peer);
-        if (op === 'offer') await this.wake(a, result.endpoint, uuid(d['id']));
+        if (['offer', 'invite'].includes(op))
+          await this.wake(a, result.endpoint, uuid(d['id']));
         return result.result;
       }
       return result;
@@ -124,7 +131,7 @@ export class CallService {
     }
   }
   private notify(op: string, account: string, peer: string | null): void {
-    if (!['offer', 'answer', 'accept', 'end'].includes(op)) return;
+    if (!['invite', 'offer', 'answer', 'accept', 'end'].includes(op)) return;
     try {
       this.options.changed?.(peer ? [account, peer] : [account]);
     } catch {
@@ -203,6 +210,7 @@ export class CallService {
       if (typeof d['listening'] !== 'boolean')
         throw new AccountError(400, 'Disponibilidade inválida.');
       return {
+        ...(endpoint.invitation ? { invitation: true } : {}),
         configured: true,
         enabled: gate.enabled,
         revision: gate.revision,
@@ -225,7 +233,11 @@ export class CallService {
         fingerprint(d['directory']),
         gate,
       );
-      return { call, devices: this.state.targets(endpoint, call.id) };
+      return {
+        call,
+        devices: this.state.targets(endpoint, call.id),
+        ...(endpoint.invitation ? { invitation: true } : {}),
+      };
     }
     this.state.revalidate(endpoint, gate);
     return this.participantAction(op, endpoint, d);
@@ -237,7 +249,10 @@ export class CallService {
   ): unknown {
     const common = ['channel', 'request', 'at', 'id'];
     const id = uuid(d['id']);
-    if (op === 'offer') {
+    if (op === 'invite') {
+      keys(d, [...common, 'packets']);
+      this.state.invite(endpoint, id, packets(d['packets']));
+    } else if (op === 'offer') {
       keys(d, [...common, 'sequence', 'packets']);
       this.state.offer(endpoint, {
         id,

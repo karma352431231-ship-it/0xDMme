@@ -58,12 +58,17 @@ function fixture(t: TestContext) {
     otherDevice = authority(callee.session.accountId);
   const sequences = new Map<ContactAuthority, number>(),
     channels = new Map<ContactAuthority, string>();
-  function endpoint(a: ContactAuthority, register = true) {
+  function endpoint(a: ContactAuthority, register = true, invitation = false) {
     const sequence = (sequences.get(a) ?? 0) + 1;
     sequences.set(a, sequence);
     const channel = channels.get(a) ?? crypto.randomUUID();
     channels.set(a, channel);
-    return state.endpoint(a, { channel, sequence, at: now }, register);
+    return state.endpoint(
+      a,
+      { channel, sequence, at: now },
+      register,
+      invitation,
+    );
   }
   function sync(
     a: ContactAuthority,
@@ -529,4 +534,103 @@ await test('TURN usa credenciais temporárias sem identidade; configuração par
     },
   ])
     assert.throws(() => readTurnConfiguration(env));
+});
+
+await test('negotiated encrypted invitation permits one early accept and preserves frozen first-offer targets', (t) => {
+  const f = fixture(t);
+  const caller = f.endpoint(f.caller, false, true);
+  f.endpoint(f.callee, false, true);
+  const call = f.state.start(
+    caller,
+    f.callee.session.accountId,
+    gate.peerDirectory!,
+    gate,
+  );
+  const packets = [f.callee, f.otherDevice].map((a) => ({
+    device: a.session.deviceId,
+    body,
+  }));
+  assert.throws(
+    () => f.state.invite(caller, call.id, packets.slice(0, 1)),
+    /indisponível/u,
+  );
+  f.state.invite(caller, call.id, packets);
+  assert.throws(
+    () => f.state.invite(caller, call.id, packets),
+    /indisponível/u,
+  );
+  const incoming = f.state.synchronize(
+    f.endpoint(f.callee, false, true),
+    { listening: true, media: 'idle', ack: 0 },
+    gate,
+  );
+  assert.ok(incoming?.invitation);
+  assert.equal(incoming.signal, null);
+  assert.equal(incoming.sequence, 0);
+  const legacy = f.sync(f.otherDevice);
+  assert.equal(
+    Object.hasOwn(legacy!, 'invitation'),
+    false,
+    'legacy strict parser never sees invitation framing',
+  );
+  assert.throws(
+    () => f.state.accept(f.endpoint(f.otherDevice, false), call.id),
+    /indisponível/u,
+  );
+  const winner = f.state.accept(f.endpoint(f.callee, false, true), call.id);
+  assert.equal(winner.phase, 'connecting');
+  assert.equal(winner.deadline, f.now() + leaseMs);
+  assert.equal(f.sync(f.otherDevice), null);
+  f.state.offer(f.endpoint(f.caller, false, true), {
+    id: call.id,
+    sequence: 1,
+    packets,
+  });
+  assert.ok(
+    f.state.synchronize(
+      f.endpoint(f.callee, false, true),
+      { listening: true, media: 'connecting', ack: 0 },
+      gate,
+    )?.signal,
+  );
+  f.state.answer(f.endpoint(f.callee, false, true), {
+    id: call.id,
+    sequence: 1,
+    body,
+  });
+  assert.ok(f.sync(f.caller, { media: 'connecting' })?.signal);
+  f.advance(1001);
+  assert.throws(
+    () =>
+      f.state.offer(f.endpoint(f.caller, false, true), {
+        id: call.id,
+        sequence: 2,
+        packets,
+      }),
+    /indisponível/u,
+  );
+  f.state.offer(f.endpoint(f.caller, false, true), {
+    id: call.id,
+    sequence: 2,
+    packets: packets.slice(0, 1),
+  });
+  f.state.end(f.endpoint(f.caller, false, true), call.id);
+  assert.equal(f.state.usage.calls, 0);
+  assert.equal(f.sync(f.callee), null);
+});
+await test('legacy callers cannot publish invitations; unaccepted invitations expire without retaining call memory', (t) => {
+  const f = fixture(t),
+    call = f.start();
+  const packets = [f.callee, f.otherDevice].map((a) => ({
+    device: a.session.deviceId,
+    body,
+  }));
+  assert.throws(
+    () => f.state.invite(f.endpoint(f.caller, false), call.id, packets),
+    /indisponível/u,
+  );
+  f.state.invite(f.endpoint(f.caller, false, true), call.id, packets);
+  f.advance(leaseMs + 1);
+  assert.equal(f.sync(f.callee), null);
+  assert.equal(f.state.usage.calls, 0);
 });

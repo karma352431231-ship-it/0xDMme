@@ -29,8 +29,12 @@ export async function messageApi(
   guard();
   return data;
 }
+export type SigningAuthority = Pick<
+  VaultAuthority,
+  'session' | 'directory' | 'sign'
+>;
 export async function prepareMessageRequest(
-  authority: VaultAuthority,
+  authority: SigningAuthority,
   operation: string,
   payload: Record<string, unknown>,
 ): Promise<RequestInit> {

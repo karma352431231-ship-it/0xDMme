@@ -59,6 +59,7 @@ export class VoiceCalls {
   private settledNotice = false;
   private generation = 0;
   private wakePending = false;
+  private primed = false;
   private lastLease = 0;
   private authorizationUntil = 0;
   private started = 0;
@@ -95,6 +96,7 @@ export class VoiceCalls {
     this.clear(t('Chamadas: entre e autorize este aparelho.'));
     this.transport.reset();
     this.security.clear();
+    this.primed = false;
     this.session = session;
     this.lastLease = 0;
     this.settledNotice = false;
@@ -197,6 +199,7 @@ export class VoiceCalls {
       this.sequence = 1;
       this.notice = t('Chamando…');
       this.render();
+      if (raw['invitation'] === true) await this.sendInvitation(g);
       const config = iceConfiguration(
         await this.transport.request('turn', { id: this.require().id }),
       );
@@ -225,7 +228,7 @@ export class VoiceCalls {
       );
       this.guard(g);
       rtc.create(config);
-      await this.sendAnswer(description, g);
+      if (description.type !== 'invite') await this.sendAnswer(description, g);
       this.guard(g);
       this.notice = t('Conectando…');
     });
@@ -242,6 +245,19 @@ export class VoiceCalls {
           : t('Pare a gravação de voz antes de usar o microfone.');
       return false;
     }
+  }
+  private async sendInvitation(g: number): Promise<void> {
+    const call = this.require();
+    const packets = await this.security.seal({
+      view: call,
+      devices: this.targets,
+      sequence: 0,
+      type: 'invite',
+      sdp: '',
+    });
+    this.guard(g);
+    await this.transport.request('invite', { id: call.id, packets });
+    this.guard(g);
   }
   private async sendOffer(restart: boolean, g: number): Promise<void> {
     const call = this.require(),
@@ -321,6 +337,7 @@ export class VoiceCalls {
       });
       this.guard(g);
       this.snapshot = callSnapshot(raw);
+      this.security.setContext(this.snapshot.invitation === true);
       // Count conservatively from request start, including signing/network time.
       // Both participants expire without adding another polling interval.
       this.authorizationUntil = this.snapshot.call
@@ -328,6 +345,7 @@ export class VoiceCalls {
         : 0;
       this.lastLease = Date.now();
       if (!this.busy) await this.applySnapshot(g);
+      this.primeIdentities(g);
     } catch (error: unknown) {
       this.pollError(error, g);
     } finally {
@@ -335,6 +353,20 @@ export class VoiceCalls {
       this.render();
       this.schedule();
     }
+  }
+  private primeIdentities(g: number): void {
+    if (this.primed || this.active || !this.snapshot.invitation) return;
+    this.primed = true;
+    // One session-bound preparation, shared with an overlapping user operation.
+    // It reads only existing pins; every call still checks fresh remote context.
+    void this.security.prime().catch((error: unknown) => {
+      if (g !== this.generation || this.active || this.busy) return;
+      this.notice =
+        error instanceof Error
+          ? translatedError(error.message)
+          : t('Chamadas indisponíveis agora.');
+      this.render();
+    });
   }
   private pollError(error: unknown, g: number): void {
     if (g !== this.generation) return;
@@ -363,8 +395,10 @@ export class VoiceCalls {
     }
     if (this.call && this.call.id !== next.id)
       throw new Error('Estado da chamada divergente.');
+    await this.applyInvitation(next, g);
     if (next.signal && next.sequence > this.ack) {
       const description = await this.description(next, g);
+      if (this.supersededSnapshot()) return;
       this.verified = description;
       if (!this.call) {
         this.call = next;
@@ -374,6 +408,21 @@ export class VoiceCalls {
     }
     if (this.call) this.call = next;
     this.connectingDeadline(next);
+  }
+  private async applyInvitation(next: CallView, g: number): Promise<void> {
+    if (!next.caller && !next.signal && next.invitation && !this.call) {
+      const description = await this.description(next, g);
+      // A hint received during verification may be a cancellation or a newer
+      // negotiation. Fetch the current signed snapshot before presenting it.
+      if (this.supersededSnapshot()) return;
+      this.verified = description;
+      this.call = next;
+      this.notice = t('Chamada de voz recebida.');
+    }
+  }
+  private supersededSnapshot(): boolean {
+    if (this.expiredAuthorization()) this.wakePending = true;
+    return this.wakePending;
   }
   private idleSnapshot(): void {
     if (this.call) {
@@ -411,7 +460,8 @@ export class VoiceCalls {
   ): Promise<CallDescription> {
     if (
       this.verified?.id === view.id &&
-      this.verified.sequence === view.sequence
+      this.verified.sequence === view.sequence &&
+      (this.verified.type === 'invite') === !view.signal
     )
       return this.verified;
     try {
@@ -449,8 +499,9 @@ export class VoiceCalls {
         this.timer = null;
         void this.poll();
       },
+      // Server hints are already coalesced; the pending flag bounds local work.
       this.wakePending && !this.busy
-        ? 100
+        ? 0
         : this.snapshot.configured
           ? pollMs
           : 30_000,
