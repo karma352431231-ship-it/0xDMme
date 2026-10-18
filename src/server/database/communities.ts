@@ -575,7 +575,7 @@ export class CommunityStore {
       actor: PublicProfile | null;
     }) => Promise<T>,
   ): Promise<T> {
-    return this.authority.withMessageAuthority(authority, async (client) =>
+    return this.authority.withMessageRead(authority, async (client) =>
       work({
         client,
         actor: await this.profiles.identityOrNull(

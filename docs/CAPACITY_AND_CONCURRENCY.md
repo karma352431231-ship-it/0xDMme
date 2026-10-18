@@ -1,5 +1,26 @@
 # Capacity and concurrency
 
+## Concurrent signed feed and follower reads — 18 October 2026
+
+A diverse-history profile found a one-second contact-admission lock timeout when
+four signed global-feed reads overlapped at 30000 synthetic roots. The shared
+community reader still selected the exclusive writer authority transaction.
+`CommunityStore.withReader` now reuses the existing shared-admission/account-read
+contract. Its two consumers are signed discovery feed and follower-page reads;
+both are read-only. Session/device validation still occurs after admission,
+revocation and social mutations still exclude readers, and SQL prevents writes
+inside the read contract. No writer, quota, schema, dependency or timeout changes.
+
+Regression coverage holds shared admission/account locks while both signed reads
+complete, refuses a write inside the reader, and ends a queued session before
+unlocking to verify that it is rejected. Existing pagination, visibility, follow,
+block, moderation and public-identity behavior remains under the integration suite.
+
+**Ponto importante:** the preceding finite database acceptance remains valid for
+its original profile. This new feed concurrency case failed and needs its own
+corrected history measurement and exact release verification. It is not a reason
+for a general writer-gate rewrite or a claim of unlimited history/concurrency.
+
 ## Owner decision — 16 October 2026
 
 The owner asked to start removing the artificial limits identified in the

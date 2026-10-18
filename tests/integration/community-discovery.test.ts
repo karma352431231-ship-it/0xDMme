@@ -222,6 +222,83 @@ await test('corte 6: feeds públicos, descoberta e referências privadas', async
   await create(external, other);
 
   await t.test(
+    'signed feed and followers coexist with authorized readers and cannot write',
+    async () => {
+      await inspector.query('BEGIN');
+      try {
+        await inspector.query(
+          "SELECT pg_advisory_xact_lock_shared(hashtext('hash-talk:contact-admission'))",
+        );
+        await inspector.query(
+          'SELECT id FROM hash_talk.accounts WHERE id=$1 FOR SHARE',
+          [reader.login.session.accountId],
+        );
+        const [page] = await Promise.all([
+          feed(reader),
+          reader.operate('followers-page', {
+            id: community,
+            tab: 'all',
+            after: null,
+          }),
+        ]);
+        assert.equal(page.items.length, 24);
+        await assert.rejects(
+          db.communities.withReader(
+            { session: reader.login.session, directory: reader.directory },
+            ({ client }) =>
+              client.query(
+                'UPDATE hash_talk.accounts SET display_name=display_name WHERE id=$1',
+                [reader.login.session.accountId],
+              ),
+          ),
+          (error: unknown) =>
+            error instanceof Error && 'code' in error && error.code === '25006',
+        );
+      } finally {
+        await inspector.query('ROLLBACK');
+      }
+    },
+  );
+  await t.test(
+    'feed waiting for admission rechecks a session ended before it acquires authority',
+    async () => {
+      const temporary = await make();
+      await inspector.query('BEGIN');
+      let waiting: ReturnType<typeof feed> | null = null;
+      try {
+        await inspector.query(
+          "SELECT pg_advisory_xact_lock(hashtext('hash-talk:contact-admission'))",
+        );
+        waiting = feed(temporary);
+        const rejected = assert.rejects(waiting, bad(401));
+        const until = Date.now() + 500;
+        while (
+          !(
+            await inspector.query(
+              "SELECT 1 FROM pg_locks WHERE locktype='advisory' AND NOT granted",
+            )
+          ).rowCount
+        ) {
+          assert.ok(
+            Date.now() < until,
+            'reader must wait on the held admission gate',
+          );
+          await new Promise<void>((resolve) => setTimeout(resolve, 5));
+        }
+        await inspector.query(
+          'DELETE FROM hash_talk.login_sessions WHERE account_id=$1',
+          [temporary.login.session.accountId],
+        );
+        await inspector.query('COMMIT');
+        await rejected;
+      } finally {
+        await inspector.query('ROLLBACK');
+        await waiting?.catch(() => {});
+      }
+    },
+  );
+
+  await t.test(
     'paginação por desempate e filtro vinculado, sem replies no feed geral',
     async () => {
       const anonymousAccount = await make();

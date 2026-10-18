@@ -86,6 +86,16 @@ still briefly stops/restarts our web and three workers; only the subsequent
 layout action preserves web/PostgreSQL/media/push/TURN process identities. Keep
 combined-volume recovery margins and the remaining capacity acceptance open.
 
+## Signed community reader coordination — 18 October 2026
+
+The continued capacity audit demonstrated exclusive admission timeouts for four
+concurrent global feed reads at 30000 synthetic roots. Apply the already approved
+shared read-authority contract to the complete signed feed/follower reader, with
+fresh session/device checks after waits and SQL read-only enforcement. Preserve
+exclusive social/device/contact mutations, optional public identity, visibility,
+pagination and all charging. No schema, runtime, dependency or timeout change.
+Details and regression boundaries: [capacity and concurrency](docs/CAPACITY_AND_CONCURRENCY.md#concurrent-signed-feed-and-follower-reads--18-october-2026).
+
 ## Group and social snapshot read coordination — 17 October 2026
 
 The P-DB-C follow-up restricts this correction to current-group reads and social
