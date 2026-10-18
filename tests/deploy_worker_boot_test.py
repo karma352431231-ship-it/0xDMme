@@ -225,6 +225,8 @@ class WorkerBootTransportTests(unittest.TestCase):
     def test_actual_executor_modules_load_and_transport_stays_within_existing_budgets(self):
         files = {str(path.relative_to(deploy.ROOT)): base.digest(path) for path in (deploy.ROOT / 'infra/staging').glob('deploy_*.py')}
         code = deploy.executor_code({'files': files})
+        self.assertNotIn('%', code)
+        self.assertNotIn('$', code)
         safe = code.rsplit('print(json.dumps', 1)[0] + 'assert callable(sys.modules["deploy_worker_boot"].published)'
         subprocess.run([sys.executable, '-c', safe], capture_output=True, check=True, timeout=10)
         with tempfile.TemporaryDirectory() as directory:
