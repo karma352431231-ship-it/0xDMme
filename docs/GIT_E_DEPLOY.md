@@ -1,5 +1,15 @@
 # 0xDMme — Git e envio à VPS
 
+## Worker executor transport correction — 17 October 2026
+
+The first approved worker release preflight refused before activation because
+systemd interpreted reserved characters in the base85 executor argument. Encode
+percent and dollar as two unused alphabet bytes, restoring them only inside
+Python after argument handling. Preserve the 256 KiB source and 64 KiB command
+gates. Regression checks require no systemd substitution bytes in the actual
+executor payload and successful full module loading. Repeat exact main CI and
+preflight before publication; this failure changed no active service or schema.
+
 ## Approved worker boot operation — 17 October 2026
 
 The owner explicitly approved main integration, exact-commit CI and the prepared

@@ -203,9 +203,11 @@ def executor_code(config):
     raw = json.dumps(modules).encode()
     if len(raw) > 256 * 1024:
         raise RuntimeError('Deployment executor source budget exceeded.')
-    packed = base64.b85encode(zlib.compress(raw, level=9)).decode()
+    # systemd expands percent specifiers and dollar environment references in argv.
+    # Neither reserved byte may occur in the transported Python source.
+    packed = base64.b85encode(zlib.compress(raw, level=9)).decode().translate(str.maketrans('%$', '.,'))
     return ('import sys,types,json,base64,zlib\n'
-            'modules=json.loads(zlib.decompress(base64.b85decode(' + repr(packed) + ')))\n'
+            'modules=json.loads(zlib.decompress(base64.b85decode(' + repr(packed) + '.translate(str.maketrans(".,",chr(37)+chr(36))))))\n'
             'for name,source in modules:\n'
             ' m=types.ModuleType(name);sys.modules[name]=m;exec(source,m.__dict__)\n'
             'print(json.dumps(sys.modules["deploy_remote"].execute()))')
