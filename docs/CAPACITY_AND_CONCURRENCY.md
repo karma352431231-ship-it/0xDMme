@@ -1,5 +1,18 @@
 # Capacity and concurrency
 
+## Shared live transport between tabs — owner approval, 18 October 2026
+
+The owner chose client coordination for one authenticated SSE stream among
+same-account/device/session tabs. This prevents those tabs from consuming one
+HTTP/1.1 connection each while preserving fresh signed reads and empty hints.
+See the [implementation contract](BLOCO_10A_AUDIO_E_TEMPO_REAL.md#shared-live-transport-between-tabs--owner-approval-18-october-2026).
+Other sessions remain isolated. No server channel allotment, dependency, Nginx
+or shared-project change belongs to this correction.
+
+**Ponto importante:** native HTTP/1.1 regression, actual-origin verification and
+mixed/physical acceptance are distinct. A finite multi-tab result is not a user
+capacity ceiling. Calls remain open and last.
+
 ## Concurrent signed feed and follower reads — 18 October 2026
 
 A diverse-history profile found a one-second contact-admission lock timeout when

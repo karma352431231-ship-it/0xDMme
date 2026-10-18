@@ -1,0 +1,223 @@
+import { t, translatedError } from '../../shared/i18n/index.ts';
+import { AccountError } from '../../shared/account/index.ts';
+import {
+  ApiResponseError,
+  fetchApi,
+  readApiJson,
+} from '../api-response/index.ts';
+import { prepareMessageRequest } from '../message-api/index.ts';
+import type { VaultAccess } from '../vault-authority/index.ts';
+import { WakeupFrames, terminalLiveEvent } from './protocol.ts';
+import type { LiveEvent, LivePhase, LiveSnapshot } from './protocol.ts';
+import { sameLiveSession } from './session.ts';
+import type { LiveSession } from './session.ts';
+export class LiveConnection {
+  private readonly access: VaultAccess;
+  private readonly event: (event: LiveEvent) => void;
+  private readonly changed: () => void;
+  private readonly pulse: () => void;
+  private readonly session: LiveSession | undefined;
+  phase: LivePhase = 'paused';
+  get snapshot(): LiveSnapshot {
+    return { phase: this.phase, activity: this.lastActivity };
+  }
+  private wanted = false;
+  private generation = 0;
+  private attempts = 0;
+  private readyAt = 0;
+  private lastActivity: number | null = null;
+  private connection: AbortController | null = null;
+  private retryTimer: ReturnType<typeof setTimeout> | null = null;
+  connected = false;
+  /** Timers can be delayed by a suspended browser. Check wall-clock freshness
+   * before retaining the view or accepting another frame from this stream. */
+  get current(): boolean {
+    if (!this.connected || this.lastActivity === null) return false;
+    const age = Date.now() - this.lastActivity;
+    return age >= 0 && age < 15000;
+  }
+  /** A foreground refresh waits for this handshake so ready cannot invalidate
+   * a read started by the same resume. Failure releases the polling fallback. */
+  get connecting(): boolean {
+    return this.wanted && this.connection !== null && !this.connected;
+  }
+  notice = t('Atualização imediata disponível após autorizar o aparelho.');
+  constructor(options: {
+    access: VaultAccess;
+    event: (event: LiveEvent) => void;
+    changed: () => void;
+    pulse?: () => void;
+    session?: LiveSession;
+  }) {
+    this.access = options.access;
+    this.event = options.event;
+    this.changed = options.changed;
+    this.pulse = options.pulse ?? (() => {});
+    this.session = options.session;
+  }
+  start(): void {
+    if (this.wanted) return;
+    this.wanted = true;
+    this.attempts = 0;
+    this.connect();
+  }
+  retry(): void {
+    this.stop();
+    this.start();
+  }
+  stop(): void {
+    this.generation++;
+    this.wanted = false;
+    this.connected = false;
+    this.lastActivity = null;
+    this.connection?.abort();
+    this.connection = null;
+    if (this.retryTimer) clearTimeout(this.retryTimer);
+    this.retryTimer = null;
+    this.phase = 'paused';
+    this.notice = t(
+      'Recebimento em tempo real pausado. Ao retornar, o app confere o estado atual.',
+    );
+    this.changed();
+  }
+  private connect(): void {
+    if (!this.wanted || this.connection) return;
+    const generation = this.generation,
+      controller = new AbortController();
+    this.readyAt = 0;
+    this.lastActivity = null;
+    this.connection = controller;
+    this.attempts++;
+    this.phase = 'connecting';
+    this.notice = t('Conectando recebimento em tempo real…');
+    this.changed();
+    void this.consume(controller, generation)
+      .catch((error: unknown) => {
+        if (generation !== this.generation) return;
+        if (
+          error instanceof AccountError &&
+          [401, 403].includes(error.status)
+        ) {
+          // A 403 can mean a directory changed after signing, not a revoked device.
+          // Reconcile authority without cutting an already opened voice message.
+          this.receiveEvent(error.status === 401 ? 'ended' : 'invalidated');
+          return;
+        }
+        this.phase = 'unavailable';
+        this.notice =
+          (error instanceof ApiResponseError
+            ? translatedError(error.message) + ' '
+            : '') +
+          t(
+            'Recebimento em tempo real indisponível. O app continua conferindo a cada 30 segundos; você também pode sincronizar.',
+          );
+      })
+      .finally(() => {
+        if (generation !== this.generation) return;
+        if (this.readyAt && Date.now() - this.readyAt >= 30000)
+          this.attempts = 0;
+        this.connection = null;
+        this.connected = false;
+        this.changed();
+        if (this.wanted && this.attempts < 3)
+          this.retryTimer = setTimeout(() => {
+            this.retryTimer = null;
+            this.connect();
+          }, this.attempts * 3000);
+      });
+  }
+  private async consume(
+    controller: AbortController,
+    generation: number,
+  ): Promise<void> {
+    // Only prepare the signed request inside the vault lock. Never hold it for the stream's lifetime.
+    const request = await this.access.withVault(false, (a) => {
+      if (controller.signal.aborted || generation !== this.generation)
+        throw new DOMException('Aborted', 'AbortError');
+      if (this.session && !sameLiveSession(this.session, a.session))
+        throw new AccountError(401, 'Session changed.');
+      return prepareMessageRequest(a, 'live', {});
+    });
+    if (generation !== this.generation) return;
+    let watchdog = setTimeout(() => controller.abort(), 15000);
+    const reset = () => {
+      clearTimeout(watchdog);
+      watchdog = setTimeout(() => controller.abort(), 15000);
+    };
+    try {
+      const headers = new Headers(request.headers);
+      headers.set('X-0xdmme-Call-Wake', '1');
+      const response = await fetchApi(
+        'messages/live',
+        '/api/account/messages/live',
+        {
+          ...request,
+          headers,
+          signal: controller.signal,
+        },
+      );
+      if (!response.ok) await readApiJson(response, 'messages/live');
+      if (
+        !response.ok ||
+        !response.headers.get('content-type')?.startsWith('text/event-stream')
+      )
+        throw new Error('Recebimento em tempo real indisponível.');
+      if (!response.body)
+        throw new Error('Recebimento em tempo real sem resposta.');
+      await this.read(response.body, { generation, reset });
+      if (this.wanted) throw new Error('Recebimento em tempo real encerrado.');
+    } finally {
+      clearTimeout(watchdog);
+      controller.abort();
+    }
+  }
+  private receiveEvent(event: LiveEvent): void {
+    if (event === 'ready') {
+      this.lastActivity = Date.now();
+      this.connected = true;
+      this.readyAt = Date.now();
+      this.phase = 'connected';
+      this.notice = t('Recebimento em tempo real conectado.');
+      this.changed();
+    }
+    if (terminalLiveEvent(event)) {
+      this.phase = 'authorization';
+      this.wanted = false;
+      this.connected = false;
+      this.notice = t(
+        'A autorização mudou. O app confere o estado atual do aparelho.',
+      );
+      this.changed();
+    }
+    this.event(event);
+  }
+  private receiveFrames(events: LiveEvent[], generation: number): void {
+    for (const event of events) {
+      if (!this.wanted || generation !== this.generation) return;
+      this.receiveEvent(event);
+    }
+  }
+  private async read(
+    body: ReadableStream<Uint8Array>,
+    context: { generation: number; reset: () => void },
+  ): Promise<void> {
+    const reader = body.getReader(),
+      parser = new WakeupFrames();
+    try {
+      while (this.wanted && context.generation === this.generation) {
+        const { value, done } = await reader.read();
+        if (done || context.generation !== this.generation) return;
+        if (this.connected && !this.current)
+          throw new Error('Recebimento interrompido durante suspensão.');
+        const events = parser.accept(value);
+        this.lastActivity = Date.now();
+        context.reset();
+        this.receiveFrames(events, context.generation);
+        this.pulse();
+      }
+    } finally {
+      await reader.cancel().catch(() => {});
+      reader.releaseLock();
+    }
+  }
+}

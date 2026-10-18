@@ -1,6 +1,64 @@
 # Bloco 10A — Voz gravada e recebimento por evento
 
+## Shared live transport between tabs — owner approval, 18 October 2026
+
+The owner chose client-side coordination among tabs of the same authenticated
+account, device and browser session. Use one own-origin authenticated SSE
+transport for that scope, with Web Locks for ownership and BroadcastChannel for
+empty hints and connection state. Keep each tab's current signed authorization,
+snapshot and delivery checks. A hint never grants authority, delivers content or
+marks a message read. Do not broadcast session credentials, E2EE keys or content.
+
+Preserve the other project and the existing Nginx configuration/runtime. Shared
+listener HTTP/2 and a proxy upgrade were not selected. Do not introduce an SSE
+channel quota, external relay, dependency, manual step or retention change.
+
+Leader departure and explicit browser freeze release ownership. A missed source
+heartbeat invalidates freshness and enables the existing polling fallback;
+unreported OS suspension cannot promise an immediate ownership transfer. A new
+leader or reconnect requires a fresh signed state check in every participating
+tab. Hidden visibility alone preserves a healthy connection. Stop/logout closes
+owned channels, timers, queued locks and transport. Session changes cannot reuse
+an old scope. Validate native HTTP/1.1 traffic, isolation, stale/malformed hints,
+reconnect, terminal authorization and cleanup before accepting this correction.
+Calls remain deferred and last; only existing empty call hints are in scope.
+
+**Ponto importante:** this approves the focused client correction and its
+validation, not a capacity ceiling or final mixed/device acceptance. Source
+implementation, exact CI, publication and actual-origin acceptance remain
+separate evidence.
+
 Implementação local do 0xDMme, com envio HTTPS e recepção de avisos SSE na própria origem. Esta etapa não altera a VPS, dependências, migrações, limites do cofre ou identidade criptográfica. Aceite físico em desktop, Android e iOS permanece necessário.
+
+### Implementation and local verification
+
+`message-live/connection.ts` owns the existing signed stream/retry/watchdog.
+`session.ts` derives a domain-separated digest for the account/device/CSRF scope;
+raw credentials never enter lock/channel names or messages. `shared.ts` owns the
+Web Lock, challenge/targeted welcome, ordered hints and cleanup; `signals.ts`
+validates the closed message envelope and `protocol.ts` owns empty SSE frames.
+The public `LiveMessages` interface remains unchanged. Existing translations are
+reused in both official languages.
+
+A fresh targeted welcome or actual `ready` is required before a follower can
+restore freshness; connection status alone is insufficient. Terminal hints from
+the current/just-previous owner fail closed even when they race ownership handoff.
+No frame after a terminal frame in the same chunk is applied. Hidden visibility
+alone keeps a healthy transport; the existing explicit freeze/page-departure
+lifecycle stops it. An unreported OS freeze retains the stated polling limitation.
+
+The native HTTP/1.1 regression reproduced the old request blockage with eight tabs,
+then confirmed one stream, ordinary requests, empty change/call hints, healthy
+heartbeat past fifteen seconds, ownership transfer and no remaining live locks
+after terminal shutdown. It uses synthetic signing and loopback, not VPS or full
+UI/device acceptance. Ten new contract regressions cover these responsibilities;
+the final thirty affected tests pass. The full application suite passed 1023
+cases before the final added handshake guard; affected lint/types/localization and
+build pass afterward. Global boundaries, licenses and formatting pass; all 318
+executor and 51 evaluation checks pass under the existing Python 3.14 runtime.
+An initial auxiliary run used the older system Python and failed extraction API
+support; no dependency or runtime was changed. Exact integrated CI, publication
+and the direct-origin authenticated profile remain pending at this local record.
 
 ## Decisões do proprietário
 
