@@ -166,3 +166,36 @@ moves existing-pin hydration out of the first click after a page reload; each
 call still performs fresh vault/removal/peer checks. Failure is reported in the
 call notice and the normal call path can retry verification. A never-seen peer
 still requires verified pin persistence before the initial invitation is sent.
+
+## Explicit local audio inspection — 18 October 2026
+
+Repeated remote speech needs capture, output and transport evidence from the
+affected call. Proximity alone cannot establish the cause. The optional Audio
+check panel reads actual microphone processing settings,
+current output/track counts and two sanitized RTP counter snapshots 500 ms apart.
+This is diagnosis, not an acoustic fix or a claim that requested echo cancellation
+is effective on every device. The existing capture, playback, codec, signaling,
+authorization and TURN paths are unchanged.
+
+Inspection begins only on a user click during a connected call. At most one
+inspection is active per panel; native getStats work is shared per connection,
+with a 1200 ms wait bound per read. The output inventory retains at most four
+own connections and explicitly reports incomplete counts on overflow. Stats scans
+stop at 512 entries and include at most four streams per direction. Missing
+browser metrics remain null, not zero. Reports are limited to 16 KiB and cleared
+on disconnection/end. No polling history, persistent storage or automatic upload
+is added. Copying requires another explicit user action.
+
+The whitelist includes packet/loss, concealment and jitter-buffer counters,
+processing booleans, sample/channel counts and output state. It excludes waveform,
+recorded audio, audio energy/levels, SDP, candidates/addresses/ports, account/device/
+call/track/stat identifiers, labels, credentials, errors, certificates and raw
+browser stats. Both official languages include disclosure, actions, accessibility,
+progress and failure states. The corresponding-source package includes these
+modules through the existing calls catalog entry.
+
+**Ponto importante:** inspection does not change audio processing or establish
+acoustic acceptance. It gathers bounded technical evidence only after a user
+request. Physical-device reports, timings and operational evidence remain in
+.local/, outside Git. An explicitly copied report follows the system clipboard's
+normal lifetime; clearing the in-tab report does not erase a user's prior copy.

@@ -24,3 +24,16 @@
 .call-dock[hidden] {
   display: none;
 }
+
+.call-audio-check {
+  margin-top: 0.75rem;
+}
+.call-audio-check textarea {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+}
+.call-audio-check button {
+  min-height: 44px;
+  margin: 0.25rem;
+}

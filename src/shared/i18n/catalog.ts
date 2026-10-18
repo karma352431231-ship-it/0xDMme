@@ -1,5 +1,30 @@
 /** Authored app text. Tuple order: English, Simplified Chinese. */
 export const catalog: Record<string, readonly [string, string]> = {
+  'calls.audio-check': ['Audio check', '音频检查'],
+  'calls.audio-check-privacy': [
+    'Checks technical counters and microphone settings in this tab. Includes no audio, messages, addresses or credentials. Nothing is sent automatically.',
+    '仅在此标签页检查技术计数和麦克风设置。不包含音频、消息、地址或凭证。不会自动发送任何内容。',
+  ],
+  'calls.audio-check-run': ['Check call audio', '检查通话音频'],
+  'calls.audio-check-copy': ['Copy report', '复制报告'],
+  'calls.audio-check-report': [
+    'Call audio technical report',
+    '通话音频技术报告',
+  ],
+  'calls.audio-check-running': ['Checking audio…', '正在检查音频…'],
+  'calls.audio-check-ready': [
+    'Report ready. Copy it only if you want to share it for support.',
+    '报告已生成。仅在你希望向支持人员分享时复制。',
+  ],
+  'calls.audio-check-failed': [
+    'Could not check audio. Keep the call connected and try again.',
+    '无法检查音频。请保持通话连接后重试。',
+  ],
+  'calls.audio-check-copied': ['Report copied.', '报告已复制。'],
+  'calls.audio-check-copy-failed': [
+    'Could not copy. Select and copy the report manually.',
+    '无法复制。请手动选择并复制报告。',
+  ],
   'chat.outgoing-message': ['Your message', '你的消息'],
   'chat.composed-at {0}': ['Written at {0}', '撰写于 {0}'],
   'chat.send-failed': [
