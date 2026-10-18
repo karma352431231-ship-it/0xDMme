@@ -97,7 +97,10 @@ export function startCalls(options: {
       }
     },
   });
-  const audioCheck = createCallAudioCheck(() => calls.inspectAudio());
+  const audioCheck = createCallAudioCheck({
+    read: () => calls.inspectAudio(),
+    stopCapture: () => calls.stopCaptureForInspection(),
+  });
   dock.append(audioCheck.element);
   function button(label: string, work: () => Promise<void>): HTMLButtonElement {
     const element = document.createElement('button');
@@ -123,7 +126,7 @@ export function startCalls(options: {
     duration.textContent = state.connected
       ? `${Math.floor(state.seconds / 60)}:${String(state.seconds % 60).padStart(2, '0')}`
       : '';
-    audioCheck.update(state.connected);
+    audioCheck.update(state.connected, state.captureStopped);
     renderControls(state, active);
     renderSettings(state);
   }
@@ -142,6 +145,7 @@ export function startCalls(options: {
       : t('Silenciar microfone');
     mute.setAttribute('aria-pressed', String(state.muted));
     for (const b of [accept, reject, mute, play]) b.disabled = state.busy;
+    mute.disabled ||= state.captureStopped === true;
   }
   function renderSettings(state: CallUiState): void {
     const toggle =

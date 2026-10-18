@@ -199,3 +199,25 @@ acoustic acceptance. It gathers bounded technical evidence only after a user
 request. Physical-device reports, timings and operational evidence remain in
 .local/, outside Git. An explicitly copied report follows the system clipboard's
 normal lifetime; clearing the in-tab report does not erase a user's prior copy.
+
+### Listening with capture fully stopped
+
+A separate explicit action inside Audio check can close the local microphone
+for the remainder of the current connected call. This isolates playback with a
+live capture session from playback after capture has actually ended; ordinary
+mute only disables transmission. The action stops local audio tracks and removes
+them from RTP senders without renegotiation, with a 1500 ms completion deadline.
+A timeout leaves capture closed and reports failure; it never retries or reopens
+the microphone silently. Reception, authenticated signaling,
+relay policy and the other endpoint remain unchanged. It never opens another
+microphone or restarts capture automatically. The normal mute button is disabled
+for this diagnostic state; the call notice explains that the microphone remains
+closed until the call ends and speaking again requires a new call. A new call
+uses the normal capture path. Failed detachment never silently reopens capture.
+
+The local report still exposes the stopped track state and zero audio senders,
+so a failed symptom comparison cannot be mistaken for an ordinary mute test.
+This action changes no default audio constraints or ordinary mute behavior.
+
+**Ponto importante:** this is an optional one-way diagnostic for one call, not
+an accepted substitute for normal two-way calling or a confirmed audio fix.
