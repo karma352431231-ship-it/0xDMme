@@ -220,11 +220,14 @@ export class LiveMessages {
       watchdog = setTimeout(() => controller.abort(), 15000);
     };
     try {
+      const headers = new Headers(request.headers);
+      headers.set('X-0xdmme-Call-Wake', '1');
       const response = await fetchApi(
         'messages/live',
         '/api/account/messages/live',
         {
           ...request,
+          headers,
           signal: controller.signal,
         },
       );

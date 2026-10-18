@@ -348,8 +348,9 @@ await test('retomada e ready tardio pedem uma única carga depois do handshake, 
     available: () => !live.connecting,
     run: (update) => applied.push(update),
   });
-  globalThis.fetch = () =>
-    Promise.resolve(
+  globalThis.fetch = (_input, options) => {
+    assert.equal(new Headers(options?.headers).get('X-0xdmme-Call-Wake'), '1');
+    return Promise.resolve(
       new Response(
         new ReadableStream({
           start(controller) {
@@ -365,6 +366,7 @@ await test('retomada e ready tardio pedem uma única carga depois do handshake, 
         { headers: { 'content-type': 'text/event-stream' } },
       ),
     );
+  };
   const live = new LiveMessages({
     access: access((_offline, work) => work(authority)),
     changed: () => updates.resume(),
@@ -646,14 +648,15 @@ await test('call wakeups are empty, account-scoped and coalesced with the existi
   const owner = session(),
     unrelated = session();
   let checked = 0;
-  const targets = [owner, owner, unrelated].map((s) => ({
+  const targets = [owner, owner, unrelated, owner].map((s) => ({
     session: s,
     ...response(),
   }));
-  for (const target of targets)
+  for (const [index, target] of targets.entries())
     live.open({
       session: target.session,
       response: target.output,
+      callWakeups: index < 3,
       validate: () => {
         checked++;
         return Promise.resolve(true);
@@ -675,11 +678,18 @@ await test('call wakeups are empty, account-scoped and coalesced with the existi
     assert.ok(!target.text().includes(owner.accountId));
   }
   assert.doesNotMatch(targets[2]!.text(), /event: call/u);
+  assert.deepEqual(
+    new WakeupFrames().accept(new TextEncoder().encode(targets[3]!.text())),
+    ['ready'],
+    'legacy streams must never receive a frame their parser rejects',
+  );
   live.wakeCalls([owner.accountId]);
   changes.committed([owner.accountId]);
   t.mock.timers.tick(100);
   await turn();
-  assert.equal(checked, 4);
+  assert.equal(checked, 5);
+  assert.match(targets[3]!.text(), /event: changed/u);
+  assert.doesNotMatch(targets[3]!.text(), /event: call/u);
   assert.match(targets[0]!.text(), /event: changed/u);
   assert.equal((targets[0]!.text().match(/event: call/gu) ?? []).length, 2);
 });
@@ -695,11 +705,13 @@ await test('pending call wakeups cannot survive revocation or a failed authoriza
     b = response();
   live.open({
     session: revoked,
+    callWakeups: true,
     response: a.output,
     validate: () => Promise.resolve(true),
   });
   live.open({
     session: denied,
+    callWakeups: true,
     response: b.output,
     validate: () => Promise.resolve(false),
   });

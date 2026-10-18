@@ -261,6 +261,7 @@ await test('chamadas: HTTP assinado, consentimento, preferência global, silênc
         Origin: origin,
         'Content-Type': 'application/json',
         'X-Hash-Talk-CSRF': user.session.csrf,
+        'X-0xdmme-Call-Wake': '1',
         Cookie: 'hash-talk-session=' + user.sessionToken,
       },
       body: JSON.stringify(await proof(user, 'live', {})),

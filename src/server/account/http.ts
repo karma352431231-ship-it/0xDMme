@@ -467,7 +467,10 @@ export function createAccountHandler(options: {
   ): Promise<boolean> {
     if (request.url?.startsWith('/api/account/messages/') && options.messages) {
       if (request.url === '/api/account/messages/live' && options.live) {
-        await livePost(response, sessionToken, input);
+        await livePost(response, sessionToken, {
+          proof: input,
+          callWakeups: request.headers['x-0xdmme-call-wake'] === '1',
+        });
         return true;
       }
       send(
@@ -486,10 +489,10 @@ export function createAccountHandler(options: {
   async function livePost(
     response: ServerResponse,
     token: string,
-    input: unknown,
+    input: { proof: unknown; callWakeups: boolean },
   ): Promise<void> {
     const session = await options.service.session(token);
-    const head = await options.messages?.operate('live', session, input);
+    const head = await options.messages?.operate('live', session, input.proof);
     if (typeof head !== 'string')
       throw new AccountError(503, 'Canal indisponível.');
     const validate = async () => {
@@ -507,7 +510,12 @@ export function createAccountHandler(options: {
     if (!(await validate()))
       throw new AccountError(403, 'Canal sem autorização atual.');
     if (!response.destroyed)
-      options.live?.open({ session, response, validate });
+      options.live?.open({
+        session,
+        response,
+        validate,
+        callWakeups: input.callWakeups,
+      });
   }
   async function devicePost(
     request: IncomingMessage,
