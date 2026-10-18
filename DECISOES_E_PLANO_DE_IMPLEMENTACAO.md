@@ -1,5 +1,21 @@
 # Capacity audit follow-up — 16 October 2026
 
+## Shared live transport between tabs — owner approval, 18 October 2026
+
+The owner explicitly chose one authenticated own-origin SSE transport shared by
+tabs of the same account/device/browser session, preserving empty hints and each
+tab's fresh signed authorization/snapshots. Use existing Web Locks and
+BroadcastChannel, without credentials/content on the channel, new dependencies,
+server channel quotas or manual steps. Nginx/shared HTTP/2 and runtime changes
+were not selected. Other-project preservation remains mandatory.
+
+The [implementation contract](docs/BLOCO_10A_AUDIO_E_TEMPO_REAL.md#shared-live-transport-between-tabs--owner-approval-18-october-2026)
+defines ownership, freshness, handoff, isolation, cleanup and HTTP/1.1 validation.
+Calls remain deferred and last.
+
+**Ponto importante:** approval of this client correction does not establish
+publication, mixed-load acceptance or a maximum-user count.
+
 ## Foreground call latency correction — 18 October 2026
 
 During the capacity audit, the owner reported about eight seconds before an
