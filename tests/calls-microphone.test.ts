@@ -96,3 +96,134 @@ await test('bloqueio de autoplay depois do encerramento não altera a chamada se
   await playing;
   assert.equal(blocked, false);
 });
+
+function captureFixture(t: import('node:test').TestContext, fail = false) {
+  const saved: (() => void)[] = [];
+  function replace(target: object, key: string, value: unknown) {
+    const previous = Object.getOwnPropertyDescriptor(target, key);
+    Object.defineProperty(target, key, { value, configurable: true });
+    saved.push(() => {
+      if (previous) Object.defineProperty(target, key, previous);
+      else Reflect.deleteProperty(target, key);
+    });
+  }
+  t.after(() => saved.reverse().forEach((restore) => restore()));
+  let stopped = 0,
+    closed = false,
+    paused = 0,
+    acquisitions = 0,
+    detachments = 0;
+  const track = {
+    kind: 'audio',
+    enabled: true,
+    addEventListener() {},
+    stop() {
+      stopped++;
+    },
+  };
+  const sender = {
+    track: track as typeof track | null,
+    replaceTrack(next: typeof track | null) {
+      detachments++;
+      if (fail) return Promise.reject(new Error('synthetic detach failure'));
+      this.track = next;
+      return Promise.resolve();
+    },
+  };
+  class Peer extends EventTarget {
+    addTrack() {}
+    getSenders() {
+      return [sender];
+    }
+    close() {
+      closed = true;
+    }
+  }
+  replace(globalThis, 'RTCPeerConnection', Peer);
+  replace(globalThis, 'document', {
+    createElement: () => ({
+      setAttribute() {},
+      play: () => Promise.resolve(),
+      pause() {
+        paused++;
+      },
+      remove() {},
+    }),
+  });
+  replace(navigator, 'mediaDevices', {
+    getUserMedia: () => {
+      acquisitions++;
+      return Promise.resolve({
+        getTracks: () => [track],
+        getAudioTracks: () => [track],
+      });
+    },
+  });
+  const rtc = new VoiceConnection({
+    changed() {},
+    failed: () =>
+      assert.fail('local stop must not become an external capture failure'),
+    autoplay() {},
+  });
+  t.after(() => rtc.close());
+  return {
+    rtc,
+    track,
+    sender,
+    state: () => ({ stopped, closed, paused, acquisitions, detachments }),
+  };
+}
+await test('explicit capture stop releases microphone and sender while keeping reception; mute cannot reopen it', async (t) => {
+  const f = captureFixture(t);
+  await f.rtc.acquire();
+  f.rtc.create({});
+  f.rtc.mute();
+  assert.equal(f.track.enabled, false);
+  await f.rtc.stopCaptureForInspection();
+  assert.equal(f.rtc.captureStopped, true);
+  assert.equal(f.rtc.muted, true);
+  assert.equal(f.sender.track, null);
+  assert.deepEqual(f.state(), {
+    stopped: 1,
+    closed: false,
+    paused: 0,
+    acquisitions: 1,
+    detachments: 1,
+  });
+  f.rtc.mute();
+  await f.rtc.stopCaptureForInspection();
+  assert.equal(f.rtc.muted, true);
+  assert.equal(f.state().acquisitions, 1);
+  assert.equal(f.state().detachments, 1);
+});
+await test('failed sender detachment preserves stopped capture instead of silently reopening the microphone', async (t) => {
+  const f = captureFixture(t, true);
+  await f.rtc.acquire();
+  f.rtc.create({});
+  await assert.rejects(
+    f.rtc.stopCaptureForInspection(),
+    /synthetic detach failure/u,
+  );
+  assert.equal(f.rtc.captureStopped, true);
+  assert.equal(f.rtc.muted, true);
+  assert.equal(f.state().stopped, 1);
+  assert.equal(f.state().acquisitions, 1);
+  assert.equal(f.state().closed, false);
+});
+
+await test('unresponsive native sender release times out with capture still closed', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const f = captureFixture(t);
+  await f.rtc.acquire();
+  f.rtc.create({});
+  t.mock.method(f.sender, 'replaceTrack', () => new Promise<void>(() => {}));
+  const rejected = assert.rejects(
+    f.rtc.stopCaptureForInspection(),
+    /timed out/u,
+  );
+  t.mock.timers.tick(1500);
+  await rejected;
+  assert.equal(f.rtc.captureStopped, true);
+  assert.equal(f.state().stopped, 1);
+  assert.equal(f.state().closed, false);
+});

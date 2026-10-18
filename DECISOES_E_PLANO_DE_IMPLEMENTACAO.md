@@ -2979,3 +2979,10 @@ Implementation and privacy/resource limits are documented in
 **Ponto importante:** this supports diagnosis and does not establish acoustic
 acceptance or replace the existing device validation requirements. Operational
 evidence and device/network details remain exclusively in .local/.
+
+The optional Audio check also supports an explicit receive-only diagnostic for
+one call: stop the local capture and detach local audio senders, with a bounded
+completion wait and no automatic microphone reopening. Ordinary mute and all
+default capture/codec/signaling rules remain unchanged. The bilingual notice
+explains that a new call is required to speak again. This is a test of capture-
+session influence on playback, not a replacement for two-way voice acceptance.

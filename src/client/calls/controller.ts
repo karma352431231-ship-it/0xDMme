@@ -20,6 +20,7 @@ export interface CallUiState {
   notice: string;
   busy: boolean;
   muted: boolean;
+  captureStopped?: boolean;
   autoplay: boolean;
   seconds: number;
   configured: boolean;
@@ -126,12 +127,16 @@ export class VoiceCalls {
     if (g !== this.generation || !this.session)
       throw new Error('Chamada encerrada.');
   }
+  private currentNotice(): string {
+    return this.rtc?.captureStopped ? t('calls.capture-stopped') : this.notice;
+  }
   private render(): void {
     this.publish({
       call: this.call,
-      notice: this.notice,
+      notice: this.currentNotice(),
       busy: this.busy || (this.polling && this.call !== null),
       muted: this.rtc?.muted ?? false,
+      captureStopped: this.rtc?.captureStopped ?? false,
       autoplay: this.audioBlocked,
       seconds: this.started
         ? Math.floor((Date.now() - this.started) / 1000)
@@ -654,6 +659,17 @@ export class VoiceCalls {
     this.audioBlocked = false;
     await this.rtc?.play();
     this.render();
+  }
+  async stopCaptureForInspection(): Promise<void> {
+    const rtc = this.rtc,
+      g = this.generation;
+    if (!rtc || rtc.state !== 'connected') throw new Error('Conexão ausente.');
+    try {
+      await rtc.stopCaptureForInspection();
+      this.guard(g);
+    } finally {
+      this.render();
+    }
   }
   async inspectAudio() {
     const rtc = this.rtc,

@@ -45,6 +45,29 @@ function hasLocalRelay(pc: RTCPeerConnection): boolean {
   return pc.localDescription?.sdp.includes(' typ relay') ?? false;
 }
 
+async function detachCapture(pc: RTCPeerConnection): Promise<void> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const deadline = new Promise<never>((_, reject) => {
+    timer = setTimeout(
+      () => reject(new Error('Capture release timed out.')),
+      1500,
+    );
+  });
+  try {
+    await Promise.race([
+      Promise.all(
+        pc
+          .getSenders()
+          .filter((sender) => sender.track?.kind === 'audio')
+          .map((sender) => sender.replaceTrack(null)),
+      ),
+      deadline,
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export class VoiceConnection {
   private pc: RTCPeerConnection | null = null;
   private microphone: MediaStream | null = null;
@@ -57,6 +80,7 @@ export class VoiceConnection {
   private readonly abort = new AbortController();
   state: MediaState = 'idle';
   muted = false;
+  captureStopped = false;
   constructor(options: {
     changed: (state: MediaState) => void;
     failed: (notice: string) => void;
@@ -231,7 +255,19 @@ export class VoiceConnection {
       },
     });
   }
+  /** Explicit diagnostic: keep receiving, release capture until this call ends. */
+  async stopCaptureForInspection(): Promise<void> {
+    const pc = this.require(),
+      g = this.generation;
+    if (this.captureStopped) return;
+    this.captureStopped = true;
+    this.muted = true;
+    for (const track of this.microphone?.getAudioTracks() ?? []) track.stop();
+    await detachCapture(pc);
+    if (g !== this.generation) throw new Error('Chamada encerrada.');
+  }
   mute(): void {
+    if (this.captureStopped) return;
     this.muted = !this.muted;
     for (const track of this.microphone?.getAudioTracks() ?? [])
       track.enabled = !this.muted;

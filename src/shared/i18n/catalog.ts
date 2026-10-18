@@ -1,5 +1,25 @@
 /** Authored app text. Tuple order: English, Simplified Chinese. */
 export const catalog: Record<string, readonly [string, string]> = {
+  'calls.audio-check-stop-capture': [
+    'Test listening without microphone',
+    '测试关闭麦克风后的收听',
+  ],
+  'calls.audio-check-stop-capture-explanation': [
+    'For diagnosis: closes this microphone until you end the call. You can still hear the other person, but they will not hear you. Start a new call to speak again.',
+    '仅用于诊断：关闭本次通话的麦克风，直到通话结束。你仍能听到对方，但对方将听不到你。要再次说话，请开始新通话。',
+  ],
+  'calls.audio-check-stopping-capture': [
+    'Closing microphone…',
+    '正在关闭麦克风…',
+  ],
+  'calls.capture-stopped': [
+    'Audio test: microphone closed until this call ends. You can still hear the other person.',
+    '音频测试：麦克风已关闭，直到本次通话结束。你仍能听到对方。',
+  ],
+  'calls.audio-check-stop-failed': [
+    'Could not finish the microphone test. End this call before trying again.',
+    '无法完成麦克风测试。请结束本次通话后重试。',
+  ],
   'calls.audio-check': ['Audio check', '音频检查'],
   'calls.audio-check-privacy': [
     'Checks technical counters and microphone settings in this tab. Includes no audio, messages, addresses or credentials. Nothing is sent automatically.',
