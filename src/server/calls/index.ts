@@ -32,6 +32,7 @@ interface Options {
   messages: MessageService;
   config: TurnConfig | null;
   changes: DatabaseChanges;
+  changed?: (accounts: readonly string[]) => void;
   wake?: (invite: {
     account: string;
     devices: string[];
@@ -109,6 +110,7 @@ export class CallService {
         result !== null &&
         'endpoint' in result
       ) {
+        this.notify(op, session.accountId, peer);
         if (op === 'offer') await this.wake(a, result.endpoint, uuid(d['id']));
         return result.result;
       }
@@ -119,6 +121,15 @@ export class CallService {
       throw error;
     } finally {
       this.schedule();
+    }
+  }
+  private notify(op: string, account: string, peer: string | null): void {
+    if (!['offer', 'answer', 'accept', 'end'].includes(op)) return;
+    try {
+      this.options.changed?.(peer ? [account, peer] : [account]);
+    } catch {
+      // A lost hint cannot undo a successful operation. Signed polling remains
+      // authoritative and recovers without retaining signaling in the stream.
     }
   }
   private async wake(

@@ -290,6 +290,7 @@ await test('parser SSE suporta UTF-8 fragmentado e recusa conteúdo, campos extr
     found: string[] = [];
   const events = [
     'ready',
+    'call',
     'changed',
     'removed',
     'authorization',
@@ -635,4 +636,82 @@ await test('atividade recente mantém o stream válido; gap sem timers e frame t
   await turn();
   assert.equal(live.connected, false);
   assert.deepEqual(events, ['ready']);
+});
+
+await test('call wakeups are empty, account-scoped and coalesced with the existing authorization check', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout', 'setInterval'] });
+  const changes = new DatabaseChanges(),
+    live = new MessageLive(changes);
+  t.after(() => live.close());
+  const owner = session(),
+    unrelated = session();
+  let checked = 0;
+  const targets = [owner, owner, unrelated].map((s) => ({
+    session: s,
+    ...response(),
+  }));
+  for (const target of targets)
+    live.open({
+      session: target.session,
+      response: target.output,
+      validate: () => {
+        checked++;
+        return Promise.resolve(true);
+      },
+    });
+  for (let i = 0; i < 100; i++)
+    live.wakeCalls([owner.accountId, owner.accountId]);
+  t.mock.timers.tick(99);
+  assert.equal(checked, 0);
+  t.mock.timers.tick(1);
+  await turn();
+  assert.equal(checked, 2);
+  for (const target of targets.slice(0, 2)) {
+    assert.deepEqual(
+      new WakeupFrames().accept(new TextEncoder().encode(target.text())),
+      ['ready', 'call'],
+    );
+    assert.doesNotMatch(target.text(), /event: changed/u);
+    assert.ok(!target.text().includes(owner.accountId));
+  }
+  assert.doesNotMatch(targets[2]!.text(), /event: call/u);
+  live.wakeCalls([owner.accountId]);
+  changes.committed([owner.accountId]);
+  t.mock.timers.tick(100);
+  await turn();
+  assert.equal(checked, 4);
+  assert.match(targets[0]!.text(), /event: changed/u);
+  assert.equal((targets[0]!.text().match(/event: call/gu) ?? []).length, 2);
+});
+
+await test('pending call wakeups cannot survive revocation or a failed authorization check', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout', 'setInterval'] });
+  const changes = new DatabaseChanges(),
+    live = new MessageLive(changes);
+  t.after(() => live.close());
+  const revoked = session(),
+    denied = session();
+  const a = response(),
+    b = response();
+  live.open({
+    session: revoked,
+    response: a.output,
+    validate: () => Promise.resolve(true),
+  });
+  live.open({
+    session: denied,
+    response: b.output,
+    validate: () => Promise.resolve(false),
+  });
+  live.wakeCalls([revoked.accountId, denied.accountId]);
+  changes.committed([revoked.accountId], { revoked: [revoked.deviceId] });
+  t.mock.timers.tick(100);
+  await turn();
+  assert.match(a.text(), /event: revoked/u);
+  assert.match(b.text(), /event: invalidated/u);
+  assert.doesNotMatch(a.text() + b.text(), /event: call/u);
+  live.close();
+  live.wakeCalls([revoked.accountId]);
+  t.mock.timers.tick(100);
+  assert.doesNotMatch(a.text(), /event: call/u);
 });

@@ -11,6 +11,7 @@ import type { AccountSession } from '../../shared/account/index.ts';
 export type LiveEvent =
   | 'ready'
   | 'changed'
+  | 'call'
   | 'removed'
   | 'authorization'
   | 'invalidated'
@@ -94,7 +95,7 @@ export class WakeupFrames {
     return frames.flatMap((frame) => {
       if (frame === ': heartbeat') return [];
       const match =
-        /^event: (ready|changed|removed|authorization|invalidated|revoked|ended)\ndata: \{\}$/u.exec(
+        /^event: (ready|changed|call|removed|authorization|invalidated|revoked|ended)\ndata: \{\}$/u.exec(
           frame,
         );
       if (!match) throw new Error('Aviso de atualização inválido.');

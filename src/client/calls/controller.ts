@@ -58,6 +58,7 @@ export class VoiceCalls {
   private notice = t('Chamadas: entre e autorize este aparelho.');
   private settledNotice = false;
   private generation = 0;
+  private wakePending = false;
   private lastLease = 0;
   private authorizationUntil = 0;
   private started = 0;
@@ -106,6 +107,18 @@ export class VoiceCalls {
         this.timer = null;
         void this.poll();
       }, 0);
+  }
+  /** One pending hint; never overlap signing or lose a hint behind a snapshot. */
+  wake(): void {
+    if (!this.session || !navigator.onLine || this.wakePending) return;
+    this.wakePending = true;
+    this.resumeWake();
+  }
+  private resumeWake(): void {
+    if (!this.wakePending || this.busy || this.polling) return;
+    if (this.timer) clearTimeout(this.timer);
+    this.timer = null;
+    this.schedule();
   }
   private guard(g: number): void {
     if (g !== this.generation || !this.session)
@@ -295,6 +308,7 @@ export class VoiceCalls {
       return;
     }
     this.polling = true;
+    if (!this.busy) this.wakePending = false;
     const g = this.generation;
     const requested = Date.now();
     try {
@@ -435,7 +449,11 @@ export class VoiceCalls {
         this.timer = null;
         void this.poll();
       },
-      this.snapshot.configured ? pollMs : 30_000,
+      this.wakePending && !this.busy
+        ? 100
+        : this.snapshot.configured
+          ? pollMs
+          : 30_000,
     );
   }
   private watch(): void {
@@ -532,6 +550,7 @@ export class VoiceCalls {
     } finally {
       if (g === this.generation) this.busy = false;
       this.render();
+      this.resumeWake();
       this.ready();
     }
   }
@@ -556,6 +575,7 @@ export class VoiceCalls {
   }
   private clear(notice: string): void {
     this.generation++;
+    this.wakePending = false;
     this.busy = false;
     this.rtc?.close();
     this.rtc = null;

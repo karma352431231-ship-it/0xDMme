@@ -296,6 +296,7 @@ export function startMessages(
     },
     event: (event) => {
       options.liveEvent?.(event);
+      if (event === 'call') return;
       invalidateGroupAuthority(event);
       if (event === 'ready') void checkVoiceAuthority();
       if (event === 'authorization') void checkVoiceAuthority();

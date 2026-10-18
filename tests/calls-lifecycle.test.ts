@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import type { TestContext } from 'node:test';
 import { VoiceCalls } from '../src/client/calls/index.ts';
 import { VoicePlayback } from '../src/client/voice-playback/index.ts';
 import { VaultSync } from '../src/client/vault-sync/index.ts';
@@ -9,7 +10,7 @@ import type {
 } from '../src/client/vault-authority/index.ts';
 import type { AccountSession } from '../src/shared/account/index.ts';
 
-await test('ready concorrente na inicialização mantém heartbeat de 5s e não perde a autorização de 20s', async (t) => {
+function fixture(t: TestContext) {
   t.mock.timers.enable({
     apis: ['setTimeout', 'setInterval', 'Date'],
     now: 100_000,
@@ -60,18 +61,6 @@ await test('ready concorrente na inicialização mantém heartbeat de 5s e não 
     withLocalVault: () =>
       Promise.reject(new Error('Offline fora deste contrato.')),
   };
-  let requests = 0,
-    release: ((response: Response) => void) | null = null;
-  const response = () =>
-    Response.json({ configured: true, enabled: true, revision: 0, call: null });
-  t.mock.method(globalThis, 'fetch', () => {
-    requests++;
-    return requests === 1
-      ? new Promise<Response>((resolve) => {
-          release = resolve;
-        })
-      : Promise.resolve(response());
-  });
   const calls = new VoiceCalls({
     access,
     sync: new VaultSync(access),
@@ -80,7 +69,24 @@ await test('ready concorrente na inicialização mantém heartbeat de 5s e não 
     publish: () => {},
   });
   t.after(() => calls.dispose());
-  const flush = () => new Promise<void>((resolve) => setImmediate(resolve));
+  return { calls, session };
+}
+const flush = () => new Promise<void>((resolve) => setImmediate(resolve));
+const response = () =>
+  Response.json({ configured: true, enabled: true, revision: 0, call: null });
+
+await test('ready concorrente na inicialização mantém heartbeat de 5s e não perde a autorização de 20s', async (t) => {
+  const { calls, session } = fixture(t);
+  let requests = 0,
+    release: ((response: Response) => void) | null = null;
+  t.mock.method(globalThis, 'fetch', () => {
+    requests++;
+    return requests === 1
+      ? new Promise<Response>((resolve) => {
+          release = resolve;
+        })
+      : Promise.resolve(response());
+  });
   calls.setSession(session);
   t.mock.timers.tick(0);
   await flush();
@@ -97,4 +103,71 @@ await test('ready concorrente na inicialização mantém heartbeat de 5s e não 
     await flush();
     assert.equal(requests, i + 2);
   }
+});
+
+await test('call wakeups advance the pending poll, coalesce bursts and retain five-second fallback', async (t) => {
+  const { calls, session } = fixture(t);
+  let requests = 0;
+  t.mock.method(globalThis, 'fetch', () => {
+    requests++;
+    return Promise.resolve(response());
+  });
+  calls.setSession(session);
+  t.mock.timers.tick(0);
+  await flush();
+  assert.equal(requests, 1);
+  t.mock.timers.tick(1000);
+  for (let i = 0; i < 100; i++) calls.wake();
+  t.mock.timers.tick(100);
+  await flush();
+  assert.equal(
+    requests,
+    2,
+    'an incoming signal must not wait for the scheduled five-second poll',
+  );
+  t.mock.timers.tick(4999);
+  await flush();
+  assert.equal(requests, 2);
+  t.mock.timers.tick(1);
+  await flush();
+  assert.equal(requests, 3);
+  calls.setSession(null);
+  calls.wake();
+  t.mock.timers.tick(100);
+  await flush();
+  assert.equal(requests, 3, 'a wakeup cannot authorize a session');
+});
+
+await test('a call wakeup during an in-flight snapshot is retained without concurrent signed requests', async (t) => {
+  const { calls, session } = fixture(t);
+  let requests = 0,
+    active = 0,
+    maximum = 0;
+  let release: ((value: Response) => void) | undefined;
+  t.mock.method(globalThis, 'fetch', async () => {
+    requests++;
+    active++;
+    maximum = Math.max(maximum, active);
+    const value =
+      requests === 1
+        ? await new Promise<Response>((resolve) => {
+            release = resolve;
+          })
+        : response();
+    active--;
+    return value;
+  });
+  calls.setSession(session);
+  t.mock.timers.tick(0);
+  await flush();
+  for (let i = 0; i < 100; i++) calls.wake();
+  t.mock.timers.tick(100);
+  assert.equal(requests, 1);
+  assert.ok(release);
+  release(response());
+  await flush();
+  t.mock.timers.tick(100);
+  await flush();
+  assert.equal(requests, 2);
+  assert.equal(maximum, 1);
 });

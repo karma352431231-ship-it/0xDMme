@@ -7,7 +7,7 @@ interface Stream {
   response: ServerResponse;
   validate: () => Promise<boolean>;
   checking: Promise<boolean> | null;
-  pending: boolean;
+  pending: Set<'changed' | 'call'>;
   timer: ReturnType<typeof setTimeout> | null;
   expiry: ReturnType<typeof setTimeout>;
 }
@@ -39,7 +39,7 @@ export class MessageLive {
     const stream: Stream = {
       ...input,
       checking: null,
-      pending: false,
+      pending: new Set(),
       timer: null,
       expiry: setTimeout(
         () => this.expire(stream),
@@ -59,6 +59,13 @@ export class MessageLive {
     response.once('close', () => this.remove(stream));
     response.once('error', () => this.remove(stream));
     this.write(stream, 'event: ready\ndata: {}\n\n');
+  }
+  /** Transient call state is not a database commit. These empty hints only
+   * wake the signed call snapshot API and share the existing stream budgets. */
+  wakeCalls(accounts: readonly string[]): void {
+    for (const account of new Set(accounts))
+      for (const stream of this.streams.get(account) ?? [])
+        this.queue(stream, 'call');
   }
   private expire(stream: Stream): void {
     if (!this.has(stream)) return;
@@ -97,8 +104,11 @@ export class MessageLive {
     // authorization, it must not wait behind normal batching/access checks.
     // It never grants access; subsequent changed/read operations still validate.
     if (change.removed) this.write(stream, 'event: removed\ndata: {}\n\n');
+    this.queue(stream, 'changed');
+  }
+  private queue(stream: Stream, event: 'changed' | 'call'): void {
     if (!this.has(stream)) return;
-    stream.pending = true;
+    stream.pending.add(event);
     if (stream.timer) return;
     stream.timer = setTimeout(() => {
       stream.timer = null;
@@ -122,14 +132,16 @@ export class MessageLive {
     return stream.checking;
   }
   private async flush(stream: Stream): Promise<void> {
-    if (!this.has(stream) || !stream.pending) return;
+    if (!this.has(stream) || !stream.pending.size) return;
     if (!(await this.check(stream))) {
       this.invalidate(stream, 'invalidated');
       return;
     }
-    if (!this.has(stream) || !stream.pending) return;
-    stream.pending = false;
-    this.write(stream, 'event: changed\ndata: {}\n\n');
+    if (!this.has(stream) || !stream.pending.size) return;
+    const pending = [...stream.pending];
+    stream.pending.clear();
+    for (const event of pending)
+      this.write(stream, `event: ${event}\ndata: {}\n\n`);
   }
   private tick(): void {
     // Keep-alive comments do not query PostgreSQL or reserve a pool connection.
