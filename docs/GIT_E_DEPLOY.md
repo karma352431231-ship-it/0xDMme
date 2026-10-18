@@ -1,15 +1,16 @@
 # 0xDMme — Git e envio à VPS
 
-## Prepared worker boot operation — 17 October 2026
+## Approved worker boot operation — 17 October 2026
 
-Status: source prepared for review; the separate own-infrastructure operation is
-not yet approved or activated. The change retains the three existing worker unit
-bytes and all dependencies/drop-ins. Read access, exact link snapshots, unit
+The owner explicitly approved main integration, exact-commit CI and the prepared
+own-worker operation by replying “pode seguir” after reviewing source `f2ef135`.
+Activation is authorized, not yet demonstrated by this decision. The change
+retains the three existing worker unit bytes and all dependencies/drop-ins. Read access, exact link snapshots, unit
 checksums, preservation/accounting evidence and receipts stay in the original
 checkout's ignored `.local/`.
 
-After the owner approves the concrete operation, integrate reviewed source into
-main, run full local verification, push and require passing CI of that exact main
+Integrate the reviewed source into main, retain passing local verification,
+push and require passing CI of that exact main
 commit. Bind it in `.local/VPS_WORKER_BOOT_REVIEW.json` (0600, ignored, at most
 4096 bytes): `commit` is the full SHA and `unit_sha256` maps exactly the three
 `0xdmme-{ranking,content,public}-worker.service` names to their unchanged template

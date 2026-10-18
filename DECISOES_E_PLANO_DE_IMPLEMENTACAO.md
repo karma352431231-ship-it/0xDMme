@@ -1,12 +1,14 @@
 # Capacity audit follow-up — 16 October 2026
 
-## Prepared worker boot correction — 17 October 2026
+## Approved worker boot correction — 17 October 2026
 
 The existing three worker definitions are linked from a later data mount. A
 recorded early-boot `LoadState=not-found` and the linked-unit storage contract
-justify preparing root-resident definitions. The owner authorized preparation;
-**infrastructure activation remains pending a separate review**. Healthy current
-workers do not constitute a completed reboot rehearsal.
+justify root-resident definitions. After reviewing prepared source `f2ef135`,
+the owner replied “pode seguir”, explicitly approving integration into main,
+exact-commit CI and the scoped infrastructure operation described below. This
+supersedes the preparation-only status; approval does not prove activation.
+Healthy current workers do not constitute a completed reboot rehearsal.
 
 Only the existing deployment command gains the explicit `--worker-boot` option.
 Its private, ignored `VPS_WORKER_BOOT_REVIEW.json` binds the integrated commit to
@@ -38,10 +40,10 @@ receipt and current layout without another restart. The existing executor source
 and SSH budgets remain 256 KiB and 64 KiB; standard-library base85 with level-nine
 zlib replaces base64 transport to fit the added modules without raising a gate.
 
-**Ponto importante:** source preparation and automated regressions do not approve
-or establish VPS activation. Full local checks, integration into clean pushed
-main, exact passing main CI, private preservation/accounting checks and explicit
-infrastructure approval precede the operation. The ordinary code publication
+**Ponto importante:** the owner approved this exact operation; completed checks
+and activation evidence remain separate prerequisites/results. Passing local
+checks, integration into clean pushed main, exact passing main CI and fresh
+private preservation/accounting checks precede the operation. The ordinary code publication
 still briefly stops/restarts our web and three workers; only the subsequent
 layout action preserves web/PostgreSQL/media/push/TURN process identities. Keep
 combined-volume recovery margins and the remaining capacity acceptance open.
