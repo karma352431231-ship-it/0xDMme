@@ -7,6 +7,7 @@ interface Stream {
   response: ServerResponse;
   validate: () => Promise<boolean>;
   checking: Promise<boolean> | null;
+  callWakeups: boolean;
   pending: Set<'changed' | 'call'>;
   timer: ReturnType<typeof setTimeout> | null;
   expiry: ReturnType<typeof setTimeout>;
@@ -29,6 +30,7 @@ export class MessageLive {
     session: AccountSession;
     response: ServerResponse;
     validate: () => Promise<boolean>;
+    callWakeups?: boolean;
   }): void {
     if (this.closed)
       throw new AccountError(503, 'Atualização imediata indisponível.');
@@ -38,6 +40,7 @@ export class MessageLive {
     // The host's existing socket/resource budgets still apply; no invented 8/2 product quota.
     const stream: Stream = {
       ...input,
+      callWakeups: input.callWakeups === true,
       checking: null,
       pending: new Set(),
       timer: null,
@@ -65,7 +68,7 @@ export class MessageLive {
   wakeCalls(accounts: readonly string[]): void {
     for (const account of new Set(accounts))
       for (const stream of this.streams.get(account) ?? [])
-        this.queue(stream, 'call');
+        if (stream.callWakeups) this.queue(stream, 'call');
   }
   private expire(stream: Stream): void {
     if (!this.has(stream)) return;

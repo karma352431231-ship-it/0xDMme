@@ -29,7 +29,10 @@ non-trickle relay gathering add separate costs. This identifies a polling delay,
 not an on-device breakdown of the reported eight seconds.
 
 Successful offer, answer, accept and end operations now queue an empty `call`
-event to the two accounts' existing authenticated SSE streams. The event carries
+event to the two accounts' existing authenticated SSE streams only when the
+client opts in with `X-0xdmme-Call-Wake: 1`. Legacy tabs keep their existing
+frames and polling until refreshed; unknown events never break their parser.
+The header negotiates a frame type, not authority. The event carries
 no call ID, participant, SDP, credential or audio. It uses the existing 100 ms
 batch, current session validation, expiry and slow-socket bounds, with at most
 one pending flag per event type. Call RAM state is not published as a database
