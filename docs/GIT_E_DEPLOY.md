@@ -1,5 +1,30 @@
 # 0xDMme — Git e envio à VPS
 
+## Reviewed upload lifecycle correction — 18 October 2026
+
+The database audit found three concrete regressions: unbounded startup upload
+recovery, identical social reservation retries requiring new capacity, and
+private/group deletion retries rewriting unchanged rows. Reviewed source
+`1c92c68fc1bacaae0dbbd5fd669827e7b75a2efe` corrects these without a schema, dependency, Node, unit, proxy or TURN
+change. Contract and regression mapping: [database uploads](DATABASE_UPLOAD_CONTRACTS.md).
+
+The existing executor pins the complete database trees from
+`f2049d24b61d95f86e80afe7db79fcfada60bc63` to the reviewed source. Exactly
+`attachments.ts`, `group-media.ts`, `social-media.ts`, `status-media.ts` and the new
+`upload-recovery.ts` may differ. All migrations 001–091 remain byte-identical.
+An extra module, changed predecessor or SQL change is refused by this code review.
+
+Use the existing routine code-release authorization: integrate scoped sources,
+require passing exact main CI, then run only `npm run deploy:check` and
+`npm run deploy:staging` from the clean pushed integrated checkout. No operational
+flag, reset, SQL/object restore or shared infrastructure change belongs to this
+release. The existing exchange handles own web/worker readiness and code rollback;
+retain private preservation, accounting and accepted-packet receipts before/after.
+
+**Ponto importante:** source validation and publication are distinct statuses.
+Operational evidence stays in `.local/`. This correction does not retire every
+legacy global gate or establish assembled application capacity.
+
 ## Worker executor transport correction — 17 October 2026
 
 The first approved worker release preflight refused before activation because
