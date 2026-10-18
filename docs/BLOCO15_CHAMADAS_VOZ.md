@@ -20,6 +20,36 @@ Configuração TURN ausente desabilita chamadas com aviso explícito. Credenciai
 
 Não expor segredos TURN ao frontend; não inserir IPs locais/reais no SDP encaminhado. Validar caminho de mídia por estatísticas de candidatos selecionados. Restrição de rede a TLS/443 exige planejamento específico: não ocupar a porta do Nginx compartilhado sem revisão.
 
+## Foreground signaling wakeups — 18 October 2026
+
+The owner reported roughly eight seconds before the recipient rang during the
+physical Android/iPhone audit. The existing receiver only learns signaling from
+its five-second signed snapshot poll; permission, directory verification and
+non-trickle relay gathering add separate costs. This identifies a polling delay,
+not an on-device breakdown of the reported eight seconds.
+
+Successful offer, answer, accept and end operations now queue an empty `call`
+event to the two accounts' existing authenticated SSE streams. The event carries
+no call ID, participant, SDP, credential or audio. It uses the existing 100 ms
+batch, current session validation, expiry and slow-socket bounds, with at most
+one pending flag per event type. Call RAM state is not published as a database
+commit. Failed commands and periodic sync do not create call hints; a failed
+hint cannot undo a successful call operation.
+
+The client coalesces bursts for 100 ms and advances its scheduled signed call
+snapshot. A hint arriving during a snapshot or user operation remains pending
+until that work completes. It does not overlap signed requests, refresh chat or
+status history, grant authority, or skip encrypted offer/identity verification.
+SSE ready also requests a fresh call snapshot. The five-second polling fallback,
+twenty-second authorization window and mandatory own TURN remain unchanged.
+
+**Ponto importante:** this removes the avoidable five-second receiver wait when
+the foreground SSE connection is healthy; it does not establish an end-to-end
+ringing SLA. The owner's headphone/mute controls support an acoustic feedback
+hypothesis, but residual noise/echo and speakerphone quality remain unaccepted.
+Capture constraints, audio processing and relay configuration are unchanged.
+Physical latency/audio retesting and network recovery remain necessary.
+
 ## Aceite
 
 Testes automatizados: autorização e CSRF, replay/adulteração, contato/bloqueio/silêncio, preferência global, corrida entre aparelhos, orçamento de estado, timeouts, limpeza e credenciais; SDP somente áudio/relay, fingerprints autenticados e cancelamento de recursos. Teste sintético com dois navegadores e Coturn local para confirmar candidatos relay e fluxo de áudio. Validação física em Android/iPhone, redes distintas/restritas, suspensão e banda segue necessária antes de anunciar suporte nesses cenários.

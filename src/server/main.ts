@@ -94,10 +94,12 @@ try {
     ),
   });
   if (!(await database.healthy())) throw new Error('Banco indisponível.');
+  const live = new MessageLive(database.changes);
   const calls = new CallService({
     store: database.calls,
     messages,
     changes: database.changes,
+    changed: (accounts) => live.wakeCalls(accounts),
     config: readTurnConfiguration(process.env),
     ...(push ? { wake: (invitation) => notifications.wake(invitation) } : {}),
   });
@@ -167,7 +169,7 @@ try {
       communities,
       publicProfiles,
       calls,
-      live: new MessageLive(database.changes),
+      live,
       notifications,
       contacts: new ContactService(database.contacts, database.devices),
       messages,

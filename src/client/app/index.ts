@@ -195,8 +195,9 @@ const messages = startMessages(devices, vault.sync, {
   directorySettled: (session) => sessionBoot.settled(session),
   representatives,
   liveEvent: (event) => {
-    statuses.event(event);
     calls.event(event);
+    if (event === 'call') return;
+    statuses.event(event);
     activity.event(event);
   },
   liveState: (connected) => statuses.liveConnection(connected),

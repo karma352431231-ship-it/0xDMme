@@ -192,6 +192,7 @@ export function startCalls(options: {
     event: (event: string) => {
       if (event === 'revoked' || event === 'ended' || event === 'invalidated')
         void calls.end(t('Chamada encerrada: autorização mudou.'));
+      else if (event === 'call' || event === 'ready') calls.wake();
       else if (event === 'authorization') calls.ready();
     },
     mountSettings: (host: HTMLElement) => {

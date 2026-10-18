@@ -14,6 +14,8 @@ import { DeviceService } from '../../src/server/devices/index.ts';
 import { ContactService } from '../../src/server/contacts/index.ts';
 import { MessageService } from '../../src/server/messages/index.ts';
 import { CallService } from '../../src/server/calls/index.ts';
+import { MessageLive } from '../../src/server/message-live/index.ts';
+import { WakeupFrames } from '../../src/client/message-live/index.ts';
 import { NotificationService } from '../../src/server/notifications/index.ts';
 import { createWebServer } from '../../src/server/web-host/index.ts';
 import { readWebConfiguration } from '../../src/server/web-configuration/index.ts';
@@ -58,10 +60,19 @@ await test('chamadas: HTTP assinado, consentimento, preferência global, silênc
       return Promise.resolve();
     },
   });
+  const live = new MessageLive(db.changes);
+  const streams: AbortController[] = [];
+  const hints: (readonly string[])[] = [];
+  let failHint = false;
   const calls = new CallService({
     store: db.calls,
     messages,
     changes: db.changes,
+    changed: (accounts) => {
+      hints.push(accounts);
+      if (failHint) throw new Error('Synthetic hint publication failure');
+      live.wakeCalls(accounts);
+    },
     wake: (invite) => notifications.wake(invite),
     config: {
       urls: ['turn:127.0.0.1:3478?transport=udp'],
@@ -83,6 +94,7 @@ await test('chamadas: HTTP assinado, consentimento, preferência global, silênc
       contacts,
       messages,
       calls,
+      live,
       notifications,
     }),
   });
@@ -91,6 +103,7 @@ await test('chamadas: HTTP assinado, consentimento, preferência global, silênc
   );
   const accounts: string[] = [];
   t.after(async () => {
+    for (const stream of streams) stream.abort();
     await host.close();
     await notifications.close();
     await messages.close();
@@ -185,7 +198,7 @@ await test('chamadas: HTTP assinado, consentimento, preferência global, silênc
   }
   async function proof(user: User, op: string, data: Record<string, unknown>) {
     const payload =
-      op === 'configure'
+      op === 'configure' || op === 'live'
         ? data
         : {
             ...data,
@@ -205,7 +218,7 @@ await test('chamadas: HTTP assinado, consentimento, preferência global, silênc
         messageBody(
           user.session.accountId,
           user.session.deviceId,
-          `call:${op}`,
+          op === 'live' ? 'live' : `call:${op}`,
           p,
         ),
       ),
@@ -238,6 +251,42 @@ await test('chamadas: HTTP assinado, consentimento, preferência global, silênc
     assert.equal(response.status, 200, JSON.stringify(raw));
     return raw;
   }
+  async function stream(user: User) {
+    const controller = new AbortController();
+    streams.push(controller);
+    const opening = setTimeout(() => controller.abort(), 2000);
+    const response = await fetch(origin + '/api/account/messages/live', {
+      method: 'POST',
+      headers: {
+        Origin: origin,
+        'Content-Type': 'application/json',
+        'X-Hash-Talk-CSRF': user.session.csrf,
+        Cookie: 'hash-talk-session=' + user.sessionToken,
+      },
+      body: JSON.stringify(await proof(user, 'live', {})),
+      signal: controller.signal,
+    });
+    clearTimeout(opening);
+    assert.equal(response.status, 200);
+    assert.ok(response.body);
+    const reader = response.body.getReader(),
+      parser = new WakeupFrames();
+    const next = async (wanted: 'ready' | 'call') => {
+      const deadline = setTimeout(() => controller.abort(), 2000);
+      try {
+        for (;;) {
+          const part = await reader.read();
+          assert.equal(part.done, false);
+          assert.ok(part.value);
+          if (parser.accept(part.value).includes(wanted)) return;
+        }
+      } finally {
+        clearTimeout(deadline);
+      }
+    };
+    await next('ready');
+    return next;
+  }
   const a = await create(),
     b = await create();
   const sync = async (user: User) =>
@@ -254,6 +303,11 @@ await test('chamadas: HTTP assinado, consentimento, preferência global, silênc
   const start = () => ({ peer: b.session.accountId, directory: b.directory });
   const denied = await http(a, 'start', await proof(a, 'start', start()));
   assert.equal(denied.status, 409);
+  assert.equal(
+    hints.length,
+    0,
+    'sync and denied commands must not generate call wakeups',
+  );
   await contact(b, 'configure', {
     revision: await revision(b),
     mode: 'wallet',
@@ -444,11 +498,17 @@ await test('chamadas: HTTP assinado, consentimento, preferência global, silênc
     ...(await sync(a)),
     call: object(await operate(a, 'start', start()))['call'],
   }).call!;
+  const callerNotice = await stream(a),
+    recipientNotice = await stream(b);
+  const beforeOffer = hints.length;
   await operate(a, 'offer', {
     id: raced.id,
     sequence: 1,
     packets: [{ device: b.session.deviceId, body: opaque }],
   });
+  await Promise.all([callerNotice('call'), recipientNotice('call')]);
+  assert.equal(hints.length, beforeOffer + 1);
+  assert.deepEqual(hints.at(-1), [a.session.accountId, b.session.accountId]);
   const answers = await Promise.all(
     [b, sibling].map(async (user) =>
       http(user, 'accept', await proof(user, 'accept', { id: raced.id })),
@@ -459,6 +519,10 @@ await test('chamadas: HTTP assinado, consentimento, preferência global, silênc
     [200, 409],
     'apenas uma aba obtém autoridade de atendimento',
   );
+  await Promise.all([callerNotice('call'), recipientNotice('call')]);
+  const winner = answers[0]!.status === 200 ? b : sibling;
+  await operate(winner, 'answer', { id: raced.id, sequence: 1, body: opaque });
+  await Promise.all([callerNotice('call'), recipientNotice('call')]);
   const losing = answers[0]!.status === 409 ? b : sibling;
   assert.equal((await sync(losing)).call, null);
   // Ordinary writes have no minute quota; malformed input still fails and
@@ -508,6 +572,8 @@ await test('chamadas: HTTP assinado, consentimento, preferência global, silênc
   assert.equal(identityResponse.status, 200);
   assert.equal(object(await identityResponse.json())['head'], b.directory);
   await operate(a, 'end', { id: raced.id });
+  await Promise.all([callerNotice('call'), recipientNotice('call')]);
+  failHint = true;
   assert.equal((await sync(b)).call, null);
   assert.equal((await sync(sibling)).call, null);
   const call = object(await operate(a, 'start', start()));
@@ -563,6 +629,14 @@ await test('chamadas: HTTP assinado, consentimento, preferência global, silênc
     { revision: 1, mutedUntil: 0 },
   );
   await sync(b);
+  const withoutHint = object(await operate(a, 'start', start()));
+  await operate(a, 'end', { id: String(object(withoutHint['call'])['id']) });
+  assert.equal(
+    (await sync(b)).call,
+    null,
+    'lost hint must not turn a successful end into a failed operation',
+  );
+  failHint = false;
   await operate(a, 'start', start());
   await contact(b, 'block', {
     revision: await revision(b),

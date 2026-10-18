@@ -1,5 +1,17 @@
 # Capacity audit follow-up — 16 October 2026
 
+## Foreground call latency correction — 18 October 2026
+
+During the capacity audit, the owner reported about eight seconds before an
+Android-to-iPhone call rang and authorized continuing the diagnosis/correction.
+Use an empty transient hint over the existing authenticated SSE stream to wake
+the signed call snapshot after successful signaling/control changes. Preserve
+five-second fallback polling, twenty-second authority, encrypted identity/SDP
+verification and own TURN; no new persistence, dependency or external relay.
+Headphone/mute controls support acoustic feedback but do not establish acceptable
+speakerphone audio. Keep physical audio/latency acceptance separate from source
+verification and publication. See the [call contract](docs/BLOCO15_CHAMADAS_VOZ.md#foreground-signaling-wakeups--18-october-2026).
+
 ## Database upload lifecycle audit correction — 18 October 2026
 
 The owner requested completion of the database audit. Concrete regressions were
