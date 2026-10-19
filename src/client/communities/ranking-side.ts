@@ -1,3 +1,6 @@
+import { rankingScopes } from './account-ranking.ts';
+import { discoveryMenu } from './discovery-controls.ts';
+import type { RankingPeriod } from '../../shared/community-ranking/index.ts';
 import { communityHref } from '../../shared/app-routes/index.ts';
 import { currentLanguage, t } from '../../shared/i18n/index.ts';
 import { explorePage } from '../../shared/community-discovery/index.ts';
@@ -30,19 +33,6 @@ const tabs: readonly [RankingTab, string][] = [
   ['following', 'ranking.following'],
 ];
 
-/** Growth of active members against the previous 24 hours, never capped. */
-export function activeGrowth(current: number, previous: number): string {
-  const format = new Intl.NumberFormat(currentLanguage());
-  if (previous === 0)
-    return current === 0
-      ? t('ranking.active {0}', [format.format(0)])
-      : t('ranking.active-new {0}', [format.format(current)]);
-  const percent = Math.round(((current - previous) / previous) * 100);
-  return t(percent >= 0 ? 'ranking.growth-up {0}' : 'ranking.growth-down {0}', [
-    format.format(Math.abs(percent)),
-  ]);
-}
-
 export function startRankingSide(options: {
   shell: HTMLElement;
   access: VaultAccess;
@@ -50,9 +40,10 @@ export function startRankingSide(options: {
 }): { element: HTMLElement; refresh: () => void } {
   const controller = new Communities(options.access);
   const aside = el('aside', '', 'ranking-side');
-  aside.setAttribute('aria-label', t('ranking.title'));
+  aside.setAttribute('aria-label', t('ranking.overall'));
   const view = new RankingView(aside, {
-    load: (tab, signal) => load(controller, tab, signal, options.signedIn),
+    load: (tab, signal, period) =>
+      load(controller, { tab, signal, period, signedIn: options.signedIn }),
   });
   options.shell.append(aside);
   const tick = () => {
@@ -66,10 +57,14 @@ export function startRankingSide(options: {
 
 async function load(
   controller: Communities,
-  tab: RankingTab,
-  signal: AbortSignal,
-  signedIn: () => boolean,
+  input: {
+    tab: RankingTab;
+    signal: AbortSignal;
+    period: RankingPeriod;
+    signedIn: () => boolean;
+  },
 ): Promise<{ key: string; rows: Row[] } | null> {
+  const { tab, signal, period, signedIn } = input;
   if (tab === 'following') {
     if (!signedIn()) return null;
     const page = await controller.list('following', null);
@@ -86,7 +81,7 @@ async function load(
   }
   const page = explorePage(
     await communityRead(
-      `/api/communities/explore?order=${tab}&period=day`,
+      `/api/communities/explore?order=${tab}&period=${period}`,
       AbortSignal.any([signal, AbortSignal.timeout(8000)]),
     ),
   );
@@ -102,6 +97,8 @@ async function load(
 
 class RankingView {
   private tab: RankingTab = 'trending';
+  private period: RankingPeriod = 'day';
+  private readonly scopes: ReturnType<typeof rankingScopes>;
   private key = '';
   private busy = false;
   private abort = new AbortController();
@@ -114,6 +111,7 @@ class RankingView {
     load: (
       tab: RankingTab,
       signal: AbortSignal,
+      period: RankingPeriod,
     ) => Promise<{ key: string; rows: Row[] } | null>;
   };
   constructor(host: HTMLElement, source: RankingView['source']) {
@@ -122,21 +120,36 @@ class RankingView {
     this.list = el('div', '', 'ranking-side-list');
     this.status = el('p', '', 'ranking-side-status');
     this.status.setAttribute('role', 'status');
-    host.append(this.header(), this.tabBar(), this.columns(), this.list);
-    host.append(this.status, this.footer(), this.strip());
+    const pane = el('div', '', 'ranking-community-pane');
+    pane.append(
+      this.tabBar(),
+      this.periodBar(),
+      this.columns(),
+      this.list,
+      this.status,
+      this.footer(),
+    );
+    host.append(this.header());
+    this.scopes = rankingScopes(host, pane, this.abort.signal);
+    host.append(this.strip());
     this.setCollapsed(readCollapsed());
   }
   /** The list is on screen: not hidden by the layout nor collapsed. */
   visible(): boolean {
-    return this.list.offsetParent !== null;
+    return (
+      this.host.offsetParent !== null &&
+      this.host.dataset['collapsed'] !== 'true'
+    );
   }
   async refresh(force = false): Promise<void> {
+    if (this.scopes.active()) return this.scopes.refresh();
     if (this.busy && !force) return;
     this.busy = true;
-    const tab = this.tab;
+    const tab = this.tab,
+      period = this.period;
     try {
-      const page = await this.source.load(tab, this.abort.signal);
-      if (tab === this.tab) this.apply(page, force);
+      const page = await this.source.load(tab, this.abort.signal, this.period);
+      if (tab === this.tab && period === this.period) this.apply(page, force);
     } catch {
       // A failed refresh keeps the last ranking; the next tick tries again.
       this.status.textContent = this.rows.size ? '' : t('ranking.unavailable');
@@ -199,7 +212,7 @@ class RankingView {
   }
   private header(): HTMLElement {
     const head = el('div', '', 'ranking-side-head');
-    head.append(el('strong', t('ranking.title')));
+    head.append(el('strong', t('ranking.overall')));
     head.append(this.toggle('»', 'ranking.collapse', true));
     return head;
   }
@@ -230,11 +243,32 @@ class RankingView {
     }
     return bar;
   }
+  private periodBar(): HTMLElement {
+    const host = el('div', '', 'ranking-periods');
+    discoveryMenu(
+      host,
+      t('Período'),
+      {
+        value: this.period,
+        options: [
+          ['day', t('24 horas')],
+          ['week', t('7 dias')],
+          ['month', t('30 dias')],
+        ],
+      },
+      (value) => {
+        this.period = value as RankingPeriod;
+        this.key = '';
+        void this.refresh(true);
+      },
+    );
+    return host;
+  }
   private columns(): HTMLElement {
     const row = el('div', '', 'ranking-side-columns');
     row.append(
       el('span', t('ranking.community')),
-      el('span', t('ranking.window')),
+      el('span', t('ranking.received')),
     );
     return row;
   }
@@ -295,19 +329,15 @@ function fillRow(node: HTMLElement, row: Row, rank: number, tab: RankingTab) {
   const followers = new Intl.NumberFormat(currentLanguage(), {
     notation: 'compact',
   }).format(row.community.followers);
-  const growth = el(
-    'small',
-    tab === 'following' ? '' : activeGrowth(row.participants, row.previous),
-    'ranking-side-growth',
-  );
-  growth.dataset['trend'] =
-    row.participants > row.previous
-      ? 'up'
-      : row.participants < row.previous
-        ? 'down'
-        : 'flat';
   numbers!.replaceChildren(
     el('strong', t('ranking.followers {0}', [followers])),
-    growth,
+    el(
+      'small',
+      tab === 'following'
+        ? ''
+        : t('ranking.active {0}', [
+            new Intl.NumberFormat(currentLanguage()).format(row.participants),
+          ]),
+    ),
   );
 }

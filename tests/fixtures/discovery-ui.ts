@@ -1,3 +1,4 @@
+import type { AccountRankingPage } from '../../src/shared/account-ranking/index.ts';
 import assert from 'node:assert/strict';
 import { setImmediate } from 'node:timers/promises';
 import { runInNewContext } from 'node:vm';
@@ -188,6 +189,24 @@ export function discoveryFixture(options: FixtureOptions = {}) {
   const state = {
     feed: feed(),
     ranking: ranking(),
+    accounts: {
+      generation: crypto.randomUUID(),
+      cutoff: new Date().toISOString(),
+      expiresAt: new Date().toISOString(),
+      next: null,
+      items: [
+        {
+          profile: author,
+          views: 1200,
+          upvotes: 23,
+          comments: 7,
+          shares: 4,
+          historyComplete: false,
+        },
+      ],
+    } as AccountRankingPage,
+    accountReply: null as (() => Promise<unknown>) | null,
+    accountRequests: [] as URL[],
     reply: null as (() => Promise<unknown>) | null,
     operations: [] as string[],
     request: null as Communities['request'] | null,
@@ -243,6 +262,12 @@ export function discoveryFixture(options: FixtureOptions = {}) {
     matchMedia: () => ({ matches: false }),
     fetch: async (input: string) => {
       const url = new URL(input, 'https://0xdmme.app');
+      if (url.pathname === '/api/communities/accounts') {
+        state.accountRequests.push(url);
+        return Response.json(
+          state.accountReply ? await state.accountReply() : state.accounts,
+        );
+      }
       return Response.json(
         await read(
           url.searchParams.get('after'),

@@ -1,3 +1,7 @@
+import { collectPostSignals } from './post-share-clicks.ts';
+import { ProfileRankingStore } from './profile-ranking.ts';
+import type { PublicProfileStore } from './public-profile.ts';
+import type { RankingPeriod } from '../../shared/community-ranking/index.ts';
 import type { ContentCapacity } from './content-capacity.ts';
 import { communityTopicPredicate } from './community-classification.ts';
 import { randomUUID } from 'node:crypto';
@@ -18,7 +22,7 @@ import { contentCapacityFits } from './content-capacity.ts';
 function rankingPageSelection(filter: ExploreFilter) {
   const rank = filter.order === 'size' ? 'e.followers' : 'e.score';
   const condition = {
-    new: "e.newly_created AND NOT c.archived AND c.created_at>clock_timestamp()-interval '7 days'",
+    new: "e.newly_created AND NOT c.archived AND c.created_at>clock_timestamp()-interval '168 hours'",
     trending: 'e.trending AND NOT c.archived',
     size: 'true',
   }[filter.order];
@@ -26,6 +30,7 @@ function rankingPageSelection(filter: ExploreFilter) {
 }
 const producerLock = "hashtext('hash-talk:community-ranking-producer')";
 export class CommunityRankingStore {
+  readonly profiles: ProfileRankingStore;
   private readonly pool: pg.Pool;
   private readonly capacity: ContentCapacity;
   private readonly cacheBudget: number;
@@ -33,7 +38,9 @@ export class CommunityRankingStore {
     pool: pg.Pool,
     capacity: ContentCapacity,
     cacheBudget = 64 * 1024 * 1024,
+    profiles: PublicProfileStore | null = null,
   ) {
+    this.profiles = new ProfileRankingStore(pool, capacity, profiles);
     this.pool = pool;
     this.capacity = capacity;
     this.cacheBudget = cacheBudget;
@@ -52,53 +59,14 @@ export class CommunityRankingStore {
       // Keep the source horizon aligned with an unfinished round, not wall-clock time.
       await this.clean(client, cutoff ?? new Date());
       if (!cutoff) return this.nextDeadline(client);
-      const pending = await client.query<{ community_id: string }>(
-        `SELECT community_id FROM hash_talk.community_ranking_state
-        WHERE (cutoff IS NULL OR cutoff<$1) AND (revision<>processed OR due_at<=$1 OR metrics IS NULL OR metrics->>'version' IS DISTINCT FROM $2::text OR metrics->>'formulaVersion' IS DISTINCT FROM $3::text) ORDER BY due_at,community_id LIMIT 32`,
-        [cutoff, rankingMetricVersion, rankingVersion],
-      );
-      if (pending.rows.length) {
-        const measured = await measureRanking(
-          client,
-          pending.rows.map((r) => r.community_id),
-          cutoff,
-        );
-        const updates = measured.map((row) => ({
-          id: row.community_id,
-          revision: row.revision,
-          due_at: row.due_at,
-          metrics: {
-            version: rankingMetricVersion,
-            formulaVersion: rankingVersion,
-            day: { ...row.day, score: rankingScore(row.day) },
-            week: { ...row.week, score: rankingScore(row.week) },
-            followers: row.followers,
-            archived: row.archived,
-            createdAt: row.created_at?.getTime() ?? null,
-            newDay: newlyCreated({
-              createdAt: row.created_at?.getTime() ?? null,
-              cutoff: cutoff.getTime(),
-              followers: row.followers,
-              participants: row.day.current.participants,
-              archived: row.archived,
-            }),
-            newWeek: newlyCreated({
-              createdAt: row.created_at?.getTime() ?? null,
-              cutoff: cutoff.getTime(),
-              followers: row.followers,
-              participants: row.week.current.participants,
-              archived: row.archived,
-            }),
-          },
-        }));
-        await this.persist(client, cutoff, updates);
-      }
+      await this.processCommunities(client, cutoff);
       const remaining = await client.query<{ pending: boolean }>(
         `SELECT EXISTS(SELECT 1 FROM hash_talk.community_ranking_state
         WHERE (cutoff IS NULL OR cutoff<$1) AND (revision<>processed OR due_at<=$1 OR metrics IS NULL OR metrics->>'version' IS DISTINCT FROM $2::text OR metrics->>'formulaVersion' IS DISTINCT FROM $3::text)) AS pending`,
         [cutoff, rankingMetricVersion, rankingVersion],
       );
       if (remaining.rows[0]!.pending) return Date.now();
+      if (await this.profiles.process(client, cutoff)) return Date.now();
       if (!(await this.reserveCache(client))) return Date.now();
       await this.publish(client, cutoff);
 
@@ -110,6 +78,60 @@ export class CommunityRankingStore {
       } finally {
         client.release();
       }
+    }
+  }
+  private async processCommunities(
+    client: pg.PoolClient,
+    cutoff: Date,
+  ): Promise<void> {
+    const pending = await client.query<{ community_id: string }>(
+      `SELECT community_id FROM hash_talk.community_ranking_state
+        WHERE (cutoff IS NULL OR cutoff<$1) AND (revision<>processed OR due_at<=$1 OR metrics IS NULL OR metrics->>'version' IS DISTINCT FROM $2::text OR metrics->>'formulaVersion' IS DISTINCT FROM $3::text) ORDER BY due_at,community_id LIMIT 32`,
+      [cutoff, rankingMetricVersion, rankingVersion],
+    );
+    if (pending.rows.length) {
+      const measured = await measureRanking(
+        client,
+        pending.rows.map((r) => r.community_id),
+        cutoff,
+      );
+      const updates = measured.map((row) => ({
+        id: row.community_id,
+        revision: row.revision,
+        due_at: row.due_at,
+        metrics: {
+          version: rankingMetricVersion,
+          formulaVersion: rankingVersion,
+          day: { ...row.day, score: rankingScore(row.day) },
+          week: { ...row.week, score: rankingScore(row.week) },
+          month: { ...row.month, score: rankingScore(row.month) },
+          followers: row.followers,
+          archived: row.archived,
+          createdAt: row.created_at?.getTime() ?? null,
+          newDay: newlyCreated({
+            createdAt: row.created_at?.getTime() ?? null,
+            cutoff: cutoff.getTime(),
+            followers: row.followers,
+            participants: row.day.current.participants,
+            archived: row.archived,
+          }),
+          newMonth: newlyCreated({
+            createdAt: row.created_at?.getTime() ?? null,
+            cutoff: cutoff.getTime(),
+            followers: row.followers,
+            participants: row.month.current.participants,
+            archived: row.archived,
+          }),
+          newWeek: newlyCreated({
+            createdAt: row.created_at?.getTime() ?? null,
+            cutoff: cutoff.getTime(),
+            followers: row.followers,
+            participants: row.week.current.participants,
+            archived: row.archived,
+          }),
+        },
+      }));
+      await this.persist(client, cutoff, updates);
     }
   }
   private async round(client: pg.PoolClient): Promise<Date | null> {
@@ -124,8 +146,12 @@ export class CommunityRankingStore {
       `UPDATE hash_talk.community_ranking_settings SET round_cutoff=
       greatest(date_trunc('milliseconds',clock_timestamp()),coalesce((SELECT max(cutoff)+interval '1 millisecond' FROM hash_talk.community_ranking_generations),'-infinity'::timestamptz))
       WHERE singleton AND (EXISTS(SELECT 1 FROM hash_talk.community_ranking_state WHERE revision<>processed OR due_at<=clock_timestamp() OR metrics IS NULL OR metrics->>'version' IS DISTINCT FROM $1::text OR metrics->>'formulaVersion' IS DISTINCT FROM $2::text)
-        OR NOT EXISTS(SELECT 1 FROM hash_talk.community_ranking_generations WHERE published AND metrics_version=$1::integer AND version=$2::integer AND expires_at>clock_timestamp())) RETURNING round_cutoff AS at`,
-      [rankingMetricVersion, rankingVersion],
+        OR $3::boolean OR NOT EXISTS(SELECT 1 FROM hash_talk.community_ranking_generations WHERE published AND metrics_version=$1::integer AND version=$2::integer AND expires_at>clock_timestamp())) RETURNING round_cutoff AS at`,
+      [
+        rankingMetricVersion,
+        rankingVersion,
+        await this.profiles.pending(client),
+      ],
     );
     return result.rows[0]?.at ?? null;
   }
@@ -163,16 +189,18 @@ export class CommunityRankingStore {
         [id, cutoff, rankingVersion, rankingMetricVersion],
       );
       await client.query(
-        `INSERT INTO hash_talk.community_ranking_entries(generation,community_id,period,score,participants,previous_participants,contributions,upvotes,history_complete,followers,trending,newly_created,source_revision)
+        `INSERT INTO hash_talk.community_ranking_entries(generation,community_id,period,score,participants,previous_participants,contributions,upvotes,views,shares,comments,history_complete,followers,trending,newly_created,source_revision)
         SELECT $1,s.community_id,p.period,(m.value->>'score')::bigint,(m.value->'current'->>'participants')::integer,
         (m.value->'previous'->>'participants')::integer,
-        (m.value->'current'->>'contributions')::integer,(m.value->'current'->>'upvotes')::integer,(m.value->>'historyComplete')::boolean,
+        (m.value->'current'->>'contributions')::integer,(m.value->'current'->>'upvotes')::integer,
+        (m.value->'current'->>'views')::bigint,(m.value->'current'->>'shares')::bigint,(m.value->'current'->>'comments')::integer,(m.value->>'historyComplete')::boolean,
         (s.metrics->>'followers')::integer,NOT (s.metrics->>'archived')::boolean AND (m.value->>'score')::bigint>0,
-        (s.metrics->>CASE WHEN p.period='day' THEN 'newDay' ELSE 'newWeek' END)::boolean,s.processed
-        FROM hash_talk.community_ranking_state s CROSS JOIN (VALUES('day'),('week')) p(period)
+        (s.metrics->>CASE p.period WHEN 'day' THEN 'newDay' WHEN 'week' THEN 'newWeek' ELSE 'newMonth' END)::boolean,s.processed
+        FROM hash_talk.community_ranking_state s CROSS JOIN (VALUES('day'),('week'),('month')) p(period)
         CROSS JOIN LATERAL (SELECT s.metrics->p.period AS value) m WHERE s.metrics IS NOT NULL`,
         [id],
       );
+      await this.profiles.publish(client, id);
       await assertContentCapacity(client, this.capacity);
       await client.query(
         'UPDATE hash_talk.community_ranking_generations SET published=true WHERE id=$1',
@@ -192,9 +220,12 @@ export class CommunityRankingStore {
       used: string;
       global: string;
       needed: string;
-    }>(`SELECT cache.used_bytes::text AS used,content.used_bytes::text AS global,
-      (256+512*(SELECT count(*) FROM hash_talk.community_ranking_state))::text AS needed
-      FROM hash_talk.community_ranking_cache_usage cache CROSS JOIN hash_talk.content_usage content WHERE cache.singleton AND content.singleton`);
+    }>(
+      `SELECT cache.used_bytes::text AS used,content.used_bytes::text AS global,
+      (256+768*(SELECT count(*) FROM hash_talk.community_ranking_state)+$1::bigint)::text AS needed
+      FROM hash_talk.community_ranking_cache_usage cache CROSS JOIN hash_talk.content_usage content WHERE cache.singleton AND content.singleton`,
+      [await this.profiles.publicationBytes(client)],
+    );
     const { used, needed, global } = usage.rows[0]!;
     if (Number(needed) > this.cacheBudget)
       throw new AccountError(
@@ -221,31 +252,42 @@ export class CommunityRankingStore {
     await client.query(`UPDATE hash_talk.community_ranking_generations SET expires_at=clock_timestamp()
       WHERE id=(SELECT id FROM hash_talk.community_ranking_generations WHERE expires_at>clock_timestamp()
       AND NOT EXISTS(SELECT 1 FROM hash_talk.community_ranking_entries e JOIN hash_talk.community_ranking_generations g ON g.id=e.generation WHERE g.expires_at<=clock_timestamp())
+      AND NOT EXISTS(SELECT 1 FROM hash_talk.profile_ranking_entries e JOIN hash_talk.community_ranking_generations g ON g.id=e.generation WHERE g.expires_at<=clock_timestamp())
       ORDER BY sequence LIMIT 1)`);
     // The next pass removes entries in bounded batches; never mass-delete a generation.
     return false;
   }
   private async clean(client: pg.PoolClient, cutoff: Date): Promise<void> {
+    await this.profiles.clean(client);
+    await collectPostSignals(client, cutoff);
     // Bounded cleanup; no accepted public contributions are removed.
     await client.query(
       `DELETE FROM hash_talk.community_upvote_deltas WHERE (post_id,at) IN
-      (SELECT post_id,at FROM hash_talk.community_upvote_deltas WHERE at<$1::timestamptz-interval '14 days' ORDER BY at LIMIT 256)`,
+      (SELECT post_id,at FROM hash_talk.community_upvote_deltas WHERE at<$1::timestamptz-interval '720 hours' ORDER BY at LIMIT 256)`,
       [cutoff],
     );
     await client.query(`DELETE FROM hash_talk.community_ranking_entries WHERE (generation,period,community_id) IN
       (SELECT e.generation,e.period,e.community_id FROM hash_talk.community_ranking_entries e JOIN hash_talk.community_ranking_generations g ON g.id=e.generation WHERE g.expires_at<=clock_timestamp() LIMIT 256)`);
     await client.query(`DELETE FROM hash_talk.community_ranking_generations WHERE id IN
-      (SELECT id FROM hash_talk.community_ranking_generations g WHERE expires_at<=clock_timestamp() AND NOT EXISTS(SELECT 1 FROM hash_talk.community_ranking_entries e WHERE e.generation=g.id) LIMIT 32)`);
+      (SELECT id FROM hash_talk.community_ranking_generations g WHERE expires_at<=clock_timestamp() AND NOT EXISTS(SELECT 1 FROM hash_talk.community_ranking_entries e WHERE e.generation=g.id) AND NOT EXISTS(SELECT 1 FROM hash_talk.profile_ranking_entries e WHERE e.generation=g.id) LIMIT 32)`);
   }
   private async nextDeadline(client: pg.PoolClient): Promise<number | null> {
     const result = await client.query<{
       at: Date | null;
     }>(`SELECT min(at) AS at FROM (
       SELECT min(CASE WHEN revision<>processed THEN clock_timestamp() ELSE due_at END) AS at FROM hash_talk.community_ranking_state WHERE revision<>processed OR due_at<>'infinity'
-      UNION ALL SELECT min(at)+interval '14 days' FROM hash_talk.community_upvote_deltas
+      UNION ALL SELECT min(at)+interval '720 hours' FROM hash_talk.community_upvote_deltas
+      UNION ALL SELECT min(at)+interval '720 hours' FROM hash_talk.community_post_engagement
+      UNION ALL SELECT min(at)+interval '720 hours' FROM hash_talk.community_share_clicks
       UNION ALL SELECT min(expires_at) FROM hash_talk.community_ranking_generations
     ) dates`);
-    return result.rows[0]?.at?.getTime() ?? null;
+    const profileDue =
+      (await this.profiles.deadline(client))?.getTime() ?? Infinity;
+    const at = Math.min(result.rows[0]?.at?.getTime() ?? Infinity, profileDue);
+    return Number.isFinite(at) ? at : null;
+  }
+  accountsPage(period: RankingPeriod, after: string | null) {
+    return this.profiles.page(period, after);
   }
   async page(
     filter: ExploreFilter,
@@ -264,6 +306,9 @@ export class CommunityRankingStore {
         previous_participants: number;
         contributions: number;
         upvotes: number;
+        views: number;
+        shares: number;
+        comments: number;
         history_complete: boolean;
       }[];
     }>(
@@ -272,7 +317,7 @@ export class CommunityRankingStore {
         WHERE published AND version=$2 AND metrics_version=$3 AND expires_at>clock_timestamp()
         AND ($1::uuid IS NULL OR id=$1) ORDER BY sequence DESC LIMIT 1
       ), ranked AS (
-        SELECT e.community_id,${rank}::text AS rank,e.participants,e.previous_participants,e.contributions,e.upvotes,e.history_complete
+        SELECT e.community_id,${rank}::text AS rank,e.participants,e.previous_participants,e.contributions,e.upvotes,e.views::double precision AS views,e.shares::double precision AS shares,e.comments,e.history_complete
         FROM head g JOIN hash_talk.community_ranking_entries e ON e.generation=g.id
         JOIN hash_talk.communities c ON c.id=e.community_id
         WHERE e.period=$4 AND ${condition} AND ${communityTopicPredicate()}

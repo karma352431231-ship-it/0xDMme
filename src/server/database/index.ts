@@ -215,6 +215,7 @@ const migrations = [
   '089-file-reclamation-allocations.sql',
   '090-attachment-reservation-allocations.sql',
   '091-group-media-parts.sql',
+  '092-account-ranking-windows.sql',
 ];
 
 export interface MaintenanceSnapshot {
@@ -405,6 +406,8 @@ export class Database {
     this.communityRanking = new CommunityRankingStore(
       this.pool,
       contentCapacity,
+      undefined,
+      this.publicProfiles,
     );
     this.communityDiscovery = new CommunityDiscoveryStore({
       pool: this.pool,

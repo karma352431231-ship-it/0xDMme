@@ -1,13 +1,48 @@
+import { AccountError } from '../account/index.ts';
 /** Versioned, local transforms: changing one community never rescales another. */
-export const rankingVersion = 1;
-/** 2 (16/10/2026): active members include public voters. */
-export const rankingMetricVersion = 2;
+export const rankingVersion = 2;
+/** 3: received engagement and one selected window, up to 30 days. */
+export const rankingMetricVersion = 3;
 export const rankingDay = 86_400_000;
 export const rankingNewAge = 7 * rankingDay;
 export const rankingNewFollowers = 500;
 export const rankingNewParticipants = 3;
 
-export interface RankingMetrics {
+export type RankingPeriod = 'day' | 'week' | 'month';
+export const rankingPeriods = ['day', 'week', 'month'] as const;
+export function rankingPeriod(value: unknown): RankingPeriod {
+  if (value !== 'day' && value !== 'week' && value !== 'month')
+    throw new AccountError(400, 'Ranking uses 24 hours, 7 days or 30 days.');
+  return value;
+}
+export interface ReceivedEngagement {
+  views: number;
+  shares: number;
+  upvotes: number;
+  comments: number;
+  commenters: number;
+  conversations: number;
+  engagedPosts: number;
+  viewSignal: number;
+  shareSignal: number;
+  upvoteSignal: number;
+  votedPosts: number;
+}
+export const emptyReceivedEngagement = (): ReceivedEngagement => ({
+  views: 0,
+  shares: 0,
+  upvotes: 0,
+  comments: 0,
+  commenters: 0,
+  conversations: 0,
+  engagedPosts: 0,
+  viewSignal: 0,
+  shareSignal: 0,
+  upvoteSignal: 0,
+  votedPosts: 0,
+});
+
+export interface RankingMetrics extends ReceivedEngagement {
   participants: number;
   contributions: number;
   conversations: number;
@@ -27,6 +62,7 @@ export interface RankingComparison {
   historyComplete: boolean;
 }
 export const emptyRankingMetrics = (): RankingMetrics => ({
+  ...emptyReceivedEngagement(),
   participants: 0,
   contributions: 0,
   conversations: 0,
@@ -49,8 +85,7 @@ function fraction(n: number, d: number): number {
 }
 /** Net positive variation, with diminishing influence and breadth across posts. */
 export function rankingScore(comparison: RankingComparison): number {
-  const c = comparison.current,
-    p = comparison.previous;
+  const c = comparison.current;
   const diversity =
     c.originals > 0
       ? Math.max(0, 1 - c.authorSquares / (c.originals * c.originals))
@@ -61,19 +96,25 @@ export function rankingScore(comparison: RankingComparison): number {
     volume(c.returning) +
     2 * fraction(c.returning, c.participants) +
     2 * fraction(c.occupied, c.intervals) +
-    volume(c.authors) * (0.5 + diversity) +
-    0.8 * Math.min(8, c.upvoteSignal) +
-    0.4 * volume(c.votedPosts);
-  // A smoothed base and absolute gain keep a tiny doubling from dominating.
-  const growth = comparison.historyComplete
-    ? 0.7 * adjustedGrowth(c.participants, p.participants) +
-      0.3 * adjustedGrowth(c.contributions, p.contributions)
-    : 0;
-  return Math.round(activity * (1 + Math.min(1.5, growth)) * 1_000_000);
+    volume(c.authors) * (0.5 + diversity);
+  return Math.round((activity + receivedScore(c)) * 1_000_000);
 }
-function adjustedGrowth(current: number, previous: number): number {
-  const gain = Math.max(0, current - previous);
-  return Math.min(2, gain / (previous + 100)) * fraction(gain, gain + 50);
+/** Local transforms never depend on followers, age or another ranking entry. */
+function receivedScore(c: ReceivedEngagement): number {
+  return (
+    1.2 * Math.min(16, c.upvoteSignal) +
+    1.5 * Math.min(12, c.shareSignal) +
+    0.3 * Math.min(16, c.viewSignal) +
+    0.4 * volume(c.engagedPosts)
+  );
+}
+export function accountRankingScore(c: ReceivedEngagement): number {
+  return Math.round(
+    (4 * volume(c.commenters) +
+      2 * volume(c.conversations) +
+      receivedScore(c)) *
+      1_000_000,
+  );
 }
 export function newlyCreated(input: {
   createdAt: number | null;

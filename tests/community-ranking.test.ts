@@ -21,16 +21,15 @@ const comparison = (before: number, now: number) => ({
   },
   historyComplete: true,
 });
-await test('balança mantém ganho absoluto relevante, permite aceleração e não elimina grandes', () => {
-  const tiny = rankingScore(comparison(10, 20)),
-    big = rankingScore(comparison(1000, 1100));
-  const accelerating = rankingScore(comparison(10, 110)),
-    massive = rankingScore(comparison(1_000_000, 2_000_000));
-  assert.ok(tiny < big);
-  assert.ok(accelerating > tiny);
-  assert.ok(accelerating / big > 0.7 && accelerating / big < 1.5);
-  assert.ok(massive > Math.max(accelerating, big));
-  assert.ok(rankingScore(comparison(1000, 1000)) > tiny);
+await test('ranking uses only current-window gains and has diminishing volume returns', () => {
+  const base = comparison(0, 110);
+  assert.equal(rankingScore(base), rankingScore(comparison(10000, 110)));
+  assert.ok(
+    rankingScore(comparison(0, 20)) < rankingScore(comparison(0, 1100)),
+  );
+  assert.ok(
+    rankingScore(comparison(0, 200)) < 2 * rankingScore(comparison(0, 100)),
+  );
 });
 await test('histórico ausente não fabrica crescimento e seis sinais têm efeito limitado', () => {
   const base = comparison(0, 20);
@@ -91,6 +90,10 @@ await test('ranking restringe períodos e vincula cursor à geração e classifi
     order: 'trending',
     period: 'week',
   });
+  assert.equal(
+    exploreFilter({ order: 'trending', period: 'month' }).period,
+    'month',
+  );
   assert.throws(() => exploreFilter({ order: 'new', period: 'all' }));
   const data = {
     generation: crypto.randomUUID(),

@@ -1,3 +1,4 @@
+import { measurePostSignals } from '../../src/server/database/post-ranking-signals.ts';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import pg from 'pg';
@@ -310,7 +311,7 @@ await test('rankings: métricas exatas, votos agregados, eventos, recuperação 
     },
   );
   await t.test(
-    'quem só vota conta como ativo na janela do voto e o anterior é publicado',
+    'voters count only inside the selected window without previous-window growth',
     async () => {
       const voter = await make();
       await voter.publicIdentity(`rank_${crypto.randomUUID().slice(0, 8)}`);
@@ -337,10 +338,7 @@ await test('rankings: métricas exatas, votos agregados, eventos, recuperação 
       );
       const earlier = await active();
       assert.equal(earlier.current.participants, before.current.participants);
-      assert.equal(
-        earlier.previous.participants,
-        before.previous.participants + 1,
-      );
+      assert.equal(earlier.previous.participants, 0);
       await refresh();
       const row = (await page()).items.find(
         (r) => r.community.id === community,
@@ -566,13 +564,14 @@ await test('rankings: métricas exatas, votos agregados, eventos, recuperação 
         connectionString: config.databaseUrl,
         max: 1,
       });
-      const needed = Number(
-        (
-          await inspector.query<{ bytes: string }>(
-            'SELECT (256+512*count(*))::text AS bytes FROM hash_talk.community_ranking_state',
-          )
-        ).rows[0]!.bytes,
-      );
+      const needed =
+        Number(
+          (
+            await inspector.query<{ bytes: string }>(
+              'SELECT (256+768*count(*))::text AS bytes FROM hash_talk.community_ranking_state',
+            )
+          ).rows[0]!.bytes,
+        ) + (await db.communityRanking.profiles.publicationBytes(inspector));
       const previous = await page('size');
       await inspector.query(
         'UPDATE hash_talk.communities SET name=$2 WHERE id=$1',
@@ -600,7 +599,7 @@ await test('rankings: métricas exatas, votos agregados, eventos, recuperação 
           used: string;
           actual: string;
         }>(`SELECT used_bytes::text AS used,
-        (coalesce((SELECT sum(charge) FROM hash_talk.community_ranking_generations),0)+coalesce((SELECT sum(charge) FROM hash_talk.community_ranking_entries),0))::text AS actual
+        (coalesce((SELECT sum(charge) FROM hash_talk.community_ranking_generations),0)+coalesce((SELECT sum(charge) FROM hash_talk.community_ranking_entries),0)+coalesce((SELECT sum(charge) FROM hash_talk.profile_ranking_entries),0))::text AS actual
         FROM hash_talk.community_ranking_cache_usage WHERE singleton`);
         assert.equal(usage.rows[0]!.used, usage.rows[0]!.actual);
         assert.ok(Number(usage.rows[0]!.used) <= needed + 1024);
@@ -625,10 +624,11 @@ await test('rankings: métricas exatas, votos agregados, eventos, recuperação 
     },
   );
   await t.test(
-    'participantes retornando são interseções exatas nas duas janelas',
+    'returning contributors occupy distinct buckets inside the selected window',
     async () => {
       const examples = [
         { user: owner, hours: 3 },
+        { user: owner, hours: 4 },
         { user: owner, hours: 25 },
         { user: owner, hours: 180 },
         { user: users[1]!, hours: 30 },
@@ -705,6 +705,222 @@ await test('rankings: métricas exatas, votos agregados, eventos, recuperação 
       }
       assert.equal(expired, true);
       assert.ok(!(await page('new')).items.some((r) => r.community.id === id));
+    },
+  );
+  await t.test(
+    'accounts and communities share bounded, published 24h/7d/30d receipt windows',
+    async () => {
+      const root = crypto.randomUUID();
+      await owner.operate('post-create', {
+        id: community,
+        post: root,
+        content: await rootPostContent(
+          communities,
+          community,
+          'Old post, recent activity',
+        ),
+      });
+      await inspector.query(
+        "UPDATE hash_talk.community_posts SET created_at=clock_timestamp()-interval '35 days' WHERE id=$1",
+        [root],
+      );
+      const click = {
+        items: [{ community, post: root, token: 'e'.repeat(32) }],
+      };
+      await Promise.all(
+        Array.from({ length: 4 }, () => db.communityViews.shareClicks(click)),
+      );
+      const receipts = await inspector.query<{ n: number }>(
+        'SELECT count(*)::integer AS n FROM hash_talk.community_share_clicks WHERE post_id=$1',
+        [root],
+      );
+      assert.equal(receipts.rows[0]!.n, 1);
+      const total = await inspector.query<{ n: number }>(
+        'SELECT sum(shares)::integer AS n FROM hash_talk.community_post_engagement WHERE post_id=$1',
+        [root],
+      );
+      assert.equal(total.rows[0]!.n, 1);
+      await db.communityViews.observe({
+        items: [{ community, post: root, token: 'f'.repeat(32) }],
+      });
+      await inspector.query(
+        'DELETE FROM hash_talk.community_post_engagement WHERE post_id=$1',
+        [root],
+      );
+      await refresh();
+      const cached = await db.communityRanking.accountsPage('month', null);
+      await inspector.query(
+        `INSERT INTO hash_talk.community_post_engagement(post_id,at,views,shares)
+      SELECT $1,clock_timestamp()-days*interval '1 day',views,shares FROM (VALUES(0.1,5,1),(5,7,2),(20,11,3),(31,13,4)) e(days,views,shares)`,
+        [root],
+      );
+      // Reading a published ranking does not query/rebuild live source metrics.
+      assert.deepEqual(
+        await db.communityRanking.accountsPage('month', null),
+        cached,
+      );
+      const signals = await measurePostSignals(inspector, {
+        ids: [publicUsers[0]!.id],
+        cutoff: new Date(),
+        target: 'author',
+      });
+      for (const [period, views, shares] of [
+        ['day', 5, 1],
+        ['week', 12, 3],
+        ['month', 23, 6],
+      ] as const) {
+        const value = signals.find((row) => row.period === period)!;
+        assert.equal(value.views, views);
+        assert.equal(value.shares, shares);
+      }
+      await refresh();
+      for (const [period, views] of [
+        ['day', 5],
+        ['week', 12],
+        ['month', 23],
+      ] as const) {
+        const accountsPage = await db.communityRanking.accountsPage(
+          period,
+          null,
+        );
+        const entry = accountsPage.items.find(
+          (row) => row.profile.id === publicUsers[0]!.id,
+        )!;
+        assert.equal(entry.views, views);
+        assert.equal(entry.historyComplete, false);
+        const groups = explorePage(
+          await communities.explore({ order: 'trending', period }, null),
+        );
+        assert.equal(groups.generation, accountsPage.generation);
+        assert.equal(
+          groups.items.find((row) => row.community.id === community)!.views,
+          views,
+        );
+        assert.ok(!JSON.stringify(entry).includes('wallet'));
+      }
+      const columns = await inspector.query<{ column_name: string }>(
+        "SELECT column_name FROM information_schema.columns WHERE table_schema='hash_talk' AND table_name='community_post_engagement'",
+      );
+      assert.deepEqual(columns.rows.map((r) => r.column_name).sort(), [
+        'at',
+        'charge',
+        'post_id',
+        'shares',
+        'views',
+      ]);
+      await owner.operate('post-delete', {
+        id: community,
+        post: root,
+        revision: 1,
+      });
+      await refresh();
+      const removed = await db.communityRanking.accountsPage('month', null);
+      assert.equal(
+        removed.items.find((row) => row.profile.id === publicUsers[0]!.id)
+          ?.views ?? 0,
+        0,
+      );
+    },
+  );
+  await t.test(
+    '1,000 accounts reuse published pages and recompute only an affected author',
+    async () => {
+      const authors = Array.from({ length: 1000 }, () => crypto.randomUUID());
+      accounts.push(...authors);
+      await inspector.query(
+        `INSERT INTO hash_talk.accounts(id,address) SELECT id,'0x'||lpad(replace(id::text,'-',''),40,'0') FROM unnest($1::uuid[]) id`,
+        [authors],
+      );
+      await inspector.query(
+        `INSERT INTO hash_talk.public_profiles(id,account_id,handle) SELECT id,id,'load_'||substr(replace(id::text,'-',''),1,24) FROM unnest($1::uuid[]) id`,
+        [authors],
+      );
+      const roots = await inspector.query<{ id: string; author: string }>(
+        `INSERT INTO hash_talk.community_posts(id,community_id,author,title,text,created_at)
+      SELECT gen_random_uuid(),$2,id,'Synthetic load','Synthetic only',clock_timestamp()-interval '35 days' FROM unnest($1::uuid[]) id RETURNING id,author`,
+        [authors, community],
+      );
+      await inspector.query(
+        `INSERT INTO hash_talk.community_post_engagement(post_id,at,views,shares)
+      SELECT id,clock_timestamp()-interval '1 hour',10,1 FROM unnest($1::uuid[]) id`,
+        [roots.rows.map((r) => r.id)],
+      );
+      const started = performance.now();
+      await refresh();
+      const firstBuildMs = performance.now() - started;
+      const first = await db.communityRanking.accountsPage('month', null);
+      assert.equal(first.items.length, 24);
+      assert.ok(first.next);
+      const second = await db.communityRanking.accountsPage(
+        'month',
+        first.next,
+      );
+      assert.equal(second.generation, first.generation);
+      assert.equal(
+        new Set([...first.items, ...second.items].map((r) => r.profile.id))
+          .size,
+        48,
+      );
+      await assert.rejects(
+        db.communityRanking.accountsPage('week', first.next),
+        { status: 400 },
+      );
+      const count = await inspector.query<{ n: number }>(
+        "SELECT count(*)::integer AS n FROM hash_talk.profile_ranking_entries WHERE generation=$1 AND period='month' AND profile_id=ANY($2::uuid[])",
+        [first.generation, authors],
+      );
+      assert.equal(count.rows[0]!.n, 1000);
+      const before = await inspector.query<{
+        profile_id: string;
+        processed: string;
+      }>(
+        'SELECT profile_id,processed::text FROM hash_talk.profile_ranking_state ORDER BY profile_id',
+      );
+      const readAt = performance.now();
+      for (let i = 0; i < 20; i++)
+        await db.communityRanking.accountsPage('month', null);
+      const publishedPerReadMs = (performance.now() - readAt) / 20;
+      assert.deepEqual(
+        (
+          await inspector.query(
+            'SELECT profile_id,processed::text FROM hash_talk.profile_ranking_state ORDER BY profile_id',
+          )
+        ).rows,
+        before.rows,
+      );
+      await inspector.query(
+        'UPDATE hash_talk.community_post_engagement SET views=views+1 WHERE post_id=$1',
+        [roots.rows[0]!.id],
+      );
+      const updateAt = performance.now();
+      await refresh();
+      const affectedUpdateMs = performance.now() - updateAt;
+      const after = await inspector.query<{
+        profile_id: string;
+        processed: string;
+      }>(
+        'SELECT profile_id,processed::text FROM hash_talk.profile_ranking_state ORDER BY profile_id',
+      );
+      assert.equal(
+        after.rows.filter(
+          (row, index) => row.processed !== before.rows[index]?.processed,
+        ).length,
+        1,
+      );
+      const evidence = {
+        accounts: 1000,
+        firstBuildMs,
+        affectedUpdateMs,
+        publishedPerReadMs,
+        scope:
+          'Local PostgreSQL synthetic data; no VPS capacity claim. Full snapshot publication includes communities and accounts.',
+      };
+      await mkdir('.local', { recursive: true });
+      await writeFile(
+        '.local/account-ranking-performance.json',
+        JSON.stringify(evidence, null, 2) + '\n',
+      );
+      t.diagnostic(JSON.stringify(evidence));
     },
   );
   await t.test(

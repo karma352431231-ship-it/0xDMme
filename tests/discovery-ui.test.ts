@@ -54,7 +54,7 @@ for (const language of [
     );
     assert.equal(
       rows[1]!.querySelector('.ranking-growth')?.textContent,
-      '+6' + fixture.t('em formação'),
+      '+6' + fixture.t('upvotes em alta'),
     );
     await ui.refresh();
     assert.equal(host.querySelector('.ranking-row'), rows[0]);
@@ -303,3 +303,89 @@ await test('Discover starts at 24 hours and respects an explicit period choice',
   assert.equal(fixture.ui.bookmark()?.period, 'all');
   assert.ok(fixture.requests.length >= 2);
 });
+
+for (const language of ['en', 'zh-CN'] as const) {
+  await test(`account ranking owns windows, bounded pages, errors and public identity in ${language}`, async (t) => {
+    const fixture = discoveryFixture({ view: 'explore', language });
+    t.after(() => fixture.ui.leave());
+    await settled(fixture);
+    const { host, state, ui } = fixture;
+    button(host, fixture.t('ranking.accounts')).click();
+    await settled(fixture);
+    assert.equal(
+      state.accountRequests.at(-1)!.searchParams.get('period'),
+      'day',
+    );
+    const accountPanel = host.querySelector('.account-ranking')!;
+    assert.equal(accountPanel.hidden, false);
+    assert.ok(accountPanel.textContent.includes('@synthetic_author'));
+    assert.ok(
+      accountPanel.textContent.includes(fixture.t('ranking.partial-history')),
+    );
+    const oldRow = accountPanel.querySelector('.account-ranking-row');
+    await ui.refresh();
+    assert.equal(accountPanel.querySelector('.account-ranking-row'), oldRow);
+    const cursor = JSON.stringify({
+      generation: state.accounts.generation,
+      rank: 1,
+      id: state.accounts.items[0]!.profile.id,
+      filter: 'accounts/day',
+    });
+    state.accounts.next = cursor;
+    await ui.refresh();
+    state.accounts.items = [
+      {
+        ...state.accounts.items[0]!,
+        profile: { ...state.accounts.items[0]!.profile, handle: 'page_two' },
+      },
+    ];
+    state.accounts.next = null;
+    button(accountPanel, fixture.t('Próxima página')).click();
+    await settled(fixture);
+    assert.equal(
+      accountPanel.querySelectorAll('.account-ranking-row').length,
+      1,
+    );
+    assert.ok(accountPanel.textContent.includes('@page_two'));
+    assert.ok(!accountPanel.textContent.includes('@synthetic_author'));
+    await ui.refresh();
+    assert.equal(
+      state.accountRequests.at(-1)!.searchParams.get('after'),
+      cursor,
+    );
+    button(accountPanel, fixture.t('30 dias')).click();
+    await settled(fixture);
+    assert.equal(
+      state.accountRequests.at(-1)!.searchParams.get('period'),
+      'month',
+    );
+    assert.equal(state.accountRequests.at(-1)!.searchParams.get('after'), null);
+    button(accountPanel, fixture.t('7 dias')).click();
+    await settled(fixture);
+    assert.equal(
+      state.accountRequests.at(-1)!.searchParams.get('period'),
+      'week',
+    );
+    button(accountPanel, fixture.t('ranking.reload')).click();
+    await settled(fixture);
+    assert.equal(state.accountRequests.at(-1)!.searchParams.get('after'), null);
+    button(host, fixture.t('ranking.title')).click();
+    assert.equal(accountPanel.hidden, true);
+  });
+  await test(`late account window results cannot overwrite the new selection in ${language}`, async (t) => {
+    const fixture = discoveryFixture({ view: 'explore', language });
+    t.after(() => fixture.ui.leave());
+    await settled(fixture);
+    const wait = deferred<unknown>();
+    fixture.state.accountReply = () => wait.promise;
+    button(fixture.host, fixture.t('ranking.accounts')).click();
+    await Promise.resolve();
+    fixture.state.accountReply = null;
+    const panel = fixture.host.querySelector('.account-ranking')!;
+    button(panel, fixture.t('30 dias')).click();
+    await settled(fixture);
+    wait.resolve({ ...fixture.state.accounts, items: [] });
+    await settled(fixture);
+    assert.ok(panel.textContent.includes('@synthetic_author'));
+  });
+}

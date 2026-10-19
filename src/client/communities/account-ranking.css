@@ -1,0 +1,81 @@
+.ranking-scopes,
+.ranking-periods {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-block: 8px;
+}
+.ranking-scopes button,
+.ranking-periods button {
+  padding: 6px 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text-muted);
+}
+.ranking-scopes button[aria-pressed='true'],
+.ranking-periods button[aria-pressed='true'] {
+  background: var(--surface-2);
+  color: var(--text);
+}
+.account-ranking-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.account-ranking-row {
+  display: grid;
+  grid-template-columns: 24px 36px minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+  padding: 12px 8px;
+  color: var(--text);
+  text-decoration: none;
+  border-bottom: 1px solid var(--line);
+}
+.account-ranking-copy {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+.account-ranking-copy strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.account-ranking-copy small {
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+}
+.account-ranking-avatar {
+  border-radius: 50%;
+}
+.ranking-community-pane[hidden],
+.account-ranking[hidden] {
+  display: none;
+}
+.ranking-periods select {
+  max-width: 100%;
+}
+.ranking-side > .ranking-community-pane {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+.ranking-side > .account-ranking {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+.ranking-side .account-ranking-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+.ranking-side > .ranking-community-pane[hidden],
+.ranking-side > .account-ranking[hidden] {
+  display: none;
+}

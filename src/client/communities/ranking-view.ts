@@ -55,7 +55,7 @@ export function renderCommunityRanking(
   return offset;
 }
 
-/** Same figures as before, laid out as columns; growth is never shown as comparable while history forms. */
+/** Received gains are displayed without a preceding-window percentage. */
 function rankingStats(
   item: ExplorePage['items'][number],
   order: ExploreFilter['order'],
@@ -73,13 +73,10 @@ function rankingStats(
   if (order === 'size') return [followers];
   const growth = stat(
     `+${number(item.upvotes)}`,
-    item.historyComplete ? t('upvotes em alta') : t('em formação'),
+    t('upvotes em alta'),
     'ranking-growth',
   );
-  if (!item.historyComplete)
-    growth.title = t(
-      'Histórico em formação; crescimento ainda não comparável.',
-    );
+  if (!item.historyComplete) growth.title = t('ranking.partial-history');
   return [
     followers,
     stat(number(item.participants), t('ranking.active-label')),

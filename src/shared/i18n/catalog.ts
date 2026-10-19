@@ -1,5 +1,34 @@
 /** Authored app text. Tuple order: English, Simplified Chinese. */
 export const catalog: Record<string, readonly [string, string]> = {
+  'ranking.reload': ['Reload from the start', '从头重新加载'],
+  'ranking.overall': ['Rankings', '排行榜'],
+  'ranking.scope': ['Ranking category', '排行榜类别'],
+  'ranking.accounts': ['Accounts', '用户'],
+  'ranking.received': ['In this period', '所选时段'],
+  'ranking.partial-history': [
+    'Collecting activity; this period is not complete yet.',
+    '正在收集活动数据；此时段的数据尚不完整。',
+  ],
+  'ranking.received-summary': [
+    '{0} views · {1} upvotes · {2} comments · {3} share clicks',
+    '{0} 次浏览 · {1} 次赞 · {2} 条评论 · {3} 次分享点击',
+  ],
+  'ranking.share-count-failed': [
+    'Sharing is available, but this click could not be counted.',
+    '仍可分享，但未能计入此次点击。',
+  ],
+  'Ranking uses 24 hours, 7 days or 30 days.': [
+    'Ranking uses 24 hours, 7 days or 30 days.',
+    '排行榜支持 24 小时、7 天或 30 天。',
+  ],
+  'Profile page too large.': [
+    'Profile page too large.',
+    '用户页面超出大小限制。',
+  ],
+  'Share counts unavailable.': [
+    'Share counts unavailable.',
+    '分享计数暂不可用。',
+  ],
   'calls.test-tone-explanation': [
     'Sends one quiet, generated beep to the other person instead of your microphone for about one second, then restores your microphone. It records nothing. Available only with your microphone on.',
     '用一个轻柔的合成提示音代替麦克风音频发送给对方，持续约一秒，然后恢复麦克风。不录制任何内容。仅在麦克风开启时可用。',

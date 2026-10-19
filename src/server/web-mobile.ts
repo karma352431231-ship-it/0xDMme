@@ -127,6 +127,9 @@ try {
     communities: createCommunityHandler({
       origin: mobile.origin,
       views: (input) => database!.communityViews.observe(input),
+      shareClicks: (input) => database!.communityViews.shareClicks(input),
+      accounts: (period, after) =>
+        database!.communityRanking.accountsPage(period, after),
       read: (id) => communities.read(id),
       readAddress: (slug) => communities.readAddress(slug),
       list: (after) => communities.list(after),

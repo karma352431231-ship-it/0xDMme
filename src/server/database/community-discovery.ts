@@ -342,6 +342,9 @@ export class CommunityDiscoveryStore {
                 participants: row.participants,
                 previousParticipants: row.previous_participants,
                 upvotes: row.upvotes,
+                views: row.views,
+                shares: row.shares,
+                comments: row.comments,
                 historyComplete: row.history_complete,
               },
             ]

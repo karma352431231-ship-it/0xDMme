@@ -1,3 +1,4 @@
+import { countShareClick } from './share-click.ts';
 import { t } from '../../shared/i18n/index.ts';
 import type { CommunityPost } from '../../shared/community-posts/index.ts';
 import { postShareState } from '../../shared/post-sharing/index.ts';
@@ -20,6 +21,15 @@ export function postSharing(
   button.className = 'post-action post-share';
   button.append(communityIcon('share'));
   container.append(button);
+  button.addEventListener('click', () => {
+    if (button.getAttribute('aria-pressed') === 'true') return;
+    void countShareClick(post)
+      .catch(() => false)
+      .then((counted) => {
+        if (!counted && button.isConnected)
+          button.title = t('ranking.share-count-failed');
+      });
+  });
   if (button instanceof HTMLAnchorElement) button.href = '#settings';
   if (!(button instanceof HTMLButtonElement) || !access) {
     button.setAttribute('aria-label', t('Entre pelo Perfil para compartilhar'));

@@ -1,3 +1,6 @@
+import { accountRankingLookup } from './account-ranking.ts';
+import type { AccountRankingPage } from '../../shared/account-ranking/index.ts';
+import type { RankingPeriod } from '../../shared/community-ranking/index.ts';
 import { communitySlug } from '../../shared/community-address/index.ts';
 import { upvoterLookup } from './upvotes.ts';
 import { directoryLookup } from './directory.ts';
@@ -56,6 +59,11 @@ export function createCommunityHandler(read: {
   origin?: string;
   suggestions?: (query: string) => Promise<CommunityPage>;
   views?: (input: unknown) => Promise<unknown>;
+  shareClicks?: (input: unknown) => Promise<{ accepted: true }>;
+  accounts?: (
+    period: RankingPeriod,
+    after: string | null,
+  ) => Promise<AccountRankingPage>;
   readAddress?: (slug: string) => Promise<Community>;
   read: (id: string) => Promise<Community>;
   list: (after: string | null) => Promise<CommunityPage>;
@@ -93,6 +101,12 @@ export function createCommunityHandler(read: {
     response.writeHead(status).end(head ? undefined : JSON.stringify(data));
   }
   async function lookup(request: IncomingMessage): Promise<unknown> {
+    if (request.url === '/api/communities/share-clicks') {
+      if (!read.shareClicks || !read.origin)
+        throw new AccountError(404, 'Share counts unavailable.');
+      budget.admit(request.socket.remoteAddress ?? 'unknown', false);
+      return read.shareClicks(await viewRequest(request, read.origin));
+    }
     if (request.url !== '/api/communities/views') return readLookup(request);
     if (!read.views || !read.origin)
       throw new AccountError(404, 'Visualizações indisponíveis.');
@@ -133,6 +147,8 @@ export function createCommunityHandler(read: {
     );
   }
   async function publicDirectory(address: URL) {
+    if (address.pathname === '/api/communities/accounts')
+      return accountRankingLookup(address, read.accounts);
     return (await addressLookup(address)) ?? directoryLookup(address, read);
   }
   async function readLookup(request: IncomingMessage): Promise<unknown> {
@@ -174,7 +190,9 @@ export function createCommunityHandler(read: {
       if (error instanceof AccountError && error.status === 405)
         response.setHeader(
           'Allow',
-          request.url === '/api/communities/views' && read.views
+          (request.url === '/api/communities/views' && read.views) ||
+            (request.url === '/api/communities/share-clicks' &&
+              read.shareClicks)
             ? 'POST'
             : 'GET, HEAD',
         );

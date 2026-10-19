@@ -1,22 +1,61 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { setActiveLanguage } from '../src/shared/i18n/index.ts';
-import { activeGrowth } from '../src/client/communities/ranking-side.ts';
+import {
+  accountRankingScore,
+  emptyReceivedEngagement,
+  rankingPeriod,
+} from '../src/shared/community-ranking/index.ts';
+import { accountRankingPage } from '../src/shared/account-ranking/index.ts';
 
-await test('active growth is a raw percent against the previous 24 hours, never capped', () => {
-  setActiveLanguage('en');
-  assert.equal(activeGrowth(38, 29), '▲ 31% active');
-  assert.equal(activeGrowth(8, 1), '▲ 700% active');
-  assert.equal(activeGrowth(10_001, 1), '▲ 1,000,000% active');
-  assert.equal(activeGrowth(40, 52), '▼ 23% active');
-  assert.equal(activeGrowth(5, 5), '▲ 0% active');
+await test('accounts receive gains without age, followers or previous-window bonuses', () => {
+  const base = emptyReceivedEngagement();
+  assert.equal(accountRankingScore(base), 0);
+  for (const patch of [
+    { commenters: 1 },
+    { conversations: 1 },
+    { viewSignal: 1 },
+    { shareSignal: 1 },
+    { upvoteSignal: 1 },
+  ])
+    assert.ok(accountRankingScore({ ...base, ...patch }) > 0);
+  assert.equal(
+    accountRankingScore({ ...base, viewSignal: 16 }),
+    accountRankingScore({ ...base, viewSignal: 1000000 }),
+  );
+  assert.ok(
+    accountRankingScore({ ...base, shareSignal: 1 }) >
+      accountRankingScore({ ...base, viewSignal: 1 }),
+  );
+  assert.ok(
+    accountRankingScore({ ...base, commenters: 200 }) <
+      2 * accountRankingScore({ ...base, commenters: 100 }),
+  );
 });
-
-await test('without a previous window it shows the new active members', () => {
-  setActiveLanguage('en');
-  assert.equal(activeGrowth(12, 0), '▲ +12 active');
-  assert.equal(activeGrowth(0, 0), '0 active');
-  setActiveLanguage('zh-CN');
-  assert.equal(activeGrowth(12, 0), '▲ +12 位活跃');
-  setActiveLanguage('en');
+await test('account ranking admits three bounded windows and rejects identity leaks', () => {
+  for (const period of ['day', 'week', 'month'])
+    assert.equal(rankingPeriod(period), period);
+  assert.throws(() => rankingPeriod('all'));
+  const page = {
+    generation: crypto.randomUUID(),
+    cutoff: new Date().toISOString(),
+    expiresAt: new Date().toISOString(),
+    next: null,
+    items: [
+      {
+        profile: { id: crypto.randomUUID(), handle: 'example', avatar: null },
+        views: 10,
+        comments: 2,
+        upvotes: 3,
+        shares: 1,
+        historyComplete: false,
+      },
+    ],
+  };
+  assert.equal(accountRankingPage(page).items[0]!.views, 10);
+  assert.throws(() =>
+    accountRankingPage({
+      ...page,
+      items: [{ ...page.items[0], wallet: 'private' }],
+    }),
+  );
 });

@@ -1,3 +1,4 @@
+import { receiveShareClicks } from './post-share-clicks.ts';
 import type { ContentCapacity } from './content-capacity.ts';
 import { visiblePost } from './community-post-visibility.ts';
 import { createHash } from 'node:crypto';
@@ -20,6 +21,12 @@ export class CommunityViewsStore {
     this.pool = pool;
     this.contacts = contacts;
     this.capacity = capacity;
+  }
+  shareClicks(input: unknown) {
+    return receiveShareClicks(input, {
+      contacts: this.contacts,
+      capacity: this.capacity,
+    });
   }
   async observe(input: unknown): Promise<{ items: PostViews[] }> {
     const observations = postObservations(input).map((item) => ({

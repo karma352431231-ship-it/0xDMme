@@ -1,3 +1,4 @@
+import { rankingScopes, mountDiscoveryRanking } from './account-ranking.ts';
 import { renderFeedCard } from './feed-card.ts';
 import { renderCommunityRanking } from './ranking-view.ts';
 import { rankingTopicFilter } from './classification.ts';
@@ -73,6 +74,7 @@ export function startCommunityDiscovery(
   // Newest post time on the first feed page shown; the refresh pill looks for later posts.
   let newest = 0;
   let feedRefresh: FeedRefresh | null = null;
+  let rankingScope: ReturnType<typeof rankingScopes> | null = null;
   // The pill has its own lifetime: a kept page gets a new one on its return.
   let refreshAbort = new AbortController();
   // Nodes the communities page placed before this feed; the rest belong to it.
@@ -179,6 +181,7 @@ export function startCommunityDiscovery(
             ? [
                 ['day', t('24 horas')],
                 ['week', t('7 dias')],
+                ['month', t('30 dias')],
               ]
             : discoveryPeriods,
       },
@@ -365,6 +368,7 @@ export function startCommunityDiscovery(
     void run(reload);
   }
   async function refresh(): Promise<void> {
+    if (rankingScope?.active()) return rankingScope.refresh();
     if (!mounted || hasOpenFeedReply(mounted)) return;
     await run(async () => {
       after = displayedAfter;
@@ -378,6 +382,7 @@ export function startCommunityDiscovery(
    * different feed, a session change or its time limit.
    */
   function leave(): void {
+    rankingScope = null;
     if (!mounted && park.holding) return;
     if (
       mounted &&
@@ -495,6 +500,9 @@ export function startCommunityDiscovery(
       view = options.view;
       signedIn = options.signedIn;
       initialFilters(options.bookmark);
+      const ranking = mountDiscoveryRanking(container, view, abort.signal);
+      rankingScope = ranking.scope;
+      mounted = ranking.element;
       const titles: Record<string, string> = {
         feed: t('Feed'),
         following: t('Seguindo'),

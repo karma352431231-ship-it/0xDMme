@@ -149,6 +149,9 @@ try {
     communities: createCommunityHandler({
       origin: config.origin,
       views: (input) => database!.communityViews.observe(input),
+      shareClicks: (input) => database!.communityViews.shareClicks(input),
+      accounts: (period, after) =>
+        database!.communityRanking.accountsPage(period, after),
       read: (id) => communities.read(id),
       readAddress: (slug) => communities.readAddress(slug),
       followers: (id, after, tab) => communities.followerPage(id, after, tab),

@@ -103,6 +103,17 @@ export class PublicProfileStore {
     );
     return (await this.project(this.pool, result.rows))[0] ?? null;
   }
+  async readMany(
+    client: Pick<pg.PoolClient, 'query'>,
+    ids: string[],
+  ): Promise<PublicProfile[]> {
+    if (ids.length > 24) throw new AccountError(400, 'Profile page too large.');
+    const result = await client.query<ProfileRow>(
+      `SELECT ${publicColumns} FROM hash_talk.public_profiles WHERE id=ANY($1::uuid[])`,
+      [ids],
+    );
+    return this.project(client, result.rows);
+  }
   async readById(id: string): Promise<PublicProfile | null> {
     const result = await this.pool.query<ProfileRow>(
       `SELECT ${publicColumns} FROM hash_talk.public_profiles WHERE id=$1`,

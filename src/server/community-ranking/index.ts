@@ -10,7 +10,7 @@ export class CommunityRankingService {
     options: { fallbackMs?: number; keepAlive?: boolean } = {},
   ) {
     this.scheduler = new WorkScheduler({
-      coalesceMs: 100,
+      coalesceMs: 1000,
       ...options,
       work: () => store.process(),
       failed: () => {

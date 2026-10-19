@@ -1,3 +1,4 @@
+import { rankingPeriod } from '../community-ranking/index.ts';
 import {
   communityTopicSelection,
   communityTopics,
@@ -35,7 +36,7 @@ export interface FeedFilter {
 export interface ExploreFilter {
   topics?: CommunityTopic[];
   order: 'size' | 'trending' | 'new';
-  period: 'day' | 'week';
+  period: 'day' | 'week' | 'month';
 }
 export interface RankCursor {
   filter: string;
@@ -73,6 +74,9 @@ export interface ExplorePage {
     previousParticipants: number;
     upvotes: number;
     historyComplete: boolean;
+    views?: number;
+    shares?: number;
+    comments?: number;
   }[];
   generation: string;
   cutoff: string;
@@ -137,9 +141,7 @@ export function exploreFilter(value: unknown): ExploreFilter {
   const order = data['order'] === 'activity' ? 'trending' : data['order'];
   if (order !== 'size' && order !== 'trending' && order !== 'new')
     throw new AccountError(400, 'Classificação inválida.');
-  const period = data['period'];
-  if (period !== 'day' && period !== 'week')
-    throw new AccountError(400, 'Ranking usa 24 horas ou sete dias.');
+  const period = rankingPeriod(data['period']);
   const topics = communityTopicSelection(
     data['topics'] ?? [],
     communityTopics.length,
@@ -312,6 +314,9 @@ export function explorePage(value: unknown): ExplorePage {
         'previousParticipants',
         'upvotes',
         'historyComplete',
+        ...['views', 'shares', 'comments'].filter((key) =>
+          Object.hasOwn(row, key),
+        ),
       ]);
       return {
         community: community(row['community']),
@@ -320,6 +325,11 @@ export function explorePage(value: unknown): ExplorePage {
         previousParticipants: postCount(row['previousParticipants']),
         upvotes: postCount(row['upvotes']),
         historyComplete: communityBoolean(row['historyComplete']),
+        ...Object.fromEntries(
+          ['views', 'shares', 'comments']
+            .filter((key) => Object.hasOwn(row, key))
+            .map((key) => [key, postCount(row[key])]),
+        ),
       };
     }),
     next: exploreCursor(data['next']) ? (data['next'] as string) : null,

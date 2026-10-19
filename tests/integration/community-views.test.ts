@@ -41,6 +41,7 @@ await test('visualizações públicas: concorrência, idempotência, isolamento 
     communities: createCommunityHandler({
       origin,
       views: (input) => db.communityViews.observe(input),
+      shareClicks: (input) => db.communityViews.shareClicks(input),
       read: (id) => communities.read(id),
       list: (after) => communities.list(after),
       post: (id, post) => communities.post(id, post),
@@ -133,7 +134,7 @@ await test('visualizações públicas: concorrência, idempotência, isolamento 
         [community],
       )
     ).rows[0]!.revision,
-    revision,
+    String(Number(revision) + 1),
   );
   assert.equal(
     (await request([observation], 'https://other.invalid')).status,
@@ -149,6 +150,23 @@ await test('visualizações públicas: concorrência, idempotência, isolamento 
   ]);
   assert.equal((await communities.post(community, posts[0]!)).views, 2);
   assert.equal((await communities.post(community, posts[1]!)).views, 1);
+  const shareBody = JSON.stringify({ items: [observation] });
+  const clicks = await Promise.all(
+    Array.from({ length: 3 }, () =>
+      fetch(`${origin}/api/communities/share-clicks`, {
+        method: 'POST',
+        headers: { Origin: origin, 'Content-Type': 'application/json' },
+        body: shareBody,
+      }),
+    ),
+  );
+  for (const response of clicks)
+    assert.deepEqual(await response.json(), { accepted: true });
+  const shared = await inspector.query<{ n: number }>(
+    'SELECT sum(shares)::integer AS n FROM hash_talk.community_post_engagement WHERE post_id=$1',
+    [posts[0]],
+  );
+  assert.equal(shared.rows[0]!.n, 1);
   const rows = await inspector.query<{
     post_id: string;
     viewer_hash: string;
