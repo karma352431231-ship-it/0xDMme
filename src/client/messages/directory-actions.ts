@@ -16,6 +16,7 @@ export function organizationActions(options: {
     {
       id: 'archive',
       label: settings.archived ? t('Desarquivar') : t('Arquivar'),
+      icon: settings.archived ? 'unarchive' : 'archive',
       perform: () =>
         perform(() =>
           daily.organize(
@@ -28,6 +29,7 @@ export function organizationActions(options: {
     {
       id: 'pin',
       label: settings.pinned ? t('Desafixar') : t('Fixar'),
+      icon: settings.pinned ? 'unpin' : 'pin',
       perform: () =>
         perform(() =>
           daily.organize(
@@ -42,6 +44,7 @@ export function organizationActions(options: {
       label: favorite
         ? t('Remover dos favoritos')
         : t('Adicionar aos favoritos'),
+      icon: favorite ? 'unfavorite' : 'favorite',
       perform: () => perform(() => daily.setFavorite(favoriteId, !favorite)),
     },
     ...(mutePeer
@@ -75,15 +78,18 @@ function muteAction(options: {
     return {
       id: 'mute',
       label: t('conversation.resume-alerts'),
+      icon: 'unmute',
       perform: () => mute(0),
     };
   return {
     id: 'mute',
     label: t('conversation.mute'),
+    icon: 'mute',
     perform: () => undefined,
     choices: muteDurations.map(([label, duration]) => ({
       id: `mute-${duration}`,
       label: t(label),
+      icon: 'clock',
       perform: () => mute(duration),
     })),
   };

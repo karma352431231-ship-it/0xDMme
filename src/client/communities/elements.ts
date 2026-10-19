@@ -61,8 +61,9 @@ export function communityLink(
   container: HTMLElement,
   title: string,
   hash: string,
-): void {
+): HTMLAnchorElement {
   const a = communityElement('a', title);
   a.href = hash;
   container.append(a);
+  return a;
 }

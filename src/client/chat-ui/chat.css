@@ -159,7 +159,7 @@
   width: min(300px, calc(100vw - 32px));
   max-height: 60dvh;
   overflow: auto;
-  padding: 12px;
+  padding: 6px;
   border: 1px solid var(--line);
   border-radius: 14px;
   background: var(--surface);
@@ -168,15 +168,63 @@
 }
 .chat-options[open] > .chat-popover {
   display: grid;
-  gap: 8px;
+  gap: 2px;
 }
 .chat-panel .chat-popover button,
 .chat-panel .chat-popover a {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 12px;
   text-align: left;
   margin: 0;
   padding: 12px;
   font-size: var(--fs-small);
+}
+/*
+ * The popover's own rows read as one compact menu: glyph, label, no card
+ * border (19/10/2026). Buttons inside an opened section keep their own look.
+ */
+.chat-panel .chat-popover > details {
+  margin: 0;
+}
+.chat-panel .chat-popover > :is(button, a),
+.chat-panel .chat-popover > details > summary {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  font-size: var(--fs-small);
+  list-style: none;
+  cursor: pointer;
+}
+.chat-panel .chat-popover > :is(button, a):hover,
+.chat-panel .chat-popover > details > summary:hover {
+  background: var(--surface-2);
+}
+.chat-panel .chat-popover :is(button, a, summary) > svg {
+  flex: none;
+}
+.chat-panel .chat-popover > details > summary::-webkit-details-marker {
+  display: none;
+}
+.chat-panel .chat-popover > details > summary::after {
+  content: '›';
+  margin-left: auto;
+  color: var(--text-muted);
+}
+.chat-panel .chat-popover > details[open] > summary::after {
+  transform: rotate(90deg);
+}
+@media (pointer: coarse) {
+  .chat-panel .chat-popover > :is(button, a),
+  .chat-panel .chat-popover > details > summary {
+    min-height: 44px;
+  }
 }
 .chat-panel .chat-thread {
   display: flex;

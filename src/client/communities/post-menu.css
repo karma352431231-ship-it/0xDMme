@@ -52,9 +52,9 @@
   justify-content: flex-start;
   gap: 10px;
   width: 100%;
-  min-height: 40px;
+  min-height: 36px;
   margin: 0;
-  padding: 8px 12px;
+  padding: 7px 10px;
   border: 0;
   border-radius: 10px;
   background: transparent;
@@ -227,5 +227,13 @@
 @media (max-width: 700px) {
   #app-shell .post-more-content {
     width: 100%;
+  }
+}
+/* Compact rows on desktop (19/10/2026); touch keeps a finger-sized target. */
+@media (pointer: coarse) {
+  #app-shell .post-more-content > button,
+  #app-shell .post-options > button,
+  #app-shell .post-more-content details > summary {
+    min-height: 44px;
   }
 }

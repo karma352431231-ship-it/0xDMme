@@ -2,6 +2,7 @@ import { messageReactions } from '../message-presentation/index.ts';
 import type { EmojiPicker } from '../emoji/index.ts';
 import { t } from '../../shared/i18n/index.ts';
 import { anchoredMessageMenu } from '../message-menu/index.ts';
+import { withMenuIcon } from '../menu-icons/index.ts';
 /** Actions available to public-identity DMs, without borrowing private-message consent or wallet. */
 export function dmMessageMenu(
   row: HTMLElement,
@@ -27,7 +28,7 @@ export function dmMessageMenu(
         status.textContent = t('Não foi possível copiar o texto.');
     });
   });
-  menu.panel.append(copy);
+  menu.panel.append(withMenuIcon(copy, 'copy'));
   if (input.edit && input.editable) {
     const edit = document.createElement('button');
     edit.type = 'button';
@@ -35,7 +36,7 @@ export function dmMessageMenu(
     edit.addEventListener('click', () => {
       input.edit?.();
     });
-    menu.panel.append(edit);
+    menu.panel.append(withMenuIcon(edit, 'edit'));
   }
   if (input.react) {
     const reaction = document.createElement('button');
@@ -47,7 +48,7 @@ export function dmMessageMenu(
         if (emoji !== null && !input.signal.aborted) await input.react?.(emoji);
       });
     });
-    menu.panel.append(reaction);
+    menu.panel.append(withMenuIcon(reaction, 'react'));
   }
   row.append(menu.host, status);
   return menu.stop;

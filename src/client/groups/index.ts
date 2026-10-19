@@ -49,6 +49,7 @@ import { GroupController } from './controller.ts';
 import type { GroupSummary } from './controller.ts';
 import type { GroupView } from './reader.ts';
 import { chatFileLimit } from '../../shared/attachments/index.ts';
+import { withMenuIcon } from '../menu-icons/index.ts';
 export type { GroupSummary, GroupView };
 export { showGroupDirectoryPhoto } from './directory-photo.ts';
 export { GroupBackups } from './backup.ts';
@@ -577,49 +578,61 @@ export function startGroups(
       return;
     if (groupManager(group.state, session.accountId))
       row.append(
-        button(t('Remover'), async () => {
-          if (
-            !window.confirm(
-              t('Remover {0} do grupo?', [name(member.accountId)]),
+        withMenuIcon(
+          button(t('Remover'), async () => {
+            if (
+              !window.confirm(
+                t('Remover {0} do grupo?', [name(member.accountId)]),
+              )
             )
-          )
-            return;
-          await controller.change({ kind: 'remove', target: member.accountId });
-          await refresh();
-        }),
+              return;
+            await controller.change({
+              kind: 'remove',
+              target: member.accountId,
+            });
+            await refresh();
+          }),
+          'remove',
+        ),
       );
     if (group.state.owner !== session.accountId) return;
     row.append(
-      button(
-        member.role === 'admin'
-          ? t('Tornar membro')
-          : t('Tornar administrador'),
-        async () => {
-          await controller.change({
-            kind: 'role',
-            target: member.accountId,
-            role: member.role === 'admin' ? 'member' : 'admin',
-          });
-          await refresh();
-        },
+      withMenuIcon(
+        button(
+          member.role === 'admin'
+            ? t('Tornar membro')
+            : t('Tornar administrador'),
+          async () => {
+            await controller.change({
+              kind: 'role',
+              target: member.accountId,
+              role: member.role === 'admin' ? 'member' : 'admin',
+            });
+            await refresh();
+          },
+        ),
+        member.role === 'admin' ? 'member' : 'admin',
       ),
     );
     row.append(
-      button(t('Oferecer propriedade'), async () => {
-        if (
-          !window.confirm(
-            t(
-              'Oferecer a propriedade a {0}? Ele precisa aceitar. Você ficará como membro comum após o aceite.',
-              [name(member.accountId)],
-            ),
+      withMenuIcon(
+        button(t('Oferecer propriedade'), async () => {
+          if (
+            !window.confirm(
+              t(
+                'Oferecer a propriedade a {0}? Ele precisa aceitar. Você ficará como membro comum após o aceite.',
+                [name(member.accountId)],
+              ),
+            )
           )
-        )
-          return;
-        await controller.propose(member.accountId, 'transfer');
-        notice = t(
-          'Transferência oferecida. A propriedade muda após o aceite do membro escolhido.',
-        );
-      }),
+            return;
+          await controller.propose(member.accountId, 'transfer');
+          notice = t(
+            'Transferência oferecida. A propriedade muda após o aceite do membro escolhido.',
+          );
+        }),
+        'shield',
+      ),
     );
   }
   function renderInvites(): void {

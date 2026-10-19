@@ -22,11 +22,13 @@
   pointer-events: none;
 }
 #app-shell .message-menu button {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 12px;
   width: 100%;
-  min-height: 40px;
+  min-height: 36px;
   margin: 0;
-  padding: 10px 12px;
+  padding: 8px 10px;
   text-align: left;
   border: 0;
   border-radius: 6px;
@@ -34,6 +36,15 @@
   color: var(--text);
   font-size: var(--fs-body);
 }
+#app-shell .message-menu button svg {
+  flex: none;
+}
 #app-shell .message-menu button:hover {
   background: var(--surface-3);
+}
+/* Compact rows on desktop (19/10/2026); touch keeps a finger-sized target. */
+@media (pointer: coarse) {
+  #app-shell .message-menu button {
+    min-height: 44px;
+  }
 }

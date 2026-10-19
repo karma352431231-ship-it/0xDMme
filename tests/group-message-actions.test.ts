@@ -25,6 +25,8 @@ for (const language of ['en', 'zh-CN'] as const)
       value: Object.assign(document, {
         body,
         createElement: (tag: string) => new DialogNode(tag),
+        createElementNS: (_namespace: string, tag: string) =>
+          new DialogNode(tag),
       }),
     });
     t.after(() => Reflect.deleteProperty(globalThis, 'document'));

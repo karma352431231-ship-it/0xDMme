@@ -1,5 +1,6 @@
 import { t } from '../../shared/i18n/index.ts';
 import { anchoredMessageMenu } from '../message-menu/index.ts';
+import { withMenuIcon } from '../menu-icons/index.ts';
 import type { GroupView } from './reader.ts';
 interface Actions {
   run: (work: () => Promise<void>) => Promise<void>;
@@ -50,11 +51,19 @@ export class GroupMessageActions {
     if (!view.own || view.localOnly) return document.createElement('div');
     const { host, panel } = anchoredMessageMenu({ signal });
     if (view.kind === 'text')
-      panel.append(this.button(t('Editar'), () => this.edit(view)));
+      panel.append(
+        withMenuIcon(
+          this.button(t('Editar'), () => this.edit(view)),
+          'edit',
+        ),
+      );
     panel.append(
-      this.button(t('Apagar para todos'), () => {
-        void this.actions.run(() => this.actions.remove(view));
-      }),
+      withMenuIcon(
+        this.button(t('Apagar para todos'), () => {
+          void this.actions.run(() => this.actions.remove(view));
+        }),
+        'trash',
+      ),
     );
     return host;
   }

@@ -312,9 +312,15 @@ dialog.group-dialog .group-contact-choice:hover {
   box-shadow: 0 8px 24px var(--shadow);
 }
 dialog.group-dialog .group-member-actions button {
+  display: flex;
+  align-items: center;
+  gap: 12px;
   text-align: left;
   border: 0;
   background: transparent;
+}
+dialog.group-dialog .group-member-actions button svg {
+  flex: none;
 }
 dialog.group-dialog .group-member-actions button:hover {
   background: var(--surface-2);

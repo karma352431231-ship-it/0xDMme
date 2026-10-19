@@ -50,22 +50,25 @@ function moreChoices(options: {
   const choices = el('nav');
   choices.setAttribute('aria-label', t('Listas e gestão de comunidades'));
   if (options.manage)
-    link(
-      choices,
-      t('Gerenciar comunidade'),
-      `#communities?id=${options.manage}&view=manage`,
+    iconLabel(
+      link(
+        choices,
+        t('Gerenciar comunidade'),
+        `#communities?id=${options.manage}&view=manage`,
+      ),
+      'shield',
     );
   if (!options.signedIn) {
     link(choices, t('Entrar pelo Perfil'), '#settings');
     return choices;
   }
-  for (const [key, title] of [
-    ['saved', t('Salvos')],
-    ['hidden', t('Ocultos')],
-    ['replies', t('Respostas ao seu conteúdo')],
-    ['invitations', t('Transferências')],
+  for (const [key, title, icon] of [
+    ['saved', t('Salvos'), 'bookmark'],
+    ['hidden', t('Ocultos'), 'hide'],
+    ['replies', t('Respostas ao seu conteúdo'), 'reply'],
+    ['invitations', t('Transferências'), 'transfer'],
   ] as const)
-    link(choices, title, `#communities?view=${key}`);
+    iconLabel(link(choices, title, `#communities?view=${key}`), icon);
   return choices;
 }
 

@@ -890,6 +890,7 @@ export function startMessages(
       {
         id: 'block',
         label: t('Bloquear contato'),
+        icon: 'block',
         perform: () =>
           perform(async () => {
             const expected = generation;
@@ -915,6 +916,7 @@ export function startMessages(
       {
         id: 'remove',
         label: t('Remover contato'),
+        icon: 'remove',
         perform: () =>
           perform(async () => {
             const expected = generation;

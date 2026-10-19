@@ -35,6 +35,8 @@ import {
   paintDmDirectoryPreviews,
 } from './dm-directory.ts';
 import { LiveUpdates } from '../message-live/index.ts';
+import { withMenuIcon } from '../menu-icons/index.ts';
+import type { MenuIconName } from '../menu-icons/index.ts';
 
 type DmPage = Awaited<ReturnType<SocialDms['cached']>>;
 type DmItem = DmPage['items'][number];
@@ -477,13 +479,16 @@ export function startSocialDmUi(
     if (profile) {
       const link = communityElement('a', t('Ver perfil público'));
       link.href = `#users?handle=${encodeURIComponent(profile.handle)}`;
-      current.options.append(link);
+      current.options.append(withMenuIcon(link, 'profile'));
     }
     if (localOnly || !navigator.onLine) return;
     const blocked = value?.blocked ?? false;
     optionButton(
       current,
-      blocked ? t('Desbloquear') : t('Bloquear'),
+      {
+        label: blocked ? t('Desbloquear') : t('Bloquear'),
+        icon: blocked ? 'unblock' : 'block',
+      },
       async () => {
         await controller.request('block', {
           peer: selected,
@@ -494,17 +499,24 @@ export function startSocialDmUi(
         await conversation();
       },
     );
-    optionButton(current, t('Recarregar conversa'), async () => {
-      before = null;
-      await conversation();
-    });
+    optionButton(
+      current,
+      { label: t('Recarregar conversa'), icon: 'refresh' },
+      async () => {
+        before = null;
+        await conversation();
+      },
+    );
   }
   function optionButton(
     current: DmView,
-    label: string,
+    item: { label: string; icon: MenuIconName },
     work: () => Promise<void>,
   ): void {
-    const button = communityElement('button', label);
+    const button = withMenuIcon(
+      communityElement('button', item.label),
+      item.icon,
+    );
     button.type = 'button';
     button.addEventListener('click', () => {
       button.closest('details')?.removeAttribute('open');

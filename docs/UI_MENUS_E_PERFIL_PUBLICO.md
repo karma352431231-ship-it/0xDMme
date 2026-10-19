@@ -60,3 +60,28 @@ release. Activation was explicitly authorized on 14/10/2026; follow the
 [release contract](GIT_E_DEPLOY.md#public-profile-invitation-and-menu-release-authorized-on-14102026)
 and confirm the publication receipt. Physical touch-device acceptance remains
 separate from viewport tests.
+
+## Menu Icons — 19/10/2026
+
+The owner asked for WhatsApp-style glyphs before the labels of the app's action
+menus, and for the contact row chevron to stay inside its frame. Covered menus:
+contact/group row menu (including the mute durations and Back/Close), the "+"
+create menu, the private chat header and connection popovers, private, group
+and @ message menus, the @ conversation options, group member actions, the
+communities "⋯" list and the hidden posts filter. Labels, order, handlers and
+accessibility names are unchanged; glyphs are `aria-hidden`.
+
+Private-side glyphs live in `src/client/menu-icons`, authored 24×24 line paths
+with presentation attributes (no icon font, file or third-party set). Communities
+keep their existing `communityIcon` set. The row chevron is now a drawn SVG
+centered in its button; the former "⌄" text glyph sat low and looked off-frame.
+
+The owner then asked for smaller rows. On desktop these menus use compact rows
+of about 36 px (8–10 px padding, 2–4 px between rows, 6 px panel padding); the
+chat header popover also drops the 16 px block margin around its section. With
+`pointer: coarse` the rows keep a 44 px touch target.
+
+**Ponto importante:** the GPL source bundle counts 1024 files after this change,
+exactly its current ceiling in `src/tools/frontend-source.ts`. The next new
+client file will fail the build until the owner reviews that limit; that is why
+the glyph styles are attributes and per-menu rules instead of a new stylesheet.

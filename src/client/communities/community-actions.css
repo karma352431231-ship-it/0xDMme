@@ -95,9 +95,9 @@
   align-items: center;
   gap: 10px;
   width: 100%;
-  min-height: 42px;
+  min-height: 36px;
   margin: 0;
-  padding: 8px 12px;
+  padding: 7px 10px;
   border: 0;
   border-radius: 10px;
   background: transparent;
@@ -201,5 +201,11 @@
     width: 54px;
     height: 54px;
     border-radius: 17px;
+  }
+}
+/* Compact rows on desktop (19/10/2026); touch keeps a finger-sized target. */
+@media (pointer: coarse) {
+  #app-shell .community-create-choices .community-create-choice {
+    min-height: 44px;
   }
 }

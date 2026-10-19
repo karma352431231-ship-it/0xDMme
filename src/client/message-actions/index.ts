@@ -3,6 +3,7 @@ import type { Peer } from '../../shared/contacts/index.ts';
 import type { DailyRow, DailyView } from '../daily-text/index.ts';
 import type { EmojiPicker } from '../emoji/index.ts';
 import { anchoredMessageMenu } from '../message-menu/index.ts';
+import { withMenuIcon } from '../menu-icons/index.ts';
 interface MessageActionOptions<T extends DailyRow> {
   signal: AbortSignal;
   view: DailyView<T>;
@@ -31,23 +32,29 @@ export function messageActions<T extends DailyRow>(
   }
   if (c.replyAllowed !== false)
     menu.append(
-      c.action(t('Responder'), () => {
-        c.choose('reply', c.view);
-        return Promise.resolve();
-      }),
+      withMenuIcon(
+        c.action(t('Responder'), () => {
+          c.choose('reply', c.view);
+          return Promise.resolve();
+        }),
+        'reply',
+      ),
     );
   if (!c.view.archived && c.view.own && c.view.kind === 'text')
     menu.append(
-      c.action(t('Editar'), () => {
-        c.choose('edit', c.view);
-        return Promise.resolve();
-      }),
+      withMenuIcon(
+        c.action(t('Editar'), () => {
+          c.choose('edit', c.view);
+          return Promise.resolve();
+        }),
+        'edit',
+      ),
     );
   const reaction = c.action(t('Reagir…'), async () => {
     const emoji = await c.picker.choose(trigger);
     if (emoji !== null && !c.signal.aborted) await c.react(c.view, emoji);
   });
-  if (!c.view.archived) menu.append(reaction);
+  if (!c.view.archived) menu.append(withMenuIcon(reaction, 'react'));
   appendForward(menu, c);
   appendRemove(menu, c);
   return host;
@@ -59,10 +66,13 @@ function appendForward<T extends DailyRow>(
 ): void {
   if (c.peers.length && ['text', 'attachment'].includes(c.view.kind))
     menu.append(
-      c.action(t('Encaminhar'), () => {
-        c.forward(c.view);
-        return Promise.resolve();
-      }),
+      withMenuIcon(
+        c.action(t('Encaminhar'), () => {
+          c.forward(c.view);
+          return Promise.resolve();
+        }),
+        'forward',
+      ),
     );
 }
 
@@ -70,5 +80,8 @@ function appendRemove<T extends DailyRow>(
   menu: HTMLElement,
   c: MessageActionOptions<T>,
 ): void {
-  if (c.remove) menu.append(c.action(t('Apagar para ambos'), c.remove));
+  if (c.remove)
+    menu.append(
+      withMenuIcon(c.action(t('Apagar para ambos'), c.remove), 'trash'),
+    );
 }

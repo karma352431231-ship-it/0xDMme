@@ -25,6 +25,7 @@ const authored = [
   'src/shared/moderation-details',
   'src/client/api-response',
   'src/client/message-menu',
+  'src/client/menu-icons',
   'src/client/message-forward',
   'src/client/message-presentation',
   'src/shared/message-presentation',
