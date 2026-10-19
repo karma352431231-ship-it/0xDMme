@@ -107,7 +107,8 @@ export class VoiceCalls {
     if (session) this.ready();
   }
   ready(): void {
-    if (this.session && this.lastLease) this.primeIdentities(this.generation);
+    if (this.session && this.lastLease && navigator.onLine)
+      this.primeIdentities(this.generation);
     if (this.polling) return;
     if (this.session && navigator.onLine && !this.timer)
       this.timer = setTimeout(() => {

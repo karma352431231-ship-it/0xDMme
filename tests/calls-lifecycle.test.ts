@@ -112,6 +112,17 @@ await test('speculative identity preparation yields to startup while signaling r
   assert.equal(requests, 2);
   assert.equal(preparations, 0);
   ready = true;
+  Object.defineProperty(navigator, 'onLine', {
+    value: false,
+    configurable: true,
+  });
+  calls.ready();
+  await flush();
+  assert.equal(preparations, 0, 'Offline readiness must not start priming.');
+  Object.defineProperty(navigator, 'onLine', {
+    value: true,
+    configurable: true,
+  });
   calls.ready();
   await flush();
   assert.equal(preparations, 1);
