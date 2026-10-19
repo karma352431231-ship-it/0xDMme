@@ -740,6 +740,11 @@ export const catalog: Record<string, readonly [string, string]> = {
   'ranking.followers {0}': ['{0} followers', '{0} 位关注者'],
   'ranking.growth-up {0}': ['▲ {0}%', '▲ {0}%'],
   'ranking.growth-down {0}': ['▼ {0}%', '▼ {0}%'],
+  'ranking.growth-flat {0}': ['{0}%', '{0}%'],
+  'ranking.relevance-growth-title': [
+    'Relevance compared with the previous period of the same length',
+    '相关度与上一个同等时长时段相比',
+  ],
   'ranking.growth-title': [
     'Active members compared with the previous period of the same length',
     '活跃成员与上一个同等时长时段相比',

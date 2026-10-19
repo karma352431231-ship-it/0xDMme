@@ -197,11 +197,14 @@ export function discoveryFixture(options: FixtureOptions = {}) {
       items: [
         {
           profile: author,
+          description: 'Synthetic bio',
+          followers: 1500,
+          score: 3_000_000,
+          previousScore: 1_000_000,
           views: 1200,
           upvotes: 23,
           comments: 7,
           shares: 4,
-          historyComplete: false,
         },
       ],
     } as AccountRankingPage,

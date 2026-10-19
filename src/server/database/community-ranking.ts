@@ -1,4 +1,5 @@
 import { collectPostSignals } from './post-share-clicks.ts';
+import { aggregateRetention } from './post-ranking-signals.ts';
 import { ProfileRankingStore } from './profile-ranking.ts';
 import type { PublicProfileStore } from './public-profile.ts';
 import type { RankingPeriod } from '../../shared/community-ranking/index.ts';
@@ -263,7 +264,7 @@ export class CommunityRankingStore {
     // Bounded cleanup; no accepted public contributions are removed.
     await client.query(
       `DELETE FROM hash_talk.community_upvote_deltas WHERE (post_id,at) IN
-      (SELECT post_id,at FROM hash_talk.community_upvote_deltas WHERE at<$1::timestamptz-interval '720 hours' ORDER BY at LIMIT 256)`,
+      (SELECT post_id,at FROM hash_talk.community_upvote_deltas WHERE at<$1::timestamptz-${aggregateRetention} ORDER BY at LIMIT 256)`,
       [cutoff],
     );
     await client.query(`DELETE FROM hash_talk.community_ranking_entries WHERE (generation,period,community_id) IN
@@ -276,8 +277,8 @@ export class CommunityRankingStore {
       at: Date | null;
     }>(`SELECT min(at) AS at FROM (
       SELECT min(CASE WHEN revision<>processed THEN clock_timestamp() ELSE due_at END) AS at FROM hash_talk.community_ranking_state WHERE revision<>processed OR due_at<>'infinity'
-      UNION ALL SELECT min(at)+interval '720 hours' FROM hash_talk.community_upvote_deltas
-      UNION ALL SELECT min(at)+interval '720 hours' FROM hash_talk.community_post_engagement
+      UNION ALL SELECT min(at)+${aggregateRetention} FROM hash_talk.community_upvote_deltas
+      UNION ALL SELECT min(at)+${aggregateRetention} FROM hash_talk.community_post_engagement
       UNION ALL SELECT min(at)+interval '720 hours' FROM hash_talk.community_share_clicks
       UNION ALL SELECT min(expires_at) FROM hash_talk.community_ranking_generations
     ) dates`);

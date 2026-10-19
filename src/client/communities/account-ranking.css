@@ -25,7 +25,7 @@
 }
 .account-ranking-row {
   display: grid;
-  grid-template-columns: 24px 36px minmax(0, 1fr);
+  grid-template-columns: 24px 36px minmax(0, 1fr) auto;
   gap: 10px;
   align-items: center;
   padding: 12px 8px;
@@ -44,8 +44,30 @@
   white-space: nowrap;
 }
 .account-ranking-copy small {
+  overflow: hidden;
   color: var(--text-muted);
-  overflow-wrap: anywhere;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Followers over the growth, like a market cap over its change. */
+.account-ranking-numbers {
+  display: grid;
+  justify-items: end;
+  white-space: nowrap;
+}
+.account-ranking-numbers strong {
+  font-size: 13.5px;
+}
+.account-ranking-numbers .ranking-side-growth {
+  font-size: 12px;
+  font-weight: 600;
+}
+.account-ranking-numbers .ranking-side-growth[data-trend='up'] {
+  color: var(--ok);
+}
+.account-ranking-numbers .ranking-side-growth[data-trend='down'] {
+  color: var(--danger);
 }
 .account-ranking-avatar {
   border-radius: 50%;

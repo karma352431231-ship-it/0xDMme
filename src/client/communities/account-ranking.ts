@@ -10,6 +10,8 @@ import { communityRead } from './controller.ts';
 import { communityElement as el } from './elements.ts';
 import { communityAvatar } from './presentation.ts';
 import { showPublicAvatar } from '../public-media/index.ts';
+import { mentionPlainText } from '../../shared/public-mentions/index.ts';
+import { growthLabel } from './ranking-side-growth.ts';
 
 /** Windows offered by both rankings, labelled in the current language. */
 export function rankingPeriods(): readonly (readonly [
@@ -162,24 +164,7 @@ export class AccountRankingView {
     const signal = AbortSignal.any([this.signal, this.lifetime.signal]);
     for (const item of items) {
       const row = el('li'),
-        link = el('a', '', 'account-ranking-row'),
-        avatar = communityAvatar(item.profile.handle);
-      link.href = `#users?handle=${encodeURIComponent(item.profile.handle)}`;
-      avatar.classList.add('account-ranking-avatar');
-      const copy = el('span', '', 'account-ranking-copy');
-      copy.append(
-        el('strong', `@${item.profile.handle}`),
-        el('small', receivedSummary(item)),
-      );
-      if (!item.historyComplete)
-        copy.append(
-          el('small', t('ranking.partial-history'), 'ranking-partial'),
-        );
-      link.append(
-        el('span', String(++this.offset), 'ranking-side-rank'),
-        avatar,
-        copy,
-      );
+        { link, avatar } = accountRow(item, ++this.offset);
       row.append(link);
       this.list.append(row);
       if (item.profile.avatar)
@@ -191,6 +176,42 @@ export class AccountRankingView {
         });
     }
   }
+}
+/**
+ * FOMO-style row (19/10/2026): @nick with the bio below, like a ticker over
+ * its price; followers on the right like a market cap, with the relevance
+ * growth below them. The received counters stay in the row's tooltip.
+ */
+function accountRow(item: AccountRankingEntry, rank: number) {
+  const link = el('a', '', 'account-ranking-row'),
+    avatar = communityAvatar(item.profile.handle),
+    copy = el('span', '', 'account-ranking-copy'),
+    numbers = el('span', '', 'account-ranking-numbers');
+  link.href = `#users?handle=${encodeURIComponent(item.profile.handle)}`;
+  link.title = receivedSummary(item);
+  avatar.classList.add('account-ranking-avatar');
+  copy.append(el('strong', `@${item.profile.handle}`));
+  // Plain text: the row is already a link, so mentions cannot be links here.
+  const bio = mentionPlainText(item.description).replace(/\s+/gu, ' ');
+  if (bio) copy.append(el('small', bio, 'account-ranking-bio'));
+  const followers = new Intl.NumberFormat(currentLanguage(), {
+    notation: 'compact',
+  }).format(item.followers);
+  numbers.append(
+    el('strong', t('ranking.followers {0}', [followers])),
+    growthLabel({
+      participants: item.score,
+      previous: item.previousScore,
+      title: 'ranking.relevance-growth-title',
+    }),
+  );
+  link.append(
+    el('span', String(rank), 'ranking-side-rank'),
+    avatar,
+    copy,
+    numbers,
+  );
+  return { link, avatar };
 }
 export function receivedSummary(item: {
   views: number;

@@ -468,6 +468,7 @@ Owner request after the 24h / 7 days / 30 days periods and the user ranking were
 - **Split screen.** The switch is **Chat | Communities | Users**; beside the chat the sidebar's own scope row is hidden. Choosing a scope inside the sidebar also moves the switch when it is not on Chat.
 - **Name.** "Accounts" is called **Users** (用户).
 - **Community growth.** The sidebar shows followers and, below, the growth of active members against the previous period (green ▲ / red ▼), replacing the "N active" count. Rule in [active members and growth](RANKING_COMUNIDADES_TRENDING.md#active-members-and-growth-display--owner-decision-on-16102026).
+- **User rows.** @nick with the bio below, followers on the right with the relevance growth below them, FOMO style, in the sidebar and on the isolated Ranking page. Rule in [users ranking](RANKING_COMUNIDADES_TRENDING.md#users-ranking-fomo-rows-and-60-day-counters--owner-decision-on-19102026).
 - The isolated Ranking page keeps its own period buttons for users.
 
 ## Public videos in the feed — 16/10/2026

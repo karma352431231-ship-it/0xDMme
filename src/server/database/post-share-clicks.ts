@@ -5,6 +5,7 @@ import type { ContactStore } from './contacts.ts';
 import type { ContentCapacity } from './content-capacity.ts';
 import { visiblePost } from './community-post-visibility.ts';
 import { assertContentCapacity } from './vault-quota.ts';
+import { aggregateRetention } from './post-ranking-signals.ts';
 
 /** Anonymous click receipts are separate from persistent public repost relations. */
 export async function receiveShareClicks(
@@ -44,7 +45,7 @@ export async function collectPostSignals(
 ): Promise<void> {
   await client.query(
     `DELETE FROM hash_talk.community_post_engagement WHERE (post_id,at) IN
-    (SELECT post_id,at FROM hash_talk.community_post_engagement WHERE at<$1::timestamptz-interval '720 hours' ORDER BY at LIMIT 256)`,
+    (SELECT post_id,at FROM hash_talk.community_post_engagement WHERE at<$1::timestamptz-${aggregateRetention} ORDER BY at LIMIT 256)`,
     [cutoff],
   );
   await client.query(

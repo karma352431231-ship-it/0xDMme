@@ -732,6 +732,23 @@ await test('rankings: métricas exatas, votos agregados, eventos, recuperação 
         assert.equal(value.views, views);
         assert.equal(value.shares, shares);
       }
+      // Each period also reads the window right before it, of the same length:
+      // only the 31-day-old counters fall in the 30 days before the last 30.
+      const previous = await measurePostSignals(inspector, {
+        ids: [publicUsers[0]!.id],
+        cutoff: new Date(),
+        target: 'author',
+        window: 'previous',
+      });
+      for (const [period, views, shares] of [
+        ['day', 0, 0],
+        ['week', 0, 0],
+        ['month', 13, 4],
+      ] as const) {
+        const value = previous.find((row) => row.period === period)!;
+        assert.equal(value.views, views);
+        assert.equal(value.shares, shares);
+      }
       await refresh();
       for (const [period, views] of [
         ['day', 5],
@@ -746,7 +763,8 @@ await test('rankings: métricas exatas, votos agregados, eventos, recuperação 
           (row) => row.profile.id === publicUsers[0]!.id,
         )!;
         assert.equal(entry.views, views);
-        assert.equal(entry.historyComplete, false);
+        assert.ok(entry.score > 0);
+        assert.equal(entry.previousScore > 0, period === 'month');
         const groups = explorePage(
           await communities.explore({ order: 'trending', period }, null),
         );

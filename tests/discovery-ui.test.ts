@@ -319,9 +319,11 @@ for (const language of ['en', 'zh-CN'] as const) {
     const accountPanel = host.querySelector('.account-ranking')!;
     assert.equal(accountPanel.hidden, false);
     assert.ok(accountPanel.textContent.includes('@synthetic_author'));
-    assert.ok(
-      accountPanel.textContent.includes(fixture.t('ranking.partial-history')),
-    );
+    // FOMO row: bio under the nick, followers over the relevance growth.
+    assert.ok(accountPanel.textContent.includes('Synthetic bio'));
+    const growth = accountPanel.querySelector('.ranking-side-growth')!;
+    assert.equal(growth.dataset['trend'], 'up');
+    assert.ok(growth.textContent.includes('200'));
     const oldRow = accountPanel.querySelector('.account-ranking-row');
     await ui.refresh();
     assert.equal(accountPanel.querySelector('.account-ranking-row'), oldRow);

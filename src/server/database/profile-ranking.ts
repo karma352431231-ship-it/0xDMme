@@ -14,6 +14,7 @@ import { measurePostSignals } from './post-ranking-signals.ts';
 import { assertContentCapacity } from './vault-quota.ts';
 import type { ContentCapacity } from './content-capacity.ts';
 import type { PublicProfileStore } from './public-profile.ts';
+import { readFollowerCounts } from './profile-follower-counts.ts';
 
 type Reader = Pick<pg.PoolClient, 'query'>;
 interface StoredPeriod {
@@ -21,12 +22,12 @@ interface StoredPeriod {
   upvotes: number;
   shares: number;
   comments: number;
-  historyComplete: boolean;
+  previousScore: number;
 }
 const publicEntryMetrics = `jsonb_build_object(
   'views',s.metrics->p.period->'current'->'views','upvotes',s.metrics->p.period->'current'->'upvotes',
   'shares',s.metrics->p.period->'current'->'shares','comments',s.metrics->p.period->'current'->'comments',
-  'historyComplete',s.metrics->p.period->'historyComplete')`;
+  'previousScore',s.metrics->p.period->'previousScore')`;
 /** Profile projection participates in the existing producer's atomic generation. */
 export class ProfileRankingStore {
   private readonly pool: pg.Pool;
@@ -65,7 +66,7 @@ export class ProfileRankingStore {
       [cutoff, rankingMetricVersion, rankingVersion],
     );
     if (!batch.rows.length) return false;
-    const signals = await this.measure(
+    const { signals, previous } = await this.measure(
       client,
       batch.rows.map((row) => row.profile_id),
       cutoff,
@@ -77,18 +78,20 @@ export class ProfileRankingStore {
       };
       let due: Date | null = null;
       for (const period of rankingPeriods) {
-        const signal = signals.find(
-          (s) => s.id === row.profile_id && s.period === period,
-        )!;
+        const pick = (list: typeof signals) =>
+          list.find((s) => s.id === row.profile_id && s.period === period)!;
+        const signal = pick(signals),
+          before = pick(previous);
         const days = { day: 1, week: 7, month: 30 }[period];
         const completeAt = new Date(row.observed.getTime() + days * 86400000);
         metrics[period] = {
           current: signal,
           score: accountRankingScore(signal),
+          previousScore: accountRankingScore(before),
           historyComplete: cutoff >= completeAt,
         };
-        const next = signal.due_at;
-        if (next && (!due || next < due)) due = next;
+        for (const next of [signal.due_at, before.due_at])
+          if (next && (!due || next < due)) due = next;
         if (completeAt > cutoff && (!due || completeAt < due)) due = completeAt;
       }
       return { id: row.profile_id, revision: row.revision, metrics, due };
@@ -113,13 +116,20 @@ export class ProfileRankingStore {
     await client.query('BEGIN READ ONLY');
     try {
       await client.query('SET LOCAL jit = off');
+      // Both windows share the cutoff, so they meet without a gap or overlap.
       const signals = await measurePostSignals(client, {
         ids,
         cutoff,
         target: 'author',
       });
+      const previous = await measurePostSignals(client, {
+        ids,
+        cutoff,
+        target: 'author',
+        window: 'previous',
+      });
       await client.query('COMMIT');
-      return signals;
+      return { signals, previous };
     } catch (error: unknown) {
       await client.query('ROLLBACK');
       throw error;
@@ -189,12 +199,9 @@ export class ProfileRankingStore {
       );
     const rows = head.entries.slice(0, communityPageSize),
       last = rows.at(-1);
-    const profiles = this.profiles
-      ? await this.profiles.readMany(
-          this.pool,
-          rows.map((r) => r.profile_id),
-        )
-      : [];
+    const { profiles, descriptions, followers } = await this.people(
+      rows.map((r) => r.profile_id),
+    );
     return {
       generation: head.id,
       cutoff: head.cutoff.toISOString(),
@@ -214,12 +221,29 @@ export class ProfileRankingStore {
           handle: row.handle,
           avatar: null,
         },
+        description: descriptions.get(row.profile_id) ?? '',
+        followers: followers.get(row.profile_id) ?? 0,
+        score: Number(row.score),
+        previousScore: row.metrics.previousScore,
         views: row.metrics.views,
         upvotes: row.metrics.upvotes,
         shares: row.metrics.shares,
         comments: row.metrics.comments,
-        historyComplete: row.metrics.historyComplete,
       })),
+    };
+  }
+  /** Public identity, bio and follower total of one page, read by their owners. */
+  private async people(ids: string[]) {
+    if (!this.profiles)
+      return {
+        profiles: [],
+        descriptions: new Map<string, string>(),
+        followers: new Map<string, number>(),
+      };
+    return {
+      profiles: await this.profiles.readMany(this.pool, ids),
+      descriptions: await this.profiles.descriptions.readMany(this.pool, ids),
+      followers: await readFollowerCounts(this.pool, ids),
     };
   }
 }

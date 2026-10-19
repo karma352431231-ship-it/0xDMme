@@ -43,11 +43,14 @@ await test('account ranking admits three bounded windows and rejects identity le
     items: [
       {
         profile: { id: crypto.randomUUID(), handle: 'example', avatar: null },
+        description: 'Public bio',
+        followers: 4,
+        score: 2,
+        previousScore: 1,
         views: 10,
         comments: 2,
         upvotes: 3,
         shares: 1,
-        historyComplete: false,
       },
     ],
   };

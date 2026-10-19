@@ -12,7 +12,7 @@ import { Communities, communityRead } from './controller.ts';
 import { communityElement as el } from './elements.ts';
 import { communityAvatar } from './presentation.ts';
 import { topicDot } from './classification.ts';
-import { rankingGrowth } from './ranking-side-growth.ts';
+import { growthLabel } from './ranking-side-growth.ts';
 
 /**
  * FOMO-style ranking beside the feed (docs/UI_PAINEIS_E_TEMAS.md, 16/10/2026).
@@ -392,23 +392,8 @@ function fillRow(node: HTMLElement, row: Row, rank: number, tab: RankingTab) {
   }).format(row.community.followers);
   numbers!.replaceChildren(
     el('strong', t('ranking.followers {0}', [followers])),
-    tab === 'following' ? el('small') : growthLabel(row),
+    tab === 'following'
+      ? el('small')
+      : growthLabel({ ...row, title: 'ranking.growth-title' }),
   );
-}
-
-/** FOMO-style change: green ▲ / red ▼ against the previous period. */
-function growthLabel(row: Row): HTMLElement {
-  const growth = rankingGrowth(row);
-  const node = el('small', '', 'ranking-side-growth');
-  node.title = t('ranking.growth-title');
-  node.dataset['trend'] = growth > 0 ? 'up' : growth < 0 ? 'down' : 'flat';
-  const percent = new Intl.NumberFormat(currentLanguage(), {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(Math.abs(growth));
-  node.textContent = t(
-    growth < 0 ? 'ranking.growth-down {0}' : 'ranking.growth-up {0}',
-    [percent],
-  );
-  return node;
 }

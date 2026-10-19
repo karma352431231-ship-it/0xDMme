@@ -1,8 +1,11 @@
 import { AccountError } from '../account/index.ts';
 /** Versioned, local transforms: changing one community never rescales another. */
 export const rankingVersion = 2;
-/** 3: received engagement and one selected window, up to 30 days. */
-export const rankingMetricVersion = 3;
+/**
+ * 3: received engagement and one selected window, up to 30 days.
+ * 4: account entries also carry the previous window's score (19/10/2026).
+ */
+export const rankingMetricVersion = 4;
 export const rankingDay = 86_400_000;
 export const rankingNewAge = 7 * rankingDay;
 export const rankingNewFollowers = 500;

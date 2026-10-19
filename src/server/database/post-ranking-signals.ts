@@ -11,10 +11,27 @@ export interface PostRankingSignals extends ReceivedEngagement {
   due_at: Date | null;
 }
 
-/** Aggregate public receipt signals; no reader or voter identities leave SQL. */
+/**
+ * Aggregated receipt counters (views/shares per post and second, upvote
+ * deltas) are kept for two 30-day windows so the account ranking can compare
+ * each period with the one before it (owner decision on 19/10/2026). Per-click
+ * share tokens keep their own 30-day limit.
+ */
+export const aggregateRetention = "interval '1440 hours'";
+
+/**
+ * Aggregate public receipt signals; no reader or voter identities leave SQL.
+ * `window` picks the selected periods or the periods right before them, of
+ * the same length (for example the 24 hours before the last 24 hours).
+ */
 export async function measurePostSignals(
   client: Pick<pg.PoolClient, 'query'>,
-  input: { ids: string[]; cutoff: Date; target: 'community_id' | 'author' },
+  input: {
+    ids: string[];
+    cutoff: Date;
+    target: 'community_id' | 'author';
+    window?: 'current' | 'previous';
+  },
 ): Promise<PostRankingSignals[]> {
   const result = await client.query<PostRankingSignals>(
     `WITH periods(period,span) AS (
@@ -25,18 +42,18 @@ export async function measurePostSignals(
     ), events AS (
       SELECT p.target AS id,e.post_id,e.at,e.views::double precision AS views,e.shares::double precision AS shares,
         0::double precision AS votes,NULL::uuid AS commenter FROM targets p
-      JOIN hash_talk.community_post_engagement e ON e.post_id=p.id AND e.at >= $2::timestamptz-interval '720 hours'
+      JOIN hash_talk.community_post_engagement e ON e.post_id=p.id AND e.at >= $2::timestamptz-interval '720 hours'*$3
       UNION ALL
       SELECT p.target,d.post_id,d.at,0,0,d.delta,NULL FROM targets p
-      JOIN hash_talk.community_upvote_deltas d ON d.post_id=p.id AND d.at >= $2::timestamptz-interval '720 hours'
+      JOIN hash_talk.community_upvote_deltas d ON d.post_id=p.id AND d.at >= $2::timestamptz-interval '720 hours'*$3
       UNION ALL
       SELECT p.target,r.root_id,r.created_at,0,0,0,r.author FROM targets p
-      JOIN hash_talk.community_posts r ON r.root_id=p.id AND r.created_at >= $2::timestamptz-interval '720 hours'
+      JOIN hash_talk.community_posts r ON r.root_id=p.id AND r.created_at >= $2::timestamptz-interval '720 hours'*$3
       WHERE r.author<>p.author AND ${visiblePost('r')}
     ), per_post AS (
       SELECT e.id,e.post_id,p.period,sum(views) AS views,sum(shares) AS shares,
         greatest(0,sum(votes)) AS upvotes,count(commenter)::integer AS comments
-      FROM events e CROSS JOIN periods p WHERE e.at >= $2::timestamptz-p.span AND e.at<$2
+      FROM events e CROSS JOIN periods p WHERE e.at >= $2::timestamptz-p.span*$3 AND e.at<$2::timestamptz-p.span*($3-1)
       GROUP BY e.id,e.post_id,p.period
     ), totals AS (
       SELECT id,period,sum(views)::bigint AS views,sum(shares)::bigint AS shares,sum(upvotes)::bigint AS upvotes,
@@ -47,11 +64,11 @@ export async function measurePostSignals(
       FROM per_post GROUP BY id,period
     ), commenters AS (
       SELECT e.id,p.period,count(DISTINCT commenter)::integer AS n FROM events e CROSS JOIN periods p
-      WHERE e.at >= $2::timestamptz-p.span AND e.at<$2 GROUP BY e.id,p.period
+      WHERE e.at >= $2::timestamptz-p.span*$3 AND e.at<$2::timestamptz-p.span*($3-1) GROUP BY e.id,p.period
     ), deadlines AS (
       SELECT id,min(at) AS at FROM (
-        SELECT e.id,e.at+p.span+interval '1 millisecond' AS at FROM events e CROSS JOIN periods p
-        WHERE e.at+p.span >= $2 AND e.at<$2
+        SELECT e.id,e.at+p.span*$3+interval '1 millisecond' AS at FROM events e CROSS JOIN periods p
+        WHERE e.at+p.span*$3 >= $2 AND e.at<$2::timestamptz-p.span*($3-1)
         UNION ALL SELECT id,at+interval '1 millisecond' FROM events WHERE at >= $2
       ) d GROUP BY id
     ) SELECT i.id,p.period,coalesce(t.views,0)::double precision AS views,
@@ -65,7 +82,7 @@ export async function measurePostSignals(
       FROM unnest($1::uuid[]) i(id) CROSS JOIN periods p
       LEFT JOIN totals t ON t.id=i.id AND t.period=p.period
       LEFT JOIN commenters c ON c.id=i.id AND c.period=p.period LEFT JOIN deadlines d ON d.id=i.id`,
-    [input.ids, input.cutoff],
+    [input.ids, input.cutoff, input.window === 'previous' ? 2 : 1],
   );
   return result.rows;
 }
