@@ -1,7 +1,13 @@
 import { appRoute } from '../../shared/app-routes/index.ts';
 import { appAddress } from '../app-navigation/index.ts';
+import {
+  discoveryPeriod,
+  exploreFilter,
+  feedOrder,
+} from '../../shared/community-discovery/index.ts';
 import type {
   DiscoveryPeriod,
+  ExploreFilter,
   FeedOrder,
 } from '../../shared/community-discovery/index.ts';
 
@@ -158,5 +164,92 @@ export class FeedReturn {
     const saved = this.saved;
     this.saved = null;
     return saved?.view === (params.get('view') ?? 'feed') ? saved : null;
+  }
+}
+
+/**
+ * The order and period last chosen in each feed view, kept on this device
+ * until the person picks others (owner request, 19/10/2026). Only the three
+ * enumerated choices are stored: no account, post or community data. Missing,
+ * unreadable or invalid values fall back to the view's defaults, and a return
+ * bookmark still restores the exact list it came from.
+ */
+export interface FeedChoice {
+  order?: FeedOrder;
+  explore?: ExploreFilter['order'];
+  period?: DiscoveryPeriod;
+}
+type ChoiceStorage = Pick<Storage, 'getItem' | 'setItem'>;
+const choiceKey = '0xdmme:feed-choices';
+const choiceViews = ['feed', 'following', 'explore'] as const;
+type ChoiceView = (typeof choiceViews)[number];
+function choiceView(view: string): ChoiceView | null {
+  return choiceViews.find((name) => name === view) ?? null;
+}
+function deviceStorage(): ChoiceStorage | null {
+  try {
+    return globalThis.localStorage ?? null;
+  } catch {
+    return null;
+  }
+}
+function storedChoices(storage: ChoiceStorage): Record<string, unknown> {
+  try {
+    const value: unknown = JSON.parse(storage.getItem(choiceKey) ?? '{}');
+    return value && typeof value === 'object' && !Array.isArray(value)
+      ? (value as Record<string, unknown>)
+      : {};
+  } catch {
+    return {};
+  }
+}
+function validChoice(view: ChoiceView, value: unknown): FeedChoice {
+  if (!value || typeof value !== 'object') return {};
+  const data = value as Record<string, unknown>;
+  try {
+    if (view === 'explore') {
+      const filter = exploreFilter({
+        order: data['explore'],
+        period: data['period'],
+      });
+      return { explore: filter.order, period: filter.period };
+    }
+    return {
+      order: feedOrder(data['order']),
+      period: discoveryPeriod(data['period']),
+    };
+  } catch {
+    return {};
+  }
+}
+export function rememberedFeedChoice(
+  view: string,
+  storage = deviceStorage(),
+): FeedChoice {
+  const name = choiceView(view);
+  if (!name || !storage) return {};
+  return validChoice(name, storedChoices(storage)[name]);
+}
+/** A storage failure keeps the choice for this visit only; nothing else depends on it. */
+export function rememberFeedChoice(
+  view: string,
+  choice: FeedChoice,
+  storage = deviceStorage(),
+): void {
+  const name = choiceView(view);
+  if (!name || !storage) return;
+  const entry = validChoice(name, choice);
+  if (!entry.period) return;
+  // Rewrite only the known views, so stale or foreign keys never accumulate.
+  const stored = storedChoices(storage);
+  const kept = Object.fromEntries(
+    choiceViews
+      .map((key) => [key, validChoice(key, stored[key])] as const)
+      .filter(([, value]) => value.period),
+  );
+  try {
+    storage.setItem(choiceKey, JSON.stringify({ ...kept, [name]: entry }));
+  } catch {
+    // Private browsing or a full quota: the in-memory choice still applies.
   }
 }

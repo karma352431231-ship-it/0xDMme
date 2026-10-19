@@ -1,5 +1,64 @@
 import { t } from '../../shared/i18n/index.ts';
 import { startNotificationNavigation } from './notification-navigation.ts';
+
+/** Hashed release files this page loaded; unhashed or foreign files say nothing. */
+function pageReleaseAssets(): string[] {
+  const paths = new Set<string>();
+  for (const node of document.querySelectorAll(
+    'script[src], link[rel="stylesheet"][href], link[rel="modulepreload"][href]',
+  )) {
+    const url = new URL(
+      node.getAttribute('src') ?? node.getAttribute('href') ?? '',
+      location.href,
+    );
+    if (
+      url.origin === location.origin &&
+      /-[a-f0-9]{16}\.(?:js|css)$/u.test(url.pathname)
+    )
+      paths.add(url.pathname);
+  }
+  return [...paths].slice(0, 32);
+}
+
+function comparableAssets(): string[] {
+  return typeof MessageChannel === 'function' ? pageReleaseAssets() : [];
+}
+
+/**
+ * Whether a worker's release contains every given file of this page. `null`
+ * means unknown: no reply in time (an older worker) or the channel failed.
+ */
+function runsRelease(
+  worker: ServiceWorker,
+  paths: string[],
+): Promise<boolean | null> {
+  return new Promise((resolve) => {
+    const channel = new MessageChannel();
+    let timer = 0;
+    const done = (value: boolean | null) => {
+      window.clearTimeout(timer);
+      channel.port1.close();
+      resolve(value);
+    };
+    timer = window.setTimeout(() => done(null), 3000);
+    channel.port1.onmessage = (event: MessageEvent<unknown>) => {
+      const data = event.data;
+      done(
+        typeof data === 'object' &&
+          data !== null &&
+          'included' in data &&
+          typeof data.included === 'boolean'
+          ? data.included
+          : null,
+      );
+    };
+    try {
+      worker.postMessage({ type: 'SHELL_INCLUDES', paths }, [channel.port2]);
+    } catch {
+      done(null);
+    }
+  });
+}
 /** Explicit shell activation waits for private operations and unsaved drafts. */
 export function startPwa(
   options: {
@@ -15,6 +74,9 @@ export function startPwa(
   let deadline: number | undefined;
   let applying = false;
   let disposed = false;
+  // Shown only when this page runs an older release than the newest worker.
+  let outdated = false;
+  let assessment = 0;
   const cleanup = new Set<() => void>();
   const supported = 'serviceWorker' in navigator && window.isSecureContext;
   if (supported) cleanup.add(startNotificationNavigation());
@@ -24,7 +86,7 @@ export function startPwa(
     const status = document.getElementById('pwa-state');
     if (status) status.textContent = state;
     const notice = document.getElementById('update');
-    if (notice) notice.hidden = !registration?.waiting;
+    if (notice) notice.hidden = !outdated;
   };
   const finish = (message: string) => {
     window.clearTimeout(deadline);
@@ -56,7 +118,7 @@ export function startPwa(
 
   function status(): void {
     if (registration?.waiting) {
-      finish(t('Nova versão pronta. Escolha quando atualizar.'));
+      assess(registration.waiting, true);
       return;
     }
     if (registration?.installing) {
@@ -65,9 +127,36 @@ export function startPwa(
     }
     if (registration?.active) {
       finish(t('Interface pública instalada para uso offline.'));
+      assess(registration.active, false);
       return;
     }
     failed();
+  }
+  /**
+   * A reload already brings the new HTML and files from the network while the
+   * new worker may still be installing. Such a page is current: it gets no
+   * prompt for an update it already has. Its worker still waits for the old
+   * tabs to close (no automatic skipWaiting, so other tabs keep their release).
+   */
+  function assess(worker: ServiceWorker, waiting: boolean): void {
+    const id = ++assessment;
+    const paths = comparableAssets();
+    if (waiting) finish(t('Nova versão pronta. Escolha quando atualizar.'));
+    if (!paths.length) {
+      // Nothing to compare: a waiting worker keeps the explicit choice.
+      outdated = waiting;
+      render();
+      return;
+    }
+    void runsRelease(worker, paths).then((current) => {
+      if (disposed || id !== assessment) return;
+      outdated = current === null ? waiting : !current;
+      if (current && waiting) {
+        finish(t('Esta página já usa a versão mais recente.'));
+        return;
+      }
+      render();
+    });
   }
 
   function observe(worker: ServiceWorker): void {
@@ -145,26 +234,46 @@ export function startPwa(
     retryUntil = Date.now() + 5000;
     apply();
   }
-  function apply(): void {
-    if (!registration?.waiting || applying || disposed) return;
+  /** Explains a blocked update and, when allowed, retries it briefly. */
+  function deferred(): boolean {
     const blocked = activationBlock();
-    if (blocked) {
-      const result = document.getElementById('update-result');
-      if (result) result.textContent = blocked;
-      if (options.waitForIdle && Date.now() < retryUntil)
-        activationRetry = window.setTimeout(apply, 200);
-      return;
-    }
+    if (!blocked) return false;
+    const result = document.getElementById('update-result');
+    if (result) result.textContent = blocked;
+    if (options.waitForIdle && Date.now() < retryUntil)
+      activationRetry = window.setTimeout(apply, 200);
+    return true;
+  }
+  function reloadPage(): void {
+    if (location.search === '?atualizar=1')
+      location.replace((location.pathname ?? '/') + location.hash);
+    else location.reload();
+  }
+  function apply(): void {
+    const waiting = registration?.waiting;
+    if (!(waiting || outdated) || applying || disposed || deferred()) return;
+    // A newer worker is already active (another tab updated): reloading is the update.
+    if (!waiting) reloadPage();
+    else activate(waiting);
+  }
+  /**
+   * Reload once the new worker takes over. A page the old worker never
+   * controlled (hard reload, first visit) gets no controllerchange, so the
+   * worker's own activation also counts; either signal reloads only once.
+   */
+  function activate(waiting: ServiceWorker): void {
     applying = true;
     const changed = () => {
       stop();
-      if (location.search === '?atualizar=1')
-        location.replace((location.pathname ?? '/') + location.hash);
-      else location.reload();
+      reloadPage();
+    };
+    const activated = () => {
+      if (waiting.state === 'activated') changed();
     };
     const stop = () => {
       window.clearTimeout(timer);
       navigator.serviceWorker.removeEventListener('controllerchange', changed);
+      waiting.removeEventListener('statechange', activated);
       cleanup.delete(stop);
       applying = false;
     };
@@ -180,9 +289,10 @@ export function startPwa(
     navigator.serviceWorker.addEventListener('controllerchange', changed, {
       once: true,
     });
+    waiting.addEventListener('statechange', activated);
     cleanup.add(stop);
     try {
-      registration.waiting.postMessage({ type: 'ACTIVATE_PUBLIC_SHELL' });
+      waiting.postMessage({ type: 'ACTIVATE_PUBLIC_SHELL' });
     } catch {
       failedActivation();
     }

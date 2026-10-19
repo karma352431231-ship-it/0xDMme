@@ -3508,6 +3508,10 @@ export const catalog: Record<string, readonly [string, string]> = {
     'Offline interface unavailable. Try again with a connection.',
     '离线界面不可用。请联网后重试。',
   ],
+  'Esta página já usa a versão mais recente.': [
+    'This page already runs the latest version.',
+    '此页面已在使用最新版本。',
+  ],
   'Interface pública instalada para uso offline.': [
     'Public interface installed for offline use.',
     '公开界面已安装，可离线使用。',

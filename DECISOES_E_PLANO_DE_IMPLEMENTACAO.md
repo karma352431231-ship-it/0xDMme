@@ -3222,3 +3222,13 @@ unchanged. The actual coordinator regression is recorded in
 [the loading contract](docs/BOOT_CONTATOS_CONVERSAS.md#hidden-profile-maintenance--19-october-2026).
 An active or queued conversation check precedes a new profile round; the existing
 visible preference distribution outside the conversation remains supported.
+
+### Filtros do feed e aviso de nova versão — 19/10/2026
+
+O proprietário pediu que o feed lembre a ordenação e o período escolhidos até a
+pessoa trocar (padrão continua 24 horas) e que o aviso de atualização só apareça
+quando a versão em uso estiver de fato desatualizada, centralizado embaixo e sem
+ser coberto pelo "+". Os filtros ficam no aparelho, sem dado de conta. A regra
+de não ativar o Worker automaticamente foi preservada. Contratos em
+[feeds](docs/PERFIL_PUBLICO_E_FEEDS.md#feed-e-seguindo) e
+[base web](docs/BLOCO_02_BASE_WEB.md).
