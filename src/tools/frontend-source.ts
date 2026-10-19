@@ -194,8 +194,7 @@ const authored = [
   '.nvmrc',
   'LICENSES.md',
   'LICENSE-GPL-3.0.txt',
-  'docs/FONTES_FRONTEND.md',
-  'docs/PROVA_NATIVA_PHANTOM_SOLANA.md',
+  'docs/FRONTEND_SOURCES.md',
   'vendor/libsodium-0.8.4/README.md',
 ];
 

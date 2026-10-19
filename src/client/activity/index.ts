@@ -24,7 +24,7 @@ import { displayName, paintAvatar, shortAddress } from '../appearance/index.ts';
 import { pingNotice } from '../ping/index.ts';
 
 /**
- * Atividade (docs/UI_PAINEIS_E_TEMAS.md): one place for items the app already
+ * Atividade: one place for items the app already
  * receives. Each source keeps its own API, authorization and checks; this module
  * only reads them on demand and calls the same actions as the original screens.
  */

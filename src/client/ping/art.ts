@@ -1,7 +1,7 @@
 /**
  * Ping, the 0xDMme character: the logo's chat bubble with a face.
  * It only marks empty, waiting, warning and confirmation moments, one per
- * screen, and never sits inside people's messages (docs/UI_PAINEIS_E_TEMAS.md).
+ * screen, and never sits inside people's messages.
  * Markup is authored here; text passed in is escaped, never parsed.
  */
 export type PingMood =

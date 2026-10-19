@@ -2,7 +2,7 @@ import { t, currentLanguage } from '../../shared/i18n/index.ts';
 import { announcePreference } from '../preference-events/index.ts';
 
 /**
- * Appearance (docs/UI_PAINEIS_E_TEMAS.md): the theme choice and how names and
+ * Appearance: the theme choice and how names and
  * avatars are shown. The theme is kept on this device; with a connected account,
  * account-settings copies it to the encrypted vault, never to the server in clear.
  */

@@ -116,7 +116,7 @@ await test('fontes públicas incluem instruções/licenças do build e excluem b
     'src/shared/wallet-approval/index.ts',
     'src/client/app/phantom-probe.html',
     'LICENSE-GPL-3.0.txt',
-    'docs/FONTES_FRONTEND.md',
+    'docs/FRONTEND_SOURCES.md',
     'vendor/libsodium-0.8.4/README.md',
     'node_modules/@wallet-standard/app/LICENSE',
     'node_modules/libsodium-wrappers/LICENSE',

@@ -9,7 +9,7 @@ import type { PreferenceChange } from '../preference-events/index.ts';
 
 /**
  * Choices that would otherwise stay on one device; the account copy lives in
- * the encrypted vault (docs/UI_CONFIGURACOES.md). Privacy and discovery already
+ * the encrypted vault. Privacy and discovery already
  * belong to the account (encrypted profile and server) and are not repeated here.
  */
 export interface AccountSettings {

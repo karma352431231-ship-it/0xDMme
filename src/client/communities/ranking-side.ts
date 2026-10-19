@@ -15,7 +15,7 @@ import { topicDot } from './classification.ts';
 import { growthLabel } from './ranking-side-growth.ts';
 
 /**
- * FOMO-style ranking beside the feed (docs/UI_PAINEIS_E_TEMAS.md, 16/10/2026).
+ * FOMO-style ranking beside the feed (16/10/2026).
  * Public ranking pages are read without credentials; Following uses the
  * signed list. While visible, the bar refreshes every few seconds and redraws
  * only when the server published a new ranking, so likes, replies and posts

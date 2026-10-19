@@ -448,7 +448,7 @@
 }
 
 /*
- * Perfil as in the approved mockup (docs/UI_PAINEIS_E_TEMAS.md): identity, vault
+ * Perfil as in the approved mockup: identity, vault
  * and categories on the left, the open category beside them on wide screens; a
  * grouped list whose rows open a full screen on phones. The account module keeps
  * its own markup, so connected identity parts join the layout with display: contents.
@@ -972,7 +972,7 @@
 }
 
 /*
- * Settings organization (16/10/2026, docs/UI_CONFIGURACOES.md): each block
+ * Settings organization (16/10/2026): each block
  * keeps its own save button; cards get even spacing, empty status lines take
  * no room, the vault is one column and risky actions sit in a danger zone.
  */

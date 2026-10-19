@@ -1,4 +1,4 @@
-/* Atividade: one list of pending items, grouped by kind (docs/UI_PAINEIS_E_TEMAS.md). */
+/* Atividade: one list of pending items, grouped by kind. */
 .app[data-page='atividade'] .page-heading {
   display: none;
 }

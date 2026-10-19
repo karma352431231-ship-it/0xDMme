@@ -1,5 +1,5 @@
 import { appAddress, navigateApp } from '../app-navigation/index.ts';
-/** Desktop panel arrangement (docs/UI_PAINEIS_E_TEMAS.md); a device-only preference. */
+/** Desktop panel arrangement; a device-only preference. */
 import { appRoute } from '../../shared/app-routes/index.ts';
 import {
   communityTarget,

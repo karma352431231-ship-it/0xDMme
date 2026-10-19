@@ -1,34 +1,35 @@
-# Emojis do 0xDMme
+# 0xDMme emoji
 
-## Idiomas oficiais — 13/10/2026
+## Official languages — 2026-10-13
 
-O painel deriva nomes e palavras-chave em inglês e chinês simplificado,
-sem alterar o pacote gráfico abaixo. Os quatro arquivos adicionais são originais
-CLDR **48.2.3**, sob a mesma [Unicode-3.0](https://github.com/unicode-org/cldr-json/blob/48.2.3/LICENSE).
-O aviso upstream foi conferido byte a byte contra `LICENSE-CLDR.txt`.
-O build não baixa dados: valida os hashes e deriva as duas listas completas
-de 3.963 sequências, conservando categorias, tons e chaves gráficas.
+The panel derives names and keywords in English and Simplified Chinese without
+changing the graphics package below. The four additional files are CLDR
+**48.2.3** originals under the same [Unicode-3.0](https://github.com/unicode-org/cldr-json/blob/48.2.3/LICENSE)
+license. The upstream notice was checked byte for byte against `LICENSE-CLDR.txt`.
+The build downloads nothing: it validates the hashes and derives both complete
+lists of 3,963 sequences, keeping categories, skin tones and graphic keys.
 
-- [`annotations-en.json`](https://raw.githubusercontent.com/unicode-org/cldr-json/48.2.3/cldr-json/cldr-annotations-full/annotations/en/annotations.json): 438.314 bytes; SHA-256 `f22083cb86dffb63a643d5bacb5d9899f82d2fa5d388ad4f3aed72184acef505`.
-- [`annotationsDerived-en.json`](https://raw.githubusercontent.com/unicode-org/cldr-json/48.2.3/cldr-json/cldr-annotations-derived-full/annotationsDerived/en/annotations.json): 782.906 bytes; SHA-256 `15c9457afa703a32dcc78d54626418a91e820fe0ddd67b7d491c4c4d9f5846ab`.
-- [`annotations-zh.json`](https://raw.githubusercontent.com/unicode-org/cldr-json/48.2.3/cldr-json/cldr-annotations-full/annotations/zh/annotations.json): 420.265 bytes; SHA-256 `8d2dfe9bf41894bd17c9c1a1906a31bf0ccc06204bf4b77c2ab2b0d8f79a5fdf`.
-- [`annotationsDerived-zh.json`](https://raw.githubusercontent.com/unicode-org/cldr-json/48.2.3/cldr-json/cldr-annotations-derived-full/annotationsDerived/zh/annotations.json): 682.370 bytes; SHA-256 `1ff96249af6fc69067f2dfabc26b450786a93d8048f2764ecfad53fd64953f92`.
+- [`annotations-en.json`](https://raw.githubusercontent.com/unicode-org/cldr-json/48.2.3/cldr-json/cldr-annotations-full/annotations/en/annotations.json): 438,314 bytes; SHA-256 `f22083cb86dffb63a643d5bacb5d9899f82d2fa5d388ad4f3aed72184acef505`.
+- [`annotationsDerived-en.json`](https://raw.githubusercontent.com/unicode-org/cldr-json/48.2.3/cldr-json/cldr-annotations-derived-full/annotationsDerived/en/annotations.json): 782,906 bytes; SHA-256 `15c9457afa703a32dcc78d54626418a91e820fe0ddd67b7d491c4c4d9f5846ab`.
+- [`annotations-zh.json`](https://raw.githubusercontent.com/unicode-org/cldr-json/48.2.3/cldr-json/cldr-annotations-full/annotations/zh/annotations.json): 420,265 bytes; SHA-256 `8d2dfe9bf41894bd17c9c1a1906a31bf0ccc06204bf4b77c2ab2b0d8f79a5fdf`.
+- [`annotationsDerived-zh.json`](https://raw.githubusercontent.com/unicode-org/cldr-json/48.2.3/cldr-json/cldr-annotations-derived-full/annotationsDerived/zh/annotations.json): 682,370 bytes; SHA-256 `1ff96249af6fc69067f2dfabc26b450786a93d8048f2764ecfad53fd64953f92`.
 
-Esses originais e `src/tools/frontend-emoji-locales.ts` integram o download
-principal de fontes. `src/tools/frontend-emoji.ts` conserva o catálogo Unicode
-do pacote original como inventário; nomes novos sem anotação têm complemento
-local explícito, e uma ausência chinesa não cai silenciosamente para inglês.
-O módulo público `emoji-catalog-<hash>.js` contém ambos os idiomas e entra no
-shell offline. Só a escolha local decide qual lista apresentar; buscas,
-seleções e recentes não saem do aparelho. As licenças/atribuições dos gráficos
-continuam iguais, e nenhum parser ou pacote npm novo foi acrescentado.
+These originals and `src/tools/frontend-emoji-locales.ts` are part of the main
+source download. `src/tools/frontend-emoji.ts` keeps the Unicode catalog of the
+original package as the inventory; new names without an annotation get an
+explicit local complement, and a missing Chinese entry never silently falls
+back to English. The public module `emoji-catalog-<hash>.js` contains both
+languages and is part of the offline shell. Only the local choice decides which
+list is shown; searches, selections and recents never leave the device. Artwork
+licenses and attributions are unchanged, and no parser or new npm package was
+added.
 
-## Pacote gráfico original
+## Original graphics package
 
-`assets.json.gz` é um JSON UTF-8 comprimido com gzip (mtime zero), SHA-256 `d7a2c1166a29ac85606f146f0ebf025606cc1ba0e597c6ef38cf0c691968b80a`, 1.957.171 bytes. Contém 4.009 SVGs originais do [Twemoji 17.0.3](https://github.com/jdecked/twemoji/releases/tag/v17.0.3), o README upstream, o arquivo original [emoji-test.txt 18.0](https://www.unicode.org/Public/18.0.0/emoji/emoji-test.txt), anotações pt e annotationsDerived/pt do [CLDR 48.2.3](https://github.com/unicode-org/cldr-json/tree/48.2.3), URLs de proveniência e licenças completas. Dados de terceiros são distribuídos sob suas próprias licenças; código autoral do seletor/renderer permanece GPL-3.0-only.
+`assets.json.gz` is gzip-compressed UTF-8 JSON (mtime zero), SHA-256 `d7a2c1166a29ac85606f146f0ebf025606cc1ba0e597c6ef38cf0c691968b80a`, 1,957,171 bytes. It contains 4,009 original SVGs from [Twemoji 17.0.3](https://github.com/jdecked/twemoji/releases/tag/v17.0.3), the upstream README, the original [emoji-test.txt 18.0](https://www.unicode.org/Public/18.0.0/emoji/emoji-test.txt), the `pt` annotations and annotationsDerived from [CLDR 48.2.3](https://github.com/unicode-org/cldr-json/tree/48.2.3) used by the first catalog, provenance URLs and complete licenses. Third-party data is distributed under its own licenses; the authored picker/renderer code remains GPL-3.0-only.
 
-Twemoji: gráficos de Twitter, Inc. e demais contribuidores, **CC-BY-4.0**; preservamos o README/avisos do projeto. SVGs não foram redesenhados, somente reunidos num mapa JSON `svg` cujo nome de chave é o nome original sem `.svg`. Para recuperar os originais, descomprima com gzip, leia esse mapa e escreva cada valor em `<chave>.svg`. Catálogo/anotações: **Unicode-3.0**, com avisos completos nos campos `licenses` e nos arquivos deste diretório. O código MIT do parser Twemoji não é usado/incorporado. Há 19 sequências Emoji 18 sem arte no Twemoji 17; continuam sendo Unicode e usam a representação nativa.
+Twemoji: graphics by Twitter, Inc. and other contributors, **CC-BY-4.0**; the project's README and notices are preserved. The SVGs were not redrawn, only gathered into an `svg` JSON map whose key is the original file name without `.svg`. To recover the originals, decompress with gzip, read that map and write each value to `<key>.svg`. Catalog and annotations: **Unicode-3.0**, with complete notices in the `licenses` fields and in the files of this directory. The MIT Twemoji parser code is not used or incorporated. Nineteen Emoji 18 sequences have no Twemoji 17 artwork; they remain Unicode and use the native rendering.
 
-O asset público é `/emoji-d7a2c1166a29ac85.json.gz`, entregue na mesma origem. O link “Desenhos e licenças dos emojis” permite baixar o pacote integral, sem autenticação. Nenhum emoji escolhido, termo de busca ou recente é enviado nessa requisição: o pacote é estático, igual para todas as pessoas e também incluído no cache público do shell.
+The public asset is `/emoji-d7a2c1166a29ac85.json.gz`, served from the same origin. The **Emoji artwork and licenses** link downloads the complete package without authentication. No chosen emoji, search term or recent is sent with that request: the package is static, identical for everyone and also part of the shell's public cache.
 
-Para reconstruir o frontend a partir de “Código e licenças”, baixe esse asset, verifique SHA-256 e copie-o para `vendor/emoji/assets.json.gz`. Rode o build documentado em `docs/FONTES_FRONTEND.md`; ele valida hash, tamanho e repertório antes de derivar o catálogo. Nenhum download ocorre no build. Para atualizar dados/desenhos, revise versões/licenças, regenere o mapa a partir dos originais, comprima JSON sem espaços em UTF-8, gzip nível 9/mtime zero, registre novo hash e valide cobertura e tamanhos. Os originais e a lógica de derivação são entregues; não há promessa de que uma ferramenta gzip diferente produza bytes idênticos.
+To rebuild the frontend from **Source code and licenses**, download that asset, verify its SHA-256 and copy it to `vendor/emoji/assets.json.gz`. Then run the build described in [docs/FRONTEND_SOURCES.md](../../docs/FRONTEND_SOURCES.md); it validates hash, size and repertoire before deriving the catalog. Nothing is downloaded during the build. To update data or artwork, review versions and licenses, regenerate the map from the originals, compress whitespace-free UTF-8 JSON with gzip level 9 and mtime zero, record the new hash and validate coverage and sizes. The originals and the derivation logic ship with the sources; a different gzip tool is not promised to produce identical bytes.

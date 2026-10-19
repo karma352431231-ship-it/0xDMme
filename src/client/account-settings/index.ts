@@ -83,8 +83,8 @@ function samePush(a: PushPreferences, b: PushPreferences): boolean {
 }
 
 /**
- * Configurações iniciais and the account copy of device choices
- * (docs/UI_CONFIGURACOES.md). The copy lives in the encrypted vault; the
+ * Initial settings and the account copy of device choices.
+ * The copy lives in the encrypted vault; the
  * server only stores ciphertext, like every other vault record.
  */
 export class AccountSettingsController {
