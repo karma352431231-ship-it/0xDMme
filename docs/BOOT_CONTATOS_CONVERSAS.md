@@ -576,3 +576,25 @@ hint during an unpublished direct read now lets its own final confirmation finis
 before the queued live recheck. Established direct views, group views, removals,
 authorization loss and suspension keep their immediate invalidation behavior.
 No confirmed history is exposed early and no authority/crypto check is skipped.
+
+The next candidate measures 6,344 ms on its first sender opening, 5,358 ms on
+reload and 12,269 ms on first recipient opening. The latter starts its session
+request only at 4,441 ms, so retain that public/bootstrap delay separately from
+history verification. All still fail 4,000 ms. The corrected first read no longer
+fails when live readiness arrives, and optional settings remain deferred.
+
+Real profile/community regressions also reproduce signed warmups escaping through
+session propagation. Signed-in setSession now clears/repaints state; the app's
+existing readiness gate starts its warmup. Explicit mounts/readiness and public
+logout still load normally. SessionBoot distinguishes initial, deferred and ready
+phases, invalidated by account/device/CSRF changes. Speculative call-pin priming
+waits for that optional-work release and resumes once, without waiting for another
+poll. Incoming signaling, negotiated snapshots, heartbeats and explicit call
+verification still start immediately; an incoming invitation test keeps the
+background gate closed while verifying ringing and acceptance behavior.
+
+The app/message/community/call coordinators remain existing hotspots. This block
+changes their startup wiring only. Separate their session propagation first,
+then view/operation lifecycles and optional maintenance in dedicated reviewed
+tasks, preserving foreground navigation, revocation, drafts, incoming signaling,
+verified history and recovery tests. Do not split them inside this latency task.

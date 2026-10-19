@@ -882,7 +882,8 @@ export function startCommunities(
       sidebar?.replaceChildren();
       if (mounted) {
         navigation();
-        ready();
+        // Signed startup follows app readiness; public logout stays immediate.
+        if (!value) ready();
       }
     },
   };

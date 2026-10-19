@@ -14,13 +14,17 @@ const recheck = { directoryStarting: false, prioritizeDirectory: true };
 await test('foreground boot coalesces rechecks and releases optional work once the directory settles', () => {
   const started: string[] = [];
   const boot = new SessionBoot((value) => started.push(value.accountId));
+  boot.setSession(session);
+  assert.equal(boot.backgroundReady, false);
   boot.update(session, initial);
   assert.equal(boot.deferred, true);
+  assert.equal(boot.backgroundReady, false);
   boot.update(session, recheck);
   boot.update({ ...session, name: 'Updated name' }, recheck);
   assert.deepEqual(started, []);
   boot.settled(session);
   assert.equal(boot.deferred, false);
+  assert.equal(boot.backgroundReady, true);
   boot.settled(session);
   assert.deepEqual(started, [session.accountId]);
   boot.update(session, recheck);
@@ -53,6 +57,7 @@ for (const change of ['accountId', 'deviceId', 'csrf'] as const)
     const replacement = { ...session, [change]: 'replacement' };
     boot.update(session, initial);
     boot.setSession(replacement);
+    assert.equal(boot.backgroundReady, false);
     boot.update(replacement, initial);
     boot.settled(session);
     assert.deepEqual(started, []);

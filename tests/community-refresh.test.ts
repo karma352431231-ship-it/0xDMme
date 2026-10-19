@@ -280,6 +280,19 @@ function fixture(
   return { ui, host, sidebar, data };
 }
 
+await test('session propagation clears community state and waits for explicit app readiness', async () => {
+  const { ui, data } = fixture();
+  await settled(ui);
+  const before = data.requests.length;
+  ui.setSession({ ...account, csrf: 'c'.repeat(64) });
+  await setImmediate();
+  assert.equal(data.requests.length, before);
+  ui.ready();
+  await settled(ui);
+  assert.ok(data.requests.length > before);
+  ui.leave();
+});
+
 await test('rechecagem da mesma sessão conserva comunidade, cartão e rascunho, consultando dados atuais', async () => {
   const { ui, host, data } = fixture();
   await settled(ui);

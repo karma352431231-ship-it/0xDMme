@@ -242,7 +242,8 @@ export function startPublicProfile(
       generation++;
       status = '';
       render();
-      ready();
+      // The app schedules signed warmups; logout may repaint public data now.
+      if (!session) ready();
     },
   };
 }

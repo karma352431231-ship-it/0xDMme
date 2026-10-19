@@ -15,42 +15,46 @@ function sameSession(
  * This schedules work only; every operation keeps its existing authority checks. */
 export class SessionBoot {
   private session: AccountSession | null = null;
-  private pending = false;
+  private phase: 'initial' | 'deferred' | 'ready' = 'initial';
   private readonly background: (session: AccountSession) => void;
   constructor(background: (session: AccountSession) => void) {
     this.background = background;
   }
   get deferred(): boolean {
-    return this.pending;
+    return this.phase === 'deferred';
+  }
+  get backgroundReady(): boolean {
+    return this.session !== null && this.phase === 'ready';
   }
   setSession(session: AccountSession | null): void {
-    if (!sameSession(this.session, session)) this.pending = false;
+    if (!sameSession(this.session, session)) this.phase = 'initial';
     this.session = session ? { ...session } : null;
   }
   reset(): void {
     this.session = null;
-    this.pending = false;
+    this.phase = 'initial';
   }
   update(
     session: AccountSession,
     options: { directoryStarting: boolean; prioritizeDirectory: boolean },
   ): void {
     this.setSession(session);
-    if (this.pending) {
+    if (this.deferred) {
       if (!options.prioritizeDirectory) this.settled(session);
       return;
     }
     if (options.directoryStarting && options.prioritizeDirectory) {
-      this.pending = true;
+      this.phase = 'deferred';
       return;
     }
+    this.phase = 'ready';
     this.background(session);
   }
   /** Called on publication or failure; failure never becomes directory success. */
   settled(session: AccountSession | null): void {
-    if (!session || !this.pending || !sameSession(this.session, session))
+    if (!session || !this.deferred || !sameSession(this.session, session))
       return;
-    this.pending = false;
+    this.phase = 'ready';
     this.background(this.session!);
   }
   release(): void {

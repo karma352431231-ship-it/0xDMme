@@ -37,6 +37,7 @@ export class VoiceCalls {
   private readonly security: CallSecurity;
   private readonly playback: VoicePlayback;
   private readonly before: () => void;
+  private readonly backgroundReady: () => boolean;
   private readonly publish: (state: CallUiState) => void;
   private readonly history: CallHistory | null;
   private session: AccountSession | null = null;
@@ -74,6 +75,7 @@ export class VoiceCalls {
     sync: VaultSync;
     playback: VoicePlayback;
     before: () => void;
+    backgroundReady?: () => boolean;
     publish: (state: CallUiState) => void;
     history?: CallHistory;
   }) {
@@ -81,6 +83,7 @@ export class VoiceCalls {
     this.security = new CallSecurity(options.access, options.sync);
     this.playback = options.playback;
     this.before = options.before;
+    this.backgroundReady = options.backgroundReady ?? (() => true);
     this.publish = options.publish;
     this.history = options.history ?? null;
     this.watchdog = setInterval(() => this.watch(), 1000);
@@ -104,6 +107,7 @@ export class VoiceCalls {
     if (session) this.ready();
   }
   ready(): void {
+    if (this.session && this.lastLease) this.primeIdentities(this.generation);
     if (this.polling) return;
     if (this.session && navigator.onLine && !this.timer)
       this.timer = setTimeout(() => {
@@ -360,9 +364,16 @@ export class VoiceCalls {
     }
   }
   private primeIdentities(g: number): void {
-    if (this.primed || this.active || !this.snapshot.invitation) return;
+    if (
+      this.primed ||
+      this.active ||
+      !this.snapshot.invitation ||
+      !this.backgroundReady()
+    )
+      return;
     this.primed = true;
-    // One session-bound preparation, shared with an overlapping user operation.
+    // One session-bound preparation after optional app work is released, shared
+    // with an overlapping user operation. Signaling and explicit calls never wait.
     // It reads only existing pins; every call still checks fresh remote context.
     void this.security.prime().catch((error: unknown) => {
       if (g !== this.generation || this.active || this.busy) return;

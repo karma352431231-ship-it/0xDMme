@@ -167,6 +167,14 @@ call still performs fresh vault/removal/peer checks. Failure is reported in the
 call notice and the normal call path can retry verification. A never-seen peer
 still requires verified pin persistence before the initial invitation is sent.
 
+For the four-second private-history opening work on 19 October, only speculative
+idle pin priming follows the existing optional app-startup gate. Its release
+resumes preparation once without waiting for another poll. Incoming signaling,
+heartbeats and explicit call setup retain immediate readiness and fresh identity
+verification; a closed background gate cannot defer an invitation or acceptance.
+Account/device/CSRF replacement clears readiness. This scheduling correction is
+not new mobile audio, distant-network or TURN acceptance; those checks remain last.
+
 ## Explicit local audio inspection — 18 October 2026
 
 Repeated remote speech needs capture, output and transport evidence from the

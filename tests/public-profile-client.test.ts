@@ -55,6 +55,39 @@ const result = () => ({
   revision: 1,
   pendingAvatar: null,
 });
+await test('session propagation clears public profile state without escaping deferred app readiness', async (t) => {
+  for (const [name, value] of Object.entries({
+    document: { querySelectorAll: () => [] },
+    window: new EventTarget(),
+  })) {
+    const previous = Object.getOwnPropertyDescriptor(globalThis, name);
+    Object.defineProperty(globalThis, name, { configurable: true, value });
+    t.after(() => {
+      if (previous) Object.defineProperty(globalThis, name, previous);
+      else Reflect.deleteProperty(globalThis, name);
+    });
+  }
+  const own = session();
+  let requests = 0;
+  t.mock.method(globalThis, 'fetch', () => {
+    requests++;
+    return Promise.resolve(Response.json(result()));
+  });
+  const ui = startPublicProfile(
+    access(own, () => Promise.resolve('assinatura-sintetica')),
+    new ExternalMediaConsent({
+      profile: () => Promise.resolve(false),
+      storage: null,
+    }),
+  );
+  t.after(() => ui.leave());
+  ui.setSession(own);
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  assert.equal(requests, 0);
+  ui.ready();
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  assert.equal(requests, 1);
+});
 await test('criar @ aguarda a escolha de mídia externa, sem caixa adicional para o nome', async (t) => {
   for (const [name, value] of Object.entries({
     document: { querySelectorAll: () => [] },

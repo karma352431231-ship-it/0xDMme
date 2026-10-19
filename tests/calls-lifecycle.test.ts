@@ -14,7 +14,7 @@ import type {
 } from '../src/client/vault-authority/index.ts';
 import type { AccountSession } from '../src/shared/account/index.ts';
 
-function fixture(t: TestContext) {
+function fixture(t: TestContext, backgroundReady = () => true) {
   t.mock.timers.enable({
     apis: ['setTimeout', 'setInterval', 'Date'],
     now: 100_000,
@@ -66,6 +66,7 @@ function fixture(t: TestContext) {
       Promise.reject(new Error('Offline fora deste contrato.')),
   };
   const calls = new VoiceCalls({
+    backgroundReady,
     access,
     sync: new VaultSync(access),
     playback: new VoicePlayback(),
@@ -78,6 +79,46 @@ function fixture(t: TestContext) {
 const flush = () => new Promise<void>((resolve) => setImmediate(resolve));
 const response = () =>
   Response.json({ configured: true, enabled: true, revision: 0, call: null });
+
+await test('speculative identity preparation yields to startup while signaling remains immediate', async (t) => {
+  let ready = false;
+  const { calls, session } = fixture(t, () => ready);
+  let requests = 0,
+    preparations = 0;
+  t.mock.method(CallSecurity.prototype, 'prime', () => {
+    preparations++;
+    return Promise.resolve();
+  });
+  t.mock.method(globalThis, 'fetch', () => {
+    requests++;
+    return Promise.resolve(
+      Response.json({
+        configured: true,
+        enabled: true,
+        revision: 0,
+        invitation: true,
+        call: null,
+      }),
+    );
+  });
+  calls.setSession(session);
+  t.mock.timers.tick(0);
+  await flush();
+  assert.equal(requests, 1);
+  assert.equal(preparations, 0);
+  calls.wake();
+  t.mock.timers.tick(0);
+  await flush();
+  assert.equal(requests, 2);
+  assert.equal(preparations, 0);
+  ready = true;
+  calls.ready();
+  await flush();
+  assert.equal(preparations, 1);
+  calls.ready();
+  await flush();
+  assert.equal(preparations, 1);
+});
 
 await test('ready concorrente na inicialização mantém heartbeat de 5s e não perde a autorização de 20s', async (t) => {
   const { calls, session } = fixture(t);
@@ -177,7 +218,7 @@ await test('a call wakeup during an in-flight snapshot is retained without concu
 });
 
 await test('verified invitation rings before SDP; early accept waits for the first full offer without answering the invitation', async (t) => {
-  const { calls, session } = fixture(t);
+  const { calls, session } = fixture(t, () => false);
   Object.defineProperty(globalThis, 'document', {
     configurable: true,
     value: {

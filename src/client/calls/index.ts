@@ -30,6 +30,7 @@ export function startCalls(options: {
   sync: VaultSync;
   playback: VoicePlayback;
   before: () => void;
+  backgroundReady?: () => boolean;
   label: (peer: string) => string;
   history?: CallHistory;
 }) {

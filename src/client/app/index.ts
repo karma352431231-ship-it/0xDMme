@@ -147,6 +147,7 @@ const rightColumn =
 const playback = new VoicePlayback();
 const callLog = new CallLog(vault.sync);
 const calls = startCalls({
+  backgroundReady: () => sessionBoot.backgroundReady,
   access: devices,
   sync: vault.sync,
   playback,
@@ -262,6 +263,7 @@ const accountSettings = startAccountSettings({
 });
 // Optional session warmups follow the foreground private directory's first load.
 const sessionBoot = new SessionBoot((session) => {
+  calls.ready();
   publicProfiles.ready();
   communities.ready();
   contacts.ready();

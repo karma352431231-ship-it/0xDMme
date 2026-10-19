@@ -3256,6 +3256,15 @@ own fresh final confirmation; it still queues the live recheck. Established view
 groups, removals and authorization changes keep immediate invalidation. These
 corrections do not alter the four-second criterion or establish acceptance.
 
+The next candidate still fails: 6,344 ms first sender opening, 5,358 ms reload and
+12,269 ms first recipient opening. Signed profile/community warmups must also
+follow the app's existing optional-startup gate instead of starting inside
+session propagation. Explicit foreground readiness and public logout stay
+supported. Only speculative call-pin priming waits for optional-work release;
+call signaling, heartbeats and actual call verification remain immediate.
+Session/account/device/CSRF replacement invalidates that readiness state. Three
+additional real module regressions reproduce the premature work before correction.
+
 ### Voltar do perfil ao feed — 19/10/2026
 
 O proprietário escolheu a opção A: voltar do perfil ao feed mostra na hora a
