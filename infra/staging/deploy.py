@@ -5,6 +5,7 @@ import base64
 import hashlib
 import io
 import json
+import lzma
 import os
 from pathlib import Path
 import re
@@ -16,7 +17,6 @@ import tarfile
 import tempfile
 import urllib.parse
 import urllib.request
-import zlib
 
 from deploy_remote import MAX_MANIFEST_BYTES, digest, validate, valid_release_branch
 import deploy_sources as public_sources
@@ -195,7 +195,7 @@ def private_inputs():
 
 def executor_code(config):
     modules = []
-    for name in ['deploy_sources', 'deploy_runtime', 'deploy_remote', 'deploy_backup_io', 'deploy_blocks45', 'deploy_request_limit', 'deploy_worker_layout', 'deploy_worker_readiness', 'deploy_background', 'deploy_worker_boot', 'deploy_profile_social', 'deploy_profile_description', 'deploy_group_links', 'deploy_post_tags', 'deploy_media_worker', 'deploy_social_controls', 'deploy_social_experience', 'deploy_discussion', 'deploy_mentions', 'deploy_message_changes', 'deploy_community_classification', 'deploy_public_upvotes', 'deploy_social_reactions', 'deploy_ranking_activity', 'deploy_chat_attachments', 'deploy_community_addresses', 'deploy_capacity_proxy', 'deploy_capacity_database', 'deploy_group_media_parts']:
+    for name in ['deploy_sources', 'deploy_runtime', 'deploy_remote', 'deploy_backup_io', 'deploy_blocks45', 'deploy_request_limit', 'deploy_worker_layout', 'deploy_worker_readiness', 'deploy_background', 'deploy_worker_boot', 'deploy_profile_social', 'deploy_profile_description', 'deploy_group_links', 'deploy_post_tags', 'deploy_media_worker', 'deploy_social_controls', 'deploy_social_experience', 'deploy_discussion', 'deploy_mentions', 'deploy_message_changes', 'deploy_community_classification', 'deploy_public_upvotes', 'deploy_social_reactions', 'deploy_ranking_activity', 'deploy_chat_attachments', 'deploy_community_addresses', 'deploy_capacity_proxy', 'deploy_capacity_database', 'deploy_group_media_parts', 'deploy_account_rankings']:
         path = ROOT / 'infra/staging' / (name + '.py')
         if digest(path) != config['files'].get('infra/staging/' + name + '.py'):
             raise RuntimeError('Deployment executor changed after the reviewed commit.')
@@ -205,9 +205,11 @@ def executor_code(config):
         raise RuntimeError('Deployment executor source budget exceeded.')
     # systemd expands percent specifiers and dollar environment references in argv.
     # Neither reserved byte may occur in the transported Python source.
-    packed = base64.b85encode(zlib.compress(raw, level=9)).decode().translate(str.maketrans('%$', '.,'))
-    return ('import sys,types,json,base64,zlib\n'
-            'modules=json.loads(zlib.decompress(base64.b85decode(' + repr(packed) + '.translate(str.maketrans(".,",chr(37)+chr(36))))))\n'
+    # Standard-library XZ keeps the growing reviewed module set below the
+    # unchanged SSH argv budget; authored-source and input budgets stay fixed.
+    packed = base64.b85encode(lzma.compress(raw, preset=6)).decode().translate(str.maketrans('%$', '.,'))
+    return ('import sys,types,json,base64,lzma\n'
+            'modules=json.loads(lzma.decompress(base64.b85decode(' + repr(packed) + '.translate(str.maketrans(".,",chr(37)+chr(36))))))\n'
             'for name,source in modules:\n'
             ' m=types.ModuleType(name);sys.modules[name]=m;exec(source,m.__dict__)\n'
             'print(json.dumps(sys.modules["deploy_remote"].execute()))')
