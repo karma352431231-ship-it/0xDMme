@@ -560,3 +560,19 @@ confirmation, parallel SDK owner, new request loop or protocol change is added.
 source tests alone do not establish the four-second target. Measure the complete
 currently confirmed usable history, including navigation and actual public
 transfers, before accepting opening. Database/storage acceptance stays closed.
+
+The opening-only integrated candidate diagnostic still misses the target:
+7,668/9,422 ms for its two first histories and 10,230 ms on reload. These are
+metadata-instrumented candidate results, not published acceptance. Preserve the
+public-catalog mismatch and browser-launch stops separately; neither reaches
+app startup. No multi-tab scenario is run after the owner's narrowed instruction.
+
+Two further regressions reproduce optional settings work escaping SessionBoot
+through the profile-preference event, and first live readiness cancelling an
+unpublished direct-history read. That automatic settings event now observes the
+existing startup gate; its normal release loads the latest settings. Explicit
+readiness and other foreground pages retain their behavior. An initial ready
+hint during an unpublished direct read now lets its own final confirmation finish
+before the queued live recheck. Established direct views, group views, removals,
+authorization loss and suspension keep their immediate invalidation behavior.
+No confirmed history is exposed early and no authority/crypto check is skipped.

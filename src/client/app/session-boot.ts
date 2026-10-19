@@ -20,6 +20,9 @@ export class SessionBoot {
   constructor(background: (session: AccountSession) => void) {
     this.background = background;
   }
+  get deferred(): boolean {
+    return this.pending;
+  }
   setSession(session: AccountSession | null): void {
     if (!sameSession(this.session, session)) this.pending = false;
     this.session = session ? { ...session } : null;

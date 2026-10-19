@@ -268,6 +268,30 @@ function ports(sync: FakeSync) {
   };
 }
 const settle = () => new Promise((resolve) => setTimeout(resolve, 20));
+await test('profile preference readiness yields to foreground startup and resumes the latest settings afterward', async (t) => {
+  const sync = new FakeSync();
+  const account = session();
+  await new SettingsRecord(sync).save(account.accountId, {
+    ...base,
+    theme: 'black',
+  });
+  const fake = ports(sync);
+  let startupPending = true;
+  const controller = new AccountSettingsController({
+    ...fake.value,
+    startupReady: () => !startupPending,
+  });
+  t.after(() => controller.setSession(null));
+  controller.setSession(account);
+  const reads = sync.refreshes;
+  page.dispatchEvent(new Event('0xdmme-profile-preferences'));
+  await settle();
+  assert.equal(sync.refreshes, reads);
+  assert.equal(fake.value.theme.current(), 'navy');
+  startupPending = false;
+  controller.ready();
+  await waitFor(() => fake.value.theme.current() === 'black');
+});
 async function waitFor(predicate: () => boolean): Promise<void> {
   for (let attempt = 0; attempt < 50; attempt++) {
     if (predicate()) return;

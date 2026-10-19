@@ -24,6 +24,7 @@ import { LanguageRecord } from '../language-record/index.ts';
 
 /** What each owning module lets account-settings read and apply. */
 export interface SettingsPorts {
+  startupReady?: () => boolean;
   language?: {
     set: (value: AppLanguage) => Promise<void>;
     blocked?: () => string | null;
@@ -111,7 +112,7 @@ export class AccountSettingsController {
     // The encrypted profile opens after the device key, which is when the
     // account module announces its preferences; readiness is checked again then.
     globalThis.window?.addEventListener('0xdmme-profile-preferences', () => {
-      this.ready();
+      if (this.ports.startupReady?.() !== false) this.ready();
     });
   }
   setSession(session: AccountSession | null): void {

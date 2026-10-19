@@ -19,6 +19,30 @@ const peer = (accountId: string): Peer => ({
   name: 'Synthetic',
 });
 
+await test('first live readiness lets an unpublished history finish; established history still closes on reconnect', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const f = coordinatorFixture(t);
+  f.state.holdHistory = true;
+  f.state.probeChanged = true;
+  const opening = f.messages.openContact(peer('foreground'));
+  await turn();
+  const before = f.calls.length;
+  try {
+    f.emit('ready');
+    assert.ok(!f.calls.slice(before).includes('pause'));
+  } finally {
+    f.history.resolve();
+    await opening;
+  }
+  const confirmed = f.calls.length;
+  f.emit('ready');
+  assert.ok(f.calls.slice(confirmed).includes('pause'));
+  f.state.groupSelected = true;
+  const group = f.calls.length;
+  f.emit('ready');
+  assert.ok(f.calls.slice(group).includes('pause'));
+});
+
 await test('opening a verified conversation does not await speculative SDK initialization', async (t) => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
   const f = coordinatorFixture(t);

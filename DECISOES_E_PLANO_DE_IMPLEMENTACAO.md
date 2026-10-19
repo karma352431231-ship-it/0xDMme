@@ -3248,6 +3248,14 @@ See [the loading contract](docs/BOOT_CONTATOS_CONVERSAS.md#initial-directory-and
 target. Keep the failed native measurement and require actual full-history and
 post-publication evidence; do not reopen accepted database/storage profiles.
 
+The integrated candidate still measures 7,668/9,422 ms for first histories and
+10,230 ms on reload. Keep these as failed candidate evidence. Automatic settings
+readiness triggered by profile loading must obey the existing optional-startup
+gate. First live readiness may let an unpublished direct-history read finish its
+own fresh final confirmation; it still queues the live recheck. Established views,
+groups, removals and authorization changes keep immediate invalidation. These
+corrections do not alter the four-second criterion or establish acceptance.
+
 ### Voltar do perfil ao feed — 19/10/2026
 
 O proprietário escolheu a opção A: voltar do perfil ao feed mostra na hora a

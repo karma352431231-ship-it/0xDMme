@@ -517,12 +517,20 @@ export function startMessages(
   function hideLiveHistory(event: LiveEvent): void {
     // Delivery/presence hints may come from the page being prepared. Let that
     // bounded page confirm and commit its cursor before the queued probe runs.
-    if (event === 'changed') {
+    // Initial live readiness also keeps an unpublished direct read behind its
+    // own final confirmation. Established views and group checks still close.
+    const unpublishedRead =
+      event === 'ready' &&
+      selected !== null &&
+      !groups.selected &&
+      rows === null &&
+      synchronization.busy;
+    if (event === 'changed' || unpublishedRead) {
       controller.hint();
       return;
     }
     stopPreload();
-    if (event === 'revoked' || event === 'ended') {
+    if (['revoked', 'ended'].includes(event)) {
       voice.cancel();
       attachments.clearSelection();
       playback.close();

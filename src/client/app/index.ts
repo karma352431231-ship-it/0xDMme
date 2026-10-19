@@ -247,6 +247,7 @@ const activity = startActivity(
   },
 );
 const accountSettings = startAccountSettings({
+  startupReady: () => !sessionBoot.deferred,
   languageBlocked: interruptionReason,
   access: devices,
   sync: vault.sync,

@@ -15,10 +15,12 @@ await test('foreground boot coalesces rechecks and releases optional work once t
   const started: string[] = [];
   const boot = new SessionBoot((value) => started.push(value.accountId));
   boot.update(session, initial);
+  assert.equal(boot.deferred, true);
   boot.update(session, recheck);
   boot.update({ ...session, name: 'Updated name' }, recheck);
   assert.deepEqual(started, []);
   boot.settled(session);
+  assert.equal(boot.deferred, false);
   boot.settled(session);
   assert.deepEqual(started, [session.accountId]);
   boot.update(session, recheck);
@@ -38,6 +40,7 @@ await test('background loading never blocks a community/contact foreground or na
   assert.equal(started, 1);
   boot.update(session, initial);
   boot.release();
+  assert.equal(boot.deferred, false);
   assert.equal(started, 2);
   boot.settled(session);
   assert.equal(started, 2);

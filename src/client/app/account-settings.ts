@@ -15,6 +15,7 @@ import { currentLanguage } from '../../shared/i18n/index.ts';
 
 /** Connects Configurações iniciais to the modules that own each setting. */
 export function startAccountSettings(input: {
+  startupReady: () => boolean;
   languageBlocked: () => string | null;
   access: VaultAccess;
   sync: SettingsPorts['sync'] & ConstructorParameters<typeof Daily>[1];
@@ -35,6 +36,7 @@ export function startAccountSettings(input: {
 }): AccountSettingsController {
   const { access, sync, appearance, externalMedia, account, contacts } = input;
   return new AccountSettingsController({
+    startupReady: input.startupReady,
     sync,
     language: {
       set: async (language) => {
