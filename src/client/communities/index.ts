@@ -29,6 +29,7 @@ export { renderActivityEntry } from './activity-entry.ts';
 export { ActivityPosts } from './activity-posts.ts';
 export { communityAvatar, communityIcon } from './presentation.ts';
 export { startRankingSide } from './ranking-side.ts';
+export type { RankingScope } from './ranking-side.ts';
 import { uuid } from '../../shared/account/index.ts';
 import { communityState } from '../../shared/communities/index.ts';
 import type {

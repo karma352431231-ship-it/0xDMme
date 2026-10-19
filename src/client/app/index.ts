@@ -135,13 +135,17 @@ const rankingSide = appShell
       shell: appShell,
       access: devices,
       signedIn: () => connectedAccount !== null,
+      scopeChanged: (scope) => rightColumn?.followRanking(scope),
     })
   : null;
 const rightColumn =
   appShell && rankingSide
     ? startRightColumn({
         shell: appShell,
-        showCommunities: rankingSide.refresh,
+        showRanking: (scope) => {
+          rankingSide.showScope(scope);
+          rankingSide.refresh();
+        },
       })
     : null;
 const playback = new VoicePlayback();

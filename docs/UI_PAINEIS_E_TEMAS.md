@@ -459,6 +459,17 @@ Owner decision after reviewing the sidebar (https://claude.ai/artifact/RNiWCXQr7
 - **Realtime.** See [active members and growth](RANKING_COMUNIDADES_TRENDING.md#active-members-and-growth-display--owner-decision-on-16102026).
 - Phones and screens below 1280 px are unchanged. Follower faces from the mockup are not drawn yet: they would need one extra request per row on every refresh.
 
+## Ranking menu in two rows, Users in the switch — 19/10/2026
+
+Owner request after the 24h / 7 days / 30 days periods and the user ranking were added and the controls spread over three rows.
+
+- **At most two rows of controls.** On the full Communities page: **Communities | Users** (the same compact track as the split screen's switch) with the collapse button, then Trending / Largest / New / Following. The visible "Rankings" title was dropped; it stays as the sidebar's accessible name.
+- **Period as a column header.** The 24 hours / 7 days / 30 days menu replaces the "In this period" label above the numbers and serves both rankings. It is hidden on Following, where no period applies.
+- **Split screen.** The switch is **Chat | Communities | Users**; beside the chat the sidebar's own scope row is hidden. Choosing a scope inside the sidebar also moves the switch when it is not on Chat.
+- **Name.** "Accounts" is called **Users** (用户).
+- **Community growth.** The sidebar shows followers and, below, the growth of active members against the previous period (green ▲ / red ▼), replacing the "N active" count. Rule in [active members and growth](RANKING_COMUNIDADES_TRENDING.md#active-members-and-growth-display--owner-decision-on-16102026).
+- The isolated Ranking page keeps its own period buttons for users.
+
 ## Public videos in the feed — 16/10/2026
 
 At the owner's request, public post videos use one X-like height on every layout: up to `min(560px, 75vh)` on desktop, `min(560px, 68vh)` on phones, and `min(392px, 55vh)` in replies. The frame matches the video's proportion, so vertical "shorts" no longer sit inside side bars. Touch screens show an explicit **Full screen** button over the player's corner, because phone controls drop or hide that choice; desktops keep the native control. Loading and playback rules are unchanged.

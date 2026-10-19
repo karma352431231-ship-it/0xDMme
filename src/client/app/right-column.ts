@@ -1,17 +1,23 @@
 import { t } from '../../shared/i18n/index.ts';
+import type { RankingScope } from '../communities/index.ts';
 
-export type RightColumn = 'chat' | 'communities';
+export type RightColumn = 'chat' | RankingScope;
 
 /**
  * Split screen (16/10/2026): the right column shows the conversation or the
- * communities ranking. It starts on Chat; opening a conversation returns to
+ * communities ranking; since 19/10/2026 the user ranking is a third choice
+ * beside Communities. It starts on Chat; opening a conversation returns to
  * Chat; a new message never switches the view, it only adds to the badge on
  * Chat. The badge sums the unread counters the conversation list shows.
  */
 export function startRightColumn(options: {
   shell: HTMLElement;
-  showCommunities: () => void;
-}): { showChat: () => void } {
+  showRanking: (scope: RankingScope) => void;
+}): {
+  showChat: () => void;
+  /** Follows a scope picked inside the ranking itself (full Communities page). */
+  followRanking: (scope: RankingScope) => void;
+} {
   // The outer cell continues the column's border and background; the track
   // inside holds the two choices.
   const bar = document.createElement('div');
@@ -22,24 +28,35 @@ export function startRightColumn(options: {
   track.setAttribute('aria-label', t('right-column.label'));
   bar.append(track);
   const chat = choice(t('right-column.chat'));
-  const communities = choice(t('right-column.communities'));
+  const choices: Record<RightColumn, HTMLButtonElement> = {
+    chat,
+    communities: choice(t('right-column.communities')),
+    users: choice(t('right-column.users')),
+  };
   const badge = document.createElement('span');
   badge.className = 'right-switch-badge';
   badge.hidden = true;
   chat.append(badge);
-  track.append(chat, communities);
+  track.append(...Object.values(choices));
   options.shell.append(bar);
+  let current: RightColumn = 'chat';
   const show = (column: RightColumn) => {
+    current = column;
     options.shell.dataset['right'] = column;
-    chat.setAttribute('aria-pressed', String(column === 'chat'));
-    communities.setAttribute('aria-pressed', String(column === 'communities'));
-    if (column === 'communities') options.showCommunities();
+    for (const [id, button] of Object.entries(choices))
+      button.setAttribute('aria-pressed', String(id === column));
+    if (column !== 'chat') options.showRanking(column);
   };
-  chat.addEventListener('click', () => show('chat'));
-  communities.addEventListener('click', () => show('communities'));
+  for (const [id, button] of Object.entries(choices))
+    button.addEventListener('click', () => show(id as RightColumn));
   show('chat');
   watchUnread(badge);
-  return { showChat: () => show('chat') };
+  return {
+    showChat: () => show('chat'),
+    followRanking: (scope) => {
+      if (current !== 'chat') show(scope);
+    },
+  };
 }
 
 function choice(label: string): HTMLButtonElement {

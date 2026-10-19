@@ -1,4 +1,4 @@
-import { rankingScopes } from './account-ranking.ts';
+import { AccountRankingView, rankingPeriods } from './account-ranking.ts';
 import { discoveryMenu } from './discovery-controls.ts';
 import type { RankingPeriod } from '../../shared/community-ranking/index.ts';
 import { communityHref } from '../../shared/app-routes/index.ts';
@@ -12,6 +12,7 @@ import { Communities, communityRead } from './controller.ts';
 import { communityElement as el } from './elements.ts';
 import { communityAvatar } from './presentation.ts';
 import { topicDot } from './classification.ts';
+import { rankingGrowth } from './ranking-side-growth.ts';
 
 /**
  * FOMO-style ranking beside the feed (docs/UI_PAINEIS_E_TEMAS.md, 16/10/2026).
@@ -20,12 +21,26 @@ import { topicDot } from './classification.ts';
  * only when the server published a new ranking, so likes, replies and posts
  * show up within seconds. Rows are reused per community, so photos are not
  * fetched again on every refresh.
+ *
+ * Controls take at most two rows (19/10/2026): the Communities | Users switch
+ * with the collapse button, then the community orders. The period is the
+ * header of the numbers column and serves both rankings. Beside the chat the
+ * switch above the column picks the scope, so the first row is hidden there.
  */
 export type RankingTab = 'trending' | 'size' | 'new' | 'following';
-type Row = { community: Community; participants: number; previous: number };
+export type RankingScope = 'communities' | 'users';
+type Row = {
+  community: Community;
+  participants: number;
+  previous: number;
+};
 
 const refreshMs = 4000;
 const collapsedKey = '0xdmme:ranking-side-collapsed';
+const scopes: readonly [RankingScope, string][] = [
+  ['communities', 'ranking.title'],
+  ['users', 'ranking.users'],
+];
 const tabs: readonly [RankingTab, string][] = [
   ['trending', 'ranking.trending'],
   ['size', 'ranking.largest'],
@@ -37,13 +52,20 @@ export function startRankingSide(options: {
   shell: HTMLElement;
   access: VaultAccess;
   signedIn: () => boolean;
-}): { element: HTMLElement; refresh: () => void } {
+  /** The reader switched scope inside the sidebar. */
+  scopeChanged?: (scope: RankingScope) => void;
+}): {
+  element: HTMLElement;
+  refresh: () => void;
+  showScope: (scope: RankingScope) => void;
+} {
   const controller = new Communities(options.access);
   const aside = el('aside', '', 'ranking-side');
   aside.setAttribute('aria-label', t('ranking.overall'));
   const view = new RankingView(aside, {
     load: (tab, signal, period) =>
       load(controller, { tab, signal, period, signedIn: options.signedIn }),
+    scopeChanged: (scope) => options.scopeChanged?.(scope),
   });
   options.shell.append(aside);
   const tick = () => {
@@ -52,7 +74,11 @@ export function startRankingSide(options: {
   };
   setInterval(tick, refreshMs);
   document.addEventListener('visibilitychange', tick);
-  return { element: aside, refresh: tick };
+  return {
+    element: aside,
+    refresh: tick,
+    showScope: (scope) => view.showScope(scope),
+  };
 }
 
 async function load(
@@ -98,14 +124,20 @@ async function load(
 class RankingView {
   private tab: RankingTab = 'trending';
   private period: RankingPeriod = 'day';
-  private readonly scopes: ReturnType<typeof rankingScopes>;
+  private scope: RankingScope = 'communities';
+  private readonly accounts: AccountRankingView;
   private key = '';
   private busy = false;
   private abort = new AbortController();
   private readonly rows = new Map<string, HTMLElement>();
   private readonly list: HTMLElement;
   private readonly status: HTMLElement;
+  private readonly pane: HTMLElement;
+  private readonly tabsRow: HTMLElement;
+  private readonly columnLabel: HTMLElement;
+  private readonly periodHost: HTMLElement;
   private readonly tabButtons = new Map<RankingTab, HTMLButtonElement>();
+  private readonly scopeButtons = new Map<RankingScope, HTMLButtonElement>();
   private readonly host: HTMLElement;
   private readonly source: {
     load: (
@@ -113,6 +145,7 @@ class RankingView {
       signal: AbortSignal,
       period: RankingPeriod,
     ) => Promise<{ key: string; rows: Row[] } | null>;
+    scopeChanged: (scope: RankingScope) => void;
   };
   constructor(host: HTMLElement, source: RankingView['source']) {
     this.host = host;
@@ -120,19 +153,39 @@ class RankingView {
     this.list = el('div', '', 'ranking-side-list');
     this.status = el('p', '', 'ranking-side-status');
     this.status.setAttribute('role', 'status');
-    const pane = el('div', '', 'ranking-community-pane');
-    pane.append(
-      this.tabBar(),
-      this.periodBar(),
+    this.columnLabel = el('span', t('ranking.community'));
+    this.periodHost = el('div', '', 'ranking-side-period');
+    this.tabsRow = this.tabBar();
+    this.pane = el('div', '', 'ranking-community-pane');
+    this.pane.append(this.list, this.status, this.footer());
+    this.accounts = new AccountRankingView(this.abort.signal);
+    this.accounts.element.hidden = true;
+    host.append(
+      this.header(),
+      this.tabsRow,
       this.columns(),
-      this.list,
-      this.status,
-      this.footer(),
+      this.pane,
+      this.accounts.element,
+      this.strip(),
     );
-    host.append(this.header());
-    this.scopes = rankingScopes(host, pane, this.abort.signal);
-    host.append(this.strip());
     this.setCollapsed(readCollapsed());
+  }
+  /** Shows the community or the user ranking; the period is kept. */
+  showScope(scope: RankingScope): void {
+    if (scope === this.scope) return;
+    this.scope = scope;
+    for (const [id, button] of this.scopeButtons)
+      button.setAttribute('aria-pressed', String(id === scope));
+    const users = scope === 'users';
+    this.pane.hidden = users;
+    this.tabsRow.hidden = users;
+    this.accounts.element.hidden = !users;
+    this.columnLabel.textContent = t(
+      users ? 'ranking.user' : 'ranking.community',
+    );
+    this.showPeriod();
+    if (users) this.accounts.setPeriod(this.period);
+    void this.refresh(true);
   }
   /** The list is on screen: not hidden by the layout nor collapsed. */
   visible(): boolean {
@@ -142,7 +195,7 @@ class RankingView {
     );
   }
   async refresh(force = false): Promise<void> {
-    if (this.scopes.active()) return this.scopes.refresh();
+    if (this.scope === 'users') return this.accounts.refresh();
     if (this.busy && !force) return;
     this.busy = true;
     const tab = this.tab,
@@ -206,14 +259,28 @@ class RankingView {
     this.key = '';
     for (const [id, button] of this.tabButtons)
       button.setAttribute('aria-pressed', String(id === tab));
+    this.showPeriod();
     this.list.replaceChildren();
     this.rows.clear();
     void this.refresh(true);
   }
   private header(): HTMLElement {
     const head = el('div', '', 'ranking-side-head');
-    head.append(el('strong', t('ranking.overall')));
-    head.append(this.toggle('»', 'ranking.collapse', true));
+    const track = el('div', '', 'ranking-side-scopes');
+    track.setAttribute('role', 'group');
+    track.setAttribute('aria-label', t('ranking.scope'));
+    for (const [id, label] of scopes) {
+      const button = el('button', t(label));
+      button.type = 'button';
+      button.setAttribute('aria-pressed', String(id === this.scope));
+      button.addEventListener('click', () => {
+        this.showScope(id);
+        this.source.scopeChanged(id);
+      });
+      this.scopeButtons.set(id, button);
+      track.append(button);
+    }
+    head.append(track, this.toggle('»', 'ranking.collapse', true));
     return head;
   }
   private toggle(
@@ -243,34 +310,28 @@ class RankingView {
     }
     return bar;
   }
-  private periodBar(): HTMLElement {
-    const host = el('div', '', 'ranking-periods');
+  /** Column header: what is ranked, and the period its numbers cover. */
+  private columns(): HTMLElement {
+    const row = el('div', '', 'ranking-side-columns');
     discoveryMenu(
-      host,
+      this.periodHost,
       t('Período'),
-      {
-        value: this.period,
-        options: [
-          ['day', t('24 horas')],
-          ['week', t('7 dias')],
-          ['month', t('30 dias')],
-        ],
-      },
+      { value: this.period, options: rankingPeriods() },
       (value) => {
         this.period = value as RankingPeriod;
         this.key = '';
-        void this.refresh(true);
+        // The hidden user ranking takes the period when it is shown.
+        if (this.scope === 'users') this.accounts.setPeriod(this.period);
+        else void this.refresh(true);
       },
     );
-    return host;
-  }
-  private columns(): HTMLElement {
-    const row = el('div', '', 'ranking-side-columns');
-    row.append(
-      el('span', t('ranking.community')),
-      el('span', t('ranking.received')),
-    );
+    row.append(this.columnLabel, this.periodHost);
     return row;
+  }
+  /** Following lists followed communities; no period applies to it. */
+  private showPeriod(): void {
+    this.periodHost.hidden =
+      this.scope === 'communities' && this.tab === 'following';
   }
   private footer(): HTMLElement {
     const link = el('a', t('ranking.full'), 'ranking-side-full');
@@ -331,13 +392,23 @@ function fillRow(node: HTMLElement, row: Row, rank: number, tab: RankingTab) {
   }).format(row.community.followers);
   numbers!.replaceChildren(
     el('strong', t('ranking.followers {0}', [followers])),
-    el(
-      'small',
-      tab === 'following'
-        ? ''
-        : t('ranking.active {0}', [
-            new Intl.NumberFormat(currentLanguage()).format(row.participants),
-          ]),
-    ),
+    tab === 'following' ? el('small') : growthLabel(row),
   );
+}
+
+/** FOMO-style change: green ▲ / red ▼ against the previous period. */
+function growthLabel(row: Row): HTMLElement {
+  const growth = rankingGrowth(row);
+  const node = el('small', '', 'ranking-side-growth');
+  node.title = t('ranking.growth-title');
+  node.dataset['trend'] = growth > 0 ? 'up' : growth < 0 ? 'down' : 'flat';
+  const percent = new Intl.NumberFormat(currentLanguage(), {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(Math.abs(growth));
+  node.textContent = t(
+    growth < 0 ? 'ranking.growth-down {0}' : 'ranking.growth-up {0}',
+    [percent],
+  );
+  return node;
 }

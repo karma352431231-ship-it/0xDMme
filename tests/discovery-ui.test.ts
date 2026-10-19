@@ -310,7 +310,7 @@ for (const language of ['en', 'zh-CN'] as const) {
     t.after(() => fixture.ui.leave());
     await settled(fixture);
     const { host, state, ui } = fixture;
-    button(host, fixture.t('ranking.accounts')).click();
+    button(host, fixture.t('ranking.users')).click();
     await settled(fixture);
     assert.equal(
       state.accountRequests.at(-1)!.searchParams.get('period'),
@@ -378,7 +378,7 @@ for (const language of ['en', 'zh-CN'] as const) {
     await settled(fixture);
     const wait = deferred<unknown>();
     fixture.state.accountReply = () => wait.promise;
-    button(fixture.host, fixture.t('ranking.accounts')).click();
+    button(fixture.host, fixture.t('ranking.users')).click();
     await Promise.resolve();
     fixture.state.accountReply = null;
     const panel = fixture.host.querySelector('.account-ranking')!;

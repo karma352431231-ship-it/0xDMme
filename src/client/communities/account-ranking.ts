@@ -11,13 +11,24 @@ import { communityElement as el } from './elements.ts';
 import { communityAvatar } from './presentation.ts';
 import { showPublicAvatar } from '../public-media/index.ts';
 
+/** Windows offered by both rankings, labelled in the current language. */
+export function rankingPeriods(): readonly (readonly [
+  RankingPeriod,
+  string,
+])[] {
+  return [
+    ['day', t('24 horas')],
+    ['week', t('7 dias')],
+    ['month', t('30 dias')],
+  ];
+}
+
 /** Owns account paging and media; community discovery only selects this panel. */
 export class AccountRankingView {
   readonly element = el('section', '', 'account-ranking');
   private readonly list = el('ol', '', 'account-ranking-list');
   private readonly status = el('p', '', 'ranking-side-status');
   private readonly more = el('button', '', 'account-ranking-more');
-  private readonly periodButtons = new Map<RankingPeriod, HTMLButtonElement>();
   private period: RankingPeriod = 'day';
   private after: string | null = null;
   private generation = '';
@@ -31,20 +42,6 @@ export class AccountRankingView {
   private readonly signal: AbortSignal;
   constructor(signal: AbortSignal) {
     this.signal = signal;
-    const periods = el('nav', '', 'ranking-periods');
-    periods.setAttribute('aria-label', t('Período'));
-    for (const [period, label] of [
-      ['day', t('24 horas')],
-      ['week', t('7 dias')],
-      ['month', t('30 dias')],
-    ] as const) {
-      const button = el('button', label);
-      button.type = 'button';
-      button.setAttribute('aria-pressed', String(period === this.period));
-      button.addEventListener('click', () => this.selectPeriod(period));
-      periods.append(button);
-      this.periodButtons.set(period, button);
-    }
     this.status.setAttribute('role', 'status');
     this.more.type = 'button';
     this.more.textContent = t('Próxima página');
@@ -62,7 +59,7 @@ export class AccountRankingView {
       this.resetPage();
       void this.refresh();
     });
-    this.element.append(periods, this.list, this.status, this.more, restart);
+    this.element.append(this.list, this.status, this.more, restart);
     signal.addEventListener(
       'abort',
       () => {
@@ -76,12 +73,11 @@ export class AccountRankingView {
   refresh(): Promise<void> {
     return this.load(false);
   }
-  private selectPeriod(period: RankingPeriod): void {
+  /** The period comes from whoever places the panel (sidebar menu or page buttons). */
+  setPeriod(period: RankingPeriod): void {
     if (this.period === period) return;
     this.period = period;
     this.resetPage();
-    for (const [value, button] of this.periodButtons)
-      button.setAttribute('aria-pressed', String(value === period));
     void this.refresh();
   }
   private resetPage(): void {
@@ -221,13 +217,16 @@ export function rankingScopes(
 ) {
   const accounts = new AccountRankingView(signal),
     bar = el('nav', '', 'ranking-scopes');
+  accounts.element.prepend(
+    periodButtons((period) => accounts.setPeriod(period)),
+  );
   bar.setAttribute('aria-label', t('ranking.scope'));
   accounts.element.hidden = true;
   let active = false;
   const buttons: HTMLButtonElement[] = [];
   for (const [isAccount, label] of [
     [false, 'ranking.title'],
-    [true, 'ranking.accounts'],
+    [true, 'ranking.users'],
   ] as const) {
     const button = el('button', t(label));
     button.type = 'button';
@@ -246,6 +245,25 @@ export function rankingScopes(
   }
   host.append(bar, communities, accounts.element);
   return { active: () => active, refresh: () => accounts.refresh() };
+}
+
+function periodButtons(selected: (period: RankingPeriod) => void) {
+  const periods = el('nav', '', 'ranking-periods'),
+    buttons = new Map<RankingPeriod, HTMLButtonElement>();
+  periods.setAttribute('aria-label', t('Período'));
+  for (const [period, label] of rankingPeriods()) {
+    const button = el('button', label);
+    button.type = 'button';
+    button.setAttribute('aria-pressed', String(period === 'day'));
+    button.addEventListener('click', () => {
+      for (const [value, node] of buttons)
+        node.setAttribute('aria-pressed', String(value === period));
+      selected(period);
+    });
+    periods.append(button);
+    buttons.set(period, button);
+  }
+  return periods;
 }
 
 export function mountDiscoveryRanking(

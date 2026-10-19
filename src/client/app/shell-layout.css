@@ -251,15 +251,17 @@
     grid-column: 4;
     grid-row: 2;
   }
-  #app-shell[data-page='conversas'][data-layout='all'][data-right='communities']:not(
-      [data-account='guest']:not([data-history='available'])
-    )
+  #app-shell[data-page='conversas'][data-layout='all']:is(
+      [data-right='communities'],
+      [data-right='users']
+    ):not([data-account='guest']:not([data-history='available']))
     > main {
     display: none;
   }
-  #app-shell[data-page='conversas'][data-layout='all'][data-right='communities']:not(
-      [data-account='guest']:not([data-history='available'])
-    )
+  #app-shell[data-page='conversas'][data-layout='all']:is(
+      [data-right='communities'],
+      [data-right='users']
+    ):not([data-account='guest']:not([data-history='available']))
     > .ranking-side {
     display: flex;
   }

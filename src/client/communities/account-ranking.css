@@ -74,6 +74,7 @@
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  padding: 0 8px;
 }
 .ranking-side > .ranking-community-pane[hidden],
 .ranking-side > .account-ranking[hidden] {

@@ -20,11 +20,32 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 16px 16px 10px;
+  padding: 14px 16px 10px;
 }
-.ranking-side-head strong {
+/* Communities | Users: same compact track as the split screen's switch. */
+.ranking-side-scopes {
+  display: grid;
   flex: 1;
-  font: 700 17px/1.2 var(--font-display);
+  grid-template-columns: 1fr 1fr;
+  gap: 3px;
+  padding: 3px;
+  border-radius: 11px;
+  background: var(--surface-2);
+}
+#app-shell .ranking-side-scopes button {
+  min-height: 0;
+  margin: 0;
+  padding: 5px 8px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: var(--fs-small);
+  font-weight: 700;
+}
+#app-shell .ranking-side-scopes button[aria-pressed='true'] {
+  background: var(--surface-3);
+  color: var(--text);
 }
 #app-shell .ranking-side-toggle {
   display: grid;
@@ -62,9 +83,14 @@
   background: var(--surface-3);
   color: var(--text);
 }
+.ranking-side-tabs[hidden] {
+  display: none;
+}
 .ranking-side-columns {
   display: flex;
+  align-items: center;
   justify-content: space-between;
+  min-height: 26px;
   padding: 0 16px 6px;
   color: var(--text-faint);
   font: 500 11px var(--font-mono);
@@ -125,10 +151,13 @@
 .ranking-side-numbers strong {
   font-size: 13.5px;
 }
-.ranking-side-growth[data-trend='up'] {
+.ranking-side-numbers .ranking-side-growth {
+  font-weight: 600;
+}
+.ranking-side-numbers .ranking-side-growth[data-trend='up'] {
   color: var(--ok);
 }
-.ranking-side-growth[data-trend='down'] {
+.ranking-side-numbers .ranking-side-growth[data-trend='down'] {
   color: var(--danger);
 }
 .ranking-side-status {
@@ -174,9 +203,34 @@
   > .ranking-side-strip {
   display: flex;
 }
-/* Beside the chat the switch replaces collapsing. */
-#app-shell[data-page='conversas'] .ranking-side-head .ranking-side-toggle {
+/* The period is the numbers column's header: a small chip in the header's
+   type, its options opening toward the column's inner side. */
+.ranking-side-period[hidden] {
   display: none;
+}
+#app-shell .ranking-side-period .discovery-menu > summary {
+  gap: 4px;
+  min-height: 0;
+  padding: 3px 8px;
+  border-radius: 7px;
+  color: var(--text-muted);
+  font: inherit;
+}
+.ranking-side-period .discovery-menu-options {
+  right: 0;
+  left: auto;
+  min-width: 140px;
+  font-family: var(--font-body);
+  letter-spacing: normal;
+  text-transform: none;
+}
+/* Beside the chat the switch above the column picks the scope and replaces
+   collapsing, so the first row is not drawn. */
+#app-shell[data-page='conversas'] .ranking-side-head {
+  display: none;
+}
+#app-shell[data-page='conversas'] .ranking-side {
+  padding-top: 8px;
 }
 
 /* Chat | Communities switch for the split screen's right column. The cell
@@ -186,12 +240,13 @@
   padding: 12px 14px 6px;
   border-left: 1px solid var(--line);
 }
-#app-shell[data-right='communities'] > .right-switch {
+#app-shell:is([data-right='communities'], [data-right='users'])
+  > .right-switch {
   background: var(--panel);
 }
 .right-switch-track {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(3, 1fr);
   gap: 3px;
   padding: 3px;
   border-radius: 11px;
