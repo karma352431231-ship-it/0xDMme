@@ -93,7 +93,7 @@ export function startCalls(options: {
         Date.now() - lastRing >= 3000
       ) {
         lastRing = Date.now();
-        sound.beep();
+        sound.alert('call');
       }
     },
   });

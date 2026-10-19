@@ -3019,3 +3019,13 @@ processing. It temporarily replaces outgoing microphone audio, restores the same
 live track, and records/analyzes no speech. It changes no normal capture policy,
 signaling authority or mandatory relay rule; lifecycle/deadline limits are in the
 voice-call contract. This remains diagnostic evidence, not audio acceptance.
+
+### Som de mensagens privadas — 18/10/2026
+
+O proprietário escolheu a “Marimba” para mensagens privadas, entre seis sons
+sintetizados apresentados: duas batidas de madeira subindo (Lá→Mi) para
+conversa individual e descendo (Mi→Lá) para grupo privado. Chamadas recebidas
+mantêm o bipe curto anterior. Continua gerado por Web Audio no aparelho, sem
+arquivo, dependência ou rede; preferência, agrupamento em três segundos e mute
+não mudam. Vale só com o app aberto: push com app fechado segue o som do
+sistema. Contrato em [notificações](docs/BLOCO_10_NOTIFICACOES_E_EXPERIENCIA.md).

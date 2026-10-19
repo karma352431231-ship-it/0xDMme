@@ -1,5 +1,6 @@
 import { t } from '../../shared/i18n/index.ts';
 import { announcePreference } from '../preference-events/index.ts';
+import { playTone, type NotificationTone } from './tones.ts';
 
 export const soundPreferenceKey = '0xdmme:sound-enabled';
 const pushPreferenceCache = '0xdmme-device-preferences';
@@ -176,7 +177,8 @@ export class NotificationSound {
       this.changed();
     }
   }
-  beep(): void {
+  /** One alert per three seconds across all tones, so a burst never stacks sounds. */
+  alert(tone: NotificationTone): void {
     if (
       !this.active ||
       !this.audio ||
@@ -185,20 +187,7 @@ export class NotificationSound {
     )
       return;
     this.lastSound = Date.now();
-    const oscillator = this.audio.createOscillator(),
-      gain = this.audio.createGain(),
-      at = this.audio.currentTime;
-    oscillator.frequency.value = 660;
-    gain.gain.setValueAtTime(0.05, at);
-    gain.gain.exponentialRampToValueAtTime(0.001, at + 0.12);
-    oscillator.connect(gain);
-    gain.connect(this.audio.destination);
-    oscillator.start();
-    oscillator.stop(at + 0.13);
-    oscillator.onended = () => {
-      oscillator.disconnect();
-      gain.disconnect();
-    };
+    playTone(this.audio, tone);
   }
   async dispose(): Promise<void> {
     const audio = this.audio;

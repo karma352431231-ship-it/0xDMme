@@ -215,7 +215,7 @@ export function startMessages(
         : controller.knownProfile(id),
     organizationPeers: () => organizationIds(),
     isBusy: () => synchronization.busy,
-    alert: () => sound.beep(),
+    alert: () => sound.alert('group'),
     select: selectGroup,
   });
   const directoryData = new MessageDirectory({
@@ -1235,7 +1235,7 @@ export function startMessages(
         state.unread > (old.get(id)?.unread ?? 0) &&
         state.mutedUntil <= Date.now()
       )
-        sound.beep();
+        sound.alert('direct');
   }
   async function searchPage(
     query: string,
