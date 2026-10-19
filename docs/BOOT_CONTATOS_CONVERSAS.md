@@ -1,5 +1,267 @@
 # Carregamento de contatos e conversas — 15/10/2026
 
+## Secondary change refresh yields between owners — 19 October 2026
+
+The b5b02d6 native comparison fails a reverse five-tab delivery: publication
+starts around4799ms and the receiver's next snapshot around7917ms. The transport
+queue adds at most122ms. Contacts/groups/presence continue to occupy the local
+maintenance owner after the verified conversation check; merely promoting focus
+priority does not release that owner.
+
+A live probe now verifies the selected direct conversation or group, then queues
+contacts, unselected groups and daily state separately through the existing
+bounded `MessageWarmup` scheduler. Each owner starts after its one-second grace
+and only when foreground work and live checks are absent. A reply can claim the
+foreground before the next owner. An already-running owner still settles; SDK
+operations never overlap. Initial startup retains its own lifecycle.
+
+Queued bursts retain at most one current pass and one coalesced repeat, preserving
+each owner's progress. Healthy idle creates no pass. Hidden pages defer these
+owners; reset, logout and close discard queued steps/repeats. The selected group
+is checked before directory maintenance and is not redundantly refreshed by its
+unselected-group stage. Removals still invalidate immediately and all current
+session, signed authority and final confirmation checks remain mandatory.
+
+**Ponto importante:** the former inline multi-owner change loop is removed. This
+changes scheduling, not accepted-message durability, authorization or retention.
+Native largest-width acceptance and publication still require their checks.
+
+## Focus return prioritizes an already-pending check — 19 October 2026
+
+The normal native profile now opens all ten same-account tabs within20s and
+passes its five-tab bidirectional/focus checkpoint, but a largest-width message
+to a newly activated tab misses8s. A regression shows that its hidden coalesced
+hint resumes as maintenance instead of foreground history work.
+
+Visibility resume may promote only an already-pending update. `LiveUpdates`
+exposes its bounded waiting state; no account/content or authority is exposed.
+The synchronization owner consumes the existing priority bit at dispatch, and
+later automatic work stays maintenance. A healthy focus return with no pending
+hint does not create another request, poll, cache or timer. Reset/logout still
+clear pending updates and the priority bit. Every resumed read retains current
+session, authority, removals and final confirmation.
+
+**Ponto importante:** returning to a chat prioritizes its queued current check;
+it never declares a stale rendered row current or infers delivery from a local
+bubble. Ten-tab full recovery/latency acceptance still requires measurement.
+
+## Automatic hidden histories wait for visibility — 19 October 2026
+
+The native five-tab diagnostic records11.498s of hidden SDK work in a15.854s
+reverse-delivery window, alongside maintenance-admission timeouts. A regression
+confirms automatic hidden hints still started history/preparation owners.
+The synchronization owner now keeps those hints coalesced until the page becomes
+visible. Its existing visibility resume performs a current signed check before
+new content is exposed; removal/authorization hints still invalidate immediately.
+Already running owners finish under their existing lifecycle and SDK lock.
+
+This gates automatic history checks, preparation and optional startup maintenance
+only. Explicit queued/durable user sends keep their current lifecycle while hidden;
+server-accepted packets and the encrypted outbox are not expired or discarded.
+The shared live transport, generic wakeups and call controller remain independent.
+After returning, session/generation/authority/removal/final-confirmation gates still
+apply; no cached authorization or new content channel is introduced.
+
+**Ponto importante:** hidden chat views and optional preload update when brought
+back into view instead of every tab doing the same preparation concurrently.
+This changes invisible automatic scheduling, not acceptance of the still-failed
+simultaneous-visible stress profile. Normal ten-tab acceptance needs measurement.
+
+## A visible live check releases optional prefetch — 19 October 2026
+
+The synchronization gate excludes a running optional history-preparation page.
+A normal background hint deliberately waits for that page, but the same gate
+also held a newer visible interactive history request. A regression demonstrates
+that the request never asked the existing prefetch lifecycle to yield.
+
+A visible interactive request now invokes that existing cooperative stop before
+coalescing its fresh signed check. The active page still settles and releases its
+SDK owner before the check runs; no overlapping SDK access or skipped authority,
+removal or final confirmation is permitted. A stopped page is not marked complete
+and preparation resumes later. Ordinary background hints do not repeatedly cancel a page; hidden hints remain
+coalesced until visibility, as specified above.
+
+**Ponto importante:** this changes scheduling of optional prefetch only. An empty
+live hint grants no content, and the failed8s measurements stay failed until a
+new assembled comparison meets the unchanged criterion. Calls are untouched.
+
+## First directory opening retains foreground priority — 19 October 2026
+
+The ordinary native-tab comparison passes its five-tab bidirectional send/focus
+checkpoint, then stops on a28.898s sixth-tab opening against the20s limit. The
+startup owner forwarded initial interactive priority to pins/runtime but dropped
+it before the approved-contact/agenda/archive directory. Actual coordinator and
+directory/controller regressions reproduce the loss before correction.
+
+The first visible startup now forwards its existing work options through the
+whole bounded directory: encrypted agenda heads, approved-contact signed reads
+and local archived-peer discovery under fresh authority. Later automatic checks
+retain maintenance priority; hidden automatic startup waits for visibility. Directory changes/generation,
+contact authorization, pagination and both vault removal checks are unchanged;
+this is neither an authorization cache nor reuse of completed reads.
+
+**Ponto importante:** current contact discovery remains mandatory before showing
+an authorized peer. Passing priority regressions does not establish the20s finite
+opening target; retain the failed sixth-tab measurement and compare separately.
+
+## Saved user texts precede unrelated maintenance — 19 October 2026
+
+A native ordinary-use comparison reaches five same-account tabs but stops at the
+first UI delivery deadline. The text remains locally queued: the current history
+recheck continues through contacts, groups and presence before transmission can
+claim its owner. A real coordinator regression reproduces this ordering.
+
+The synchronization owner now yields a multi-owner change recheck between steps
+when a user text, requested opening or newer visible live hint is waiting. It retains one coalesced probe
+for the remaining automatic work. The active authority/SDK operation finishes
+normally; no work is interrupted or run concurrently. The regression verifies
+that sending or the newer live check wins the next turn and unrelated maintenance
+resumes afterward. A newer visible hint arriving during contacts does not wait
+for groups/presence; the current contact owner finishes first.
+
+Explicit queued text transmission also forwards its existing interactive priority
+through current pin loading, recipient verification, pin persistence and encrypted
+publication. Automatic retries/profile-card work keep maintenance priority.
+Identity and vault owners accept the same bounded work options; current authority,
+peer identity, removal checks, durable pin commit, FIFO outbox/idempotent packets,
+SDK exclusivity and fresh history confirmation remain mandatory.
+
+**Ponto importante:** contacts/groups/presence may finish after a just-saved text
+is sent. A pending local bubble does not establish server acceptance or delivery.
+These source regressions are not assembled performance acceptance; preserve the
+failed eight-second result and measure the corrected candidate separately.
+
+## Profile publication follows verified history — 18 October 2026
+
+The assembled trace includes an automatic own profile-card publication before
+history projection, even though verified history does not require publishing a
+new name/photo. Both explicit opening and selected-history startup awaited that
+publication. The real coordinator regression holds profile transmission and
+reproduces blocked history before the correction.
+
+Ordinary automatic selected-history refreshes retain maintenance priority through
+probe, pins, projection and fresh confirmation. Explicit opening and user sends
+keep interactive priority. A changed/removed live hint for the visible direct
+conversation also prioritizes its fresh history recheck; an empty hint grants no
+content or authority. Hidden conversations and unrelated contact/group/presence
+work retain maintenance priority. The synchronization owner keeps one pending
+priority bit through coalesced probe/full-refresh requests, consumes it once and
+clears it on reset or covered full-refresh startup. A page hidden before dispatch waits for visibility without starting automatic
+history work; reset still discards pending priority. Active work is never aborted.
+Real coordinator regressions distinguish ordinary automatic refresh, explicit
+opening, a visible live change and a hidden live change; scheduling regressions
+cover coalescence and reset so priority cannot leak into a later session.
+
+Opening and startup now finish their existing verified history/removal/server
+confirmation flow first. The existing ProfileBroadcast round handles the card
+after foreground work and startup maintenance settle. It retains readiness,
+one active round, idempotent encrypted publication and existing retry triggers.
+The current approved private contact joins that round even when outside the
+loaded directory page; archive-only contacts are excluded. No cross-session
+selected-recipient state or new queue is retained. Profile publication errors do
+not turn successful verified history opening into a failed conversation.
+
+**Ponto importante:** the other person may receive the updated name/photo after
+history opens. Private cards still reach confirmed contacts automatically through
+the existing encrypted-message path; history authorization and user sends retain
+their current verification gates. This ordering correction is not finite load
+acceptance until the assembled comparison meets its declared criteria.
+
+## Cross-tab authority admission — 18 October 2026
+
+The per-controller priority queue cannot reorder maintenance requests already
+submitted by other tabs to the native account lock. A regression using three real
+controllers and the native LockManager reproduces maintenance ahead of a later
+foreground action. `devices/authority-turns.ts` now owns admission across tabs.
+
+Foreground operations request a shared account turn gate. Maintenance first takes
+an exclusive account maintenance-intent gate, then an exclusive turn gate. Only
+one maintenance contender can wait at the turn gate; other maintenance contenders
+cannot queue ahead of foreground work there. A queued exclusive turn also blocks
+later shared arrivals, so maintenance progresses under continued foreground work.
+The controller's existing four-interactive-turn fairness policy remains in force.
+
+Every admitted operation then takes the original exclusive account SDK lock and
+performs the existing session, authority, cryptographic and removal checks. Shared
+turn admission never permits concurrent SDK access. There is no lock stealing,
+interruption of active work, polling, new persistent state or cross-tab payload.
+The local queue, both admission gates and SDK acquisition consume the same
+existing eight-second waiting budget; running work retains its existing lifecycle.
+Timeouts, failures and owner-page closure release native locks. Other accounts and
+browser storage partitions retain independent native lock scopes.
+
+The owner clarified that five to ten tabs in one browser must work well. This is
+an acceptance objective, not a product quota or evidence of a server-user ceiling.
+Local regressions and a native browser control must pass before another finite
+assembled comparison. Preserve previous failed profiles and their timing limits.
+Calls remain deferred and last; no call behavior changes belong to this work.
+
+**Ponto importante:** improved admission ordering is not assembled performance
+acceptance. Full history still requires fresh authority and final confirmation.
+
+## Queued vault reads and selected history priority — 18 October 2026
+
+The capacity audit reproduced two client scheduling problems. Concurrent vault
+refresh callers queued separate copies of the same read. Explicit history opening
+requested interactive priority for its initial probe, then dropped that priority
+for synchronization and final confirmation. The correction preserves the current
+operations and checks while changing only their scheduling.
+
+`vault-sync/queued-refresh.ts` owns one pending refresh group. Callers may join it
+only before the authorized vault callback starts, before any local checkpoint or
+remote vault read. The callback clears the joinable reference immediately. Later
+callers schedule a fresh operation; neither active nor completed results are
+cached. The actual batch still acquires verified device authority and reads
+current removals, checkpoint, pending draft and remote pages normally. Failure
+rejects every joined caller and releases the pending reference for a new attempt.
+
+Account/device/CSRF replacement, reset, online/offline mode changes, explicit
+local opening and intervening vault operations separate groups. Saves, retries,
+discards and object reads never join a refresh or allow a later refresh to move
+across them. In particular, a queued encrypted draft remains visible to the next
+ordered refresh. Existing generation checks and bounded page/download work stay
+in force; no new persistence, plaintext cache or cross-tab credentials are added.
+
+The first visible directory startup also passes existing interactive work options
+through pin refresh/object reads and runtime preparation. `MessageWarmup` owns the
+initial-versus-normal lifecycle decision; subsequent automatic rechecks retain
+default maintenance priority and hidden automatic startup waits for visibility. A queued maintenance vault refresh
+cannot absorb an interactive request: joinable groups must match priority as well
+as online/offline mode.
+
+Explicit opening and earlier-history navigation pass the existing interactive
+work options through pin loading, `Messages.synchronize`, delivery, local-history
+merging and final confirmation. Automatic maintenance retains its default priority. Device
+work still permits four interactive turns before a waiting maintenance turn, caps
+pending work and includes waiting in the existing acquisition deadline. Native
+account locks and exclusive SDK handles remain unchanged. No running operation
+is interrupted. The content read, current delivery check and local-history merge
+form one bounded projection under its verified authority. After pin persistence,
+a separate authority and server snapshot confirmation are still mandatory before
+exposing any view. No authority result is cached for another read. This reduces
+four authority acquisitions to two without bypassing the final check.
+
+Regressions use the actual vault synchronizer with controlled storage/authority
+boundaries and the actual history controller plus authority scheduler. They cover
+queued sharing, a later active read, failure/retry, session replacement, network
+mode changes, explicit local opening, encrypted-draft ordering and interactive
+versus maintenance ordering through final confirmation. A projection regression
+also requires two distinct authorization boundaries and keeps the history hidden
+until the final fresh confirmation. Existing session,
+revocation, removal, snapshot-change and hidden-history tests remain required.
+
+The message controller and UI coordinator remain hotspots. This change forwards
+existing work options within their current responsibilities; it does not add an
+independent feature or split them. Keep the separate extraction order below:
+session/identity, outbox/composition, then history/view lifecycle, with the
+existing session, revocation, recovery and layout checks after each extraction.
+
+**Ponto importante:** local regression success does not establish published
+nine-page acceptance or a physical-phone speedup. Keep failed finite profiles and
+their original limits in the private tracker. Publication uses the existing
+integrated, pushed, passing-CI release process; no schema, dependency, runtime,
+shared infrastructure, retention, crypto or call behavior changes are included.
+
 ## Usable conversations during mobile startup — 16/10/2026
 
 The owner clarified that both manual markers in the latest capture referred to
@@ -190,3 +452,90 @@ de voz. Após a CI integral de `9be4698`, o proprietário pediu integrar à main
 ativar na VPS, substituindo a restrição anterior de entrega em branch. A ativação
 exige CI do commit integrado e confirmação operacional pelo executor existente,
 conforme [Git e deploy](GIT_E_DEPLOY.md#boot-de-contatos-e-conversas--ativação-autorizada-em-15102026).
+
+## Four-second opening and speculative SDK preparation — 19 October 2026
+
+The latest owner instruction replaces the 20-second opening threshold with
+4,000 ms from navigation to the app and usable, decrypted, currently confirmed
+selected history. Directory publication alone is insufficient. Earlier-history
+and multi-tab measurements must retain their declared boundaries and report
+misses explicitly; no previous 20-second result establishes this new target.
+
+The directory loader reads pins and bounded approved/archived contacts alongside
+the public runtime download. It no longer opens an SDK store or prepares recovery
+before yielding to a selected history. That speculative preparation is the first
+existing startup-maintenance step, with the same grace, visibility, reset and
+exclusive active-owner lifecycle. A missing packet still opens/prepares the SDK
+inside history verification; sends prepare recovery and SDK before publication.
+Every history keeps fresh authority, identity/removal checks and final confirmation.
+No authority/plaintext cache, SDK overlap, protocol, dependency, schema or retention
+change is introduced. Existing startup/runtime failures remain explicit.
+
+A coordinator regression with held SDK preparation must allow a selected history
+to finish its own checks before speculative preparation starts. Directory failure,
+logout/navigation cancellation, rapid recipient changes and a running maintenance
+owner remain covered by the existing coordinator tests. Runtime download failure
+still settles the active directory task and rejects startup. Finite native-browser
+and post-publication measurements are separate from these source checks.
+
+**Ponto importante:** the four-second target and full five-to-ten-tab behavior
+remain unaccepted until the measured candidate meets them. The message/app
+coordinators remain existing hotspots: separately extract session/identity first,
+then outbox/composition and history/view lifecycle, preserving cancellation,
+permissions, drafts, verified history and recovery tests. This change adds only
+scheduler wiring and removes eager initialization from the directory loader.
+
+## Public startup asset transfer — 19 October 2026
+
+A bounded native diagnostic records a 7,805,486-byte uncompressed Matrix WASM
+transfer taking about 2,445 ms; full confirmed history still exceeds the owner's
+4,000 ms target. Keep that failed measurement. The Mac build now prepares Brotli
+sidecars for the fixed public app JS/CSS, language/catalog modules and pinned
+Matrix WASM only. The measured WASM sidecar is 1,637,480 bytes. This transfer
+reduction alone does not establish opening or multi-tab acceptance.
+
+The app document also announces its two fixed catalog modules and public WASM
+download before the account/bootstrap module discovers them. These are public
+bytes only; SDK initialization, authorization and private operations retain their
+normal gates. The native local control verifies that the fetch preload is reused
+by the real SDK even with the existing no-store headers/cache-disabled profile,
+without a second SDK download. Wallet/recovery documents gain no WASM preload.
+
+The existing asset manifest associates each representation with its original.
+Server startup verifies the decoded bytes exactly with the original length as
+its decompression bound; missing, mismatched or oversized representations fail
+startup. HTTP chooses Brotli only when accepted, uses representation-specific
+ETags and Vary, and preserves HEAD/304, MIME and security headers. Uncompressed
+clients keep their existing bytes. The source package, API/private responses,
+user media and service worker script are excluded. PWA hashes continue to cover
+decoded originals; sidecars are not added to offline cache entries.
+
+No new dependency, compression work per request, migration, retention, browser
+cache policy or shared infrastructure change is introduced. The existing 64-entry
+asset manifest, 2 MiB ordinary asset / 8 MiB pinned WASM limits and total release
+budgets remain unchanged. Encoding selection and source verification have their
+own modules; web-host only wires loading and response selection. Its existing
+mixed transport responsibility remains a separate review: extract public assets
+first, then health/routing, preserving origin/CSP, cache, conditional responses,
+private-route refusal and shutdown tests.
+
+**Ponto importante:** source/HTTP checks and byte reduction are not proof of the
+four-second target. Exact native candidate and published verification remain
+required before accepting opening, five-to-ten tabs or closing the audit.
+
+## Hidden profile maintenance — 19 October 2026
+
+An actual coordinator regression shows that a profile-preference event can start
+automatic private profile distribution from a hidden page after startup completes.
+Apply the same visibility rule used for other automatic message maintenance:
+wait while hidden and retry on visible return without requiring a live hint.
+An active conversation owner or queued current-history/user check also precedes
+starting a distribution round, preventing visible return from jumping ahead of
+its pending verification. Visible preferences outside a mounted conversation
+retain their existing distribution behavior; suspension alone is not this gate.
+ProfileBroadcast still coalesces rounds and checks availability between contacts;
+an already active owner settles normally. Explicit sends, profile contents,
+identity checks, authorization and SDK exclusivity remain unchanged.
+
+**Ponto importante:** the regression fails before the visibility gate. This closes
+that scheduling defect only; native five-to-ten-tab latency remains unaccepted.

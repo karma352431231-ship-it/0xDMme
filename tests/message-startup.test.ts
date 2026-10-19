@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import type { initializeMessageDirectory } from '../src/client/messages/startup.ts';
+import type { loadMessageDirectory } from '../src/client/messages/startup.ts';
 import { runInNewContext } from 'node:vm';
 import { fileURLToPath } from 'node:url';
 import { build } from 'esbuild';
@@ -14,7 +14,7 @@ import type { AccountSession } from '../src/shared/account/index.ts';
 const bundle = await build({
   stdin: {
     contents:
-      "export { Messages } from './src/client/messages/controller.ts'; export { SocialDms } from './src/client/social-dm/index.ts'; export { initializeMessageDirectory } from './src/client/messages/startup.ts';",
+      "export { Messages } from './src/client/messages/controller.ts'; export { SocialDms } from './src/client/social-dm/index.ts'; export { loadMessageDirectory } from './src/client/messages/startup.ts';",
     resolveDir: process.cwd(),
     sourcefile: 'startup-fixture.ts',
   },
@@ -98,9 +98,9 @@ function controller(load: () => Promise<void>, kind = 'private') {
     entered: () => entered,
     start: (
       context.messageModule as {
-        initializeMessageDirectory: typeof initializeMessageDirectory;
+        loadMessageDirectory: typeof loadMessageDirectory;
       }
-    ).initializeMessageDirectory,
+    ).loadMessageDirectory,
   };
 }
 for (const kind of ['private', 'public'])
@@ -138,47 +138,42 @@ await test('authorized contacts appear during a slow runtime transfer; messages 
   const runtime = delayed(),
     fixture = controller(() => runtime.promise);
   const contacts = delayed();
-  let initialized = false;
+  let completed = false;
   let directorySettled = false;
-  const startup = fixture.start({
-    loadPins: () => Promise.resolve(),
-    loadContacts: () => {
-      contacts.resolve();
-      return Promise.resolve();
-    },
-    initialize: () => {
-      initialized = true;
-      return Promise.resolve();
-    },
-    guard: () => {},
-    settled: () => {
-      directorySettled = true;
-    },
-  });
+  const startup = fixture
+    .start({
+      loadPins: () => Promise.resolve(),
+      loadContacts: () => {
+        contacts.resolve();
+        return Promise.resolve();
+      },
+      guard: () => {},
+      settled: () => {
+        directorySettled = true;
+      },
+    })
+    .then(() => {
+      completed = true;
+    });
   await contacts.promise;
   await new Promise<void>((resolve) => setImmediate(resolve));
   assert.equal(directorySettled, true);
-  assert.equal(initialized, false);
+  assert.equal(completed, false);
   runtime.resolve();
   await startup;
-  assert.equal(initialized, true);
+  assert.equal(completed, true);
 });
 for (const failure of ['runtime', 'directory', 'logout'] as const)
-  await test(`startup never initializes messages after ${failure} failure`, async () => {
+  await test(`directory startup rejects ${failure} failure`, async () => {
     const runtime = delayed(),
       fixture = controller(() => runtime.promise);
     const directory = delayed();
     let invalid = false,
-      initialized = false,
       settled = false;
     const startup = fixture
       .start({
         loadPins: () => Promise.resolve(),
         loadContacts: () => directory.promise,
-        initialize: () => {
-          initialized = true;
-          return Promise.resolve();
-        },
         guard: () => {
           if (invalid) throw new Error('Session changed');
         },
@@ -197,7 +192,6 @@ for (const failure of ['runtime', 'directory', 'logout'] as const)
       directory.reject(new Error('Directory failed'));
     else directory.resolve();
     assert.ok(await startup);
-    assert.equal(initialized, false);
     assert.equal(settled, failure !== 'logout');
   });
 
@@ -214,7 +208,6 @@ await test('startup settles its directory task even when the runtime fails first
         started.resolve();
         return directory.promise;
       },
-      initialize: () => Promise.reject(new Error('Must not initialize')),
       guard: () => {},
     })
     .then(

@@ -10,6 +10,7 @@ import type { DirectoryEvent } from '../../shared/devices/index.ts';
 import { integer } from '../../shared/vault/index.ts';
 import { addressBookEntry } from '../../shared/contacts/index.ts';
 import type { VaultSync, VaultEntry } from '../vault-sync/index.ts';
+import type { VaultWorkOptions } from '../vault-authority/index.ts';
 export interface PeerPin {
   fingerprint: string;
   directory: string;
@@ -93,7 +94,7 @@ export class PeerIdentity {
   get(account: string): PeerPin | null {
     return this.pins.get(account) ?? null;
   }
-  async load(): Promise<void> {
+  async load(options: VaultWorkOptions = {}): Promise<void> {
     const generation = this.generation;
     const deadline = Date.now() + 60_000;
     do {
@@ -101,13 +102,13 @@ export class PeerIdentity {
         throw new Error(
           'Não foi possível concluir a sincronização das identidades. Tente novamente.',
         );
-      await this.sync.refresh();
+      await this.sync.refresh(options);
       this.guard(generation);
     } while (!this.sync.complete);
-    await this.loadCurrent();
+    await this.loadCurrent(options);
   }
   /** Hydrate a completely verified vault state, including our just-confirmed pin. */
-  async loadCurrent(): Promise<void> {
+  async loadCurrent(options: VaultWorkOptions = {}): Promise<void> {
     const generation = this.generation;
     if (!this.sync.complete)
       throw new Error('Identidades ainda não sincronizadas.');
@@ -124,6 +125,7 @@ export class PeerIdentity {
       const page = pending.slice(offset, offset + 16);
       const values = await this.sync.openMany(
         page.map((entry) => entry.commit.id),
+        options,
       );
       this.guard(generation);
       for (const [index, entry] of page.entries())
@@ -198,7 +200,10 @@ export class PeerIdentity {
     await this.remember(input.account, events);
     return events;
   }
-  async save(continueWork?: () => void): Promise<void> {
+  async save(
+    continueWork?: () => void,
+    options: VaultWorkOptions = {},
+  ): Promise<void> {
     const generation = this.generation;
     for (const [accountId, pin] of this.pending) {
       continueWork?.();
@@ -211,16 +216,19 @@ export class PeerIdentity {
             e.change.entity === accountId &&
             e.change.label === 'Identidade para mensagens',
         );
-      await this.sync.save({
-        change: {
-          version: 1,
-          entity: accountId,
-          kind: 'contact',
-          parents: previous.map((e) => e.commit.id),
-          label: 'Identidade para mensagens',
+      await this.sync.save(
+        {
+          change: {
+            version: 1,
+            entity: accountId,
+            kind: 'contact',
+            parents: previous.map((e) => e.commit.id),
+            label: 'Identidade para mensagens',
+          },
+          value: JSON.stringify({ accountId, pin }),
         },
-        value: JSON.stringify({ accountId, pin }),
-      });
+        options,
+      );
       this.guard(generation);
       this.pending.delete(accountId);
     }

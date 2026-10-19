@@ -305,5 +305,5 @@ export function resumeFixture() {
     });
     return item;
   };
-  return { controller, data, session, peer, add };
+  return { controller, data, session, peer, add, access };
 }

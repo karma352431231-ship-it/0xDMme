@@ -7,7 +7,7 @@ const turn = () => new Promise<void>((resolve) => setImmediate(resolve));
 async function finishStartupMaintenance(
   t: import('node:test').TestContext,
 ): Promise<void> {
-  for (let step = 0; step < 5; step++) {
+  for (let step = 0; step < 9; step++) {
     t.mock.timers.tick(1000);
     await turn();
   }
@@ -17,6 +17,26 @@ const peer = (accountId: string): Peer => ({
   ecosystem: 'evm',
   address: '0x' + '1'.repeat(40),
   name: 'Synthetic',
+});
+
+await test('opening a verified conversation does not await speculative SDK initialization', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const f = coordinatorFixture(t);
+  f.state.holdInitialization = true;
+  f.state.probeChanged = true;
+  f.messages.ready();
+  t.mock.timers.tick(150);
+  await turn();
+  const opening = f.messages.openContact(peer('foreground'));
+  await turn();
+  try {
+    assert.ok(f.calls.includes('synchronize'));
+    assert.ok(f.calls.includes('read'));
+    assert.ok(!f.calls.includes('initialize'));
+  } finally {
+    f.initialization.resolve();
+    await opening;
+  }
 });
 
 await test('consecutive Enter submissions remain enabled while a previous transmission is held', async (t) => {
@@ -92,7 +112,7 @@ await test('an automatic history recheck admits text while holding the network, 
 await test('a row clicked after publication opens before unrelated startup work', async (t) => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
   const f = coordinatorFixture(t);
-  f.state.holdInitialization = true;
+  f.state.holdContacts = true;
   f.messages.ready();
   f.preferences();
   await turn();
@@ -107,9 +127,9 @@ await test('a row clicked after publication opens before unrelated startup work'
   await turn();
   assert.ok(
     !f.calls.includes('select:chosen'),
-    'Never change the SDK selection during initialization',
+    'Never change the SDK selection during directory loading',
   );
-  f.initialization.resolve();
+  f.contactLoad.resolve();
   await turn();
   assert.ok(f.calls.includes('select:chosen'));
   assert.ok(f.calls.includes('open-panel'));
@@ -122,13 +142,13 @@ await test('a row clicked after publication opens before unrelated startup work'
 await test('rapid startup taps keep only the latest recipient', async (t) => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
   const f = coordinatorFixture(t);
-  f.state.holdInitialization = true;
+  f.state.holdContacts = true;
   f.messages.ready();
   t.mock.timers.tick(150);
   await turn();
   f.clickPeer(peer('first'));
   f.clickPeer(peer('last'));
-  f.initialization.resolve();
+  f.contactLoad.resolve();
   await turn();
   assert.ok(!f.calls.includes('select:first'));
   assert.ok(f.calls.includes('select:last'));
@@ -137,14 +157,14 @@ await test('rapid startup taps keep only the latest recipient', async (t) => {
 await test('the chosen conversation permits drafting while verification runs and sending before global warmups', async (t) => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
   const f = coordinatorFixture(t);
-  f.state.holdInitialization = true;
+  f.state.holdContacts = true;
   f.state.holdHistory = true;
   f.state.probeChanged = true;
   f.messages.ready();
   t.mock.timers.tick(150);
   await turn();
   f.clickPeer(peer('chosen'));
-  f.initialization.resolve();
+  f.contactLoad.resolve();
   await turn();
   assert.ok(f.calls.includes('open-panel'));
   assert.equal(f.input.disabled, false);
@@ -169,7 +189,7 @@ for (const outcome of ['logout', 'failure', 'navigation'] as const)
   await test(`a queued startup tap cannot open a conversation after ${outcome}`, async (t) => {
     t.mock.timers.enable({ apis: ['setTimeout'] });
     const f = coordinatorFixture(t);
-    f.state.holdInitialization = true;
+    f.state.holdContacts = true;
     f.messages.ready();
     t.mock.timers.tick(150);
     await turn();
@@ -177,9 +197,8 @@ for (const outcome of ['logout', 'failure', 'navigation'] as const)
     if (outcome !== 'failure') {
       if (outcome === 'logout') f.messages.setSession(null);
       else f.messages.leave();
-      f.initialization.resolve();
-    } else
-      f.initialization.reject(new Error('Synthetic initialization failure'));
+      f.contactLoad.resolve();
+    } else f.contactLoad.reject(new Error('Synthetic directory failure'));
     await turn();
     assert.ok(!f.calls.includes('select:stale'));
     assert.ok(!f.calls.includes('groups'));
@@ -191,6 +210,8 @@ await test('a user opening waits for one current maintenance step, not every sta
   f.state.holdGroups = true;
   f.messages.ready();
   t.mock.timers.tick(150);
+  await turn();
+  t.mock.timers.tick(1000);
   await turn();
   t.mock.timers.tick(1000);
   await turn();
@@ -234,6 +255,8 @@ await test('leaving cancels an opening already waiting for the current maintenan
   await turn();
   t.mock.timers.tick(1000);
   await turn();
+  t.mock.timers.tick(1000);
+  await turn();
   f.clickPeer(peer('cancelled'));
   f.messages.leave();
   f.groupLoad.resolve();
@@ -249,8 +272,9 @@ await test('tela prepara mensagens sem clique; ready e retorno de aba não reini
   f.emit('ready');
   t.mock.timers.tick(150);
   await turn();
-  assert.equal(f.calls.filter((op) => op === 'initialize').length, 1);
+  assert.equal(f.calls.filter((op) => op === 'initialize').length, 0);
   await finishStartupMaintenance(t);
+  assert.equal(f.calls.filter((op) => op === 'initialize').length, 1);
   assert.equal(f.calls.filter((op) => op === 'preload').length, 1);
   for (let index = 0; index < 3; index++) {
     f.visibility('hidden');
@@ -262,28 +286,30 @@ await test('tela prepara mensagens sem clique; ready e retorno de aba não reini
   assert.equal(f.calls.filter((op) => op === 'initialize').length, 1);
 });
 
-await test('changed mantém a página em andamento; exclusão cancela e fecha imediatamente', async (t) => {
-  t.mock.timers.enable({ apis: ['setTimeout'] });
-  const f = coordinatorFixture(t);
-  f.state.holdPage = true;
-  f.messages.ready();
-  t.mock.timers.tick(150);
-  await turn();
-  await finishStartupMaintenance(t);
-  const signal = f.state.signals[0];
-  assert.ok(signal);
-  const before = f.calls.length;
-  f.emit('changed');
-  t.mock.timers.tick(150);
-  await turn();
-  assert.equal(signal.aborted, false);
-  assert.ok(!f.calls.slice(before).includes('abort-direct'));
-  f.emit('removed');
-  assert.equal(signal.aborted, true);
-  assert.ok(f.calls.includes('removed'));
-  f.page.resolve(false);
-  await turn();
-});
+for (const selected of [false, true])
+  await test(`a live hint yields prefetch only for a selected visible conversation; removal closes immediately: selected=${selected}`, async (t) => {
+    t.mock.timers.enable({ apis: ['setTimeout'] });
+    const f = coordinatorFixture(t);
+    if (selected) await f.messages.openContact(peer('selected-live'));
+    f.state.holdPage = true;
+    f.messages.ready();
+    t.mock.timers.tick(150);
+    await turn();
+    await finishStartupMaintenance(t);
+    const signal = f.state.signals[0];
+    assert.ok(signal);
+    const before = f.calls.length;
+    f.emit('changed');
+    t.mock.timers.tick(150);
+    await turn();
+    assert.equal(signal.aborted, selected);
+    assert.equal(f.calls.slice(before).includes('abort-direct'), selected);
+    f.emit('removed');
+    assert.equal(signal.aborted, true);
+    assert.ok(f.calls.includes('removed'));
+    f.page.resolve(false);
+    await turn();
+  });
 
 await test('abrir outra conversa marca sua leitura sem repetir a manutenção de todas as conversas', async (t) => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
@@ -374,6 +400,8 @@ await test('suspensão efetiva cancela preparação e fecha a visão; retomada r
   f.emit('ready');
   t.mock.timers.tick(150);
   await turn();
+  t.mock.timers.tick(1000);
+  await turn();
   assert.ok(f.calls.slice(frozen).includes('contacts'));
   assert.ok(f.calls.slice(frozen).includes('live-start'));
 });
@@ -395,7 +423,7 @@ await test('retorno com stream desatualizado fecha antes de reconectar, mesmo se
   assert.ok(calls.indexOf('pause') < calls.indexOf('live-start'));
 });
 
-await test('aviso recebido em hidden atualiza a conversa sem marcar leitura', async (t) => {
+await test('a hidden hint waits without marking read and performs its current check after visibility', async (t) => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
   const f = coordinatorFixture(t);
   f.messages.ready();
@@ -414,8 +442,12 @@ await test('aviso recebido em hidden atualiza a conversa sem marcar leitura', as
   t.mock.timers.tick(150);
   await turn();
   const calls = f.calls.slice(before);
-  assert.ok(calls.includes('probe'));
+  assert.ok(!calls.includes('probe'));
   assert.ok(!calls.includes('read'));
+  f.visibility('visible');
+  t.mock.timers.tick(150);
+  await turn();
+  assert.ok(f.calls.slice(before).includes('probe'));
 });
 
 await test('queda de conexão e exclusão em hidden fecham a conversa imediatamente', async (t) => {
@@ -448,4 +480,355 @@ await test('a healthy idle group does not schedule a sync just because it is vis
   f.state.groupPending = true;
   await f.tick();
   assert.ok(f.calls.slice(before).includes('group-retry'));
+});
+
+await test('verified history and startup resume do not await an automatic profile publication', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const f = coordinatorFixture(t);
+  f.state.withProfile = true;
+  f.state.holdProfile = true;
+  f.state.probeChanged = true;
+  t.after(() => f.profile.resolve());
+  let opened = false;
+  const opening = f.messages.openContact(peer('chosen')).then(() => {
+    opened = true;
+  });
+  await turn();
+  assert.ok(
+    f.calls.includes('synchronize'),
+    'Profile transmission must not precede verified history.',
+  );
+  assert.ok(f.calls.includes('read'));
+  assert.equal(opened, true);
+  await opening;
+  f.messages.ready();
+  t.mock.timers.tick(150);
+  await turn();
+  assert.equal(
+    f.calls.filter((call) => call === 'synchronize').length,
+    2,
+    'Startup resumes the verified selection before profile transmission.',
+  );
+  await finishStartupMaintenance(t);
+  assert.deepEqual(
+    f.calls.filter((call) => call.startsWith('profile:')),
+    ['profile:chosen'],
+    'The selected approved contact is included even outside the loaded directory page.',
+  );
+  assert.ok(f.calls.indexOf('read') < f.calls.indexOf('profile:chosen'));
+  f.profile.resolve();
+  await turn();
+});
+
+await test('automatic profile publication waits for visibility and resumes without a live hint', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const f = coordinatorFixture(t);
+  await f.messages.openContact(peer('profile-peer'));
+  f.messages.ready();
+  t.mock.timers.tick(150);
+  await turn();
+  await finishStartupMaintenance(t);
+  f.visibility('hidden');
+  f.state.withProfile = true;
+  f.preferences();
+  await turn();
+  assert.deepEqual(
+    f.calls.filter((call) => call.startsWith('profile:')),
+    [],
+  );
+  f.visibility('visible');
+  t.mock.timers.tick(150);
+  await turn();
+  await f.tick();
+  await turn();
+  assert.deepEqual(
+    f.calls.filter((call) => call.startsWith('profile:')),
+    ['profile:profile-peer'],
+  );
+});
+
+await test('visible return finishes a pending history check before starting profile distribution', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const f = coordinatorFixture(t);
+  t.after(() => f.history.resolve());
+  f.state.probeChanged = true;
+  await f.messages.openContact(peer('profile-peer'));
+  f.messages.ready();
+  t.mock.timers.tick(150);
+  await turn();
+  await finishStartupMaintenance(t);
+  f.visibility('hidden');
+  f.state.withProfile = true;
+  f.state.holdHistory = true;
+  f.emit('changed');
+  f.visibility('visible');
+  await turn();
+  assert.deepEqual(
+    f.calls.filter((call) => call.startsWith('profile:')),
+    [],
+  );
+  t.mock.timers.tick(150);
+  await turn();
+  assert.deepEqual(
+    f.calls.filter((call) => call.startsWith('profile:')),
+    [],
+  );
+  f.history.resolve();
+  await turn();
+  await f.tick();
+  await turn();
+  assert.deepEqual(
+    f.calls.filter((call) => call.startsWith('profile:')),
+    ['profile:profile-peer'],
+  );
+});
+
+await test('profile preferences still distribute from a visible page after leaving the conversation', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const f = coordinatorFixture(t);
+  await f.messages.openContact(peer('profile-peer'));
+  f.messages.ready();
+  t.mock.timers.tick(150);
+  await turn();
+  await finishStartupMaintenance(t);
+  f.messages.leave();
+  f.state.withProfile = true;
+  f.preferences();
+  await turn();
+  await f.tick();
+  await turn();
+  assert.deepEqual(
+    f.calls.filter((call) => call.startsWith('profile:')),
+    ['profile:profile-peer'],
+  );
+});
+
+await test('automatic selected-history refresh keeps maintenance priority while explicit opening stays interactive', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const f = coordinatorFixture(t);
+  f.state.probeChanged = true;
+  await f.messages.openContact(peer('chosen'));
+  assert.deepEqual(f.priorities, [
+    { operation: 'probe', priority: 'interactive' },
+    { operation: 'pins', priority: 'interactive' },
+    { operation: 'synchronize', priority: 'interactive' },
+  ]);
+  f.priorities.length = 0;
+  f.messages.ready();
+  t.mock.timers.tick(150);
+  await turn();
+  assert.deepEqual(
+    f.priorities.filter((entry) => entry.operation !== 'pins'),
+    [
+      { operation: 'probe', priority: undefined },
+      { operation: 'synchronize', priority: undefined },
+    ],
+  );
+});
+
+await test('a live change checks the visible conversation and defers hidden history while removals still invalidate immediately', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const f = coordinatorFixture(t);
+  f.state.probeChanged = true;
+  await f.messages.openContact(peer('chosen'));
+  f.priorities.length = 0;
+  f.emit('changed');
+  t.mock.timers.tick(150);
+  await turn();
+  assert.deepEqual(
+    f.priorities.filter((entry) => entry.operation !== 'pins'),
+    [
+      { operation: 'probe', priority: 'interactive' },
+      { operation: 'synchronize', priority: 'interactive' },
+    ],
+  );
+  f.priorities.length = 0;
+  f.state.visibilityState = 'hidden';
+  f.emit('changed');
+  t.mock.timers.tick(150);
+  await turn();
+  assert.equal(f.priorities.length, 0);
+  f.emit('removed');
+  assert.ok(f.calls.includes('removed'));
+  assert.equal(f.send.disabled, true);
+  f.visibility('visible');
+  t.mock.timers.tick(150);
+  await turn();
+  assert.deepEqual(
+    f.priorities.filter((entry) => entry.operation !== 'pins'),
+    [
+      { operation: 'probe', priority: 'interactive' },
+      { operation: 'synchronize', priority: 'interactive' },
+    ],
+  );
+});
+
+await test('a text saved during a live recheck transmits before unrelated maintenance, which resumes afterward', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const f = coordinatorFixture(t);
+  f.state.probeChanged = true;
+  await f.messages.openContact(peer('foreground'));
+  f.state.holdHistory = true;
+  f.state.holdGroups = true;
+  f.emit('changed');
+  t.mock.timers.tick(150);
+  await turn();
+  f.input.value = 'Send before unrelated updates';
+  f.submit();
+  await turn();
+  const before = f.calls.length;
+  f.state.holdHistory = false;
+  f.history.resolve();
+  await turn();
+  assert.ok(
+    f.calls.slice(before).includes('send-pending'),
+    'A saved user message must not wait for another maintenance owner.',
+  );
+  assert.ok(!f.calls.slice(before).includes('groups'));
+  assert.equal(
+    f.priorities.findLast((entry) => entry.operation === 'send')?.priority,
+    'interactive',
+  );
+  t.mock.timers.tick(1000);
+  await turn();
+  t.mock.timers.tick(150);
+  await turn();
+  t.mock.timers.tick(1000);
+  await turn();
+  for (let step = 0; step < 3; step++) {
+    t.mock.timers.tick(1000);
+    await turn();
+  }
+  assert.ok(f.calls.slice(before).includes('groups'));
+  f.state.holdGroups = false;
+  f.groupLoad.resolve();
+  await turn();
+});
+
+await test('a newer visible live hint yields after current contacts before unrelated groups, without aborting current work', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const f = coordinatorFixture(t);
+  f.state.probeChanged = true;
+  await f.messages.openContact(peer('receiving'));
+  f.state.holdContacts = true;
+  f.state.holdGroups = true;
+  f.emit('changed');
+  t.mock.timers.tick(150);
+  await turn();
+  t.mock.timers.tick(1000);
+  await turn();
+  const before = f.calls.length;
+  f.emit('changed');
+  t.mock.timers.tick(150);
+  await turn();
+  assert.ok(
+    !f.calls.slice(before).includes('probe'),
+    'The current contact owner finishes first',
+  );
+  f.state.holdContacts = false;
+  f.contactLoad.resolve();
+  await turn();
+  t.mock.timers.tick(150);
+  await turn();
+  assert.ok(
+    f.calls.slice(before).includes('probe'),
+    'A fresh visible hint must not wait for unrelated groups',
+  );
+  assert.equal(
+    f.priorities.findLast((entry) => entry.operation === 'probe')?.priority,
+    'interactive',
+  );
+  f.state.holdGroups = false;
+  f.groupLoad.resolve();
+  await turn();
+});
+
+await test('first visible directory startup preserves its priority through contact loading while later refreshes stay maintenance', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const f = coordinatorFixture(t);
+  f.messages.ready();
+  t.mock.timers.tick(150);
+  await turn();
+  assert.equal(f.directoryWork[0]?.priority, 'interactive');
+  await f.messages.openContact(peer('selected-after-startup'));
+  f.directoryWork.length = 0;
+  f.emit('authorization');
+  f.emit('changed');
+  t.mock.timers.tick(150);
+  await turn();
+  assert.equal(f.directoryWork.length, 1);
+  assert.equal(f.directoryWork[0]?.priority, undefined);
+});
+
+await test('returning to visibility resumes pending startup maintenance without requiring a new live hint', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const f = coordinatorFixture(t);
+  f.messages.ready();
+  t.mock.timers.tick(150);
+  await turn();
+  f.visibility('hidden');
+  t.mock.timers.tick(1000);
+  await turn();
+  assert.ok(!f.calls.includes('groups'));
+  f.visibility('visible');
+  t.mock.timers.tick(150);
+  await turn();
+  t.mock.timers.tick(1000);
+  await turn();
+  assert.ok(f.calls.includes('initialize'));
+});
+
+await test('a reply after a verified live check is not trapped behind contacts or groups', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const f = coordinatorFixture(t);
+  f.state.probeChanged = true;
+  await f.messages.openContact(peer('quick-reply'));
+  f.state.holdContacts = true;
+  const before = f.calls.length;
+  f.emit('changed');
+  t.mock.timers.tick(150);
+  await turn();
+  assert.ok(f.calls.slice(before).includes('synchronize'));
+  assert.ok(!f.calls.slice(before).includes('contacts'));
+  f.input.value = 'Reply to the verified message';
+  f.submit();
+  await turn();
+  assert.ok(f.calls.slice(before).includes('send-pending'));
+  t.mock.timers.tick(150);
+  await turn();
+  t.mock.timers.tick(1000);
+  await turn();
+  for (let step = 0; step < 2; step++) {
+    t.mock.timers.tick(1000);
+    await turn();
+  }
+  assert.ok(f.calls.slice(before).includes('contacts'));
+  f.state.holdContacts = false;
+  f.contactLoad.resolve();
+  await turn();
+});
+
+await test('a selected group is checked before deferred directory maintenance', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const f = coordinatorFixture(t);
+  f.state.groupSelected = true;
+  f.state.groupVisible = true;
+  const before = f.calls.length;
+  f.emit('changed');
+  t.mock.timers.tick(150);
+  await turn();
+  assert.equal(
+    f.calls.slice(before).filter((call) => call === 'groups').length,
+    1,
+  );
+  assert.ok(!f.calls.slice(before).includes('contacts'));
+  for (let step = 0; step < 3; step++) {
+    t.mock.timers.tick(1000);
+    await turn();
+  }
+  assert.ok(f.calls.slice(before).includes('contacts'));
+  assert.equal(
+    f.calls.slice(before).filter((call) => call === 'groups').length,
+    1,
+  );
 });

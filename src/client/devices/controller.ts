@@ -1,6 +1,7 @@
 import { t } from '../../shared/i18n/index.ts';
 import { authoritySignature } from './authority-signature.ts';
 import { AuthorityWork } from './authority-work.ts';
+import { authorityTurn } from './authority-turns.ts';
 import { fetchApi, readApiJson } from '../api-response/index.ts';
 import {
   boundedText,
@@ -368,7 +369,7 @@ export class DeviceController {
     if (!session) throw new Error('Conecte a wallet original primeiro.');
     return this.authorityWork.run(
       (waitMs) =>
-        exclusive(
+        authorityTurn(
           session.accountId,
           async () => {
             if (generation !== this.generation)
@@ -380,7 +381,7 @@ export class DeviceController {
             }
             return result;
           },
-          waitMs,
+          { waitMs, ...options },
         ),
       options.priority,
     );

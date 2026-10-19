@@ -36,6 +36,11 @@ function fixture(t: TestContext) {
     presence: () => Promise.resolve(),
     refresh: () => Promise.resolve(),
     changes: () => Promise.resolve(),
+    changeMaintenance: [
+      () => Promise.resolve(),
+      () => Promise.resolve(),
+      () => Promise.resolve(),
+    ],
     periodic: () => Promise.resolve(),
     periodicWork: () => Promise.resolve(true),
     pending: () => Promise.resolve(['synthetic']),
@@ -264,7 +269,7 @@ await test('snapshot atualizado durante preparação repete no próximo turno se
   assert.equal(calls, 2);
 });
 
-await test('aba hidden continua preparação e avisos, sem renovar presença online', async (t) => {
+await test('a hidden tab defers automatic preparation and hints without renewing online presence', async (t) => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
   const f = fixture(t);
   f.state.visible = false;
@@ -289,8 +294,21 @@ await test('aba hidden continua preparação e avisos, sem renovar presença onl
   t.mock.timers.tick(1000);
   await turn();
   await f.sync.periodicTick();
+  assert.equal(probes, 0);
+  assert.equal(pages, 0);
+  assert.equal(presence, 0);
+  f.state.visible = true;
+  f.sync.resume();
+  t.mock.timers.tick(150);
+  await turn();
+  t.mock.timers.tick(1000);
+  await turn();
   assert.equal(probes, 1);
-  assert.equal(pages, 1);
+  for (let step = 0; step < 3; step++) {
+    t.mock.timers.tick(1000);
+    await turn();
+  }
+  assert.ok(pages > 0);
   assert.equal(presence, 0);
 });
 
@@ -404,4 +422,172 @@ await test('a successful queued action replaces the failure of the automatic che
   assert.equal(f.sync.failed, false);
   assert.equal(f.completed(), 1);
   assert.equal(f.notices.length, 1);
+});
+
+await test('a visible-change priority survives coalescing with a stronger refresh', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const f = fixture(t),
+    priorities: (string | undefined)[] = [];
+  f.options.refresh = (work) => {
+    priorities.push(work.priority);
+    return Promise.resolve();
+  };
+  f.state.suspended = true;
+  f.sync.request('probe', { priority: 'interactive' });
+  f.sync.request('refresh');
+  f.state.suspended = false;
+  f.sync.resume();
+  t.mock.timers.tick(150);
+  await turn();
+  assert.deepEqual(priorities, ['interactive']);
+});
+
+for (const clear of ['reset', 'startRefresh'] as const) {
+  await test(`${clear} discards pending visible-change priority instead of promoting later maintenance`, async (t) => {
+    t.mock.timers.enable({ apis: ['setTimeout'] });
+    const f = fixture(t),
+      priorities: (string | undefined)[] = [];
+    f.options.changes = (work) => {
+      priorities.push(work.priority);
+      return Promise.resolve();
+    };
+    f.state.suspended = true;
+    f.sync.request('probe', { priority: 'interactive' });
+    f.sync[clear]();
+    f.state.suspended = false;
+    f.sync.request('probe');
+    t.mock.timers.tick(150);
+    await turn();
+    assert.deepEqual(priorities, [undefined]);
+  });
+}
+
+await test('a queued visible-change recheck waits while hidden and resumes its fresh foreground priority', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const f = fixture(t),
+    priorities: (string | undefined)[] = [];
+  f.options.changes = (work) => {
+    priorities.push(work.priority);
+    return Promise.resolve();
+  };
+  f.state.suspended = true;
+  f.sync.request('probe', { priority: 'interactive' });
+  f.state.visible = false;
+  f.state.suspended = false;
+  f.sync.resume();
+  t.mock.timers.tick(150);
+  await turn();
+  assert.deepEqual(priorities, []);
+  f.state.visible = true;
+  f.sync.resume();
+  t.mock.timers.tick(150);
+  await turn();
+  assert.deepEqual(priorities, ['interactive']);
+});
+
+await test('a visible live-history request yields prefetch cooperatively and retains the signed recheck priority', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const f = fixture(t),
+    page = deferred<boolean>();
+  const signals: AbortSignal[] = [],
+    priorities: (string | undefined)[] = [];
+  f.options.preloadDirect = (signal) => {
+    signals.push(signal);
+    return page.promise;
+  };
+  f.options.changes = (work) => {
+    priorities.push(work.priority);
+    return Promise.resolve();
+  };
+  await f.sync.run(() => Promise.resolve());
+  t.mock.timers.tick(1000);
+  await turn();
+  const signal = signals[0];
+  assert.ok(signal);
+  f.sync.request('probe', { priority: 'interactive' });
+  assert.equal(
+    signal.aborted,
+    true,
+    'A foreground live recheck must request cooperative prefetch release',
+  );
+  t.mock.timers.tick(150);
+  await turn();
+  assert.equal(
+    priorities.length,
+    0,
+    'The active prefetch owner still settles before the recheck',
+  );
+  page.resolve(false);
+  await turn();
+  t.mock.timers.tick(150);
+  await turn();
+  assert.deepEqual(priorities, ['interactive']);
+  assert.deepEqual(f.notices, []);
+});
+
+await test('hidden automatic hints coalesce without preparing history and resume one fresh check on visibility', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const f = fixture(t);
+  f.state.visible = false;
+  let checks = 0,
+    preparations = 0,
+    sends = 0;
+  f.options.changes = () => {
+    checks++;
+    return Promise.resolve();
+  };
+  f.options.preloadDirect = () => {
+    preparations++;
+    return Promise.resolve(false);
+  };
+  for (let hint = 0; hint < 5; hint++) f.sync.request('probe');
+  t.mock.timers.tick(30000);
+  await turn();
+  assert.equal(checks, 0);
+  assert.equal(preparations, 0);
+  assert.equal(
+    await f.sync.run(() => {
+      sends++;
+      return Promise.resolve();
+    }),
+    true,
+  );
+  assert.equal(
+    sends,
+    1,
+    'Explicit durable sending is independent of automatic hidden history work',
+  );
+  f.state.visible = true;
+  f.sync.resume();
+  t.mock.timers.tick(150);
+  await turn();
+  assert.equal(checks, 1);
+  assert.deepEqual(f.notices, []);
+});
+
+await test('a visible return prioritizes only the coalesced pending history check and never creates idle polling', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const f = fixture(t),
+    priorities: (string | undefined)[] = [];
+  f.options.changes = (work) => {
+    priorities.push(work.priority);
+    return Promise.resolve();
+  };
+  f.state.visible = false;
+  f.sync.request('probe');
+  t.mock.timers.tick(150);
+  await turn();
+  f.state.visible = true;
+  f.sync.resume({ priority: 'interactive' });
+  t.mock.timers.tick(150);
+  await turn();
+  assert.deepEqual(priorities, ['interactive']);
+  f.sync.resume({ priority: 'interactive' });
+  t.mock.timers.tick(150);
+  await turn();
+  assert.equal(priorities.length, 1);
+  f.sync.request('probe');
+  t.mock.timers.tick(150);
+  await turn();
+  assert.deepEqual(priorities, ['interactive', undefined]);
 });

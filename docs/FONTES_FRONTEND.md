@@ -8,10 +8,22 @@ textos e nomes/busca dos emojis, contendo ambos os idiomas e incluídos no
 shell offline. O pacote gráfico original continua intacto. Nenhum download
 adicional acontece no build e nenhum termo de busca vai para fora do aparelho.
 As referências anteriores à busca portuguesa são históricas e foram
-substituídas por English/简体中文. Não alterar os orçamentos atuais para
-acomodar os catálogos; preservar a seleção de fontes e todos os inputs.
+substituídas por English/简体中文. Preserve the source selection and every incorporated input. The current
+file-count and byte budgets are specified in the next section.
 
-**Regra vigente, alterada pelo proprietário em 10/10/2026:** removido o teto de 2 MiB do pacote principal `source-<hash>.tar.gz` no empacotamento, no carregamento pelo servidor e na verificação HTTP do deploy. O pacote não tem mais um limite individual de tamanho comprimido. Permanecem a seleção explícita de fontes públicas, a conferência de inputs/licenças, até 1024 arquivos, o tar intermediário de até 24 MiB e os orçamentos totais do artefato/release do deploy. As referências históricas abaixo a 2 MiB para o pacote principal foram substituídas por esta decisão; os limites de outros assets e de anexos não mudam. O pacote principal continua fora do cache offline da PWA e é baixado ao abrir “Código e licenças”.
+**Current packaging limits — 19 October 2026:** integration of the published
+menu icons and prepared capacity/client modules exceeds the former 1,024-file
+source-package ceiling. Raise the bounded count to 2,048 files, keeping the
+existing 24 MiB intermediate tar budget, explicit public source selection,
+incorporated-input/license verification, portable USTAR format and total deploy
+artifact/release budgets. No source, notice or license is omitted. Tests preserve
+1,025 distinct source files exactly and reject 2,049 files. Historical references
+to 1,024 files below describe the earlier limit.
+
+The owner's 10/10/2026 removal of the individual compressed 2 MiB ceiling for
+`source-<hash>.tar.gz` remains in force across packaging, serving and deployment
+HTTP verification. Other asset/attachment limits remain unchanged. The source
+package stays outside PWA offline caching and downloads through Code and licenses.
 
 O empacotamento usa tar USTAR, proprietários numéricos e não transporta ACLs/xattrs do computador de build. Isso remove metadados extras sem excluir fontes, avisos ou licenças, preservando gzip nível 9. A reconstrução verifica os bytes extraídos dos novos fluxos de grupo e dos demais fontes; uma regressão adicional empacota e carrega pelo servidor fontes maiores que 2 MiB.
 Em 11/10/2026, o pacote também inclui os contratos de badges e controles sociais.

@@ -14,6 +14,7 @@ import type {
   VaultAccess,
   VaultAuthority,
   VaultLocator,
+  VaultWorkOptions,
 } from '../vault-authority/index.ts';
 import {
   openBlock,
@@ -31,6 +32,7 @@ import {
 } from '../vault-storage/index.ts';
 import type { VaultCheckpoint, VaultDraft } from '../vault-storage/index.ts';
 import { readPage } from './protocol.ts';
+import { QueuedVaultRefresh } from './queued-refresh.ts';
 import type { VaultPage } from './protocol.ts';
 import { vaultApi as api } from './api.ts';
 import { assertVaultObjectsAvailable, openVaultObjects } from './objects.ts';
@@ -66,6 +68,7 @@ export class VaultSync {
   private locator: VaultLocator | null = null;
   private localOnly = false;
   private readonly removals = new RemovalIndex();
+  private readonly refreshes = new QueuedVaultRefresh();
   get removalCursor(): number {
     return this.removals.cursor;
   }
@@ -88,6 +91,7 @@ export class VaultSync {
     this.session = session;
   }
   clear(): void {
+    this.refreshes.barrier();
     this.generation++;
     this.entries.clear();
     this.removals.reset();
@@ -98,7 +102,9 @@ export class VaultSync {
   }
   private async run<T>(
     work: (authority: VaultAuthority) => Promise<T>,
+    request: { started?: () => void; options?: VaultWorkOptions } = {},
   ): Promise<T> {
+    if (!request.started) this.refreshes.barrier();
     const session = this.localOnly ? null : this.session;
     const generation = this.generation;
     const locator = session ?? this.locator;
@@ -113,6 +119,7 @@ export class VaultSync {
         generation !== this.generation
       )
         throw new Error('Sessão alterada.');
+      request.started?.();
       let result: T;
       try {
         result = await work(authority);
@@ -124,10 +131,11 @@ export class VaultSync {
       return result;
     };
     return session
-      ? this.access.withVault(!navigator.onLine, operation)
+      ? this.access.withVault(!navigator.onLine, operation, request.options)
       : this.access.withLocalVault(locator, operation);
   }
   async openLocal(): Promise<void> {
+    this.refreshes.barrier();
     this.locator = await localLocator();
     this.localOnly = true;
     await this.run((authority) => this.loadLocal(authority));
@@ -135,12 +143,20 @@ export class VaultSync {
   get localOpened(): boolean {
     return this.locator !== null;
   }
-  async refresh(): Promise<void> {
+  async refresh(options: VaultWorkOptions = {}): Promise<void> {
     if (this.session) this.localOnly = false;
-    await this.run(async (authority) => {
-      await this.loadLocal(authority);
-      if (!authority.offline) await this.pull(authority);
-    });
+    await this.refreshes.read(
+      !navigator.onLine,
+      (started) =>
+        this.run(
+          async (authority) => {
+            await this.loadLocal(authority);
+            if (!authority.offline) await this.pull(authority);
+          },
+          { started, options },
+        ),
+      options.priority,
+    );
   }
   private async readEntry(
     authority: VaultAuthority,
@@ -294,54 +310,62 @@ export class VaultSync {
     }
     return heads;
   }
-  async save(input: { change: VaultChange; value: string }): Promise<void> {
-    await this.run(async (authority) => {
-      await this.loadLocal(authority);
-      if (this.pending)
-        throw new Error('Há um rascunho cifrado. Retome ou descarte primeiro.');
-      if (!authority.offline) await this.pull(authority);
-      if (!this.complete)
-        throw new Error('Continue carregando o cofre antes de editar.');
-      for (const id of input.change.parents) {
-        if (this.isRemoved(id))
+  async save(
+    input: { change: VaultChange; value: string },
+    options: VaultWorkOptions = {},
+  ): Promise<void> {
+    await this.run(
+      async (authority) => {
+        await this.loadLocal(authority);
+        if (this.pending)
           throw new Error(
-            'A versão anterior foi removida. Crie uma nova versão deliberadamente.',
+            'Há um rascunho cifrado. Retome ou descarte primeiro.',
           );
-        const parent = this.entries.get(id);
-        if (
-          !parent ||
-          parent.change.entity !== input.change.entity ||
-          parent.change.kind !== input.change.kind
-        )
-          throw new Error('Versão anterior inválida para esta edição.');
-      }
-      const id = crypto.randomUUID();
-      const identity = {
-        accountId: authority.session.accountId,
-        id,
-        epoch: authority.epoch,
-      };
-      const key = await authority.key(authority.epoch);
-      const bytes = await sealBlock(key, identity, input.value);
-      const commit = await sealCommit({
-        unsigned: {
-          version: 1,
-          ...identity,
-          deviceId: authority.session.deviceId,
-          directory: authority.directory,
-          authorityRevision: authority.events.length,
-          sequence: this.state.sequence + 1,
-          previous: this.state.head,
-          block: { hash: await bytesHash(bytes), bytes: bytes.length },
-        },
-        change: input.change,
-        key,
-        sign: authority.sign,
-      });
-      await saveDraft(authority.session.accountId, { commit, bytes });
-      this.pending = { commit, bytes };
-      if (!authority.offline) await this.publish(authority);
-    });
+        if (!authority.offline) await this.pull(authority);
+        if (!this.complete)
+          throw new Error('Continue carregando o cofre antes de editar.');
+        for (const id of input.change.parents) {
+          if (this.isRemoved(id))
+            throw new Error(
+              'A versão anterior foi removida. Crie uma nova versão deliberadamente.',
+            );
+          const parent = this.entries.get(id);
+          if (
+            !parent ||
+            parent.change.entity !== input.change.entity ||
+            parent.change.kind !== input.change.kind
+          )
+            throw new Error('Versão anterior inválida para esta edição.');
+        }
+        const id = crypto.randomUUID();
+        const identity = {
+          accountId: authority.session.accountId,
+          id,
+          epoch: authority.epoch,
+        };
+        const key = await authority.key(authority.epoch);
+        const bytes = await sealBlock(key, identity, input.value);
+        const commit = await sealCommit({
+          unsigned: {
+            version: 1,
+            ...identity,
+            deviceId: authority.session.deviceId,
+            directory: authority.directory,
+            authorityRevision: authority.events.length,
+            sequence: this.state.sequence + 1,
+            previous: this.state.head,
+            block: { hash: await bytesHash(bytes), bytes: bytes.length },
+          },
+          change: input.change,
+          key,
+          sign: authority.sign,
+        });
+        await saveDraft(authority.session.accountId, { commit, bytes });
+        this.pending = { commit, bytes };
+        if (!authority.offline) await this.publish(authority);
+      },
+      { options },
+    );
   }
   private async publish(authority: VaultAuthority): Promise<void> {
     const pending = this.pending;
@@ -457,30 +481,37 @@ export class VaultSync {
     return (await this.openMany([id]))[0]!;
   }
   /** At most sixteen immutable blocks share one verified authority/removal read. */
-  async openMany(ids: readonly string[]): Promise<string[]> {
+  async openMany(
+    ids: readonly string[],
+    options: VaultWorkOptions = {},
+  ): Promise<string[]> {
     if (ids.length > 16 || new Set(ids).size !== ids.length)
       throw new Error('Página de cofre inválida.');
     if (!ids.length) return [];
     const page = [...ids];
     const generation = this.generation;
-    return this.run(async (authority) => {
-      const guard = () => {
-        if (generation !== this.generation) throw new Error('Sessão alterada.');
-      };
-      await this.removals.load(authority, guard);
-      guard();
-      const read = {
-        authority,
-        entries: this.entries,
-        removed: (id: string) => this.isRemoved(id),
-        guard,
-      };
-      const values = await openVaultObjects(read, page);
-      // Recheck authorization/removals after decryption too. A cleanup or
-      // revocation during this page must reject it before exposing any value.
-      await this.removals.load(authority, guard);
-      assertVaultObjectsAvailable(read, page);
-      return values;
-    });
+    return this.run(
+      async (authority) => {
+        const guard = () => {
+          if (generation !== this.generation)
+            throw new Error('Sessão alterada.');
+        };
+        await this.removals.load(authority, guard);
+        guard();
+        const read = {
+          authority,
+          entries: this.entries,
+          removed: (id: string) => this.isRemoved(id),
+          guard,
+        };
+        const values = await openVaultObjects(read, page);
+        // Recheck authorization/removals after decryption too. A cleanup or
+        // revocation during this page must reject it before exposing any value.
+        await this.removals.load(authority, guard);
+        assertVaultObjectsAvailable(read, page);
+        return values;
+      },
+      { options },
+    );
   }
 }

@@ -26,7 +26,10 @@ import {
   verifyHistory,
 } from '../../shared/devices/index.ts';
 import type { DirectoryEvent } from '../../shared/devices/index.ts';
-import type { VaultAccess } from '../vault-authority/index.ts';
+import type {
+  VaultWorkOptions,
+  VaultAccess,
+} from '../vault-authority/index.ts';
 export interface ContactPage {
   items: (Peer & { requester: string })[];
   blocks: string[];
@@ -65,56 +68,61 @@ export class Contacts {
   async api(
     operation: string,
     payload: Record<string, unknown>,
+    work: VaultWorkOptions = {},
   ): Promise<unknown> {
     if (!this.session || !navigator.onLine)
       throw new Error('Entre e conecte-se para conferir as permissões atuais.');
     const generation = this.generation;
-    return this.access.withVault(false, async (authority) => {
-      if (
-        authority.session.accountId !== this.session?.accountId ||
-        generation !== this.generation
-      )
-        throw new Error('Sessão alterada.');
-      const proof = { directory: authority.directory, payload };
-      const signature = await authority.sign(
-        contactBody(
-          authority.session.accountId,
-          authority.session.deviceId,
-          operation,
-          proof,
-        ),
-      );
-      const mutation = [
-        'configure',
-        'request',
-        'respond',
-        'cancel',
-        'block',
-        'unblock',
-      ].includes(operation);
-      if (mutation) notifyMessageControls();
-      const response = await fetchApi(
-        `contacts/${operation}`,
-        `/api/account/contacts/${operation}`,
-        {
-          method: 'POST',
-          credentials: 'same-origin',
-          cache: 'no-store',
-          redirect: 'error',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-Hash-Talk-CSRF': authority.session.csrf,
+    return this.access.withVault(
+      false,
+      async (authority) => {
+        if (
+          authority.session.accountId !== this.session?.accountId ||
+          generation !== this.generation
+        )
+          throw new Error('Sessão alterada.');
+        const proof = { directory: authority.directory, payload };
+        const signature = await authority.sign(
+          contactBody(
+            authority.session.accountId,
+            authority.session.deviceId,
+            operation,
+            proof,
+          ),
+        );
+        const mutation = [
+          'configure',
+          'request',
+          'respond',
+          'cancel',
+          'block',
+          'unblock',
+        ].includes(operation);
+        if (mutation) notifyMessageControls();
+        const response = await fetchApi(
+          `contacts/${operation}`,
+          `/api/account/contacts/${operation}`,
+          {
+            method: 'POST',
+            credentials: 'same-origin',
+            cache: 'no-store',
+            redirect: 'error',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Hash-Talk-CSRF': authority.session.csrf,
+            },
+            body: JSON.stringify({ ...proof, signature }),
+            signal: AbortSignal.timeout(8000),
           },
-          body: JSON.stringify({ ...proof, signature }),
-          signal: AbortSignal.timeout(8000),
-        },
-      );
-      const data = await readApiJson(response, `contacts/${operation}`);
-      if (generation !== this.generation)
-        throw new Error('Sessão alterada durante a operação.');
-      if (mutation) notifyMessageControls();
-      return data;
-    });
+        );
+        const data = await readApiJson(response, `contacts/${operation}`);
+        if (generation !== this.generation)
+          throw new Error('Sessão alterada durante a operação.');
+        if (mutation) notifyMessageControls();
+        return data;
+      },
+      work,
+    );
   }
   async refresh(): Promise<void> {
     this.acceptState(await this.api('state', {}));
@@ -187,10 +195,14 @@ export class Contacts {
     this.pages.set(kind, page);
     return page;
   }
-  async list(kind: ContactList, more = false): Promise<ContactPage> {
+  async list(
+    kind: ContactList,
+    more = false,
+    work: VaultWorkOptions = {},
+  ): Promise<ContactPage> {
     contactList(kind);
     const after = more ? (this.pages.get(kind)?.next ?? null) : null;
-    return this.acceptPage(kind, await this.api('list', { kind, after }));
+    return this.acceptPage(kind, await this.api('list', { kind, after }, work));
   }
   async discover(wallet: WalletContact): Promise<Peer | null> {
     const result = await this.api('discover', { ...wallet });

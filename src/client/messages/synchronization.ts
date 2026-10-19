@@ -1,9 +1,11 @@
 import { t, translatedError } from '../../shared/i18n/index.ts';
 import { AccountError } from '../../shared/account/index.ts';
+import { MessageWarmup } from './warmup.ts';
 import { HistoryPreparation } from './preparation.ts';
 import { LiveUpdates } from '../message-live/index.ts';
 import { ConversationOpening } from './opening.ts';
 import type { LiveUpdate } from '../message-live/index.ts';
+import type { VaultWorkOptions } from '../vault-authority/index.ts';
 
 interface SynchronizationState {
   generation: number;
@@ -26,8 +28,13 @@ interface SynchronizationOperations {
   preloadDirect: (signal: AbortSignal) => Promise<boolean>;
   preloadGroups: (signal: AbortSignal) => Promise<boolean>;
   presence: () => Promise<void>;
-  refresh: () => Promise<void>;
-  changes: () => Promise<void>;
+  refresh: (work: VaultWorkOptions) => Promise<void>;
+  changes: (work: VaultWorkOptions) => Promise<void>;
+  changeMaintenance: readonly [
+    () => Promise<void>,
+    () => Promise<void>,
+    () => Promise<void>,
+  ];
   periodic: () => Promise<void>;
   periodicWork: () => Promise<boolean>;
   pending: () => Promise<readonly unknown[]>;
@@ -38,7 +45,9 @@ interface SynchronizationOperations {
 export class MessageSynchronization {
   private readonly options: SynchronizationOperations;
   private readonly updates: LiveUpdates;
+  private readonly followup: MessageWarmup;
   private closed = false;
+  private interactiveChange = false;
   private maintenance: Promise<void> | null = null;
   private preloadTimer: ReturnType<typeof setTimeout> | null = null;
   private preloadAbort: AbortController | null = null;
@@ -60,28 +69,51 @@ export class MessageSynchronization {
         !this.preloadRunning &&
         !options.state().liveConnecting,
       run: (update) => {
-        if (update === 'refresh') void this.run(options.refresh);
-        else void this.checkAutomatically(options.changes);
+        const work: VaultWorkOptions =
+          this.interactiveChange && options.state().visible
+            ? { priority: 'interactive' }
+            : {};
+        this.interactiveChange = false;
+        if (update === 'refresh') void this.run(() => options.refresh(work));
+        else void this.checkChanges(work);
       },
     });
+    this.followup = new MessageWarmup({
+      available: () => this.backgroundReady,
+      run: (step) => this.background(step),
+      changed: () => this.resume(),
+      failed: (error) =>
+        this.report(error, t('Não foi possível concluir a operação.')),
+      steps: options.changeMaintenance,
+    });
   }
-  resume(): void {
+  resume(work: VaultWorkOptions = {}): void {
+    if (this.updates.waiting && this.options.state().visible)
+      this.interactiveChange ||= work.priority === 'interactive';
     this.updates.resume();
+    this.followup.resume();
     this.schedulePreload();
   }
   prepareHistory(): void {
     this.preparation.request();
   }
-  request(update: LiveUpdate = 'refresh'): void {
+  request(update: LiveUpdate = 'refresh', work: VaultWorkOptions = {}): void {
+    if (work.priority === 'interactive' && this.options.state().visible)
+      this.stopPreload();
+    this.interactiveChange ||= work.priority === 'interactive';
     this.prepareHistory();
     this.automaticAttempts = 0;
     this.updates.request(update);
   }
   startRefresh(): void {
+    this.followup.reset();
+    this.interactiveChange = false;
     this.updates.clear();
     this.lastTransferAttempt = Date.now();
   }
   reset(): void {
+    this.followup.reset();
+    this.interactiveChange = false;
     this.cancelOpening();
     this.updates.clear();
     this.stopPreload();
@@ -120,8 +152,18 @@ export class MessageSynchronization {
   get openingRequested(): boolean {
     return this.opening.waiting;
   }
+  /** Profile maintenance may run outside the mounted conversation, but must
+   * yield to an active owner or a queued current-history/user operation. */
+  get conversationWorkPending(): boolean {
+    return (
+      this.busy ||
+      this.maintenance !== null ||
+      this.updates.waiting ||
+      this.opening.waiting
+    );
+  }
   get backgroundReady(): boolean {
-    return this.canSynchronize();
+    return this.canSynchronize() && !this.updates.waiting;
   }
   async background(work: () => Promise<void>): Promise<void> {
     await this.maintain(work, (error) => {
@@ -174,8 +216,7 @@ export class MessageSynchronization {
     this.busy = false;
     await this.openNext();
     this.options.status();
-    this.updates.resume();
-    this.schedulePreload();
+    this.resume();
   }
   stopPreload(): void {
     if (this.preloadTimer !== null) clearTimeout(this.preloadTimer);
@@ -184,7 +225,8 @@ export class MessageSynchronization {
     this.options.pause();
   }
   private canSynchronize(): boolean {
-    return this.foregroundReady && !this.options.state().textPending;
+    const state = this.options.state();
+    return this.foregroundReady && state.visible && !state.textPending;
   }
   get foregroundReady(): boolean {
     const state = this.options.state();
@@ -273,6 +315,14 @@ export class MessageSynchronization {
     this.preparation.complete(turn, pending);
   }
 
+  private async checkChanges(work: VaultWorkOptions): Promise<void> {
+    const current = this.options.state().generation;
+    await this.checkAutomatically(async () => {
+      await this.options.changes(work);
+      if (this.current(current)) this.followup.queue();
+    });
+  }
+
   /** Automatic reads share the maintenance lock. An interactive operation can
    * reserve busy and wait for them instead of being rejected as another sync. */
   private async checkAutomatically(work: () => Promise<void>): Promise<void> {
@@ -317,8 +367,7 @@ export class MessageSynchronization {
       .finally(() => {
         this.maintenance = null;
         if (this.current(current)) this.options.status();
-        this.updates.resume();
-        this.schedulePreload();
+        this.resume();
       });
     await this.maintenance;
   }

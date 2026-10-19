@@ -1,3 +1,4 @@
+import type { VaultWorkOptions } from '../vault-authority/index.ts';
 import type { Contacts } from '../contacts/index.ts';
 import type { Peer } from '../../shared/contacts/index.ts';
 import type { ContactDirectory } from '../contacts/index.ts';
@@ -41,22 +42,23 @@ export class MessageDirectory {
   private guard(current: number): void {
     if (current !== this.generation) throw new Error('Sessão alterada.');
   }
-  async refresh(more = false, online = true): Promise<void> {
+  async refresh(
+    more = false,
+    online = true,
+    work: VaultWorkOptions = {},
+  ): Promise<void> {
     const current = this.generation;
-    await this.sources.agenda.load(more);
+    await this.sources.agenda.load(more, work);
     this.guard(current);
     if (!more) {
       this.archivedAfter = null;
       this.archivedMore = true;
       if (online) this.remoteMore = true;
     }
-    const page =
-      online && this.remoteMore
-        ? await this.sources.contacts.list('approved', more)
-        : { items: [], next: null };
+    const page = await this.approvedPage(more, online, work);
     this.guard(current);
     const local = this.archivedMore
-      ? await this.sources.archivedPeers(this.archivedAfter)
+      ? await this.sources.archivedPeers(this.archivedAfter, work)
       : { items: [], next: null };
     this.guard(current);
     const peers = this.combine(page.items, local.items, more || !online);
@@ -67,6 +69,11 @@ export class MessageDirectory {
     if (online) this.remoteMore = page.next !== null;
     this.values = peers;
     this.sources.changed(peers);
+  }
+  private approvedPage(more: boolean, online: boolean, work: VaultWorkOptions) {
+    if (!online || !this.remoteMore)
+      return Promise.resolve({ items: [], next: null });
+    return this.sources.contacts.list('approved', more, work);
   }
   private combine(
     approved: readonly Peer[],

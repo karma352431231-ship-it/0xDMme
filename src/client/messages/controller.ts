@@ -387,32 +387,36 @@ export class Messages {
     secret.free();
     return key;
   }
-  async initialize(): Promise<void> {
+  async initialize(options: VaultWorkOptions = {}): Promise<void> {
     const generation = this.generation;
     await prepareMessageRuntime();
     this.guard(generation);
-    await this.access.withVault(false, async (a) => {
-      this.guard(generation);
-      if (this.initializedDirectory === a.directory) return;
-      await this.recoverable(a, generation);
-      const machine = await this.machine(a, generation);
-      try {
-        await machine.prepare(a);
+    await this.access.withVault(
+      false,
+      async (a) => {
         this.guard(generation);
-        this.initializedDirectory = a.directory;
-      } finally {
-        machine.close();
-      }
-    });
+        if (this.initializedDirectory === a.directory) return;
+        await this.recoverable(a, generation);
+        const machine = await this.machine(a, generation);
+        try {
+          await machine.prepare(a);
+          this.guard(generation);
+          this.initializedDirectory = a.directory;
+        } finally {
+          machine.close();
+        }
+      },
+      options,
+    );
   }
-  async loadPins(): Promise<void> {
+  async loadPins(options: VaultWorkOptions = {}): Promise<void> {
     const generation = this.generation;
-    await this.identities.load();
+    await this.identities.load(options);
     this.guard(generation);
     this.pinsGeneration = generation;
   }
-  async savePins(): Promise<void> {
-    await this.identities.save();
+  async savePins(options: VaultWorkOptions = {}): Promise<void> {
+    await this.identities.save(undefined, options);
   }
   private async history(
     c: {
@@ -716,39 +720,55 @@ export class Messages {
     await localPut(session.accountId, name, hash, 512);
   }
 
-  async sendPending(): Promise<void> {
+  async sendPending(options: VaultWorkOptions = {}): Promise<void> {
     if (!(await this.pending()).length) return;
     const generation = this.generation;
     let targets: string[] = [];
     // Opening a retained window defers the vault read, not identity validation
     // before distributing keys or publishing new ciphertext.
-    if (this.pinsGeneration !== generation) await this.loadPins();
+    if (this.pinsGeneration !== generation) await this.loadPins(options);
     this.guard(generation);
     // Persist the first trusted identity before distributing a room key or
     // accepting ciphertext. VaultSync owns a separate lock, so save outside it.
-    await this.access.withVault(false, async (a) => {
-      const page = await outboxPage<Outbox>(a.session.accountId);
-      targets = page.map((item) => item.name);
-      for (const peer of new Set(page.map((row) => row.value.peer)))
-        await this.history({ a, generation }, peer, null);
-    });
+    await this.access.withVault(
+      false,
+      async (a) => {
+        const page = await outboxPage<Outbox>(a.session.accountId);
+        targets = page.map((item) => item.name);
+        for (const peer of new Set(page.map((row) => row.value.peer)))
+          await this.history({ a, generation }, peer, null);
+      },
+      options,
+    );
     if (!targets.length) return;
-    await this.savePins();
+    await this.savePins(options);
     this.guard(generation);
-    await this.access.withVault(false, async (a) => {
-      this.guard(generation);
-      const api = (op: string, d: Record<string, unknown>) =>
-        messageApi(a, op, d, () => this.guard(generation));
-      const own = await this.recoverable(a, generation),
-        machine = await this.machine(a, generation);
-      try {
-        const page = await outboxPage<Outbox>(a.session.accountId, targets);
-        for (const { name, value } of page)
-          await this.sendOne({ a, api, own, machine, generation, name, value });
-      } finally {
-        machine.close();
-      }
-    });
+    await this.access.withVault(
+      false,
+      async (a) => {
+        this.guard(generation);
+        const api = (op: string, d: Record<string, unknown>) =>
+          messageApi(a, op, d, () => this.guard(generation));
+        const own = await this.recoverable(a, generation),
+          machine = await this.machine(a, generation);
+        try {
+          const page = await outboxPage<Outbox>(a.session.accountId, targets);
+          for (const { name, value } of page)
+            await this.sendOne({
+              a,
+              api,
+              own,
+              machine,
+              generation,
+              name,
+              value,
+            });
+        } finally {
+          machine.close();
+        }
+      },
+      options,
+    );
   }
   private async sendOne(context: {
     a: VaultAuthority;
@@ -884,86 +904,89 @@ export class Messages {
         throw error;
     }
   }
-  async synchronize(): Promise<void> {
+  async synchronize(options: VaultWorkOptions = {}): Promise<void> {
     const probed = this.probedSnapshot;
     this.probedSnapshot = null;
     const token = this.visibility.refresh(),
       generation = this.generation,
       selected = this.selected;
     try {
-      const staged = await this.access.withVault(false, async (a) => {
-        const api = (op: string, d: Record<string, unknown>) =>
-            messageApi(a, op, d, () => this.guard(generation)),
-          snapshot = probed ?? (await api('snapshot', {}));
-        const items = await this.synchronizeIndex({
-          a,
-          generation,
-          api,
-          snapshot,
-          selected,
-        });
-        const related = messageItems(
-          await api('relations', {
-            ids: items.filter((i) => i.kind !== 'profile').map((i) => i.id),
+      const staged = await this.access.withVault(
+        false,
+        async (a) => {
+          const api = (op: string, d: Record<string, unknown>) =>
+              messageApi(a, op, d, () => this.guard(generation)),
+            snapshot = probed ?? (await api('snapshot', {}));
+          const items = await this.synchronizeIndex({
+            a,
+            generation,
+            api,
             snapshot,
-          }),
-          48,
-        ).items;
-        const window = [...items, ...related],
-          views: MessageView[] = [],
-          missing: MessageItem[] = [];
-        for (const item of window) {
-          const cached =
-            this.verified.read(snapshot, item) ??
-            (await this.readCached(a, snapshot, item));
-          if (cached) views.push(cached);
-          else missing.push(item);
-        }
-        if (missing.length) {
-          const machine = await this.machine(a, generation);
-          try {
-            await machine.prepare(a);
-            await this.receive(a, machine, generation);
-            const fetched = await this.readBatch({
-              a,
-              generation,
-              api,
+            selected,
+          });
+          const related = messageItems(
+            await api('relations', {
+              ids: items.filter((i) => i.kind !== 'profile').map((i) => i.id),
               snapshot,
-              machine,
-              items: missing,
-              skipUnavailable: false,
-            });
-            views.push(...fetched.values());
-          } finally {
-            machine.close();
+            }),
+            48,
+          ).items;
+          const window = [...items, ...related],
+            views: MessageView[] = [],
+            missing: MessageItem[] = [];
+          for (const item of window) {
+            const cached =
+              this.verified.read(snapshot, item) ??
+              (await this.readCached(a, snapshot, item));
+            if (cached) views.push(cached);
+            else missing.push(item);
           }
-        }
-        const byId = new Map(views.map((view) => [view.id, view]));
-        const ordered = window.map((item) => byId.get(item.id)!);
-        await indexSearch(a, ordered);
-        return { views: ordered, snapshot, items, window };
-      });
+          if (missing.length) {
+            const machine = await this.machine(a, generation);
+            try {
+              await machine.prepare(a);
+              await this.receive(a, machine, generation);
+              const fetched = await this.readBatch({
+                a,
+                generation,
+                api,
+                snapshot,
+                machine,
+                items: missing,
+                skipUnavailable: false,
+              });
+              views.push(...fetched.values());
+            } finally {
+              machine.close();
+            }
+          }
+          const byId = new Map(views.map((view) => [view.id, view]));
+          const ordered = window.map((item) => byId.get(item.id)!);
+          await indexSearch(a, ordered);
+          const delivered = await this.refreshDelivery(
+            snapshot,
+            generation,
+            ordered,
+            a,
+          );
+          const projected = await this.includeHistory(a, delivered, generation);
+          return { views: projected, liveViews: ordered, snapshot, window };
+        },
+        options,
+      );
       await this.savePins();
       this.guard(generation);
-      this.oldest =
-        staged.items.filter((item) => item.kind !== 'profile')[0]?.sequence ??
-        this.before;
-      const delivered = await this.refreshDelivery(
-        staged.snapshot,
-        generation,
-        staged.views,
-      );
-      const views = await this.access.withVault(false, (a) =>
-        this.includeHistory(a, delivered, generation),
-      );
+      const views = staged.views;
       this.oldest =
         views.filter((v) => !v.relation && v.kind !== 'profile')[0]?.sequence ??
         this.before;
       this.visibility.stage(token, views);
-      await this.confirmVisible(token, staged.snapshot, generation);
+      await this.confirmVisible(token, staged.snapshot, generation, {
+        options,
+      });
       this.guard(generation);
       this.confirmed = { snapshot: JSON.stringify(staged.snapshot), views };
-      this.verified.remember(staged.snapshot, staged.window, staged.views);
+      this.verified.remember(staged.snapshot, staged.window, staged.liveViews);
       this.confirmConversationChanges(staged.snapshot);
       this.rememberConversation();
     } catch (error: unknown) {
@@ -980,13 +1003,13 @@ export class Messages {
     token: number,
     snapshot: unknown,
     generation: number,
-    authority?: VaultAuthority,
+    work: { authority?: VaultAuthority; options?: VaultWorkOptions } = {},
   ): Promise<void> {
     await this.visibility.confirm(token, async () => {
       const check = (a: VaultAuthority) =>
         messageApi(a, 'confirm', { snapshot }, () => this.guard(generation));
-      if (authority) await check(authority);
-      else await this.access.withVault(false, check);
+      if (work.authority) await check(work.authority);
+      else await this.access.withVault(false, check, work.options);
       this.guard(generation);
     });
   }
@@ -1001,9 +1024,9 @@ export class Messages {
       state: messageStates.history,
     };
   }
-  async archivedPeers(after: string | null) {
+  async archivedPeers(after: string | null, work: VaultWorkOptions = {}) {
     if (this.session && navigator.onLine)
-      return this.access.withVault(false, (a) => historyPeers(a, after));
+      return this.access.withVault(false, (a) => historyPeers(a, after), work);
     const locator = await localLocator();
     if (!locator) return { items: [], next: null };
     return this.access.withLocalVault(locator, (a) => historyPeers(a, after));
@@ -1705,7 +1728,9 @@ export class Messages {
               authority,
             );
             this.visibility.stage(token, views);
-            await this.confirmVisible(token, snapshot, generation, authority);
+            await this.confirmVisible(token, snapshot, generation, {
+              authority,
+            });
             this.guard(generation);
             this.confirmed = { snapshot: JSON.stringify(snapshot), views };
             this.rememberConversation();
@@ -1731,16 +1756,14 @@ export class Messages {
     snapshot: unknown,
     generation: number,
     views: readonly MessageView[],
-    authority?: VaultAuthority,
+    authority: VaultAuthority,
   ): Promise<MessageView[]> {
-    const read = (a: VaultAuthority) =>
-      readDelivery({
-        snapshot,
-        views,
-        api: (operation, payload) =>
-          messageApi(a, operation, payload, () => this.guard(generation)),
-      });
-    return authority ? read(authority) : this.access.withVault(false, read);
+    return readDelivery({
+      snapshot,
+      views,
+      api: (operation, payload) =>
+        messageApi(authority, operation, payload, () => this.guard(generation)),
+    });
   }
   async openOffline(peer: string | null): Promise<void> {
     if (navigator.onLine)

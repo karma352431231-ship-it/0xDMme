@@ -1,5 +1,65 @@
 # Capacity audit follow-up — 16 October 2026
 
+## Profile publication outside history opening — 18 October 2026
+
+The assembled trace and real coordinator regression show explicit opening and
+startup awaiting an automatic own name/photo publication before reading verified
+history. Reuse the existing bounded, idempotent ProfileBroadcast lifecycle after
+foreground verification/startup maintenance. Include the current approved private
+contact even outside the loaded directory page, excluding archive-only contacts.
+Ordinary automatic selected-history rechecks retain maintenance priority throughout
+their probe/pins/projection/confirmation. Explicit opening and fresh live-change
+rechecks of the visible direct conversation keep interactive priority. Hidden
+conversations and unrelated maintenance are not promoted. One bounded priority
+bit survives coalescing and clears on reset/covered full refresh; no hint grants
+content or authority. No additional recipient state, plaintext transport,
+retention or authority cache is introduced. Existing encrypted profile sharing, fresh history confirmation,
+user-send gates and background retry triggers remain. A newly updated name/photo
+can arrive after the conversation opens. See the [startup contract](docs/BOOT_CONTATOS_CONVERSAS.md#profile-publication-follows-verified-history--18-october-2026).
+
+## Cross-tab authority scheduling — 18 October 2026
+
+The owner requires five to ten tabs in one browser to work well. The native
+account SDK lock remains exclusive. Per-controller priority alone does not order
+work across tabs, so a focused admission module limits maintenance to one waiting
+turn-gate contender while sharing foreground admission. A queued exclusive
+maintenance turn blocks later shared arrivals, preserving background progress.
+All waits consume the existing cumulative eight-second acquisition budget; every
+operation still obtains fresh authority and runs its current checks. No active
+work is interrupted and no authorization result is shared or cached.
+
+The [startup contract](docs/BOOT_CONTATOS_CONVERSAS.md#cross-tab-authority-admission--18-october-2026)
+defines ordering, deadlines and native-lock recovery. Keep failed performance
+profiles explicit. Local scheduling success does not certify assembled acceptance,
+maximum users or phone performance. Calls stay deferred and last.
+
+## Client history scheduling correction — 18 October 2026
+
+The owner requested continuing the capacity audit after the assembled history
+profile exposed client authority waiting. Identical `VaultSync.refresh` callers
+may share one queued vault read only until its authorized vault callback starts.
+A session reset, online/offline mode change, explicit local opening or another
+vault operation separates that group. Never retain an active/completed result,
+skip removal checks or change account SDK exclusivity and authority deadlines.
+
+The first visible directory startup keeps interactive priority through its pin
+reads and runtime preparation; hidden startup and later automatic rechecks keep
+maintenance priority. Queued refresh groups also match priority. Explicit
+conversation opening and earlier-history navigation keep the existing interactive
+priority through pin reads, synchronization, delivery, local history and final
+confirmation. Content/delivery/local-history form one bounded authority read;
+exposure still requires independent fresh authority and server confirmation. Automatic refreshes retain maintenance priority and the existing
+four-interactive-turn fairness rule. Each authority still runs its current
+verification; no queue, lock, timeout, transport or backend limit is relaxed.
+
+The [startup contract](docs/BOOT_CONTATOS_CONVERSAS.md#queued-vault-reads-and-selected-history-priority--18-october-2026)
+defines ordering, failure propagation and regression coverage. Use the existing
+integrated release process after passing checks; source correctness, publication
+and finite assembled acceptance remain separate. Calls stay deferred and last.
+
+**Ponto importante:** this is a focused scheduling correction, not a new capacity
+ceiling, stale authorization cache or proof of faster physical-phone startup.
+
 ## Shared live transport between tabs — owner approval, 18 October 2026
 
 The owner explicitly chose one authenticated own-origin SSE transport shared by
@@ -3020,6 +3080,103 @@ live track, and records/analyzes no speech. It changes no normal capture policy,
 signaling authority or mandatory relay rule; lifecycle/deadline limits are in the
 voice-call contract. This remains diagnostic evidence, not audio acceptance.
 
+### User text transmission and maintenance ordering — 19 October 2026
+
+A bounded native-tab comparison and actual coordinator regression show a saved
+user text waiting behind unrelated automatic change-refresh steps. Yield between
+those owners to the queued text, requested conversation opening or newer visible
+live hint, keeping one
+coalesced probe to resume the remainder. Forward explicit queued-text interactive
+priority through fresh identity verification, pin persistence and publication;
+automatic transmissions retain maintenance priority. Preserve all authority,
+removal, SDK exclusivity, FIFO/durability/idempotency and resource limits.
+
+**Ponto importante:** contact/group/presence refresh may complete after the user
+text. Local admission is not a delivery acknowledgement or finite load acceptance.
+See [the loading contract](docs/BOOT_CONTATOS_CONVERSAS.md#saved-user-texts-precede-unrelated-maintenance--19-october-2026).
+
+### Foreground private directory priority — 19 October 2026
+
+The first visible startup already assigns interactive work to pin/runtime setup,
+but previously dropped it through agenda/approved-contact/archive loading. Keep
+that existing priority end to end through these bounded directory owners; later
+automatic checks stay maintenance and hidden automatic startup waits for
+visibility, as specified below. Preserve fresh signed
+contact reads, encrypted agenda/removal checks, generation cancellation and SDK
+exclusivity. **Ponto importante:** the failed28.898s sixth-tab opening remains a
+failed measurement until a corrected finite comparison meets the original20s
+limit. [Loading contract](docs/BOOT_CONTATOS_CONVERSAS.md#first-directory-opening-retains-foreground-priority--19-october-2026).
+
+### Visible live requests and optional history preparation — 19 October 2026
+
+A regression confirms a visible interactive history hint was blocked by optional
+prefetch without requesting its existing cooperative release. Ask that lifecycle
+to yield, wait for its active SDK owner to settle, then run the coalesced fresh
+signed recheck at its original priority. Ordinary background hints keep their
+wait/progress behavior; hidden hints coalesce until visibility, as specified below. **Ponto importante:** no active SDK overlap,
+accepted-data expiry, authorization cache or cryptographic shortcut is introduced;
+this source correction alone is not finite latency acceptance.
+
+### Automatic history work across hidden tabs — 19 October 2026
+
+Native timing shows hidden pages competing for the same SDK owner during visible
+message delivery. Keep automatic history hints coalesced until page visibility,
+then use the existing current signed recheck. Already running work settles;
+explicit durable sends, shared live wakeups and immediate removal/authorization
+invalidation retain their lifecycle. Server acceptance, outbox durability,
+retention, encryption and final verification are unchanged.
+
+**Ponto importante:** hidden UI history/preload and optional startup maintenance
+resume when visible, rather than preparing identical history concurrently in all
+tabs. This supersedes the earlier automatic-hidden maintenance scheduling, not
+its security checks or the recorded failed stress results. Full normal ten-tab
+latency/resource/recovery acceptance remains to be measured.
+
+### Pending history priority on native tab return — 19 October 2026
+
+The native normal-use profile opens all ten tabs and passes the five-tab checkpoint,
+but a message into a newly activated tab still misses8s. On visibility, prioritize
+only an already-coalesced pending history check; healthy focus creates no new
+request/polling. Use the existing bounded priority bit and retain all current
+verification/reset gates. **Ponto importante:** source scheduling checks do not
+accept largest-width delivery/recovery until the unchanged profile passes.
+
+### Yield secondary change owners after verified conversation work — 19 October 2026
+
+The native reverse five-tab miss persists atb5b02d6 despite a transport queue
+below122ms. Run the selected conversation/group check first, then queue contacts,
+unselected groups and daily state through the existing bounded maintenance
+scheduler, one owner per grace interval. Foreground sends and queued live checks
+precede the next owner; active SDK work still settles exclusively. Coalesce one
+current pass and one repeat, clear on reset, and defer hidden work. This supersedes
+the inline change loop while preserving fresh authority and immediate removals.
+**Ponto importante:** source regressions do not establish native latency or release
+acceptance. [Loading contract](docs/BOOT_CONTATOS_CONVERSAS.md#secondary-change-refresh-yields-between-owners--19-october-2026).
+
+### Four-second opening and deferred SDK preparation — 19 October 2026
+
+The owner requires the app and its selected private history to open within
+4,000 ms. This supersedes the former 20,000 ms acceptance threshold; historical
+measurements retain their original limits and are not accepted under the new
+criterion. Five to ten same-browser tabs must support bidirectional messages,
+fresh history on activation, duplicate-free views and connection-owner departure.
+Database/storage acceptance remains closed within its already tested profiles.
+Integrate and publish only after the affected checks and exact integrated CI pass;
+physical-phone media follows, calls/TURN remain last, and audit closure requires
+all remaining evidence.
+
+Full SDK/store preparation now follows directory publication through the existing
+bounded startup maintenance scheduler. A user opening precedes that speculative
+step; an already active owner still settles exclusively. Histories open the SDK
+when a missing packet actually needs it; sending still prepares recovery and the
+SDK before ciphertext publication. Public runtime loading remains outside the
+authority lock. Fresh authority, identity pins, removals, final confirmation,
+outbox durability, cancellation and error reporting remain required.
+
+**Ponto importante:** this source scheduling change does not establish the
+4,000 ms opening target, five-to-ten-tab acceptance or publication. See
+[the loading contract](docs/BOOT_CONTATOS_CONVERSAS.md#four-second-opening-and-speculative-sdk-preparation--19-october-2026).
+
 ### Som de mensagens privadas — 18/10/2026
 
 O proprietário escolheu a “Marimba” para mensagens privadas, entre seis sons
@@ -3029,6 +3186,42 @@ mantêm o bipe curto anterior. Continua gerado por Web Audio no aparelho, sem
 arquivo, dependência ou rede; preferência, agrupamento em três segundos e mute
 não mudam. Vale só com o app aberto: push com app fechado segue o som do
 sistema. Contrato em [notificações](docs/BLOCO_10_NOTIFICACOES_E_EXPERIENCIA.md).
+
+The combined build also crosses the frontend corresponding-source package's
+former 1,024-file guard. Its bounded count is now 2,048 files while the 24 MiB
+intermediate tar budget, exact incorporated inputs, license notices, explicit
+public selection and total deployment budgets remain unchanged. This is build
+packaging only; no user data, runtime dependency or shared infrastructure changes.
+See [the source packaging contract](docs/FONTES_FRONTEND.md).
+
+### Public startup transfer correction — 19 October 2026
+
+Native opening diagnostics identify a 7.8 MB uncompressed Matrix WASM download
+and startup work preceding the directory. Prepare bounded Brotli versions of
+fixed public startup assets in the Mac build; validate exact decoded bytes on
+server load and negotiate their HTTP representations without changing private
+responses, original MIME/CSP, browser caching, source distribution or PWA hashes.
+Keep original bytes for clients without Brotli support. No shared proxy/runtime,
+dependency or migration change is needed. Details and acceptance boundaries are
+in [the loading contract](docs/BOOT_CONTATOS_CONVERSAS.md#public-startup-asset-transfer--19-october-2026).
+
+The app document preloads the fixed public catalog modules and WASM transfer;
+the native local control verifies reuse by the SDK without duplicating its
+download under the unchanged cache policy. This moves public transfer earlier,
+without starting SDK/private operations or altering wallet/recovery documents.
+
+**Ponto importante:** the recorded 10,456 ms full-history diagnostic remains a
+failure against 4,000 ms. Compression is a prepared correction, not measured
+opening or multi-tab acceptance and not a published release.
+
+Automatic private-profile distribution also follows the approved hidden-tab
+maintenance rule: a hidden preference event cannot start a new round, and visible
+return resumes the coalesced work without waiting for a live hint. Existing active
+owners settle exclusively, and explicit sends/authority/identity checks are
+unchanged. The actual coordinator regression is recorded in
+[the loading contract](docs/BOOT_CONTATOS_CONVERSAS.md#hidden-profile-maintenance--19-october-2026).
+An active or queued conversation check precedes a new profile round; the existing
+visible preference distribution outside the conversation remains supported.
 
 ### Filtros do feed e aviso de nova versão — 19/10/2026
 
