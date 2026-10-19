@@ -43,7 +43,6 @@ Local PostgreSQL metrics: `npm run observe:database`, with the same private `.en
 
 ## Documentation
 
-- [Working standards](AGENTS.md): implementation, review and verification rules.
 - [Localization](docs/I18N.md): official languages and how app text is added.
 - [Licenses](LICENSES.md): frontend distribution and third-party components.
 - [Frontend corresponding sources](docs/FRONTEND_SOURCES.md): contents of the source download and how to rebuild the frontend.
