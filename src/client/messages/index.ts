@@ -1048,11 +1048,14 @@ export function startMessages(
   async function refresh(): Promise<void> {
     synchronization.startRefresh();
     const current = generation;
+    const work = startupWarmup.initialWork(
+      document.visibilityState === 'visible',
+    );
     try {
       await initializeMessageDirectory({
-        loadPins: () => controller.loadPins(),
+        loadPins: () => controller.loadPins(work),
         loadContacts: refreshContacts,
-        initialize: () => controller.initialize(),
+        initialize: () => controller.initialize(work),
         guard: () => {
           if (current !== generation) throw new Error('Sessão alterada.');
         },
@@ -1107,9 +1110,9 @@ export function startMessages(
   async function synchronizeVisible(): Promise<void> {
     if (!conversationMounted('[data-direct-conversation]')) return;
     if (await controller.probe({ priority: 'interactive' })) {
-      await controller.loadPins();
+      await controller.loadPins({ priority: 'interactive' });
       synchronization.prepareHistory();
-      await controller.synchronize();
+      await controller.synchronize({ priority: 'interactive' });
     }
   }
   async function submit(): Promise<void> {
@@ -1530,7 +1533,8 @@ export function startMessages(
         controller.select(selected.accountId, true);
         if (selected.localOnly)
           await controller.openArchive(selected.accountId);
-        else if (navigator.onLine) await controller.synchronize();
+        else if (navigator.onLine)
+          await controller.synchronize({ priority: 'interactive' });
         else await controller.openOffline(selected.accountId);
         await controller.savePins();
       });

@@ -2,6 +2,9 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { setImmediate } from 'node:timers/promises';
 import { resumeFixture } from './fixtures/message-resume.ts';
+import { AuthorityWork } from '../src/client/devices/authority-work.ts';
+import { deferred } from './fixtures/deferred.ts';
+import type { VaultAccess } from '../src/client/vault-authority/index.ts';
 
 await test('restoring outgoing text uses current authority and excludes other recipients, attachments and message actions', async () => {
   const { controller, data, peer } = resumeFixture();
@@ -410,4 +413,101 @@ await test('falha ao apagar mantém o gate fechado e descarta os candidatos reti
   assert.equal(await controller.probe(), true);
   await controller.synchronize();
   assert.equal(data.requests.filter((op) => op === 'page').length, 2);
+});
+
+for (const interactive of [false, true])
+  await test(`selected history preserves authority queue priority through final confirmation: interactive=${interactive}`, async (t) => {
+    const f = resumeFixture();
+    await f.add('Verified selected history');
+    const native = f.access.withVault;
+    const orders: string[][] = [];
+    const scheduled: VaultAccess['withVault'] = async (
+      offline,
+      work,
+      options,
+    ) => {
+      const queue = new AuthorityWork(),
+        held = deferred<void>(),
+        order: string[] = [];
+      orders.push(order);
+      const blocker = queue.run(() => held.promise);
+      const maintenance = queue.run(() => {
+        order.push('maintenance');
+        return Promise.resolve();
+      });
+      const read = queue.run(() => {
+        order.push('history');
+        return native(offline, work);
+      }, options?.priority);
+      held.resolve();
+      const value = await read;
+      await Promise.all([blocker, maintenance]);
+      return value;
+    };
+    t.mock.method(f.access, 'withVault', scheduled);
+    await f.controller.synchronize(
+      interactive ? { priority: 'interactive' } : {},
+    );
+    assert.equal(f.data.frames.at(-1)?.[0]?.text, 'Verified selected history');
+    assert.ok(
+      orders.length > 1,
+      'History and final confirmation retain independent fresh authorities',
+    );
+    for (const order of orders)
+      assert.deepEqual(
+        order,
+        interactive ? ['history', 'maintenance'] : ['maintenance', 'history'],
+      );
+    assert.equal(f.data.requests.at(-1), 'confirm');
+  });
+
+await test('selected content and delivery share one read while exposure requires a separate fresh confirmation', async (t) => {
+  const f = resumeFixture();
+  await f.add('Verified complete projection');
+  const native = f.access.withVault;
+  const boundaries: { requests: string[]; hidden: boolean }[] = [];
+  const read: VaultAccess['withVault'] = (offline, work, options) => {
+    boundaries.push({
+      requests: [...f.data.requests],
+      hidden: f.data.frames.at(-1) == null,
+    });
+    return native(offline, work, options);
+  };
+  t.mock.method(f.access, 'withVault', read);
+  await f.controller.synchronize({ priority: 'interactive' });
+  assert.equal(
+    boundaries.length,
+    2,
+    'One complete read and one independent fresh confirmation',
+  );
+  assert.ok(
+    boundaries[1]!.requests.includes('delivery'),
+    'Delivery was checked before requesting final authority',
+  );
+  assert.ok(
+    !boundaries[1]!.requests.includes('confirm'),
+    'Confirmation uses the new authority',
+  );
+  assert.ok(
+    boundaries.every((boundary) => boundary.hidden),
+    'No history is exposed before the fresh confirmation',
+  );
+  assert.equal(f.data.frames.at(-1)?.[0]?.text, 'Verified complete projection');
+});
+
+await test('revocation at final authority rejects the complete projection before exposing any history', async (t) => {
+  const f = resumeFixture();
+  await f.add('Must stay hidden');
+  const native = f.access.withVault;
+  let calls = 0;
+  const read: VaultAccess['withVault'] = (offline, work, options) => {
+    if (++calls === 2)
+      return Promise.reject(new Error('Revoked final authority'));
+    return native(offline, work, options);
+  };
+  t.mock.method(f.access, 'withVault', read);
+  await assert.rejects(f.controller.synchronize(), /Revoked final authority/u);
+  assert.ok(f.data.requests.includes('delivery'));
+  assert.ok(!f.data.requests.includes('confirm'));
+  assert.equal(f.data.frames.at(-1), null);
 });

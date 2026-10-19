@@ -43,7 +43,10 @@ function fixture(t: TestContext) {
 await test('startup maintenance yields between its four bounded steps', async (t) => {
   const f = fixture(t);
   assert.equal(f.warmup.ready, false);
+  assert.deepEqual(f.warmup.initialWork(false), {});
+  assert.deepEqual(f.warmup.initialWork(true), { priority: 'interactive' });
   f.warmup.request();
+  assert.deepEqual(f.warmup.initialWork(true), {});
   for (let index = 0; index < 4; index++) {
     assert.equal(f.calls.length, index);
     t.mock.timers.tick(1000);
@@ -85,6 +88,7 @@ await test('logout cancels deferred steps while an old operation settles', async
   t.mock.timers.tick(10000);
   await turn();
   assert.equal(f.warmup.ready, false);
+  assert.deepEqual(f.warmup.initialWork(true), { priority: 'interactive' });
   assert.deepEqual(f.calls, []);
 });
 

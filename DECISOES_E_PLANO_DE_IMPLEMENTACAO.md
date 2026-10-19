@@ -1,5 +1,32 @@
 # Capacity audit follow-up — 16 October 2026
 
+## Client history scheduling correction — 18 October 2026
+
+The owner requested continuing the capacity audit after the assembled history
+profile exposed client authority waiting. Identical `VaultSync.refresh` callers
+may share one queued vault read only until its authorized vault callback starts.
+A session reset, online/offline mode change, explicit local opening or another
+vault operation separates that group. Never retain an active/completed result,
+skip removal checks or change account SDK exclusivity and authority deadlines.
+
+The first visible directory startup keeps interactive priority through its pin
+reads and runtime preparation; hidden startup and later automatic rechecks keep
+maintenance priority. Queued refresh groups also match priority. Explicit
+conversation opening and earlier-history navigation keep the existing interactive
+priority through pin reads, synchronization, delivery, local history and final
+confirmation. Content/delivery/local-history form one bounded authority read;
+exposure still requires independent fresh authority and server confirmation. Automatic refreshes retain maintenance priority and the existing
+four-interactive-turn fairness rule. Each authority still runs its current
+verification; no queue, lock, timeout, transport or backend limit is relaxed.
+
+The [startup contract](docs/BOOT_CONTATOS_CONVERSAS.md#queued-vault-reads-and-selected-history-priority--18-october-2026)
+defines ordering, failure propagation and regression coverage. Use the existing
+integrated release process after passing checks; source correctness, publication
+and finite assembled acceptance remain separate. Calls stay deferred and last.
+
+**Ponto importante:** this is a focused scheduling correction, not a new capacity
+ceiling, stale authorization cache or proof of faster physical-phone startup.
+
 ## Shared live transport between tabs — owner approval, 18 October 2026
 
 The owner explicitly chose one authenticated own-origin SSE transport shared by

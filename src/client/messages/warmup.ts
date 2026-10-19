@@ -1,3 +1,5 @@
+import type { VaultWorkOptions } from '../vault-authority/index.ts';
+
 type Step = () => Promise<void>;
 
 /** Bounded startup maintenance yields between owners to foreground actions.
@@ -19,6 +21,10 @@ export class MessageWarmup {
   };
   constructor(options: MessageWarmup['options']) {
     this.options = options;
+  }
+  /** Only essential first startup is interactive; later rechecks stay maintenance. */
+  initialWork(visible: boolean): VaultWorkOptions {
+    return !this.ready && visible ? { priority: 'interactive' } : {};
   }
   request(): void {
     this.ready = true;

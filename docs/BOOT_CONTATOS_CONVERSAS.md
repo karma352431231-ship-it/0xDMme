@@ -1,5 +1,68 @@
 # Carregamento de contatos e conversas — 15/10/2026
 
+## Queued vault reads and selected history priority — 18 October 2026
+
+The capacity audit reproduced two client scheduling problems. Concurrent vault
+refresh callers queued separate copies of the same read. Explicit history opening
+requested interactive priority for its initial probe, then dropped that priority
+for synchronization and final confirmation. The correction preserves the current
+operations and checks while changing only their scheduling.
+
+`vault-sync/queued-refresh.ts` owns one pending refresh group. Callers may join it
+only before the authorized vault callback starts, before any local checkpoint or
+remote vault read. The callback clears the joinable reference immediately. Later
+callers schedule a fresh operation; neither active nor completed results are
+cached. The actual batch still acquires verified device authority and reads
+current removals, checkpoint, pending draft and remote pages normally. Failure
+rejects every joined caller and releases the pending reference for a new attempt.
+
+Account/device/CSRF replacement, reset, online/offline mode changes, explicit
+local opening and intervening vault operations separate groups. Saves, retries,
+discards and object reads never join a refresh or allow a later refresh to move
+across them. In particular, a queued encrypted draft remains visible to the next
+ordered refresh. Existing generation checks and bounded page/download work stay
+in force; no new persistence, plaintext cache or cross-tab credentials are added.
+
+The first visible directory startup also passes existing interactive work options
+through pin refresh/object reads and runtime preparation. `MessageWarmup` owns the
+initial-versus-normal lifecycle decision; hidden startup and subsequent automatic
+rechecks retain default maintenance priority. A queued maintenance vault refresh
+cannot absorb an interactive request: joinable groups must match priority as well
+as online/offline mode.
+
+Explicit opening and earlier-history navigation pass the existing interactive
+work options through pin loading, `Messages.synchronize`, delivery, local-history
+merging and final confirmation. Automatic maintenance retains its default priority. Device
+work still permits four interactive turns before a waiting maintenance turn, caps
+pending work and includes waiting in the existing acquisition deadline. Native
+account locks and exclusive SDK handles remain unchanged. No running operation
+is interrupted. The content read, current delivery check and local-history merge
+form one bounded projection under its verified authority. After pin persistence,
+a separate authority and server snapshot confirmation are still mandatory before
+exposing any view. No authority result is cached for another read. This reduces
+four authority acquisitions to two without bypassing the final check.
+
+Regressions use the actual vault synchronizer with controlled storage/authority
+boundaries and the actual history controller plus authority scheduler. They cover
+queued sharing, a later active read, failure/retry, session replacement, network
+mode changes, explicit local opening, encrypted-draft ordering and interactive
+versus maintenance ordering through final confirmation. A projection regression
+also requires two distinct authorization boundaries and keeps the history hidden
+until the final fresh confirmation. Existing session,
+revocation, removal, snapshot-change and hidden-history tests remain required.
+
+The message controller and UI coordinator remain hotspots. This change forwards
+existing work options within their current responsibilities; it does not add an
+independent feature or split them. Keep the separate extraction order below:
+session/identity, outbox/composition, then history/view lifecycle, with the
+existing session, revocation, recovery and layout checks after each extraction.
+
+**Ponto importante:** local regression success does not establish published
+nine-page acceptance or a physical-phone speedup. Keep failed finite profiles and
+their original limits in the private tracker. Publication uses the existing
+integrated, pushed, passing-CI release process; no schema, dependency, runtime,
+shared infrastructure, retention, crypto or call behavior changes are included.
+
 ## Usable conversations during mobile startup — 16/10/2026
 
 The owner clarified that both manual markers in the latest capture referred to
