@@ -3176,3 +3176,13 @@ outbox durability, cancellation and error reporting remain required.
 **Ponto importante:** this source scheduling change does not establish the
 4,000 ms opening target, five-to-ten-tab acceptance or publication. See
 [the loading contract](docs/BOOT_CONTATOS_CONVERSAS.md#four-second-opening-and-speculative-sdk-preparation--19-october-2026).
+
+### Som de mensagens privadas — 18/10/2026
+
+O proprietário escolheu a “Marimba” para mensagens privadas, entre seis sons
+sintetizados apresentados: duas batidas de madeira subindo (Lá→Mi) para
+conversa individual e descendo (Mi→Lá) para grupo privado. Chamadas recebidas
+mantêm o bipe curto anterior. Continua gerado por Web Audio no aparelho, sem
+arquivo, dependência ou rede; preferência, agrupamento em três segundos e mute
+não mudam. Vale só com o app aberto: push com app fechado segue o som do
+sistema. Contrato em [notificações](docs/BLOCO_10_NOTIFICACOES_E_EXPERIENCIA.md).

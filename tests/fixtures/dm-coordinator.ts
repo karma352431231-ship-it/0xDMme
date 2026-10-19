@@ -149,6 +149,8 @@ export function dmCoordinatorFixture(t: TestContext) {
   });
   const document = Object.assign(new EventTarget(), {
     visibilityState: 'visible',
+    // Menu glyphs are real SVG nodes; the fixture only needs their structure.
+    createElementNS: (_namespace: string, tag: string) => new DmNode(tag),
   });
   const window = new EventTarget();
   const fixture = {

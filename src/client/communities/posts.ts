@@ -684,12 +684,15 @@ export function startCommunityPosts(
       void run(load);
     });
     if (!own || own.role === 'participant') return;
-    button(panel, t('Posts e respostas ocultos'), () =>
-      run(async () => {
-        scope = 'removed';
-        after = null;
-        await load();
-      }),
+    iconLabel(
+      button(panel, t('Posts e respostas ocultos'), () =>
+        run(async () => {
+          scope = 'removed';
+          after = null;
+          await load();
+        }),
+      ),
+      'hide',
     );
   }
   function shell(): void {

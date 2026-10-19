@@ -52,14 +52,17 @@
   z-index: 5;
   display: grid;
   width: min(280px, calc(100vw - 32px));
-  padding: 8px;
+  padding: 6px;
   border: 1px solid var(--line);
   border-radius: 12px;
   background: var(--surface);
   box-shadow: 0 12px 32px var(--shadow);
 }
 .community-more > nav a {
-  padding: 12px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 10px;
   border-radius: 6px;
 }
 .community-heading {
@@ -94,4 +97,10 @@
 :is(.app[data-page='comunidades'], .community-scope) .icon-button svg {
   width: 23px;
   height: 23px;
+}
+/* Compact rows on desktop (19/10/2026); touch keeps a finger-sized target. */
+@media (pointer: coarse) {
+  .community-more > nav a {
+    min-height: 44px;
+  }
 }

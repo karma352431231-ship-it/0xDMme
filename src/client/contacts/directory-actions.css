@@ -17,9 +17,9 @@
   right: 0;
   top: calc(100% + 8px);
   display: grid;
-  gap: 6px;
+  gap: 4px;
   width: min(224px, calc(100vw - 32px));
-  padding: 8px;
+  padding: 6px;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--surface);
@@ -29,9 +29,10 @@
 #app-shell .directory-create-menu .directory-create-actions > :is(a, button) {
   display: flex;
   align-items: center;
+  gap: 12px;
   width: 100%;
-  min-height: 44px;
-  padding: 10px 12px;
+  min-height: 36px;
+  padding: 7px 10px;
   margin: 0;
   border: 1px solid var(--line-strong);
   border-radius: 6px;
@@ -45,6 +46,10 @@
   text-decoration: none;
   overflow-wrap: anywhere;
   cursor: pointer;
+}
+
+#app-shell .directory-create-menu .directory-create-actions svg {
+  flex: none;
 }
 
 #app-shell
@@ -73,5 +78,11 @@
       100dvh - 160px - env(safe-area-inset-top) - env(safe-area-inset-bottom)
     );
     overflow-y: auto;
+  }
+}
+/* Compact rows on desktop (19/10/2026); touch keeps a finger-sized target. */
+@media (pointer: coarse) {
+  #app-shell .directory-create-menu .directory-create-actions > :is(a, button) {
+    min-height: 44px;
   }
 }

@@ -1,5 +1,6 @@
 import { t } from '../../shared/i18n/index.ts';
 import type { ConversationAction, ConversationEntry } from './directory.ts';
+import { withMenuIcon } from '../menu-icons/index.ts';
 
 export function keepConversationMenu(
   current: ConversationEntry,
@@ -151,6 +152,7 @@ export class ConversationMenu {
       back.type = 'button';
       back.className = 'menu-back';
       back.textContent = t('Voltar');
+      withMenuIcon(back, 'back');
       back.addEventListener('click', () => {
         this.renderActions(list, parent, null);
       });
@@ -160,6 +162,7 @@ export class ConversationMenu {
       const button = document.createElement('button');
       button.type = 'button';
       button.textContent = action.label;
+      if (action.icon) withMenuIcon(button, action.icon);
       button.dataset['conversationAction'] = action.id;
       button.disabled = this.busy;
       button.addEventListener('click', () => {
@@ -188,6 +191,7 @@ export class ConversationMenu {
     close.type = 'button';
     close.className = 'menu-close';
     close.textContent = t('Fechar');
+    withMenuIcon(close, 'close');
     close.addEventListener('click', () => this.close());
     const list = document.createElement('div');
     list.className = 'conversation-menu-actions';

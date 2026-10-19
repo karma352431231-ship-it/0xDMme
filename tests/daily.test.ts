@@ -197,6 +197,69 @@ await test('som inicia ligado; só escolha explícita persiste desligamento; blo
   await reopened.dispose();
   assert.equal(values.get(soundPreferenceKey), 'true');
 });
+await test('privado sobe e grupo desce na marimba; ligação mantém bipe; alertas seguidos se agrupam em três segundos', () => {
+  const strikes: { frequency: number; at: number }[] = [];
+  let disconnected = 0;
+  const node = () => ({
+    connect: () => undefined,
+    disconnect: () => {
+      disconnected++;
+    },
+  });
+  const param = () => ({
+    setValueAtTime: () => undefined,
+    exponentialRampToValueAtTime: () => undefined,
+  });
+  const audio = {
+    state: 'running' as AudioContextState,
+    resume: () => Promise.resolve(),
+    close: () => Promise.resolve(),
+    currentTime: 10,
+    destination: {} as AudioDestinationNode,
+    createOscillator: () => {
+      const oscillator = {
+        ...node(),
+        frequency: { value: 0 },
+        onended: null as (() => void) | null,
+        start: (at: number) =>
+          strikes.push({ frequency: oscillator.frequency.value, at }),
+        stop: () => oscillator.onended?.(),
+      };
+      return oscillator as unknown as OscillatorNode;
+    },
+    createGain: () => ({ ...node(), gain: param() }) as unknown as GainNode,
+  };
+  const fundamentals = () =>
+    strikes
+      .filter((s) => s.frequency < 2000)
+      .sort((a, b) => a.at - b.at)
+      .map((s) => s.frequency);
+  const realNow = Date.now;
+  let now = 1_000_000;
+  Date.now = () => now;
+  try {
+    const sound = new NotificationSound(
+      { getItem: () => null, setItem: () => undefined },
+      () => audio,
+    );
+    sound.prepare();
+    sound.alert('direct');
+    assert.deepEqual(fundamentals(), [880, 1319]);
+    sound.alert('group');
+    assert.equal(strikes.length, 4, 'segundo alerta em menos de 3 s não toca');
+    now += 3000;
+    strikes.length = 0;
+    sound.alert('group');
+    assert.deepEqual(fundamentals(), [1319, 880]);
+    now += 3000;
+    strikes.length = 0;
+    sound.alert('call');
+    assert.deepEqual(fundamentals(), [660]);
+    assert.equal(disconnected, 2 * (4 + 4 + 1), 'nós soltos ao terminar');
+  } finally {
+    Date.now = realNow;
+  }
+});
 await test('falha de armazenamento informa que o desligamento de som só vale nesta abertura', async () => {
   const sound = new NotificationSound({
     getItem: () => null,

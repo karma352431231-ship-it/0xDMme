@@ -171,6 +171,7 @@ export class MessageDirectoryUi {
       {
         id: 'edit-contact',
         label: t('contacts.edit'),
+        icon: 'edit',
         perform: () => this.options.openContact(contact),
       },
       ...this.options.contactActions(contact, settingsId, mutePeer),

@@ -8,6 +8,8 @@ import { pingNotice } from '../ping/index.ts';
 import type { PingMood } from '../ping/index.ts';
 import { paintConversationPreview } from '../conversation-preview/index.ts';
 import type { ConversationPreview } from '../conversation-preview/index.ts';
+import { menuIcon } from '../menu-icons/index.ts';
+import type { MenuIconName } from '../menu-icons/index.ts';
 export interface DirectoryMenu {
   update: (entries: readonly ConversationEntry[]) => void;
   bind: (
@@ -21,6 +23,8 @@ export type ConversationFilter =
 export interface ConversationAction {
   id: string;
   label: string;
+  /** Leading glyph in the row menu, chosen by whoever offers the action. */
+  icon?: MenuIconName;
   perform: () => void;
   /** A second step in the same menu, such as the mute durations. */
   choices?: readonly ConversationAction[];
@@ -147,7 +151,8 @@ export function renderDirectory(
     const trigger = document.createElement('button');
     trigger.type = 'button';
     trigger.className = 'conversation-menu-trigger';
-    trigger.textContent = t('⌄');
+    // A drawn chevron stays centered; the old "⌄" glyph sat low in the circle.
+    trigger.append(menuIcon('chevron'));
     trigger.setAttribute('aria-label', t('Opções de {0}', [entry.title]));
     trigger.setAttribute('aria-haspopup', 'dialog');
     row.append(button, trigger);
