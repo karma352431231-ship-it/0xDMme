@@ -3029,3 +3029,13 @@ mantêm o bipe curto anterior. Continua gerado por Web Audio no aparelho, sem
 arquivo, dependência ou rede; preferência, agrupamento em três segundos e mute
 não mudam. Vale só com o app aberto: push com app fechado segue o som do
 sistema. Contrato em [notificações](docs/BLOCO_10_NOTIFICACOES_E_EXPERIENCIA.md).
+
+### Filtros do feed e aviso de nova versão — 19/10/2026
+
+O proprietário pediu que o feed lembre a ordenação e o período escolhidos até a
+pessoa trocar (padrão continua 24 horas) e que o aviso de atualização só apareça
+quando a versão em uso estiver de fato desatualizada, centralizado embaixo e sem
+ser coberto pelo "+". Os filtros ficam no aparelho, sem dado de conta. A regra
+de não ativar o Worker automaticamente foi preservada. Contratos em
+[feeds](docs/PERFIL_PUBLICO_E_FEEDS.md#feed-e-seguindo) e
+[base web](docs/BLOCO_02_BASE_WEB.md).

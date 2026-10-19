@@ -106,11 +106,9 @@
   .card {
     padding: 20px;
   }
+  /* Above the phone "+" (82px from the bottom, 54px tall) so it never covers it. */
   .update {
-    bottom: 90px;
-    right: 16px;
-    max-width: calc(100vw - 32px);
-    z-index: 50;
+    bottom: calc(148px + env(safe-area-inset-bottom));
   }
   .voice-dock {
     bottom: 90px;

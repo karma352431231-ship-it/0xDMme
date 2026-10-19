@@ -28,7 +28,12 @@ import {
 } from './elements.ts';
 import type { ExternalMediaConsent } from '../external-media/index.ts';
 import { DiscoverySnapshot } from './discovery-page.ts';
-import { feedPosition, restoreFeedPosition } from './feed-return.ts';
+import {
+  feedPosition,
+  rememberFeedChoice,
+  rememberedFeedChoice,
+  restoreFeedPosition,
+} from './feed-return.ts';
 import { FeedRefresh } from './feed-refresh.ts';
 import type { PublicProfile } from '../../shared/public-profile/index.ts';
 import type { FeedBookmark } from './feed-return.ts';
@@ -135,6 +140,7 @@ export function startCommunityDiscovery(
         (value) => {
           exploreOrder = exploreFilter({ order: value, period }).order;
           periodPanel.hidden = exploreOrder === 'size';
+          rememberFeedChoice(view, { explore: exploreOrder, period });
           void run(reload);
         },
       );
@@ -151,6 +157,7 @@ export function startCommunityDiscovery(
             community: null,
             tag: null,
           }).order;
+          rememberFeedChoice(view, { order, period });
           void run(reload);
         },
       );
@@ -174,6 +181,7 @@ export function startCommunityDiscovery(
           view === 'explore'
             ? exploreFilter({ order: exploreOrder, period: value }).period
             : discoveryPeriod(value);
+        rememberFeedChoice(view, { order, explore: exploreOrder, period });
         void run(reload);
       },
     );
@@ -385,10 +393,14 @@ export function startCommunityDiscovery(
       saved: 'recent',
       hidden: 'recent',
     };
-    order = bookmark?.order ?? defaults[view]!;
+    // Defaults apply until the person chooses; a return bookmark wins over both.
+    const saved = rememberedFeedChoice(view);
+    order = bookmark?.order ?? saved.order ?? defaults[view]!;
     period =
-      bookmark?.period ?? (['explore', 'feed'].includes(view) ? 'day' : 'all');
-    exploreOrder = 'trending';
+      bookmark?.period ??
+      saved.period ??
+      (['explore', 'feed'].includes(view) ? 'day' : 'all');
+    exploreOrder = saved.explore ?? 'trending';
   }
   return {
     mount(

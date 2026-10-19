@@ -3,6 +3,8 @@ import { test } from 'node:test';
 import {
   FeedReturn,
   feedPosition,
+  rememberFeedChoice,
+  rememberedFeedChoice,
   restoreFeedPosition,
 } from '../src/client/communities/feed-return.ts';
 import type { FeedBookmark } from '../src/client/communities/feed-return.ts';
@@ -89,4 +91,50 @@ await test('retorno por rolagem da página ancora o primeiro post visível, incl
   scroll.scrollTop = 0;
   restoreFeedPosition(container, saved);
   assert.equal(scroll.scrollTop, 680);
+});
+await test('filtros escolhidos ficam por visão no aparelho; valores inválidos voltam ao padrão', () => {
+  const values = new Map<string, string>();
+  const storage = {
+    getItem: (key: string) => values.get(key) ?? null,
+    setItem: (key: string, value: string) => {
+      values.set(key, value);
+    },
+  };
+  assert.deepEqual(rememberedFeedChoice('feed', storage), {});
+  rememberFeedChoice('feed', { order: 'votes', period: 'week' }, storage);
+  rememberFeedChoice('explore', { explore: 'new', period: 'week' }, storage);
+  assert.deepEqual(rememberedFeedChoice('feed', storage), {
+    order: 'votes',
+    period: 'week',
+  });
+  assert.deepEqual(rememberedFeedChoice('following', storage), {});
+  assert.deepEqual(rememberedFeedChoice('explore', storage), {
+    explore: 'new',
+    period: 'week',
+  });
+  // The ranking only offers 24 hours or seven days; other views are not stored.
+  rememberFeedChoice('explore', { explore: 'size', period: 'all' }, storage);
+  rememberFeedChoice('saved', { order: 'recent', period: 'month' }, storage);
+  assert.deepEqual(rememberedFeedChoice('explore', storage), {
+    explore: 'new',
+    period: 'week',
+  });
+  const stored = JSON.parse(
+    values.get('0xdmme:feed-choices') ?? '{}',
+  ) as object;
+  assert.deepEqual(Object.keys(stored), ['feed', 'explore']);
+  values.set('0xdmme:feed-choices', '{"feed":{"order":"x","period":"day"}');
+  assert.deepEqual(rememberedFeedChoice('feed', storage), {});
+  const blocked = {
+    getItem: () => {
+      throw new Error('bloqueado');
+    },
+    setItem: () => {
+      throw new Error('bloqueado');
+    },
+  };
+  assert.doesNotThrow(() =>
+    rememberFeedChoice('feed', { order: 'recent', period: 'day' }, blocked),
+  );
+  assert.deepEqual(rememberedFeedChoice('feed', blocked), {});
 });

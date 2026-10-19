@@ -18,7 +18,20 @@ if (!source) throw new Error('Build de teste ausente.');
 class Worker extends EventTarget {
   state = 'installing';
   messages: unknown[] = [];
-  postMessage(message: unknown): void {
+  /** Hashed files of this release; `null` models an older worker that never replies. */
+  release: string[] | null = null;
+  postMessage(message: unknown, ports?: MessagePort[]): void {
+    const query = message as { type?: string; paths?: string[] };
+    if (query.type === 'SHELL_INCLUDES') {
+      if (this.release)
+        ports?.[0]?.postMessage({
+          type: 'SHELL_INCLUDES_RESULT',
+          included: (query.paths ?? []).every((path) =>
+            this.release?.includes(path),
+          ),
+        });
+      return;
+    }
     this.messages.push(message);
   }
   change(state: string): void {
@@ -38,7 +51,10 @@ class Registration extends EventTarget {
   }
 }
 
-function browser(locationValues: { search?: string; hash?: string } = {}) {
+function browser(
+  locationValues: { search?: string; hash?: string } = {},
+  page: string[] | null = null,
+) {
   const elements = new Map(
     ['pwa-state', 'update', 'apply-update', 'update-result'].map((id) => [
       id,
@@ -74,6 +90,8 @@ function browser(locationValues: { search?: string; hash?: string } = {}) {
     search: '',
     hash: '',
     pathname: '/',
+    href: 'https://0xdmme.app/',
+    origin: 'https://0xdmme.app',
     ...locationValues,
     reload() {
       reloads++;
@@ -82,8 +100,16 @@ function browser(locationValues: { search?: string; hash?: string } = {}) {
       replacements.push(url);
     },
   };
+  const scripts = (page ?? []).map((src) => ({
+    getAttribute: (name: string) => (name === 'src' ? src : null),
+  }));
   const api = runInNewContext(`${source}\nPwa;`, {
-    document: { getElementById: (id: string) => elements.get(id) },
+    document: {
+      getElementById: (id: string) => elements.get(id),
+      querySelectorAll: () => scripts,
+    },
+    // Only pages that list their files compare releases, as in the browser.
+    ...(page ? { MessageChannel } : {}),
     window,
     navigator: { serviceWorker },
     location,
@@ -312,4 +338,66 @@ await test('abrir push público muda só a rota da aba, sem recarga, e recusa de
   assert.equal(scope.location.pathname, `/communities/id/${id}/posts/${post}`);
   assert.equal(scope.reloads(), 0);
   scope.window.dispatchEvent(new Event('pagehide'));
+});
+
+const current = ['/app-1111111111111111.js', '/app-2222222222222222.css'];
+const older = ['/app-0000000000000000.js', '/app-2222222222222222.css'];
+const settle = () => new Promise<void>((resolve) => setTimeout(resolve, 20));
+
+await test('página recarregada já na versão nova não pede atualização nem ativa o worker sozinha', async () => {
+  const scope = browser({}, current);
+  scope.registration.installing = null;
+  scope.registration.active = Object.assign(new Worker(), { release: older });
+  scope.registration.waiting = Object.assign(new Worker(), {
+    release: current,
+  });
+  scope.start();
+  await settle();
+  assert.equal(scope.elements.get('update')?.hidden, true);
+  // Other tabs may still run the old release: no automatic skipWaiting.
+  assert.equal(scope.registration.waiting.messages.length, 0);
+  assert.match(scope.status(), /already runs the latest/);
+  assert.equal(scope.reloads(), 0);
+  scope.window.dispatchEvent(new Event('pagehide'));
+});
+
+await test('página antiga mostra o aviso e recarrega pela ativação do worker, sem esperar controllerchange', async () => {
+  const scope = browser({}, older);
+  scope.registration.installing = null;
+  scope.registration.active = Object.assign(new Worker(), { release: older });
+  const waiting = Object.assign(new Worker(), { release: current });
+  scope.registration.waiting = waiting;
+  scope.start();
+  await settle();
+  assert.equal(scope.elements.get('update')?.hidden, false);
+  scope.elements.get('apply-update')?.dispatchEvent(new Event('click'));
+  assert.equal(
+    JSON.stringify(waiting.messages),
+    '[{"type":"ACTIVATE_PUBLIC_SHELL"}]',
+  );
+  waiting.change('activated');
+  scope.serviceWorker.dispatchEvent(new Event('controllerchange'));
+  assert.equal(scope.reloads(), 1);
+  scope.window.dispatchEvent(new Event('pagehide'));
+});
+
+await test('aba antiga sob worker já ativo e mais novo atualiza só recarregando; worker antigo mudo não inventa aviso', async () => {
+  const scope = browser({}, older);
+  scope.registration.installing = null;
+  scope.registration.active = Object.assign(new Worker(), { release: current });
+  scope.start();
+  await settle();
+  assert.equal(scope.elements.get('update')?.hidden, false);
+  scope.elements.get('apply-update')?.dispatchEvent(new Event('click'));
+  assert.equal(scope.reloads(), 1);
+  const silent = browser({}, older);
+  silent.registration.installing = null;
+  silent.registration.active = new Worker();
+  silent.start();
+  await settle();
+  silent.expire();
+  await settle();
+  assert.equal(silent.elements.get('update')?.hidden, true);
+  scope.window.dispatchEvent(new Event('pagehide'));
+  silent.window.dispatchEvent(new Event('pagehide'));
 });
