@@ -397,7 +397,7 @@ await test('retorno com stream desatualizado fecha antes de reconectar, mesmo se
   assert.ok(calls.indexOf('pause') < calls.indexOf('live-start'));
 });
 
-await test('aviso recebido em hidden atualiza a conversa sem marcar leitura', async (t) => {
+await test('a hidden hint waits without marking read and performs its current check after visibility', async (t) => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
   const f = coordinatorFixture(t);
   f.messages.ready();
@@ -416,8 +416,12 @@ await test('aviso recebido em hidden atualiza a conversa sem marcar leitura', as
   t.mock.timers.tick(150);
   await turn();
   const calls = f.calls.slice(before);
-  assert.ok(calls.includes('probe'));
+  assert.ok(!calls.includes('probe'));
   assert.ok(!calls.includes('read'));
+  f.visibility('visible');
+  t.mock.timers.tick(150);
+  await turn();
+  assert.ok(f.calls.slice(before).includes('probe'));
 });
 
 await test('queda de conexão e exclusão em hidden fecham a conversa imediatamente', async (t) => {
@@ -513,7 +517,7 @@ await test('automatic selected-history refresh keeps maintenance priority while 
   );
 });
 
-await test('a live change prioritizes the visible conversation recheck without promoting hidden maintenance', async (t) => {
+await test('a live change checks the visible conversation and defers hidden history while removals still invalidate immediately', async (t) => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
   const f = coordinatorFixture(t);
   f.state.probeChanged = true;
@@ -532,6 +536,13 @@ await test('a live change prioritizes the visible conversation recheck without p
   f.priorities.length = 0;
   f.state.visibilityState = 'hidden';
   f.emit('changed');
+  t.mock.timers.tick(150);
+  await turn();
+  assert.equal(f.priorities.length, 0);
+  f.emit('removed');
+  assert.ok(f.calls.includes('removed'));
+  assert.equal(f.send.disabled, true);
+  f.visibility('visible');
   t.mock.timers.tick(150);
   await turn();
   assert.deepEqual(
@@ -630,4 +641,20 @@ await test('first visible directory startup preserves its priority through conta
   await turn();
   assert.equal(f.directoryWork.length, 1);
   assert.equal(f.directoryWork[0]?.priority, undefined);
+});
+
+await test('returning to visibility resumes pending startup maintenance without requiring a new live hint', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const f = coordinatorFixture(t);
+  f.messages.ready();
+  t.mock.timers.tick(150);
+  await turn();
+  f.visibility('hidden');
+  t.mock.timers.tick(1000);
+  await turn();
+  assert.ok(!f.calls.includes('groups'));
+  f.visibility('visible');
+  t.mock.timers.tick(1000);
+  await turn();
+  assert.ok(f.calls.includes('groups'));
 });

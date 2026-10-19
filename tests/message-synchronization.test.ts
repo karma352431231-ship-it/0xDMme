@@ -264,7 +264,7 @@ await test('snapshot atualizado durante preparação repete no próximo turno se
   assert.equal(calls, 2);
 });
 
-await test('aba hidden continua preparação e avisos, sem renovar presença online', async (t) => {
+await test('a hidden tab defers automatic preparation and hints without renewing online presence', async (t) => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
   const f = fixture(t);
   f.state.visible = false;
@@ -289,6 +289,15 @@ await test('aba hidden continua preparação e avisos, sem renovar presença onl
   t.mock.timers.tick(1000);
   await turn();
   await f.sync.periodicTick();
+  assert.equal(probes, 0);
+  assert.equal(pages, 0);
+  assert.equal(presence, 0);
+  f.state.visible = true;
+  f.sync.resume();
+  t.mock.timers.tick(150);
+  await turn();
+  t.mock.timers.tick(1000);
+  await turn();
   assert.equal(probes, 1);
   assert.equal(pages, 1);
   assert.equal(presence, 0);
@@ -444,7 +453,7 @@ for (const clear of ['reset', 'startRefresh'] as const) {
   });
 }
 
-await test('a queued visible-change recheck yields its priority if the page becomes hidden before acquisition', async (t) => {
+await test('a queued visible-change recheck waits while hidden and resumes its fresh foreground priority', async (t) => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
   const f = fixture(t),
     priorities: (string | undefined)[] = [];
@@ -459,7 +468,12 @@ await test('a queued visible-change recheck yields its priority if the page beco
   f.sync.resume();
   t.mock.timers.tick(150);
   await turn();
-  assert.deepEqual(priorities, [undefined]);
+  assert.deepEqual(priorities, []);
+  f.state.visible = true;
+  f.sync.resume();
+  t.mock.timers.tick(150);
+  await turn();
+  assert.deepEqual(priorities, ['interactive']);
 });
 
 await test('a visible live-history request yields prefetch cooperatively and retains the signed recheck priority', async (t) => {
@@ -499,5 +513,45 @@ await test('a visible live-history request yields prefetch cooperatively and ret
   t.mock.timers.tick(150);
   await turn();
   assert.deepEqual(priorities, ['interactive']);
+  assert.deepEqual(f.notices, []);
+});
+
+await test('hidden automatic hints coalesce without preparing history and resume one fresh check on visibility', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const f = fixture(t);
+  f.state.visible = false;
+  let checks = 0,
+    preparations = 0,
+    sends = 0;
+  f.options.changes = () => {
+    checks++;
+    return Promise.resolve();
+  };
+  f.options.preloadDirect = () => {
+    preparations++;
+    return Promise.resolve(false);
+  };
+  for (let hint = 0; hint < 5; hint++) f.sync.request('probe');
+  t.mock.timers.tick(30000);
+  await turn();
+  assert.equal(checks, 0);
+  assert.equal(preparations, 0);
+  assert.equal(
+    await f.sync.run(() => {
+      sends++;
+      return Promise.resolve();
+    }),
+    true,
+  );
+  assert.equal(
+    sends,
+    1,
+    'Explicit durable sending is independent of automatic hidden history work',
+  );
+  f.state.visible = true;
+  f.sync.resume();
+  t.mock.timers.tick(150);
+  await turn();
+  assert.equal(checks, 1);
   assert.deepEqual(f.notices, []);
 });

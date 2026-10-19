@@ -210,7 +210,8 @@ export class MessageSynchronization {
     this.options.pause();
   }
   private canSynchronize(): boolean {
-    return this.foregroundReady && !this.options.state().textPending;
+    const state = this.options.state();
+    return this.foregroundReady && state.visible && !state.textPending;
   }
   get foregroundReady(): boolean {
     const state = this.options.state();

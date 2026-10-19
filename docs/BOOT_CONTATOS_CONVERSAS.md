@@ -1,5 +1,27 @@
 # Carregamento de contatos e conversas — 15/10/2026
 
+## Automatic hidden histories wait for visibility — 19 October 2026
+
+The native five-tab diagnostic records11.498s of hidden SDK work in a15.854s
+reverse-delivery window, alongside maintenance-admission timeouts. A regression
+confirms automatic hidden hints still started history/preparation owners.
+The synchronization owner now keeps those hints coalesced until the page becomes
+visible. Its existing visibility resume performs a current signed check before
+new content is exposed; removal/authorization hints still invalidate immediately.
+Already running owners finish under their existing lifecycle and SDK lock.
+
+This gates automatic history checks, preparation and optional startup maintenance
+only. Explicit queued/durable user sends keep their current lifecycle while hidden;
+server-accepted packets and the encrypted outbox are not expired or discarded.
+The shared live transport, generic wakeups and call controller remain independent.
+After returning, session/generation/authority/removal/final-confirmation gates still
+apply; no cached authorization or new content channel is introduced.
+
+**Ponto importante:** hidden chat views and optional preload update when brought
+back into view instead of every tab doing the same preparation concurrently.
+This changes invisible automatic scheduling, not acceptance of the still-failed
+simultaneous-visible stress profile. Normal ten-tab acceptance needs measurement.
+
 ## A visible live check releases optional prefetch — 19 October 2026
 
 The synchronization gate excludes a running optional history-preparation page.
@@ -11,8 +33,8 @@ A visible interactive request now invokes that existing cooperative stop before
 coalescing its fresh signed check. The active page still settles and releases its
 SDK owner before the check runs; no overlapping SDK access or skipped authority,
 removal or final confirmation is permitted. A stopped page is not marked complete
-and preparation resumes later. Ordinary/hidden background hints keep their
-previous behavior and do not repeatedly cancel a page.
+and preparation resumes later. Ordinary background hints do not repeatedly cancel a page; hidden hints remain
+coalesced until visibility, as specified above.
 
 **Ponto importante:** this changes scheduling of optional prefetch only. An empty
 live hint grants no content, and the failed8s measurements stay failed until a
@@ -29,7 +51,7 @@ directory/controller regressions reproduce the loss before correction.
 The first visible startup now forwards its existing work options through the
 whole bounded directory: encrypted agenda heads, approved-contact signed reads
 and local archived-peer discovery under fresh authority. Later automatic checks
-and hidden startup retain maintenance priority. Directory changes/generation,
+retain maintenance priority; hidden automatic startup waits for visibility. Directory changes/generation,
 contact authorization, pagination and both vault removal checks are unchanged;
 this is neither an authorization cache nor reuse of completed reads.
 
@@ -79,8 +101,8 @@ conversation also prioritizes its fresh history recheck; an empty hint grants no
 content or authority. Hidden conversations and unrelated contact/group/presence
 work retain maintenance priority. The synchronization owner keeps one pending
 priority bit through coalesced probe/full-refresh requests, consumes it once and
-clears it on reset or covered full-refresh startup. A page hidden before dispatch
-returns to maintenance priority. Active work is never aborted.
+clears it on reset or covered full-refresh startup. A page hidden before dispatch waits for visibility without starting automatic
+history work; reset still discards pending priority. Active work is never aborted.
 Real coordinator regressions distinguish ordinary automatic refresh, explicit
 opening, a visible live change and a hidden live change; scheduling regressions
 cover coalescence and reset so priority cannot leak into a later session.
@@ -157,8 +179,8 @@ in force; no new persistence, plaintext cache or cross-tab credentials are added
 
 The first visible directory startup also passes existing interactive work options
 through pin refresh/object reads and runtime preparation. `MessageWarmup` owns the
-initial-versus-normal lifecycle decision; hidden startup and subsequent automatic
-rechecks retain default maintenance priority. A queued maintenance vault refresh
+initial-versus-normal lifecycle decision; subsequent automatic rechecks retain
+default maintenance priority and hidden automatic startup waits for visibility. A queued maintenance vault refresh
 cannot absorb an interactive request: joinable groups must match priority as well
 as online/offline mode.
 

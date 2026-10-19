@@ -3100,7 +3100,8 @@ See [the loading contract](docs/BOOT_CONTATOS_CONVERSAS.md#saved-user-texts-prec
 The first visible startup already assigns interactive work to pin/runtime setup,
 but previously dropped it through agenda/approved-contact/archive loading. Keep
 that existing priority end to end through these bounded directory owners; later
-automatic checks and hidden startup stay maintenance. Preserve fresh signed
+automatic checks stay maintenance and hidden automatic startup waits for
+visibility, as specified below. Preserve fresh signed
 contact reads, encrypted agenda/removal checks, generation cancellation and SDK
 exclusivity. **Ponto importante:** the failed28.898s sixth-tab opening remains a
 failed measurement until a corrected finite comparison meets the original20s
@@ -3111,7 +3112,22 @@ limit. [Loading contract](docs/BOOT_CONTATOS_CONVERSAS.md#first-directory-openin
 A regression confirms a visible interactive history hint was blocked by optional
 prefetch without requesting its existing cooperative release. Ask that lifecycle
 to yield, wait for its active SDK owner to settle, then run the coalesced fresh
-signed recheck at its original priority. Ordinary and hidden background hints keep
-their current wait/progress behavior. **Ponto importante:** no active SDK overlap,
+signed recheck at its original priority. Ordinary background hints keep their
+wait/progress behavior; hidden hints coalesce until visibility, as specified below. **Ponto importante:** no active SDK overlap,
 accepted-data expiry, authorization cache or cryptographic shortcut is introduced;
 this source correction alone is not finite latency acceptance.
+
+### Automatic history work across hidden tabs — 19 October 2026
+
+Native timing shows hidden pages competing for the same SDK owner during visible
+message delivery. Keep automatic history hints coalesced until page visibility,
+then use the existing current signed recheck. Already running work settles;
+explicit durable sends, shared live wakeups and immediate removal/authorization
+invalidation retain their lifecycle. Server acceptance, outbox durability,
+retention, encryption and final verification are unchanged.
+
+**Ponto importante:** hidden UI history/preload and optional startup maintenance
+resume when visible, rather than preparing identical history concurrently in all
+tabs. This supersedes the earlier automatic-hidden maintenance scheduling, not
+its security checks or the recorded failed stress results. Full normal ten-tab
+latency/resource/recovery acceptance remains to be measured.
