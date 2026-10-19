@@ -131,7 +131,7 @@ await test('fila global de análise: concorrência, atomicidade, retries, contes
           { ...evaluation(job), frames: 1_799 },
           bind,
         ),
-        /incompleta/,
+        /incomplete/,
       );
       await assert.rejects(
         db.publicModeration.finish(
