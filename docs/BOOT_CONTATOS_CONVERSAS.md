@@ -1,5 +1,65 @@
 # Carregamento de contatos e conversas — 15/10/2026
 
+## Profile publication follows verified history — 18 October 2026
+
+The assembled trace includes an automatic own profile-card publication before
+history projection, even though verified history does not require publishing a
+new name/photo. Both explicit opening and selected-history startup awaited that
+publication. The real coordinator regression holds profile transmission and
+reproduces blocked history before the correction.
+
+Automatic selected-history refreshes also retain maintenance priority through
+probe, pins, projection and fresh confirmation. Explicit opening and user sends
+keep interactive priority. The actual coordinator regression reproduces the old
+priority leak during a selected-history refresh and requires the distinction.
+
+Opening and startup now finish their existing verified history/removal/server
+confirmation flow first. The existing ProfileBroadcast round handles the card
+after foreground work and startup maintenance settle. It retains readiness,
+one active round, idempotent encrypted publication and existing retry triggers.
+The current approved private contact joins that round even when outside the
+loaded directory page; archive-only contacts are excluded. No cross-session
+selected-recipient state or new queue is retained. Profile publication errors do
+not turn successful verified history opening into a failed conversation.
+
+**Ponto importante:** the other person may receive the updated name/photo after
+history opens. Private cards still reach confirmed contacts automatically through
+the existing encrypted-message path; history authorization and user sends retain
+their current verification gates. This ordering correction is not finite load
+acceptance until the assembled comparison meets its declared criteria.
+
+## Cross-tab authority admission — 18 October 2026
+
+The per-controller priority queue cannot reorder maintenance requests already
+submitted by other tabs to the native account lock. A regression using three real
+controllers and the native LockManager reproduces maintenance ahead of a later
+foreground action. `devices/authority-turns.ts` now owns admission across tabs.
+
+Foreground operations request a shared account turn gate. Maintenance first takes
+an exclusive account maintenance-intent gate, then an exclusive turn gate. Only
+one maintenance contender can wait at the turn gate; other maintenance contenders
+cannot queue ahead of foreground work there. A queued exclusive turn also blocks
+later shared arrivals, so maintenance progresses under continued foreground work.
+The controller's existing four-interactive-turn fairness policy remains in force.
+
+Every admitted operation then takes the original exclusive account SDK lock and
+performs the existing session, authority, cryptographic and removal checks. Shared
+turn admission never permits concurrent SDK access. There is no lock stealing,
+interruption of active work, polling, new persistent state or cross-tab payload.
+The local queue, both admission gates and SDK acquisition consume the same
+existing eight-second waiting budget; running work retains its existing lifecycle.
+Timeouts, failures and owner-page closure release native locks. Other accounts and
+browser storage partitions retain independent native lock scopes.
+
+The owner clarified that five to ten tabs in one browser must work well. This is
+an acceptance objective, not a product quota or evidence of a server-user ceiling.
+Local regressions and a native browser control must pass before another finite
+assembled comparison. Preserve previous failed profiles and their timing limits.
+Calls remain deferred and last; no call behavior changes belong to this work.
+
+**Ponto importante:** improved admission ordering is not assembled performance
+acceptance. Full history still requires fresh authority and final confirmation.
+
 ## Queued vault reads and selected history priority — 18 October 2026
 
 The capacity audit reproduced two client scheduling problems. Concurrent vault

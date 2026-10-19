@@ -54,7 +54,10 @@ import {
 } from '../../shared/attachments/index.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
 import type { Peer, AddressBookEntry } from '../../shared/contacts/index.ts';
-import type { VaultAccess } from '../vault-authority/index.ts';
+import type {
+  VaultAccess,
+  VaultWorkOptions,
+} from '../vault-authority/index.ts';
 import type { VaultSync } from '../vault-sync/index.ts';
 import { Messages } from './controller.ts';
 import type { MessageView } from './controller.ts';
@@ -949,7 +952,10 @@ export function startMessages(
         if (current === generation && !continuity.suspended)
           await openPeer(peer);
       })
-      .finally(clear);
+      .finally(() => {
+        clear();
+        broadcastProfile();
+      });
   }
   async function openPeer(peer: ConversationPeer): Promise<void> {
     if (
@@ -968,8 +974,6 @@ export function startMessages(
       await controller.openArchive(peer.accountId);
       return;
     }
-    const card = sharedProfile();
-    if (card) await controller.shareProfile(peer.accountId, card);
     await synchronizeVisible();
     await controller.savePins();
     // Opening one conversation only needs its read receipts. Account-wide
@@ -1103,16 +1107,16 @@ export function startMessages(
       await controller.openArchive(selected.accountId);
       return;
     }
-    const card = sharedProfile();
-    if (card) await controller.shareProfile(selected.accountId, card);
-    await synchronizeVisible();
+    await synchronizeVisible({});
   }
-  async function synchronizeVisible(): Promise<void> {
+  async function synchronizeVisible(
+    work: VaultWorkOptions = { priority: 'interactive' },
+  ): Promise<void> {
     if (!conversationMounted('[data-direct-conversation]')) return;
-    if (await controller.probe({ priority: 'interactive' })) {
-      await controller.loadPins({ priority: 'interactive' });
+    if (await controller.probe(work)) {
+      await controller.loadPins(work);
       synchronization.prepareHistory();
-      await controller.synchronize({ priority: 'interactive' });
+      await controller.synchronize(work);
     }
   }
   async function submit(): Promise<void> {
@@ -1401,7 +1405,9 @@ export function startMessages(
   }
   /** Background round; a failure is retried by the next tick or profile save. */
   function broadcastProfile(): void {
-    profileBroadcast.run().catch(() => undefined);
+    const peer =
+      selected && !selected.localOnly ? selected.accountId : undefined;
+    profileBroadcast.run(peer).catch(() => undefined);
   }
   function pageHide(event: PageTransitionEvent): void {
     continuity.freeze();

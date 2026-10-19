@@ -21,11 +21,14 @@ export class ProfileBroadcast {
     this.options = options;
   }
 
-  async run(): Promise<void> {
+  async run(selected?: string): Promise<void> {
     if (this.running || !this.options.ready()) return;
     const card = this.options.card();
     if (!card) return;
-    const peers = [...this.options.peers()].sort();
+    // A just-opened approved contact may be outside the loaded directory page.
+    const peers = [
+      ...new Set([...this.options.peers(), ...(selected ? [selected] : [])]),
+    ].sort();
     const key = `${card.revision}:${peers.join(',')}`;
     if (key === this.done) return;
     this.running = true;

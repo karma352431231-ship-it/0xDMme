@@ -6,6 +6,7 @@ import type { startMessages } from '../../src/client/messages/index.ts';
 import type { AccountSession } from '../../src/shared/account/index.ts';
 import type { MessageView } from '../../src/client/messages/controller.ts';
 import type { LiveEvent } from '../../src/client/message-live/index.ts';
+import type { VaultWorkOptions } from '../../src/client/vault-authority/index.ts';
 import type { VaultAccess } from '../../src/client/vault-authority/index.ts';
 import type { VaultSync } from '../../src/client/vault-sync/index.ts';
 import { deferred } from './deferred.ts';
@@ -35,6 +36,7 @@ const real = new Set([
   './warmup.ts',
   './text-send.ts',
   './outgoing-text.ts',
+  './profile-broadcast.ts',
 ]);
 const bundle = await build({
   entryPoints: [entry],
@@ -74,12 +76,17 @@ const bundle = await build({
 
 export function coordinatorFixture(t: TestContext) {
   const calls: string[] = [];
+  const priorities: {
+    operation: string;
+    priority: 'interactive' | undefined;
+  }[] = [];
   const page = deferred<boolean>();
   const initialization = deferred<void>();
   const groupLoad = deferred<void>();
   const history = deferred<void>();
   const saving = deferred<void>();
   const sending = deferred<void>();
+  const profile = deferred<void>();
   const drafts: { id: string; peer: string; text: string }[] = [];
   const state = {
     visibilityState: 'visible',
@@ -89,6 +96,8 @@ export function coordinatorFixture(t: TestContext) {
     holdHistory: false,
     holdSave: false,
     holdSend: false,
+    withProfile: false,
+    holdProfile: false,
     liveCurrent: true,
     liveConnected: true,
     groupVisible: false,
@@ -144,7 +153,6 @@ export function coordinatorFixture(t: TestContext) {
     'GifSearch',
     'Contacts',
     'PeerPhotos',
-    'ProfileBroadcast',
     'ConversationPreviewLoader',
   ]) {
     fixture[name] = function () {
@@ -246,16 +254,26 @@ export function coordinatorFixture(t: TestContext) {
           ? initialization.promise
           : Promise.resolve();
       },
-      loadPins: () => {
+      loadPins: (options: VaultWorkOptions = {}) => {
+        priorities.push({ operation: 'pins', priority: options.priority });
         calls.push('pins');
         return Promise.resolve();
       },
       savePins: asyncNoop,
-      probe: () => {
+      shareProfile: (peer: string) => {
+        calls.push('profile:' + peer);
+        return state.holdProfile ? profile.promise : Promise.resolve();
+      },
+      probe: (options: VaultWorkOptions = {}) => {
+        priorities.push({ operation: 'probe', priority: options.priority });
         calls.push('probe');
         return Promise.resolve(state.probeChanged);
       },
-      synchronize: () => {
+      synchronize: (options: VaultWorkOptions = {}) => {
+        priorities.push({
+          operation: 'synchronize',
+          priority: options.priority,
+        });
         calls.push('synchronize');
         if (state.holdHistory) return history.promise.then(() => publish([]));
         return Promise.resolve().then(() => publish([]));
@@ -432,7 +450,10 @@ export function coordinatorFixture(t: TestContext) {
       openConversation: () => calls.push('open-panel'),
       openContact: noop,
       directoryChanged: noop,
-      sharedProfile: () => null,
+      sharedProfile: () =>
+        state.withProfile
+          ? { name: 'Synthetic', revision: 1, photo: null }
+          : null,
       preferences: () => null,
     },
   );
@@ -450,12 +471,14 @@ export function coordinatorFixture(t: TestContext) {
     messages,
     state,
     calls,
+    priorities,
     page,
     initialization,
     groupLoad,
     history,
     saving,
     sending,
+    profile,
     drafts,
     input,
     send,

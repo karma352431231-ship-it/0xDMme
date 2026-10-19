@@ -54,3 +54,12 @@ await test('rounds never overlap', async () => {
   await Promise.all([s.broadcast.run(), s.broadcast.run()]);
   assert.deepEqual(s.sent, ['a@1', 'b@1']);
 });
+
+await test('a selected approved contact outside the directory page joins the same bounded nonoverlapping round', async () => {
+  const s = setup();
+  await Promise.all([s.broadcast.run('selected'), s.broadcast.run('selected')]);
+  assert.deepEqual(s.sent, ['a@1', 'b@1', 'selected@1']);
+  s.setPeers(['a', 'selected']);
+  await s.broadcast.run('selected');
+  assert.deepEqual(s.sent.slice(3), ['a@1', 'selected@1']);
+});

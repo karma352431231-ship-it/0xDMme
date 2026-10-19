@@ -1,5 +1,35 @@
 # Capacity audit follow-up — 16 October 2026
 
+## Profile publication outside history opening — 18 October 2026
+
+The assembled trace and real coordinator regression show explicit opening and
+startup awaiting an automatic own name/photo publication before reading verified
+history. Reuse the existing bounded, idempotent ProfileBroadcast lifecycle after
+foreground verification/startup maintenance. Include the current approved private
+contact even outside the loaded directory page, excluding archive-only contacts.
+Automatic selected-history rechecks retain maintenance priority throughout their
+probe/pins/projection/confirmation, while explicit opening and user sends keep
+interactive priority. No additional recipient state, plaintext transport,
+retention or authority cache is introduced. Existing encrypted profile sharing, fresh history confirmation,
+user-send gates and background retry triggers remain. A newly updated name/photo
+can arrive after the conversation opens. See the [startup contract](docs/BOOT_CONTATOS_CONVERSAS.md#profile-publication-follows-verified-history--18-october-2026).
+
+## Cross-tab authority scheduling — 18 October 2026
+
+The owner requires five to ten tabs in one browser to work well. The native
+account SDK lock remains exclusive. Per-controller priority alone does not order
+work across tabs, so a focused admission module limits maintenance to one waiting
+turn-gate contender while sharing foreground admission. A queued exclusive
+maintenance turn blocks later shared arrivals, preserving background progress.
+All waits consume the existing cumulative eight-second acquisition budget; every
+operation still obtains fresh authority and runs its current checks. No active
+work is interrupted and no authorization result is shared or cached.
+
+The [startup contract](docs/BOOT_CONTATOS_CONVERSAS.md#cross-tab-authority-admission--18-october-2026)
+defines ordering, deadlines and native-lock recovery. Keep failed performance
+profiles explicit. Local scheduling success does not certify assembled acceptance,
+maximum users or phone performance. Calls stay deferred and last.
+
 ## Client history scheduling correction — 18 October 2026
 
 The owner requested continuing the capacity audit after the assembled history

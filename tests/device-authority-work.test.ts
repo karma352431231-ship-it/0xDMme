@@ -119,12 +119,14 @@ await test('pending authority jobs have a bounded budget and do not run under a 
     configurable: true,
     value: {
       request: async (
-        _name: string,
+        name: string,
         options: LockOptions,
         work: () => Promise<unknown>,
       ) => {
-        nativeRequests++;
-        assert.equal(options.mode, 'exclusive');
+        if (name.startsWith('0xdmme-device-authority:')) {
+          nativeRequests++;
+          assert.equal(options.mode, 'exclusive');
+        }
         return work();
       },
     },

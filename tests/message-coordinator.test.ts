@@ -449,3 +449,64 @@ await test('a healthy idle group does not schedule a sync just because it is vis
   await f.tick();
   assert.ok(f.calls.slice(before).includes('group-retry'));
 });
+
+await test('verified history and startup resume do not await an automatic profile publication', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const f = coordinatorFixture(t);
+  f.state.withProfile = true;
+  f.state.holdProfile = true;
+  f.state.probeChanged = true;
+  t.after(() => f.profile.resolve());
+  let opened = false;
+  const opening = f.messages.openContact(peer('chosen')).then(() => {
+    opened = true;
+  });
+  await turn();
+  assert.ok(
+    f.calls.includes('synchronize'),
+    'Profile transmission must not precede verified history.',
+  );
+  assert.ok(f.calls.includes('read'));
+  assert.equal(opened, true);
+  await opening;
+  f.messages.ready();
+  t.mock.timers.tick(150);
+  await turn();
+  assert.equal(
+    f.calls.filter((call) => call === 'synchronize').length,
+    2,
+    'Startup resumes the verified selection before profile transmission.',
+  );
+  await finishStartupMaintenance(t);
+  assert.deepEqual(
+    f.calls.filter((call) => call.startsWith('profile:')),
+    ['profile:chosen'],
+    'The selected approved contact is included even outside the loaded directory page.',
+  );
+  assert.ok(f.calls.indexOf('read') < f.calls.indexOf('profile:chosen'));
+  f.profile.resolve();
+  await turn();
+});
+
+await test('automatic selected-history refresh keeps maintenance priority while explicit opening stays interactive', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const f = coordinatorFixture(t);
+  f.state.probeChanged = true;
+  await f.messages.openContact(peer('chosen'));
+  assert.deepEqual(f.priorities, [
+    { operation: 'probe', priority: 'interactive' },
+    { operation: 'pins', priority: 'interactive' },
+    { operation: 'synchronize', priority: 'interactive' },
+  ]);
+  f.priorities.length = 0;
+  f.messages.ready();
+  t.mock.timers.tick(150);
+  await turn();
+  assert.deepEqual(
+    f.priorities.filter((entry) => entry.operation !== 'pins'),
+    [
+      { operation: 'probe', priority: undefined },
+      { operation: 'synchronize', priority: undefined },
+    ],
+  );
+});
