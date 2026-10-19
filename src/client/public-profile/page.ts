@@ -67,6 +67,14 @@ function about(host: HTMLElement, summary: ProfileSummary): void {
   host.append(element('h2', t('Sobre')), metrics);
 }
 
+/** Return to the exact feed position the profile was opened from. */
+function feedBackLink(href: string): HTMLAnchorElement {
+  const back = element('a', t('Voltar ao feed'), 'public-profile-back');
+  back.href = href;
+  back.prepend(communityIcon('back'));
+  return back;
+}
+
 /** Activity reads omit cookies; explicit social actions use signed account access. */
 export function showProfilePage(
   container: HTMLElement,
@@ -74,6 +82,7 @@ export function showProfilePage(
   options: {
     controller?: PublicProfiles;
     renderEntry?: (entry: FeedEntry, signal: AbortSignal) => HTMLElement;
+    back?: string | null;
   } = {},
 ): () => void {
   const lifetime = new AbortController();
@@ -87,7 +96,9 @@ export function showProfilePage(
       'community-feedback',
     );
   status.setAttribute('role', 'status');
-  page.append(status);
+  // Stays above every redraw of the profile below it.
+  const lead = options.back ? [feedBackLink(options.back)] : [];
+  page.append(...lead, status);
   container.replaceChildren(page);
   async function read(path: string, signal = lifetime.signal) {
     const response = await fetchApi('public-profile/read', path, {
@@ -225,7 +236,7 @@ export function showProfilePage(
     sidebar.append(communities);
     timeline.append(tabs, items, paging);
     layout.append(timeline, sidebar);
-    page.replaceChildren(header, status, layout);
+    page.replaceChildren(...lead, header, status, layout);
     if (!block.blocked)
       mountMutualFollowers(header, {
         target: summary.profile.id,

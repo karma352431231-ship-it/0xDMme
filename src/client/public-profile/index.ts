@@ -202,9 +202,11 @@ export function startPublicProfile(
     generation++;
   }
   return {
-    show(container: HTMLElement, handle: unknown) {
+    /** `back` is the way to the feed this profile was opened from, if any. */
+    show(container: HTMLElement, handle: unknown, back: string | null = null) {
       return showProfilePage(container, handle, {
         controller,
+        back,
         renderEntry: (entry, signal) => activity.render(entry, signal),
       });
     },

@@ -105,6 +105,7 @@ export function startCommunities(
     container: () => mounted,
     bookmark: () => discovery.bookmark(),
     reset: () => discovery.tabAgain(),
+    keep: (bookmark) => discovery.keep(bookmark),
   });
   composer.bind(() => session !== null);
   let mounted: HTMLElement | null = null,
@@ -802,6 +803,8 @@ export function startCommunities(
       ready();
     },
     leave,
+    /** Way back to the feed a profile was opened from, if any. */
+    feedReturnTarget: (): string | null => feedReturn.target(),
     /** Another app page opened: a post reached from there returns to its community. */
     forgetReturn(): void {
       lastList = null;
@@ -867,6 +870,7 @@ export function startCommunities(
       returnBookmark = null;
       generation++;
       posts.leave();
+      discovery.discard();
       discovery.leave();
       discoveryMounted = false;
       state = null;

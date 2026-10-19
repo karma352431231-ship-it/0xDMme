@@ -29,6 +29,7 @@ import {
 import type { ExternalMediaConsent } from '../external-media/index.ts';
 import { DiscoverySnapshot } from './discovery-page.ts';
 import {
+  FeedPark,
   feedPosition,
   rememberFeedChoice,
   rememberedFeedChoice,
@@ -72,6 +73,11 @@ export function startCommunityDiscovery(
   // Newest post time on the first feed page shown; the refresh pill looks for later posts.
   let newest = 0;
   let feedRefresh: FeedRefresh | null = null;
+  // The pill has its own lifetime: a kept page gets a new one on its return.
+  let refreshAbort = new AbortController();
+  // Nodes the communities page placed before this feed; the rest belong to it.
+  let foreign = new Set<Node>();
+  const park = new FeedPark();
   const mediaCleanup = new Set<() => void>();
   function clearMedia(): void {
     for (const cleanup of mediaCleanup) cleanup();
@@ -254,13 +260,14 @@ export function startCommunityDiscovery(
       ...page.items.map(({ post }) => Date.parse(post.createdAt) || 0),
     );
   }
-  async function load(): Promise<void> {
+  /** True when the page on screen was redrawn. */
+  async function load(): Promise<boolean> {
     const old = generation,
       requestedAfter = after,
       requestedRank = rankOffset,
       requestedQuery = query(),
       result = await read();
-    if (old !== generation || !list || !paging) return;
+    if (old !== generation || !list || !paging) return false;
     const { page, changed } = snapshot.read(view, requestedQuery, result);
     after = page.value.next;
     displayedAfter = requestedAfter;
@@ -268,7 +275,7 @@ export function startCommunityDiscovery(
     if (feedback) feedback.textContent = '';
     if (!changed) {
       if (page.kind === 'explore') rankOffset += page.value.items.length;
-      return;
+      return false;
     }
     clearMedia();
     list.replaceChildren();
@@ -283,7 +290,13 @@ export function startCommunityDiscovery(
           'community-empty',
         ),
       );
-    if (after) button(paging, t('Próxima página'), () => run(load));
+    if (after)
+      button(paging, t('Próxima página'), () =>
+        run(async () => {
+          await load();
+        }),
+      );
+    return true;
   }
   function renderPage(
     page: ReturnType<DiscoverySnapshot['read']>['page'],
@@ -359,10 +372,63 @@ export function startCommunityDiscovery(
       await load();
     });
   }
+  /**
+   * Leaving for a profile keeps this page intact (see FeedPark); anything else,
+   * or a page already kept, ends it. A kept page stays until its return, a
+   * different feed, a session change or its time limit.
+   */
   function leave(): void {
+    if (!mounted && park.holding) return;
+    if (
+      mounted &&
+      park.hold({ nodes: ownNodes, signedIn, release: teardown })
+    ) {
+      refreshAbort.abort();
+      feedRefresh = null;
+      mounted = null;
+      return;
+    }
+    teardown();
+  }
+  function ownNodes(): Node[] {
+    return [...(mounted?.childNodes ?? [])].filter(
+      (node) =>
+        !foreign.has(node) &&
+        !(node as Partial<Element>).classList?.contains('feed-refresh'),
+    );
+  }
+  function startRefreshPill(): void {
+    if (!mounted || !list) return;
+    refreshAbort = new AbortController();
+    feedRefresh = new FeedRefresh({
+      container: mounted,
+      before: list,
+      signal: AbortSignal.any([abort.signal, refreshAbort.signal]),
+      refresh: () => run(reload),
+      peek: view === 'explore' ? null : peekNewAuthors,
+    });
+  }
+  /** The kept page is back as it was; the server is asked again behind it. */
+  function resume(container: HTMLElement, saved: FeedBookmark): void {
+    mounted = container;
+    startRefreshPill();
+    // Right after the page switch resets the workspace scroll, before any paint.
+    queueMicrotask(() => {
+      if (mounted === container)
+        restoreFeedPosition(container, saved, abort.signal);
+    });
+    void run(async () => {
+      after = displayedAfter;
+      rankOffset = displayedRank;
+      if ((await load()) && mounted)
+        restoreFeedPosition(mounted, saved, abort.signal);
+    });
+  }
+  function teardown(): void {
     clearMedia();
     generation++;
     abort.abort();
+    refreshAbort.abort();
     mounted = null;
     list = null;
     paging = null;
@@ -412,12 +478,22 @@ export function startCommunityDiscovery(
         bookmark?: FeedBookmark | null;
       },
     ): void {
+      followChanged = options.followChanged ?? (() => Promise.resolve());
+      foreign = new Set(container.childNodes);
+      const kept = park.resume(
+        container,
+        options.bookmark ?? null,
+        options.signedIn,
+      );
+      if (kept) {
+        resume(container, kept);
+        return;
+      }
       leave();
       mounted = container;
       abort = new AbortController();
       view = options.view;
       signedIn = options.signedIn;
-      followChanged = options.followChanged ?? (() => Promise.resolve());
       initialFilters(options.bookmark);
       const titles: Record<string, string> = {
         feed: t('Feed'),
@@ -456,16 +532,14 @@ export function startCommunityDiscovery(
       );
       paging = el('div', '', 'post-toolbar');
       mounted.append(feedback, list, paging);
-      feedRefresh = new FeedRefresh({
-        container: mounted,
-        before: list,
-        signal: abort.signal,
-        refresh: () => run(reload),
-        peek: view === 'explore' ? null : peekNewAuthors,
-      });
+      startRefreshPill();
       startPage(options.bookmark);
     },
     leave,
+    /** A profile link in this feed was followed: keep the page for the way back. */
+    keep: (bookmark: FeedBookmark) => park.request(bookmark),
+    /** Session change: a kept page never outlives the account that saw it. */
+    discard: () => park.release(),
     bookmark(): FeedBookmark | null {
       if (!mounted || !['feed', 'following'].includes(view)) return null;
       return {

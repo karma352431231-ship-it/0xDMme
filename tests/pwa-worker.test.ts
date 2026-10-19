@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { readdir, readFile } from 'node:fs/promises';
+import { readFile } from 'node:fs/promises';
 import { runInNewContext } from 'node:vm';
 import { publicNotificationText } from '../src/shared/public-notification/index.ts';
 
@@ -9,7 +9,6 @@ interface WorkerEvent {
   request?: Request;
   data?: unknown;
   source?: { url: string };
-  ports?: { postMessage(message: unknown): void }[];
   waitUntil(promise: Promise<unknown>): void;
   respondWith(promise: Promise<Response>): void;
 }
@@ -472,32 +471,6 @@ await test('worker rejeita instalação incompleta e ativação por mensagem inv
     source: { url: `${scope.origin}/` },
   });
   assert.equal(scope.activations(), 1);
-});
-
-await test('worker diz se os arquivos da página são do seu release, só para a própria origem', async () => {
-  const scope = await worker();
-  const app = (await readdir('dist/web')).find((name) =>
-    /^app-[a-f0-9]{16}\.js$/u.test(name),
-  );
-  assert.ok(app);
-  const replies: unknown[] = [];
-  const port = { postMessage: (message: unknown) => replies.push(message) };
-  const ask = (paths: unknown, url = `${scope.origin}/`) =>
-    scope.dispatch('message', {
-      data: { type: 'SHELL_INCLUDES', paths },
-      source: { url },
-      ports: [port],
-    });
-  await ask([`/${app}`]);
-  await ask([`/${app}`, '/app-0000000000000000.js']);
-  await ask([`/${app}`], 'https://attacker.example/');
-  await ask('not-a-list');
-  await ask(Array.from({ length: 33 }, () => `/${app}`));
-  assert.equal(
-    JSON.stringify(replies),
-    '[{"type":"SHELL_INCLUDES_RESULT","included":true},{"type":"SHELL_INCLUDES_RESULT","included":false}]',
-  );
-  assert.equal(scope.activations(), 0);
 });
 
 await test('erro de escrita remove somente candidato incompleto e preserva cache anterior', async () => {

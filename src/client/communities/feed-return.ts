@@ -23,6 +23,8 @@ interface ReturnNavigation {
   container: () => HTMLElement | null;
   bookmark: () => FeedBookmark | null;
   reset: () => Promise<void>;
+  /** A profile opened from the feed: keep the page for an exact return. */
+  keep: (bookmark: FeedBookmark) => void;
 }
 function navigationLink(event: MouseEvent): HTMLAnchorElement | null {
   if (
@@ -35,7 +37,7 @@ function navigationLink(event: MouseEvent): HTMLAnchorElement | null {
   )
     return null;
   return event.target.closest<HTMLAnchorElement>(
-    'a[href^="/communities"], a[href^="/split/communities"], a[href^="#communities"], a[href^="#comunidades"]',
+    'a[href^="/communities"], a[href^="/split/communities"], a[href^="#communities"], a[href^="#comunidades"], a[href^="/users"], a[href^="#users"], a[href^="#publico"]',
   );
 }
 function linkRouteParams(link: HTMLAnchorElement): URLSearchParams {
@@ -119,6 +121,103 @@ function compensateAnchor(container: HTMLElement, saved: FeedBookmark): void {
       saved.anchor.offset;
 }
 /** One return path in memory. Explicit feed/filter navigation and session changes clear it. */
+const keepWindow = 2000;
+function pauseMedia(node: Node): void {
+  if (
+    !('querySelectorAll' in node) ||
+    typeof node.querySelectorAll !== 'function'
+  )
+    return;
+  for (const media of (node as ParentNode).querySelectorAll<HTMLMediaElement>(
+    'video, audio',
+  ))
+    media.pause();
+}
+const heldLifetime = 10 * 60_000;
+function sameFeed(a: FeedBookmark, b: FeedBookmark): boolean {
+  return a.view === b.view && a.order === b.order && a.period === b.period;
+}
+/**
+ * The feed page left for a public profile, kept exactly as it was on screen
+ * (owner decision of 19/10/2026, option A). Only the last page, only in this
+ * tab, for at most ten minutes. Its owner keeps the page's state untouched
+ * while it is held and receives it back on the matching return, or tears it
+ * down through `release`. Media stops while the page is off screen.
+ */
+export class FeedPark {
+  private requested: { bookmark: FeedBookmark; at: number } | null = null;
+  private held: {
+    nodes: Node[];
+    bookmark: FeedBookmark;
+    signedIn: boolean;
+    release: () => void;
+    timer: ReturnType<typeof setTimeout>;
+  } | null = null;
+  /** A profile link in the feed was followed; the next departure keeps the page. */
+  request(bookmark: FeedBookmark): void {
+    this.requested = { bookmark, at: Date.now() };
+  }
+  get holding(): boolean {
+    return this.held !== null;
+  }
+  /** On departure: true when the page was kept, so its owner must not tear it down. */
+  hold(input: {
+    nodes: () => Node[];
+    signedIn: boolean;
+    release: () => void;
+  }): boolean {
+    const requested = this.requested;
+    this.requested = null;
+    if (!requested || Date.now() - requested.at > keepWindow) return false;
+    this.release();
+    const nodes = input.nodes();
+    for (const node of nodes) {
+      pauseMedia(node);
+      node.parentNode?.removeChild(node);
+    }
+    this.held = {
+      nodes,
+      signedIn: input.signedIn,
+      release: input.release,
+      bookmark: requested.bookmark,
+      timer: setTimeout(() => this.release(), heldLifetime),
+    };
+    return true;
+  }
+  /**
+   * Puts the kept page into `container` when the return asks for the same
+   * feed and session; otherwise releases it. Returns the saved position.
+   */
+  resume(
+    container: HTMLElement,
+    bookmark: FeedBookmark | null,
+    signedIn: boolean,
+  ): FeedBookmark | null {
+    const held = this.held;
+    if (!held) return null;
+    this.held = null;
+    clearTimeout(held.timer);
+    if (
+      !bookmark ||
+      !sameFeed(held.bookmark, bookmark) ||
+      held.signedIn !== signedIn
+    ) {
+      held.release();
+      return null;
+    }
+    container.append(...held.nodes);
+    return held.bookmark;
+  }
+  release(): void {
+    const held = this.held;
+    this.held = null;
+    this.requested = null;
+    if (!held) return;
+    clearTimeout(held.timer);
+    held.release();
+  }
+}
+
 export class FeedReturn {
   private saved: FeedBookmark | null = null;
   bind(options: ReturnNavigation): void {
@@ -127,7 +226,9 @@ export class FeedReturn {
       (event) => {
         const link = navigationLink(event);
         if (!link) return;
-        this.followLink(link, options);
+        if (appRoute(link.getAttribute('href') ?? '')?.page === 'users')
+          this.followProfile(link, options);
+        else this.followLink(link, options);
       },
       { capture: true },
     );
@@ -146,6 +247,17 @@ export class FeedReturn {
       options.bookmark()
     )
       void options.reset();
+  }
+  /** Profiles reached from the feed return to it; other profile links keep the way back. */
+  private followProfile(
+    link: HTMLAnchorElement,
+    options: ReturnNavigation,
+  ): void {
+    if (!options.container()?.contains(link)) return;
+    const bookmark = options.bookmark();
+    if (!bookmark) return;
+    this.capture(bookmark);
+    options.keep(bookmark);
   }
   capture(value: FeedBookmark): void {
     this.saved = value;

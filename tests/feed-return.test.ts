@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
+  FeedPark,
   FeedReturn,
   feedPosition,
   rememberFeedChoice,
@@ -137,4 +138,83 @@ await test('filtros escolhidos ficam por visão no aparelho; valores inválidos 
     rememberFeedChoice('feed', { order: 'recent', period: 'day' }, blocked),
   );
   assert.deepEqual(rememberedFeedChoice('feed', blocked), {});
+});
+
+/** Minimal DOM: a parent that holds children and an element with media inside. */
+function node(media: { paused: boolean }[] = []) {
+  const value = {
+    parentNode: null as { removeChild: (child: unknown) => void } | null,
+    querySelectorAll: () =>
+      media.map((item) => ({
+        pause: () => {
+          item.paused = true;
+        },
+      })),
+  };
+  return value as unknown as Node;
+}
+function holder() {
+  const children: Node[] = [];
+  const parent = {
+    children,
+    removeChild: (child: Node) => children.splice(children.indexOf(child), 1),
+    append: (...nodes: Node[]) => {
+      for (const child of nodes) {
+        (child as unknown as { parentNode: unknown }).parentNode = parent;
+        children.push(child);
+      }
+    },
+  };
+  return parent;
+}
+
+await test('página do feed guardada ao abrir perfil volta igual na mesma posição; outro feed ou prazo a descartam', (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout', 'Date'] });
+  const park = new FeedPark();
+  const before = holder();
+  const video = { paused: false };
+  const nodes = [node([video]), node()];
+  before.append(...nodes);
+  let released = 0;
+  const leave = () =>
+    park.hold({
+      nodes: () => [...before.children],
+      signedIn: true,
+      release: () => {
+        released++;
+      },
+    });
+  // Leaving without a profile click never keeps the page.
+  assert.equal(leave(), false);
+  park.request(bookmark);
+  assert.equal(leave(), true);
+  assert.equal(before.children.length, 0);
+  assert.equal(video.paused, true);
+  const after = holder();
+  const back = park.resume(after as unknown as HTMLElement, bookmark, true);
+  assert.deepEqual(back, bookmark);
+  assert.deepEqual(after.children, nodes);
+  assert.equal(released, 0);
+  // A different feed, another session or the time limit end the kept page.
+  before.append(...nodes);
+  park.request(bookmark);
+  leave();
+  assert.equal(
+    park.resume(
+      holder() as unknown as HTMLElement,
+      { ...bookmark, period: 'day' },
+      true,
+    ),
+    null,
+  );
+  assert.equal(released, 1);
+  before.append(...nodes);
+  park.request(bookmark);
+  leave();
+  t.mock.timers.tick(10 * 60_000);
+  assert.equal(released, 2);
+  assert.equal(park.holding, false);
+  park.request(bookmark);
+  t.mock.timers.tick(2001);
+  assert.equal(leave(), false, 'pedido antigo não guarda uma saída posterior');
 });
