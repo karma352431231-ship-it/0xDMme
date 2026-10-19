@@ -15,6 +15,8 @@ interface SynchronizationState {
   visible: boolean;
   suspended: boolean;
   liveConnecting: boolean;
+  /** Only the first authenticated directory read may precede SSE readiness. */
+  directoryReady?: boolean;
   startupPending?: boolean;
   textPending?: boolean;
 }
@@ -67,7 +69,8 @@ export class MessageSynchronization {
         this.canSynchronize() &&
         options.state().connected &&
         !this.preloadRunning &&
-        !options.state().liveConnecting,
+        (!options.state().liveConnecting ||
+          options.state().directoryReady === false),
       run: (update) => {
         const work: VaultWorkOptions =
           this.interactiveChange && options.state().visible

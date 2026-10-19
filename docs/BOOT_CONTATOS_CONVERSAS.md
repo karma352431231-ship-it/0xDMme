@@ -539,3 +539,24 @@ identity checks, authorization and SDK exclusivity remain unchanged.
 
 **Ponto importante:** the regression fails before the visibility gate. This closes
 that scheduling defect only; native five-to-ten-tab latency remains unaccepted.
+
+## Initial directory and live connection — 19 October 2026
+
+The owner narrowed the current work to the 4,000 ms opening target; multi-tab,
+media and call validation remain deferred. Published source `32146c6` transfers
+the public WASM in about 1,334 ms in the bounded native profile, but still misses
+the opening deadline before its directory appears. Its first directory request
+waits for live-connection setup even though the authenticated HTTP directory has
+its own mandatory authority checks.
+
+Only while the first directory is unpublished, admit its queued refresh while
+the live connection is connecting. Session, device connection, online state,
+visibility, suspension, pending text and exclusive-owner gates still apply.
+Subsequent directory/change checks retain their live-connecting guard. Reset
+restores first-directory state. No authority or decrypted-history cache, skipped
+confirmation, parallel SDK owner, new request loop or protocol change is added.
+
+**Ponto importante:** the regression fails before this scheduling correction;
+source tests alone do not establish the four-second target. Measure the complete
+currently confirmed usable history, including navigation and actual public
+transfers, before accepting opening. Database/storage acceptance stays closed.

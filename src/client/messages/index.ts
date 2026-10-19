@@ -342,6 +342,7 @@ export function startMessages(
       visible: document.visibilityState === 'visible',
       suspended: continuity.suspended,
       liveConnecting: live.connecting,
+      directoryReady: startupWarmup.ready,
       startupPending: startupWarmup.pending,
       textPending: textQueue.pending,
     }),

@@ -3232,3 +3232,18 @@ ser coberto pelo "+". Os filtros ficam no aparelho, sem dado de conta. A regra
 de não ativar o Worker automaticamente foi preservada. Contratos em
 [feeds](docs/PERFIL_PUBLICO_E_FEEDS.md#feed-e-seguindo) e
 [base web](docs/BLOCO_02_BASE_WEB.md).
+
+### Current focus: four-second opening — 19 October 2026
+
+The owner deferred multi-tab work and requested focus only on opening the app
+and usable, decrypted, currently confirmed history within 4,000 ms. Other pending
+audit areas remain open. The published `32146c6` native profile still misses that
+deadline before directory publication despite the improved public transfer.
+The initial directory's authenticated HTTP read may start while SSE connects;
+all its own authority, session, visibility, cancellation and exclusive-owner
+checks remain mandatory. Later rechecks retain their live-connection guard.
+See [the loading contract](docs/BOOT_CONTATOS_CONVERSAS.md#initial-directory-and-live-connection--19-october-2026).
+
+**Ponto importante:** this scheduling regression does not establish the opening
+target. Keep the failed native measurement and require actual full-history and
+post-publication evidence; do not reopen accepted database/storage profiles.

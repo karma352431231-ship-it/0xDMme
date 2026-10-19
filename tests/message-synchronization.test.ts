@@ -15,6 +15,7 @@ function fixture(t: TestContext) {
     visible: true,
     suspended: false,
     liveConnecting: false,
+    directoryReady: true,
   };
   const notices: string[] = [];
   let completed = 0,
@@ -57,6 +58,66 @@ function fixture(t: TestContext) {
     projections: () => projections,
   };
 }
+await test('the first directory does not wait for a live connection; later rechecks retain that guard', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const f = fixture(t);
+  f.state.directoryReady = false;
+  f.state.liveConnecting = true;
+  let refreshes = 0,
+    changes = 0;
+  f.options.refresh = () => {
+    refreshes++;
+    return Promise.resolve();
+  };
+  f.options.changes = () => {
+    changes++;
+    return Promise.resolve();
+  };
+  f.sync.request('refresh');
+  t.mock.timers.tick(150);
+  await turn();
+  assert.equal(refreshes, 1);
+  f.state.directoryReady = true;
+  f.sync.request('probe');
+  t.mock.timers.tick(150);
+  await turn();
+  assert.equal(changes, 0);
+  f.state.liveConnecting = false;
+  f.sync.resume();
+  t.mock.timers.tick(150);
+  await turn();
+  assert.equal(changes, 1);
+});
+await test('first-directory admission retains session, connection, visibility and suspension gates', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const f = fixture(t);
+  f.state.directoryReady = false;
+  f.state.liveConnecting = true;
+  let refreshes = 0;
+  f.options.refresh = () => {
+    refreshes++;
+    return Promise.resolve();
+  };
+  for (const [key, unavailable] of [
+    ['connected', false],
+    ['session', false],
+    ['online', false],
+    ['visible', false],
+    ['suspended', true],
+  ] as const) {
+    const previous = f.state[key];
+    f.state[key] = unavailable;
+    f.sync.request('refresh');
+    t.mock.timers.tick(150);
+    await turn();
+    assert.equal(refreshes, 0, key);
+    f.state[key] = previous;
+  }
+  f.sync.resume();
+  t.mock.timers.tick(150);
+  await turn();
+  assert.equal(refreshes, 1);
+});
 await test('user operation waits for maintenance and stays exclusive through pending projection', async (t) => {
   const f = fixture(t),
     presence = deferred<void>(),
