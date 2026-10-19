@@ -35,9 +35,11 @@ class AccountRankingDeploymentTests(unittest.TestCase):
 
     def test_snapshot_keeps_reserved_bytes_and_separately_measures_the_ledger(self):
         with (patch.object(backups, 'database_snapshot', return_value={'tables': {}}) as snapshot,
+              patch.object(ranking.batches, 'snapshot', return_value={'message_changes': 'paged'}),
               patch.object(ranking.capacity, 'psql', return_value=b'8128')):
             self.assertEqual(ranking.snapshot()['ledger'], 8128)
-        snapshot.assert_called_once_with(ranking.TABLES, omit_columns=ranking.OMIT_COLUMNS,
+        small = tuple(name for name in ranking.TABLES if name not in ranking.batches.KEYS)
+        snapshot.assert_called_once_with(small, omit_columns=ranking.OMIT_COLUMNS,
             version_limit=92, include_reserved=True)
         self.assertEqual(ranking.OMIT_COLUMNS['content_usage_legacy'], ('used_bytes',))
         self.assertNotIn('content_usage_partitions', ranking.OMIT_COLUMNS)

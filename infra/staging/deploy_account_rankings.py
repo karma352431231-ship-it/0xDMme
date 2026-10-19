@@ -6,6 +6,7 @@ import deploy_blocks45 as backups
 import deploy_background as background
 import deploy_capacity_database as capacity
 import deploy_group_media_parts as parts
+import deploy_snapshot_batches as batches
 
 BEFORE = 'ecda9eda2dc51000e64e125a623bfea40187d689'
 REVIEWED = '72711bad0ef90c1aaa8f5d5f7cc4606973e569ae'
@@ -94,8 +95,10 @@ def review(candidate, live):
 
 
 def snapshot():
-    result = backups.database_snapshot(TABLES, omit_columns=OMIT_COLUMNS,
+    small = tuple(name for name in TABLES if name not in batches.KEYS)
+    result = backups.database_snapshot(small, omit_columns=OMIT_COLUMNS,
         version_limit=92, include_reserved=True)
+    result['tables'].update(batches.snapshot(backups.node, backups.URL_CHECK))
     result['ledger'] = int(capacity.psql(
         'SELECT used_bytes FROM hash_talk.content_usage WHERE singleton'))
     return result
