@@ -304,8 +304,14 @@ export function startMessages(
       if (event === 'ready') void checkVoiceAuthority();
       if (event === 'authorization') void checkVoiceAuthority();
       hideLiveHistory(event);
+      const work: VaultWorkOptions =
+        ['changed', 'removed'].includes(event) &&
+        conversationVisible('[data-direct-conversation]')
+          ? { priority: 'interactive' }
+          : {};
       requestRefresh(
         ['changed', 'ready', 'removed'].includes(event) ? 'probe' : 'refresh',
+        work,
       );
     },
   });
@@ -676,8 +682,11 @@ export function startMessages(
       navigatingToConversation = false;
     }
   }
-  function requestRefresh(update: LiveUpdate = 'refresh'): void {
-    synchronization.request(update);
+  function requestRefresh(
+    update: LiveUpdate = 'refresh',
+    work: VaultWorkOptions = {},
+  ): void {
+    synchronization.request(update, work);
   }
   function renderHistory(update: HistoryUpdate = 'history'): void {
     historyUi.render(rows, update);
@@ -1049,12 +1058,13 @@ export function startMessages(
     if (selected && conversationVisible('[data-direct-conversation]'))
       await controller.openOffline(selected.accountId);
   }
-  async function refresh(): Promise<void> {
+  async function refresh(requested: VaultWorkOptions = {}): Promise<void> {
     synchronization.startRefresh();
     const current = generation;
-    const work = startupWarmup.initialWork(
-      document.visibilityState === 'visible',
-    );
+    const work: VaultWorkOptions = {
+      ...startupWarmup.initialWork(document.visibilityState === 'visible'),
+      ...requested,
+    };
     try {
       await initializeMessageDirectory({
         loadPins: () => controller.loadPins(work),
@@ -1064,7 +1074,7 @@ export function startMessages(
           if (current !== generation) throw new Error('Sessão alterada.');
         },
       });
-      if (!synchronization.openingRequested) await refreshSelected();
+      if (!synchronization.openingRequested) await refreshSelected(requested);
       await controller.savePins();
       startupWarmup.request();
       if (
@@ -1081,33 +1091,35 @@ export function startMessages(
       throw error;
     }
   }
-  async function refreshChanges(): Promise<void> {
-    await refreshChangedSelected();
+  async function refreshChanges(work: VaultWorkOptions = {}): Promise<void> {
+    await refreshChangedSelected(work);
     await refreshContacts();
     await groups.refresh();
     contactsMore();
     await dailyTick();
   }
-  async function refreshChangedSelected(): Promise<void> {
+  async function refreshChangedSelected(
+    work: VaultWorkOptions = {},
+  ): Promise<void> {
     const peer = selected;
     if (!peer || !conversationMounted('[data-direct-conversation]')) return;
     if (peer.localOnly) return refreshSelected();
-    const changed = await controller.probe();
+    const changed = await controller.probe(work);
     if (selected !== peer || !conversationMounted('[data-direct-conversation]'))
       return;
     if (changed) {
       synchronization.prepareHistory();
-      await controller.synchronize();
+      await controller.synchronize(work);
     }
     await controller.savePins();
   }
-  async function refreshSelected(): Promise<void> {
+  async function refreshSelected(work: VaultWorkOptions = {}): Promise<void> {
     if (!selected || !conversationMounted('[data-direct-conversation]')) return;
     if (selected.localOnly) {
       await controller.openArchive(selected.accountId);
       return;
     }
-    await synchronizeVisible({});
+    await synchronizeVisible(work);
   }
   async function synchronizeVisible(
     work: VaultWorkOptions = { priority: 'interactive' },

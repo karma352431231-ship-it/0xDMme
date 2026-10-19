@@ -7,9 +7,12 @@ startup awaiting an automatic own name/photo publication before reading verified
 history. Reuse the existing bounded, idempotent ProfileBroadcast lifecycle after
 foreground verification/startup maintenance. Include the current approved private
 contact even outside the loaded directory page, excluding archive-only contacts.
-Automatic selected-history rechecks retain maintenance priority throughout their
-probe/pins/projection/confirmation, while explicit opening and user sends keep
-interactive priority. No additional recipient state, plaintext transport,
+Ordinary automatic selected-history rechecks retain maintenance priority throughout
+their probe/pins/projection/confirmation. Explicit opening and fresh live-change
+rechecks of the visible direct conversation keep interactive priority. Hidden
+conversations and unrelated maintenance are not promoted. One bounded priority
+bit survives coalescing and clears on reset/covered full refresh; no hint grants
+content or authority. No additional recipient state, plaintext transport,
 retention or authority cache is introduced. Existing encrypted profile sharing, fresh history confirmation,
 user-send gates and background retry triggers remain. A newly updated name/photo
 can arrive after the conversation opens. See the [startup contract](docs/BOOT_CONTATOS_CONVERSAS.md#profile-publication-follows-verified-history--18-october-2026).

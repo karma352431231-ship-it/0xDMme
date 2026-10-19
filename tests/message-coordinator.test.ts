@@ -510,3 +510,33 @@ await test('automatic selected-history refresh keeps maintenance priority while 
     ],
   );
 });
+
+await test('a live change prioritizes the visible conversation recheck without promoting hidden maintenance', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const f = coordinatorFixture(t);
+  f.state.probeChanged = true;
+  await f.messages.openContact(peer('chosen'));
+  f.priorities.length = 0;
+  f.emit('changed');
+  t.mock.timers.tick(150);
+  await turn();
+  assert.deepEqual(
+    f.priorities.filter((entry) => entry.operation !== 'pins'),
+    [
+      { operation: 'probe', priority: 'interactive' },
+      { operation: 'synchronize', priority: 'interactive' },
+    ],
+  );
+  f.priorities.length = 0;
+  f.state.visibilityState = 'hidden';
+  f.emit('changed');
+  t.mock.timers.tick(150);
+  await turn();
+  assert.deepEqual(
+    f.priorities.filter((entry) => entry.operation !== 'pins'),
+    [
+      { operation: 'probe', priority: undefined },
+      { operation: 'synchronize', priority: undefined },
+    ],
+  );
+});

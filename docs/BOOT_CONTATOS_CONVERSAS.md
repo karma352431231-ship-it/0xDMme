@@ -8,10 +8,18 @@ new name/photo. Both explicit opening and selected-history startup awaited that
 publication. The real coordinator regression holds profile transmission and
 reproduces blocked history before the correction.
 
-Automatic selected-history refreshes also retain maintenance priority through
+Ordinary automatic selected-history refreshes retain maintenance priority through
 probe, pins, projection and fresh confirmation. Explicit opening and user sends
-keep interactive priority. The actual coordinator regression reproduces the old
-priority leak during a selected-history refresh and requires the distinction.
+keep interactive priority. A changed/removed live hint for the visible direct
+conversation also prioritizes its fresh history recheck; an empty hint grants no
+content or authority. Hidden conversations and unrelated contact/group/presence
+work retain maintenance priority. The synchronization owner keeps one pending
+priority bit through coalesced probe/full-refresh requests, consumes it once and
+clears it on reset or covered full-refresh startup. A page hidden before dispatch
+returns to maintenance priority. Active work is never aborted.
+Real coordinator regressions distinguish ordinary automatic refresh, explicit
+opening, a visible live change and a hidden live change; scheduling regressions
+cover coalescence and reset so priority cannot leak into a later session.
 
 Opening and startup now finish their existing verified history/removal/server
 confirmation flow first. The existing ProfileBroadcast round handles the card

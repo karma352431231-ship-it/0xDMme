@@ -4,6 +4,7 @@ import { HistoryPreparation } from './preparation.ts';
 import { LiveUpdates } from '../message-live/index.ts';
 import { ConversationOpening } from './opening.ts';
 import type { LiveUpdate } from '../message-live/index.ts';
+import type { VaultWorkOptions } from '../vault-authority/index.ts';
 
 interface SynchronizationState {
   generation: number;
@@ -26,8 +27,8 @@ interface SynchronizationOperations {
   preloadDirect: (signal: AbortSignal) => Promise<boolean>;
   preloadGroups: (signal: AbortSignal) => Promise<boolean>;
   presence: () => Promise<void>;
-  refresh: () => Promise<void>;
-  changes: () => Promise<void>;
+  refresh: (work: VaultWorkOptions) => Promise<void>;
+  changes: (work: VaultWorkOptions) => Promise<void>;
   periodic: () => Promise<void>;
   periodicWork: () => Promise<boolean>;
   pending: () => Promise<readonly unknown[]>;
@@ -39,6 +40,7 @@ export class MessageSynchronization {
   private readonly options: SynchronizationOperations;
   private readonly updates: LiveUpdates;
   private closed = false;
+  private interactiveChange = false;
   private maintenance: Promise<void> | null = null;
   private preloadTimer: ReturnType<typeof setTimeout> | null = null;
   private preloadAbort: AbortController | null = null;
@@ -60,8 +62,13 @@ export class MessageSynchronization {
         !this.preloadRunning &&
         !options.state().liveConnecting,
       run: (update) => {
-        if (update === 'refresh') void this.run(options.refresh);
-        else void this.checkAutomatically(options.changes);
+        const work: VaultWorkOptions =
+          this.interactiveChange && options.state().visible
+            ? { priority: 'interactive' }
+            : {};
+        this.interactiveChange = false;
+        if (update === 'refresh') void this.run(() => options.refresh(work));
+        else void this.checkAutomatically(() => options.changes(work));
       },
     });
   }
@@ -72,16 +79,19 @@ export class MessageSynchronization {
   prepareHistory(): void {
     this.preparation.request();
   }
-  request(update: LiveUpdate = 'refresh'): void {
+  request(update: LiveUpdate = 'refresh', work: VaultWorkOptions = {}): void {
+    this.interactiveChange ||= work.priority === 'interactive';
     this.prepareHistory();
     this.automaticAttempts = 0;
     this.updates.request(update);
   }
   startRefresh(): void {
+    this.interactiveChange = false;
     this.updates.clear();
     this.lastTransferAttempt = Date.now();
   }
   reset(): void {
+    this.interactiveChange = false;
     this.cancelOpening();
     this.updates.clear();
     this.stopPreload();

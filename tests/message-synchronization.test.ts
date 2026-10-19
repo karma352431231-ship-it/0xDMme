@@ -405,3 +405,59 @@ await test('a successful queued action replaces the failure of the automatic che
   assert.equal(f.completed(), 1);
   assert.equal(f.notices.length, 1);
 });
+
+await test('a visible-change priority survives coalescing with a stronger refresh', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const f = fixture(t),
+    priorities: (string | undefined)[] = [];
+  f.options.refresh = (work) => {
+    priorities.push(work.priority);
+    return Promise.resolve();
+  };
+  f.state.suspended = true;
+  f.sync.request('probe', { priority: 'interactive' });
+  f.sync.request('refresh');
+  f.state.suspended = false;
+  f.sync.resume();
+  t.mock.timers.tick(150);
+  await turn();
+  assert.deepEqual(priorities, ['interactive']);
+});
+
+for (const clear of ['reset', 'startRefresh'] as const) {
+  await test(`${clear} discards pending visible-change priority instead of promoting later maintenance`, async (t) => {
+    t.mock.timers.enable({ apis: ['setTimeout'] });
+    const f = fixture(t),
+      priorities: (string | undefined)[] = [];
+    f.options.changes = (work) => {
+      priorities.push(work.priority);
+      return Promise.resolve();
+    };
+    f.state.suspended = true;
+    f.sync.request('probe', { priority: 'interactive' });
+    f.sync[clear]();
+    f.state.suspended = false;
+    f.sync.request('probe');
+    t.mock.timers.tick(150);
+    await turn();
+    assert.deepEqual(priorities, [undefined]);
+  });
+}
+
+await test('a queued visible-change recheck yields its priority if the page becomes hidden before acquisition', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const f = fixture(t),
+    priorities: (string | undefined)[] = [];
+  f.options.changes = (work) => {
+    priorities.push(work.priority);
+    return Promise.resolve();
+  };
+  f.state.suspended = true;
+  f.sync.request('probe', { priority: 'interactive' });
+  f.state.visible = false;
+  f.state.suspended = false;
+  f.sync.resume();
+  t.mock.timers.tick(150);
+  await turn();
+  assert.deepEqual(priorities, [undefined]);
+});
