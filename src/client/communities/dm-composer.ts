@@ -303,7 +303,7 @@ export function startDmComposer(options: {
       sync();
     },
     cancelEdit(): void {
-      composition.clear();
+      composition.cancel();
     },
     leave(): void {
       composition.clear();

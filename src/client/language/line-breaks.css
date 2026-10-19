@@ -1,8 +1,8 @@
 /*
  * Chinese may break between any two characters, so a squeezed flex item can
- * shrink a two-character label such as 测试 to one character per line. In
+ * shrink a two-character label such as 搜索 to one character per line. In
  * compact controls, treat each run of Chinese like an English word: it keeps
- * its width the way "Test" does, and still breaks if it alone cannot fit.
+ * its width the way "Search" does, and still breaks if it alone cannot fit.
  * Longer sentences keep wrapping at spaces and punctuation.
  */
 :lang(zh)
@@ -13,7 +13,6 @@
     label,
     th,
     [role='tab'],
-    .test-badge,
     .phase,
     .eyebrow,
     .activity-badge,

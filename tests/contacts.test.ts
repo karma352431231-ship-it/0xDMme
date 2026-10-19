@@ -12,6 +12,7 @@ import {
 } from '../src/shared/contacts/index.ts';
 import { readQrPayload, qrMatrix } from '../src/client/device-qr/index.ts';
 import { walletEntity } from '../src/client/contacts/agenda.ts';
+import { contactDraft } from '../src/client/contacts/contact-draft.ts';
 import { checkPinnedIdentity } from '../src/client/contacts/controller.ts';
 import {
   createIdentity,
@@ -43,6 +44,54 @@ const entry = {
   identityRevision: 0,
   removed: false,
 };
+await test('wallet drafts record their source and keep matching contact identity without copying it to another wallet', () => {
+  const fresh = contactDraft({
+    address: wallet.address,
+    alias: 'Local',
+    reference: null,
+  });
+  assert.equal(fresh.version, 2);
+  assert.equal(fresh.addedVia, 'wallet');
+  const invited = addressBookEntry({
+    ...entry,
+    version: 2,
+    addedVia: 'invite',
+    accountId,
+  });
+  assert.deepEqual(
+    contactDraft({
+      address: invited.address,
+      alias: 'Edited',
+      reference: invited,
+    }),
+    { ...invited, alias: 'Edited' },
+  );
+  const different = contactDraft({
+    address: '0x' + 'b'.repeat(40),
+    alias: 'New',
+    reference: invited,
+  });
+  assert.equal(different.addedVia, 'wallet');
+  assert.equal(different.accountId, null);
+  assert.deepEqual(
+    contactDraft({ address: entry.address, alias: 'Legacy', reference: entry }),
+    { ...entry, alias: 'Legacy' },
+  );
+});
+await test('new encrypted contact records validate their source without retaining invitation secrets or rewriting legacy entries', () => {
+  assert.deepEqual(addressBookEntry(entry), entry);
+  for (const addedVia of ['wallet', 'invite']) {
+    const contact = { ...entry, version: 2, addedVia };
+    assert.deepEqual(addressBookEntry(contact), contact);
+    assert.throws(() => addressBookEntry({ ...contact, token: 'secret' }));
+    assert.throws(() => addressBookEntry({ ...contact, invite: 'secret' }));
+  }
+  assert.throws(() => addressBookEntry({ ...entry, version: 2 }));
+  assert.throws(() =>
+    addressBookEntry({ ...entry, version: 2, addedVia: 'guessed' }),
+  );
+  assert.throws(() => addressBookEntry({ ...entry, addedVia: 'wallet' }));
+});
 await test('agenda normaliza EVM, separa ecossistemas e não aceita carteiras malformadas', async () => {
   assert.deepEqual(
     walletContact({

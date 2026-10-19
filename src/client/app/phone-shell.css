@@ -14,10 +14,6 @@
     color: var(--text);
     font: 700 22px/1.1 var(--font-display);
   }
-  #app-shell .brand-bar .test-badge {
-    padding: 2px 7px;
-    font-size: 10px;
-  }
   #app-shell:not([data-page='conversas']) #open-search {
     display: none;
   }

@@ -132,8 +132,8 @@ for (const path of ['/', '/wallet.html', '/recovery.html']) {
         )
         .replace(`src="${pageScript}"`, `src="${fixtureWalletPath}"`)
         .replace(
-          'Chat under test: use fictional accounts and messages only.',
-          'ISOLATED TEST: synthetic wallet, no funds, no real data.',
+          '</body>',
+          '<p data-fixture-warning>ISOLATED TEST: synthetic wallet, no funds, no real data.</p></body>',
         ),
     ),
   });

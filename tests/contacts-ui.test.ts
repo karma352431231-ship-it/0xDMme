@@ -1,13 +1,69 @@
 import assert from 'node:assert/strict';
 import { Contacts } from '../src/client/contacts/index.ts';
 import type { AccountSession } from '../src/shared/account/index.ts';
-import { directoryItems } from '../src/client/contacts/directory-view.ts';
+import {
+  directoryItems,
+  renderDirectory,
+} from '../src/client/contacts/directory-view.ts';
 import { test } from 'node:test';
 import {
   contactSearchMatches,
   searchContacts,
 } from '../src/client/contacts/view.ts';
 import type { Peer } from '../src/shared/contacts/index.ts';
+import { CommunityNode } from './fixtures/community-dom.ts';
+
+await test('every contact row opens its settings without a three-dot menu, including approved peers without a saved bookmark', (t) => {
+  const previous = Object.getOwnPropertyDescriptor(globalThis, 'document');
+  Object.defineProperty(globalThis, 'document', {
+    configurable: true,
+    value: { createElement: (tag: string) => new CommunityNode(tag) },
+  });
+  t.after(() => {
+    if (previous) Object.defineProperty(globalThis, 'document', previous);
+    else Reflect.deleteProperty(globalThis, 'document');
+  });
+  const peer = {
+    accountId: 'peer',
+    requester: 'self',
+    ecosystem: 'evm' as const,
+    address: '0x' + 'b'.repeat(40),
+    name: 'Peer',
+  };
+  const items = directoryItems({
+    saved: [],
+    approved: [peer],
+    outgoing: [],
+    query: '',
+  });
+  const list = new CommunityNode('ul');
+  let opened = 0;
+  renderDirectory({
+    list: list as unknown as HTMLElement,
+    items,
+    openChat: () => Promise.resolve(),
+    openContact: () => {
+      opened++;
+      return Promise.resolve();
+    },
+    button: (label, work) => {
+      const button = new CommunityNode('button');
+      button.textContent = label;
+      button.addEventListener('click', () => {
+        void work();
+      });
+      return button as unknown as HTMLButtonElement;
+    },
+  });
+  assert.equal(list.querySelector('.contact-menu-trigger'), null);
+  const buttons = list.querySelectorAll('button');
+  assert.deepEqual(
+    buttons.map((button) => button.textContent),
+    ['Chat', 'Open contact'],
+  );
+  buttons[1]!.click();
+  assert.equal(opened, 1);
+});
 
 await test('busca local usa nomes e wallets da página carregada sem alterar identidade ou dados', () => {
   const peer: Peer = {

@@ -58,9 +58,12 @@
 @import '../push-settings/push-preferences.css';
 @import '../contacts/directory.css';
 @import '../account/account-box.css';
+@import '../account/private-profile-avatar.css';
 @import './page.css';
 @import './narrow-layout.css';
 @import '../account-settings/profile-forms.css';
+@import '../contacts/discovery-choices.css';
+@import '../contacts/contact-settings.css';
 @import '../wallet/wallet-picker.css';
 @import '../devices/device-cards.css';
 @import './card-forms.css';

@@ -206,6 +206,8 @@ await test('a request persists the contact before acceptance and preserves an ex
   };
   const first = await requestContact(input);
   assert.equal(first.alias, 'Private alias');
+  assert.equal(first.version, 2);
+  assert.equal(first.addedVia, 'wallet');
   const directory = new ContactDirectory(f.sync);
   await directory.load();
   assert.equal(directory.find(peer)?.contact.alias, 'Private alias');
@@ -213,6 +215,32 @@ await test('a request persists the contact before acceptance and preserves an ex
   assert.equal(again.alias, 'Private alias');
   assert.equal(f.save.mock.callCount(), 1);
   assert.equal(requests, 2);
+});
+await test('new invitation contacts persist only their origin and retain it when the private alias is edited', async (t) => {
+  const f = fixture(t),
+    book = new AddressBook(f.sync),
+    value = contact(92);
+  const saved = await requestContact({
+    contacts: { request: () => Promise.resolve() },
+    book,
+    sync: f.sync,
+    peer: { ...value, name: 'Invited contact', accountId: crypto.randomUUID() },
+    token: 'a'.repeat(64),
+    alias: '',
+    guard: () => {},
+  });
+  assert.equal(saved.version, 2);
+  assert.equal(saved.addedVia, 'invite');
+  assert.ok(!JSON.stringify(saved).includes('a'.repeat(64)));
+  const row = f.heads.get(await walletEntity(saved))![0]!;
+  await book.save(
+    { ...saved, alias: 'My nickname' },
+    await book.open(row.commit.id),
+  );
+  const directory = new ContactDirectory(f.sync);
+  await directory.load();
+  assert.equal(directory.find(saved)?.contact.addedVia, 'invite');
+  assert.equal(directory.find(saved)?.contact.alias, 'My nickname');
 });
 await test('failed bookmark reports a committed request without an automatic duplicate', async (t) => {
   const f = fixture(t),

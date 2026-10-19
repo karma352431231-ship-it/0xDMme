@@ -1500,7 +1500,16 @@ export function startMessages(
         status();
       });
     });
-    bind('[data-compose-cancel]', clearContext);
+    bind('[data-compose-cancel]', () => {
+      if (composing?.mode === 'edit') {
+        const text = node<HTMLTextAreaElement>('[data-message-text]');
+        if (text) {
+          text.value = '';
+          text.dispatchEvent(new Event('input'));
+        }
+      }
+      clearContext();
+    });
     bind('[data-attachment-clear]', () => {
       if (!voice.active) voice.cancel();
     });

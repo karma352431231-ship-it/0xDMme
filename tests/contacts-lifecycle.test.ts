@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import type { TestContext } from 'node:test';
 import { startContacts, Contacts } from '../src/client/contacts/index.ts';
 import { AddressBook } from '../src/client/contacts/agenda.ts';
+import { ContactSettings } from '../src/client/contacts/contact-settings.ts';
 import { VaultSync } from '../src/client/vault-sync/index.ts';
 import type { VaultAccess } from '../src/client/vault-authority/index.ts';
 import type { AccountSession } from '../src/shared/account/index.ts';
@@ -260,15 +261,19 @@ await test('salvar e solicitar por endereço completo identificam EVM/Solana sem
     identityRevision: 4,
     removed: false,
   };
+  let opened: AddressBookEntry | null = null;
+  t.mock.method(
+    ContactSettings.prototype,
+    'open',
+    (value: AddressBookEntry) => {
+      opened = value;
+      return Promise.resolve();
+    },
+  );
   contacts.showContact(contact);
-  assert.equal(title.textContent, 'Edit private contact');
-  assert.equal(address.value, contact.address);
-  assert.equal(address.readOnly, true);
-  assert.equal(alias.value, contact.alias);
-  alias.value = 'Updated alias';
-  form.dispatchEvent(new Event('submit', { cancelable: true }));
   await finished();
-  assert.deepEqual(stored.at(-1), { ...contact, alias: 'Updated alias' });
+  assert.deepEqual(opened, contact);
+  assert.equal(address.value, 'endereço inválido');
   assert.equal(address.readOnly, false);
   assert.equal(discovered.length, 2);
   assert.equal(requested.length, 2);

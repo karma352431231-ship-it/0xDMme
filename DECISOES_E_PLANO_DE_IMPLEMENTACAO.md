@@ -3262,3 +3262,17 @@ página guardada em memória, na mesma posição, e a relê do servidor em segun
 plano, retirando o que tiver sido removido. Aceitou que um post retirado nesse
 intervalo apareça por um instante; a regra de reler ao voltar de um post não
 muda. Contrato em [feeds](docs/PERFIL_PUBLICO_E_FEEDS.md#feed-e-seguindo).
+
+### Private chat controls and account avatar — 19/10/2026
+
+The owner requested explicit explanations for the three private discovery choices, removal of the app's TEST badges, and the private account photo in desktop/mobile navigation. Replace the discovery dropdown with native radio cards and short English/Chinese tooltips available by hover, keyboard focus and touch. Keep explicit Apply visibility, the signed server controls, approved contacts and the separation from public @ identity. No discovery mode is enabled automatically. Removing the badge supersedes its earlier presentation decision and does not certify production readiness.
+
+The navigation avatar reuses the already opened private profile photo in memory. Use one local blob URL, retain unchanged image nodes during account rendering, and clear images/revoke that URL on profile lock, session reset or replacement. No public photo lookup or upload is added. The mobile Profile tab shows the same private photo, with local initials as fallback.
+
+The owner also clarified that canceling a message edit must empty only the composer in private wallet chats and public @ DMs, preserving the original message. Canceling a reply still preserves its independent draft. No message mutation, deletion, new dependency, schema change or deployment is authorized by these UI changes.
+
+### Dedicated contact settings and new-record origin — 19/10/2026
+
+The owner requested Open contact on every Contacts row, removal of its three-dot menu, and a dedicated settings dialog with a private nickname and a single blue Save changes button. Keep addition/request/invitation forms separate. Show the wallet only when its recorded addition method is wallet; for invite show only the method, never the invitation link or token. The owner explicitly excluded historical origin reconstruction: record only new local additions/requests, retain legacy records without migration and do not guess an incoming request's method. Version 2 encrypted address-book application data adds the validated method; updated readers also accept version 1. Older version-1-only clients reject new records, so an updated client is required. Crypto envelopes, identity/consent rules and server schema stay unchanged. See the contracts in [Contacts UI](docs/UI_CONTATOS.md#dedicated-contact-settings--19102026).
+
+The owner explicitly requested keeping this work on codex/contacts-flicker. Do not merge to main or activate a release as part of this task.

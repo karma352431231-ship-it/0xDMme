@@ -21,6 +21,7 @@ import { api, node } from './core.ts';
 import type { AccountCore } from './core.ts';
 import { writePrivateProfile } from './private-profile-write.ts';
 import { savePrivatePhoto } from './private-photo-save.ts';
+import { PrivateProfileAvatar } from './private-profile-avatar.ts';
 import { avatarCrop, cropImage } from '../image-crop/index.ts';
 
 export interface ProfileOptions {
@@ -44,7 +45,7 @@ export interface ProfileOptions {
 export class AccountPrivateProfile {
   private profile: PrivateProfile | null = null;
   private key: CryptoKey | null = null;
-  private photoUrl: string | undefined;
+  private readonly avatar = new PrivateProfileAvatar();
   private dirtyName = false;
   private dirtyProfile = false;
   private draftName: string | null = null;
@@ -101,8 +102,7 @@ export class AccountPrivateProfile {
     this.key = null;
     this.profile?.photo?.bytes.fill(0);
     this.profile = null;
-    if (this.photoUrl) URL.revokeObjectURL(this.photoUrl);
-    this.photoUrl = undefined;
+    this.avatar.clear();
     this.dirtyName = false;
     this.dirtyProfile = false;
     this.draftName = null;
@@ -210,24 +210,15 @@ export class AccountPrivateProfile {
     this.privacyControls.render();
   }
   renderPhoto(): void {
-    if (this.photoUrl) URL.revokeObjectURL(this.photoUrl);
-    const photo = this.photoDraft.value(this.profile?.photo ?? null);
-    this.photoUrl = photo
-      ? URL.createObjectURL(new Blob([photo.bytes], { type: photo.type }))
-      : undefined;
-    for (const avatar of [
-      document.getElementById('account-avatar'),
-      this.find('[data-profile-avatar]'),
-    ]) {
-      if (!avatar) continue;
-      avatar.replaceChildren();
-      if (this.photoUrl) {
-        const image = document.createElement('img');
-        image.src = this.photoUrl;
-        image.alt = t('Sua foto de perfil');
-        avatar.append(image);
-      } else avatar.textContent = this.core.session?.name.slice(0, 1) || '#';
-    }
+    this.avatar.render({
+      hosts: [
+        document.getElementById('account-avatar'),
+        this.find('[data-profile-avatar]'),
+        ...document.querySelectorAll<HTMLElement>('[data-private-avatar]'),
+      ].filter((host): host is HTMLElement => host !== null),
+      photo: this.photoDraft.value(this.profile?.photo ?? null),
+      session: this.core.session,
+    });
   }
   async selectPhoto(): Promise<void> {
     const input = document.querySelector<HTMLInputElement>('#account-photo');

@@ -54,6 +54,7 @@ await test('foto privada salva automaticamente sem confirmar preferências em ed
     document: {
       getElementById: () => null,
       querySelector: () => photoInput,
+      querySelectorAll: () => [],
       activeElement: null,
     },
   };

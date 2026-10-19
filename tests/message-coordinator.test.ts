@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { coordinatorFixture } from './fixtures/message-coordinator.ts';
-import { decodeDailyText } from '../src/shared/daily/index.ts';
+import { decodeDailyText, encodeDailyText } from '../src/shared/daily/index.ts';
 import type { Peer } from '../src/shared/contacts/index.ts';
 const turn = () => new Promise<void>((resolve) => setImmediate(resolve));
 async function finishStartupMaintenance(
@@ -18,6 +18,38 @@ const peer = (accountId: string): Peer => ({
   address: '0x' + '1'.repeat(40),
   name: 'Synthetic',
 });
+
+for (const mode of ['edit', 'reply'] as const)
+  await test(`canceling a private ${mode} clears only an edit draft and preserves the original`, async (t) => {
+    const f = coordinatorFixture(t);
+    f.state.probeChanged = true;
+    await f.messages.openContact(peer('cancel-edit'));
+    const original = {
+      id: 'original',
+      peer: 'cancel-edit',
+      own: true,
+      kind: 'text' as const,
+      text: encodeDailyText({
+        text: 'Original message',
+        reply: null,
+        forwarded: false,
+      }),
+      state: 'received',
+      hash: 'synthetic-hash',
+    };
+    f.choose(mode, original);
+    assert.equal(f.compositionBar.hidden, false);
+    f.input.value = 'Unsaved change';
+    f.cancelComposition();
+    assert.equal(f.input.value, mode === 'edit' ? '' : 'Unsaved change');
+    assert.equal(f.compositionBar.hidden, true);
+    assert.equal(decodeDailyText(original.text).text, 'Original message');
+    if (mode === 'edit') {
+      f.submit();
+      await turn();
+      assert.deepEqual(f.drafts, []);
+    }
+  });
 
 await test('opening a verified conversation does not await speculative SDK initialization', async (t) => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
