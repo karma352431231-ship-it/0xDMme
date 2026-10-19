@@ -1,6 +1,7 @@
 import { t } from '../../shared/i18n/index.ts';
 import { startNotificationNavigation } from './notification-navigation.ts';
 
+const releaseFile = /-[a-f0-9]{16}\.(?:js|css)$/u;
 /** Hashed release files this page loaded; unhashed or foreign files say nothing. */
 function pageReleaseAssets(): string[] {
   const paths = new Set<string>();
@@ -11,53 +12,38 @@ function pageReleaseAssets(): string[] {
       node.getAttribute('src') ?? node.getAttribute('href') ?? '',
       location.href,
     );
-    if (
-      url.origin === location.origin &&
-      /-[a-f0-9]{16}\.(?:js|css)$/u.test(url.pathname)
-    )
+    if (url.origin === location.origin && releaseFile.test(url.pathname))
       paths.add(url.pathname);
   }
   return [...paths].slice(0, 32);
 }
 
-function comparableAssets(): string[] {
-  return typeof MessageChannel === 'function' ? pageReleaseAssets() : [];
-}
-
 /**
- * Whether a worker's release contains every given file of this page. `null`
- * means unknown: no reply in time (an older worker) or the channel failed.
+ * Whether this page runs the release the server publishes now. The answer is
+ * the public app HTML (an app route, so the worker never serves it from cache;
+ * no cookies, about 5 KB compressed). `null` means unknown: offline, server
+ * error or a page without comparable files.
  */
-function runsRelease(
-  worker: ServiceWorker,
-  paths: string[],
-): Promise<boolean | null> {
-  return new Promise((resolve) => {
-    const channel = new MessageChannel();
-    let timer = 0;
-    const done = (value: boolean | null) => {
-      window.clearTimeout(timer);
-      channel.port1.close();
-      resolve(value);
-    };
-    timer = window.setTimeout(() => done(null), 3000);
-    channel.port1.onmessage = (event: MessageEvent<unknown>) => {
-      const data = event.data;
-      done(
-        typeof data === 'object' &&
-          data !== null &&
-          'included' in data &&
-          typeof data.included === 'boolean'
-          ? data.included
-          : null,
-      );
-    };
-    try {
-      worker.postMessage({ type: 'SHELL_INCLUDES', paths }, [channel.port2]);
-    } catch {
-      done(null);
-    }
-  });
+async function runsPublishedRelease(own: string[]): Promise<boolean | null> {
+  try {
+    const response = await fetch('/communities', {
+      cache: 'no-store',
+      credentials: 'omit',
+      redirect: 'error',
+      signal: AbortSignal.timeout(8000),
+    });
+    const html = response.ok ? await response.text() : '';
+    if (!html || html.length > 512 * 1024) return null;
+    const published = new Set(
+      [...html.matchAll(/(?:src|href)="(\/[^"?#]+)"/gu)]
+        .map((match) => match[1] ?? '')
+        .filter((path) => releaseFile.test(path)),
+    );
+    if (!published.size) return null;
+    return own.every((path) => published.has(path));
+  } catch {
+    return null;
+  }
 }
 /** Explicit shell activation waits for private operations and unsaved drafts. */
 export function startPwa(
@@ -118,7 +104,7 @@ export function startPwa(
 
   function status(): void {
     if (registration?.waiting) {
-      assess(registration.waiting, true);
+      assess();
       return;
     }
     if (registration?.installing) {
@@ -127,35 +113,38 @@ export function startPwa(
     }
     if (registration?.active) {
       finish(t('Interface pública instalada para uso offline.'));
-      assess(registration.active, false);
       return;
     }
     failed();
   }
   /**
-   * A reload already brings the new HTML and files from the network while the
-   * new worker may still be installing. Such a page is current: it gets no
-   * prompt for an update it already has. Its worker still waits for the old
-   * tabs to close (no automatic skipWaiting, so other tabs keep their release).
+   * Decide the notice by what the server publishes, not by worker events: a
+   * reload already brings the new HTML while the new worker may still be
+   * installing, and an older waiting worker may linger from a past visit. The
+   * notice appears only when this page is behind the published release and a
+   * newer worker is ready (or already active). Nothing shows while unknown,
+   * except a waiting worker offline, which keeps the explicit choice. A
+   * current page never activates its worker by itself (no automatic
+   * skipWaiting), so other tabs keep their release.
    */
-  function assess(worker: ServiceWorker, waiting: boolean): void {
+  function assess(): void {
     const id = ++assessment;
-    const paths = comparableAssets();
-    if (waiting) finish(t('Nova versão pronta. Escolha quando atualizar.'));
-    if (!paths.length) {
+    const own = typeof fetch === 'function' ? pageReleaseAssets() : [];
+    if (!own.length) {
       // Nothing to compare: a waiting worker keeps the explicit choice.
-      outdated = waiting;
-      render();
+      outdated = !!registration?.waiting;
+      if (outdated) finish(t('Nova versão pronta. Escolha quando atualizar.'));
+      else render();
       return;
     }
-    void runsRelease(worker, paths).then((current) => {
+    void runsPublishedRelease(own).then((latest) => {
       if (disposed || id !== assessment) return;
-      outdated = current === null ? waiting : !current;
-      if (current && waiting) {
-        finish(t('Esta página já usa a versão mais recente.'));
-        return;
-      }
-      render();
+      const waiting = !!registration?.waiting;
+      outdated =
+        latest === null ? waiting : !latest && !registration?.installing;
+      if (outdated) finish(t('Nova versão pronta. Escolha quando atualizar.'));
+      else if (waiting) finish(t('Esta página já usa a versão mais recente.'));
+      else render();
     });
   }
 
@@ -186,6 +175,14 @@ export function startPwa(
     };
     result.addEventListener('updatefound', found);
     cleanup.add(() => result.removeEventListener('updatefound', found));
+    // Another tab chose to update: this tab may now run behind the new worker.
+    const replaced = () => {
+      if (!applying && !disposed) assess();
+    };
+    navigator.serviceWorker.addEventListener('controllerchange', replaced);
+    cleanup.add(() =>
+      navigator.serviceWorker.removeEventListener('controllerchange', replaced),
+    );
     status();
   }
 

@@ -4,6 +4,34 @@
   min-width: 0;
   color: var(--text);
 }
+/* Back to the feed position the profile was opened from (19/10/2026). */
+.public-profile-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 14px;
+  padding: 6px 14px 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+}
+.public-profile-back:hover,
+.public-profile-back:focus-visible {
+  background: var(--surface-2);
+}
+.public-profile-back svg {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
 .public-profile-header {
   display: block;
   border: 1px solid var(--line);

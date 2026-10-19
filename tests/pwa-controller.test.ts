@@ -18,20 +18,7 @@ if (!source) throw new Error('Build de teste ausente.');
 class Worker extends EventTarget {
   state = 'installing';
   messages: unknown[] = [];
-  /** Hashed files of this release; `null` models an older worker that never replies. */
-  release: string[] | null = null;
-  postMessage(message: unknown, ports?: MessagePort[]): void {
-    const query = message as { type?: string; paths?: string[] };
-    if (query.type === 'SHELL_INCLUDES') {
-      if (this.release)
-        ports?.[0]?.postMessage({
-          type: 'SHELL_INCLUDES_RESULT',
-          included: (query.paths ?? []).every((path) =>
-            this.release?.includes(path),
-          ),
-        });
-      return;
-    }
+  postMessage(message: unknown): void {
     this.messages.push(message);
   }
   change(state: string): void {
@@ -51,10 +38,17 @@ class Registration extends EventTarget {
   }
 }
 
+/**
+ * `page` lists the hashed files this page loaded; `published` the ones in the
+ * HTML the server returns now (`null` = offline). Without `page`, the context
+ * has no fetch, as in the older tests.
+ */
 function browser(
   locationValues: { search?: string; hash?: string } = {},
   page: string[] | null = null,
+  published: string[] | null = null,
 ) {
+  const fetches: string[] = [];
   const elements = new Map(
     ['pwa-state', 'update', 'apply-update', 'update-result'].map((id) => [
       id,
@@ -109,7 +103,27 @@ function browser(
       querySelectorAll: () => scripts,
     },
     // Only pages that list their files compare releases, as in the browser.
-    ...(page ? { MessageChannel } : {}),
+    ...(page
+      ? {
+          AbortSignal,
+          fetch: (url: string) => {
+            fetches.push(url);
+            if (!published)
+              return Promise.reject(new TypeError('synthetic-offline'));
+            const html = published
+              .map((path) =>
+                path.endsWith('.css')
+                  ? `<link rel="stylesheet" href="${path}">`
+                  : `<script type="module" src="${path}"></script>`,
+              )
+              .join('');
+            return Promise.resolve({
+              ok: true,
+              text: () => Promise.resolve(html),
+            });
+          },
+        }
+      : {}),
     window,
     navigator: { serviceWorker },
     location,
@@ -145,6 +159,7 @@ function browser(
       result = promise;
     },
     calls: () => calls,
+    fetches: () => fetches,
     reloads: () => reloads,
     replacements: () => replacements,
     timers: () => timers.size,
@@ -344,16 +359,16 @@ const current = ['/app-1111111111111111.js', '/app-2222222222222222.css'];
 const older = ['/app-0000000000000000.js', '/app-2222222222222222.css'];
 const settle = () => new Promise<void>((resolve) => setTimeout(resolve, 20));
 
-await test('página recarregada já na versão nova não pede atualização nem ativa o worker sozinha', async () => {
-  const scope = browser({}, current);
+await test('página já na versão publicada nunca mostra o aviso, mesmo com worker antigo esperando', async () => {
+  const scope = browser({}, current, current);
   scope.registration.installing = null;
-  scope.registration.active = Object.assign(new Worker(), { release: older });
-  scope.registration.waiting = Object.assign(new Worker(), {
-    release: current,
-  });
+  scope.registration.active = new Worker();
+  scope.registration.waiting = new Worker();
   scope.start();
+  assert.equal(scope.elements.get('update')?.hidden, true);
   await settle();
   assert.equal(scope.elements.get('update')?.hidden, true);
+  assert.deepEqual(scope.fetches(), ['/communities']);
   // Other tabs may still run the old release: no automatic skipWaiting.
   assert.equal(scope.registration.waiting.messages.length, 0);
   assert.match(scope.status(), /already runs the latest/);
@@ -361,11 +376,11 @@ await test('página recarregada já na versão nova não pede atualização nem 
   scope.window.dispatchEvent(new Event('pagehide'));
 });
 
-await test('página antiga mostra o aviso e recarrega pela ativação do worker, sem esperar controllerchange', async () => {
-  const scope = browser({}, older);
+await test('página atrás da versão publicada mostra o aviso e recarrega pela ativação do worker', async () => {
+  const scope = browser({}, older, current);
   scope.registration.installing = null;
-  scope.registration.active = Object.assign(new Worker(), { release: older });
-  const waiting = Object.assign(new Worker(), { release: current });
+  scope.registration.active = new Worker();
+  const waiting = new Worker();
   scope.registration.waiting = waiting;
   scope.start();
   await settle();
@@ -381,23 +396,26 @@ await test('página antiga mostra o aviso e recarrega pela ativação do worker,
   scope.window.dispatchEvent(new Event('pagehide'));
 });
 
-await test('aba antiga sob worker já ativo e mais novo atualiza só recarregando; worker antigo mudo não inventa aviso', async () => {
-  const scope = browser({}, older);
+await test('aba antiga percebe a troca feita por outra aba e só recarrega; sem rede o aviso não aparece do nada', async () => {
+  const scope = browser({}, older, current);
   scope.registration.installing = null;
-  scope.registration.active = Object.assign(new Worker(), { release: current });
+  scope.registration.active = new Worker();
   scope.start();
+  await settle();
+  assert.equal(scope.elements.get('update')?.hidden, true);
+  assert.deepEqual(scope.fetches(), []);
+  scope.serviceWorker.dispatchEvent(new Event('controllerchange'));
   await settle();
   assert.equal(scope.elements.get('update')?.hidden, false);
   scope.elements.get('apply-update')?.dispatchEvent(new Event('click'));
   assert.equal(scope.reloads(), 1);
-  const silent = browser({}, older);
-  silent.registration.installing = null;
-  silent.registration.active = new Worker();
-  silent.start();
+  const offline = browser({}, older, null);
+  offline.registration.installing = null;
+  offline.registration.active = new Worker();
+  offline.start();
+  offline.serviceWorker.dispatchEvent(new Event('controllerchange'));
   await settle();
-  silent.expire();
-  await settle();
-  assert.equal(silent.elements.get('update')?.hidden, true);
+  assert.equal(offline.elements.get('update')?.hidden, true);
   scope.window.dispatchEvent(new Event('pagehide'));
-  silent.window.dispatchEvent(new Event('pagehide'));
+  offline.window.dispatchEvent(new Event('pagehide'));
 });

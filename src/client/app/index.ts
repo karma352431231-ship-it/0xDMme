@@ -343,7 +343,11 @@ const panels = account.approvalPage
         },
         dmDirectory: (node, valid) => communities.dmDirectory(node, valid),
         showProfile: (container, handle) =>
-          publicProfiles.show(container, handle),
+          publicProfiles.show(
+            container,
+            handle,
+            communities.feedReturnTarget(),
+          ),
       },
       publicChatOpened: () => rightColumn?.showChat(),
     });
@@ -576,6 +580,7 @@ function mountPublicProfiles(content: HTMLElement): void {
       view,
       routeParams(appAddress()).get('handle') ??
         routeParams(appAddress()).get('id'),
+      communities.feedReturnTarget(),
     );
 }
 

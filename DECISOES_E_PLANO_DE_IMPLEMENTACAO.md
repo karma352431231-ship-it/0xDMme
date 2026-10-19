@@ -3247,3 +3247,11 @@ See [the loading contract](docs/BOOT_CONTATOS_CONVERSAS.md#initial-directory-and
 **Ponto importante:** this scheduling regression does not establish the opening
 target. Keep the failed native measurement and require actual full-history and
 post-publication evidence; do not reopen accepted database/storage profiles.
+
+### Voltar do perfil ao feed — 19/10/2026
+
+O proprietário escolheu a opção A: voltar do perfil ao feed mostra na hora a
+página guardada em memória, na mesma posição, e a relê do servidor em segundo
+plano, retirando o que tiver sido removido. Aceitou que um post retirado nesse
+intervalo apareça por um instante; a regra de reler ao voltar de um post não
+muda. Contrato em [feeds](docs/PERFIL_PUBLICO_E_FEEDS.md#feed-e-seguindo).

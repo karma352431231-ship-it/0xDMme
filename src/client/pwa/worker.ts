@@ -62,7 +62,6 @@ interface WorkerScope {
     listener: (event: {
       data: unknown;
       source: { url?: string } | null;
-      ports?: readonly MessagePort[];
       waitUntil(promise: Promise<unknown>): void;
     }) => void,
   ): void;
@@ -188,54 +187,18 @@ async function appDocument(request: Request): Promise<Response> {
   }
 }
 
-/**
- * A page asks whether its own hashed assets belong to this release. The HTML
- * always comes from the network, so a reloaded page may already run the
- * release this worker is still installing; it then needs no update prompt.
- */
-function includedRelease(data: object): boolean | null {
-  const paths = 'paths' in data ? data.paths : null;
-  if (
-    !Array.isArray(paths) ||
-    paths.length === 0 ||
-    paths.length > 32 ||
-    !paths.every(
-      (path) =>
-        typeof path === 'string' && path.startsWith('/') && path.length <= 200,
-    )
-  )
-    return null;
-  return paths.every((path: string) => assets.includes(path));
-}
-function pageMessage(event: {
-  data: unknown;
-  source: { url?: string } | null;
-}): { type: unknown } | null {
+scope.addEventListener('message', (event) => {
   const data = event.data;
   if (
     typeof data !== 'object' ||
     data === null ||
     !('type' in data) ||
+    data.type !== 'ACTIVATE_PUBLIC_SHELL' ||
     !event.source?.url
   )
-    return null;
-  return new URL(event.source.url).origin === scope.location.origin
-    ? data
-    : null;
-}
-scope.addEventListener('message', (event) => {
-  const data = pageMessage(event);
-  if (data?.type === 'SHELL_INCLUDES') {
-    const included = includedRelease(data);
-    if (included !== null)
-      event.ports?.[0]?.postMessage({
-        type: 'SHELL_INCLUDES_RESULT',
-        included,
-      });
     return;
-  }
-  if (data?.type === 'ACTIVATE_PUBLIC_SHELL')
-    event.waitUntil(scope.skipWaiting());
+  if (new URL(event.source.url).origin !== scope.location.origin) return;
+  event.waitUntil(scope.skipWaiting());
 });
 async function notify(): Promise<void> {
   try {
