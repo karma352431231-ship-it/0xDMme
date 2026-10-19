@@ -330,7 +330,8 @@ export function startMessages(
       !textQueue.pending &&
       !!session &&
       navigator.onLine &&
-      !synchronization.busy,
+      document.visibilityState === 'visible' &&
+      !synchronization.conversationWorkPending,
   });
   const synchronization: MessageSynchronization = new MessageSynchronization({
     state: () => ({
@@ -1362,6 +1363,7 @@ export function startMessages(
       status();
     });
     if (!visible || !session || !navigator.onLine) return;
+    broadcastProfile();
     historyUi.resume();
     if (groups.selected) requestRefresh('probe');
     void historyUi.markRead(daily).catch((error: unknown) => {

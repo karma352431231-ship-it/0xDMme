@@ -152,6 +152,16 @@ export class MessageSynchronization {
   get openingRequested(): boolean {
     return this.opening.waiting;
   }
+  /** Profile maintenance may run outside the mounted conversation, but must
+   * yield to an active owner or a queued current-history/user operation. */
+  get conversationWorkPending(): boolean {
+    return (
+      this.busy ||
+      this.maintenance !== null ||
+      this.updates.waiting ||
+      this.opening.waiting
+    );
+  }
   get backgroundReady(): boolean {
     return this.canSynchronize() && !this.updates.waiting;
   }

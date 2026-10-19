@@ -520,6 +520,89 @@ await test('verified history and startup resume do not await an automatic profil
   await turn();
 });
 
+await test('automatic profile publication waits for visibility and resumes without a live hint', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const f = coordinatorFixture(t);
+  await f.messages.openContact(peer('profile-peer'));
+  f.messages.ready();
+  t.mock.timers.tick(150);
+  await turn();
+  await finishStartupMaintenance(t);
+  f.visibility('hidden');
+  f.state.withProfile = true;
+  f.preferences();
+  await turn();
+  assert.deepEqual(
+    f.calls.filter((call) => call.startsWith('profile:')),
+    [],
+  );
+  f.visibility('visible');
+  t.mock.timers.tick(150);
+  await turn();
+  await f.tick();
+  await turn();
+  assert.deepEqual(
+    f.calls.filter((call) => call.startsWith('profile:')),
+    ['profile:profile-peer'],
+  );
+});
+
+await test('visible return finishes a pending history check before starting profile distribution', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const f = coordinatorFixture(t);
+  t.after(() => f.history.resolve());
+  f.state.probeChanged = true;
+  await f.messages.openContact(peer('profile-peer'));
+  f.messages.ready();
+  t.mock.timers.tick(150);
+  await turn();
+  await finishStartupMaintenance(t);
+  f.visibility('hidden');
+  f.state.withProfile = true;
+  f.state.holdHistory = true;
+  f.emit('changed');
+  f.visibility('visible');
+  await turn();
+  assert.deepEqual(
+    f.calls.filter((call) => call.startsWith('profile:')),
+    [],
+  );
+  t.mock.timers.tick(150);
+  await turn();
+  assert.deepEqual(
+    f.calls.filter((call) => call.startsWith('profile:')),
+    [],
+  );
+  f.history.resolve();
+  await turn();
+  await f.tick();
+  await turn();
+  assert.deepEqual(
+    f.calls.filter((call) => call.startsWith('profile:')),
+    ['profile:profile-peer'],
+  );
+});
+
+await test('profile preferences still distribute from a visible page after leaving the conversation', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const f = coordinatorFixture(t);
+  await f.messages.openContact(peer('profile-peer'));
+  f.messages.ready();
+  t.mock.timers.tick(150);
+  await turn();
+  await finishStartupMaintenance(t);
+  f.messages.leave();
+  f.state.withProfile = true;
+  f.preferences();
+  await turn();
+  await f.tick();
+  await turn();
+  assert.deepEqual(
+    f.calls.filter((call) => call.startsWith('profile:')),
+    ['profile:profile-peer'],
+  );
+});
+
 await test('automatic selected-history refresh keeps maintenance priority while explicit opening stays interactive', async (t) => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
   const f = coordinatorFixture(t);

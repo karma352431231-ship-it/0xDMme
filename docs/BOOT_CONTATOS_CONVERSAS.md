@@ -522,3 +522,20 @@ private-route refusal and shutdown tests.
 **Ponto importante:** source/HTTP checks and byte reduction are not proof of the
 four-second target. Exact native candidate and published verification remain
 required before accepting opening, five-to-ten tabs or closing the audit.
+
+## Hidden profile maintenance — 19 October 2026
+
+An actual coordinator regression shows that a profile-preference event can start
+automatic private profile distribution from a hidden page after startup completes.
+Apply the same visibility rule used for other automatic message maintenance:
+wait while hidden and retry on visible return without requiring a live hint.
+An active conversation owner or queued current-history/user check also precedes
+starting a distribution round, preventing visible return from jumping ahead of
+its pending verification. Visible preferences outside a mounted conversation
+retain their existing distribution behavior; suspension alone is not this gate.
+ProfileBroadcast still coalesces rounds and checks availability between contacts;
+an already active owner settles normally. Explicit sends, profile contents,
+identity checks, authorization and SDK exclusivity remain unchanged.
+
+**Ponto importante:** the regression fails before the visibility gate. This closes
+that scheduling defect only; native five-to-ten-tab latency remains unaccepted.

@@ -3213,3 +3213,12 @@ without starting SDK/private operations or altering wallet/recovery documents.
 **Ponto importante:** the recorded 10,456 ms full-history diagnostic remains a
 failure against 4,000 ms. Compression is a prepared correction, not measured
 opening or multi-tab acceptance and not a published release.
+
+Automatic private-profile distribution also follows the approved hidden-tab
+maintenance rule: a hidden preference event cannot start a new round, and visible
+return resumes the coalesced work without waiting for a live hint. Existing active
+owners settle exclusively, and explicit sends/authority/identity checks are
+unchanged. The actual coordinator regression is recorded in
+[the loading contract](docs/BOOT_CONTATOS_CONVERSAS.md#hidden-profile-maintenance--19-october-2026).
+An active or queued conversation check precedes a new profile round; the existing
+visible preference distribution outside the conversation remains supported.
