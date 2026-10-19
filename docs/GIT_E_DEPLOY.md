@@ -1,5 +1,28 @@
 # 0xDMme — Git e envio à VPS
 
+## Reviewed account ranking growth release — 19 October 2026
+
+The owner asked for FOMO-style user rows and their activation. Reviewed source
+`f3de52a96c0a3a6a224d53e69842e0d368336355` adds the previous-window account score, the page bio and follower totals,
+and keeps the aggregated engagement counters for 60 days instead of 30, without
+a schema, dependency, Node, unit, proxy or TURN change. Contract:
+[users ranking](RANKING_COMUNIDADES_TRENDING.md#users-ranking-fomo-rows-and-60-day-counters--owner-decision-on-19102026).
+
+The existing executor pins the complete database trees from
+`6d0645faede7709af13c7033a1ba2caa033853d0` to the reviewed source. Exactly `community-ranking.ts`,
+`post-ranking-signals.ts`, `post-share-clicks.ts`, `profile-ranking.ts` and the new
+`profile-follower-counts.ts` may differ. All migrations 001–092 remain
+byte-identical. An extra module, changed predecessor or SQL change is refused.
+
+Use the routine code-release authorization: exact main CI, then `npm run
+deploy:staging` from the clean pushed integrated checkout. The code-only exchange
+stops and restarts the own workers, so the ranking worker loads metric version 4
+and recomputes every ranking once; the public rankings may answer "in
+preparation" for a moment.
+
+**Ponto importante:** the 30-day user growth starts at 0% and fills in over the
+next 30 days, because counters older than 30 days were already removed.
+
 ## Reviewed signed community reader release — 18 October 2026
 
 The diverse-feed profile demonstrated an exclusive contact-admission timeout

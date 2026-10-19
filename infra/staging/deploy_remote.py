@@ -201,6 +201,11 @@ SCOPED_SNAPSHOT_REVIEWED = '90126582d128ed5e0a0e1a1138950c06b9a53488'
 # upload recovery/retry/collection correction; all 91 migrations stay byte-identical.
 UPLOAD_LIFECYCLE_BEFORE = 'f2049d24b61d95f86e80afe7db79fcfada60bc63'
 UPLOAD_LIFECYCLE_REVIEWED = '1c92c68fc1bacaae0dbbd5fd669827e7b75a2efe'
+# Owner requested the FOMO user ranking and its activation on 19/10/2026. Exact
+# code-only change: previous-window account score, page bio/followers and 60-day
+# aggregated counters; all 92 migrations stay byte-identical.
+ACCOUNT_RANKING_GROWTH_BEFORE = '6d0645faede7709af13c7033a1ba2caa033853d0'
+ACCOUNT_RANKING_GROWTH_REVIEWED = 'f3de52a96c0a3a6a224d53e69842e0d368336355'
 # Measured signed feed/follower read correction; pin the full database trees.
 # All 91 migrations, write paths, timeouts and runtime remain exact.
 COMMUNITY_READER_BEFORE = 'ed30f83d47a3932e391d17a6ecde4031da9ab0ec'
@@ -442,6 +447,9 @@ def database_code_reviewed(candidate, live):
          SCOPED_SNAPSHOT_BEFORE, SCOPED_SNAPSHOT_REVIEWED),
         ({'attachments.ts', 'group-media.ts', 'social-media.ts', 'status-media.ts', 'upload-recovery.ts'},
          UPLOAD_LIFECYCLE_BEFORE, UPLOAD_LIFECYCLE_REVIEWED),
+        ({'community-ranking.ts', 'post-ranking-signals.ts', 'post-share-clicks.ts',
+          'profile-follower-counts.ts', 'profile-ranking.ts'},
+         ACCOUNT_RANKING_GROWTH_BEFORE, ACCOUNT_RANKING_GROWTH_REVIEWED),
     ]
     selected = next((review for review in reviews if changed == review[0]), None)
     if selected is None:
