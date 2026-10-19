@@ -555,3 +555,30 @@ await test('hidden automatic hints coalesce without preparing history and resume
   assert.equal(checks, 1);
   assert.deepEqual(f.notices, []);
 });
+
+await test('a visible return prioritizes only the coalesced pending history check and never creates idle polling', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const f = fixture(t),
+    priorities: (string | undefined)[] = [];
+  f.options.changes = (work) => {
+    priorities.push(work.priority);
+    return Promise.resolve();
+  };
+  f.state.visible = false;
+  f.sync.request('probe');
+  t.mock.timers.tick(150);
+  await turn();
+  f.state.visible = true;
+  f.sync.resume({ priority: 'interactive' });
+  t.mock.timers.tick(150);
+  await turn();
+  assert.deepEqual(priorities, ['interactive']);
+  f.sync.resume({ priority: 'interactive' });
+  t.mock.timers.tick(150);
+  await turn();
+  assert.equal(priorities.length, 1);
+  f.sync.request('probe');
+  t.mock.timers.tick(150);
+  await turn();
+  assert.deepEqual(priorities, ['interactive', undefined]);
+});

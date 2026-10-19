@@ -1,5 +1,24 @@
 # Carregamento de contatos e conversas — 15/10/2026
 
+## Focus return prioritizes an already-pending check — 19 October 2026
+
+The normal native profile now opens all ten same-account tabs within20s and
+passes its five-tab bidirectional/focus checkpoint, but a largest-width message
+to a newly activated tab misses8s. A regression shows that its hidden coalesced
+hint resumes as maintenance instead of foreground history work.
+
+Visibility resume may promote only an already-pending update. `LiveUpdates`
+exposes its bounded waiting state; no account/content or authority is exposed.
+The synchronization owner consumes the existing priority bit at dispatch, and
+later automatic work stays maintenance. A healthy focus return with no pending
+hint does not create another request, poll, cache or timer. Reset/logout still
+clear pending updates and the priority bit. Every resumed read retains current
+session, authority, removals and final confirmation.
+
+**Ponto importante:** returning to a chat prioritizes its queued current check;
+it never declares a stale rendered row current or infers delivery from a local
+bubble. Ten-tab full recovery/latency acceptance still requires measurement.
+
 ## Automatic hidden histories wait for visibility — 19 October 2026
 
 The native five-tab diagnostic records11.498s of hidden SDK work in a15.854s

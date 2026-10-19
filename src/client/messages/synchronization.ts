@@ -72,7 +72,9 @@ export class MessageSynchronization {
       },
     });
   }
-  resume(): void {
+  resume(work: VaultWorkOptions = {}): void {
+    if (this.updates.waiting && this.options.state().visible)
+      this.interactiveChange ||= work.priority === 'interactive';
     this.updates.resume();
     this.schedulePreload();
   }

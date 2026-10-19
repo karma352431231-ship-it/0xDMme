@@ -48,6 +48,9 @@ export class LiveUpdates {
     this.available = options.available;
     this.run = options.run;
   }
+  get waiting(): boolean {
+    return this.pending !== null;
+  }
   request(update: LiveUpdate = 'refresh'): void {
     if (this.pending !== 'refresh') this.pending = update;
     this.resume();

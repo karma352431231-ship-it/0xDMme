@@ -3131,3 +3131,12 @@ resume when visible, rather than preparing identical history concurrently in all
 tabs. This supersedes the earlier automatic-hidden maintenance scheduling, not
 its security checks or the recorded failed stress results. Full normal ten-tab
 latency/resource/recovery acceptance remains to be measured.
+
+### Pending history priority on native tab return — 19 October 2026
+
+The native normal-use profile opens all ten tabs and passes the five-tab checkpoint,
+but a message into a newly activated tab still misses8s. On visibility, prioritize
+only an already-coalesced pending history check; healthy focus creates no new
+request/polling. Use the existing bounded priority bit and retain all current
+verification/reset gates. **Ponto importante:** source scheduling checks do not
+accept largest-width delivery/recovery until the unchanged profile passes.

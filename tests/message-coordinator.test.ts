@@ -548,8 +548,8 @@ await test('a live change checks the visible conversation and defers hidden hist
   assert.deepEqual(
     f.priorities.filter((entry) => entry.operation !== 'pins'),
     [
-      { operation: 'probe', priority: undefined },
-      { operation: 'synchronize', priority: undefined },
+      { operation: 'probe', priority: 'interactive' },
+      { operation: 'synchronize', priority: 'interactive' },
     ],
   );
 });

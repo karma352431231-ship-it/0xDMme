@@ -1355,7 +1355,7 @@ export function startMessages(
         ),
       );
     continuity.visibility(visible);
-    synchronization.resume();
+    synchronization.resume({ priority: 'interactive' });
     void daily.heartbeat(visible).catch(() => {
       if (current !== generation) return;
       message = t(
