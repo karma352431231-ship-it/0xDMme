@@ -4,6 +4,7 @@ import { build } from 'esbuild';
 import { fileURLToPath } from 'node:url';
 import { frontendMatrixSources } from './frontend-matrix-source.ts';
 import { frontendSource } from './frontend-source.ts';
+import { compressedFrontendAssets } from './frontend-compression.ts';
 import { localizationPlugin } from './frontend-localization.ts';
 import { emojiAsset, frontendEmoji } from './frontend-emoji.ts';
 import { frontendWalletMarks } from './frontend-wallet-marks.ts';
@@ -26,6 +27,7 @@ const mime = new Map([
   ['.wasm', 'application/wasm'],
   ['.bin', 'application/octet-stream'],
   ['.woff2', 'font/woff2'],
+  ['.br', 'application/octet-stream'],
 ]);
 // Interface fonts, vendored with their licenses (vendor/fonts/README.md).
 const fonts = new Map([
@@ -90,9 +92,12 @@ async function pruneGeneratedAssets(): Promise<void> {
   const entries = await readdir(directory, { withFileTypes: true });
   if (entries.length > 128) throw new Error('Diretório de build excedido.');
   for (const entry of entries) {
+    const original = entry.name.endsWith('.br')
+      ? entry.name.slice(0, -3)
+      : entry.name;
     if (
       !/^(?:(?:app|i18n-catalog|emoji-catalog|language-start|source-document|phantom-probe|recovery-return|attachment-worker|voice-worklet)-[a-f0-9]{16}\.(?:js|css)|emoji-[a-f0-9]{16}\.json\.gz|source-[a-f0-9]{16}\.tar\.gz|matrix-crypto-18\.9\.0-source-[a-f0-9]{16}-\d{2}\.bin|libsodium-\d+\.\d+\.\d+-sources-[a-f0-9]{16}\.tar\.xz)$/u.test(
-        entry.name,
+        original,
       ) ||
       files.has(entry.name)
     )
@@ -190,6 +195,8 @@ const html = (
   .replace('{{SCRIPT}}', script)
   .replace('{{SOURCES}}', sources)
   .replace('{{EMOJI_SOURCES}}', `/${emojiAsset}`)
+  .replace('{{I18N_CATALOG}}', catalogUrl)
+  .replace('{{EMOJI_CATALOG}}', emojiCatalogUrl)
   .replace('{{STYLE}}', style);
 asset('index.html', Buffer.from(html));
 asset(
@@ -288,6 +295,9 @@ const worker = workerSource
   )
   .replace('{{VERSION}}', version.digest('hex').slice(0, 16));
 asset('sw.js', Buffer.from(worker));
+// Sidecars are public build artifacts; PWA hashes still cover decoded originals.
+const compressed = compressedFrontendAssets(files);
+for (const [name, bytes] of compressed) asset(`${name}.br`, bytes);
 await mkdir(directory, { recursive: true });
 for (const [name, bytes] of files)
   await writeFile(new URL(name, directory), bytes);
@@ -295,7 +305,11 @@ const manifest = [...files.keys()].map((name) => {
   const extension = name.slice(name.lastIndexOf('.'));
   const type = mime.get(extension);
   if (!type) throw new Error('MIME ausente.');
-  return { path: `/${name}`, type };
+  return {
+    path: `/${name}`,
+    type,
+    ...(compressed.has(name) ? { br: `/${name}.br` } : {}),
+  };
 });
 await writeFile(new URL('assets.json', directory), JSON.stringify(manifest));
 await pruneGeneratedAssets();

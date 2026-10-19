@@ -3193,3 +3193,23 @@ intermediate tar budget, exact incorporated inputs, license notices, explicit
 public selection and total deployment budgets remain unchanged. This is build
 packaging only; no user data, runtime dependency or shared infrastructure changes.
 See [the source packaging contract](docs/FONTES_FRONTEND.md).
+
+### Public startup transfer correction — 19 October 2026
+
+Native opening diagnostics identify a 7.8 MB uncompressed Matrix WASM download
+and startup work preceding the directory. Prepare bounded Brotli versions of
+fixed public startup assets in the Mac build; validate exact decoded bytes on
+server load and negotiate their HTTP representations without changing private
+responses, original MIME/CSP, browser caching, source distribution or PWA hashes.
+Keep original bytes for clients without Brotli support. No shared proxy/runtime,
+dependency or migration change is needed. Details and acceptance boundaries are
+in [the loading contract](docs/BOOT_CONTATOS_CONVERSAS.md#public-startup-asset-transfer--19-october-2026).
+
+The app document preloads the fixed public catalog modules and WASM transfer;
+the native local control verifies reuse by the SDK without duplicating its
+download under the unchanged cache policy. This moves public transfer earlier,
+without starting SDK/private operations or altering wallet/recovery documents.
+
+**Ponto importante:** the recorded 10,456 ms full-history diagnostic remains a
+failure against 4,000 ms. Compression is a prepared correction, not measured
+opening or multi-tab acceptance and not a published release.

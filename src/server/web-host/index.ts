@@ -4,6 +4,13 @@ import { createServer as createTlsServer } from 'node:https';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
+import {
+  brotliPath,
+  linkBrotliAssets,
+  publicAssetRepresentation,
+} from '../public-asset-encoding/index.ts';
+import type { PublicAsset as WebAsset } from '../public-asset-encoding/index.ts';
+export type { PublicAsset as WebAsset } from '../public-asset-encoding/index.ts';
 import type { Database } from '../database/index.ts';
 import type { ObjectStore } from '../object-store/index.ts';
 import { recoveryEntry } from '../../shared/wallet-recovery/index.ts';
@@ -11,12 +18,6 @@ import {
   approvalDocumentUrl,
   approvalEntryUrl,
 } from '../../shared/wallet-approval/index.ts';
-
-export interface WebAsset {
-  content: Uint8Array;
-  type: string;
-  etag?: string;
-}
 
 function assetEntry(entry: unknown): { path: string; type: string } {
   if (
@@ -49,8 +50,11 @@ export async function loadWebAssets(
   if (!Array.isArray(manifest) || manifest.length > 64)
     throw new Error('Build inválido.');
   const assets = new Map<string, WebAsset>();
+  const encodings: { path: string; br: string }[] = [];
   for (const value of manifest as unknown[]) {
     const entry = assetEntry(value);
+    const br = brotliPath(value, entry.path);
+    if (br) encodings.push({ path: entry.path, br });
     const content = await readFile(new URL(entry.path.slice(1), root));
     checkAssetSize(entry.path, content.length);
     assets.set(entry.path === '/index.html' ? '/' : entry.path, {
@@ -59,6 +63,7 @@ export async function loadWebAssets(
       etag: `"${createHash('sha256').update(content).digest('hex')}"`,
     });
   }
+  linkBrotliAssets(encodings, assets);
   if (!assets.has('/') || !assets.has('/sw.js'))
     throw new Error('Build incompleto.');
   return assets;
@@ -203,17 +208,24 @@ function sendAsset(
   }
   if (request.url === '/sw.js')
     response.setHeader('Service-Worker-Allowed', '/');
-  if (asset.etag) {
-    response.setHeader('ETag', asset.etag);
-    if (request.headers['if-none-match'] === asset.etag) {
+  const representation = publicAssetRepresentation(
+    asset,
+    request.headers['accept-encoding'],
+  );
+  if (asset.br) response.setHeader('Vary', 'Accept-Encoding');
+  if (representation.encoding)
+    response.setHeader('Content-Encoding', representation.encoding);
+  if (representation.etag) {
+    response.setHeader('ETag', representation.etag);
+    if (request.headers['if-none-match'] === representation.etag) {
       response.writeHead(304).end();
       return;
     }
   }
   response.setHeader('Content-Type', asset.type);
-  response.setHeader('Content-Length', asset.content.byteLength);
+  response.setHeader('Content-Length', representation.content.byteLength);
   response.writeHead(200);
-  response.end(request.method === 'HEAD' ? undefined : asset.content);
+  response.end(request.method === 'HEAD' ? undefined : representation.content);
 }
 
 function sendHealth(

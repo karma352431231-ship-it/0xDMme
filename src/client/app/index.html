@@ -12,6 +12,15 @@
     <link rel="icon" href="/icon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="/icon-192.png" />
     <link rel="stylesheet" href="{{STYLE}}" />
+    <link rel="modulepreload" href="{{I18N_CATALOG}}" />
+    <link rel="modulepreload" href="{{EMOJI_CATALOG}}" />
+    <link
+      rel="preload"
+      as="fetch"
+      type="application/wasm"
+      crossorigin="anonymous"
+      href="/matrix-crypto-18.9.0.wasm"
+    />
     <script type="module" src="{{SCRIPT}}"></script>
     <title>0xDMme</title>
   </head>

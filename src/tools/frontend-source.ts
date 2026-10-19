@@ -17,6 +17,8 @@ const authored = [
   'src/client/vault-labels',
   'src/client/message-state',
   'src/tools/frontend-localization.ts',
+  'src/tools/frontend-compression.ts',
+  'src/shared/public-asset-encoding',
   'src/client/public-search',
   'src/client/public-mentions',
   'src/shared/public-mentions',

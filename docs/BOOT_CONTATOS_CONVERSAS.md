@@ -484,3 +484,41 @@ coordinators remain existing hotspots: separately extract session/identity first
 then outbox/composition and history/view lifecycle, preserving cancellation,
 permissions, drafts, verified history and recovery tests. This change adds only
 scheduler wiring and removes eager initialization from the directory loader.
+
+## Public startup asset transfer — 19 October 2026
+
+A bounded native diagnostic records a 7,805,486-byte uncompressed Matrix WASM
+transfer taking about 2,445 ms; full confirmed history still exceeds the owner's
+4,000 ms target. Keep that failed measurement. The Mac build now prepares Brotli
+sidecars for the fixed public app JS/CSS, language/catalog modules and pinned
+Matrix WASM only. The measured WASM sidecar is 1,637,480 bytes. This transfer
+reduction alone does not establish opening or multi-tab acceptance.
+
+The app document also announces its two fixed catalog modules and public WASM
+download before the account/bootstrap module discovers them. These are public
+bytes only; SDK initialization, authorization and private operations retain their
+normal gates. The native local control verifies that the fetch preload is reused
+by the real SDK even with the existing no-store headers/cache-disabled profile,
+without a second SDK download. Wallet/recovery documents gain no WASM preload.
+
+The existing asset manifest associates each representation with its original.
+Server startup verifies the decoded bytes exactly with the original length as
+its decompression bound; missing, mismatched or oversized representations fail
+startup. HTTP chooses Brotli only when accepted, uses representation-specific
+ETags and Vary, and preserves HEAD/304, MIME and security headers. Uncompressed
+clients keep their existing bytes. The source package, API/private responses,
+user media and service worker script are excluded. PWA hashes continue to cover
+decoded originals; sidecars are not added to offline cache entries.
+
+No new dependency, compression work per request, migration, retention, browser
+cache policy or shared infrastructure change is introduced. The existing 64-entry
+asset manifest, 2 MiB ordinary asset / 8 MiB pinned WASM limits and total release
+budgets remain unchanged. Encoding selection and source verification have their
+own modules; web-host only wires loading and response selection. Its existing
+mixed transport responsibility remains a separate review: extract public assets
+first, then health/routing, preserving origin/CSP, cache, conditional responses,
+private-route refusal and shutdown tests.
+
+**Ponto importante:** source/HTTP checks and byte reduction are not proof of the
+four-second target. Exact native candidate and published verification remain
+required before accepting opening, five-to-ten tabs or closing the audit.
