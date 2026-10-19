@@ -382,7 +382,6 @@ export const catalog: Record<string, readonly [string, string]> = {
   ],
   '@{0}, {1}': ['@{0}, {1}', '@{0}，{1}'],
   '← {0}': ['← {0}', '← {0}'],
-  '← Feed': ['← Feed', '← 动态'],
   'Voltar ao feed': ['Back to feed', '返回动态'],
   '← Voltar à Atividade': ['← Back to Activity', '← 返回活动'],
   '+ Seguir': ['+ Follow', '+ 关注'],

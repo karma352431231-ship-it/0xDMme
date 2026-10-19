@@ -69,7 +69,7 @@ function about(host: HTMLElement, summary: ProfileSummary): void {
 
 /** Return to the exact feed position the profile was opened from. */
 function feedBackLink(href: string): HTMLAnchorElement {
-  const back = element('a', t('Voltar ao feed'), 'public-profile-back');
+  const back = element('a', t('Voltar ao feed'), 'feed-back-link');
   back.href = href;
   back.prepend(communityIcon('back'));
   return back;

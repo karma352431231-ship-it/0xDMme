@@ -182,7 +182,8 @@
   font-size: 0;
 }
 /* The way back is the community link above the post. */
-[data-community-layout='post'] > .community-tools > a:not(:has(svg)) {
+[data-community-layout='post'] > .community-tools > a:not(:has(svg)),
+[data-community-layout='post'] > .community-tools > a.feed-back-link {
   display: none;
 }
 

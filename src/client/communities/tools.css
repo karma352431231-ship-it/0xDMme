@@ -35,6 +35,45 @@
   border-radius: 8px;
   font-size: var(--fs-caption);
 }
+/*
+ * "Back to feed" pill, the same on a public profile and on a community page
+ * (19/10/2026). Listed with the toolbar selector so the plainer toolbar links
+ * and their icon-only phone variant do not restyle it.
+ */
+.feed-back-link,
+.community-tools > a.feed-back-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  width: auto;
+  min-height: 0;
+  margin: 0 0 14px;
+  padding: 6px 14px 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+}
+.community-tools > a.feed-back-link {
+  margin: 0;
+}
+.feed-back-link:hover,
+.feed-back-link:focus-visible {
+  background: var(--surface-2);
+}
+.feed-back-link svg {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
 .community-more {
   position: relative;
 }

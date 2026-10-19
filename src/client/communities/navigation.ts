@@ -28,7 +28,11 @@ export function communityNavigation(
   if (options.view === 'create') return;
   const tools = el('nav', '', 'community-tools');
   tools.setAttribute('aria-label', t('Acessos de comunidades'));
-  if (options.selected) link(tools, t('← Feed'), '#communities?view=feed');
+  if (options.selected) {
+    const back = link(tools, t('Voltar ao feed'), '#communities?view=feed');
+    back.classList.add('feed-back-link');
+    iconLabel(back, 'back');
+  }
   const menu = el('details', '', 'community-more'),
     summary = el('summary', t('Mais opções'));
   iconLabel(summary, 'more');

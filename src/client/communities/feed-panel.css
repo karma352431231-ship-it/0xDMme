@@ -75,6 +75,10 @@
     padding: 6px;
     border-radius: 9px;
   }
+  #app-shell .feed-panel .community-tools > a.feed-back-link {
+    padding: 5px 12px 5px 8px;
+    border-radius: 999px;
+  }
   #app-shell .feed-panel .community-more > summary {
     font-size: 0;
   }
