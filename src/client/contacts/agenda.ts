@@ -1,3 +1,4 @@
+import type { VaultWorkOptions } from '../vault-authority/index.ts';
 import { t, currentLanguage } from '../../shared/i18n/index.ts';
 import {
   addressBookEntry,
@@ -110,6 +111,7 @@ export class AddressBook {
   /** Bounded opening of encrypted agenda heads, including removal markers. */
   async page(
     after: string | null = null,
+    work: VaultWorkOptions = {},
   ): Promise<{ items: BookVersion[]; next: string | null }> {
     const groups = [...this.sync.currentHeads().values()]
       .map((heads) =>
@@ -138,13 +140,16 @@ export class AddressBook {
     if (after !== null && offset === 0)
       throw new Error('A agenda mudou. Atualize a lista antes de continuar.');
     const page = groups.slice(offset, offset + 16);
-    const items = await this.openGroups(page);
+    const items = await this.openGroups(page, work);
     return {
       items,
       next: groups.length > offset + 16 ? page.at(-1)![0]!.change.entity : null,
     };
   }
-  private async openGroups(groups: VaultEntry[][]): Promise<BookVersion[]> {
+  private async openGroups(
+    groups: VaultEntry[][],
+    work: VaultWorkOptions,
+  ): Promise<BookVersion[]> {
     if (groups.some((heads) => heads.length > 16))
       throw new Error(
         'Resolva as versões deste contato antes de abrir a lista.',
@@ -155,6 +160,7 @@ export class AddressBook {
       const page = entries.slice(offset, offset + 16);
       const values = await this.sync.openMany(
         page.map((entry) => entry.commit.id),
+        work,
       );
       for (const [index, vault] of page.entries())
         versions.set(vault.commit.id, {

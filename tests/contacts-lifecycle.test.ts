@@ -273,3 +273,26 @@ await test('salvar e solicitar por endereço completo identificam EVM/Solana sem
   assert.equal(discovered.length, 2);
   assert.equal(requested.length, 2);
 });
+
+await test('foreground approved-contact loading retains queue priority and refuses unavailable fresh authority', async (t) => {
+  browserEnvironment(t);
+  const failure = new Error('Current contact authority unavailable');
+  const read: VaultAccess['withVault'] = (_offline, _work, options) => {
+    assert.equal(options?.priority, 'interactive');
+    return Promise.reject(failure);
+  };
+  const contacts = new Contacts({
+    withVault: read,
+    withLocalVault: () => Promise.reject(failure),
+  });
+  contacts.setSession({
+    accountId: crypto.randomUUID(),
+    deviceId: crypto.randomUUID(),
+    csrf: 'synthetic',
+  } as AccountSession);
+  await assert.rejects(
+    contacts.list('approved', false, { priority: 'interactive' }),
+    (error: unknown) => error === failure,
+  );
+  assert.equal(contacts.pages.size, 0);
+});

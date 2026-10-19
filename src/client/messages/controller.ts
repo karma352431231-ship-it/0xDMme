@@ -1024,9 +1024,9 @@ export class Messages {
       state: messageStates.history,
     };
   }
-  async archivedPeers(after: string | null) {
+  async archivedPeers(after: string | null, work: VaultWorkOptions = {}) {
     if (this.session && navigator.onLine)
-      return this.access.withVault(false, (a) => historyPeers(a, after));
+      return this.access.withVault(false, (a) => historyPeers(a, after), work);
     const locator = await localLocator();
     if (!locator) return { items: [], next: null };
     return this.access.withLocalVault(locator, (a) => historyPeers(a, after));

@@ -3094,3 +3094,14 @@ removal, SDK exclusivity, FIFO/durability/idempotency and resource limits.
 **Ponto importante:** contact/group/presence refresh may complete after the user
 text. Local admission is not a delivery acknowledgement or finite load acceptance.
 See [the loading contract](docs/BOOT_CONTATOS_CONVERSAS.md#saved-user-texts-precede-unrelated-maintenance--19-october-2026).
+
+### Foreground private directory priority — 19 October 2026
+
+The first visible startup already assigns interactive work to pin/runtime setup,
+but previously dropped it through agenda/approved-contact/archive loading. Keep
+that existing priority end to end through these bounded directory owners; later
+automatic checks and hidden startup stay maintenance. Preserve fresh signed
+contact reads, encrypted agenda/removal checks, generation cancellation and SDK
+exclusivity. **Ponto importante:** the failed28.898s sixth-tab opening remains a
+failed measurement until a corrected finite comparison meets the original20s
+limit. [Loading contract](docs/BOOT_CONTATOS_CONVERSAS.md#first-directory-opening-retains-foreground-priority--19-october-2026).

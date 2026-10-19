@@ -612,3 +612,20 @@ await test('a newer visible live hint yields after current contacts before unrel
   f.groupLoad.resolve();
   await turn();
 });
+
+await test('first visible directory startup preserves its priority through contact loading while later refreshes stay maintenance', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const f = coordinatorFixture(t);
+  f.messages.ready();
+  t.mock.timers.tick(150);
+  await turn();
+  assert.equal(f.directoryWork[0]?.priority, 'interactive');
+  await f.messages.openContact(peer('selected-after-startup'));
+  f.directoryWork.length = 0;
+  f.emit('authorization');
+  f.emit('changed');
+  t.mock.timers.tick(150);
+  await turn();
+  assert.equal(f.directoryWork.length, 1);
+  assert.equal(f.directoryWork[0]?.priority, undefined);
+});

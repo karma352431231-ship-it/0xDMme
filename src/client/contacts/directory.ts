@@ -1,3 +1,4 @@
+import type { VaultWorkOptions } from '../vault-authority/index.ts';
 import { AddressBook, walletEntity, walletKey } from './agenda.ts';
 import type {
   AddressBookEntry,
@@ -72,10 +73,10 @@ export class ContactDirectory {
     this.contacts.set(walletKey(contact), { entity, contact });
     this.identities.set(walletKey(contact), entity);
   }
-  async load(more = false): Promise<void> {
+  async load(more = false, work: VaultWorkOptions = {}): Promise<void> {
     if (more && !this.more) return;
     const generation = this.generation;
-    const page = await this.book.page(more ? this.after : null);
+    const page = await this.book.page(more ? this.after : null, work);
     if (generation !== this.generation) throw new Error('Sessão alterada.');
     for (const entry of page.items) {
       const entity = entry.vault.change.entity,

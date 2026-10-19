@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { MessageDirectory } from '../src/client/messages/directory-controller.ts';
+import type { VaultWorkOptions } from '../src/client/vault-authority/index.ts';
 import type { Peer } from '../src/shared/contacts/index.ts';
 import { deferred } from './fixtures/deferred.ts';
 
@@ -110,3 +111,30 @@ for (const phase of ['contacts', 'archive', 'prepare'] as const)
     assert.deepEqual(f.directory.peers, []);
     assert.equal(f.publications(), 0);
   });
+
+await test('foreground directory work retains its priority across agenda, approved peers and archived history', async () => {
+  const f = fixture();
+  const phases: string[] = [];
+  const check = (phase: string, work?: VaultWorkOptions) => {
+    assert.equal(work?.priority, 'interactive');
+    phases.push(phase);
+  };
+  f.sources.agenda.load = (_more, work) => {
+    check('agenda', work);
+    return Promise.resolve();
+  };
+  f.sources.contacts.list = (_kind, _more, work) => {
+    check('approved', work);
+    return Promise.resolve({ items: [peer('1')], blocks: [], next: null });
+  };
+  f.sources.archivedPeers = (_after, work) => {
+    check('archive', work);
+    return Promise.resolve({ items: [], next: null });
+  };
+  await f.directory.refresh(false, true, { priority: 'interactive' });
+  assert.deepEqual(phases, ['agenda', 'approved', 'archive']);
+  assert.deepEqual(
+    f.directory.peers.map((p) => p.accountId),
+    ['1'],
+  );
+});

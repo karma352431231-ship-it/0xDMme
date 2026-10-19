@@ -76,6 +76,7 @@ const bundle = await build({
 
 export function coordinatorFixture(t: TestContext) {
   const calls: string[] = [];
+  const directoryWork: VaultWorkOptions[] = [];
   const priorities: {
     operation: string;
     priority: 'interactive' | undefined;
@@ -204,7 +205,12 @@ export function coordinatorFixture(t: TestContext) {
       ...base,
       peers: [],
       hasMore: () => false,
-      refresh: () => {
+      refresh: (
+        _more: boolean | undefined,
+        _online: boolean | undefined,
+        work: VaultWorkOptions = {},
+      ) => {
+        directoryWork.push(work);
         calls.push('contacts');
         options.changed([]);
         return state.holdContacts ? contactLoad.promise : Promise.resolve();
@@ -475,6 +481,7 @@ export function coordinatorFixture(t: TestContext) {
     state,
     calls,
     priorities,
+    directoryWork,
     page,
     initialization,
     groupLoad,

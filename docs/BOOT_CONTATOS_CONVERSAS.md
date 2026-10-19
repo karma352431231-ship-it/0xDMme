@@ -1,5 +1,24 @@
 # Carregamento de contatos e conversas — 15/10/2026
 
+## First directory opening retains foreground priority — 19 October 2026
+
+The ordinary native-tab comparison passes its five-tab bidirectional send/focus
+checkpoint, then stops on a28.898s sixth-tab opening against the20s limit. The
+startup owner forwarded initial interactive priority to pins/runtime but dropped
+it before the approved-contact/agenda/archive directory. Actual coordinator and
+directory/controller regressions reproduce the loss before correction.
+
+The first visible startup now forwards its existing work options through the
+whole bounded directory: encrypted agenda heads, approved-contact signed reads
+and local archived-peer discovery under fresh authority. Later automatic checks
+and hidden startup retain maintenance priority. Directory changes/generation,
+contact authorization, pagination and both vault removal checks are unchanged;
+this is neither an authorization cache nor reuse of completed reads.
+
+**Ponto importante:** current contact discovery remains mandatory before showing
+an authorized peer. Passing priority regressions does not establish the20s finite
+opening target; retain the failed sixth-tab measurement and compare separately.
+
 ## Saved user texts precede unrelated maintenance — 19 October 2026
 
 A native ordinary-use comparison reaches five same-account tabs but stops at the

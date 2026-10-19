@@ -224,7 +224,7 @@ export function startMessages(
   const directoryData = new MessageDirectory({
     agenda,
     contacts,
-    archivedPeers: (after) => controller.archivedPeers(after),
+    archivedPeers: (after, work) => controller.archivedPeers(after, work),
     changed: (peers) => {
       if (selected)
         selected =
@@ -1047,8 +1047,11 @@ export function startMessages(
       button.hidden =
         !directoryData.hasMore(navigator.onLine) && groups.next === null;
   }
-  async function refreshContacts(more = false): Promise<void> {
-    await directoryData.refresh(more);
+  async function refreshContacts(
+    more = false,
+    work: VaultWorkOptions = {},
+  ): Promise<void> {
+    await directoryData.refresh(more, true, work);
     contactsMore();
   }
   async function refreshLocalContacts(more = false): Promise<void> {
@@ -1063,14 +1066,14 @@ export function startMessages(
   async function refresh(requested: VaultWorkOptions = {}): Promise<void> {
     synchronization.startRefresh();
     const current = generation;
-    const work: VaultWorkOptions = {
-      ...startupWarmup.initialWork(document.visibilityState === 'visible'),
-      ...requested,
-    };
+    const initialWork = startupWarmup.initialWork(
+      document.visibilityState === 'visible',
+    );
+    const work: VaultWorkOptions = { ...initialWork, ...requested };
     try {
       await initializeMessageDirectory({
         loadPins: () => controller.loadPins(work),
-        loadContacts: refreshContacts,
+        loadContacts: () => refreshContacts(false, initialWork),
         initialize: () => controller.initialize(work),
         guard: () => {
           if (current !== generation) throw new Error('Sessão alterada.');
