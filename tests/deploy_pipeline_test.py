@@ -376,9 +376,10 @@ class DeploymentTests(unittest.TestCase):
                 with self.assertRaises(remote.ActivationFailed) as error:
                     remote.exchange(candidate, previous, fail)
             self.assertTrue(error.exception.rollback_verified)
-            self.assertEqual(command.call_count, 2)
-            self.assertTrue(all(c.args[0] == ['systemctl', 'restart', '0xdmme-test.service']
-                                for c in command.call_args_list))
+            self.assertEqual([c.args[0] for c in command.call_args_list],
+                             [['systemctl', 'restart', '0xdmme-test.service'],
+                              ['systemctl', 'reset-failed', '0xdmme-test.service'],
+                              ['systemctl', 'restart', '0xdmme-test.service']])
             ready.assert_called_once()
             self.assertEqual((base / 'release/version').read_text(), 'old')
             self.assertEqual(sentinel.read_text(), 'preserve this')

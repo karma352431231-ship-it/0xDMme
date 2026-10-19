@@ -10,6 +10,7 @@ import os
 from pathlib import Path, PurePosixPath
 import re
 import resource
+import shlex
 import shutil
 import subprocess
 import sys
@@ -257,8 +258,8 @@ COMMUNITIES_NEW_TABLES = ('public_profiles', 'communities', 'community_follows',
     'social_media', 'social_receipts', 'community_media', 'public_moderation')
 
 
-def run(args, timeout=30):
-    return subprocess.run(args, check=True, capture_output=True, timeout=timeout).stdout
+def run(args, timeout=30, env=None):
+    return subprocess.run(args, check=True, capture_output=True, timeout=timeout, env=env).stdout
 
 
 def digest(path):
@@ -935,7 +936,61 @@ def prepare(config, work):
             continue
         os.chown(path, 0, 0)
         os.chmod(path, 0o755 if path.is_dir() or path.stat().st_mode & 0o111 else 0o644)
+    # Still in preparation: a refusal here leaves the web unit and workers untouched.
+    with measured('moderation_preflight'):
+        moderation_preflight(candidate)
     return candidate
+
+
+MODERATION_ENVIRONMENT = re.compile(r'HASH_TALK_(?:MODERATION|MEDIA)_[A-Z0-9_]+')
+MODERATION_PREFLIGHT = """
+import { pathToFileURL } from 'node:url';
+const root = process.argv[1];
+const { readPoseModerationConfiguration } = await import(
+  pathToFileURL(root + '/src/server/public-moderation/configuration.ts').href);
+try {
+  await readPoseModerationConfiguration(process.env);
+} catch (error) {
+  process.stdout.write(String(error?.message ?? 'unknown').slice(0, 200));
+  process.exitCode = 3;
+}
+"""
+
+
+def unit_moderation_environment(unit=UNIT):
+    """Only moderation/media settings of the unit; database and other secrets never leave it."""
+    values = {}
+    files = run(['systemctl', 'show', unit, '-p', 'EnvironmentFiles', '--value']).decode()
+    for line in files.splitlines():
+        path = Path(line.split(' (', 1)[0].strip().lstrip('-'))
+        if not line.strip() or not path.is_file():
+            continue
+        for entry in path.read_text().splitlines():
+            key, separator, value = entry.strip().partition('=')
+            if separator and MODERATION_ENVIRONMENT.fullmatch(key):
+                values[key] = value.strip().strip('"').strip("'")
+    assignments = run(['systemctl', 'show', unit, '-p', 'Environment', '--value']).decode()
+    for entry in shlex.split(assignments):
+        key, separator, value = entry.partition('=')
+        if separator and MODERATION_ENVIRONMENT.fullmatch(key):
+            values[key] = value
+    return values
+
+
+def moderation_preflight(candidate):
+    """Refuse before any unit stops when the candidate would reject its moderation approvals."""
+    # Like the runtime check in prepare(), this reads the root-owned candidate; only
+    # moderation/media settings and a fixed PATH reach the process.
+    environment = dict(unit_moderation_environment(), PATH='/usr/bin:/bin')
+    try:
+        run(['/usr/bin/node', '--input-type=module', '-e', MODERATION_PREFLIGHT, str(candidate)],
+            timeout=60, env=environment)
+    except subprocess.CalledProcessError as error:
+        output = (error.stdout or b'').decode(errors='replace').strip()
+        lines = [line for line in (error.stderr or b'').decode(errors='replace').splitlines()
+                 if 'Error' in line]
+        reason = output or (lines[-1].strip()[:200] if lines else 'no reason')
+        raise RuntimeError('Candidate refuses the moderation configuration: ' + reason) from None
 
 
 class ActivationFailed(RuntimeError):
@@ -960,6 +1015,8 @@ def exchange(candidate, previous, verify):
             if installed:
                 live.rename(candidate)
             previous.rename(live)
+            # A failing candidate can exhaust the unit's start limit; the rollback must still start.
+            run(['systemctl', 'reset-failed', UNIT])
             run(['systemctl', 'restart', UNIT])
             wait_ready()
         except BaseException:
