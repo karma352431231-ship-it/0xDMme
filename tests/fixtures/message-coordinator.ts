@@ -288,7 +288,8 @@ export function coordinatorFixture(t: TestContext) {
         drafts.push(draft);
         calls.push('compose:' + draft.peer);
       },
-      sendPending: async () => {
+      sendPending: async (options: VaultWorkOptions = {}) => {
+        priorities.push({ operation: 'send', priority: options.priority });
         calls.push('send-pending');
         if (state.holdSend) await sending.promise;
         for (const draft of drafts.splice(0, 16)) published(draft);

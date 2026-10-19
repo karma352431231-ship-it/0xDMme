@@ -95,9 +95,12 @@ await test('envio após selecionar janela retida exige identidades atuais antes 
   controller.pending = () =>
     Promise.resolve([{ id: crypto.randomUUID(), peer }]);
   const failure = new Error('Identidades indisponíveis');
-  controller.loadPins = () => Promise.reject(failure);
+  controller.loadPins = (options = {}) => {
+    assert.equal(options.priority, 'interactive');
+    return Promise.reject(failure);
+  };
   await assert.rejects(
-    controller.sendPending(),
+    controller.sendPending({ priority: 'interactive' }),
     (error: unknown) => error === failure,
   );
   assert.equal(data.authorityReads, 0);
@@ -511,3 +514,22 @@ await test('revocation at final authority rejects the complete projection before
   assert.ok(!f.data.requests.includes('confirm'));
   assert.equal(f.data.frames.at(-1), null);
 });
+
+for (const interactive of [false, true])
+  await test(`pending publication keeps its requested authority priority and stops before unverified peer IO: interactive=${interactive}`, async (t) => {
+    const f = resumeFixture();
+    f.controller.pending = () =>
+      Promise.resolve([{ id: crypto.randomUUID(), peer: f.peer }]);
+    f.controller.loadPins = () => Promise.resolve();
+    const failure = new Error('Current authority unavailable');
+    const read: VaultAccess['withVault'] = (_offline, _work, options) => {
+      assert.equal(options?.priority, interactive ? 'interactive' : undefined);
+      return Promise.reject(failure);
+    };
+    t.mock.method(f.access, 'withVault', read);
+    await assert.rejects(
+      f.controller.sendPending(interactive ? { priority: 'interactive' } : {}),
+      (error: unknown) => error === failure,
+    );
+    assert.equal(f.data.requests.length, 0);
+  });

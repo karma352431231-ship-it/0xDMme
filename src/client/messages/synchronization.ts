@@ -85,6 +85,13 @@ export class MessageSynchronization {
     this.automaticAttempts = 0;
     this.updates.request(update);
   }
+  /** Finish the current owner, then yield a multi-owner recheck to a saved
+   * user send or requested opening. Keep one coalesced hint for the remainder. */
+  continueChanges(): boolean {
+    if (!this.options.state().textPending && !this.opening.waiting) return true;
+    this.updates.request('probe');
+    return false;
+  }
   startRefresh(): void {
     this.interactiveChange = false;
     this.updates.clear();

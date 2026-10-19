@@ -1,5 +1,30 @@
 # Carregamento de contatos e conversas — 15/10/2026
 
+## Saved user texts precede unrelated maintenance — 19 October 2026
+
+A native ordinary-use comparison reaches five same-account tabs but stops at the
+first UI delivery deadline. The text remains locally queued: the current history
+recheck continues through contacts, groups and presence before transmission can
+claim its owner. A real coordinator regression reproduces this ordering.
+
+The synchronization owner now yields a multi-owner change recheck between steps
+when a user text or requested opening is waiting. It retains one coalesced probe
+for the remaining automatic work. The active authority/SDK operation finishes
+normally; no work is interrupted or run concurrently. The regression verifies
+that sending wins the next turn and unrelated maintenance resumes afterward.
+
+Explicit queued text transmission also forwards its existing interactive priority
+through current pin loading, recipient verification, pin persistence and encrypted
+publication. Automatic retries/profile-card work keep maintenance priority.
+Identity and vault owners accept the same bounded work options; current authority,
+peer identity, removal checks, durable pin commit, FIFO outbox/idempotent packets,
+SDK exclusivity and fresh history confirmation remain mandatory.
+
+**Ponto importante:** contacts/groups/presence may finish after a just-saved text
+is sent. A pending local bubble does not establish server acceptance or delivery.
+These source regressions are not assembled performance acceptance; preserve the
+failed eight-second result and measure the corrected candidate separately.
+
 ## Profile publication follows verified history — 18 October 2026
 
 The assembled trace includes an automatic own profile-card publication before

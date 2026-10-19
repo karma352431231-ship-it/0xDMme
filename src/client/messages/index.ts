@@ -378,7 +378,9 @@ export function startMessages(
     save: (draft) => controller.queueText(draft),
     available: () => synchronization.foregroundReady,
     transmit: async () => {
-      const ok = await synchronization.run(() => sendPending());
+      const ok = await synchronization.run(() =>
+        sendPending({ priority: 'interactive' }),
+      );
       return { ok, more: (await controller.pending()).length > 0 };
     },
     changed: () => {
@@ -729,10 +731,10 @@ export function startMessages(
     node('[data-message-pending]')?.replaceChildren();
     if (mounted) delete mounted.dataset['voicePeer'];
   }
-  async function sendPending(): Promise<void> {
+  async function sendPending(work: VaultWorkOptions = {}): Promise<void> {
     outgoing.beginTransfer();
     try {
-      await controller.sendPending();
+      await controller.sendPending(work);
     } catch (error: unknown) {
       outgoing.failTransfer();
       renderHistory();
@@ -1092,11 +1094,18 @@ export function startMessages(
     }
   }
   async function refreshChanges(work: VaultWorkOptions = {}): Promise<void> {
-    await refreshChangedSelected(work);
-    await refreshContacts();
-    await groups.refresh();
-    contactsMore();
-    await dailyTick();
+    for (const step of [
+      () => refreshChangedSelected(work),
+      () => refreshContacts(),
+      () => groups.refresh(),
+      async () => {
+        contactsMore();
+        await dailyTick();
+      },
+    ]) {
+      if (!synchronization.continueChanges()) return;
+      await step();
+    }
   }
   async function refreshChangedSelected(
     work: VaultWorkOptions = {},

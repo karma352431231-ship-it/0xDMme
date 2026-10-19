@@ -556,3 +556,38 @@ await test('interactive pin object reads retain fresh authority and both removal
   await opening;
   assert.equal(f.counts().removalChecks, 2);
 });
+
+await test('interactive pin persistence retains authority priority and cannot write after authority failure', async (t) => {
+  const f = await fixture(t, 0);
+  const failure = new Error('Fresh save authority refused');
+  t.mock.method(
+    f.access,
+    'withVault',
+    <T>(
+      _offline: boolean,
+      _work: (authority: VaultAuthority) => Promise<T>,
+      options?: VaultWorkOptions,
+    ) => {
+      assert.equal(options?.priority, 'interactive');
+      return Promise.reject(failure);
+    },
+  );
+  await assert.rejects(
+    f.sync.save(
+      {
+        change: {
+          version: 1,
+          entity: crypto.randomUUID(),
+          kind: 'contact',
+          parents: [],
+          label: 'Identidade para mensagens',
+        },
+        value: 'Synthetic pin',
+      },
+      { priority: 'interactive' },
+    ),
+    (error: unknown) => error === failure,
+  );
+  assert.equal(f.counts().requests, 0);
+  assert.equal(f.sync.pending, null);
+});

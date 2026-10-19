@@ -310,54 +310,62 @@ export class VaultSync {
     }
     return heads;
   }
-  async save(input: { change: VaultChange; value: string }): Promise<void> {
-    await this.run(async (authority) => {
-      await this.loadLocal(authority);
-      if (this.pending)
-        throw new Error('Há um rascunho cifrado. Retome ou descarte primeiro.');
-      if (!authority.offline) await this.pull(authority);
-      if (!this.complete)
-        throw new Error('Continue carregando o cofre antes de editar.');
-      for (const id of input.change.parents) {
-        if (this.isRemoved(id))
+  async save(
+    input: { change: VaultChange; value: string },
+    options: VaultWorkOptions = {},
+  ): Promise<void> {
+    await this.run(
+      async (authority) => {
+        await this.loadLocal(authority);
+        if (this.pending)
           throw new Error(
-            'A versão anterior foi removida. Crie uma nova versão deliberadamente.',
+            'Há um rascunho cifrado. Retome ou descarte primeiro.',
           );
-        const parent = this.entries.get(id);
-        if (
-          !parent ||
-          parent.change.entity !== input.change.entity ||
-          parent.change.kind !== input.change.kind
-        )
-          throw new Error('Versão anterior inválida para esta edição.');
-      }
-      const id = crypto.randomUUID();
-      const identity = {
-        accountId: authority.session.accountId,
-        id,
-        epoch: authority.epoch,
-      };
-      const key = await authority.key(authority.epoch);
-      const bytes = await sealBlock(key, identity, input.value);
-      const commit = await sealCommit({
-        unsigned: {
-          version: 1,
-          ...identity,
-          deviceId: authority.session.deviceId,
-          directory: authority.directory,
-          authorityRevision: authority.events.length,
-          sequence: this.state.sequence + 1,
-          previous: this.state.head,
-          block: { hash: await bytesHash(bytes), bytes: bytes.length },
-        },
-        change: input.change,
-        key,
-        sign: authority.sign,
-      });
-      await saveDraft(authority.session.accountId, { commit, bytes });
-      this.pending = { commit, bytes };
-      if (!authority.offline) await this.publish(authority);
-    });
+        if (!authority.offline) await this.pull(authority);
+        if (!this.complete)
+          throw new Error('Continue carregando o cofre antes de editar.');
+        for (const id of input.change.parents) {
+          if (this.isRemoved(id))
+            throw new Error(
+              'A versão anterior foi removida. Crie uma nova versão deliberadamente.',
+            );
+          const parent = this.entries.get(id);
+          if (
+            !parent ||
+            parent.change.entity !== input.change.entity ||
+            parent.change.kind !== input.change.kind
+          )
+            throw new Error('Versão anterior inválida para esta edição.');
+        }
+        const id = crypto.randomUUID();
+        const identity = {
+          accountId: authority.session.accountId,
+          id,
+          epoch: authority.epoch,
+        };
+        const key = await authority.key(authority.epoch);
+        const bytes = await sealBlock(key, identity, input.value);
+        const commit = await sealCommit({
+          unsigned: {
+            version: 1,
+            ...identity,
+            deviceId: authority.session.deviceId,
+            directory: authority.directory,
+            authorityRevision: authority.events.length,
+            sequence: this.state.sequence + 1,
+            previous: this.state.head,
+            block: { hash: await bytesHash(bytes), bytes: bytes.length },
+          },
+          change: input.change,
+          key,
+          sign: authority.sign,
+        });
+        await saveDraft(authority.session.accountId, { commit, bytes });
+        this.pending = { commit, bytes };
+        if (!authority.offline) await this.publish(authority);
+      },
+      { options },
+    );
   }
   private async publish(authority: VaultAuthority): Promise<void> {
     const pending = this.pending;

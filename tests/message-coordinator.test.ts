@@ -540,3 +540,39 @@ await test('a live change prioritizes the visible conversation recheck without p
     ],
   );
 });
+
+await test('a text saved during a live recheck transmits before unrelated maintenance, which resumes afterward', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const f = coordinatorFixture(t);
+  f.state.probeChanged = true;
+  await f.messages.openContact(peer('foreground'));
+  f.state.holdHistory = true;
+  f.state.holdGroups = true;
+  f.emit('changed');
+  t.mock.timers.tick(150);
+  await turn();
+  f.input.value = 'Send before unrelated updates';
+  f.submit();
+  await turn();
+  const before = f.calls.length;
+  f.state.holdHistory = false;
+  f.history.resolve();
+  await turn();
+  assert.ok(
+    f.calls.slice(before).includes('send-pending'),
+    'A saved user message must not wait for another maintenance owner.',
+  );
+  assert.ok(!f.calls.slice(before).includes('groups'));
+  assert.equal(
+    f.priorities.findLast((entry) => entry.operation === 'send')?.priority,
+    'interactive',
+  );
+  t.mock.timers.tick(1000);
+  await turn();
+  t.mock.timers.tick(150);
+  await turn();
+  assert.ok(f.calls.slice(before).includes('groups'));
+  f.state.holdGroups = false;
+  f.groupLoad.resolve();
+  await turn();
+});

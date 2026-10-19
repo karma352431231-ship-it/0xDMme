@@ -5,6 +5,7 @@ import {
   readDirectories,
 } from '../src/client/peer-identity/index.ts';
 import { VaultSync } from '../src/client/vault-sync/index.ts';
+import type { VaultWorkOptions } from '../src/client/vault-authority/index.ts';
 import type { VaultEntry } from '../src/client/vault-sync/index.ts';
 import { pinFor } from '../src/client/peer-identity/index.ts';
 import { groupParticipant } from './fixtures/group-participant.ts';
@@ -165,7 +166,8 @@ await test('preparação cede entre gravações de identidades sem perder o pin 
     isRemoved: () => false,
     refresh: () => Promise.resolve(),
     openMany: () => Promise.reject(new Error('Sem leitura neste teste.')),
-    save: () => {
+    save: (_input, options: VaultWorkOptions = {}) => {
+      assert.equal(options.priority, writes === 0 ? 'interactive' : undefined);
       writes++;
       abort.abort();
       return Promise.resolve();
@@ -173,7 +175,11 @@ await test('preparação cede entre gravações de identidades sem perder o pin 
   });
   for (const peer of peers)
     await identity.remember(peer.accountId, [peer.directory]);
-  await assert.rejects(identity.save(() => abort.signal.throwIfAborted()));
+  await assert.rejects(
+    identity.save(() => abort.signal.throwIfAborted(), {
+      priority: 'interactive',
+    }),
+  );
   assert.equal(writes, 1);
   await identity.save();
   assert.equal(writes, 2);

@@ -3079,3 +3079,17 @@ processing. It temporarily replaces outgoing microphone audio, restores the same
 live track, and records/analyzes no speech. It changes no normal capture policy,
 signaling authority or mandatory relay rule; lifecycle/deadline limits are in the
 voice-call contract. This remains diagnostic evidence, not audio acceptance.
+
+### User text transmission and maintenance ordering — 19 October 2026
+
+A bounded native-tab comparison and actual coordinator regression show a saved
+user text waiting behind unrelated automatic change-refresh steps. Yield between
+those owners to the queued text or requested conversation opening, keeping one
+coalesced probe to resume the remainder. Forward explicit queued-text interactive
+priority through fresh identity verification, pin persistence and publication;
+automatic transmissions retain maintenance priority. Preserve all authority,
+removal, SDK exclusivity, FIFO/durability/idempotency and resource limits.
+
+**Ponto importante:** contact/group/presence refresh may complete after the user
+text. Local admission is not a delivery acknowledgement or finite load acceptance.
+See [the loading contract](docs/BOOT_CONTATOS_CONVERSAS.md#saved-user-texts-precede-unrelated-maintenance--19-october-2026).

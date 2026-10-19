@@ -200,7 +200,10 @@ export class PeerIdentity {
     await this.remember(input.account, events);
     return events;
   }
-  async save(continueWork?: () => void): Promise<void> {
+  async save(
+    continueWork?: () => void,
+    options: VaultWorkOptions = {},
+  ): Promise<void> {
     const generation = this.generation;
     for (const [accountId, pin] of this.pending) {
       continueWork?.();
@@ -213,16 +216,19 @@ export class PeerIdentity {
             e.change.entity === accountId &&
             e.change.label === 'Identidade para mensagens',
         );
-      await this.sync.save({
-        change: {
-          version: 1,
-          entity: accountId,
-          kind: 'contact',
-          parents: previous.map((e) => e.commit.id),
-          label: 'Identidade para mensagens',
+      await this.sync.save(
+        {
+          change: {
+            version: 1,
+            entity: accountId,
+            kind: 'contact',
+            parents: previous.map((e) => e.commit.id),
+            label: 'Identidade para mensagens',
+          },
+          value: JSON.stringify({ accountId, pin }),
         },
-        value: JSON.stringify({ accountId, pin }),
-      });
+        options,
+      );
       this.guard(generation);
       this.pending.delete(accountId);
     }

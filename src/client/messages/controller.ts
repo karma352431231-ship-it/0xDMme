@@ -415,8 +415,8 @@ export class Messages {
     this.guard(generation);
     this.pinsGeneration = generation;
   }
-  async savePins(): Promise<void> {
-    await this.identities.save();
+  async savePins(options: VaultWorkOptions = {}): Promise<void> {
+    await this.identities.save(undefined, options);
   }
   private async history(
     c: {
@@ -720,39 +720,55 @@ export class Messages {
     await localPut(session.accountId, name, hash, 512);
   }
 
-  async sendPending(): Promise<void> {
+  async sendPending(options: VaultWorkOptions = {}): Promise<void> {
     if (!(await this.pending()).length) return;
     const generation = this.generation;
     let targets: string[] = [];
     // Opening a retained window defers the vault read, not identity validation
     // before distributing keys or publishing new ciphertext.
-    if (this.pinsGeneration !== generation) await this.loadPins();
+    if (this.pinsGeneration !== generation) await this.loadPins(options);
     this.guard(generation);
     // Persist the first trusted identity before distributing a room key or
     // accepting ciphertext. VaultSync owns a separate lock, so save outside it.
-    await this.access.withVault(false, async (a) => {
-      const page = await outboxPage<Outbox>(a.session.accountId);
-      targets = page.map((item) => item.name);
-      for (const peer of new Set(page.map((row) => row.value.peer)))
-        await this.history({ a, generation }, peer, null);
-    });
+    await this.access.withVault(
+      false,
+      async (a) => {
+        const page = await outboxPage<Outbox>(a.session.accountId);
+        targets = page.map((item) => item.name);
+        for (const peer of new Set(page.map((row) => row.value.peer)))
+          await this.history({ a, generation }, peer, null);
+      },
+      options,
+    );
     if (!targets.length) return;
-    await this.savePins();
+    await this.savePins(options);
     this.guard(generation);
-    await this.access.withVault(false, async (a) => {
-      this.guard(generation);
-      const api = (op: string, d: Record<string, unknown>) =>
-        messageApi(a, op, d, () => this.guard(generation));
-      const own = await this.recoverable(a, generation),
-        machine = await this.machine(a, generation);
-      try {
-        const page = await outboxPage<Outbox>(a.session.accountId, targets);
-        for (const { name, value } of page)
-          await this.sendOne({ a, api, own, machine, generation, name, value });
-      } finally {
-        machine.close();
-      }
-    });
+    await this.access.withVault(
+      false,
+      async (a) => {
+        this.guard(generation);
+        const api = (op: string, d: Record<string, unknown>) =>
+          messageApi(a, op, d, () => this.guard(generation));
+        const own = await this.recoverable(a, generation),
+          machine = await this.machine(a, generation);
+        try {
+          const page = await outboxPage<Outbox>(a.session.accountId, targets);
+          for (const { name, value } of page)
+            await this.sendOne({
+              a,
+              api,
+              own,
+              machine,
+              generation,
+              name,
+              value,
+            });
+        } finally {
+          machine.close();
+        }
+      },
+      options,
+    );
   }
   private async sendOne(context: {
     a: VaultAuthority;
