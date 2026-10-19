@@ -206,6 +206,32 @@ UPLOAD_LIFECYCLE_REVIEWED = '1c92c68fc1bacaae0dbbd5fd669827e7b75a2efe'
 # aggregated counters; all 92 migrations stay byte-identical.
 ACCOUNT_RANKING_GROWTH_BEFORE = '6d0645faede7709af13c7033a1ba2caa033853d0'
 ACCOUNT_RANKING_GROWTH_REVIEWED = 'f3de52a96c0a3a6a224d53e69842e0d368336355'
+# Owner requested this release on 19/10/2026. Exact code-only change: only the text of
+# error reasons and labels differs; the syntax of every module is otherwise identical
+# and all 92 migrations stay byte-identical.
+SOURCE_TEXT_BEFORE = '29873898f51161a9ff0776f71e94a15721da79e8'
+SOURCE_TEXT_REVIEWED = 'f994fd6eef061aaba564d5520ff8240f9c86c85f'
+SOURCE_TEXT_MODULES = frozenset({
+    'attachment-reservations.ts', 'attachments.ts', 'authentication.ts', 'backups.ts', 'calls.ts',
+    'communities.ts', 'community-address.ts', 'community-authority.ts', 'community-badges.ts',
+    'community-discovery.ts', 'community-discussion.ts', 'community-followers.ts',
+    'community-governance.ts', 'community-interactions.ts', 'community-media.ts',
+    'community-moderation.ts', 'community-names.ts', 'community-post-authority.ts',
+    'community-post-moderation.ts', 'community-post-tags.ts', 'community-posts.ts',
+    'community-preferences.ts', 'community-ranking.ts', 'community-upvotes.ts', 'contacts.ts',
+    'content-capacity.ts', 'daily.ts', 'devices.ts', 'group-admission.ts', 'group-daily.ts',
+    'group-matrix.ts', 'group-media.ts', 'group-message-updates.ts', 'group-messages.ts',
+    'group-quota.ts', 'group-retention.ts', 'groups.ts', 'matrix.ts', 'mention-admission.ts',
+    'message-index.ts', 'message-opening.ts', 'message-recovery.ts',
+    'message-removal-allocations.ts', 'messages.ts', 'personal-cleanup-allocations.ts',
+    'personal-cleanup-authority.ts', 'post-sharing.ts', 'profile-banners.ts',
+    'profile-descriptions.ts', 'profile-mutuals.ts', 'profile-notifications.ts',
+    'profile-ranking.ts', 'profile-social.ts', 'public-moderation-details.ts',
+    'public-moderation.ts', 'public-profile.ts', 'public-reports.ts', 'representatives.ts',
+    'social-cleanup-authority.ts', 'social-conversations.ts', 'social-crypto.ts', 'social-dm.ts',
+    'social-history.ts', 'social-matrix.ts', 'social-media.ts', 'social-read-receipts.ts',
+    'status-media.ts', 'status.ts', 'upload-admission.ts', 'vault-quota.ts', 'vault.ts',
+})
 # Measured signed feed/follower read correction; pin the full database trees.
 # All 91 migrations, write paths, timeouts and runtime remain exact.
 COMMUNITY_READER_BEFORE = 'ed30f83d47a3932e391d17a6ecde4031da9ab0ec'
@@ -450,6 +476,7 @@ def database_code_reviewed(candidate, live):
         ({'community-ranking.ts', 'post-ranking-signals.ts', 'post-share-clicks.ts',
           'profile-follower-counts.ts', 'profile-ranking.ts'},
          ACCOUNT_RANKING_GROWTH_BEFORE, ACCOUNT_RANKING_GROWTH_REVIEWED),
+        (set(SOURCE_TEXT_MODULES), SOURCE_TEXT_BEFORE, SOURCE_TEXT_REVIEWED),
     ]
     selected = next((review for review in reviews if changed == review[0]), None)
     if selected is None:
