@@ -155,7 +155,8 @@ export function contactList(value: unknown): ContactList {
   return value;
 }
 export interface AddressBookEntry extends WalletContact {
-  version: 1;
+  version: 1 | 2;
+  addedVia?: 'wallet' | 'invite';
   alias: string;
   accountId: string | null;
   identity: string | null;
@@ -163,9 +164,19 @@ export interface AddressBookEntry extends WalletContact {
   identityRevision: number;
   removed: boolean;
 }
+function addressBookFormat(
+  data: Record<string, unknown>,
+): Pick<AddressBookEntry, 'version' | 'addedVia'> {
+  if (data['version'] === 1) return { version: 1 };
+  const addedVia = data['addedVia'];
+  if (data['version'] === 2 && (addedVia === 'wallet' || addedVia === 'invite'))
+    return { version: 2, addedVia };
+  throw new Error('Contato privado inválido.');
+}
 export function addressBookEntry(value: unknown): AddressBookEntry {
   const data = object(value);
-  keys(data, [
+  const format = addressBookFormat(data);
+  const fields = [
     'version',
     'ecosystem',
     'address',
@@ -175,15 +186,16 @@ export function addressBookEntry(value: unknown): AddressBookEntry {
     'directory',
     'identityRevision',
     'removed',
-  ]);
-  if (data['version'] !== 1 || typeof data['removed'] !== 'boolean')
+  ];
+  keys(data, format.version === 2 ? [...fields, 'addedVia'] : fields);
+  if (typeof data['removed'] !== 'boolean')
     throw new Error('Contato privado inválido.');
   return {
     ...walletContact({
       ecosystem: data['ecosystem'],
       address: data['address'],
     }),
-    version: 1,
+    ...format,
     alias: displayName(data['alias']),
     accountId: data['accountId'] === null ? null : uuid(data['accountId']),
     identity: data['identity'] === null ? null : fingerprint(data['identity']),

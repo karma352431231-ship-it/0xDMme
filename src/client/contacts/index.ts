@@ -1,9 +1,7 @@
 import { t, translatedError } from '../../shared/i18n/index.ts';
 import type { AccountSession } from '../../shared/account/index.ts';
 import {
-  addressBookEntry,
   contactInvitationValue,
-  discoveryMode,
   invitationLink,
   readInvitation,
   walletContactFromAddress,
@@ -19,8 +17,7 @@ import { digest } from '../../shared/devices/index.ts';
 import type { VaultAccess } from '../vault-authority/index.ts';
 import type { VaultSync } from '../vault-sync/index.ts';
 import { QrCamera, renderQr } from '../device-qr/index.ts';
-import { AddressBook, incomingInvitation, walletKey } from './agenda.ts';
-import type { BookVersion } from './agenda.ts';
+import { AddressBook, incomingInvitation } from './agenda.ts';
 import { Contacts } from './controller.ts';
 import { ContactDirectory } from './directory.ts';
 import { directoryItems, renderDirectory } from './directory-view.ts';
@@ -35,6 +32,9 @@ import {
   selectContactTab,
 } from './view.ts';
 import { shortAddress } from '../appearance/index.ts';
+import { DiscoveryChoices } from './discovery-choices.ts';
+import { ContactSettings } from './contact-settings.ts';
+import { contactDraft } from './contact-draft.ts';
 export function startContacts(
   access: VaultAccess,
   sync: VaultSync,
@@ -46,18 +46,25 @@ export function startContacts(
   const contacts = new Contacts(access),
     book = new AddressBook(sync),
     directory = new ContactDirectory(sync);
+  const discovery = new DiscoveryChoices();
+  const contactSettings = new ContactSettings({
+    book,
+    sync,
+    run,
+    saved: async (contact) => {
+      await directory.saved(contact);
+      await options.saved?.(contact);
+    },
+  });
   let mounted: HTMLElement | null = null,
     busy = false,
     generation = 0,
     offset = 0;
   let status = t('Conecte e autorize o aparelho para sincronizar.');
-  let editing: BookVersion | null = null,
-    parents: string[] | undefined;
   let found: Peer | null = null,
     received: Invitation | null = null,
     invitePeer: Peer | null = null;
   let ownLink: string | null = null;
-  let prepared: AddressBookEntry | null = null;
   let camera: QrCamera | null = null;
   function node<T extends HTMLElement>(selector: string): T | null {
     return mounted?.querySelector<T>(selector) ?? null;
@@ -154,10 +161,7 @@ export function startContacts(
       renderQr(qr, ownLink, t('QR Code de convite para contato'));
   }
   function resetEditor(): void {
-    editing = null;
-    parents = undefined;
     found = null;
-    prepared = null;
     node<HTMLFormElement>('[data-book-form]')?.reset();
     const address = node<HTMLInputElement>('[data-book-address]');
     if (address) address.readOnly = false;
@@ -224,8 +228,7 @@ export function startContacts(
     if (sync.pending) await sync.retry();
     await contacts.snapshot();
     await directory.load();
-    const mode = node<HTMLSelectElement>('[data-contact-mode]');
-    if (mode) mode.value = contacts.state.mode;
+    discovery.value = contacts.state.mode;
     if (sync.complete)
       ownLink = await book.savedInvite(
         location.origin,
@@ -254,77 +257,37 @@ export function startContacts(
     renderDirectory({
       list,
       items: items.slice(offset, offset + 16),
-      versions: book.versions(),
-      sync,
-      peerRow,
       button,
-      edit,
+      ...(options.open ? { openChat: options.open } : {}),
+      openContact: (item) =>
+        contactSettings.open(
+          item.saved?.contact ?? {
+            version: 1,
+            ecosystem: item.peer!.ecosystem,
+            address: item.peer!.address,
+            alias: item.peer!.name,
+            accountId: item.peer!.accountId,
+            identity: null,
+            directory: null,
+            identityRevision: 0,
+            removed: false,
+          },
+        ),
     });
   }
-  async function edit(id: string, resolve: boolean): Promise<void> {
-    editing = await book.open(id);
-    parents = resolve
-      ? sync
-          .heads(editing.vault.change.entity)
-          .map((e) => e.commit.id)
-          .slice(0, 16)
-      : undefined;
-    const c = editing.contact;
-    for (const [selector, v] of [
-      ['[data-book-address]', c.address],
-      ['[data-book-alias]', c.alias],
-    ]) {
-      const n = node<HTMLInputElement | HTMLSelectElement>(selector ?? '');
-      if (n) n.value = v ?? '';
-    }
-    text(
-      '[data-book-title]',
-      resolve
-        ? t('Resolver contato: confira antes de salvar')
-        : t('Editar contato particular'),
-    );
-    text(
-      '[data-contact-discovery]',
-      t('Wallet {0}: {1}{2}{3}', [
-        c.ecosystem,
-        c.address,
-        c.identity ? t(' · referência de identidade guardada') : '',
-        c.removed ? t(' · removido da agenda ativa') : '',
-      ]),
-    );
-    status = resolve
-      ? t(
-          'Salvar preservará as versões anteriores e resolverá os ramos escolhidos.',
-        )
-      : t('Contato aberto apenas neste aparelho.');
-    openEditor('wallet');
-  }
-  function referenceContact(
-    wallet: AddressBookEntry | ReturnType<typeof walletContactFromAddress>,
-  ): AddressBookEntry | null {
-    if (editing) return editing.contact;
-    return prepared && walletKey(prepared) === walletKey(wallet)
-      ? prepared
-      : null;
-  }
   function draft(): AddressBookEntry {
-    const wallet = walletContactFromAddress(value('[data-book-address]'));
-    const reference = referenceContact(wallet);
-    return addressBookEntry({
-      version: 1,
-      ...wallet,
+    const address = value('[data-book-address]');
+    return contactDraft({
+      address,
       alias: value('[data-book-alias]'),
-      accountId: reference?.accountId ?? null,
-      identity: reference?.identity ?? null,
-      directory: reference?.directory ?? null,
-      identityRevision: reference?.identityRevision ?? 0,
-      removed: false,
+      reference:
+        directory.find(walletContactFromAddress(address))?.contact ?? null,
     });
   }
   async function save(): Promise<void> {
     const contact = draft();
     const expected = generation;
-    await book.save(contact, editing, parents, () => {
+    await book.save(contact, null, undefined, () => {
       if (expected !== generation) throw new Error('Sessão alterada.');
     });
     if (expected !== generation) throw new Error('Sessão alterada.');
@@ -519,10 +482,7 @@ export function startContacts(
     await Promise.resolve();
   }
   async function configure(): Promise<void> {
-    await contacts.configure(
-      discoveryMode(value('[data-contact-mode]')),
-      contacts.state.inviteHash,
-    );
+    await contacts.configure(discovery.value, contacts.state.inviteHash);
     status = t(
       'Visibilidade aplicada no servidor. Contatos já aprovados foram preservados.',
     );
@@ -665,15 +625,13 @@ export function startContacts(
   };
   function clear(): void {
     generation++;
+    contactSettings.clear();
     camera?.stop();
     node<HTMLDialogElement>('[data-contact-editor]')?.close();
     node<HTMLDialogElement>('[data-contact-invites]')?.close();
     contacts.clear();
     directory.clear();
     ownLink = null;
-    editing = null;
-    prepared = null;
-    parents = undefined;
     found = null;
     invitePeer = null;
     mounted?.querySelectorAll<HTMLInputElement>('input').forEach((n) => {
@@ -780,25 +738,7 @@ export function startContacts(
       if (mounted?.isConnected) await refresh();
     },
     showContact(contact: AddressBookEntry): void {
-      resetEditor();
-      prepared = contact;
-      text('[data-book-title]', t('Editar contato particular'));
-      const address = node<HTMLInputElement>('[data-book-address]');
-      if (address) address.readOnly = true;
-      for (const [selector, value] of [
-        ['[data-book-address]', contact.address],
-        ['[data-book-alias]', contact.alias],
-      ]) {
-        const input = node<HTMLInputElement | HTMLSelectElement>(
-          selector ?? '',
-        );
-        if (input) input.value = value ?? '';
-      }
-      status = t(
-        'Salvar guarda o contato; pedir conversa continua sujeito ao aceite.',
-      );
-      render();
-      openEditor('wallet');
+      void run(() => contactSettings.open(contact));
     },
     setSession(session: AccountSession | null): void {
       const firstConnection = !contacts.session && session !== null;
@@ -810,6 +750,7 @@ export function startContacts(
     },
     canActivate: () =>
       !busy &&
+      !contactSettings.active &&
       !camera?.active &&
       !node<HTMLDialogElement>('[data-contact-editor]')?.open &&
       !node<HTMLDialogElement>('[data-contact-invites]')?.open &&
@@ -824,11 +765,12 @@ export function startContacts(
         '[data-book-alias]',
         '[data-book-search]',
         '[data-contact-received]',
-        '[data-contact-mode]',
       ].map((selector) => ({ selector, value: value(selector) }));
       camera?.stop();
       mounted = container;
       container.innerHTML = mode === 'settings' ? settingsTemplate : template;
+      discovery.mount(container);
+      contactSettings.mount(container);
       restoreForm(formValues);
       bindContactTabs(container);
       bindEditor();

@@ -11,7 +11,10 @@ import type { VaultAccess } from '../../src/client/vault-authority/index.ts';
 import type { VaultSync } from '../../src/client/vault-sync/index.ts';
 import { deferred } from './deferred.ts';
 import { updateChatComposer } from '../../src/client/chat-ui/index.ts';
-import { encodeDailyText } from '../../src/shared/daily/index.ts';
+import {
+  encodeDailyText,
+  decodeDailyText,
+} from '../../src/shared/daily/index.ts';
 
 // Real screen coordinator, scheduling, startup and wakeups. IO, media and DOM
 // projection are adapters; crypto and durable reuse have controller regressions.
@@ -121,6 +124,7 @@ export function coordinatorFixture(t: TestContext) {
     pageShow: (event: { persisted: boolean }) => void;
   };
   let publish: (rows: MessageView[] | null) => void = () => {};
+  let choose: (mode: 'reply' | 'edit', view: MessageView) => void = () => {};
   let clickPeer: (
     peer: Parameters<ReturnType<typeof startMessages>['openContact']>[0],
   ) => void = () => {};
@@ -188,7 +192,9 @@ export function coordinatorFixture(t: TestContext) {
   }
   fixture.MessageHistoryUi = function (options: {
     composerChanged: () => void;
+    actions: { choose: typeof choose };
   }) {
+    choose = options.actions.choose;
     return {
       ...base,
       render: () => options.composerChanged(),
@@ -234,6 +240,8 @@ export function coordinatorFixture(t: TestContext) {
   };
   fixture.updateChatComposer = updateChatComposer;
   fixture.encodeDailyText = encodeDailyText;
+  fixture.decodeDailyText = decodeDailyText;
+  fixture.dailyViews = () => [];
   fixture.Messages = function (
     _access: unknown,
     _sync: unknown,
@@ -404,6 +412,9 @@ export function coordinatorFixture(t: TestContext) {
     focus: noop,
   });
   const send = { disabled: true, hidden: false };
+  const cancelComposition = new EventTarget();
+  const compositionBar = { hidden: true };
+  const compositionLabel = { textContent: '' };
   const form = Object.assign(new EventTarget(), {
     dataset: {},
     querySelector: (selector: string) =>
@@ -423,14 +434,23 @@ export function coordinatorFixture(t: TestContext) {
     addEventListener: noop,
     querySelectorAll: () => [],
     querySelector: (selector: string) =>
-      selector === '[data-message-form]'
-        ? form
-        : selector === '[data-message-text]'
-          ? input
-          : ['.chat-panel', '[data-direct-conversation]'].includes(selector) ||
-              (selector === '[data-group-conversation]' && state.groupVisible)
-            ? panel
-            : null,
+      selector === '[data-compose-cancel]'
+        ? cancelComposition
+        : selector === '[data-compose-bar]'
+          ? compositionBar
+          : selector === '[data-compose-context]'
+            ? compositionLabel
+            : selector === '[data-message-form]'
+              ? form
+              : selector === '[data-message-text]'
+                ? input
+                : ['.chat-panel', '[data-direct-conversation]'].includes(
+                      selector,
+                    ) ||
+                    (selector === '[data-group-conversation]' &&
+                      state.groupVisible)
+                  ? panel
+                  : null,
   };
   const context = {
     fixture,
@@ -496,6 +516,10 @@ export function coordinatorFixture(t: TestContext) {
     drafts,
     input,
     send,
+    compositionBar,
+    choose: (mode: 'reply' | 'edit', view: MessageView) => choose(mode, view),
+    cancelComposition: () =>
+      cancelComposition.dispatchEvent(new Event('click')),
     submit: () => form.dispatchEvent(new Event('submit', { cancelable: true })),
     clickPeer: (peer: Parameters<typeof clickPeer>[0]) => clickPeer(peer),
     preferences: () => lifecycle.preferences(),

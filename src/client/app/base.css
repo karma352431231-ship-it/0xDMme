@@ -81,18 +81,6 @@ button:disabled {
   font-size: var(--fs-title);
   letter-spacing: -0.7px;
 }
-.test-badge {
-  margin-right: auto;
-  padding: 3px 8px;
-  border: 1px solid var(--warn);
-  border-radius: 999px;
-  color: var(--warn);
-  font-size: var(--fs-caption);
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  cursor: help;
-}
 .visually-hidden {
   position: absolute;
   width: 1px;

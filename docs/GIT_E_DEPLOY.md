@@ -1,5 +1,36 @@
 # 0xDMme — Git e envio à VPS
 
+## Contacts and private chat UI — activation authorized on 19 October 2026
+
+The owner superseded the earlier branch-only instruction with explicit main
+integration and VPS activation of commits
+`073131f872ec374ce57bb408a453a28fe743a20c` and
+`75d9e4149e0d5e494ab9b912547268d59eddcddf`, starting no earlier than
+19 October 2026 at 11:35:50 UTC (08:35:50 in Fortaleza). Deliver the stable contact
+directory, edit cancellation, discovery explanations, badge removal, private
+navigation avatar and dedicated contact settings. Preserve all newer integrated
+main work; do not include additional task-branch commits automatically.
+
+Reconstruct state, merge deliberately, run local verification, push main and
+require the complete successful push CI for that exact SHA. Use the existing
+`npm run deploy:check` and `npm run deploy:staging` from the clean, pushed
+integrated main checkout. Prepare the build locally; retain the current
+preservation fingerprints, own-service readiness, traffic limits, swap-off policy,
+public source/build verification and scoped rollback. Access and operational
+evidence stay only in the original checkout's ignored `.local/`. No new migration,
+operational flag, dependency/runtime or shared infrastructure change is authorized
+by this release.
+
+The owner explicitly authorized continuing after context compaction until VPS
+activation, following read-only reconstruction without a new confirmation. This
+does not waive any CI, preservation or material-conflict gate. Verify the active
+commit and health after activation, then pause the delivery automation so it
+cannot repeat publication.
+
+**Ponto importante:** newly added contacts use encrypted application data version
+2 and require an updated client. Preserve version-1 reads and do not reconstruct
+historical origins. This changes no cryptographic envelope or database schema.
+
 ## Reviewed account ranking growth release — 19 October 2026
 
 The owner asked for FOMO-style user rows and their activation. Reviewed source

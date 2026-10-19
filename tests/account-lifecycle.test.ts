@@ -272,6 +272,7 @@ function scope(options: {
     },
     document: Object.assign(new EventTarget(), {
       activeElement: null,
+      querySelectorAll: () => [],
       getElementById: (id: string) =>
         id === 'xdmme-wallet-approval-request' &&
         options.approvalDocument !== undefined

@@ -2,16 +2,33 @@ import { t } from '../../shared/i18n/index.ts';
 import type { ConversationAction, ConversationEntry } from './directory.ts';
 import { withMenuIcon } from '../menu-icons/index.ts';
 
+function actionSignature(
+  actions: readonly ConversationAction[] = [],
+): unknown[] {
+  return actions.map((action) => [
+    action.id,
+    action.label,
+    action.icon,
+    actionSignature(action.choices),
+  ]);
+}
+
 export function keepConversationMenu(
   current: ConversationEntry,
   entries: readonly ConversationEntry[],
 ): boolean {
   const next = entries.find(
-    (entry) => entry.id === current.id && !entry.hidden,
+    (entry) =>
+      entry.id === current.id && entry.kind === current.kind && !entry.hidden,
   );
-  if (!next || next.title !== current.title) return false;
+  if (
+    !next ||
+    next.title !== current.title ||
+    next.menuNote !== current.menuNote
+  )
+    return false;
   const signature = (entry: ConversationEntry) =>
-    JSON.stringify(entry.actions?.map((action) => [action.id, action.label]));
+    JSON.stringify(actionSignature(entry.actions));
   return signature(current) === signature(next);
 }
 
@@ -70,6 +87,12 @@ export class ConversationMenu {
   update(entries: readonly ConversationEntry[]): void {
     if (this.active && !keepConversationMenu(this.active, entries))
       this.close();
+    const active = this.active;
+    if (active)
+      this.active =
+        entries.find(
+          (entry) => entry.id === active.id && entry.kind === active.kind,
+        ) ?? null;
     this.disposeRows();
   }
   reset(): void {
@@ -141,20 +164,17 @@ export class ConversationMenu {
     });
   }
   /** Actions with choices swap the list for those choices and a way back. */
-  private renderActions(
-    list: HTMLElement,
-    actions: readonly ConversationAction[],
-    parent: readonly ConversationAction[] | null,
-  ): void {
+  private renderActions(list: HTMLElement, path: readonly string[] = []): void {
+    const actions = this.actionList(path);
     list.replaceChildren();
-    if (parent) {
+    if (path.length) {
       const back = document.createElement('button');
       back.type = 'button';
       back.className = 'menu-back';
       back.textContent = t('Voltar');
       withMenuIcon(back, 'back');
       back.addEventListener('click', () => {
-        this.renderActions(list, parent, null);
+        this.renderActions(list, path.slice(0, -1));
       });
       list.append(back);
     }
@@ -166,16 +186,27 @@ export class ConversationMenu {
       button.dataset['conversationAction'] = action.id;
       button.disabled = this.busy;
       button.addEventListener('click', () => {
-        if (action.choices) {
-          this.renderActions(list, action.choices, actions);
+        const current = this.actionList(path).find(
+          (value) => value.id === action.id,
+        );
+        if (!current || this.busy) return;
+        if (current.choices) {
+          this.renderActions(list, [...path, current.id]);
           list.querySelector<HTMLButtonElement>('button')?.focus();
           return;
         }
         this.close();
-        action.perform();
+        current.perform();
       });
       list.append(button);
     }
+  }
+  private actionList(path: readonly string[]): readonly ConversationAction[] {
+    return path.reduce<readonly ConversationAction[]>(
+      (actions, id) =>
+        actions.find((action) => action.id === id)?.choices ?? [],
+      this.active?.actions ?? [],
+    );
   }
   private open(entry: ConversationEntry, anchor: HTMLElement): void {
     if (this.busy || !entry.actions?.length) return;
@@ -196,7 +227,7 @@ export class ConversationMenu {
     const list = document.createElement('div');
     list.className = 'conversation-menu-actions';
     dialog.append(title, close, list);
-    this.renderActions(list, entry.actions, null);
+    this.renderActions(list);
     if (entry.menuNote) {
       const note = document.createElement('small');
       note.textContent = entry.menuNote;

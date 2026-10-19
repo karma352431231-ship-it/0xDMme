@@ -2,6 +2,10 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { knownPeerProfile } from '../src/client/messages/known-profile.ts';
 import { sealLocal } from '../src/client/message-storage/index.ts';
+import { PeerPhotos } from '../src/client/messages/peer-photos.ts';
+import type { ProfileCard } from '../src/client/message-profile/index.ts';
+import { ChatNode } from './fixtures/chat-dom.ts';
+import { deferred } from './fixtures/deferred.ts';
 import type { VaultAuthority } from '../src/client/vault-authority/index.ts';
 
 /** Read-only IDB contract; encrypted card opening uses the real implementation. */
@@ -110,4 +114,144 @@ await test('fotos privadas usam somente cartão recebido na conta atual; ausênc
     store(`profile:${id}`, divergent);
     await assert.rejects(knownPeerProfile(authority, peer), /divergente/u);
   }
+});
+
+await test('retained private photo hosts reuse the image and remove it after deletion or a failed current read', async (t) => {
+  const records = new Map<string, unknown>();
+  class PhotoNode extends ChatNode {
+    src = '';
+    isConnected = true;
+  }
+  const originals = ['document', 'indexedDB'].map(
+    (key) => [key, Object.getOwnPropertyDescriptor(globalThis, key)] as const,
+  );
+  Object.defineProperty(globalThis, 'document', {
+    configurable: true,
+    value: { createElement: (tag: string) => new PhotoNode(tag) },
+  });
+  Object.defineProperty(globalThis, 'indexedDB', {
+    configurable: true,
+    value: profileDatabase(records),
+  });
+  t.after(() => {
+    for (const [key, descriptor] of originals) {
+      if (descriptor) Object.defineProperty(globalThis, key, descriptor);
+      else Reflect.deleteProperty(globalThis, key);
+    }
+  });
+  t.mock.method(URL, 'createObjectURL', () => 'blob:private-fixture');
+  t.mock.method(URL, 'revokeObjectURL', () => {});
+  const photo = {
+    name: 'Fixture',
+    revision: 1,
+    photo: { bytes: new Uint8Array(4), type: 'image/png' },
+  } as ProfileCard;
+  let version = 0;
+  let fail = false;
+  let value: ProfileCard | null = photo;
+  let loads = 0;
+  const photos = new PeerPhotos({
+    scope: () => 'account',
+    load: () => {
+      loads++;
+      return fail
+        ? Promise.reject(new Error('Unreadable current card'))
+        : Promise.resolve(value);
+    },
+  });
+  const host = new PhotoNode();
+  host.textContent = 'FI';
+  const show = async () => {
+    records.set(
+      JSON.stringify(['account', 'profile-current:peer:false']),
+      String(version),
+    );
+    photos.show(
+      host as unknown as HTMLElement,
+      'peer',
+      new AbortController().signal,
+    );
+    await new Promise<void>((resolve) => setImmediate(resolve));
+  };
+  await show();
+  const image = host.querySelector('img');
+  assert.ok(image);
+  await show();
+  assert.equal(host.querySelector('img'), image);
+  assert.equal(loads, 1);
+  version++;
+  value = null;
+  await show();
+  assert.equal(host.querySelector('img'), null);
+  assert.equal(host.textContent, 'FI');
+  value = photo;
+  version++;
+  await show();
+  assert.ok(host.querySelector('img'));
+  fail = true;
+  version++;
+  await show();
+  assert.equal(host.querySelector('img'), null);
+  assert.equal(host.textContent, 'FI');
+  photos.clear();
+});
+
+await test('a late old private photo cannot overwrite the current deletion or a different account', async (t) => {
+  const records = new Map<string, unknown>();
+  class PhotoNode extends ChatNode {
+    src = '';
+    isConnected = true;
+  }
+  const originals = ['document', 'indexedDB'].map(
+    (key) => [key, Object.getOwnPropertyDescriptor(globalThis, key)] as const,
+  );
+  Object.defineProperty(globalThis, 'document', {
+    configurable: true,
+    value: { createElement: (tag: string) => new PhotoNode(tag) },
+  });
+  Object.defineProperty(globalThis, 'indexedDB', {
+    configurable: true,
+    value: profileDatabase(records),
+  });
+  t.after(() => {
+    for (const [key, descriptor] of originals) {
+      if (descriptor) Object.defineProperty(globalThis, key, descriptor);
+      else Reflect.deleteProperty(globalThis, key);
+    }
+  });
+  t.mock.method(URL, 'createObjectURL', () => 'blob:late-fixture');
+  t.mock.method(URL, 'revokeObjectURL', () => {});
+  const pending = deferred<ProfileCard | null>();
+  let first = true;
+  let scope = 'account';
+  const photos = new PeerPhotos({
+    scope: () => scope,
+    load: () => {
+      if (!first) return Promise.resolve(null);
+      first = false;
+      return pending.promise;
+    },
+  });
+  const host = new PhotoNode();
+  host.textContent = 'FI';
+  const element = host as unknown as HTMLElement,
+    signal = new AbortController().signal;
+  records.set(JSON.stringify([scope, 'profile-current:peer:false']), 'old');
+  photos.show(element, 'peer', signal);
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  records.set(JSON.stringify([scope, 'profile-current:peer:false']), 'deleted');
+  photos.show(element, 'peer', signal);
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  pending.resolve({
+    name: 'Old',
+    revision: 1,
+    photo: { bytes: new Uint8Array(4), type: 'image/png' },
+  });
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  assert.equal(host.querySelector('img'), null);
+  scope = 'other-account';
+  photos.show(element, 'peer', signal);
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  assert.equal(host.querySelector('img'), null);
+  photos.clear();
 });

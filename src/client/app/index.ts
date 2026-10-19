@@ -10,7 +10,7 @@ import {
 } from '../../shared/app-routes/index.ts';
 import { mountPublicSearch } from '../public-search/index.ts';
 import { startGroupEntrypoints } from './group-entrypoints.ts';
-import { paintAvatar, startAppearance } from '../appearance/index.ts';
+import { startAppearance } from '../appearance/index.ts';
 import { startPwa } from '../pwa/index.ts';
 import { updateBlockReason } from './update-readiness.ts';
 import { keepPageOnStrayDrop } from '../file-drop/index.ts';
@@ -316,7 +316,6 @@ const account = startAccount({
       label.textContent = session
         ? session.name || t('Conta conectada')
         : t('Conta não conectada');
-    railAvatar(session);
     if (profileSessionChanged(currentPage, profileAuthenticated, !!session)) {
       currentPage = '';
       route();
@@ -660,21 +659,6 @@ function renderConnection(): void {
         : t('Sessão conectada · abertura da conta em Perfil → Aparelhos')
       : t('Conexão disponível · nenhuma conta conectada')
     : t('Sem conexão · histórico salvo disponível neste aparelho');
-}
-
-/** Initials on the rail profile link; the photo stays in Perfil. */
-function railAvatar(session: AccountSession | null): void {
-  const avatar = document.querySelector<HTMLElement>('[data-rail-avatar]');
-  if (!avatar) return;
-  if (!session) {
-    avatar.textContent = '#';
-    delete avatar.dataset['tone'];
-    return;
-  }
-  paintAvatar(avatar, {
-    label: session.name || session.address,
-    seed: session.address,
-  });
 }
 
 function loadSessionExtras(accountId: string): void {

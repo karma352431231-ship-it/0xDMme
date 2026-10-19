@@ -25,7 +25,7 @@ export class DmComposition {
     cancel.type = 'button';
     cancel.textContent = t('Cancelar');
     cancel.addEventListener('click', () => {
-      this.clear();
+      this.cancel();
       changed();
     });
     bar.append(label, cancel);
@@ -48,6 +48,13 @@ export class DmComposition {
       this.text.dispatchEvent(new Event('input'));
       this.text.focus();
     }
+  }
+  cancel(): void {
+    if (this.target && this.text) {
+      this.text.value = '';
+      this.text.dispatchEvent(new Event('input'));
+    }
+    this.clear();
   }
   clear(): void {
     this.target = null;

@@ -20,20 +20,6 @@
   #app-shell .rail-spacer {
     flex: 1;
   }
-  #app-shell .rail-test {
-    margin-bottom: 10px;
-    padding: 8px 4px;
-    border: 1px solid color-mix(in srgb, var(--warn) 30%, transparent);
-    border-radius: 6px;
-    background: color-mix(in srgb, var(--warn) 10%, transparent);
-    color: var(--warn);
-    font: 600 9.5px/1 var(--font-mono);
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    writing-mode: vertical-rl;
-    transform: rotate(180deg);
-    cursor: help;
-  }
   #app-shell .rail-profile {
     display: grid;
     place-items: center;
@@ -55,7 +41,7 @@
     font-size: 12px;
     font-weight: 600;
   }
-  /* The rail carries the mark, the test notice, Atividade and Perfil. */
+  /* The rail carries the mark, activity and the private profile photo. */
   #app-shell .sidebar > :is(.brand-bar, .account) {
     display: none;
   }

@@ -27,8 +27,20 @@ async function remember(input: RequestContact): Promise<AddressBookEntry> {
   input.guard();
   if (prior && !prior.contact.removed) return prior.contact;
   const contact = prior
-    ? { ...prior.contact, removed: false }
-    : { ...agendaContact(input.peer), alias: input.alias || input.peer.name };
+    ? {
+        ...prior.contact,
+        version: 2 as const,
+        addedVia:
+          input.token === null ? ('wallet' as const) : ('invite' as const),
+        removed: false,
+      }
+    : {
+        ...agendaContact(input.peer),
+        version: 2 as const,
+        addedVia:
+          input.token === null ? ('wallet' as const) : ('invite' as const),
+        alias: input.alias || input.peer.name,
+      };
   await input.book.save(contact, prior, undefined, input.guard);
   input.guard();
   return contact;
