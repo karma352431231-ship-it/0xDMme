@@ -21,18 +21,13 @@ const post: CommunityPost = {
 };
 await test('a share click retries the same anonymous receipt after a lost acknowledgement', async (t) => {
   const bodies: string[] = [];
-  t.mock.method(
-    globalThis,
-    'fetch',
-    (url: string, options: RequestInit) => {
-      assert.equal(url, '/api/communities/share-clicks');
-      assert.equal(options.credentials, 'omit');
-      bodies.push(options.body as string);
-      if (bodies.length === 1)
-        throw new Error('Synthetic lost acknowledgement');
-      return Promise.resolve(Response.json({ accepted: true }));
-    },
-  );
+  t.mock.method(globalThis, 'fetch', (url: string, options: RequestInit) => {
+    assert.equal(url, '/api/communities/share-clicks');
+    assert.equal(options.credentials, 'omit');
+    bodies.push(options.body as string);
+    if (bodies.length === 1) throw new Error('Synthetic lost acknowledgement');
+    return Promise.resolve(Response.json({ accepted: true }));
+  });
   assert.equal(await countShareClick(post), true);
   assert.equal(bodies.length, 2);
   assert.equal(bodies[0], bodies[1]);

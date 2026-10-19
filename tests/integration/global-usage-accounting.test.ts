@@ -405,7 +405,7 @@ await test('statement global accounting preserves populated history and avoids p
     },
   );
   await t.test(
-    'all eighty-one sources preserve their original events with only statement accounting triggers',
+    'existing and new ranking sources retain statement accounting for all three write events',
     async () => {
       const actual = (
         await writer.query<{
@@ -418,7 +418,14 @@ await test('statement global accounting preserves populated history and avoids p
       ).rows;
       assert.deepEqual(
         actual,
-        sources.map(({ name, events }) => ({ name, events: events & ~1 })),
+        [
+          ...sources.map(({ name, events }) => ({ name, events: events & ~1 })),
+          ...[
+            'community_post_engagement',
+            'community_share_clicks',
+            'profile_ranking_state',
+          ].map((name) => ({ name, events: 28 })),
+        ].sort((a, b) => a.name.localeCompare(b.name)),
       );
     },
   );

@@ -451,6 +451,11 @@ await test('feed e discussão: elegibilidade, representantes, diversidade e árv
         await sql.query(
           'DELETE FROM hash_talk.community_discussion_participants',
         );
+        // Rollback-only replay: remove later ranking dependencies before
+        // recreating the historical discussion columns. Rollback restores them.
+        await sql.query(
+          'DROP TRIGGER profile_ranking_post_changed ON hash_talk.community_posts; DROP TRIGGER comment_received ON hash_talk.community_posts',
+        );
         await sql.query(
           'DROP TRIGGER community_ranking_discussion_visibility ON hash_talk.community_posts; DROP INDEX hash_talk.community_discussion_media_refs; DROP TABLE hash_talk.community_discussion_participants CASCADE; DROP FUNCTION hash_talk.prepare_discussion_visibility() CASCADE; DROP FUNCTION hash_talk.refresh_discussion_visibility() CASCADE; DROP FUNCTION hash_talk.discussion_media_blocked(uuid[]); DROP FUNCTION hash_talk.track_discussion_post() CASCADE; DROP FUNCTION hash_talk.adjust_discussion_contribution(uuid,uuid,integer); DROP FUNCTION hash_talk.track_discussion_participant(); ALTER TABLE hash_talk.community_posts DROP COLUMN discussion_participants, DROP COLUMN discussion_activity, DROP COLUMN discussion_blocked; DROP INDEX hash_talk.community_reply_first; DROP INDEX hash_talk.community_reply_votes',
         );

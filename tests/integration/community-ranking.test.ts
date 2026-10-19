@@ -667,47 +667,6 @@ await test('rankings: métricas exatas, votos agregados, eventos, recuperação 
     },
   );
   await t.test(
-    'vencimentos reais atualizam métricas e novidade sem evento nem fallback',
-    async () => {
-      const id = crypto.randomUUID();
-      ids.push(id);
-      await owner.operate('create', {
-        classification: { nsfw: false, topics: ['meme'] },
-        id,
-        meta: { name: 'Vencimento sintético', description: '', rules: '' },
-      });
-      const post = crypto.randomUUID();
-      await owner.operate('post-create', {
-        id,
-        post,
-        content: await rootPostContent(communities, id, 'Expiração da janela'),
-      });
-      await inspector.query(
-        "UPDATE hash_talk.community_posts SET created_at=date_trunc('milliseconds',clock_timestamp())-interval '24 hours'+interval '400 milliseconds' WHERE id=$1",
-        [post],
-      );
-      await inspector.query(
-        "UPDATE hash_talk.communities SET created_at=date_trunc('milliseconds',clock_timestamp())-interval '7 days'+interval '400 milliseconds' WHERE id=$1",
-        [id],
-      );
-      await refresh();
-      worker.start();
-      const until = Date.now() + 3000;
-      let expired = false;
-      while (!expired && Date.now() < until) {
-        const metrics = await inspector.query<{ expired: boolean }>(
-          "SELECT (metrics->'day'->'current'->>'contributions')::integer=0 AS expired FROM hash_talk.community_ranking_state WHERE community_id=$1",
-          [id],
-        );
-        expired = metrics.rows[0]!.expired;
-        if (!expired)
-          await new Promise<void>((resolve) => setTimeout(resolve, 20));
-      }
-      assert.equal(expired, true);
-      assert.ok(!(await page('new')).items.some((r) => r.community.id === id));
-    },
-  );
-  await t.test(
     'accounts and communities share bounded, published 24h/7d/30d receipt windows',
     async () => {
       const root = crypto.randomUUID();
@@ -921,6 +880,48 @@ await test('rankings: métricas exatas, votos agregados, eventos, recuperação 
         JSON.stringify(evidence, null, 2) + '\n',
       );
       t.diagnostic(JSON.stringify(evidence));
+    },
+  );
+  // Start deadline-driven work only after deterministic source/cache fixtures.
+  await t.test(
+    'vencimentos reais atualizam métricas e novidade sem evento nem fallback',
+    async () => {
+      const id = crypto.randomUUID();
+      ids.push(id);
+      await owner.operate('create', {
+        classification: { nsfw: false, topics: ['meme'] },
+        id,
+        meta: { name: 'Vencimento sintético', description: '', rules: '' },
+      });
+      const post = crypto.randomUUID();
+      await owner.operate('post-create', {
+        id,
+        post,
+        content: await rootPostContent(communities, id, 'Expiração da janela'),
+      });
+      await inspector.query(
+        "UPDATE hash_talk.community_posts SET created_at=date_trunc('milliseconds',clock_timestamp())-interval '24 hours'+interval '400 milliseconds' WHERE id=$1",
+        [post],
+      );
+      await inspector.query(
+        "UPDATE hash_talk.communities SET created_at=date_trunc('milliseconds',clock_timestamp())-interval '7 days'+interval '400 milliseconds' WHERE id=$1",
+        [id],
+      );
+      await refresh();
+      worker.start();
+      const until = Date.now() + 3000;
+      let expired = false;
+      while (!expired && Date.now() < until) {
+        const metrics = await inspector.query<{ expired: boolean }>(
+          "SELECT (metrics->'day'->'current'->>'contributions')::integer=0 AS expired FROM hash_talk.community_ranking_state WHERE community_id=$1",
+          [id],
+        );
+        expired = metrics.rows[0]!.expired;
+        if (!expired)
+          await new Promise<void>((resolve) => setTimeout(resolve, 20));
+      }
+      assert.equal(expired, true);
+      assert.ok(!(await page('new')).items.some((r) => r.community.id === id));
     },
   );
   await t.test(
