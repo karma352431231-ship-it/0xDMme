@@ -3186,3 +3186,10 @@ mantêm o bipe curto anterior. Continua gerado por Web Audio no aparelho, sem
 arquivo, dependência ou rede; preferência, agrupamento em três segundos e mute
 não mudam. Vale só com o app aberto: push com app fechado segue o som do
 sistema. Contrato em [notificações](docs/BLOCO_10_NOTIFICACOES_E_EXPERIENCIA.md).
+
+The combined build also crosses the frontend corresponding-source package's
+former 1,024-file guard. Its bounded count is now 2,048 files while the 24 MiB
+intermediate tar budget, exact incorporated inputs, license notices, explicit
+public selection and total deployment budgets remain unchanged. This is build
+packaging only; no user data, runtime dependency or shared infrastructure changes.
+See [the source packaging contract](docs/FONTES_FRONTEND.md).

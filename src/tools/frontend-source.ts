@@ -5,6 +5,8 @@ import { resolve, relative, sep } from 'node:path';
 import { promisify } from 'node:util';
 
 const execute = promisify(execFile);
+// File-count growth stays inside the existing 24 MiB expanded archive budget.
+const maximumSourceFiles = 2048;
 const authored = [
   'src/shared/i18n',
   'src/shared/app-routes',
@@ -206,7 +208,8 @@ async function collect(root: string, path: string): Promise<string[]> {
   const files: string[] = [];
   for (const entry of entries.sort()) {
     files.push(...(await collect(root, `${path}/${entry}`)));
-    if (files.length > 1024) throw new Error('Quantidade de fontes excedida.');
+    if (files.length > maximumSourceFiles)
+      throw new Error('Quantidade de fontes excedida.');
   }
   return files;
 }
@@ -272,7 +275,8 @@ export async function frontendSource(
     files.push(...(await dependencySources(root, path, inputs)));
   const included = new Set(files);
   verifyInputs(root, inputs, included);
-  if (included.size > 1024) throw new Error('Quantidade de fontes excedida.');
+  if (included.size > maximumSourceFiles)
+    throw new Error('Quantidade de fontes excedida.');
   // Explicit paths only: no repository-wide archive, shell, .local or backend.
   // Plain ustar: the same files without per-file extended metadata (macOS
   // xattrs, ACLs, sub-second times) or machine-specific owner names.

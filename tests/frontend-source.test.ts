@@ -32,7 +32,7 @@ await test('pacote portátil preserva fontes e licenças exatas, sem metadados p
   const execute = promisify(execFile);
   const { stdout: listed } = await execute('tar', ['-tzf', path]);
   const entries = listed.trim().split('\n');
-  assert.ok(entries.length <= 1024);
+  assert.ok(entries.length <= 2048);
   assert.ok(
     entries.every(
       (name) =>
@@ -48,6 +48,48 @@ await test('pacote portátil preserva fontes e licenças exatas, sem metadados p
     });
     assert.deepEqual(stdout, await readFile(join(root, source)));
   }
+});
+
+await test('source packaging preserves more than 1024 files and rejects an unbounded source tree', async (t) => {
+  const temporary = await mkdtemp(join(tmpdir(), '0xdmme-source-count-'));
+  t.after(() => rm(temporary, { recursive: true, force: true }));
+  const execute = promisify(execFile);
+  const path = join(temporary, 'source.tar.gz');
+  await writeFile(path, await frontendSource(process.cwd(), new Set()));
+  const { stdout: initial } = await execute('tar', ['-tzf', path]);
+  await execute('tar', ['-xzf', path, '-C', temporary]);
+  const initialCount = initial.trim().split('\n').length;
+  const dependency = 'node_modules/source-count-fixture';
+  let count = initialCount;
+  const grow = async (target: number) => {
+    while (count < target) {
+      const directory = join(
+        temporary,
+        dependency,
+        String(Math.floor(count / 128)),
+      );
+      await mkdir(directory, { recursive: true });
+      await writeFile(
+        join(directory, `${count}.js`),
+        `export const n = ${count};`,
+      );
+      count++;
+    }
+  };
+  await grow(1025);
+  const input = `${dependency}/${Math.floor(initialCount / 128)}/${initialCount}.js`;
+  await writeFile(path, await frontendSource(temporary, new Set([input])));
+  const { stdout: listed } = await execute('tar', ['-tzf', path]);
+  const names = listed.trim().split('\n');
+  assert.equal(new Set(names).size, 1025);
+  assert.ok(names.includes(input));
+  const { stdout: source } = await execute('tar', ['-xOzf', path, input]);
+  assert.equal(source, await readFile(join(temporary, input), 'utf8'));
+  await grow(2049);
+  await assert.rejects(
+    frontendSource(temporary, new Set([input])),
+    /Quantidade de fontes excedida/u,
+  );
 });
 
 await test('fontes maiores que 2 MiB são empacotadas e servidas sem relaxar o limite de outros assets', async (t) => {
