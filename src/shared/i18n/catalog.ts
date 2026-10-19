@@ -9,7 +9,7 @@ export const catalog: Record<string, readonly [string, string]> = {
     'Collecting activity; this period is not complete yet.',
     '正在收集活动数据；此时段的数据尚不完整。',
   ],
-  'ranking.received-summary': [
+  'ranking.received-summary {0} {1} {2} {3}': [
     '{0} views · {1} upvotes · {2} comments · {3} share clicks',
     '{0} 次浏览 · {1} 次赞 · {2} 条评论 · {3} 次分享点击',
   ],

@@ -206,7 +206,7 @@ export function receivedSummary(item: {
     notation: 'compact',
   });
   return t(
-    'ranking.received-summary',
+    'ranking.received-summary {0} {1} {2} {3}',
     [item.views, item.upvotes, item.comments, item.shares].map((n) =>
       format.format(n),
     ),
