@@ -368,7 +368,15 @@ export function startMessages(
     preloadGroups: (signal) => groups.synchronizeAll(signal),
     presence: dailyTick,
     refresh,
-    changes: refreshChanges,
+    changes: refreshChangedSelected,
+    changeMaintenance: [
+      () => refreshContacts(),
+      () => (groups.selected ? Promise.resolve() : groups.refresh()),
+      async () => {
+        contactsMore();
+        await dailyTick();
+      },
+    ],
     periodic: periodicMessages,
     periodicWork: periodicMessageWork,
     pending: () => controller.pending(),
@@ -1097,23 +1105,10 @@ export function startMessages(
       throw error;
     }
   }
-  async function refreshChanges(work: VaultWorkOptions = {}): Promise<void> {
-    for (const step of [
-      () => refreshChangedSelected(work),
-      () => refreshContacts(),
-      () => groups.refresh(),
-      async () => {
-        contactsMore();
-        await dailyTick();
-      },
-    ]) {
-      if (!synchronization.continueChanges()) return;
-      await step();
-    }
-  }
   async function refreshChangedSelected(
     work: VaultWorkOptions = {},
   ): Promise<void> {
+    if (groups.selected) return groups.refresh();
     const peer = selected;
     if (!peer || !conversationMounted('[data-direct-conversation]')) return;
     if (peer.localOnly) return refreshSelected();
@@ -1547,7 +1542,7 @@ export function startMessages(
   function bindMessageControls(): void {
     bind('[data-message-refresh]', () => {
       if (live.connected) {
-        void run(refreshChanges);
+        void run(() => refresh({ priority: 'interactive' }));
         return;
       }
       if (session && navigator.onLine) live.retry();

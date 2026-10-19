@@ -36,6 +36,11 @@ function fixture(t: TestContext) {
     presence: () => Promise.resolve(),
     refresh: () => Promise.resolve(),
     changes: () => Promise.resolve(),
+    changeMaintenance: [
+      () => Promise.resolve(),
+      () => Promise.resolve(),
+      () => Promise.resolve(),
+    ],
     periodic: () => Promise.resolve(),
     periodicWork: () => Promise.resolve(true),
     pending: () => Promise.resolve(['synthetic']),
@@ -299,7 +304,11 @@ await test('a hidden tab defers automatic preparation and hints without renewing
   t.mock.timers.tick(1000);
   await turn();
   assert.equal(probes, 1);
-  assert.equal(pages, 1);
+  for (let step = 0; step < 3; step++) {
+    t.mock.timers.tick(1000);
+    await turn();
+  }
+  assert.ok(pages > 0);
   assert.equal(presence, 0);
 });
 

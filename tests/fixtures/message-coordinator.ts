@@ -104,6 +104,7 @@ export function coordinatorFixture(t: TestContext) {
     liveCurrent: true,
     liveConnected: true,
     groupVisible: false,
+    groupSelected: false,
     groupPending: false,
     probeChanged: false,
     signals: [] as AbortSignal[],
@@ -317,7 +318,9 @@ export function coordinatorFixture(t: TestContext) {
   fixture.startGroups = () => ({
     ...base,
     entries: [],
-    selected: null,
+    get selected() {
+      return state.groupSelected ? { id: 'synthetic-group' } : null;
+    },
     next: null,
     removed: () => calls.push('groups-removed'),
     suspend: () => calls.push('suspend-groups'),

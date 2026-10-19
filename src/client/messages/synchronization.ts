@@ -1,5 +1,6 @@
 import { t, translatedError } from '../../shared/i18n/index.ts';
 import { AccountError } from '../../shared/account/index.ts';
+import { MessageWarmup } from './warmup.ts';
 import { HistoryPreparation } from './preparation.ts';
 import { LiveUpdates } from '../message-live/index.ts';
 import { ConversationOpening } from './opening.ts';
@@ -29,6 +30,11 @@ interface SynchronizationOperations {
   presence: () => Promise<void>;
   refresh: (work: VaultWorkOptions) => Promise<void>;
   changes: (work: VaultWorkOptions) => Promise<void>;
+  changeMaintenance: readonly [
+    () => Promise<void>,
+    () => Promise<void>,
+    () => Promise<void>,
+  ];
   periodic: () => Promise<void>;
   periodicWork: () => Promise<boolean>;
   pending: () => Promise<readonly unknown[]>;
@@ -39,6 +45,7 @@ interface SynchronizationOperations {
 export class MessageSynchronization {
   private readonly options: SynchronizationOperations;
   private readonly updates: LiveUpdates;
+  private readonly followup: MessageWarmup;
   private closed = false;
   private interactiveChange = false;
   private maintenance: Promise<void> | null = null;
@@ -68,14 +75,23 @@ export class MessageSynchronization {
             : {};
         this.interactiveChange = false;
         if (update === 'refresh') void this.run(() => options.refresh(work));
-        else void this.checkAutomatically(() => options.changes(work));
+        else void this.checkChanges(work);
       },
+    });
+    this.followup = new MessageWarmup({
+      available: () => this.backgroundReady,
+      run: (step) => this.background(step),
+      changed: () => this.resume(),
+      failed: (error) =>
+        this.report(error, t('Não foi possível concluir a operação.')),
+      steps: options.changeMaintenance,
     });
   }
   resume(work: VaultWorkOptions = {}): void {
     if (this.updates.waiting && this.options.state().visible)
       this.interactiveChange ||= work.priority === 'interactive';
     this.updates.resume();
+    this.followup.resume();
     this.schedulePreload();
   }
   prepareHistory(): void {
@@ -89,26 +105,14 @@ export class MessageSynchronization {
     this.automaticAttempts = 0;
     this.updates.request(update);
   }
-  /** Finish the current owner, then yield a multi-owner recheck to a saved
-   * user send, requested opening or newer visible live hint. Keep one coalesced
-   * hint for the remainder. */
-  continueChanges(): boolean {
-    const state = this.options.state();
-    if (
-      !(this.interactiveChange && state.visible) &&
-      !state.textPending &&
-      !this.opening.waiting
-    )
-      return true;
-    this.updates.request('probe');
-    return false;
-  }
   startRefresh(): void {
+    this.followup.reset();
     this.interactiveChange = false;
     this.updates.clear();
     this.lastTransferAttempt = Date.now();
   }
   reset(): void {
+    this.followup.reset();
     this.interactiveChange = false;
     this.cancelOpening();
     this.updates.clear();
@@ -149,7 +153,7 @@ export class MessageSynchronization {
     return this.opening.waiting;
   }
   get backgroundReady(): boolean {
-    return this.canSynchronize();
+    return this.canSynchronize() && !this.updates.waiting;
   }
   async background(work: () => Promise<void>): Promise<void> {
     await this.maintain(work, (error) => {
@@ -202,8 +206,7 @@ export class MessageSynchronization {
     this.busy = false;
     await this.openNext();
     this.options.status();
-    this.updates.resume();
-    this.schedulePreload();
+    this.resume();
   }
   stopPreload(): void {
     if (this.preloadTimer !== null) clearTimeout(this.preloadTimer);
@@ -302,6 +305,14 @@ export class MessageSynchronization {
     this.preparation.complete(turn, pending);
   }
 
+  private async checkChanges(work: VaultWorkOptions): Promise<void> {
+    const current = this.options.state().generation;
+    await this.checkAutomatically(async () => {
+      await this.options.changes(work);
+      if (this.current(current)) this.followup.queue();
+    });
+  }
+
   /** Automatic reads share the maintenance lock. An interactive operation can
    * reserve busy and wait for them instead of being rejected as another sync. */
   private async checkAutomatically(work: () => Promise<void>): Promise<void> {
@@ -346,8 +357,7 @@ export class MessageSynchronization {
       .finally(() => {
         this.maintenance = null;
         if (this.current(current)) this.options.status();
-        this.updates.resume();
-        this.schedulePreload();
+        this.resume();
       });
     await this.maintenance;
   }

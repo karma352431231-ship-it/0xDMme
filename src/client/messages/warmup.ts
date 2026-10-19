@@ -8,6 +8,7 @@ export class MessageWarmup {
   private timer: ReturnType<typeof setTimeout> | null = null;
   private next: number | null = null;
   private running = false;
+  private repeat = false;
   ready = false;
   get pending(): boolean {
     return this.next !== null || this.running;
@@ -17,7 +18,7 @@ export class MessageWarmup {
     run: (step: Step) => Promise<void>;
     failed: (error: unknown) => void;
     changed: () => void;
-    steps: readonly [Step, Step, Step, Step];
+    steps: readonly [Step, ...Step[]];
   };
   constructor(options: MessageWarmup['options']) {
     this.options = options;
@@ -31,7 +32,13 @@ export class MessageWarmup {
     this.next = 0;
     this.resume();
   }
+  /** Coalesce a burst without restarting owners already queued in this pass. */
+  queue(): void {
+    if (!this.pending) this.request();
+    else if (this.running || this.next !== 0) this.repeat = true;
+  }
   reset(): void {
+    this.repeat = false;
     this.ready = false;
     this.next = null;
     this.pause();
@@ -63,6 +70,10 @@ export class MessageWarmup {
       await this.options.run(step);
     } finally {
       this.running = false;
+      if (this.next === null && this.repeat) {
+        this.repeat = false;
+        this.next = 0;
+      }
       this.options.changed();
       this.resume();
     }

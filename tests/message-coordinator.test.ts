@@ -7,7 +7,7 @@ const turn = () => new Promise<void>((resolve) => setImmediate(resolve));
 async function finishStartupMaintenance(
   t: import('node:test').TestContext,
 ): Promise<void> {
-  for (let step = 0; step < 5; step++) {
+  for (let step = 0; step < 9; step++) {
     t.mock.timers.tick(1000);
     await turn();
   }
@@ -376,6 +376,8 @@ await test('suspensão efetiva cancela preparação e fecha a visão; retomada r
   f.emit('ready');
   t.mock.timers.tick(150);
   await turn();
+  t.mock.timers.tick(1000);
+  await turn();
   assert.ok(f.calls.slice(frozen).includes('contacts'));
   assert.ok(f.calls.slice(frozen).includes('live-start'));
 });
@@ -584,6 +586,12 @@ await test('a text saved during a live recheck transmits before unrelated mainte
   await turn();
   t.mock.timers.tick(150);
   await turn();
+  t.mock.timers.tick(1000);
+  await turn();
+  for (let step = 0; step < 3; step++) {
+    t.mock.timers.tick(1000);
+    await turn();
+  }
   assert.ok(f.calls.slice(before).includes('groups'));
   f.state.holdGroups = false;
   f.groupLoad.resolve();
@@ -599,6 +607,8 @@ await test('a newer visible live hint yields after current contacts before unrel
   f.state.holdGroups = true;
   f.emit('changed');
   t.mock.timers.tick(150);
+  await turn();
+  t.mock.timers.tick(1000);
   await turn();
   const before = f.calls.length;
   f.emit('changed');
@@ -654,7 +664,64 @@ await test('returning to visibility resumes pending startup maintenance without 
   await turn();
   assert.ok(!f.calls.includes('groups'));
   f.visibility('visible');
+  t.mock.timers.tick(150);
+  await turn();
   t.mock.timers.tick(1000);
   await turn();
   assert.ok(f.calls.includes('groups'));
+});
+
+await test('a reply after a verified live check is not trapped behind contacts or groups', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const f = coordinatorFixture(t);
+  f.state.probeChanged = true;
+  await f.messages.openContact(peer('quick-reply'));
+  f.state.holdContacts = true;
+  const before = f.calls.length;
+  f.emit('changed');
+  t.mock.timers.tick(150);
+  await turn();
+  assert.ok(f.calls.slice(before).includes('synchronize'));
+  assert.ok(!f.calls.slice(before).includes('contacts'));
+  f.input.value = 'Reply to the verified message';
+  f.submit();
+  await turn();
+  assert.ok(f.calls.slice(before).includes('send-pending'));
+  t.mock.timers.tick(150);
+  await turn();
+  t.mock.timers.tick(1000);
+  await turn();
+  for (let step = 0; step < 2; step++) {
+    t.mock.timers.tick(1000);
+    await turn();
+  }
+  assert.ok(f.calls.slice(before).includes('contacts'));
+  f.state.holdContacts = false;
+  f.contactLoad.resolve();
+  await turn();
+});
+
+await test('a selected group is checked before deferred directory maintenance', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const f = coordinatorFixture(t);
+  f.state.groupSelected = true;
+  f.state.groupVisible = true;
+  const before = f.calls.length;
+  f.emit('changed');
+  t.mock.timers.tick(150);
+  await turn();
+  assert.equal(
+    f.calls.slice(before).filter((call) => call === 'groups').length,
+    1,
+  );
+  assert.ok(!f.calls.slice(before).includes('contacts'));
+  for (let step = 0; step < 3; step++) {
+    t.mock.timers.tick(1000);
+    await turn();
+  }
+  assert.ok(f.calls.slice(before).includes('contacts'));
+  assert.equal(
+    f.calls.slice(before).filter((call) => call === 'groups').length,
+    1,
+  );
 });

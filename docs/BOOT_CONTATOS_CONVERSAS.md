@@ -1,5 +1,31 @@
 # Carregamento de contatos e conversas — 15/10/2026
 
+## Secondary change refresh yields between owners — 19 October 2026
+
+The b5b02d6 native comparison fails a reverse five-tab delivery: publication
+starts around4799ms and the receiver's next snapshot around7917ms. The transport
+queue adds at most122ms. Contacts/groups/presence continue to occupy the local
+maintenance owner after the verified conversation check; merely promoting focus
+priority does not release that owner.
+
+A live probe now verifies the selected direct conversation or group, then queues
+contacts, unselected groups and daily state separately through the existing
+bounded `MessageWarmup` scheduler. Each owner starts after its one-second grace
+and only when foreground work and live checks are absent. A reply can claim the
+foreground before the next owner. An already-running owner still settles; SDK
+operations never overlap. Initial startup retains its own lifecycle.
+
+Queued bursts retain at most one current pass and one coalesced repeat, preserving
+each owner's progress. Healthy idle creates no pass. Hidden pages defer these
+owners; reset, logout and close discard queued steps/repeats. The selected group
+is checked before directory maintenance and is not redundantly refreshed by its
+unselected-group stage. Removals still invalidate immediately and all current
+session, signed authority and final confirmation checks remain mandatory.
+
+**Ponto importante:** the former inline multi-owner change loop is removed. This
+changes scheduling, not accepted-message durability, authorization or retention.
+Native largest-width acceptance and publication still require their checks.
+
 ## Focus return prioritizes an already-pending check — 19 October 2026
 
 The normal native profile now opens all ten same-account tabs within20s and

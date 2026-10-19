@@ -3140,3 +3140,15 @@ only an already-coalesced pending history check; healthy focus creates no new
 request/polling. Use the existing bounded priority bit and retain all current
 verification/reset gates. **Ponto importante:** source scheduling checks do not
 accept largest-width delivery/recovery until the unchanged profile passes.
+
+### Yield secondary change owners after verified conversation work — 19 October 2026
+
+The native reverse five-tab miss persists atb5b02d6 despite a transport queue
+below122ms. Run the selected conversation/group check first, then queue contacts,
+unselected groups and daily state through the existing bounded maintenance
+scheduler, one owner per grace interval. Foreground sends and queued live checks
+precede the next owner; active SDK work still settles exclusively. Coalesce one
+current pass and one repeat, clear on reset, and defer hidden work. This supersedes
+the inline change loop while preserving fresh authority and immediate removals.
+**Ponto importante:** source regressions do not establish native latency or release
+acceptance. [Loading contract](docs/BOOT_CONTATOS_CONVERSAS.md#secondary-change-refresh-yields-between-owners--19-october-2026).

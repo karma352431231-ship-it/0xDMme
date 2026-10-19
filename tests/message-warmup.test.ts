@@ -101,3 +101,42 @@ await test('a failed maintenance adapter reports its error without an unhandled 
   await turn();
   assert.deepEqual(f.errors, [failure]);
 });
+
+await test('queued change maintenance coalesces bursts and preserves every owner before one bounded repeat', async (t) => {
+  const f = fixture(t);
+  f.warmup.queue();
+  for (let hint = 0; hint < 10; hint++) f.warmup.queue();
+  t.mock.timers.tick(1000);
+  await turn();
+  assert.deepEqual(f.calls, [0]);
+  for (let hint = 0; hint < 10; hint++) f.warmup.queue();
+  for (let step = 0; step < 7; step++) {
+    t.mock.timers.tick(1000);
+    await turn();
+  }
+  assert.deepEqual(f.calls, [0, 1, 2, 3, 0, 1, 2, 3]);
+  assert.equal(f.warmup.pending, false);
+  t.mock.timers.tick(10000);
+  await turn();
+  assert.equal(f.calls.length, 8);
+});
+
+await test('reset drops a queued maintenance repeat while an active owner settles', async (t) => {
+  const f = fixture(t),
+    held = deferred<void>();
+  f.operations.run = async (step) => {
+    await held.promise;
+    await step();
+  };
+  f.warmup.queue();
+  t.mock.timers.tick(1000);
+  await turn();
+  f.warmup.queue();
+  f.warmup.reset();
+  held.resolve();
+  await turn();
+  t.mock.timers.tick(10000);
+  await turn();
+  assert.equal(f.warmup.pending, false);
+  assert.deepEqual(f.calls, [0]);
+});
