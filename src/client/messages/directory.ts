@@ -1,56 +1,21 @@
 import { t, currentLanguage } from '../../shared/i18n/index.ts';
-import {
-  paintConversationAvatar,
-  releaseConversationAvatars,
-} from './directory-avatars.ts';
-import { displayName, paintAvatar } from '../appearance/index.ts';
 import { pingNotice } from '../ping/index.ts';
 import type { PingMood } from '../ping/index.ts';
-import { paintConversationPreview } from '../conversation-preview/index.ts';
-import type { ConversationPreview } from '../conversation-preview/index.ts';
-import { menuIcon } from '../menu-icons/index.ts';
-import type { MenuIconName } from '../menu-icons/index.ts';
-export interface DirectoryMenu {
-  update: (entries: readonly ConversationEntry[]) => void;
-  bind: (
-    row: HTMLElement,
-    entry: ConversationEntry,
-    trigger: HTMLButtonElement,
-  ) => void;
-}
-export type ConversationFilter =
-  'all' | 'unread' | 'favorites' | 'groups' | 'archived';
-export interface ConversationAction {
-  id: string;
-  label: string;
-  /** Leading glyph in the row menu, chosen by whoever offers the action. */
-  icon?: MenuIconName;
-  perform: () => void;
-  /** A second step in the same menu, such as the mute durations. */
-  choices?: readonly ConversationAction[];
-}
-export interface ConversationEntry {
-  id: string;
-  title: string;
-  detail: string;
-  kind: 'contact' | 'group';
-  /** Wallet address for contacts, so the avatar tone matches Contatos; defaults to the id. */
-  seed?: string;
-  avatar?: (host: HTMLElement, signal: AbortSignal) => void;
-  /** Shows the status ring; the row still opens the conversation. */
-  status?: boolean;
-  searchText: string;
-  selected: boolean;
-  open: () => void;
-  archived?: boolean;
-  pinned?: boolean;
-  favorite?: boolean;
-  unread?: number;
-  hidden?: boolean;
-  actions?: readonly ConversationAction[];
-  menuNote?: string;
-  preview?: ConversationPreview;
-}
+import { releaseConversationAvatars } from './directory-avatars.ts';
+import { ConversationRow } from './directory-row.ts';
+import type {
+  ConversationEntry,
+  ConversationFilter,
+  DirectoryMenu,
+} from './directory-types.ts';
+export type {
+  ConversationEntry,
+  ConversationFilter,
+  ConversationAction,
+  DirectoryMenu,
+} from './directory-types.ts';
+export { renderStatusStrip } from './directory-status.ts';
+
 export function filteredConversations(
   entries: readonly ConversationEntry[],
   filter: ConversationFilter,
@@ -69,7 +34,6 @@ export function filteredConversations(
         (b.preview?.sequence ?? 0) - (a.preview?.sequence ?? 0),
     );
 }
-
 export function matchingConversations(
   entries: readonly ConversationEntry[],
   query: string,
@@ -85,94 +49,101 @@ export function matchingConversations(
       .includes(term),
   );
 }
-
 export function conversationButton(
   entry: ConversationEntry,
 ): HTMLButtonElement {
-  const button = document.createElement('button');
-  button.type = 'button';
-  button.className = 'conversation-row';
-  button.dataset['conversation'] = entry.id;
-  button.setAttribute('aria-pressed', String(entry.selected));
-  const avatar = document.createElement('span');
-  avatar.className = `conversation-avatar ${entry.kind}`;
-  avatar.setAttribute('aria-hidden', 'true');
-  paintAvatar(avatar, { label: entry.title, seed: entry.seed ?? entry.id });
-  paintConversationAvatar(button, avatar, entry.avatar);
-  if (entry.status) {
-    avatar.classList.add('has-status');
-    avatar.title = t('Status ativo');
-  }
-  const text = document.createElement('span');
-  text.className = 'conversation-copy';
-  const title = document.createElement('strong');
-  title.textContent = displayName(entry.title);
-  if (title.textContent !== entry.title) title.title = entry.title;
-  const detail = document.createElement('small');
-  detail.textContent = entry.detail;
-  text.append(title, detail);
-  if (entry.preview) paintConversationPreview(text, entry.preview);
-  button.append(avatar, text);
-  if (entry.unread) {
-    const unread = document.createElement('span');
-    unread.className = 'conversation-unread';
-    unread.textContent = entry.unread > 99 ? '99+' : String(entry.unread);
-    unread.setAttribute(
-      'aria-label',
-      t('{0} mensagens não lidas', [entry.unread]),
-    );
-    button.append(unread);
-  }
-  button.addEventListener('click', entry.open);
-  return button;
+  const row = new ConversationRow(entry);
+  row.update(entry);
+  return row.button;
 }
+
+interface DirectoryState {
+  rows: Map<string, ConversationRow>;
+  empty: HTMLElement | null;
+  emptyProjection: string;
+}
+const directories = new WeakMap<HTMLElement, DirectoryState>();
 
 export function clearDirectory(host: HTMLElement): void {
   releaseConversationAvatars(host);
+  directories.delete(host);
   host.replaceChildren();
 }
-
-export function renderDirectory(
-  host: HTMLElement,
-  entries: readonly ConversationEntry[],
-  options: { menu?: DirectoryMenu; empty?: string; emptyMood?: PingMood } = {},
-): void {
-  options.menu?.update(entries);
+function directoryState(host: HTMLElement): DirectoryState {
+  let state = directories.get(host);
+  if (state) return state;
   clearDirectory(host);
-  for (const entry of entries) {
-    const button = conversationButton(entry);
-    if (!entry.actions?.length || !options.menu) {
-      host.append(button);
-      continue;
-    }
-    const row = document.createElement('div');
-    row.className = 'conversation-item';
-    button.setAttribute('aria-haspopup', 'dialog');
-    const trigger = document.createElement('button');
-    trigger.type = 'button';
-    trigger.className = 'conversation-menu-trigger';
-    // A drawn chevron stays centered; the old "⌄" glyph sat low in the circle.
-    trigger.append(menuIcon('chevron'));
-    trigger.setAttribute('aria-label', t('Opções de {0}', [entry.title]));
-    trigger.setAttribute('aria-haspopup', 'dialog');
-    row.append(button, trigger);
-    options.menu.bind(row, entry, trigger);
-    host.append(row);
-  }
-  if (entries.length) return;
+  state = { rows: new Map(), empty: null, emptyProjection: '' };
+  directories.set(host, state);
+  return state;
+}
+interface DirectoryOptions {
+  menu?: DirectoryMenu;
+  empty?: string;
+  emptyMood?: PingMood;
+}
+function updateEmpty(
+  host: HTMLElement,
+  state: DirectoryState,
+  options: DirectoryOptions,
+): void {
   const text =
     options.empty ??
     t(
       'Suas conversas aparecem aqui depois de adicionar um contato ou entrar em um grupo.',
     );
-  if (options.emptyMood) {
-    host.append(pingNotice(options.emptyMood, text, 'directory-empty'));
-    return;
+  const projection = JSON.stringify([text, options.emptyMood]);
+  if (state.empty && state.emptyProjection === projection) return;
+  state.empty?.remove();
+  state.empty = options.emptyMood
+    ? pingNotice(options.emptyMood, text, 'directory-empty')
+    : document.createElement('p');
+  if (!options.emptyMood) {
+    state.empty.className = 'directory-empty';
+    state.empty.textContent = text;
   }
-  const empty = document.createElement('p');
-  empty.className = 'directory-empty';
-  empty.textContent = text;
-  host.append(empty);
+  state.emptyProjection = projection;
+  host.append(state.empty);
+}
+function entryKey(entry: ConversationEntry): string {
+  return `${entry.kind}:${entry.id}`;
+}
+function removeMissing(
+  state: DirectoryState,
+  entries: readonly ConversationEntry[],
+): void {
+  const present = new Set(entries.map(entryKey));
+  for (const [key, row] of state.rows)
+    if (!present.has(key)) {
+      row.dispose();
+      state.rows.delete(key);
+    }
+}
+export function renderDirectory(
+  host: HTMLElement,
+  entries: readonly ConversationEntry[],
+  options: DirectoryOptions = {},
+): void {
+  const state = directoryState(host);
+  options.menu?.update(entries);
+  removeMissing(state, entries);
+  if (!entries.length) return updateEmpty(host, state, options);
+  state.empty?.remove();
+  state.empty = null;
+  const focused = document.activeElement as HTMLElement | null;
+  const ownedFocus = focused && host.contains(focused);
+  entries.forEach((entry, index) => {
+    const key = entryKey(entry),
+      row = state.rows.get(key) ?? new ConversationRow(entry);
+    state.rows.set(key, row);
+    row.update(entry, options.menu);
+    const before = host.children[index];
+    if (before === row.element) return;
+    if (before) host.insertBefore(row.element, before);
+    else host.append(row.element);
+  });
+  if (ownedFocus && focused.isConnected && document.activeElement !== focused)
+    focused.focus({ preventScroll: true });
 }
 
 /** Contacts whose status is active, newest list order; the row only links to Status. */
@@ -182,62 +153,4 @@ export function statusAuthors(
   return entries.filter(
     (entry) => entry.kind === 'contact' && entry.status && !entry.hidden,
   );
-}
-
-/** "Seu status" plus each contact with an active status, as in the mockup. */
-export function renderStatusStrip(
-  host: HTMLElement,
-  input: {
-    /** Own account id while its status is active; null shows "publish". */
-    ownActive: string | null;
-    authors: readonly ConversationEntry[];
-  },
-): void {
-  const own = statusTile(
-    input.ownActive
-      ? `#status?autor=${encodeURIComponent(input.ownActive)}`
-      : '#status',
-    t('Seu status'),
-    null,
-  );
-  own
-    .querySelector('.status-ring')
-    ?.classList.toggle('active', !!input.ownActive);
-  host.replaceChildren(
-    own,
-    ...input.authors.map((entry) =>
-      statusTile(
-        `#status?autor=${encodeURIComponent(entry.id)}`,
-        displayName(entry.title),
-        { label: entry.title, seed: entry.seed ?? entry.id },
-      ),
-    ),
-  );
-}
-
-function statusTile(
-  href: string,
-  label: string,
-  avatar: { label: string; seed: string } | null,
-): HTMLAnchorElement {
-  const tile = document.createElement('a');
-  tile.className = 'status-tile';
-  tile.href = href;
-  const ring = document.createElement('span');
-  ring.className = avatar ? 'status-ring active' : 'status-ring own';
-  ring.setAttribute('aria-hidden', 'true');
-  const face = document.createElement('span');
-  face.className = 'conversation-avatar';
-  if (avatar) paintAvatar(face, avatar);
-  else face.textContent = '+';
-  ring.append(face);
-  const name = document.createElement('span');
-  name.className = 'status-tile-name';
-  name.textContent = label;
-  tile.append(ring, name);
-  tile.setAttribute(
-    'aria-label',
-    avatar ? t('Ver status de {0}', [label]) : t('Seu status: publicar ou ver'),
-  );
-  return tile;
 }

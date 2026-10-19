@@ -17,6 +17,7 @@ export class PeerPhotos {
   >();
   /** Last resolved URL per contact, painted at once to avoid an initials flash. */
   private readonly shown = new Map<string, string>();
+  private readonly hosts = new WeakMap<PhotoHost, { initials: string }>();
   private scope: string | null = null;
   private readonly options: {
     scope: () => string | null;
@@ -35,27 +36,41 @@ export class PeerPhotos {
   ): void {
     if (signal.aborted) return;
     const scope = this.options.scope();
+    const request = {
+      initials: host.querySelector('img')
+        ? (this.hosts.get(host)?.initials ?? '')
+        : (host.textContent ?? ''),
+    };
+    this.hosts.set(host, request);
+    const current = () =>
+      this.hosts.get(host) === request &&
+      !signal.aborted &&
+      scope === this.options.scope() &&
+      host.isConnected;
+    const fallback = () => {
+      if (host.querySelector('img')) host.textContent = request.initials;
+    };
     const last = this.shown.get(peer);
+    if (scope !== this.scope) fallback();
     if (last && scope === this.scope) {
       paint(host, last);
       ready?.(last);
     }
     void this.url(peer).then(
       (url) => {
-        if (
-          signal.aborted ||
-          scope !== this.options.scope() ||
-          !host.isConnected
-        )
-          return;
+        if (!current()) return;
         if (url) this.shown.set(peer, url);
         else this.shown.delete(peer);
-        if (url && url !== last) paint(host, url);
+        if (url) paint(host, url);
+        else fallback();
         ready?.(url);
       },
       // Without a readable card the initials stay; nothing private is shown.
       () => {
-        if (!signal.aborted) ready?.(null);
+        if (!current()) return;
+        this.shown.delete(peer);
+        fallback();
+        ready?.(null);
       },
     );
   }
@@ -122,6 +137,7 @@ export class PeerPhotos {
 }
 
 function paint(host: PhotoHost, url: string): void {
+  if (host.querySelector<HTMLImageElement>('img')?.src === url) return;
   const image = document.createElement('img');
   image.src = url;
   image.alt = '';

@@ -1,5 +1,27 @@
 # Capacity audit follow-up — 16 October 2026
 
+## Stable contact directory — 19 October 2026
+
+The owner approved repairing the repeated contact-list rebuild observed in a
+35-second browser trace: eight full replacements triggered by presence, contact,
+group and last-message-preview updates. Preserve row/button/avatar identity for
+the same conversation, update changed fields, and move existing rows when their
+order changes. The status strip follows the same identity-preserving projection.
+Remove missing entries and invalidate row/photo work immediately on clear,
+navigation and session/authority changes. Private photos must still recheck the
+received card pointer/tombstone and remove stale photos after absence or failure.
+Keep current menu callbacks without rebuilding an unchanged open menu. Existing
+permission/snapshot checks, presence scheduling, E2EE and retention remain intact;
+there is no dependency, database, infrastructure or deployment change.
+
+The implementation belongs to the directory renderer, row, status and avatar
+lifecycles; do not grow or refactor the chat coordinator in this repair. See
+[the presentation contract](docs/UI_CONVERSAS.md#stable-contact-directory--19-october-2026).
+
+**Ponto importante:** this repairs the demonstrated DOM replacement. Native
+confirmation of the owner's visible flicker remains a post-publication retest;
+local synthetic verification is not physical-device acceptance.
+
 ## Profile publication outside history opening — 18 October 2026
 
 The assembled trace and real coordinator regression show explicit opening and

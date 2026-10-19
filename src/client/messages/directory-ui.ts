@@ -230,6 +230,7 @@ export class MessageDirectoryUi {
           .listLabel(group)
           .replace(group.title + ' · ', ''),
         kind: 'group',
+        avatarVersion: `${group.head}:${group.profileSequence ?? 0}`,
         avatar: (host, signal) =>
           showGroupDirectoryPhoto(
             host,

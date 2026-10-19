@@ -1,5 +1,56 @@
 # Conversas — revisão aprovada em 07/10/2026
 
+## Stable contact directory — 19 October 2026
+
+Presence, contact, group and last-message-preview refreshes project into existing
+conversation rows instead of clearing the entire list. Unchanged text, checks,
+unread badges, photos and status tiles keep their nodes. A changed field updates
+only its section; a changed order moves existing rows and preserves keyboard
+focus. Removed entries are disposed immediately, including their avatar work.
+The empty state also keeps its node until its translated presentation changes.
+
+Rows own their current entry and click handler. Menu bindings are refreshed with
+the latest entry; an unchanged open menu resolves its actions from the current
+projection, while removed entries or changed action availability close it.
+Group photos retain one observer per group head/profile sequence. Pause, clear,
+search close and session reset still release the existing photo lifecycles;
+later rendering restarts released work. Private contact photos continue checking
+their current local card pointer/tombstone, reuse the same image for the same
+resolved URL, and remove the image on confirmed absence or failed current reads.
+A superseded async photo read cannot overwrite a newer projection.
+
+Implementation is confined to directory projection and photo/menu lifecycles.
+The existing `messages/index.ts` coordinator remains a hotspot and is not changed:
+its later dedicated split should separate initialization/session lifecycle, then
+UI mounting, with startup, cancellation, recovery and authority regressions after
+each step. This repair introduces no new app text, protocol, backend, dependency,
+database, retention policy or deployment action.
+
+**Ponto importante:** preserving a row does not preserve removed authorization or
+a failed preview. Existing readers still determine what may be projected, and
+an explicit directory clear discards its row cache. The captured eight rebuilds
+are the regression target; acceptance of the visible effect on the owner's
+browser remains a real-device retest after publication.
+
+Local validation: lint, strict types, dependency boundaries/cycles, licenses,
+formatting, localization and all three builds passed. The application suite ran
+1,099 tests: 1,095 passed initially, three wallet cases hit their existing
+10-second deadlines, and one proof test lacked the artifacts that CI prepares
+before testing. Both wallet files passed their 41 tests in one serial recheck;
+the proof passed after the existing pinned-artifact preparation command. These
+isolated results do not turn the first full command into a clean run. The 318
+deployment and 51 evaluation tests passed with the supplied Python 3.12 runtime;
+the macOS system Python had rejected the existing safe extraction API. No test
+limits, tool configuration or unrelated application code changed.
+
+An isolated Chrome run used the real renderer, menus, private photo cache and
+IndexedDB with synthetic contacts at 320 and 1280 px in both official languages.
+All 68 assertions passed without page errors: eight unchanged refreshes removed
+zero rows, retained images/status tiles/focus, and kept current menu actions;
+reordering, partial updates, removal, photo deletion and explicit clear also
+passed. The source archive contains the new authored modules. This is local
+verification, with exact-commit CI and physical-browser acceptance still pending.
+
 ## Enquadramento e ampliação da foto privada — 15/10/2026
 
 > Atualização posterior de 15/10/2026: a DM pelo `@` passa a usar o mesmo visualizador de avatar e preserva a foto durante atualizações comuns. A edição de texto próprio foi autorizada também nesse contexto, substituindo a recusa histórica de edições registrada abaixo. Navegação e avisos usam execução serializada, invalidação imediata e preparação inicial reaproveitada na sessão; histórico já sincronizado consulta o snapshot autenticado e as remoções antes de usar sua cópia cifrada. O cursor versão 3 relê as novas ações uma vez. Identidade, chaves e consentimento continuam separados. [Matriz e contrato](PARIDADE_CHATS.md).

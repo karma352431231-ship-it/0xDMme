@@ -165,12 +165,14 @@ await test('directory shows the private group avatar and marks only the opened g
     assert.equal(edited.at(-1)?.address, peer.address);
     assert.equal(list.querySelectorAll('img').length, 1);
     assert.equal(list.querySelector('img')?.src, 'blob:private-group');
+    const photo = list.querySelector('img');
     selected = null;
     headerEdit.click();
     assert.equal(edited.length, 2);
     assert.equal(edited.at(-1)?.address, peer.address);
     ui.renderContacts();
     await settle();
+    assert.equal(list.querySelector('img'), photo);
     assert.deepEqual(
       entries.filter((entry) => entry.selected).map((entry) => entry.id),
       [peer.accountId],
@@ -179,7 +181,7 @@ await test('directory shows the private group avatar and marks only the opened g
     assert.equal(list.querySelectorAll('img').length, 0);
     clearDirectory(list);
   }
-  assert.equal(revoked.length, 4);
+  assert.equal(revoked.length, 2);
 });
 
 await test('opening a group publishes the resulting selection to the directory on success and failure', async (t) => {
