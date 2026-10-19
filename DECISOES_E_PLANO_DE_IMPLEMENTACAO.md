@@ -3105,3 +3105,13 @@ contact reads, encrypted agenda/removal checks, generation cancellation and SDK
 exclusivity. **Ponto importante:** the failed28.898s sixth-tab opening remains a
 failed measurement until a corrected finite comparison meets the original20s
 limit. [Loading contract](docs/BOOT_CONTATOS_CONVERSAS.md#first-directory-opening-retains-foreground-priority--19-october-2026).
+
+### Visible live requests and optional history preparation — 19 October 2026
+
+A regression confirms a visible interactive history hint was blocked by optional
+prefetch without requesting its existing cooperative release. Ask that lifecycle
+to yield, wait for its active SDK owner to settle, then run the coalesced fresh
+signed recheck at its original priority. Ordinary and hidden background hints keep
+their current wait/progress behavior. **Ponto importante:** no active SDK overlap,
+accepted-data expiry, authorization cache or cryptographic shortcut is introduced;
+this source correction alone is not finite latency acceptance.

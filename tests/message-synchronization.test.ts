@@ -461,3 +461,43 @@ await test('a queued visible-change recheck yields its priority if the page beco
   await turn();
   assert.deepEqual(priorities, [undefined]);
 });
+
+await test('a visible live-history request yields prefetch cooperatively and retains the signed recheck priority', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const f = fixture(t),
+    page = deferred<boolean>();
+  const signals: AbortSignal[] = [],
+    priorities: (string | undefined)[] = [];
+  f.options.preloadDirect = (signal) => {
+    signals.push(signal);
+    return page.promise;
+  };
+  f.options.changes = (work) => {
+    priorities.push(work.priority);
+    return Promise.resolve();
+  };
+  await f.sync.run(() => Promise.resolve());
+  t.mock.timers.tick(1000);
+  await turn();
+  const signal = signals[0];
+  assert.ok(signal);
+  f.sync.request('probe', { priority: 'interactive' });
+  assert.equal(
+    signal.aborted,
+    true,
+    'A foreground live recheck must request cooperative prefetch release',
+  );
+  t.mock.timers.tick(150);
+  await turn();
+  assert.equal(
+    priorities.length,
+    0,
+    'The active prefetch owner still settles before the recheck',
+  );
+  page.resolve(false);
+  await turn();
+  t.mock.timers.tick(150);
+  await turn();
+  assert.deepEqual(priorities, ['interactive']);
+  assert.deepEqual(f.notices, []);
+});

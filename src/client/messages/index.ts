@@ -306,6 +306,7 @@ export function startMessages(
       hideLiveHistory(event);
       const work: VaultWorkOptions =
         ['changed', 'removed'].includes(event) &&
+        selected !== null &&
         conversationVisible('[data-direct-conversation]')
           ? { priority: 'interactive' }
           : {};

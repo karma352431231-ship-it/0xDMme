@@ -80,6 +80,8 @@ export class MessageSynchronization {
     this.preparation.request();
   }
   request(update: LiveUpdate = 'refresh', work: VaultWorkOptions = {}): void {
+    if (work.priority === 'interactive' && this.options.state().visible)
+      this.stopPreload();
     this.interactiveChange ||= work.priority === 'interactive';
     this.prepareHistory();
     this.automaticAttempts = 0;

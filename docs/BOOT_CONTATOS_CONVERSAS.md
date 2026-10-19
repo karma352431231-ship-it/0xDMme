@@ -1,5 +1,23 @@
 # Carregamento de contatos e conversas — 15/10/2026
 
+## A visible live check releases optional prefetch — 19 October 2026
+
+The synchronization gate excludes a running optional history-preparation page.
+A normal background hint deliberately waits for that page, but the same gate
+also held a newer visible interactive history request. A regression demonstrates
+that the request never asked the existing prefetch lifecycle to yield.
+
+A visible interactive request now invokes that existing cooperative stop before
+coalescing its fresh signed check. The active page still settles and releases its
+SDK owner before the check runs; no overlapping SDK access or skipped authority,
+removal or final confirmation is permitted. A stopped page is not marked complete
+and preparation resumes later. Ordinary/hidden background hints keep their
+previous behavior and do not repeatedly cancel a page.
+
+**Ponto importante:** this changes scheduling of optional prefetch only. An empty
+live hint grants no content, and the failed8s measurements stay failed until a
+new assembled comparison meets the unchanged criterion. Calls are untouched.
+
 ## First directory opening retains foreground priority — 19 October 2026
 
 The ordinary native-tab comparison passes its five-tab bidirectional send/focus

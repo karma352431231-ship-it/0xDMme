@@ -262,28 +262,30 @@ await test('tela prepara mensagens sem clique; ready e retorno de aba não reini
   assert.equal(f.calls.filter((op) => op === 'initialize').length, 1);
 });
 
-await test('changed mantém a página em andamento; exclusão cancela e fecha imediatamente', async (t) => {
-  t.mock.timers.enable({ apis: ['setTimeout'] });
-  const f = coordinatorFixture(t);
-  f.state.holdPage = true;
-  f.messages.ready();
-  t.mock.timers.tick(150);
-  await turn();
-  await finishStartupMaintenance(t);
-  const signal = f.state.signals[0];
-  assert.ok(signal);
-  const before = f.calls.length;
-  f.emit('changed');
-  t.mock.timers.tick(150);
-  await turn();
-  assert.equal(signal.aborted, false);
-  assert.ok(!f.calls.slice(before).includes('abort-direct'));
-  f.emit('removed');
-  assert.equal(signal.aborted, true);
-  assert.ok(f.calls.includes('removed'));
-  f.page.resolve(false);
-  await turn();
-});
+for (const selected of [false, true])
+  await test(`a live hint yields prefetch only for a selected visible conversation; removal closes immediately: selected=${selected}`, async (t) => {
+    t.mock.timers.enable({ apis: ['setTimeout'] });
+    const f = coordinatorFixture(t);
+    if (selected) await f.messages.openContact(peer('selected-live'));
+    f.state.holdPage = true;
+    f.messages.ready();
+    t.mock.timers.tick(150);
+    await turn();
+    await finishStartupMaintenance(t);
+    const signal = f.state.signals[0];
+    assert.ok(signal);
+    const before = f.calls.length;
+    f.emit('changed');
+    t.mock.timers.tick(150);
+    await turn();
+    assert.equal(signal.aborted, selected);
+    assert.equal(f.calls.slice(before).includes('abort-direct'), selected);
+    f.emit('removed');
+    assert.equal(signal.aborted, true);
+    assert.ok(f.calls.includes('removed'));
+    f.page.resolve(false);
+    await turn();
+  });
 
 await test('abrir outra conversa marca sua leitura sem repetir a manutenção de todas as conversas', async (t) => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
