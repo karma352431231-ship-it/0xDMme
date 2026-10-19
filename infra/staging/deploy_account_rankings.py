@@ -8,7 +8,7 @@ import deploy_capacity_database as capacity
 import deploy_group_media_parts as parts
 
 BEFORE = 'ecda9eda2dc51000e64e125a623bfea40187d689'
-REVIEWED = '9e37459189a47292c4531989b9f99bd5e2c9f8ef'
+REVIEWED = '72711bad0ef90c1aaa8f5d5f7cc4606973e569ae'
 TABLES = capacity.TABLES
 NEW_TABLES = ('community_post_engagement', 'community_share_clicks',
               'profile_ranking_state', 'profile_ranking_entries')
