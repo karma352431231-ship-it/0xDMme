@@ -19,6 +19,26 @@ const peer = (accountId: string): Peer => ({
   name: 'Synthetic',
 });
 
+await test('opening a verified conversation does not await speculative SDK initialization', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const f = coordinatorFixture(t);
+  f.state.holdInitialization = true;
+  f.state.probeChanged = true;
+  f.messages.ready();
+  t.mock.timers.tick(150);
+  await turn();
+  const opening = f.messages.openContact(peer('foreground'));
+  await turn();
+  try {
+    assert.ok(f.calls.includes('synchronize'));
+    assert.ok(f.calls.includes('read'));
+    assert.ok(!f.calls.includes('initialize'));
+  } finally {
+    f.initialization.resolve();
+    await opening;
+  }
+});
+
 await test('consecutive Enter submissions remain enabled while a previous transmission is held', async (t) => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
   const f = coordinatorFixture(t);
@@ -92,7 +112,7 @@ await test('an automatic history recheck admits text while holding the network, 
 await test('a row clicked after publication opens before unrelated startup work', async (t) => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
   const f = coordinatorFixture(t);
-  f.state.holdInitialization = true;
+  f.state.holdContacts = true;
   f.messages.ready();
   f.preferences();
   await turn();
@@ -107,9 +127,9 @@ await test('a row clicked after publication opens before unrelated startup work'
   await turn();
   assert.ok(
     !f.calls.includes('select:chosen'),
-    'Never change the SDK selection during initialization',
+    'Never change the SDK selection during directory loading',
   );
-  f.initialization.resolve();
+  f.contactLoad.resolve();
   await turn();
   assert.ok(f.calls.includes('select:chosen'));
   assert.ok(f.calls.includes('open-panel'));
@@ -122,13 +142,13 @@ await test('a row clicked after publication opens before unrelated startup work'
 await test('rapid startup taps keep only the latest recipient', async (t) => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
   const f = coordinatorFixture(t);
-  f.state.holdInitialization = true;
+  f.state.holdContacts = true;
   f.messages.ready();
   t.mock.timers.tick(150);
   await turn();
   f.clickPeer(peer('first'));
   f.clickPeer(peer('last'));
-  f.initialization.resolve();
+  f.contactLoad.resolve();
   await turn();
   assert.ok(!f.calls.includes('select:first'));
   assert.ok(f.calls.includes('select:last'));
@@ -137,14 +157,14 @@ await test('rapid startup taps keep only the latest recipient', async (t) => {
 await test('the chosen conversation permits drafting while verification runs and sending before global warmups', async (t) => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
   const f = coordinatorFixture(t);
-  f.state.holdInitialization = true;
+  f.state.holdContacts = true;
   f.state.holdHistory = true;
   f.state.probeChanged = true;
   f.messages.ready();
   t.mock.timers.tick(150);
   await turn();
   f.clickPeer(peer('chosen'));
-  f.initialization.resolve();
+  f.contactLoad.resolve();
   await turn();
   assert.ok(f.calls.includes('open-panel'));
   assert.equal(f.input.disabled, false);
@@ -169,7 +189,7 @@ for (const outcome of ['logout', 'failure', 'navigation'] as const)
   await test(`a queued startup tap cannot open a conversation after ${outcome}`, async (t) => {
     t.mock.timers.enable({ apis: ['setTimeout'] });
     const f = coordinatorFixture(t);
-    f.state.holdInitialization = true;
+    f.state.holdContacts = true;
     f.messages.ready();
     t.mock.timers.tick(150);
     await turn();
@@ -177,9 +197,8 @@ for (const outcome of ['logout', 'failure', 'navigation'] as const)
     if (outcome !== 'failure') {
       if (outcome === 'logout') f.messages.setSession(null);
       else f.messages.leave();
-      f.initialization.resolve();
-    } else
-      f.initialization.reject(new Error('Synthetic initialization failure'));
+      f.contactLoad.resolve();
+    } else f.contactLoad.reject(new Error('Synthetic directory failure'));
     await turn();
     assert.ok(!f.calls.includes('select:stale'));
     assert.ok(!f.calls.includes('groups'));
@@ -191,6 +210,8 @@ await test('a user opening waits for one current maintenance step, not every sta
   f.state.holdGroups = true;
   f.messages.ready();
   t.mock.timers.tick(150);
+  await turn();
+  t.mock.timers.tick(1000);
   await turn();
   t.mock.timers.tick(1000);
   await turn();
@@ -234,6 +255,8 @@ await test('leaving cancels an opening already waiting for the current maintenan
   await turn();
   t.mock.timers.tick(1000);
   await turn();
+  t.mock.timers.tick(1000);
+  await turn();
   f.clickPeer(peer('cancelled'));
   f.messages.leave();
   f.groupLoad.resolve();
@@ -249,8 +272,9 @@ await test('tela prepara mensagens sem clique; ready e retorno de aba não reini
   f.emit('ready');
   t.mock.timers.tick(150);
   await turn();
-  assert.equal(f.calls.filter((op) => op === 'initialize').length, 1);
+  assert.equal(f.calls.filter((op) => op === 'initialize').length, 0);
   await finishStartupMaintenance(t);
+  assert.equal(f.calls.filter((op) => op === 'initialize').length, 1);
   assert.equal(f.calls.filter((op) => op === 'preload').length, 1);
   for (let index = 0; index < 3; index++) {
     f.visibility('hidden');
@@ -668,7 +692,7 @@ await test('returning to visibility resumes pending startup maintenance without 
   await turn();
   t.mock.timers.tick(1000);
   await turn();
-  assert.ok(f.calls.includes('groups'));
+  assert.ok(f.calls.includes('initialize'));
 });
 
 await test('a reply after a verified live check is not trapped behind contacts or groups', async (t) => {

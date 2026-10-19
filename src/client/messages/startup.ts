@@ -3,13 +3,13 @@ import { prepareMessageRuntime } from '../message-runtime/index.ts';
 interface DirectoryStartup {
   loadPins: () => Promise<void>;
   loadContacts: () => Promise<void>;
-  initialize: () => Promise<void>;
   guard: () => void;
   settled?: () => void;
 }
-/** Publish the authenticated directory while the public SDK downloads.
- * Message histories stay behind their existing verification gate. */
-export async function initializeMessageDirectory(
+/** Load the authenticated directory alongside the public runtime download.
+ * SDK/store preparation is scheduled separately. Each history and send keeps
+ * its own authority, identity, removal and final confirmation checks. */
+export async function loadMessageDirectory(
   operations: DirectoryStartup,
 ): Promise<void> {
   operations.guard();
@@ -23,8 +23,6 @@ export async function initializeMessageDirectory(
       throw error;
     }
   }
-  operations.guard();
-  await operations.initialize();
   operations.guard();
 }
 async function loadDirectory(operations: DirectoryStartup): Promise<void> {

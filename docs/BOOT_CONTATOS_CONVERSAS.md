@@ -452,3 +452,35 @@ de voz. Após a CI integral de `9be4698`, o proprietário pediu integrar à main
 ativar na VPS, substituindo a restrição anterior de entrega em branch. A ativação
 exige CI do commit integrado e confirmação operacional pelo executor existente,
 conforme [Git e deploy](GIT_E_DEPLOY.md#boot-de-contatos-e-conversas--ativação-autorizada-em-15102026).
+
+## Four-second opening and speculative SDK preparation — 19 October 2026
+
+The latest owner instruction replaces the 20-second opening threshold with
+4,000 ms from navigation to the app and usable, decrypted, currently confirmed
+selected history. Directory publication alone is insufficient. Earlier-history
+and multi-tab measurements must retain their declared boundaries and report
+misses explicitly; no previous 20-second result establishes this new target.
+
+The directory loader reads pins and bounded approved/archived contacts alongside
+the public runtime download. It no longer opens an SDK store or prepares recovery
+before yielding to a selected history. That speculative preparation is the first
+existing startup-maintenance step, with the same grace, visibility, reset and
+exclusive active-owner lifecycle. A missing packet still opens/prepares the SDK
+inside history verification; sends prepare recovery and SDK before publication.
+Every history keeps fresh authority, identity/removal checks and final confirmation.
+No authority/plaintext cache, SDK overlap, protocol, dependency, schema or retention
+change is introduced. Existing startup/runtime failures remain explicit.
+
+A coordinator regression with held SDK preparation must allow a selected history
+to finish its own checks before speculative preparation starts. Directory failure,
+logout/navigation cancellation, rapid recipient changes and a running maintenance
+owner remain covered by the existing coordinator tests. Runtime download failure
+still settles the active directory task and rejects startup. Finite native-browser
+and post-publication measurements are separate from these source checks.
+
+**Ponto importante:** the four-second target and full five-to-ten-tab behavior
+remain unaccepted until the measured candidate meets them. The message/app
+coordinators remain existing hotspots: separately extract session/identity first,
+then outbox/composition and history/view lifecycle, preserving cancellation,
+permissions, drafts, verified history and recovery tests. This change adds only
+scheduler wiring and removes eager initialization from the directory loader.

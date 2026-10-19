@@ -3152,3 +3152,27 @@ current pass and one repeat, clear on reset, and defer hidden work. This superse
 the inline change loop while preserving fresh authority and immediate removals.
 **Ponto importante:** source regressions do not establish native latency or release
 acceptance. [Loading contract](docs/BOOT_CONTATOS_CONVERSAS.md#secondary-change-refresh-yields-between-owners--19-october-2026).
+
+### Four-second opening and deferred SDK preparation — 19 October 2026
+
+The owner requires the app and its selected private history to open within
+4,000 ms. This supersedes the former 20,000 ms acceptance threshold; historical
+measurements retain their original limits and are not accepted under the new
+criterion. Five to ten same-browser tabs must support bidirectional messages,
+fresh history on activation, duplicate-free views and connection-owner departure.
+Database/storage acceptance remains closed within its already tested profiles.
+Integrate and publish only after the affected checks and exact integrated CI pass;
+physical-phone media follows, calls/TURN remain last, and audit closure requires
+all remaining evidence.
+
+Full SDK/store preparation now follows directory publication through the existing
+bounded startup maintenance scheduler. A user opening precedes that speculative
+step; an already active owner still settles exclusively. Histories open the SDK
+when a missing packet actually needs it; sending still prepares recovery and the
+SDK before ciphertext publication. Public runtime loading remains outside the
+authority lock. Fresh authority, identity pins, removals, final confirmation,
+outbox durability, cancellation and error reporting remain required.
+
+**Ponto importante:** this source scheduling change does not establish the
+4,000 ms opening target, five-to-ten-tab acceptance or publication. See
+[the loading contract](docs/BOOT_CONTATOS_CONVERSAS.md#four-second-opening-and-speculative-sdk-preparation--19-october-2026).

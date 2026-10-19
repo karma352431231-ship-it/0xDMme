@@ -1,6 +1,6 @@
 import { t, translatedError } from '../../shared/i18n/index.ts';
 import { MessageContinuity } from './continuity.ts';
-import { initializeMessageDirectory } from './startup.ts';
+import { loadMessageDirectory } from './startup.ts';
 import { MessageSynchronization } from './synchronization.ts';
 import { MessageWarmup } from './warmup.ts';
 import { TextSendQueue } from './text-send.ts';
@@ -416,6 +416,8 @@ export function startMessages(
       status();
     },
     steps: [
+      // Speculative SDK/store preparation must yield to a requested history.
+      () => controller.initialize(),
       async () => {
         await groups.refresh();
         contactsMore();
@@ -1080,10 +1082,9 @@ export function startMessages(
     );
     const work: VaultWorkOptions = { ...initialWork, ...requested };
     try {
-      await initializeMessageDirectory({
+      await loadMessageDirectory({
         loadPins: () => controller.loadPins(work),
         loadContacts: () => refreshContacts(false, initialWork),
-        initialize: () => controller.initialize(work),
         guard: () => {
           if (current !== generation) throw new Error('Sessão alterada.');
         },
