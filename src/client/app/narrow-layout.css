@@ -12,6 +12,17 @@
     grid-template-columns: 1fr;
   }
 }
+/*
+ * Between phone and wide layouts the sidebar is too narrow for the brand,
+ * badge and the Atividade/search icons on one line; they spilled over the
+ * page's top-left corner. Wrap them inside the sidebar instead (19/10/2026).
+ */
+@media (min-width: 701px) and (max-width: 1279px) {
+  .brand-bar {
+    flex-wrap: wrap;
+    row-gap: 10px;
+  }
+}
 @media (max-width: 700px) {
   .app {
     grid-template-columns: minmax(0, 1fr);

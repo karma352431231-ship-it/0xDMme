@@ -57,8 +57,9 @@
   font-weight: 600;
   text-decoration: none;
 }
+/* Left edge of the toolbar, as on a profile; the "⋯" menu stays right. */
 .community-tools > a.feed-back-link {
-  margin: 0;
+  margin: 0 auto 0 0;
 }
 .feed-back-link:hover,
 .feed-back-link:focus-visible {
